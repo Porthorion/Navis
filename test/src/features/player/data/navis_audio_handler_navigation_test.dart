@@ -448,6 +448,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
           ? DateTime.now().difference(_positionUpdated)
           : Duration.zero);
 
+  int simulatedInputBytesPerSecond = 0;
+
+  @override
+  Future<bool> get networkInputActive async => simulatedInputBytesPerSecond > 0;
+
   Duration simulatedBuffered = Duration.zero;
 
   @override
@@ -10013,14 +10018,19 @@ void main() {
       load: Duration(milliseconds: 300),
       seekBufferingRecovery: Duration(milliseconds: 150),
       seekProgress: Duration(milliseconds: 1200),
-      progressIdle: Duration(milliseconds: 200),
+      // Keep the scaled idle window above the 250 ms native sample cadence.
+      progressIdle: Duration(milliseconds: 300),
     );
 
     Future<
       (
         NavisAudioHandler,
         _ControllableAudioPlayer,
-        void Function({required bool growing, bool playerProgress}),
+        void Function({
+          required bool growing,
+          bool playerProgress,
+          bool bufferProgress,
+        }),
       )
     >
     fixture() async {
@@ -10089,16 +10099,23 @@ void main() {
       return (
         handler,
         player,
-        ({required bool growing, bool playerProgress = true}) {
+        ({
+          required bool growing,
+          bool playerProgress = true,
+          bool bufferProgress = false,
+        }) {
           receiving = growing;
-          bufferGrowing = growing && playerProgress;
+          player.simulatedInputBytesPerSecond = growing && playerProgress
+              ? 25000
+              : 0;
+          bufferGrowing = growing && bufferProgress;
         },
       );
     }
 
     for (final state in [ProcessingState.buffering, ProcessingState.ready]) {
       test(
-        'seek keeps advancing native buffer beyond load deadline in ${state.name}',
+        'seek keeps reading mpv input with frozen buffer beyond load deadline in ${state.name}',
         () async {
           final (handler, player, grow) = await fixture();
           await handler.replaceQueue([
@@ -10118,7 +10135,12 @@ void main() {
           });
           addTearDown(landed.cancel);
           final loads = player.sourceLoads;
-          await handler.seek(const Duration(seconds: 90));
+          final seeking = handler.seek(const Duration(seconds: 90));
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          expect(player.sourceLoads, loads);
+          expect(player.bufferedPosition, Duration.zero);
+          expect(player.playbackEvent.updatePosition, Duration.zero);
+          await seeking;
           final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
           expect(seek['recoveryAttempts'], 0);
           expect(seek['outcome'], 'completed');
@@ -10131,38 +10153,32 @@ void main() {
       );
     }
 
-    test(
-      'seek still recovers after native buffer progress becomes idle',
-      () async {
-        final (handler, player, grow) = await fixture();
-        await handler.replaceQueue([
-          'song-0',
-          'song-1',
-        ], expandMatchFlows: false);
-        grow(growing: true);
-        player
-          ..state = ProcessingState.buffering
-          ..ignoreSeeks = true
-          ..nativePositionFrozen = true;
-        final seek = handler.seek(const Duration(seconds: 90));
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-        expect(
-          (handler.collectPlaybackDiagnostics()['seek']!
-              as Map)['recoveryAttempts'],
-          0,
-        );
-        grow(growing: false);
-        player.nativePositionFrozen = false;
-        await seek;
-        expect(
-          (handler.collectPlaybackDiagnostics()['seek']!
-              as Map)['recoveryAttempts'],
-          1,
-        );
-      },
-    );
+    test('seek still recovers after mpv input becomes idle', () async {
+      final (handler, player, grow) = await fixture();
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      grow(growing: true);
+      player
+        ..state = ProcessingState.buffering
+        ..ignoreSeeks = true
+        ..nativePositionFrozen = true;
+      final seek = handler.seek(const Duration(seconds: 90));
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(
+        (handler.collectPlaybackDiagnostics()['seek']!
+            as Map)['recoveryAttempts'],
+        0,
+      );
+      grow(growing: false);
+      player.nativePositionFrozen = false;
+      await seek;
+      expect(
+        (handler.collectPlaybackDiagnostics()['seek']!
+            as Map)['recoveryAttempts'],
+        1,
+      );
+    });
 
-    test('seek gives up at hard cap despite advancing native buffer', () async {
+    test('seek gives up at hard cap despite active mpv input', () async {
       final (handler, player, grow) = await fixture();
       await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
       grow(growing: true);
@@ -10208,33 +10224,82 @@ void main() {
       );
     });
 
-    test('a seek releases an extended load before the hard cap', () async {
-      final (handler, player, grow) = await fixture();
-      final gate = Completer<void>();
-      final entered = Completer<void>();
-      player
-        ..loadGate = gate
-        ..loadEntered = entered
-        ..gateNonEmptyLoadsOnly = true;
-      addTearDown(() {
-        if (!gate.isCompleted) gate.complete();
+    for (final bufferProgress in [false, true]) {
+      test('same-song seek waits for a progressing cold start '
+          '(buffer progress $bufferProgress)', () async {
+        final (handler, player, grow) = await fixture();
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..loadGate = gate
+          ..loadEntered = entered
+          ..gateNonEmptyLoadsOnly = true;
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        final failures = <PlaybackLoadFailure>[];
+        final subscription = handler.loadFailureStream.listen(failures.add);
+        addTearDown(subscription.cancel);
+        grow(growing: true, bufferProgress: bufferProgress);
+        final loading = handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await entered.future;
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        final seeking = handler.seek(const Duration(seconds: 90));
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        expect(player.disposed, isFalse);
+        gate.complete();
+        await Future.wait([loading, seeking]);
+        expect(failures, isEmpty);
+        final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
+        expect(seek['outcome'], 'completed');
+        expect(seek['recoveryAttempts'], 0);
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(
+          (player.position - const Duration(seconds: 90)).abs(),
+          lessThan(const Duration(seconds: 1)),
+        );
       });
-      grow(growing: true);
-      final loading = handler.replaceQueue([
-        'song-0',
-        'song-1',
-      ], expandMatchFlows: false);
-      await entered.future;
-      await Future<void>.delayed(const Duration(milliseconds: 400));
-      expect(player.disposed, isFalse);
-      final seeking = handler.seek(const Duration(seconds: 90));
-      await Future<void>.delayed(const Duration(milliseconds: 500));
-      expect(player.disposed, isTrue);
-      final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
-      expect(seek['stage'], isNot('waiting for source'));
-      await loading;
-      await seeking;
-    });
+    }
+
+    for (final command in ['next', 'stop']) {
+      for (final extended in [false, true]) {
+        test('$command aborts a ${extended ? 'extended' : 'new'} load '
+            'within one check interval', () async {
+          final (handler, player, grow) = await fixture();
+          final gate = Completer<void>();
+          final entered = Completer<void>();
+          player
+            ..loadGate = gate
+            ..loadEntered = entered
+            ..gateNonEmptyLoadsOnly = true;
+          addTearDown(() {
+            if (!gate.isCompleted) gate.complete();
+          });
+          grow(growing: true, bufferProgress: true);
+          final loading = handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          await entered.future;
+          await Future<void>.delayed(
+            Duration(milliseconds: extended ? 600 : 100),
+          );
+          expect(player.disposed, isFalse);
+          final control = command == 'next'
+              ? handler.skipToNext()
+              : handler.stop();
+          // One 250 ms check plus scheduling/rebuild slack; below the old
+          // 500 ms check that first notices the scaled 300 ms deadline.
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          expect(player.disposed, isTrue);
+          await Future.wait([loading, control]);
+          if (command == 'stop') expect(handler.snapshot.playing, isFalse);
+        });
+      }
+    }
 
     for (final growing in [true, false]) {
       test('start ${growing ? 'keeps downloading past' : 'still fails at'} '
@@ -10532,7 +10597,7 @@ void main() {
     for (final growing in [true, false]) {
       test(
         'a seek still buffering at the load deadline '
-        '${growing ? 'waits while its buffer grows' : 'recovers when stuck'}',
+        '${growing ? 'waits while mpv input is active' : 'recovers when stuck'}',
         () async {
           final directory = await Directory.systemTemp.createTemp(
             'navis-seek-',
@@ -10562,21 +10627,14 @@ void main() {
           player
             ..state = ProcessingState.buffering
             ..nativePositionFrozen = true;
-          final fill = Timer.periodic(const Duration(milliseconds: 50), (_) {
-            if (growing) {
-              player.simulatedBuffered += const Duration(milliseconds: 500);
-            }
-          });
+          player.simulatedInputBytesPerSecond = growing ? 25000 : 0;
           final landed = Timer(const Duration(milliseconds: 900), () {
             player
               ..state = ProcessingState.ready
               ..simulatedPosition = player.simulatedPosition
               ..nativePositionFrozen = false;
           });
-          addTearDown(() {
-            fill.cancel();
-            landed.cancel();
-          });
+          addTearDown(landed.cancel);
           await handler.seek(const Duration(seconds: 90));
           final outcome = handler.collectPlaybackDiagnostics()['seek']! as Map;
           expect(outcome['recoveryAttempts'], growing ? 0 : 1);

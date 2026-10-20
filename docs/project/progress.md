@@ -17,9 +17,10 @@ Last updated: 2026-10-20
 - [ ] Issue #86, slow-stream seek settlement and song start — partial: 2026-10-20
   (`fix/seek-settlement`, remaining: coordinator runtime revalidation after
   review fixes, independent review and `./tool/check.sh`): native seeks and
-  song loads use native buffer growth and mobile lock-cache byte events to
-  extend the 12-second deadline while player-side data advances, with an
-  eight-second idle window and the existing 45-second hard cap. Recent growth
+  song loads use mpv input activity on desktop and native buffer growth/mobile
+  lock-cache byte events to extend the 12-second deadline while player-side
+  data advances, with an eight-second idle window and the existing 45-second
+  hard cap. Recent growth
   also defers the seek probe's premature missed-target/stall decision,
   including downloads below half complete. Desktop sidecar growth is excluded
   because that transfer runs independently of mpv. Cache-complete reloads,
@@ -68,6 +69,26 @@ Last updated: 2026-10-20
   or warnings; its 29 informational findings map to unchanged `HEAD` lines.
   The complete diff passes `git diff --check`. No app, emulator, VM or
   `./tool/check.sh` was run for this round, per the assigned scope.
+  Round 3: coordinator Linux evidence rejected round 2: mpv buffered position
+  froze during range probes, causing five recoveries in twelve seeks and a
+  cold-start seek timeout cascade. Desktop deadlines now sample mpv's own
+  `cache-speed` input rate through the existing native property bridge, at
+  most every 250 ms; desktop buffer and sidecar growth are excluded. A waiting
+  same-song seek preserves a progressing load; next/Stop retire a superseded
+  load on the next check, including before its original deadline. Android
+  lock-cache events, bounds, cache-complete/offset recovery and telemetry stay
+  intact. Tests were written first: `00:10 +3 -12: Some tests failed.`
+  Exact failures included `Expected: <0>` / `Actual: <1>` for frozen-buffer
+  seeks and `Expected: false` / `Actual: <true>` for both cold-start variants.
+  The mpv property is a network-layer estimate updated when demux reads return;
+  it can lag in blocking reads and is unavailable before demuxer publication.
+  Native slow-probe/cold-open coverage remains a coordinator runtime question.
+  The requested three-file run plus the two edited media_kit fixtures passed
+  `05:26 +628: All tests passed!` with `flutter test --concurrency=4`.
+  All eleven edited Dart files pass formatting; scoped analysis has no errors
+  or warnings and 27 existing informational findings on unchanged HEAD lines.
+  The complete diff passes `git diff --check`. No app, emulator, VM or full
+  gate was run, per the assigned scope; native acceptance remains open.
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one

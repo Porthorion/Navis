@@ -34,6 +34,18 @@ void main() {
   UriAudioSource plainSource() =>
       AudioSource.uri(Uri.parse('https://music.example.invalid/rest/b.view'));
 
+  test('input activity reads the current backend without activating an idle player', () async {
+    final player = newPlayer();
+    expect(await player.networkInputActive, isFalse);
+    expect(native.initializations, 0);
+    await player.setAudioSource(plainSource());
+    expect(await player.networkInputActive, isFalse);
+    native.player.inputActive = true;
+    expect(await player.networkInputActive, isTrue);
+    await player.dispose();
+    expect(await player.networkInputActive, isFalse);
+  });
+
   test('live radio can retain the default Android retry policy', () async {
     final player = newPlayer();
     await player.setAudioSource(
@@ -349,11 +361,15 @@ void main() {
 
 class _OffsetPlatform extends platform.JustAudioPlatform {
   late _OffsetPlayer player;
+  int initializations = 0;
 
   @override
   Future<platform.AudioPlayerPlatform> init(
     platform.InitRequest request,
-  ) async => player = _OffsetPlayer(request.id);
+  ) async {
+    initializations++;
+    return player = _OffsetPlayer(request.id);
+  }
 
   @override
   Future<platform.DisposeAllPlayersResponse> disposeAllPlayers(
@@ -368,6 +384,11 @@ class _OffsetPlatform extends platform.JustAudioPlatform {
 
 class _OffsetPlayer extends platform.AudioPlayerPlatform {
   new(super.id);
+
+  bool inputActive = false;
+
+  @override
+  Future<bool> get networkInputActive async => inputActive;
 
   /// While set, `concatenatingInsertAll` waits for it: the window in which
   /// the platform has not applied a playlist edit yet.

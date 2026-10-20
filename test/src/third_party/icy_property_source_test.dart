@@ -32,6 +32,17 @@ void main() {
     ]);
   });
 
+  test('reads mpv input rate without waiting for playback readiness', () async {
+    final native = _NativePlayer();
+    final source = NativeIcyPropertySource(native);
+    when(() => native.getProperty('cache-speed', waitForInitialization: false))
+        .thenAnswer((_) async => '187500');
+    expect(await source.read('cache-speed'), '187500');
+    verify(
+      () => native.getProperty('cache-speed', waitForInitialization: false),
+    ).called(1);
+  });
+
   test('non-native players have no ICY properties', () async {
     final source = NativeIcyPropertySource(null);
     await source.observe('metadata', (_) async {});

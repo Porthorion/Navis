@@ -81,6 +81,10 @@ abstract class AudioPlayerPlatform {
         'getEqualizerState() is unsupported by this backend.');
   }
 
+  /// Whether the backend reports recent input reads, before decoding.
+  /// Unsupported backends return false.
+  Future<bool> get networkInputActive async => false;
+
   /// A broadcast stream of playback events.
   Stream<PlaybackEventMessage> get playbackEventMessageStream {
     throw UnimplementedError(

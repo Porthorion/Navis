@@ -328,7 +328,12 @@ extension _NavisQueueLoading on NavisAudioHandler {
                   ? timeout
                   : _timeouts.seekProgress,
               bytes: _playerCacheBytesForSong(songId),
-              buffer: operationPlayer.bufferedPosition,
+              buffer: _isDesktopRuntime
+                  ? Duration.zero
+                  : operationPlayer.bufferedPosition,
+              readInputActive: _isDesktopRuntime
+                  ? () => operationPlayer.networkInputActive
+                  : null,
             )
           : null;
       final operationFuture = action();
@@ -431,21 +436,25 @@ extension _NavisQueueLoading on NavisAudioHandler {
     final elapsed = Stopwatch()..start();
     var done = false;
     final completed = operation.whenComplete(() => done = true);
-    final completion = completed.then<void>((_) {});
+    // Observe failures before awaiting the input sample; completed rethrows below.
+    final completion = completed.then<void>((_) {}, onError: (Object _) {});
     while (!done) {
-      // Cache events update an in-memory counter before a native buffer exists.
-      // Waiting commands reclaim the lane using the original load deadline.
       final now = elapsed.elapsed;
-      final current =
-          _isActiveLoadGeneration(generation) && _queueLane.pendingCount == 0;
-      if (current) {
-        progress.observe(
+      // A new song must retire this engine before its successor uses the lane.
+      if (!_isActiveLoadGeneration(generation)) {
+        throw TimeoutException('Native load superseded');
+      }
+      final canExtend =
+          _queueLane.pendingCount == 0 ||
+          (_queueLane.pendingCount == 1 && _pendingSeek?.songId == songId);
+      if (canExtend) {
+        await progress.observe(
           now,
           bytes: _playerCacheBytesForSong(songId),
-          buffer: player.bufferedPosition,
+          buffer: _isDesktopRuntime ? Duration.zero : player.bufferedPosition,
         );
       }
-      if (progress.expired(now) || (!current && now >= progress.initial)) {
+      if (progress.expired(now) || (!canExtend && now >= progress.initial)) {
         throw TimeoutException('Native load stalled');
       }
       await Future.any<void>([

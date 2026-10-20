@@ -15,6 +15,11 @@ implement the extension; unimplemented calls fail explicitly. Original system
 audio effects remain available to upstream callers, but Navis retires their
 experimental EQ/loudness UI and uses its own processing path.
 
+`AudioPlayer.networkInputActive` forwards the optional native input-activity
+signal from the current platform without activating an idle/disposed player.
+The media_kit adapter reads mpv's network input rate; other backends default
+to false and retain their existing lock-cache/buffer progress signals.
+
 `LockCachingAudioSource.originSupportsRangeRequests` exposes whether the
 origin's download response advertised byte ranges (null until it arrives).
 Navis uses it to decide whether a seek beyond the downloaded bytes can be

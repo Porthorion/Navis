@@ -4713,26 +4713,34 @@ native position: a playing request is settled once the position advances from
 the target, a paused one once it has held the target for 300 ms. Native
 buffering may probe several byte ranges before producing a packet, so it counts
 as activity during the initial load budget. Both seek settlement and native
-song loads share a progress deadline: native `bufferedPosition` growth and,
-on Android/iOS, received lock-cache bytes keep them waiting past the normal
-12-second load deadline, even when the cache is less than half done. Desktop
-progress uses the player's buffer, never the independent sidecar download:
-sidecar growth cannot suppress the existing short `missed target` and
-`no progress` checks for a frozen player. Recent player-side growth defers
-those checks. Once progress stops, an eight-second idle window
-(`NavisPlaybackTimeouts.progressIdle`) bounds the extension; the existing
-`seekProgress` budget caps each load or settlement probe at 45 seconds.
-With no growth, native loads retain their original deadline and seek probes
-retain their short stall checks. Lock-cache progress events update in-memory
-byte counters on every body chunk, including sub-percent and unknown-length
-transfers; deadline checks do not stat partial files. Native queue loads check
-these counters and the native buffer every 250 ms while awaiting the existing
-operation future. Controls, queue edits and radio retain their fixed timeouts.
-A superseded generation or waiting queue-lane command (including a seek waiting
-for its source) removes the load's extension: it releases the lane at its
-original deadline, or on the next check if that deadline has passed. Timeout
-failures report the actual elapsed time. When the desktop sidecar file completes
-first the seek probe stops and
+song loads share a progress deadline. Android/iOS use native
+`bufferedPosition` growth and received lock-cache bytes. Desktop uses the
+vendored `AudioPlayer.networkInputActive` getter: mpv's `cache-speed` (the same
+network-layer bytes/second estimate as `demuxer-cache-state/raw-input-rate`)
+read through media_kit's existing native property bridge. Positive input
+activity extends the wait even while decoded buffer and position are frozen;
+the independent sidecar and desktop buffered position cannot extend it.
+The property is sampled at most every 250 ms, without file I/O. mpv derives
+this rate from unbuffered stream reads before decoding, rather than packet
+queue size (`fw-bytes`/`total-bytes`). It is an estimate updated when demux reads
+return, can lag during a blocking read and is unavailable before mpv publishes
+the demuxer; it does not prove every cold-open/probe is progressing. See the
+[mpv property contract](https://mpv.io/manual/stable/#cache-speed) and
+[demux input accounting](https://github.com/mpv-player/mpv/blob/v0.41.0/demux/demux.c).
+Recent player-side activity defers premature seek stall/missed-target checks.
+An eight-second idle window (`NavisPlaybackTimeouts.progressIdle`) bounds the
+extension, with a 45-second `seekProgress` cap. With no input activity, native
+loads retain their 12-second deadline and seek probes retain their short
+stall checks. Lock-cache progress events update in-memory byte counters on
+every body chunk, including sub-percent and unknown-length transfers.
+Native queue loads check progress every 250 ms while awaiting the existing
+operation future. A pending seek for the loading song keeps the extension:
+it waits for the load to finish, then seeks. Other lane backlog retains the
+original load deadline. A superseded load generation (new selection/queue or
+Stop during loading) retires the old player on the next check, including
+before the initial deadline. Controls, queue edits and radio keep fixed
+timeouts. Timeout failures report the actual elapsed time. When the desktop
+sidecar file completes first the seek probe stops and
 the song is reloaded from it. Each probe that gives up records
 why (`missed target`, `no progress`, `cache complete`, `deadline`) with the
 state it saw in the seek's `unsettled` diagnostics. Each current

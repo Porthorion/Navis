@@ -186,7 +186,12 @@ class _PlaybackProgressDeadline {
     required this.hardCap,
     required int? bytes,
     required this._buffer,
+    this.readInputActive,
   }) : _bytes = bytes ?? 0;
+
+  final Future<bool> Function()? readInputActive;
+  Duration _nextInputCheck = Duration.zero;
+  bool _inputActive = false;
 
   final Duration initial;
   final Duration idle;
@@ -195,8 +200,18 @@ class _PlaybackProgressDeadline {
   Duration _buffer;
   Duration? _progressAt;
 
-  void observe(Duration now, {required int? bytes, required Duration buffer}) {
-    if ((bytes ?? 0) > _bytes || buffer > _buffer) _progressAt = now;
+  Future<void> observe(
+    Duration now, {
+    required int? bytes,
+    required Duration buffer,
+  }) async {
+    if (readInputActive != null && now >= _nextInputCheck) {
+      _inputActive = await readInputActive!();
+      _nextInputCheck = now + const Duration(milliseconds: 250);
+    }
+    if (_inputActive || (bytes ?? 0) > _bytes || buffer > _buffer) {
+      _progressAt = now;
+    }
     _bytes = bytes ?? 0;
     _buffer = buffer;
   }

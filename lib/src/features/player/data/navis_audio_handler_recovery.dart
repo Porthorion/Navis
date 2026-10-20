@@ -332,7 +332,10 @@ extension _NavisRecovery on NavisAudioHandler {
       idle: _timeouts.progressIdle,
       hardCap: _timeouts.seekProgress,
       bytes: _playerCacheBytesForSong(request.songId),
-      buffer: lastBuffer,
+      buffer: _isDesktopRuntime ? Duration.zero : lastBuffer,
+      readInputActive: _isDesktopRuntime
+          ? () => _player.networkInputActive
+          : null,
     );
     Duration? nearSince;
     Duration? nearPosition;
@@ -377,10 +380,10 @@ extension _NavisRecovery on NavisAudioHandler {
       // A decoder may probe several HTTP ranges before producing a packet, so
       // native buffering counts as activity: only a player that is not
       // buffering and neither moves nor fills is stalled.
-      progress.observe(
+      await progress.observe(
         now,
         bytes: _playerCacheBytesForSong(request.songId),
-        buffer: buffer,
+        buffer: _isDesktopRuntime ? Duration.zero : buffer,
       );
       if (buffer != lastBuffer ||
           position != lastPosition ||

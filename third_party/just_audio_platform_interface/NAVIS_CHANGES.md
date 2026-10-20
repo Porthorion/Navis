@@ -12,3 +12,7 @@ calculations are also used by the Linux mpv chain compiler.
 `ProgressiveAudioSourceOptionsMessage.androidUseDefaultLoadErrorHandling`
 serializes the radio opt-out from Navis's Android unknown-length VOD retry
 policy. It defaults to false; other platform adapters ignore the option.
+
+`AudioPlayerPlatform.networkInputActive` is an optional async getter for recent
+backend input activity before decoding. Its default false result leaves
+existing platform implementations unchanged; media_kit implements it with mpv.
