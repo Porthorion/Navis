@@ -2417,6 +2417,93 @@ def hold_case(fraction: float, repeat: str, album: bool, hold_s=35.0):
     return case
 
 
+def paused_spans(run: Run, t0: float, t1: float, minimum=1.0) -> list:
+    """Spans in [t0, t1] where the player was ready but not playing although playback was wanted."""
+    spans, start = [], None
+    for x in run.samples:
+        if not (t0 <= x['t'] <= t1):
+            continue
+        idle = x['proc'] == 'ready' and not x['playing'] and wanted_at(run, x['t'])
+        if idle and start is None:
+            start = x['t']
+        elif not idle and start is not None:
+            if x['t'] - start >= minimum:
+                spans.append((round(start, 1), round(x['t'], 1)))
+            start = None
+    if start is not None and t1 - start >= minimum:
+        spans.append((round(start, 1), round(t1, 1)))
+    return spans
+
+
+def case_chain_end(run: Run, env):
+    """Repeat off, album: four songs each seeked to 6 s before their end; every boundary must hand over
+    to the next song without a pause (setPauseAtEndOfMediaItems must not leak into normal playback)."""
+    ids = env.backend.fresh_album()
+    run.songs = [{'id': i} for i in ids]
+    rec = start_queue(run, ids)
+    await_audio(run, rec, ids[0])
+    gaps = []
+    for n in range(4):
+        cur = run.until(lambda s: s['songId'] == ids[n] and s['proc'] == 'ready' and s['playing'] and (s['pos'] or 0) > 500, 60) \
+            or run.last()
+        run.observe(3.0)
+        dur = run.last()['dur'] or 0
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            seek = issue_seek(run, pool, max(0, dur - 6000))
+            landed(run, seek)
+            finish_futures(run)
+        landed_t = run.now()
+        moved = run.until(lambda s, n=n: s['songId'] == ids[n + 1], 6 + run.deadlines['advance'] + 20)
+        if moved is None:
+            run.violations.append(violation('chainNoHandover', run.now(), f'song {n + 1} never handed over', run))
+            raise CaseAbort('no handover')
+        ok = run.until(lambda s, n=n, t=moved['t']: s['t'] >= t and s['songId'] == ids[n + 1] and s['playing']
+                       and s['proc'] == 'ready' and (s['pos'] or 0) > 1000, 12)
+        gaps.append(round(ok['t'] - moved['t'], 2) if ok else None)
+        if ok is None:
+            run.violations.append(violation('pausedAtSongEnd', moved['t'], f'song {n + 2} not playing 12 s after the handover', run))
+            raise CaseAbort('paused')
+        spans = paused_spans(run, landed_t, ok['t'] + 1)
+        if spans:
+            run.violations.append(violation('pausedAtSongEnd', spans[0][0], f'ready but not playing {spans}', run))
+    run.metrics['handoverGapsS'] = gaps
+    run.checks.append(lambda: oracle_sequence(run, ids, minimum=4))
+
+
+def case_repeat_switch_off(run: Run, env):
+    """Repeat-one, then repeat off shortly before the song's end: it must advance to the next song, playing."""
+    ids = env.backend.fresh_album()
+    run.songs = [{'id': i} for i in ids]
+    run.app.api('/v1/playback/repeat', {'mode': 'one'})
+    rec = start_queue(run, ids)
+    await_audio(run, rec, ids[0])
+    run.observe(4.0)
+    dur = run.last()['dur'] or 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        seek = issue_seek(run, pool, max(0, dur - 16000))
+        landed(run, seek)
+        finish_futures(run)
+    run.until(lambda s: s['songId'] == ids[0] and (s['pos'] or 0) >= dur - 10000, 30)
+    run.act('repeatOff')
+    run.app.api('/v1/playback/repeat', {'mode': 'none'})
+    t_off = run.now()
+    moved = run.until(lambda s: s['songId'] == ids[1], 25)
+    if moved is None:
+        run.violations.append(violation('switchOffNoAdvance', run.now(), f'still on song 1: {run.last()["pos"]}/{dur}', run))
+        raise CaseAbort('no advance')
+    ok = run.until(lambda s: s['t'] >= moved['t'] and s['songId'] == ids[1] and s['playing'] and s['proc'] == 'ready'
+                   and (s['pos'] or 0) > 1000, 12)
+    run.metrics['switchOff'] = {'offAtS': t_off, 'handoverAtS': moved['t'], 'playingAfterS': ok and round(ok['t'] - moved['t'], 2)}
+    if ok is None:
+        run.violations.append(violation('pausedAtSongEnd', moved['t'], 'song 2 not playing 12 s after the handover', run))
+    else:
+        run.observe(5.0)
+        spans = paused_spans(run, t_off, run.now())
+        if spans:
+            run.violations.append(violation('pausedAtSongEnd', spans[0][0], f'ready but not playing {spans}', run))
+    run.checks.append(lambda: oracle_sequence(run, ids, minimum=2))
+
+
 def case_offset_prev(run: Run, env):
     """Previous after an offset seek restarts the song at 0."""
     offset_case_prologue(run)
@@ -2463,6 +2550,8 @@ CASE_FUNCS = {
     'offset_natural': case_offset_natural,
     'offset_repeat_one': case_offset_repeat_one,
     'offset_prev': case_offset_prev,
+    'chain_end': case_chain_end,
+    'repeat_switch_off': case_repeat_switch_off,
     'base_repeat_one': case_base_repeat_one,
     'hold_off': hold_case(0.5, 'none', False),
     'hold_all': hold_case(0.5, 'all', True),
