@@ -19,5 +19,8 @@ trap 'rm -rf "${navis_classes}"' EXIT
 navis_source="${navis_root}/third_party/just_audio/android/src"
 "${navis_javac}" -d "${navis_classes}" \
   "${navis_source}/main/java/com/ryanheise/just_audio/EqualizerDsp.java" \
-  "${navis_source}/test/java/com/ryanheise/just_audio/EqualizerDspTest.java"
+  "${navis_source}/test/java/com/ryanheise/just_audio/EqualizerDspTest.java" \
+  "${navis_source}/main/java/com/ryanheise/just_audio/ProgressiveLoadRetry.java" \
+  "${navis_source}/test/java/com/ryanheise/just_audio/ProgressiveLoadRetryTest.java"
 "${navis_java}" -cp "${navis_classes}" com.ryanheise.just_audio.EqualizerDspTest
+"${navis_java}" -cp "${navis_classes}" com.ryanheise.just_audio.ProgressiveLoadRetryTest

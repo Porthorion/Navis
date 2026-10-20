@@ -39,6 +39,13 @@ Last updated: 2026-10-20
   with its edge-case tests (`docs/plans/Transcode_Offset_Seek_Plan.md`).
   `./tool/check.sh` passed; runtime pass with `tool/live_seek_stress.py` on
   Linux and the Android emulator against the live server.
+- [x] Issue #86, unknown-length Android stall replay — 2026-10-20 (PR #98,
+  `fix/stall-replay`): Media3 progressive load errors with unknown HTTP length
+  become fatal instead of restarting at byte zero; sized/ranged sources and
+  radio retain native retries. Handler recovery prefers the completed cache,
+  then transcode-offset seeking at the current song time, within the existing
+  retry budget. `./tool/check.sh` passed; emulator stall probe resumed in place
+  twice with no progress lost.
 - [x] Issue #86, frame unknown-length lock-cache proxy responses — 2026-10-19
   (`fix/proxy-response-framing`): restore chunked transfer encoding after the
   proxy clears response headers, and explicitly size empty HTTP 500 bodies at
