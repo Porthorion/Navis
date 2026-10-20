@@ -1000,10 +1000,16 @@ class Run:
         # An offset transcode (1.5.1) plays from native 0: the transport reports
         # time inside the stream, so add the source's positionOffset to get song time.
         offset = state.get('positionOffsetMs') or 0
+        player_position = state.get('playerPositionMs')
         if position is not None:
             position += offset
+            # At a song switch the raw transport still holds the previous item's native position
+            # (while the new item is not ready); the player's own song-time position is right then.
+            if (player_position is not None and state.get('processingState') != 'ready'
+                    and abs(position - player_position) > 10000):
+                position = player_position
         else:
-            position = state.get('playerPositionMs')
+            position = player_position
         sequence = native.get('sequenceIds') or []
         native_index = native.get('index')
         ui = state.get('uiPlayback') or {}
