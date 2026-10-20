@@ -2260,6 +2260,10 @@ def case_offset_repeat_one(run: Run, env):
         # counted as a metric; a request that starts after the loop is the loop re-requesting T.
         loop_w = run.w0 + wrapped['t']
         after_loop = [r for r in repeats if r['w'] >= loop_w - 1]
+        # f1b2c1df: the native restart briefly re-opens the offset URL and the reload from 0 cancels it within
+        # milliseconds (a tiny aborted body): record it, do not count it as the loop re-requesting T.
+        run.metrics['transientOffsetReopenAtLoop'] = [r for r in after_loop if r.get('end') == 'clientAborted' and (r.get('bytes') or 0) <= 65536 and r['w'] <= loop_w + 1.5]
+        after_loop = [r for r in after_loop if r not in run.metrics['transientOffsetReopenAtLoop']]
         run.metrics['timeOffsetRequestCount'] = len(repeats)
         run.metrics['timeOffsetRequestsAfterLoop'] = len(after_loop)
         if after_loop:
