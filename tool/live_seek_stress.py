@@ -1243,7 +1243,7 @@ def oracle_progress_loss(run: Run, drop_ms=2000) -> list[dict]:
         a, b = samples[i - 1], samples[i]
         if a['pos'] is None or b['pos'] is None or a['songId'] != b['songId'] or a['idx'] != b['idx']:
             continue
-        if a['pos'] - b['pos'] <= drop_ms:
+        if a['pos'] - b['pos'] <= drop_ms or a['proc'] != 'ready':  # a loading item still reports the previous song's position
             continue
         asked = ('seek', 'prev', 'jump', 'next')  # a 'start' has no end time: its window would hide a rewind seconds in
         if _requested_at(run, b['t'], asked) or _requested_at(run, b['t'] - 1.0, asked) or song_end_near(samples, i):
