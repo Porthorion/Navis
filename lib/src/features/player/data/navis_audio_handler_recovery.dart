@@ -145,6 +145,9 @@ extension _NavisRecovery on NavisAudioHandler {
       );
     }
     _checkSeekCurrent(seekRequest, token);
+    if (_isDesktopRuntime && seekRequest.recoveryAttempts > 0) {
+      throw StateError('Seek failed after source recovery.');
+    }
     seekRequest.recoveryAttempts = 1;
     seekRequest.stage = 'recovering';
     final fromFile = await _trySeekViaCompletedCacheFile(

@@ -10028,7 +10028,11 @@ void main() {
         void Function({required bool growing, bool bufferProgress}),
       )
     >
-    fixture({NavisPlaybackTimeouts timeouts = deadlines}) async {
+    fixture({
+      NavisPlaybackTimeouts timeouts = deadlines,
+      List<_ControllableAudioPlayer>? rebuiltPlayers,
+      Set<String>? hungLoadSongs,
+    }) async {
       final previousHttp = HttpOverrides.current;
       HttpOverrides.global = null;
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -10071,7 +10075,8 @@ void main() {
         2,
         sidecarStreams: true,
         readApiClient: () => api,
-        rebuiltPlayers: <_ControllableAudioPlayer>[],
+        rebuiltPlayers: rebuiltPlayers ?? <_ControllableAudioPlayer>[],
+        hungLoadSongs: hungLoadSongs,
         timeouts: timeouts,
       );
       addTearDown(() async {
@@ -10320,6 +10325,58 @@ void main() {
       );
     }
 
+    for (final retryFails in [false, true]) {
+      test(
+        'failed cold load with a pending seek ${retryFails ? 'fails over after retry' : 'retries at the target'}',
+        () async {
+          final rebuilt = <_ControllableAudioPlayer>[];
+          final hungSongs = <String>{};
+          final (handler, player, _) = await fixture(
+            rebuiltPlayers: rebuilt,
+            hungLoadSongs: hungSongs,
+          );
+          final gate = Completer<void>();
+          final entered = Completer<void>();
+          player
+            ..loadGate = gate
+            ..loadEntered = entered
+            ..gateNonEmptyLoadsOnly = true;
+          addTearDown(() {
+            if (!gate.isCompleted) gate.complete();
+          });
+          final loading = handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          await entered.future;
+          if (retryFails) hungSongs.add('song-0');
+          final seeking = handler.seek(const Duration(seconds: 90));
+          await Future.wait([loading, seeking]);
+          await settleQueue(handler);
+          expect(player.disposed, isTrue);
+          expect(rebuilt, hasLength(retryFails ? 2 : 1));
+          expect(
+            handler.snapshot.currentSongId,
+            retryFails ? 'song-1' : 'song-0',
+          );
+          expect(handler.snapshot.queueSongIds, ['song-0', 'song-1']);
+          expect(rebuilt.last.playing, isTrue);
+          expect(rebuilt.last.processingState, ProcessingState.ready);
+          if (!retryFails) {
+            expect(rebuilt.last.playedFrom, isNotEmpty);
+            expect(
+              (rebuilt.last.playedFrom.first - const Duration(seconds: 90))
+                  .abs(),
+              lessThan(const Duration(seconds: 1)),
+            );
+            final seek = handler.collectPlaybackDiagnostics()['seek']! as Map;
+            expect(seek['outcome'], 'completed');
+            expect(seek['recoveryAttempts'], 1);
+          }
+        },
+      );
+    }
+
     test('sidecar bytes cannot extend a seek recovery load deadline', () async {
       final (handler, player, grow) = await fixture(
         timeouts: const NavisPlaybackTimeouts(
@@ -10346,7 +10403,12 @@ void main() {
       final retiredAtDeadline = player.disposed;
       gate.complete();
       await seeking;
+      await settleQueue(handler);
       expect(retiredAtDeadline, isTrue);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(handler.snapshot.queueSongIds, ['song-0', 'song-1']);
+      expect(handler.snapshot.playing, isTrue);
+      expect(handler.snapshot.processingState, AudioProcessingState.ready);
       expect(
         (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
         'failed',

@@ -4732,7 +4732,9 @@ offset retain their fixed native load deadline while the same 250 ms loop
 continues checking cancellation. mpv input-rate APIs and sampling
 are absent. Progress only extends loading/buffering, with an eight-second idle
 window (`progressIdle`) and 45-second cap (`seekProgress`). No received bytes
-still means a 12-second native load deadline.
+still means a 12-second native load deadline. Sidecar bytes prove server
+progress, not player progress: a wedged desktop demuxer with a trickling server
+can stay alive until the bounded 45-second cold-start cap.
 
 Native queue loads check progress every 250 ms while awaiting the existing
 operation future. A pending seek for the loading song preserves this extension:
@@ -4742,18 +4744,23 @@ seeks retain the selected song; older seek requests are superseded. A cold
 native load may publish no buffer or mpv input estimate, so excluding the
 sidecar previously caused a 12-second queue-apply timeout, next-song failover,
 and cancellation of the waiting seek. Other lane backlog retains the original
-load deadline. A new selection/queue or Stop retires a superseded load on the
-next check. Controls, queue edits and radio keep fixed timeouts; failures report
-actual elapsed time. When the desktop sidecar completes first, settlement stops
-and existing recovery reloads from it. Each unsuccessful probe records
+load deadline. If a desktop cold load times out with a same-song seek pending,
+the existing source-apply retry reloads once at that target on the rebuilt player;
+a failed retry uses the ordinary queue-load failover. A new selection/queue or
+Stop retires a superseded load on the next check. Controls, queue edits and radio
+keep fixed timeouts; failures report actual elapsed time. When the desktop
+sidecar completes first, settlement stops and existing recovery reloads from it.
+Each unsuccessful probe records
 `reason`, `elapsedMs`, `positionMs`, `bufferedMs`, `processingState` and `playing`
 in the seek's `unsettled` diagnostics. Each current request permits one recovery
 attempt, plus a reload from a sidecar file that completes during it. An
-exhausted request reports failure and
-suppresses automatic stream retries until another explicit transport/selection
-request, or until the song has played on normally for five seconds past where
-the seek failed, preventing a failed seek from later restarting or skipping the
-song without leaving a later, unrelated stall unrecovered.
+exhausted desktop request whose recovery load left the player idle uses the
+existing failed-song failover, preserving the latest Play/Pause intent and queue.
+Other exhausted requests report failure and suppress automatic stream retries until
+another explicit transport/selection request, or until the song has played on
+normally for five seconds past where the seek failed, preventing a failed seek
+from later restarting or skipping the song without leaving a later, unrelated
+stall unrecovered.
 Diagnostics expose `seek` generation,
 requested position, pending flag, stage, outcome and recovery count, with a bounded
 `seekEvents` history. On desktop a load's initial position is applied by mpv

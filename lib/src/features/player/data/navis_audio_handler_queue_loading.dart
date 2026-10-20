@@ -1235,11 +1235,12 @@ extension _NavisQueueLoading on NavisAudioHandler {
       'active queue apply retry',
       'active queue apply final retry',
     ];
+    var applyPosition = initialPosition;
     Future<Duration?> apply() => _player.setAudioSources(
       audioSources,
       preload: preload,
       initialIndex: initialIndex,
-      initialPosition: initialPosition,
+      initialPosition: applyPosition,
     );
     token?.checkCancelled();
     _tracedNativeIndex = null;
@@ -1264,9 +1265,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
             action: apply,
             songId: songId,
             extendWhileDownloading: preload,
-            // Poll cancellation even when sidecar bytes cannot extend the load.
+            // Poll cancellation with hardCap == initial for offset loads.
             fixedLoadDeadline:
-                _isDesktopRuntime && initialPosition != Duration.zero,
+                _isDesktopRuntime && applyPosition != Duration.zero,
           );
         } else {
           await apply();
@@ -1275,6 +1276,22 @@ extension _NavisQueueLoading on NavisAudioHandler {
       } on Object catch (error, stackTrace) {
         if (attempt == operations.length - 1) rethrow;
         token?.checkCancelled();
+        final seek = _pendingSeek;
+        if (error is PlaybackLoadTimeoutException &&
+            _isDesktopRuntime &&
+            _isActiveLoadGeneration(generation) &&
+            seek != null &&
+            !seek.isRemoteRecovery &&
+            seek.songId == songId &&
+            seek.recoveryAttempts == 0 &&
+            applyPosition == Duration.zero) {
+          // The cold load failed before the seek could run. Reuse its one
+          // source retry on the rebuilt player at the pending target.
+          seek.recoveryAttempts = 1;
+          seek.stage = 'recovering';
+          applyPosition = seek.position;
+          continue;
+        }
         if (!_isAndroidDspInitializationFailure(error)) rethrow;
         AppLogger.warning(
           attempt == 0
