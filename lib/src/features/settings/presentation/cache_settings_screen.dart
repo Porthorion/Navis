@@ -370,7 +370,16 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
         title: Text(l10n.cacheSettingsTitle),
       ),
       body: _clearing
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 12),
+                  Text(l10n.cacheSettingsClearing),
+                ],
+              ),
+            )
           : Theme(
               data: desktopMode
                   ? Theme.of(context).copyWith(

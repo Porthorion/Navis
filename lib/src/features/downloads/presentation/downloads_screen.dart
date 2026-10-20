@@ -1220,12 +1220,8 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
     if (manualSongIds == null || manualSongIds.isEmpty || !mounted) return;
     try {
       final result = await ref
-          .read(downloadServiceProvider)
-          .importCustomDownloadFolder(
-            preview,
-            manualSongIds: manualSongIds,
-            includeRecognized: false,
-          );
+          .read(customDownloadFolderControllerProvider.notifier)
+          .importManual(preview, manualSongIds);
       ref
           .read(manualDownloadMatchingProvider.notifier)
           .markImported(manualSongIds.keys);

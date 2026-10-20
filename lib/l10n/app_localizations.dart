@@ -4997,6 +4997,12 @@ abstract class AppLocalizations {
   /// **'Cache cleared.'**
   String get cacheSettingsClearSuccess;
 
+  /// No description provided for @cacheSettingsClearing.
+  ///
+  /// In en, this message translates to:
+  /// **'Clearing cache…'**
+  String get cacheSettingsClearing;
+
   /// No description provided for @cacheSettingsBudgetSaved.
   ///
   /// In en, this message translates to:
