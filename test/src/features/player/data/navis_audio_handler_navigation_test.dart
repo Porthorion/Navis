@@ -566,7 +566,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   void finishCurrentTrack() {
     final next = index! + 1;
     if (appliedLoopMode == LoopMode.one) {
-      simulatedPosition = Duration.zero;
+      // A looped offset stream restarts at its own start, which is song time
+      // equal to its offset.
+      final current = _sources[index!];
+      simulatedPosition = current is UriAudioSource
+          ? current.positionOffset
+          : Duration.zero;
     } else if (next < _sources.length || appliedLoopMode == LoopMode.all) {
       moveTo(next % _sources.length);
       simulatedPosition = Duration.zero;
@@ -995,6 +1000,10 @@ void main() {
     Future<bool> Function()? checkDeviceConnected,
     Stream<void>? recoveredNetwork,
     bool sidecarStreams = false,
+    StreamingQuality streamingQuality = const StreamingQuality(
+      label: 'original',
+    ),
+    bool supportsTranscodeOffset = false,
     Future<void> Function(NavisDatabase database)? seed,
     bool cacheSongs = true,
     SubsonicApiClient? Function()? readApiClient,
@@ -1060,11 +1069,12 @@ void main() {
       libraryDao: database.libraryDao,
       rollingCacheManager: cache,
       readApiClient: readApiClient ?? () => apiClient,
-      readStreamingQuality: () => const StreamingQuality(label: 'original'),
+      readStreamingQuality: () => streamingQuality,
       readRollingCacheDirectory: () async => directory,
       readCachedPlaybackFirst: () => true,
       readCanStream: readCanStream,
       readUsesSidecarRollingCache: () => sidecarStreams,
+      readSupportsTranscodeOffset: () => supportsTranscodeOffset,
     );
     final resolver = wrapResolver?.call(baseResolver) ?? baseResolver;
     NavisAudioHandler buildHandler() => NavisAudioHandler(
@@ -7036,6 +7046,449 @@ void main() {
       expect(handler.queue.value[1].extras!['sourceKind'], 'file');
     },
   );
+
+  group('transcode offset seek', () {
+    const opus128 = StreamingQuality(
+      label: 'opus',
+      maxBitRate: 128,
+      format: 'opus',
+    );
+
+    Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
+    offsetHandler({
+      bool capable = true,
+      StreamingQuality quality = opus128,
+      int count = 3,
+      SubsonicApiClient? Function()? readApiClient,
+      ScrobbleService? scrobbleService,
+      bool positionStreams = false,
+      PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis-offset-');
+      final created = await createHandler(
+        directory,
+        count,
+        sidecarStreams: true,
+        streamingQuality: quality,
+        supportsTranscodeOffset: capable,
+        readApiClient: readApiClient,
+        scrobbleService: scrobbleService,
+        positionStreams: positionStreams,
+        wrapResolver: wrapResolver,
+      );
+      addTearDown(() async {
+        await created.$1.disposeHandler();
+        await created.$3.close();
+        await directory.delete(recursive: true);
+      });
+      created.$2.simulateProgress = true;
+      return created;
+    }
+
+    UriAudioSource current(_ControllableAudioPlayer player) =>
+        player.sequence[player.index!] as UriAudioSource;
+
+    Future<void> until(bool Function() condition) async {
+      for (var i = 0; i < 300 && !condition(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(condition(), isTrue);
+    }
+
+    Future<void> start(NavisAudioHandler handler) async {
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-2'],
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await handler.play();
+    }
+
+    Future<void> seekAndSettle(NavisAudioHandler handler, Duration to) async {
+      await handler.seek(to);
+      await until(() => !handler.snapshot.isLoading);
+    }
+
+    Map<String, Object?> lastSeekEvent(NavisAudioHandler handler) =>
+        (handler.collectPlaybackDiagnostics()['seekEvents']! as List).last
+            as Map<String, Object?>;
+
+    test(
+      'a far seek reopens the transcode at the whole-second offset',
+      () async {
+        final (handler, player, _) = await offsetHandler();
+        await start(handler);
+        final loadsBefore = player.sourceLoads;
+
+        await seekAndSettle(
+          handler,
+          const Duration(seconds: 95, milliseconds: 700),
+        );
+
+        final source = current(player);
+        expect(source.uri.queryParameters['timeOffset'], '95');
+        expect(
+          source.uri.queryParameters,
+          isNot(contains('estimateContentLength')),
+        );
+        expect(source.positionOffset, const Duration(seconds: 95));
+        expect(player.sourceLoads, loadsBefore + 1);
+        expect(
+          (player.position - const Duration(seconds: 95)).abs(),
+          lessThan(const Duration(seconds: 1)),
+        );
+        expect(player.sourceIds, ['song-0', 'song-1', 'song-2']);
+        expect(player.index, 1);
+        final seek = lastSeekEvent(handler);
+        expect(seek['path'], 'transcodeOffset');
+        expect(seek['outcome'], 'completed');
+        final diagnostics = handler.collectPlaybackDiagnostics();
+        expect(diagnostics['positionOffsetMs'], 95000);
+        expect(handler.queue.value[1].extras!['positionOffsetMs'], 95000);
+      },
+    );
+
+    test('a seek on an offset source reopens it at the new offset', () async {
+      final (handler, player, _) = await offsetHandler();
+      await start(handler);
+      await seekAndSettle(handler, const Duration(seconds: 90));
+      await seekAndSettle(handler, const Duration(seconds: 40));
+      expect(current(player).positionOffset, const Duration(seconds: 40));
+      await seekAndSettle(handler, const Duration(seconds: 150));
+      expect(current(player).positionOffset, const Duration(seconds: 150));
+      expect(lastSeekEvent(handler)['path'], 'transcodeOffset');
+    });
+
+    test('the offset never passes the last second of the song', () async {
+      final (handler, player, database) = await offsetHandler();
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'song-1',
+          title: 'Song 1',
+          duration: const Value(180),
+        ),
+      ]);
+      await start(handler);
+      await seekAndSettle(handler, const Duration(seconds: 180));
+      expect(current(player).positionOffset, const Duration(seconds: 179));
+    });
+
+    test(
+      'edge 1: a seek during an in-flight offset reload wins with one reload',
+      () async {
+        late _GatedSourceResolver resolver;
+        final (handler, player, _) = await offsetHandler(
+          wrapResolver: (base) => resolver = _GatedSourceResolver(base),
+        );
+        await start(handler);
+        final loadsBefore = player.sourceLoads;
+        resolver
+          ..blockedSongId = 'song-1'
+          ..entered = Completer<void>()
+          ..release = Completer<void>();
+
+        final first = handler.seek(const Duration(seconds: 60));
+        await resolver.entered!.future;
+        final latest = handler.seek(const Duration(seconds: 120));
+        resolver
+          ..blockedSongId = null
+          ..release!.complete();
+        await Future.wait([first, latest]);
+        await until(() => !handler.snapshot.isLoading);
+
+        expect(current(player).positionOffset, const Duration(seconds: 120));
+        expect(player.sourceLoads, loadsBefore + 1);
+        expect(player.sourceIds, ['song-0', 'song-1', 'song-2']);
+      },
+    );
+
+    test(
+      'edge 2: the natural end of an offset stream advances without a replay',
+      () async {
+        final (handler, player, _) = await offsetHandler();
+        await start(handler);
+        await seekAndSettle(handler, const Duration(seconds: 170));
+        final loadsBefore = player.sourceLoads;
+
+        player.finishCurrentTrack();
+        await until(() => handler.snapshot.currentSongId == 'song-2');
+        await settleQueue(handler);
+
+        expect(player.index, 2);
+        expect(player.sourceLoads, loadsBefore);
+        expect(current(player).positionOffset, Duration.zero);
+        expect(player.position, lessThan(const Duration(seconds: 2)));
+      },
+    );
+
+    test('edge 3: repeat one reloads an offset song from its start', () async {
+      final (handler, player, _) = await offsetHandler();
+      await start(handler);
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      await seekAndSettle(handler, const Duration(seconds: 170));
+      expect(player.loopMode, LoopMode.one);
+      final loadsBefore = player.sourceLoads;
+      player.simulatedPosition = const Duration(seconds: 179);
+      player._events.add(player.playbackEvent);
+
+      // The native loop restarts the offset stream at its own start.
+      player.finishCurrentTrack();
+      await until(
+        () =>
+            player.sourceLoads == loadsBefore + 1 &&
+            !handler.snapshot.isLoading,
+      );
+
+      expect(current(player).positionOffset, Duration.zero);
+      expect(
+        current(player).uri.queryParameters,
+        isNot(contains('timeOffset')),
+      );
+      expect(player.position, lessThan(const Duration(seconds: 2)));
+      expect(player.sourceIds, ['song-0', 'song-1', 'song-2']);
+      expect(player.index, 1);
+    });
+
+    test('edge 4: Previous reloads an offset song from zero', () async {
+      final (handler, player, _) = await offsetHandler();
+      await start(handler);
+      await seekAndSettle(handler, const Duration(seconds: 100));
+
+      await handler.skipToPrevious();
+      await until(
+        () =>
+            !handler.snapshot.isLoading &&
+            player.position < const Duration(seconds: 2),
+      );
+
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(current(player).positionOffset, Duration.zero);
+      expect(
+        current(player).uri.queryParameters,
+        isNot(contains('timeOffset')),
+      );
+    });
+
+    test('edge 5: an offset reload keeps the scrobble session', () async {
+      final scrobbles = _NoopScrobbleService();
+      final (handler, player, _) = await offsetHandler(
+        scrobbleService: scrobbles,
+        positionStreams: true,
+      );
+      await start(handler);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final sessions = scrobbles.nowPlayingSessions.length;
+      expect(sessions, 1);
+
+      await seekAndSettle(handler, const Duration(seconds: 100));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(current(player).positionOffset, const Duration(seconds: 100));
+      expect(scrobbles.nowPlaying, ['song-1']);
+      expect(scrobbles.nowPlayingSessions, hasLength(1));
+    });
+
+    test(
+      'edge 6: the sidecar keeps downloading the full non-offset stream',
+      () async {
+        final previousHttp = HttpOverrides.current;
+        HttpOverrides.global = null;
+        final requests = <Map<String, String>>[];
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final release = Completer<void>();
+        server.listen((request) async {
+          requests.add(request.uri.queryParameters);
+          try {
+            request.response
+              ..bufferOutput = false
+              ..contentLength = 100 * 1024
+              ..add(List<int>.filled(10 * 1024, 1));
+            await request.response.flush();
+            await release.future;
+            await request.response.close();
+          } on HttpException {
+            // The handler cancels the unfinished transfer at teardown.
+          }
+        });
+        final api = SubsonicApiClient(
+          baseUrl: 'http://127.0.0.1:${server.port}',
+          authConfig: const SubsonicAuthConfig(
+            username: 'fixture',
+            password: 'synthetic',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        final (handler, player, _) = await offsetHandler(
+          readApiClient: () => api,
+        );
+        addTearDown(() async {
+          release.complete();
+          await server.close(force: true);
+          HttpOverrides.global = previousHttp;
+        });
+        await start(handler);
+        await until(() => requests.isNotEmpty);
+        expect(
+          handler.collectPlaybackDiagnostics()['sidecarCacheActiveSongId'],
+          'song-1',
+        );
+
+        await seekAndSettle(handler, const Duration(seconds: 100));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+
+        expect(current(player).uri.queryParameters['timeOffset'], '100');
+        expect(
+          handler.collectPlaybackDiagnostics()['sidecarCacheActiveSongId'],
+          'song-1',
+        );
+        expect(
+          [for (final q in requests) '${q['id']}:${q['timeOffset']}'],
+          ['song-1:null'],
+        );
+        expect(requests.single['id'], 'song-1');
+        expect(requests.single, isNot(contains('timeOffset')));
+      },
+    );
+
+    test(
+      'edge 7: once the full download completes a seek uses the file',
+      () async {
+        final (handler, player, _) = await offsetHandler();
+        await start(handler);
+        final sidecar =
+            handler.queue.value[1].extras!['sidecarCacheFilePath'] as String;
+        await seekAndSettle(handler, const Duration(seconds: 60));
+        expect(current(player).positionOffset, const Duration(seconds: 60));
+        expect(handler.queue.value[1].extras!['sidecarCacheFilePath'], sidecar);
+        await File(sidecar).writeAsBytes(List<int>.filled(64, 1));
+
+        await seekAndSettle(handler, const Duration(seconds: 120));
+
+        expect(handler.queue.value[1].extras!['sourceKind'], 'file');
+        expect(handler.queue.value[1].extras!['positionOffsetMs'], 0);
+        expect(current(player).positionOffset, Duration.zero);
+        expect(current(player).uri.scheme, 'file');
+        expect(lastSeekEvent(handler)['path'], isNot('transcodeOffset'));
+      },
+    );
+
+    test('edge 7 (lock cache): the original download fills the file an offset '
+        'stream leaves; a later seek reloads from it', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-offset-lock-',
+      );
+      final api = SubsonicApiClient(
+        baseUrl: 'https://example.com',
+        authConfig: const SubsonicAuthConfig(
+          username: 'alice',
+          password: 'secret',
+          apiVersion: '1.16.1',
+        ),
+        enableLogging: false,
+      );
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        cacheSongs: false,
+        readApiClient: () => api,
+        streamingQuality: opus128,
+        supportsTranscodeOffset: true,
+        // The origin never answers, so the range probe gives up quickly.
+        timeouts: const NavisPlaybackTimeouts(
+          load: Duration(milliseconds: 300),
+        ),
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      player.simulateProgress = true;
+      await start(handler);
+      final lockCached = handler.queue.value[1].extras!;
+      expect(lockCached['sourceKind'], 'lockCachedStream');
+      final cachePath = lockCached['cachedFilePath']! as String;
+
+      await seekAndSettle(handler, const Duration(seconds: 100));
+
+      final offsetItem = handler.queue.value[1].extras!;
+      expect(offsetItem['sourceKind'], 'directStream');
+      expect(offsetItem['positionOffsetMs'], 100000);
+      expect(offsetItem['cachedFilePath'], cachePath);
+      expect(current(player).positionOffset, const Duration(seconds: 100));
+      expect(lastSeekEvent(handler)['path'], 'transcodeOffset');
+
+      // The lock-cache download finishes beside the offset stream.
+      await File(cachePath).writeAsBytes(List<int>.filled(64, 1));
+      await seekAndSettle(handler, const Duration(seconds: 150));
+
+      expect(handler.queue.value[1].extras!['sourceKind'], 'file');
+      expect(current(player).positionOffset, Duration.zero);
+      expect(lastSeekEvent(handler)['path'], isNot('transcodeOffset'));
+    });
+
+    test('edge 8: no timeOffset without the capability', () async {
+      final (handler, player, _) = await offsetHandler(capable: false);
+      player.ignoreSeeks = true;
+      await start(handler);
+
+      await handler.seek(const Duration(seconds: 90));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      for (final source in player.sequence.whereType<UriAudioSource>()) {
+        expect(source.uri.queryParameters, isNot(contains('timeOffset')));
+        expect(source.positionOffset, Duration.zero);
+      }
+    });
+
+    test('edge 8: no timeOffset for original quality', () async {
+      final (handler, player, _) = await offsetHandler(
+        quality: const StreamingQuality(label: 'original'),
+      );
+      player.ignoreSeeks = true;
+      await start(handler);
+
+      await handler.seek(const Duration(seconds: 90));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      for (final source in player.sequence.whereType<UriAudioSource>()) {
+        expect(source.uri.queryParameters, isNot(contains('timeOffset')));
+        expect(source.positionOffset, Duration.zero);
+      }
+    });
+
+    test('a seek under a second stays a native seek', () async {
+      final (handler, player, _) = await offsetHandler();
+      await start(handler);
+      final loadsBefore = player.sourceLoads;
+
+      await handler.seek(const Duration(milliseconds: 400));
+
+      expect(player.sourceLoads, loadsBefore);
+      expect(player.seekCalls, greaterThan(0));
+    });
+
+    test(
+      'a failed offset reload falls back to the existing seek path',
+      () async {
+        final (handler, player, _) = await offsetHandler();
+        await start(handler);
+        player.ignoreSeeks = true;
+        // The offset load fails; the fallback may only reload without one.
+        player.failLoadSongId = 'song-1';
+
+        await handler.seek(const Duration(seconds: 90));
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+
+        for (final source in player.sequence.whereType<UriAudioSource>()) {
+          expect(source.positionOffset, Duration.zero);
+        }
+        expect(lastSeekEvent(handler)['path'], isNot('transcodeOffset'));
+      },
+    );
+  });
 
   group('released queue window', () {
     const window = NavisQueueWindow(
