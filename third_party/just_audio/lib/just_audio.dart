@@ -183,15 +183,22 @@ class AudioPlayer {
         // If the item is the same, try to determine whether we have looped
         // back.
         if (loopMode == LoopMode.off) return;
-        final prevPos = _getPositionFor(prevEvent);
-        final currPos = _getPositionFor(currEvent);
+        // Navis: an offset stream loops back to its own start, so judge it in
+        // platform time (without the offset).
+        final offset = currSource is UriAudioSource
+            ? currSource.positionOffset
+            : Duration.zero;
+        final prevPos = _getPositionFor(prevEvent) - offset;
+        final currPos = _getPositionFor(currEvent) - offset;
         // if (loopMode != LoopMode.one) return;
         if (currPos >= prevPos) return;
         if (currPos >= const Duration(milliseconds: 300)) return;
-        final duration = this.duration;
+        var duration = this.duration;
+        if (duration != null && offset > Duration.zero) duration -= offset;
         if (duration != null && prevPos < duration * 0.6) return;
         if (duration == null &&
-            currPos - prevPos < const Duration(seconds: 1)) {
+            (offset > Duration.zero ? prevPos - currPos : currPos - prevPos) <
+                const Duration(seconds: 1)) {
           return;
         }
         _positionDiscontinuitySubject.add(PositionDiscontinuity(

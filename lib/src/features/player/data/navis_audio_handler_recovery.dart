@@ -187,39 +187,24 @@ extension _NavisRecovery on NavisAudioHandler {
       Duration(milliseconds: (item?.extras?['positionOffsetMs'] as int?) ?? 0);
 
   /// A native loop (repeat one, or repeat all over one song) restarts an
-  /// offset stream at its own start, which is the offset into the song. Seeing
-  /// that, reload the song from the start without an offset.
-  void _watchOffsetStreamLoop(PlaybackEvent event) {
-    // The event's own item sets its offset (just_audio translated the
-    // position with it): the current media item can lag an auto-advance.
-    final index = event.currentIndex;
+  /// offset stream at its own start, which is the offset into the song. just_audio
+  /// reports that loop as an autoAdvance discontinuity within one index; reload
+  /// the song from the start without an offset. A real advance to another index
+  /// never matches.
+  void _onPositionDiscontinuity(PositionDiscontinuity discontinuity) {
+    final index = discontinuity.event.currentIndex;
     final sequence = _player.sequence;
-    final source = index == null || index < 0 || index >= sequence.length
-        ? null
-        : sequence[index];
-    final offset = source is UriAudioSource
-        ? source.positionOffset
-        : Duration.zero;
-    if (index != _offsetLoopIndex) {
-      _offsetLoopIndex = index;
-      _offsetLoopNativePosition = null;
-    }
-    if (offset == Duration.zero ||
+    if (discontinuity.reason != PositionDiscontinuityReason.autoAdvance ||
+        index == null ||
+        index != discontinuity.previousEvent.currentIndex ||
+        index < 0 ||
+        index >= sequence.length ||
         _isLoading ||
-        _pendingSeek != null ||
-        event.processingState == ProcessingState.idle ||
-        event.processingState == ProcessingState.loading) {
-      _offsetLoopNativePosition = null;
+        _pendingSeek != null) {
       return;
     }
-    final native = event.updatePosition - offset;
-    final previous = _offsetLoopNativePosition;
-    _offsetLoopNativePosition = native;
-    if (previous != null &&
-        previous - native >= const Duration(seconds: 1) &&
-        native < const Duration(seconds: 2) &&
-        _player.loopMode != LoopMode.off) {
-      _offsetLoopNativePosition = null;
+    final source = sequence[index];
+    if (source is UriAudioSource && source.positionOffset > Duration.zero) {
       unawaited(seek(Duration.zero));
     }
   }

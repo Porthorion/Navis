@@ -281,6 +281,7 @@ class _TestAudioSession extends Fake implements AudioSession {
 class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   final StreamController<int?> _indices = StreamController<int?>.broadcast();
   final _events = StreamController<PlaybackEvent>.broadcast();
+  final _discontinuities = StreamController<PositionDiscontinuity>.broadcast();
   List<AudioSource> _sources = <AudioSource>[];
   ProcessingState state = ProcessingState.idle;
   bool isPlaying = false;
@@ -404,6 +405,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Stream<int?> get currentIndexStream => _indices.stream;
+
+  @override
+  Stream<PositionDiscontinuity> get positionDiscontinuityStream =>
+      _discontinuities.stream;
 
   @override
   Stream<bool> get shuffleModeEnabledStream => const Stream<bool>.empty();
@@ -564,6 +569,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   /// A native end-of-track transition, including the player's loop policy.
   void finishCurrentTrack() {
+    final before = playbackEvent;
     final next = index! + 1;
     if (appliedLoopMode == LoopMode.one) {
       // A looped offset stream restarts at its own start, which is song time
@@ -578,6 +584,18 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     } else {
       simulatedPosition = simulatedDuration;
       state = ProcessingState.completed;
+    }
+    if (state != ProcessingState.completed) {
+      // Like just_audio, a loop or an advance is an autoAdvance discontinuity
+      // between the last event before it and the one after, with no events
+      // in between (ExoPlayer is sparse).
+      _discontinuities.add(
+        PositionDiscontinuity(
+          PositionDiscontinuityReason.autoAdvance,
+          before,
+          playbackEvent,
+        ),
+      );
     }
     _events.add(playbackEvent);
   }
@@ -819,6 +837,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     if (!keepStreamsAfterDispose) {
       await _indices.close();
       await _events.close();
+      await _discontinuities.close();
     }
   }
 }
@@ -7229,8 +7248,6 @@ void main() {
       await seekAndSettle(handler, const Duration(seconds: 170));
       expect(player.loopMode, LoopMode.one);
       final loadsBefore = player.sourceLoads;
-      player.simulatedPosition = const Duration(seconds: 179);
-      player._events.add(player.playbackEvent);
 
       // The native loop restarts the offset stream at its own start.
       player.finishCurrentTrack();
@@ -7274,6 +7291,17 @@ void main() {
         player._events.add(player.playbackEvent);
         await Future<void>.delayed(const Duration(milliseconds: 100));
         player._indices.add(2);
+        player._discontinuities.add(
+          PositionDiscontinuity(
+            PositionDiscontinuityReason.autoAdvance,
+            PlaybackEvent(
+              processingState: ProcessingState.ready,
+              updatePosition: const Duration(seconds: 179),
+              currentIndex: 1,
+            ),
+            player.playbackEvent,
+          ),
+        );
         await Future<void>.delayed(const Duration(milliseconds: 300));
 
         expect(player.sourceLoads, loadsBefore);
@@ -7306,8 +7334,6 @@ void main() {
         await handler.setRepeatMode(AudioServiceRepeatMode.all);
         await seekAndSettle(handler, const Duration(seconds: 170));
         final loadsBefore = player.sourceLoads;
-        player.simulatedPosition = const Duration(seconds: 179);
-        player._events.add(player.playbackEvent);
 
         player.finishCurrentTrack();
         await until(

@@ -396,11 +396,6 @@ class NavisAudioHandler extends BaseAudioHandler
   int _transportGeneration = 0;
   bool? _latestExplicitTransportPlaying;
   _PendingSeek? _pendingSeek;
-
-  /// The last native position (time into the offset stream) of the playing
-  /// offset source, to notice the native loop restarting it.
-  Duration? _offsetLoopNativePosition;
-  int? _offsetLoopIndex;
   DateTime? _lastPositionEmitAt;
   _PendingSeek? _lastSeek;
   int _seekRevision = 0;
@@ -417,6 +412,7 @@ class NavisAudioHandler extends BaseAudioHandler
   StreamSubscription<void>? _becomingNoisySubscription;
   StreamSubscription<PlaybackEvent>? _playbackEventSubscription;
   StreamSubscription<int?>? _currentIndexSubscription;
+  StreamSubscription<PositionDiscontinuity>? _positionDiscontinuitySubscription;
   StreamSubscription<bool>? _shuffleModeSubscription;
   StreamSubscription<LoopMode>? _loopModeSubscription;
   StreamSubscription<Duration>? _activePositionSubscription;
@@ -963,6 +959,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> _disposePlayerListeners() async {
     await _playbackEventSubscription?.cancel();
     await _currentIndexSubscription?.cancel();
+    await _positionDiscontinuitySubscription?.cancel();
     await _shuffleModeSubscription?.cancel();
     await _loopModeSubscription?.cancel();
     await _activePositionSubscription?.cancel();
@@ -970,6 +967,7 @@ class NavisAudioHandler extends BaseAudioHandler
     await _crossfadePositionSub?.cancel();
     _playbackEventSubscription = null;
     _currentIndexSubscription = null;
+    _positionDiscontinuitySubscription = null;
     _shuffleModeSubscription = null;
     _loopModeSubscription = null;
     _activePositionSubscription = null;
