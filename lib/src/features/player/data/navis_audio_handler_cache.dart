@@ -116,6 +116,7 @@ extension _NavisCache on NavisAudioHandler {
     late final StreamSubscription<double> subscription;
     subscription = source.downloadProgressStream.listen(
       (progress) {
+        _cacheReceivedBytes[cacheFilePath] = source.downloadedBytes;
         _updateRollingCacheActivity(
           cacheFilePath,
           RollingCacheActivity(
@@ -167,6 +168,15 @@ extension _NavisCache on NavisAudioHandler {
     _reportRollingCacheActivity?.call(activity);
   }
 
+  // Desktop sidecars download independently of the native player's reads.
+  int? _playerCacheBytesForSong(String songId) {
+    if (_isDesktopRuntime) return null;
+    for (final entry in _rollingCacheActivities.entries) {
+      if (entry.value.songId == songId) return _cacheReceivedBytes[entry.key];
+    }
+    return null;
+  }
+
   /// Whether the current song plays from the network while its completed
   /// sidecar file is on disk, so a seek can reload it from the file.
   bool _completedSidecarAvailable(String songId) {
@@ -183,6 +193,7 @@ extension _NavisCache on NavisAudioHandler {
 
   void _completeRollingCacheActivity(String cacheFilePath) {
     _rollingCacheActivities.remove(cacheFilePath);
+    _cacheReceivedBytes.remove(cacheFilePath);
     _reportRollingCacheActivity?.call(
       _rollingCacheActivities.values.lastOrNull ??
           const RollingCacheActivity.idle(),

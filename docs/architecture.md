@@ -4713,20 +4713,26 @@ native position: a playing request is settled once the position advances from
 the target, a paused one once it has held the target for 300 ms. Native
 buffering may probe several byte ranges before producing a packet, so it counts
 as activity during the initial load budget. Both seek settlement and native
-song loads share a progress deadline: actual received bytes (the desktop
-sidecar's active byte counter or the Android lock-cache partial file) and
-`bufferedPosition` growth keep them waiting past the normal 12-second load
-deadline, even when the cache is less than half done. Recent growth also
-suppresses premature `missed target` and `no progress` seek decisions while
-mpv probes ranges without producing packets. Once progress stops, an
-eight-second idle window (`NavisPlaybackTimeouts.progressIdle`) bounds the
-extension; the existing `seekProgress` budget caps each load or settlement
-probe at 45 seconds. With no growth, native loads retain their original
-deadline and seek probes retain their short stall checks. Native queue loads
-sample the same byte/buffer signals while awaiting the existing operation
-future; controls, queue edits and radio retain their fixed timeouts. A
-superseded load loses its extension so a newer selection can take the queue
-lane. When the desktop sidecar file completes first the seek probe stops and
+song loads share a progress deadline: native `bufferedPosition` growth and,
+on Android/iOS, received lock-cache bytes keep them waiting past the normal
+12-second load deadline, even when the cache is less than half done. Desktop
+progress uses the player's buffer, never the independent sidecar download:
+sidecar growth cannot suppress the existing short `missed target` and
+`no progress` checks for a frozen player. Recent player-side growth defers
+those checks. Once progress stops, an eight-second idle window
+(`NavisPlaybackTimeouts.progressIdle`) bounds the extension; the existing
+`seekProgress` budget caps each load or settlement probe at 45 seconds.
+With no growth, native loads retain their original deadline and seek probes
+retain their short stall checks. Lock-cache progress events update in-memory
+byte counters on every body chunk, including sub-percent and unknown-length
+transfers; deadline checks do not stat partial files. Native queue loads check
+these counters and the native buffer every 250 ms while awaiting the existing
+operation future. Controls, queue edits and radio retain their fixed timeouts.
+A superseded generation or waiting queue-lane command (including a seek waiting
+for its source) removes the load's extension: it releases the lane at its
+original deadline, or on the next check if that deadline has passed. Timeout
+failures report the actual elapsed time. When the desktop sidecar file completes
+first the seek probe stops and
 the song is reloaded from it. Each probe that gives up records
 why (`missed target`, `no progress`, `cache complete`, `deadline`) with the
 state it saw in the seek's `unsettled` diagnostics. Each current

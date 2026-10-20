@@ -316,6 +316,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     final startupTrace = _activeStartupTrace;
     startupTrace?.mark('player:$operation:start');
     var timedOut = false;
+    final elapsed = Stopwatch()..start();
     final operationPlayer = _player;
     try {
       final progress =
@@ -326,7 +327,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
               hardCap: timeout > _timeouts.seekProgress
                   ? timeout
                   : _timeouts.seekProgress,
-              bytes: _partialCacheBytesForSong(songId),
+              bytes: _playerCacheBytesForSong(songId),
               buffer: operationPlayer.bufferedPosition,
             )
           : null;
@@ -364,6 +365,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       }
       return result;
     } on TimeoutException {
+      final timeoutDuration = elapsed.elapsed;
       startupTrace?.mark('player:$operation:timeout');
       timedOut = true;
       final isCurrent = _isActiveLoadGeneration(generation);
@@ -377,7 +379,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
       if (isCurrent) {
         _emitLoadFailure(
           operation: operation,
-          message: 'Playback operation timed out after ${timeout.inSeconds}s.',
+          message:
+              'Playback operation timed out after '
+              '${(timeoutDuration.inMilliseconds / 1000).toStringAsFixed(1)}s.',
           songId: songId,
           isTimeout: true,
         );
@@ -402,7 +406,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       throw PlaybackLoadTimeoutException(
         operation: operation,
         songId: songId,
-        timeoutDuration: timeout,
+        timeoutDuration: timeoutDuration,
       );
     }
   }
@@ -419,14 +423,15 @@ extension _NavisQueueLoading on NavisAudioHandler {
     final completed = operation.whenComplete(() => done = true);
     final completion = completed.then<void>((_) {});
     while (!done) {
-      // Keep observing bytes even before a load exposes a duration/buffer.
-      // A superseded load keeps its original deadline so it releases the lane.
+      // Cache events update an in-memory counter before a native buffer exists.
+      // Waiting commands reclaim the lane using the original load deadline.
       final now = elapsed.elapsed;
-      final current = _isActiveLoadGeneration(generation);
+      final current =
+          _isActiveLoadGeneration(generation) && _queueLane.pendingCount == 0;
       if (current) {
         progress.observe(
           now,
-          bytes: _partialCacheBytesForSong(songId),
+          bytes: _playerCacheBytesForSong(songId),
           buffer: player.bufferedPosition,
         );
       }
@@ -435,7 +440,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       }
       await Future.any<void>([
         completion,
-        Future<void>.delayed(const Duration(milliseconds: 25)),
+        Future<void>.delayed(const Duration(milliseconds: 250)),
       ]);
     }
     return await completed;
