@@ -150,6 +150,8 @@ class ThrottledProxy:
         self.host = target.hostname
         self.upstream_port = target.port or (443 if self.secure else 80)
         self.set_profile(kbps, latency_ms)
+        self.stall_until = 0.0  # diagnostics: media bodies pause (connection kept open) until this monotonic time
+        self.cut_until, self.cut_mode = 0.0, 'fin'  # diagnostics: in-flight media bodies are cut until this time
         self.tokens = 0.0
         self.requests = 0
         # One compact record per proxied request (no credentials), for the
@@ -206,6 +208,14 @@ class ThrottledProxy:
                     return
                 missing = size - self.tokens
             time.sleep(missing / self.rate)
+
+    def stall(self, seconds: float):
+        """Pauses every in-flight media body for [seconds] without closing the connection."""
+        self.stall_until = time.monotonic() + seconds
+
+    def cut_active(self, mode='fin', window=3.0):
+        """Closes the in-flight media bodies (the next [window] s of chunks)."""
+        self.cut_until, self.cut_mode = time.monotonic() + window, mode
 
     def arm_fault(self, after_bytes: int, count=1, only='any', mode='fin'):
         """Cuts the next [count] stream/download request(s) after [after_bytes]
@@ -300,6 +310,12 @@ class ThrottledProxy:
                 chunk = response.read(16384)
                 if not chunk:
                     break
+                while time.monotonic() < self.stall_until:
+                    time.sleep(0.1)
+                if time.monotonic() < self.cut_until and is_media:
+                    entry['end'] = f'injectedCut-{self.cut_mode}'
+                    self._abort(handler, self.cut_mode)
+                    return
                 self.take(len(chunk))
                 if fault and entry['bytes'] + len(chunk) >= fault['after']:
                     keep = max(0, fault['after'] - entry['bytes'])
@@ -922,12 +938,14 @@ QUALITIES = {
 }
 THROTTLES = {  # name: (kbps, added first-byte latency ms); 0 = unlimited
     'none': (0, 0), 'wan6000': (6000, 150), 'slow1500': (1500, 300),
+    'slow350': (350, 300),  # origin body still running 60 s into a song (stall/cut probes)
 }
 # Deadlines in seconds by throttle: seek landing, skip audible, stall limit.
 DEADLINES = {
     'none': {'land': 15, 'advance': 12, 'stall': 6},
     'wan6000': {'land': 25, 'advance': 20, 'stall': 8},
     'slow1500': {'land': 45, 'advance': 35, 'stall': 12},
+    'slow350': {'land': 45, 'advance': 35, 'stall': 30},
 }
 START_DEADLINE = 45
 LAND_TOLERANCE_MS = 1500
@@ -2285,6 +2303,46 @@ def case_offset_repeat_all(run: Run, env):
     run.latency_from = [seek]
 
 
+def origin_event_probe(mode: str):
+    """Hypothesis probe (media3 read timeout vs the app proxy's body timeout): ~60 s into song 1 of a
+    shuffled album, stall the origin body for 12 s (connection kept open) or cut it; record whether
+    song 1 restarts at 0, ends early and advances, or recovers in place."""
+    def case(run: Run, env):
+        ids = env.backend.fresh_album()
+        run.songs = [{'id': i} for i in ids]
+        run.shuffled = True
+        rec = start_queue(run, ids, shuffle=True)
+        first = await_audio(run, rec)
+        at = run.until(lambda s: s['songId'] == first['songId'] and (s['pos'] or 0) >= 60000, 150)
+        if at is None:
+            raise CaseAbort('song 1 never reached 60 s')
+        device_ms = None
+        if isinstance(run.app, AndroidApp):
+            device_ms = int(run.app.shell('date', '+%s%3N').strip() or 0)
+        run.metrics.update(eventMode=mode, eventAt=run.now(), eventWall=round(time.time(), 2), eventDeviceMs=device_ms,
+                           eventPos=at['pos'], eventBufMs=at['buf'], eventSong=first['songId'])
+        run.act('originEvent', mode=mode)
+        env.proxy.stall(12.0) if mode == 'stall' else env.proxy.cut_active('fin')
+        run.observe(45.0)
+        t_event = run.metrics['eventAt']
+        after = [s for s in run.samples if s['t'] >= t_event and s['pos'] is not None]
+        restarted = next((s for s in after if s['songId'] == first['songId'] and s['idx'] == first['idx'] and s['pos'] < 5000
+                          and (at['pos'] or 0) > 50000), None)
+        advanced = next((s for s in after if s['songId'] != first['songId']), None)
+        frozen = [s for s in after if s['songId'] == first['songId']]
+        run.metrics['eventVerdict'] = ('restartedAt0' if restarted else 'endedEarlyAdvanced' if advanced else 'recoveredInPlace')
+        run.metrics['eventDetail'] = {'restartedAtT': restarted and round(restarted['t'] - t_event, 1),
+                                      'advancedAtT': advanced and round(advanced['t'] - t_event, 1),
+                                      'posAfter45s': frozen[-1]['pos'] if frozen else None,
+                                      'minPosAfter': min((s['pos'] for s in frozen), default=None)}
+        if device_ms:
+            keys = ('processingState', 'playing', 'positionMs', 'bufferedMs', 'stage', 'reason', 'phase', 'errorCode', 'index', 'songId', 'operation')
+            run.metrics['traceAround'] = [
+                f"{(e['atMs'] - device_ms) / 1000:+.1f}s {e['kind']} " + ' '.join(f'{k}={e[k]}' for k in keys if e.get(k) is not None)
+                for e in run.trace if e['kind'] != 'bufferState' and device_ms - 8000 <= e['atMs'] <= device_ms + 46000][:60]
+    return case
+
+
 def case_offset_prev(run: Run, env):
     """Previous after an offset seek restarts the song at 0."""
     offset_case_prologue(run)
@@ -2331,6 +2389,8 @@ CASE_FUNCS = {
     'offset_natural': case_offset_natural,
     'offset_repeat_one': case_offset_repeat_one,
     'offset_prev': case_offset_prev,
+    'probe_stall': origin_event_probe('stall'),
+    'probe_cut': origin_event_probe('cut'),
     'offset_repeat_all': case_offset_repeat_all,
     'skip_next': case_skip_next,
     'skip_prev': case_skip_prev,
