@@ -2658,6 +2658,57 @@ def cold_command_case(kind: str, kbps=1000):
                                             f"(state at 5 s: {run.metrics['stateAt5s']})", run))
         run.observe(4.0)
     return case
+def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0):
+    """Round 8 injection: a same-song seek 5 s into a slow cold start; once the cold load is up, every media body is held
+    (connection kept open, ProxyServer.stall) for [stall_s], so the seek cannot settle (~25 s deadline) and the reload
+    (and its retry) times out at 12 s. Records the state 20 s after the seek and the final state, and flags an idle player."""
+    ids = env.backend.fresh_album()
+    run.songs = [{'id': i} for i in ids]
+    run.queue_ids = list(ids)
+    restore = THROTTLES[run.throttle]
+    env.proxy.set_profile(kbps, 300)
+    keys = ('songId', 'proc', 'playing', 'pos', 'loading', 'buf', 'idx')
+    pick = lambda s: {k: s[k] for k in keys} if s else None
+    try:
+        starter = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        rec = run.act('start', songIds=len(ids), first=ids[0], shuffle=False)
+        run.futures.append(starter.submit(lambda: run.app.api('/v1/playback/queue', {'songIds': ids}, timeout=180)))
+        time.sleep(5.0)
+        run.metrics['stateAt5s'] = pick(run.last())
+        t_cmd = run.now()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            seek = issue_seek(run, pool, 60000)
+            seek['song'] = ids[0]
+            loaded = run.until(lambda s: s['songId'] == ids[0] and s['proc'] in ('ready', 'buffering') and not s['loading'], 90)
+            run.metrics['coldLoadedAfterS'] = None if loaded is None else round(loaded['t'] - t_cmd, 1)
+            env.proxy.stall(stall_s)
+            t_stall = run.now()
+            run.act('stall', seconds=stall_s)
+            time.sleep(max(0.0, t_cmd + 20 - run.now()))
+            run.metrics['stateAt20sAfterSeek'] = pick(run.last())
+            time.sleep(max(0.0, t_stall + stall_s + 40 - run.now()))
+            finish_futures(run, 30)
+    finally:
+        env.proxy.stall_until = 0.0
+        env.proxy.set_profile(*restore)
+    final = run.last()
+    run.metrics['finalState'] = pick(final)
+    run.metrics['seekOutcomeIssued'] = seek.get('outcome')
+    last = None
+    timeline = []
+    for s in run.samples:
+        if s['t'] >= t_cmd:
+            cur = (s['songId'], s['proc'], bool(s['playing']))
+            if cur != last:
+                timeline.append((round(s['t'] - t_cmd, 1), s['songId'], s['proc'], bool(s['playing']), s['pos']))
+                last = cur
+    run.metrics['timeline'] = timeline[:60]
+    if final is None or final['proc'] in ('idle', None) or final['songId'] is None:
+        run.violations.append(violation('leftIdle', run.now(), f'final state {pick(final)}', run))
+    elif not final['playing']:
+        run.violations.append(violation('notPlayingAtEnd', run.now(), f'final state {pick(final)}', run))
+
+
 def case_dead_start(run: Run, env):
     """Item 3: the origin sends headers but no body bytes from the start; the load must still fail over at about
     the old 12 s deadline (not the 45 s progress cap). Records when the first recovery/navigation/failure shows."""
@@ -2740,6 +2791,7 @@ CASE_FUNCS = {
     'cold_next': cold_command_case('next'),
     'cold_seek': cold_command_case('seek'),
     'dead_start': case_dead_start,
+    'cold_seek_stall': case_cold_seek_stall,
     'cut40': cut_at_case(0.40, 1),
     'cut40x2': cut_at_case(0.40, 2),
     'repeat_one_fill': case_repeat_one_fill,
