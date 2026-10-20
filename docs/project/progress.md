@@ -14,6 +14,12 @@ Last updated: 2026-10-20
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #111, specific failure messages — 2026-10-20
+  (`fix/specific-failure-messages`): sub-items 1-3 were verified unreachable
+  (radio and Instant Mix never receive invalidKey/rateLimited; Last.fm key
+  validation already shows a connection message inline), so only the relink
+  message changed. Evidence: focused tests from the original change passed;
+  `./tool/check.sh`: all checks passed on the pre-fix commit (will be rerun).
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one
