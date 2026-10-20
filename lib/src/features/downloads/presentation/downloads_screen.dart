@@ -1265,7 +1265,7 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
             Text(
               updatingFolder
                   ? l10n.downloadsCustomFolderUpdating
-                  : l10n.cacheSettingsClearPermanent,
+                  : l10n.downloadsRemoving,
             ),
           ],
         ),

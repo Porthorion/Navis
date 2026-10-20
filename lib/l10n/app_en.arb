@@ -1444,6 +1444,7 @@
   "cacheSettingsClearCoverArtConfirm": "Clear all cached cover art images?",
   "cacheSettingsClearSuccess": "Cache cleared.",
   "cacheSettingsClearing": "Clearing cache…",
+  "downloadsRemoving": "Removing downloads…",
   "cacheSettingsBudgetSaved": "Cache budget updated.",
   "cacheSettingsBudgetGb": "{gb} GB",
   "@cacheSettingsBudgetGb": {

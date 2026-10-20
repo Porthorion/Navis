@@ -5003,6 +5003,12 @@ abstract class AppLocalizations {
   /// **'Clearing cache…'**
   String get cacheSettingsClearing;
 
+  /// No description provided for @downloadsRemoving.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing downloads…'**
+  String get downloadsRemoving;
+
   /// No description provided for @cacheSettingsBudgetSaved.
   ///
   /// In en, this message translates to:

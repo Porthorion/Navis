@@ -3163,6 +3163,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cacheSettingsClearing => 'Clearing cache…';
 
   @override
+  String get downloadsRemoving => 'Removing downloads…';
+
+  @override
   String get cacheSettingsBudgetSaved => 'Cache budget updated.';
 
   @override
