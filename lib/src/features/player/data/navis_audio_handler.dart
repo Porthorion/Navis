@@ -1898,10 +1898,16 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> playFromIndex(int index) {
+    _autoFailovers = 0; // A user selection is a fresh intent.
+    return _selectIndex(index);
+  }
+
+  /// Selects [index] without touching the automatic failover count, for
+  /// natural advances.
+  Future<void> _selectIndex(int index) {
     final logicalIds = _logicalQueueIds;
     if (index < 0 || index >= logicalIds.length) return Future<void>.value();
     _invalidatePendingStartupSelection();
-    _autoFailovers = 0; // A user selection is a fresh intent.
     return _applyNavigationDecision(
       _navigationIntent.select(index),
       logicalIds: logicalIds,

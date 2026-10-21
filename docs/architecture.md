@@ -4768,9 +4768,11 @@ failover, preserving latest Play/Pause intent and queue; a song whose position
 still advances keeps playing quietly. With no successor it stops quietly (pause
 and stop each bounded by the reset timeout, so a stuck native stop cannot park
 the seek lane) and marks the source failed so Play reloads it. Automatic
-failovers (seek, stall and queue-load) share a cap of two songs in a row: until
+failovers (seek, stall, queue-load and a song that completes far short of
+its duration) share a cap of two songs in a row: until
 a song advances for five seconds (`healthyPlayback`, from the position stream)
-or the user selects a song (Play, skip, queue item, new queue), the next failure stops quietly on the current song
+or the user selects a song (Play, skip, queue item, new queue; natural
+advances never reset it), the next failure stops quietly on the current song
 instead of skipping further. A seek that was waiting on a load ending in such a
 stop fails at once, and seek source readiness never waits longer than
 `seekProgress` in total. Native timeout recovery and failed seeks log
