@@ -8,13 +8,21 @@ extension _NavisMediaSession on NavisAudioHandler {
       _pendingRemoteRecovery = null;
     }
     final nextSongId = _radioStation == null ? item?.id : null;
+    _completedCacheSongIds.removeWhere((id) => id != item?.id);
+    // Re-learn a sidecar that finished while its song was not current: the
+    // set is the only per-event source for the buffered line.
+    if (item != null && _completedSidecarAvailable(item.id)) {
+      _completedCacheSongIds.add(item.id);
+    }
     if (_bufferState.songId != nextSongId) {
+      _playerBufferedPosition = Duration.zero;
       _emitBufferState(
         songId: nextSongId,
         bufferedPosition: Duration.zero,
         force: true,
       );
     }
+    _refreshBufferState(nextSongId);
     mediaItem.add(item);
     if (item != null && _artCache != null) {
       unawaited(_updateArtCacheFile(item));
@@ -164,6 +172,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     final wiredPlayer = _player;
     _queueFinished = false;
     _finishObservedProcessingState = null;
+    _playerBufferedPosition = Duration.zero;
     _emitBufferState(
       songId: _radioStation == null ? _currentMediaItem?.id : null,
       bufferedPosition: Duration.zero,
@@ -420,13 +429,8 @@ extension _NavisMediaSession on NavisAudioHandler {
       bufferedPosition,
     ) {
       if (!identical(_player, wiredPlayer)) return;
-      final songId = _radioStation == null
-          ? _resolveCurrentQueueMetadata().mediaItem?.id
-          : null;
-      _emitBufferState(
-        songId: songId,
-        bufferedPosition: songId == null ? Duration.zero : bufferedPosition,
-      );
+      _playerBufferedPosition = bufferedPosition;
+      _refreshBufferState(_currentBufferSongId);
     });
 
     // Position monitoring for cross-fade triggering.
@@ -438,6 +442,27 @@ extension _NavisMediaSession on NavisAudioHandler {
         .listen((position) {
           if (identical(_player, wiredPlayer)) _checkCrossfadeTrigger(position);
         });
+  }
+
+  /// The song id the seek bar buffered line tracks: the current queue song,
+  /// or null while a radio station plays.
+  String? get _currentBufferSongId => _radioStation == null
+      ? _resolveCurrentQueueMetadata().mediaItem?.id
+      : null;
+
+  /// Draws the seek bar line for [songId] as the further of the player's
+  /// buffered position and what the rolling cache holds locally.
+  void _refreshBufferState(String? songId) {
+    var buffered = Duration.zero;
+    if (songId != null) {
+      buffered = _playerBufferedPosition;
+      final cached = _cachedPlayablePosition(
+        songId,
+        _effectivePlaybackDuration(_currentMediaItem),
+      );
+      if (cached != null && cached > buffered) buffered = cached;
+    }
+    _emitBufferState(songId: songId, bufferedPosition: buffered);
   }
 
   void _emitBufferState({

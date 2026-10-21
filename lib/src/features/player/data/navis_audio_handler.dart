@@ -375,6 +375,11 @@ class NavisAudioHandler extends BaseAudioHandler
 
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
   PlaybackBufferState _bufferState = const PlaybackBufferState.idle();
+  // The player's own buffered position, before the cache is taken into
+  // account for the seek bar line. Deadline logic reads the player directly.
+  Duration _playerBufferedPosition = Duration.zero;
+  // Songs whose rolling-cache download finished, until another song plays.
+  final Set<String> _completedCacheSongIds = <String>{};
   Timer? _positionPersistTimer;
   late final Future<void> _ready;
   late final Future<void> _startupQueueRestore;
@@ -2534,6 +2539,10 @@ class NavisAudioHandler extends BaseAudioHandler
       'sidecarCacheActiveSongId': _sidecarDownloader.activeSongId,
       'playerPositionMs': _player.position.inMilliseconds,
       'playerBufferedPositionMs': _player.bufferedPosition.inMilliseconds,
+      'drawnBufferedPositionMs': _bufferState.bufferedPosition.inMilliseconds,
+      'cachedPlayablePositionMs': songId == null
+          ? null
+          : _cachedPlayablePosition(songId, snapshot.duration)?.inMilliseconds,
       'userVolume': _userVolume,
       'effectivePlayerVolume': _player.volume,
       'playbackSpeed': _appliedAdjustments.speed,

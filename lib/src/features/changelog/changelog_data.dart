@@ -152,12 +152,34 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Fix in-app Linux updates for Debian and Fedora packages with a system '
+        'authentication prompt; AUR and other package-managed installs show '
+        'package-manager instructions. Automatic installation works from the '
+        'first update after 1.5.1; 1.5.0 users update to 1.5.1 manually or '
+        'through their package manager.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Reuse the verified update download after cancelling installation or '
+        'reopening the update dialog, checking the file again before retrying',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fix transcoded songs replaying after the stream finishes on Android',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Seeking in a transcoded song now jumps straight to the new position '
         'on servers that support it, instead of waiting for the download',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Report a failed "Check now" in About instead of staying silent',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The seek bar now shows how much of a song is already downloaded, '
+        'instead of stopping short after a seek',
         type: ChangelogEntryType.fix,
       ),
     ],
@@ -263,7 +285,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Playlists that live only on this device can be created and edited offline, show a 2x2 mosaic of their songs\' covers, and work in the queue, downloads and Android Auto',
+        "Playlists that live only on this device can be created and edited offline, show a 2x2 mosaic of their songs' covers, and work in the queue, downloads and Android Auto",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
