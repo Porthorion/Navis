@@ -283,16 +283,15 @@ extension _NavisRecovery on NavisAudioHandler {
       Duration(milliseconds: (item?.extras?['positionOffsetMs'] as int?) ?? 0);
 
   /// A native loop (repeat one, or repeat all over one song) restarts an
-  /// offset stream at its own start, which is the offset into the song. just_audio
-  /// reports that loop as an autoAdvance discontinuity within one index; reload
-  /// the song from the start without an offset. A real advance to another index
-  /// never matches.
+  /// offset stream at its own start, which is the offset into the song, and an
+  /// advance (a repeat-all wrap) onto a song left mid-way as an offset stream
+  /// starts it there too. just_audio reports both as an autoAdvance
+  /// discontinuity; reload the song from the start without an offset.
   void _onPositionDiscontinuity(PositionDiscontinuity discontinuity) {
     final index = discontinuity.event.currentIndex;
     final sequence = _player.sequence;
     if (discontinuity.reason != PositionDiscontinuityReason.autoAdvance ||
         index == null ||
-        index != discontinuity.previousEvent.currentIndex ||
         index < 0 ||
         index >= sequence.length ||
         _disposeHandlerStarted ||
