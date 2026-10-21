@@ -10700,6 +10700,26 @@ void main() {
       });
     }
 
+    test('sources that complete at once advance at most twice', () async {
+      final (handler, _, _) = await fixture(timeouts: quick, count: 8);
+      await handler.replaceQueue(songIds(8), expandMatchFlows: false);
+      final visited = <String?>[handler.snapshot.currentSongId];
+      for (var i = 0; i < 6; i++) {
+        // A server that sends headers and closes: the song ends at position 0.
+        final active = handler.debugActivePlayer as _ControllableAudioPlayer;
+        active
+          ..state = ProcessingState.completed
+          ..simulatedPosition = Duration.zero
+          .._events.add(active.playbackEvent);
+        await idle(handler);
+        visited.add(handler.snapshot.currentSongId);
+      }
+      expect(visited.toSet(), {'song-0', 'song-1', 'song-2'});
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(handler.snapshot.playing, isFalse);
+      expect(handler.snapshot.queueSongIds, songIds(8));
+    });
+
     test('seek and stall failovers share one cap', () async {
       final (handler, player, _) = await fixture(timeouts: quick, count: 6);
       await handler.replaceQueue(songIds(6), expandMatchFlows: false);

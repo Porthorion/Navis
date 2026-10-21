@@ -130,10 +130,19 @@ extension _NavisQueueWindow on NavisAudioHandler {
         _desiredLoopMode == LoopMode.all;
     if (next >= _logicalQueueIds.length && !wrap) return;
     _continuingIntoDeferredTail = true;
+    // A song that ends long before its duration is a failed stream, not a
+    // finished song: advance under the automatic failover cap.
+    final duration = _player.duration;
+    final premature =
+        !wrap &&
+        duration != null &&
+        _player.position + _timeouts.healthyPlayback < duration;
     unawaited(
-      (wrap && _shuffleEnabled && _logicalQueueIds.length > 1
+      (premature
+              ? _skipPastFailedRemoteSong(current, autoPlay: true)
+              : wrap && _shuffleEnabled && _logicalQueueIds.length > 1
               ? _startNextShufflePass()
-              : playFromIndex(wrap ? 0 : next))
+              : _selectIndex(wrap ? 0 : next))
           .whenComplete(() => _continuingIntoDeferredTail = false),
     );
   }
