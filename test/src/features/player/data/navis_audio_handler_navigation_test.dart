@@ -10048,6 +10048,7 @@ void main() {
       bool transcode = false,
       bool positionStreams = false,
       int count = 2,
+      NavisQueueWindow queueWindow = const NavisQueueWindow(),
     }) async {
       final previousHttp = HttpOverrides.current;
       HttpOverrides.global = null;
@@ -10090,6 +10091,7 @@ void main() {
         directory,
         count,
         positionStreams: positionStreams,
+        queueWindow: queueWindow,
         sidecarStreams: true,
         streamingQuality: transcode
             ? const StreamingQuality(
@@ -10699,6 +10701,41 @@ void main() {
         expect(handler.snapshot.playing, isTrue);
       });
     }
+
+    test('a cap stop in a windowed queue releases no tail into it', () async {
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final hung = <String>{'song-0', 'song-1', 'song-2'};
+      final (handler, _, _) = await fixture(
+        timeouts: quick,
+        count: 14,
+        rebuiltPlayers: rebuilt,
+        hungLoadSongs: hung,
+        queueWindow: const NavisQueueWindow(
+          deferThreshold: 12,
+          ahead: 3,
+          lowWater: 2,
+          page: 3,
+          nearJump: 5,
+          behind: 3,
+          trimSlack: 1,
+        ),
+      );
+      await handler.replaceQueue(songIds(14), expandMatchFlows: false);
+      await idle(handler);
+      // Let a background tail release run if one is going to.
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await idle(handler);
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(handler.snapshot.currentIndex, 2);
+      expect(handler.snapshot.queueSongIds, songIds(14));
+      expect(rebuilt.last.sourceIds, isEmpty);
+      hung.clear();
+      await handler.play();
+      await idle(handler);
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(handler.snapshot.currentIndex, 2);
+      expect(handler.snapshot.playing, isTrue);
+    });
 
     test('sources that complete at once advance at most twice', () async {
       final (handler, _, _) = await fixture(timeouts: quick, count: 8);
