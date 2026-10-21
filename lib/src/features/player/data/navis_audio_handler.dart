@@ -244,6 +244,15 @@ class NavisAudioHandler extends BaseAudioHandler
   /// another load, this lasts only until the next load or progress.
   bool _loadedSourceFailed = false;
 
+  /// Automatic failovers since playback last advanced for
+  /// [NavisPlaybackTimeouts.healthyPlayback]; [_maxAutoFailovers] is the cap.
+  int _autoFailovers = 0;
+  Duration _playedSinceFailover = Duration.zero;
+  Duration? _advancePosition;
+  String? _advanceSongId;
+  int? _advanceIndex;
+  DateTime? _lastAdvanceAt;
+
   final LibraryDao _libraryDao;
   final PlaylistDao _playlistDao;
   final PlayQueueDao _playQueueDao;
@@ -417,12 +426,12 @@ class NavisAudioHandler extends BaseAudioHandler
   StreamSubscription<LoopMode>? _loopModeSubscription;
   StreamSubscription<Duration>? _activePositionSubscription;
   StreamSubscription<Duration>? _bufferedPositionSubscription;
+  final Map<String, int> _cacheReceivedBytes = <String, int>{};
   final Map<String, StreamSubscription<double>> _cacheProgressSubscriptions =
       <String, StreamSubscription<double>>{};
   final Map<String, RollingCacheActivity> _rollingCacheActivities =
       <String, RollingCacheActivity>{};
   // When each song's cache download last received bytes.
-  final Map<String, DateTime> _cacheProgressAt = <String, DateTime>{};
   // Observed lock-cache sources by cache path, so a download the player has
   // moved on from can be stopped.
   // ignore: experimental_member_use, reason: LockCachingAudioSource is the intended just_audio cache primitive for rolling cache playback.
@@ -1474,14 +1483,17 @@ class NavisAudioHandler extends BaseAudioHandler
     bool autoPlay = true,
     bool expandMatchFlows = true,
     List<String>? originalOrder,
-  }) => _replaceQueueIds(
-    songIds,
-    startIndex: startIndex,
-    autoPlay: autoPlay,
-    expandMatchFlows: expandMatchFlows,
-    originalOrder: originalOrder,
-    inPlayOrder: false,
-  );
+  }) {
+    _resetFailoverAccounting();
+    return _replaceQueueIds(
+      songIds,
+      startIndex: startIndex,
+      autoPlay: autoPlay,
+      expandMatchFlows: expandMatchFlows,
+      originalOrder: originalOrder,
+      inPlayOrder: false,
+    );
+  }
 
   @override
   Future<void> replaceQueueWithData(
@@ -1490,14 +1502,17 @@ class NavisAudioHandler extends BaseAudioHandler
     bool autoPlay = true,
     bool expandMatchFlows = true,
     List<String>? originalOrder,
-  }) => _replaceQueueRows(
-    songs,
-    startIndex: startIndex,
-    autoPlay: autoPlay,
-    expandMatchFlows: expandMatchFlows,
-    originalOrder: originalOrder,
-    inPlayOrder: false,
-  );
+  }) {
+    _resetFailoverAccounting();
+    return _replaceQueueRows(
+      songs,
+      startIndex: startIndex,
+      autoPlay: autoPlay,
+      expandMatchFlows: expandMatchFlows,
+      originalOrder: originalOrder,
+      inPlayOrder: false,
+    );
+  }
 
   @override
   Future<void> addToQueue(
@@ -1885,6 +1900,13 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> playFromIndex(int index) {
+    _resetFailoverAccounting();
+    return _selectIndex(index);
+  }
+
+  /// Selects [index] without touching the automatic failover count, for
+  /// natural advances.
+  Future<void> _selectIndex(int index) {
     final logicalIds = _logicalQueueIds;
     if (index < 0 || index >= logicalIds.length) return Future<void>.value();
     _invalidatePendingStartupSelection();
@@ -1969,6 +1991,7 @@ class NavisAudioHandler extends BaseAudioHandler
       _sidecarSongsById.clear();
       _sidecarStreamUris.clear();
       _rollingCacheActivities.clear();
+      _cacheReceivedBytes.clear();
       _reportRollingCacheActivity?.call(const RollingCacheActivity.idle());
       await _clearQueueInternal(persist: true, generation: generation);
       _completeQueueLoad(generation);
@@ -2035,6 +2058,7 @@ class NavisAudioHandler extends BaseAudioHandler
       shouldPlay: true,
       preserveSeek: true,
     );
+    _autoFailovers = 0;
     await _ready;
     if (!_isCurrentTransportIntent(transportGeneration)) return;
     await _startupQueueRestore;
@@ -2308,15 +2332,24 @@ class NavisAudioHandler extends BaseAudioHandler
         request.outcome = 'failed';
         request.stage = 'done';
         if (identical(_pendingSeek, request)) {
-          _seekFailureBlocksRecovery = true;
+          // A song that still advances is alive: it keeps playing quietly.
+          final shouldFailOver = _isDesktopRuntime && !_playbackAdvancing;
+          _seekFailureBlocksRecovery = !shouldFailOver;
           _seekFailurePosition = _player.position;
-          _emitLoadFailure(
-            operation: 'seek',
-            message: 'The requested playback position could not be reached.',
-            songId: request.songId,
-            isTimeout: error is TimeoutException,
-          );
           AppLogger.warning('Seek failed: ${error.runtimeType}\n$stackTrace');
+          if (shouldFailOver) {
+            // Recovery exhausted this source: use ordinary failover or stop
+            // the final song quietly so Play can reload it.
+            final failedIndex = _locateQueueTarget(
+              request.songId,
+              request.queueIndex ?? 0,
+            );
+            _pendingSeek = null;
+            await _skipPastFailedRemoteSong(
+              failedIndex,
+              autoPlay: _requestedPlaying,
+            );
+          }
         }
       } finally {
         _recordSeekDiagnosticsEvent(<String, Object?>{
@@ -2760,6 +2793,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> stop() async {
     _invalidatePendingStartupSelection();
     final transportGeneration = _supersedeTransportIntent(shouldPlay: false);
+    if (_isLoading) _supersedeQueueWork();
     await _ready;
     if (!_isCurrentTransportIntent(transportGeneration)) return;
     _cancelCrossfade();
@@ -2820,6 +2854,10 @@ class NavisAudioHandler extends BaseAudioHandler
   @visibleForTesting
   void debugCheckCrossfadeTrigger(Duration position) =>
       _checkCrossfadeTrigger(position);
+
+  /// Play time counted towards the current failover chain.
+  @visibleForTesting
+  Duration get debugPlayedSinceFailover => _playedSinceFailover;
 
   /// Recovers the current remote song as the stall watchdog would.
   @visibleForTesting
@@ -2980,6 +3018,7 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     _cacheProgressSubscriptions.clear();
     _rollingCacheActivities.clear();
+    _cacheReceivedBytes.clear();
     _reportRollingCacheActivity?.call(const RollingCacheActivity.idle());
     if (_playerDisposalFuture == null) {
       await _persistSafely(_persistPosition, context: 'dispose handler');

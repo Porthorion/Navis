@@ -32,6 +32,16 @@ void main() {
     ]);
   });
 
+  test('reads properties without waiting for playback readiness', () async {
+    final native = _NativePlayer();
+    final source = NativeIcyPropertySource(native);
+    when(() => native.getProperty('volume', waitForInitialization: false))
+        .thenAnswer((_) async => '37');
+    expect(await source.read('volume'), '37');
+    verify(() => native.getProperty('volume', waitForInitialization: false))
+        .called(1);
+  });
+
   test('non-native players have no ICY properties', () async {
     final source = NativeIcyPropertySource(null);
     await source.observe('metadata', (_) async {});
