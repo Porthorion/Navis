@@ -32,7 +32,15 @@ extension _NavisRecovery on NavisAudioHandler {
     }
     _lastAdvanceAt = DateTime.now();
     _playedSinceFailover += delta;
-    if (_playedSinceFailover >= _timeouts.healthyPlayback) _autoFailovers = 0;
+    if (_playedSinceFailover >= _timeouts.healthyPlayback) {
+      _autoFailovers = 0;
+      // Sustained play also renews this song's one stream retry. A retry
+      // resumes at the song position and resets the counter, so each cycle
+      // needs healthyPlayback of real advance: a source that keeps failing
+      // either plays on through the song or fails within seconds and is
+      // skipped.
+      _remotePlaybackRecoveryAttempts.remove('$_transportGeneration:$songId');
+    }
   }
 
   bool get _playbackAdvancing =>
@@ -1461,6 +1469,7 @@ extension _NavisRecovery on NavisAudioHandler {
         );
     if (isRetry) {
       _remotePlaybackRecoveryAttempts.add(attemptKey);
+      _playedSinceFailover = Duration.zero;
     }
     AppLogger.startup(
       StartupEvent.streamRecovery,
