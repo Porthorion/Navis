@@ -314,7 +314,7 @@ class ThrottledProxy:
                 chunk = response.read(16384)
                 if not chunk:
                     break
-                while time.monotonic() < self.stall_until:
+                while is_media and time.monotonic() < self.stall_until:
                     time.sleep(0.1)
                 if time.monotonic() < self.cut_until and is_media:
                     entry['end'] = f'injectedCut-{self.cut_mode}'
@@ -2749,7 +2749,8 @@ def case_dead_source_hold(run: Run, env, kbps=1000, window_s=90.0):
         run.act('stall', seconds=window_s + 600, atStart=True)
         starter = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         run.act('start', songIds=len(ids), first=ids[0], shuffle=False)
-        run.futures.append(starter.submit(lambda: run.app.api('/v1/playback/queue', {'songIds': ids}, timeout=180)))
+        start_future = starter.submit(lambda: run.app.api('/v1/playback/queue', {'songIds': ids}, timeout=180))
+        run.futures.append(start_future)
         time.sleep(5.0)
         t_cmd = run.now()
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
@@ -2774,6 +2775,7 @@ def case_dead_source_hold(run: Run, env, kbps=1000, window_s=90.0):
     finally:
         env.proxy.stall_until = 0.0
         env.proxy.set_profile(*restore)
+    run.metrics['startCall'] = repr(start_future.exception(timeout=1)) if start_future.done() else 'pending'
     run.metrics['finalState'] = pick(run.last())
     run.metrics['loadFailuresEnd'] = failures()
     if run.metrics.get('playAfterHoldS') is None:
