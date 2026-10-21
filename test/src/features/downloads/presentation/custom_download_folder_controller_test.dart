@@ -29,6 +29,7 @@ const _preview = PermanentDownloadImportPreview(
 class _FakeFolderService extends Fake implements DownloadService {
   final List<String> calls = <String>[];
   final List<Completer<void>> previewGates = <Completer<void>>[];
+  Completer<void>? importGate;
 
   @override
   Future<PermanentDownloadImportPreview> previewCustomDownloadFolder(
@@ -56,6 +57,7 @@ class _FakeFolderService extends Fake implements DownloadService {
     bool includeRecognized = true,
   }) async {
     calls.add('import ${preview.rootPath}');
+    await importGate?.future;
     return const PermanentDownloadImportResult(
       importedCount: 1,
       skippedCount: 0,
@@ -167,6 +169,25 @@ void main() {
       expect((await again).importedCount, 1);
     },
   );
+
+  test('a manual import reports busy while it runs', () async {
+    final service = _FakeFolderService();
+    final container = _container(service);
+    final gate = Completer<void>();
+    service.importGate = gate;
+    final imported = container
+        .read(customDownloadFolderControllerProvider.notifier)
+        .importManual(_preview, <String, String>{'unknown.flac': 'song-1'});
+    await pumpEventQueue();
+    expect(container.read(customDownloadFolderControllerProvider).busy, isTrue);
+
+    gate.complete();
+    expect((await imported).importedCount, 1);
+    expect(
+      container.read(customDownloadFolderControllerProvider).busy,
+      isFalse,
+    );
+  });
 
   test('disabling the folder clears the last scan', () async {
     final service = _FakeFolderService();

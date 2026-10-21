@@ -583,6 +583,9 @@
   "homeRecentlyAddedTitle": "Recently Added",
   "homeRecentlyAddedEmptyTitle": "No Recently Added Albums",
   "homeRecentlyAddedEmptySubtitle": "Pull to refresh to fetch newly added albums.",
+  "homeRandomAlbumListTitle": "Random Albums",
+  "homeRandomAlbumListEmptyTitle": "No Random Albums",
+  "homeRandomAlbumListEmptySubtitle": "Pull to refresh to pick new albums.",
   "homeNewReleasesTitle": "New Releases",
   "homeFrequentTitle": "Frequent Albums",
   "homeFrequentEmptyTitle": "No Frequent Albums Yet",
@@ -1443,6 +1446,8 @@
   "cacheSettingsClearCoverArt": "Clear Cover Art Cache",
   "cacheSettingsClearCoverArtConfirm": "Clear all cached cover art images?",
   "cacheSettingsClearSuccess": "Cache cleared.",
+  "cacheSettingsClearing": "Clearing cache…",
+  "downloadsRemoving": "Removing downloads…",
   "cacheSettingsBudgetSaved": "Cache budget updated.",
   "cacheSettingsBudgetGb": "{gb} GB",
   "@cacheSettingsBudgetGb": {
@@ -1551,6 +1556,7 @@
   "downloadsCustomFolderDisableConfirm": "Files in this folder stay where they are, and Navis stops listing them as downloads. Turn the folder back on to pick them up again. New downloads are stored by Navis.",
   "downloadsCustomFolderDisableAction": "Turn Off",
   "downloadsCustomFolderUpdating": "Moving downloaded tracks...",
+  "downloadsImporting": "Importing downloads…",
   "downloadsScanError": "Could not scan the downloads folder.",
   "downloadsRescanTitle": "Rescan Existing Downloads",
   "downloadsRescanSubtitle": "Import tracks already in this folder",
@@ -2041,6 +2047,8 @@
       "version": { "type": "String" }
     }
   },
+  "updateCheckFailed": "Couldn't check for updates. Check your connection and try again.",
+  "updateCheckFailedSub": "Update check failed. Tap to try again.",
   "updateAvailableTitle": "Update Available",
   "updateAvailableBody": "{version} is ready to download.",
   "@updateAvailableBody": {
@@ -2081,6 +2089,7 @@
   "updateRestartAndUpdate": "Restart & Update",
   "updateApplying": "Applying update…",
   "updateNoWriteAccess": "Navis cannot update itself from this location. Please download manually.",
+  "updateUsePackageManager": "Navis was installed by your system's package manager. Update it from there, for example with your software updater or AUR helper.",
   "updateSignatureMismatch": "This update is signed with a different key than your installed version. Uninstall Navis, then install the new version manually.",
   "updateDownloadManually": "Download Manually",
 
@@ -2134,6 +2143,7 @@
   "homeSectionRecentlyAdded": "Recently Added",
   "homeSectionRecentlyPlayed": "Recently Played",
   "homeSectionRandomAlbums": "You Might Like",
+  "homeSectionRandomAlbumList": "Random Albums",
   "homeSectionMostPlayed": "Most Played",
   "homeSectionRecentlyPlayedTracks": "Recently Played Tracks",
   "homeSectionFrequentAlbums": "Frequent Albums",
@@ -2287,6 +2297,7 @@
   "unavailableReviewRelinkDismiss": "Cancel",
   "unavailableReviewPossibleReplacements": "Possible Replacements",
   "unavailableReviewStaleSelection": "This selection is no longer current. Nothing was changed; the list was refreshed.",
+  "unavailableReviewRelinkFailed": "Couldn’t relink this item. Try again.",
   "unavailableReviewAlreadyResolved": "This entry was already resolved.",
   "unavailableReviewRefCopies": "Downloads and cached copies: {count}",
   "@unavailableReviewRefCopies": { "placeholders": { "count": { "type": "int" } } },

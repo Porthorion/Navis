@@ -121,10 +121,8 @@ write_public_pem() {
 }
 
 # ─── S3 API helpers (curl SigV4; R2 region is "auto") ───────────────────────
-s3_url() { echo "https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/${R2_PREFIX}/$1"; }
-s3_curl() {
-  curl -sS --aws-sigv4 "aws:amz:auto:s3" --user "${R2_ACCESS_KEY_ID}:${R2_SECRET_ACCESS_KEY}" "$@"
-}
+# shellcheck source=lib/r2_storage.sh
+source "${SCRIPT_DIR}/lib/r2_storage.sh"
 
 # Deletes only keys enumerated from the previous dev release namespace.
 delete_object() {

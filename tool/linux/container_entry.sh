@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 repo="$1"; build="$2"; mode="$3"; version="$4"; prefix="$5"; source_list="$6"; shift 6
+build_mode="${NAVIS_LINUX_BUILD_MODE:-release}"
+[[ "${build_mode}" =~ ^(release|profile)$ ]] || exit 1
 export HOME=/tmp/navis-builder
 mkdir -p "${HOME}" /tmp/navis-work
 if [[ "${build}" == true ]]; then
@@ -23,10 +25,10 @@ if [[ "${build}" == true ]]; then
   done
   [[ "${symbols}" == true ]] || args+=("--split-debug-info=${repo}/build/symbols/linux/${version}")
   [[ "${channel}" == true ]] || args+=(--dart-define=NAVIS_UPDATE_CHANNEL=stable)
-  flutter build linux --release "${args[@]}"
+  flutter build linux "--${build_mode}" "${args[@]}"
   mkdir -p "${repo}/build/linux/x64/release"
   rm -rf "${repo}/build/linux/x64/release/bundle"
-  cp -a build/linux/x64/release/bundle "${repo}/build/linux/x64/release/"
+  cp -a "build/linux/x64/${build_mode}/bundle" "${repo}/build/linux/x64/release/"
 fi
 cd "${repo}"
 bash tool/linux/package_bundle.sh "${mode}" "${version}" "${prefix}"
