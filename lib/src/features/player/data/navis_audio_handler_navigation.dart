@@ -397,6 +397,13 @@ extension _NavisNavigation on NavisAudioHandler {
         }
         confirmSelection();
         _completeQueueLoad(generation);
+        // A song left mid-way as an offset stream still holds its offset
+        // and would start there: reopen it from the start.
+        if (!rebuiltPendingQueue &&
+            _positionOffsetOf(_queueItems.elementAtOrNull(index)) >
+                Duration.zero) {
+          unawaited(seek(Duration.zero));
+        }
       } on OperationCancelledException catch (error, stackTrace) {
         // Usually a later command cancelled this work and owns the target.
         // When nothing did, the cancellation came from inside (a release that
