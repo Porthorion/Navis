@@ -172,6 +172,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Show a clear message when relinking an unavailable song fails, '
+        'instead of saying the selection is out of date',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Clearing a cache, importing manually matched downloads and matching '
         'a weekly playlist now say what they are doing while they run',
         type: ChangelogEntryType.improvement,

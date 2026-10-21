@@ -178,7 +178,8 @@ void main() {
       SongsTableCompanion.insert(id: 'song-new', title: 'Missing Favorite'),
     ]);
 
-    await _pumpScreen(tester, database, serverId);
+    final notices = AppNoticeController();
+    await _pumpScreen(tester, database, serverId, notices: notices);
 
     await tester.tap(find.text('Find Match'));
     await tester.pumpAndSettle();
@@ -192,6 +193,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pump(const Duration(milliseconds: 50));
 
+    expect(notices.notice?.message, contains('no longer current'));
     // The stale replacement is rejected: the entry stays pending and no
     // alias was recorded.
     final pending = await pendingRecoveryReviews(database, serverId);
@@ -206,13 +208,62 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));
   }, skip: !sqliteAvailable);
+
+  testWidgets(
+    'a failed remap shows the neutral relink error, not the stale message',
+    (tester) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final serverId = await database
+          .into(database.serverConfigTable)
+          .insert(
+            ServerConfigTableCompanion.insert(
+              url: 'https://example.com',
+              username: 'alice',
+              apiVersion: '1.16.1',
+            ),
+          );
+      await database.librarySyncDao.recordRecoveryReview(
+        serverId: serverId,
+        entityType: 'song',
+        oldId: 'song-gone',
+        savedTitle: 'Missing Favorite',
+        savedSubtitle: 'An Artist',
+        reason: 'missingFromCatalog',
+        evidenceGeneration: 3,
+      );
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'song-new', title: 'Missing Favorite'),
+      ]);
+
+      final notices = AppNoticeController();
+      await _pumpScreen(tester, database, serverId, notices: notices);
+
+      await tester.tap(find.text('Find Match'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Missing Favorite').last);
+      await tester.pumpAndSettle();
+      // The remap itself fails while the replacement is still current.
+      await database.customStatement('DROP TABLE entity_identity_aliases;');
+      await tester.tap(find.text('Relink'));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(milliseconds: 50));
+
+      expect(notices.notice?.message, 'Couldn’t relink this item. Try again.');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+    skip: !sqliteAvailable,
+  );
 }
 
 Future<void> _pumpScreen(
   WidgetTester tester,
   NavisDatabase database,
-  int serverId,
-) async {
+  int serverId, {
+  AppNoticeController? notices,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -230,7 +281,7 @@ Future<void> _pumpScreen(
         ),
       ],
       child: AppNoticeScope(
-        notifier: AppNoticeController(),
+        notifier: notices ?? AppNoticeController(),
         child: MaterialApp(
           theme: testTheme(),
           localizationsDelegates: navisLocalizationsDelegates,
