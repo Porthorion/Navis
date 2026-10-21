@@ -79,6 +79,7 @@ extension _NavisCache on NavisAudioHandler {
           );
         },
         onComplete: (cacheFile) async {
+          _completedCacheSongIds.add(song.id);
           await _registerRollingCacheTrack(
             song: song,
             resolvedSource: ResolvedPlaybackSource.directStream(
@@ -117,6 +118,7 @@ extension _NavisCache on NavisAudioHandler {
     subscription = source.downloadProgressStream.listen(
       (progress) {
         _cacheReceivedBytes[cacheFilePath] = source.downloadedBytes;
+        if (progress >= 0.999) _completedCacheSongIds.add(song.id);
         _updateRollingCacheActivity(
           cacheFilePath,
           RollingCacheActivity(
@@ -166,6 +168,39 @@ extension _NavisCache on NavisAudioHandler {
   ) {
     _rollingCacheActivities[cacheFilePath] = activity;
     _reportRollingCacheActivity?.call(activity);
+    _refreshBufferState(_currentBufferSongId);
+  }
+
+  /// How much of [songId], the current song, is playable from local data:
+  /// all of it from a file or a finished download, else what the running
+  /// download has fetched (its fraction, or bytes at the stream's bitrate
+  /// when its length is unknown). Null when nothing is known.
+  Duration? _cachedPlayablePosition(String songId, Duration duration) {
+    final item = _currentMediaItem;
+    if (item == null || item.id != songId || duration <= Duration.zero) {
+      return null;
+    }
+    if (item.extras?['sourceKind'] == PlaybackSourceKind.file.name ||
+        _completedCacheSongIds.contains(songId)) {
+      return duration;
+    }
+    final progress = _rollingCacheActivities.values
+        .where((activity) => activity.songId == songId)
+        .firstOrNull
+        ?.progress;
+    final bitRate = item.extras?['resolvedBitRate'] as int?;
+    final bytes = _receivedCacheBytesForSong(songId);
+    final Duration cached;
+    if (progress != null && progress > 0) {
+      cached = duration * progress;
+    } else if (bytes != null && bitRate != null && bitRate > 0) {
+      cached = Duration(milliseconds: bytes * 8 ~/ bitRate);
+    } else {
+      return _completedCacheSongIds.contains(songId) ? duration : null;
+    }
+    if (cached >= duration) return duration;
+    // Whole seconds, so a download does not rebuild the seek bar per chunk.
+    return Duration(seconds: cached.inSeconds);
   }
 
   // Sidecar bytes prove linear load progress, never desktop seek progress.
@@ -202,6 +237,7 @@ extension _NavisCache on NavisAudioHandler {
       _rollingCacheActivities.values.lastOrNull ??
           const RollingCacheActivity.idle(),
     );
+    _refreshBufferState(_currentBufferSongId);
   }
 
   Future<void> _registerRollingCacheTrack({

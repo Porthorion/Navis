@@ -158,6 +158,11 @@ const List<ChangelogVersion> changelogs = [
         'on servers that support it, instead of waiting for the download',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'The seek bar now shows how much of a song is already downloaded, '
+        'instead of stopping short after a seek',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(
