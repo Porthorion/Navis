@@ -89,6 +89,26 @@ String normalizeMetadataKeepingEdition(String value) {
   return _words(folded);
 }
 
+final RegExp _featuringAnyCase = RegExp(
+  r'\b(?:feat|ft)\b\.?.*$',
+  caseSensitive: false,
+);
+
+/// [title] as written, without bracketed qualifiers, a " - " suffix or a
+/// featured-artist credit: "Song (Remastered 2011)", "Song - Live" and
+/// "Song (feat. X)" all give "Song". Unlike [normalizeMetadata] it keeps case
+/// and punctuation, so the result can be sent to a service that looks titles
+/// up by name. A title that would become empty is returned unchanged.
+String stripTitleQualifiers(String title) {
+  final stripped = title
+      .replaceAll(_closedBrackets, ' ')
+      .replaceFirst(_dashSuffix, '')
+      .replaceFirst(_featuringAnyCase, '')
+      .replaceAll(_whitespace, ' ')
+      .trim();
+  return stripped.isEmpty ? title : stripped;
+}
+
 // Preserve locations such as "Live at Ft. Worth" inside brackets. Masking
 // retains offsets, so only an outside featuring credit truncates the title.
 String _stripFeaturing(String value) {

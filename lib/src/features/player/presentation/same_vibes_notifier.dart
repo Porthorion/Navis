@@ -866,7 +866,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     AppLogger.debug(
       'SameVibes diagnostics: lastfm recommendations=${result.tracks.length} '
       'artist="$expectedArtist" track="$expectedTitle" '
-      'outcome=${result.outcome.name} '
+      'outcome=${result.outcome.name} source=${result.source.name} '
       'status=${result.statusCode} apiCode=${result.apiErrorCode}',
     );
     return result;

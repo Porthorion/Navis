@@ -135,7 +135,9 @@ void main() {
       LastFmFetchOutcome.noResults,
     );
     await client.getSimilarTracksResult(artist: 'Fixture', track: 'Track');
-    expect(requests, 2);
+    // The empty answer cost a track request and an artist-level fallback
+    // request; the third call is served from the cached empty answer.
+    expect(requests, 3);
   });
 
   setUpAll(() {
@@ -540,4 +542,198 @@ void main() {
       expect(tracks[1].rank, 2);
     },
   );
+
+  group('similar-track fallbacks', () {
+    // Answers each Last.fm method from [routes] and records every request.
+    Dio routedDio(
+      Map<String, Map<String, dynamic> Function(Map<String, dynamic>)> routes,
+      List<Map<String, dynamic>> requests,
+    ) {
+      final dio = Dio();
+      addTearDown(dio.close);
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            final params = Map<String, dynamic>.of(options.queryParameters);
+            requests.add(params);
+            final route = routes[(params['method'] as String).toLowerCase()];
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                requestOptions: options,
+                statusCode: 200,
+                data: route == null
+                    ? {'error': 3, 'message': 'unrouted'}
+                    : route(params),
+              ),
+            );
+          },
+        ),
+      );
+      return dio;
+    }
+
+    Map<String, dynamic> similarTracks(List<(String, String)> tracks) => {
+      'similartracks': {
+        'track': [
+          for (final (artist, title) in tracks)
+            {
+              'name': title,
+              'match': 0.9,
+              'artist': {'name': artist},
+            },
+        ],
+      },
+    };
+
+    Map<String, dynamic> similarArtists(List<(String, double)> artists) => {
+      'similarartists': {
+        'artist': [
+          for (final (name, match) in artists) {'name': name, 'match': match},
+        ],
+      },
+    };
+
+    Map<String, dynamic> topTracks(String artist, int count) => {
+      'toptracks': {
+        '@attr': {'artist': artist},
+        'track': [
+          for (var rank = 1; rank <= count; rank++)
+            {
+              'name': '$artist hit $rank',
+              'artist': {'name': artist},
+              '@attr': {'rank': '$rank'},
+            },
+        ],
+      },
+    };
+
+    final emptySimilar = <String, dynamic>{
+      'similartracks': {'track': <dynamic>[]},
+    };
+
+    test(
+      'an empty track list falls back to similar artists top tracks',
+      () async {
+        final requests = <Map<String, dynamic>>[];
+        final dio = routedDio({
+          'track.getsimilar': (_) => emptySimilar,
+          'artist.getsimilar': (_) =>
+              similarArtists([('Alpha', 1.0), ('Beta', 0.8), ('Gamma', 0.6)]),
+          'artist.gettoptracks': (params) =>
+              topTracks(params['artist'] as String, 3),
+        }, requests);
+        final result = await LastFmApiClient(
+          apiKey: 'key',
+          dio: dio,
+        ).getSimilarTracksResult(artist: 'Seed', track: 'Seed Song', limit: 20);
+
+        expect(result.outcome, LastFmFetchOutcome.success);
+        expect(result.tracks, hasLength(9));
+        // Round-robin: every artist's first track comes before any second one.
+        expect(result.tracks.take(3).map((t) => t.artist), [
+          'Alpha',
+          'Beta',
+          'Gamma',
+        ]);
+        expect(result.tracks.first.title, 'Alpha hit 1');
+        // Sorted by match, as the Same Vibes mapper does, the order holds.
+        final byMatch = [...result.tracks]
+          ..sort((a, b) => (b.match ?? 0).compareTo(a.match ?? 0));
+        expect(byMatch.take(3).map((t) => t.artist), [
+          'Alpha',
+          'Beta',
+          'Gamma',
+        ]);
+        // One similar-track request, one similar-artist request, three charts.
+        expect(requests, hasLength(5));
+      },
+    );
+
+    for (final (label, firstAnswer) in <(String, Map<String, dynamic>)>[
+      ('empty', emptySimilar),
+      ('error 6', {'error': 6, 'message': 'Track not found'}),
+    ]) {
+      test(
+        'a $label answer for a qualified title retries the clean title',
+        () async {
+          final requests = <Map<String, dynamic>>[];
+          final dio = routedDio({
+            'track.getsimilar': (params) => params['track'] == 'Song'
+                ? similarTracks([('Other', 'Match')])
+                : firstAnswer,
+          }, requests);
+          final result = await LastFmApiClient(apiKey: 'key', dio: dio)
+              .getSimilarTracksResult(
+                artist: 'Band',
+                track: 'Song (Remastered 2011)',
+              );
+
+          expect(result.outcome, LastFmFetchOutcome.success);
+          expect(result.tracks.single.title, 'Match');
+          expect(requests.map((r) => r['track']), [
+            'Song (Remastered 2011)',
+            'Song',
+          ]);
+        },
+      );
+    }
+
+    test('an empty final result is not cached for 24 hours', () async {
+      final root = await Directory.systemTemp.createTemp('lastfm-empty-');
+      addTearDown(() async => root.delete(recursive: true));
+      var now = DateTime.utc(2026, 10, 22);
+      final cache = IntegrationJsonCache(
+        readRootDirectory: () async => root,
+        now: () => now,
+      );
+      final requests = <Map<String, dynamic>>[];
+      final dio = routedDio({
+        'track.getsimilar': (_) => emptySimilar,
+        'artist.getsimilar': (_) => <String, dynamic>{
+          'similarartists': {'artist': <dynamic>[]},
+        },
+      }, requests);
+      final client = LastFmApiClient(apiKey: 'key', dio: dio, cache: cache);
+      Future<LastFmFetchOutcome> ask() async =>
+          (await client.getSimilarTracksResult(
+            artist: 'Band',
+            track: 'Song',
+          )).outcome;
+
+      expect(await ask(), LastFmFetchOutcome.noResults);
+      final firstRound = requests.length;
+      now = now.add(const Duration(minutes: 31));
+      expect(await ask(), LastFmFetchOutcome.noResults);
+      expect(requests.length, greaterThan(firstRound));
+    });
+
+    test('a fallback result is cached with the tracks it found', () async {
+      final root = await Directory.systemTemp.createTemp('lastfm-fallback-');
+      addTearDown(() async => root.delete(recursive: true));
+      final cache = IntegrationJsonCache(readRootDirectory: () async => root);
+      final requests = <Map<String, dynamic>>[];
+      final dio = routedDio({
+        'track.getsimilar': (_) => emptySimilar,
+        'artist.getsimilar': (_) => similarArtists([('Alpha', 1.0)]),
+        'artist.gettoptracks': (params) =>
+            topTracks(params['artist'] as String, 2),
+      }, requests);
+      final client = LastFmApiClient(apiKey: 'key', dio: dio, cache: cache);
+      final first = await client.getSimilarTracksResult(
+        artist: 'Band',
+        track: 'Song',
+      );
+      expect(first.tracks, hasLength(2));
+      final seen = requests.length;
+      final second = await client.getSimilarTracksResult(
+        artist: 'Band',
+        track: 'Song',
+      );
+      expect(
+        second.tracks.map((t) => t.title),
+        first.tracks.map((t) => t.title),
+      );
+      expect(requests, hasLength(seen));
+    });
+  });
 }

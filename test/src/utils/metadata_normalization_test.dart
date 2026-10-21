@@ -217,4 +217,16 @@ void main() {
       }
     });
   });
+
+  test('stripTitleQualifiers keeps the name but drops qualifiers', () {
+    expect(
+      stripTitleQualifiers("Ain't My Bitch (Remastered)"),
+      "Ain't My Bitch",
+    );
+    expect(stripTitleQualifiers('Suncity (feat. Empress Of)'), 'Suncity');
+    expect(stripTitleQualifiers('Love Bites - Live'), 'Love Bites');
+    expect(stripTitleQualifiers('Song [Deluxe] ft. Guest'), 'Song');
+    expect(stripTitleQualifiers('Plain Title'), 'Plain Title');
+    expect(stripTitleQualifiers('(Intro)'), '(Intro)');
+  });
 }
