@@ -3,6 +3,23 @@
 # bucket on the staging channel: missing manifest, signed offer, verified download, corrupt
 # asset, forged manifest, then a full apply + swap + relaunch. Deletes its staging objects on exit.
 # Needs the R2 settings and signing key from tool/release.env (see docs/release/release-r2.md).
+read_handshake() {
+  read -r PORT TOKEN APP_PID < <(python3 -c 'import json,sys;v=json.load(open(sys.argv[1]));print(v["port"],v["token"],v["pid"])' "$HANDSHAKE")
+}
+
+wait_handshake() {
+  for _ in $(seq 1 600); do [[ -s "$HANDSHAKE" ]] && break; sleep 1; done
+  [[ -s "$HANDSHAKE" ]] || { echo "no handshake; see $LOG"; exit 70; }
+  read_handshake
+  for _ in $(seq 1 60); do curl -sf -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:$PORT/v1/health" >/dev/null && return; sleep 1; done
+  echo "health never OK"; exit 70
+}
+api() { curl -s -X "$1" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' ${3:+-d "$3"} "http://127.0.0.1:$PORT$2"; }
+field() { python3 -c 'import json,sys;print(json.loads(sys.stdin.read()).get(sys.argv[1]))' "$1"; }
+
+# Library mode exposes the same handshake/API helpers without launching or publishing.
+if [[ "${BASH_SOURCE[0]}" != "$0" ]]; then return 0; fi
+
 set -uo pipefail
 WT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$WT"
@@ -41,16 +58,6 @@ cleanup() {
   echo "cleanup done; staging objects deleted"
 }
 trap cleanup EXIT
-
-wait_handshake() {
-  for _ in $(seq 1 600); do [[ -s "$HANDSHAKE" ]] && break; sleep 1; done
-  [[ -s "$HANDSHAKE" ]] || { echo "no handshake; see $LOG"; exit 70; }
-  read -r PORT TOKEN APP_PID < <(python3 -c 'import json,sys;v=json.load(open(sys.argv[1]));print(v["port"],v["token"],v["pid"])' "$HANDSHAKE")
-  for _ in $(seq 1 60); do curl -sf -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:$PORT/v1/health" >/dev/null && return; sleep 1; done
-  echo "health never OK"; exit 70
-}
-api() { curl -s -X "$1" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' ${3:+-d "$3"} "http://127.0.0.1:$PORT$2"; }
-field() { python3 -c 'import json,sys;print(json.loads(sys.stdin.read()).get(sys.argv[1]))' "$1"; }
 
 echo "==> launching clone (profile, channel=staging) — root $ROOT"
 flutter run -d linux --profile \

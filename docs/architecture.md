@@ -2760,6 +2760,7 @@ and Subsonic delivery continues independently.
   `updates.automatic` blocks only the automatic one. The request is a plain
   field on `UpdateForceCheckNotifier`, not provider state, because the provider
   consumes it while building.
+  A failed manual check shows an error notice and a "check failed" tile subtitle in About.
 - **Weekly playlists.** `listenBrainzDiscoverStreamProvider` watches
   `isEnabled(listenbrainz.weeklyPlaylists)`. When the gate closes it clears the
   session cache and last-visible list, so the Home hero and Library › Playlists
@@ -3661,23 +3662,32 @@ unsigned derived fields.
   `UpdateInfo` (with `downloadUrl`, `assetFileName`, `sha256` and `size`) when a newer
   version is available. A manifest that fails any check is dropped (the reason is kept
   for diagnostics) and reads as "no update".
-- `data/update_service.dart` — downloads each desktop artifact into a fresh private
+- `data/update_service.dart` — downloads each new desktop artifact into a fresh private
   `navis_update_*` work directory under `getTemporaryDirectory()`. POSIX downloads
   require `chmod 700` on that directory before writing any contents. Navis then
   verifies the artifact and applies the update. Diagnostics overrides of the temp base are
   preserved. Android retains `<cache>/navis_updates/` for its FileProvider.
+  The service remembers the last verified digest/path in memory for the app session.
+  A matching digest reuses the file only after checking its size and SHA-256 again,
+  reporting completed progress without network usage. Missing or damaged files
+  download again. A different digest removes the old desktop work directory
+  (only the artifact on Android); deletion errors do not block the new download.
+  Startup cleanup still removes leftover desktop work directories after relaunch.
   Distribution is resolved at runtime:
   - **Sideload Android APK builds** (`NAVIS_SELF_UPDATE=true`) download the
     APK and invoke the system installer via a gated `MethodChannel`.
   - **Google Play installs** (detected via install-source metadata, or Play AAB builds
     with `NAVIS_SELF_UPDATE=false`) open the Play Store listing instead of sideloading.
   - **Desktop** runs a platform-appropriate apply strategy:
-  - **Linux deb:** `pkexec dpkg -i` + relaunch.
-  - **Linux RPM/AUR:** package-manager updates. These use root-owned `/opt/navis`
-    and the existing write-access check shows Download Manually for normal users.
-    The detector still selects Debian mode, so an offer requires `linuxDeb-amd64`;
-    the published `linuxRpm-x86_64` key is for download consumers only. See
-    [release-linux.md](release/release-linux.md) for the Ubuntu 22.04 build and package flow.
+  - **Linux Debian/RPM:** package ownership of `/opt/navis/navis` selects
+    `linuxDeb` (`dpkg-query -S`) or `linuxRpm` (`rpm -qf`). One `pkexec /bin/sh`
+    invocation copies the signed artifact into a root-owned `/var/tmp/navis-update.*`
+    directory, rechecks SHA-256, and installs with `apt-get` (120-second lock wait)
+    or `dnf`, then relaunches. An EXIT trap removes the root copy. Artifact paths,
+    hashes and package kind are positional arguments, never script interpolation.
+  - **Linux AUR/unknown package owner:** `linuxPackageManaged` shows the system
+    package-manager instructions without downloading. Its offer uses `linuxPortable`
+    for version/notes. See [release-linux.md](release/release-linux.md).
   - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
     subdirectory of the downloaded artifact's private work directory, writes a
     self-deleting shell/batch script inside that same work directory, launches it
@@ -3687,7 +3697,9 @@ unsigned derived fields.
     Its silent relaunch uses `runasoriginaluser` so Navis resumes without installer elevation.
 - `data/update_install_mode.dart` — `UpdateInstallMode` enum and `detectInstallMode()`
   function. Detects the current install type from filesystem heuristics (e.g. presence of
-  `unins000.exe` for Windows installer mode; executable under `/opt/navis` for Linux deb).
+  `unins000.exe` for Windows installer mode). Linux executables under `/opt/navis`
+  query Debian then RPM ownership; missing commands or unrecognized ownership use
+  `linuxPackageManaged`. The detected mode is cached for the process.
 - `data/archive_utils.dart` — cross-platform archive extraction (`tar`, `ditto`, PowerShell
   `Expand-Archive`).
 - `data/update_scripts.dart` — generates the platform-specific updater scripts (`.sh` for
@@ -3720,8 +3732,9 @@ these hold; each failure is recorded as a reject reason and nothing is offered:
   `PackageInfo.buildNumber` (`version_not_newer`). Stable and manifests without
   `build` use semver alone; malformed build values reject as `malformed_payload`;
 - the platform's asset key exists (`missing_asset`). Keys are the `UpdateInstallMode`
-  names, with `linuxDeb-<arch>` (`amd64` or `arm64`) for Debian packages; Debian never
-  falls back across architectures. Android's existing `com.navis.app/distribution`
+  names, with `linuxDeb-<arch>` (`amd64` or `arm64`) for Debian and
+  `linuxRpm-<arch>` (`x86_64` or `aarch64`) for RPM. Packages never fall back
+  across architectures or package families. Android's existing `com.navis.app/distribution`
   `getInstallSource` response includes `primaryAbi` from `Build.SUPPORTED_ABIS[0]`.
   For `arm64-v8a`, `armeabi-v7a` and `x86_64`, the updater prefers
   `androidApk-<abi>` when present, otherwise `androidApk` (universal). Unknown or
@@ -3749,13 +3762,27 @@ the production download and integrity check without installing anything; it adds
 `downloaded`, `artifactPath` and `downloadError` (`integrity_mismatch` for a size or
 SHA-256 mismatch). With the body `{"apply": true}` on desktop it then runs the production
 apply (`applyDesktopUpdate`) after responding, which replaces the running build and exits;
+if that apply fails, the GET route reports the error type in `lastApplyError` (cleared at the next apply);
 this is how a clone proves the whole R2-to-installed path. The GET route is available in every diagnostics mode; the POST
 routes are clone-only. See [release-r2.md](release/release-r2.md) for publishing and key handling.
 
 ### Write-access guard
 
-Before starting any download, `UpdateService.canApplyUpdate(mode)` probes the target
-directory for write access. If the directory is not writable (e.g. app installed to
+Before starting any download, `UpdateService.canApplyUpdate(mode)` checks for
+`pkexec` on PATH for Debian/RPM packages, without requiring `/opt/navis` to be
+user-writable. Unknown package owners always return false. Missing elevation
+shows the package-manager instructions. Exit 126 returns the dialog to confirm
+silently; exit 127, or 11 (the root script found no `apt-get`/`dnf`), shows the
+package-manager instructions. Installer stderr is
+logged before mapping these codes, since commands inside the root script can
+also return 126/127. A root-side integrity mismatch keeps Retry visible so the
+artifact can be downloaded and verified again; other installer failures show
+an apply error with Download Manually. Shipped builds fix the elevator to
+`pkexec`; `NAVIS_TEST_UPDATE_ELEVATOR` accepts one executable path for diagnostics
+and is rejected by the release script.
+
+For other desktop modes, the service probes the target directory for write
+access. If the directory is not writable (e.g. app installed to
 `/Applications` by an admin user, or a read-only portable location), the update dialog
 shows a "Download Manually" prompt linking to the release notes page (or the website
 download page) instead of attempting
@@ -4712,24 +4739,82 @@ between ready and buffering several times a second, so settlement rests on the
 native position: a playing request is settled once the position advances from
 the target, a paused one once it has held the target for 300 ms. Native
 buffering may probe several byte ranges before producing a packet, so it counts
-as activity: only a player that is not buffering and neither moves nor fills for
-three seconds, or that stays away from the target for three seconds, has
-stalled. A probe that is still buffering at the load deadline keeps waiting, up
-to `NavisPlaybackTimeouts.seekProgress` (45 s), while the player's own buffer
-grew within the last three seconds or the song's cache download (desktop
-sidecar or Android lock cache) is at least half done and still receiving
-bytes: on a slow link
-a far seek in a large file legitimately takes that long, and a reload would
-start the same transfer over. When the desktop sidecar file completes first the
-probe stops and the song is reloaded from it. Each probe that gives up records
-why (`missed target`, `no progress`, `cache complete`, `deadline`) with the
-state it saw in the seek's `unsettled` diagnostics. Each current
-request permits one recovery attempt, plus a reload from a sidecar file that
-completes during it. An exhausted request reports failure and
-suppresses automatic stream retries until another explicit transport/selection
-request, or until the song has played on normally for five seconds past where
-the seek failed, preventing a failed seek from later restarting or skipping the
-song without leaving a later, unrelated stall unrecovered.
+as activity until the settlement deadline. Desktop seek settlement uses a fixed
+25-second deadline
+(`NavisPlaybackTimeouts.desktopSeekSettle`) for every probe, including the
+probe after recovery. Neither mpv download activity, independent sidecar bytes
+nor decoded buffer growth extends that deadline. Linear downloads can continue
+while a seek is stuck, so they cannot establish seek progress. The existing
+near-target, advancing/paused settlement, missed-target, no-progress and
+cache-complete rules can still end a probe earlier. Two stuck buffering probes
+therefore consume about 50 seconds of settlement time, plus the existing bounded
+native control/source reload work, instead of 45 + 45 seconds.
+
+Native song loads and mobile seek probes reuse `_PlaybackProgressDeadline`.
+Android/iOS retain native `bufferedPosition` growth and received lock-cache
+byte events, including sub-percent and unknown-length transfers. Desktop loads
+starting at position zero may extend using the sidecar's in-memory received byte
+counter: downloading linearly is useful progress there. Desktop loads at a seek
+offset retain their fixed native load deadline while the same 250 ms loop
+continues checking cancellation. mpv input-rate APIs and sampling
+are absent. Progress only extends loading/buffering, with an eight-second idle
+window (`progressIdle`) and 45-second cap (`seekProgress`). No received bytes
+still means a 12-second native load deadline. Sidecar bytes prove server
+progress, not player progress: a wedged desktop demuxer with a trickling server
+can stay alive until the bounded 45-second cold-start cap.
+
+Native queue loads check progress every 250 ms while awaiting the existing
+operation future. A pending seek for the loading song preserves this extension:
+it waits behind the active queue apply without changing its load generation or
+operation token, then seeks once loading/filling finishes. Even rapid same-song
+seeks retain the selected song; older seek requests are superseded. A cold
+native load may publish no buffer or mpv input estimate, so excluding the
+sidecar previously caused a 12-second queue-apply timeout, next-song failover,
+and cancellation of the waiting seek. Other lane backlog retains the original
+load deadline. If a desktop cold load times out with a same-song seek pending,
+the existing phase-one source fallback prepares a fresh source and reloads once
+at that target on the rebuilt player. AudioSource objects cannot be transferred
+from the retired player: its asynchronous disposal clears their attachments.
+This cold retry has the existing 45-second `seekProgress` budget, including
+silent-body waits, with no second extension; ordinary seek recovery loads keep
+the 12-second deadline. Source readiness follows the active same-song load's
+bounded lifetime rather than expiring during it. A transcode retry opens the
+server offset directly, and settlement verifies that load without reopening it.
+A completed-cache fallback remains available if that retry does not settle.
+A failed retry uses the ordinary queue-load failover; the final failed occurrence
+remains queued and reloadable by Play. A new selection/queue or
+Stop retires a superseded load on the next check. Controls, queue edits and radio
+keep fixed timeouts; failures report actual elapsed time. When the desktop
+sidecar completes first, settlement stops and existing recovery reloads from it.
+Each unsuccessful probe records
+`reason`, `elapsedMs`, `positionMs`, `bufferedMs`, `processingState` and `playing`
+in the seek's `unsettled` diagnostics. Each current request permits one recovery
+attempt, plus a reload from a sidecar file that completes during it. An
+exhausted desktop request on a dead source uses the existing failed-song
+failover, preserving latest Play/Pause intent and queue; a song whose position
+still advances keeps playing quietly. With no successor it stops quietly (pause
+and stop each bounded by the reset timeout, so a stuck native stop cannot park
+the seek lane) and marks the source failed so Play reloads it. Automatic
+failovers (seek, stall, queue-load and a song that completes far short of
+its duration) share a cap of two songs in a row: until
+a song advances for five seconds (`healthyPlayback`, from the position stream)
+or the user selects a song (Play, skip, queue item, new queue; natural
+advances never reset it), the next failure stops quietly on the current song
+instead of skipping further. A seek that was waiting on a load ending in such a
+stop fails at once, and seek source readiness never waits longer than
+`seekProgress` in total. A quiet stop leaves the player without sources, so the
+background tail release skips it until Play reloads the queue. Advance is measured on the
+backend's own position on desktop, never the interpolated clock, so a backend
+stuck in `ready` neither clears the cap nor counts as alive. A completion far
+short of the duration counts as a failed stream only for a song that never
+played for `healthyPlayback`. If the final pause or stop times out, the player
+is replaced through the timeout-recovery path so Play reloads on a fresh one. Native timeout recovery and failed seeks log
+diagnostics without emitting user notices; automatic recovery needs no user
+action. Mobile exhausted requests suppress automatic stream retries until
+another explicit transport/selection request, or until the song has played on
+normally for five seconds past where the seek failed, preventing a failed seek
+from later restarting or skipping the song without leaving a later, unrelated
+stall unrecovered.
 Diagnostics expose `seek` generation,
 requested position, pending flag, stage, outcome and recovery count, with a bounded
 `seekEvents` history. On desktop a load's initial position is applied by mpv
@@ -5113,7 +5198,16 @@ creates a window; the owned Rust adapter uses manual SMTC, retains and revokes
 WinRT event tokens, converts incoming seek requests from 100 ns ticks to the
 Dart stream's milliseconds, serializes complete state writes, and omits unusable
 artwork while retaining text metadata. Interactive seek bars render `bufferStateStream` as a subtle
-secondary track and ignore states keyed to another song. For queued songs,
+secondary track and ignore states keyed to another song. The handler emits the
+further of the player's buffered position and the locally playable cached
+position (`_cachedPlayablePosition`): the full duration for a file source or a
+finished rolling-cache download, else the running download's fraction, or its
+received bytes at `resolvedBitRate` when the length is unknown, floored to whole
+seconds. The player re-opens its stream after a seek and so reports only a short
+window while the cache keeps filling. Seek deadlines and recovery still read the
+player's own buffered position and received bytes. Diagnostics report
+`playerBufferedPositionMs` (raw), `cachedPlayablePositionMs` and
+`drawnBufferedPositionMs` (the line). For queued songs,
 `MediaItem.duration` remains authoritative while a transcoded decoder reports a
 growing partial duration; the decoder duration is only a fallback when metadata
 is unavailable. The inactive crossfade deck exists only while crossfade is

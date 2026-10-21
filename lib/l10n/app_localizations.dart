@@ -4997,6 +4997,18 @@ abstract class AppLocalizations {
   /// **'Cache cleared.'**
   String get cacheSettingsClearSuccess;
 
+  /// No description provided for @cacheSettingsClearing.
+  ///
+  /// In en, this message translates to:
+  /// **'Clearing cache…'**
+  String get cacheSettingsClearing;
+
+  /// No description provided for @downloadsRemoving.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing downloads…'**
+  String get downloadsRemoving;
+
   /// No description provided for @cacheSettingsBudgetSaved.
   ///
   /// In en, this message translates to:
@@ -5350,6 +5362,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Moving downloaded tracks...'**
   String get downloadsCustomFolderUpdating;
+
+  /// No description provided for @downloadsImporting.
+  ///
+  /// In en, this message translates to:
+  /// **'Importing downloads…'**
+  String get downloadsImporting;
 
   /// No description provided for @downloadsScanError.
   ///
@@ -6833,6 +6851,18 @@ abstract class AppLocalizations {
   /// **'Currently on {version}. Tap to check now.'**
   String updateCheckSub(String version);
 
+  /// No description provided for @updateCheckFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t check for updates. Check your connection and try again.'**
+  String get updateCheckFailed;
+
+  /// No description provided for @updateCheckFailedSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Update check failed. Tap to try again.'**
+  String get updateCheckFailedSub;
+
   /// No description provided for @updateAvailableTitle.
   ///
   /// In en, this message translates to:
@@ -6964,6 +6994,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Navis cannot update itself from this location. Please download manually.'**
   String get updateNoWriteAccess;
+
+  /// No description provided for @updateUsePackageManager.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis was installed by your system\'s package manager. Update it from there, for example with your software updater or AUR helper.'**
+  String get updateUsePackageManager;
 
   /// No description provided for @updateSignatureMismatch.
   ///

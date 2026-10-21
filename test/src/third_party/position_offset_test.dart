@@ -349,11 +349,15 @@ void main() {
 
 class _OffsetPlatform extends platform.JustAudioPlatform {
   late _OffsetPlayer player;
+  int initializations = 0;
 
   @override
   Future<platform.AudioPlayerPlatform> init(
     platform.InitRequest request,
-  ) async => player = _OffsetPlayer(request.id);
+  ) async {
+    initializations++;
+    return player = _OffsetPlayer(request.id);
+  }
 
   @override
   Future<platform.DisposeAllPlayersResponse> disposeAllPlayers(

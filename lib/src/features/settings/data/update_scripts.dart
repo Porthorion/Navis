@@ -155,3 +155,28 @@ rm -- "\$0" 2>/dev/null || true
     return "'${path.replaceAll("'", r"'\''")}'";
   }
 }
+
+/// Copies and verifies a package under elevation before invoking its installer.
+/// Arguments are the source path, expected SHA-256, and package kind (deb/rpm).
+const String linuxPackageInstallScript = r'''
+set -eu
+d=$(mktemp -d "${NAVIS_UPDATE_TMP:-/var/tmp}/navis-update.XXXXXX")
+trap 'rm -rf -- "$d"' EXIT
+cp -- "$1" "$d/pkg"
+chmod 0644 "$d/pkg"
+actual=$(sha256sum < "$d/pkg")
+[ "${actual%% *}" = "$2" ] || exit 10
+case "$3" in
+  deb)
+    command -v apt-get >/dev/null 2>&1 || exit 11
+    mv -- "$d/pkg" "$d/pkg.deb"
+    apt-get -o DPkg::Lock::Timeout=120 install -y --no-install-recommends "$d/pkg.deb"
+    ;;
+  rpm)
+    command -v dnf >/dev/null 2>&1 || exit 11
+    mv -- "$d/pkg" "$d/pkg.rpm"
+    dnf install -y "$d/pkg.rpm"
+    ;;
+  *) exit 11 ;;
+esac
+''';

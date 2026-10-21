@@ -50,12 +50,16 @@ A lock serializes builds across worktrees. Image construction explicitly uses
 Docker's legacy builder so its memory flags are honored; Docker must include
 that builder.
 
-The entry point always uses AOT release mode and `--split-debug-info`
+The entry point defaults to AOT release mode and `--split-debug-info`
 under `build/symbols/linux/<tag>` and `NAVIS_UPDATE_CHANNEL=stable` unless
 an explicit channel is supplied. `release.sh` passes its existing
 `set_symbol_args` and Dart defines (including the private Last.fm defines
 file) unchanged. Native ELF symbols are stripped before packaging. Symbols
 stay local and are never put into release packages. Dart obfuscation is disabled.
+Diagnostics can explicitly select `--build-mode=profile` (the diagnostics API
+rejects release mode), with `--build-name` and `--build-number` forwarded to
+Flutter so the running app version matches the package under test. Both modes
+stage the selected bundle under `build/linux/x64/release/bundle` for packaging.
 Do not statically link libmpv: `lib/libmpv.so.2` remains replaceable.
 
 `release.sh` and the SSH builder call this same container entry point.
@@ -97,24 +101,25 @@ Debian 12 and Fedora latest containers, each capped at 2 GiB/two CPUs.
 Debian-family checks use `dpkg -i` then `apt-get -f install`; Fedora uses
 `dnf install` with zchunk metadata disabled for these fresh containers
 (repository package GPG checking remains enabled). It checks the runner AND each dynamically loaded library with
-`ldd`, desktop Exec/Icon paths and an ordinary user's lack of `/opt/navis`
-write access. It never launches Navis. The packaging gate rejects a runner
+`ldd`, desktop Exec/Icon paths and the installed owner of `/opt/navis/navis`
+as root (`dpkg-query -S` on Debian-family images, `rpm -qf` on Fedora). It never launches Navis.
+Set `NAVIS_LINUX_PACKAGE_DIR` to an absolute directory to verify isolated
+artifacts instead of packages in the repository root. The packaging gate rejects a runner
 requiring GLIBC newer than 2.35; also inspect library dependencies after
 changing a native dependency or the libmpv pin.
 
 ## Package-manager updates
 
-The existing app detector treats executables under `/opt/navis` as Debian
-mode. Adding a real RPM update mode would require manifest selection and
-installation changes beyond a few-line detector, so RPM/AUR use the existing
-write-access fallback: normal users cannot write the root-owned `/opt/navis`
-and see **Download Manually** when an update is offered. Update RPMs with
-`dnf` and AUR packages with `makepkg`/your AUR helper. Do not run Navis as root
-or grant ordinary users write access to the package-managed directory.
-An in-app offer currently requires the matching `linuxDeb-amd64` asset in the
-manifest even for RPM/AUR; shipping `--linux-package=all` supplies it.
-`linuxRpm-x86_64` is published for download consumers, not native app auto-apply.
-Portable and Debian updater behavior is described below.
+Starting with 1.5.1, Navis asks `dpkg-query -S /opt/navis/navis`, then
+`rpm -qf /opt/navis/navis`, which package manager owns the installed executable.
+Debian and Fedora/dnf packages can install signed updates in-app through a
+polkit prompt. AUR and unknown owners show system package-manager
+instructions and never download a Debian/RPM artifact. Do not run Navis as root
+or grant ordinary users write access to `/opt/navis`.
+
+Automatic installation works from the first update after 1.5.1; 1.5.0 users
+update to 1.5.1 manually or through their package manager. The installed old
+updater decides how 1.5.1 is installed.
 
 ## AUR owner workflow (manual publication)
 
@@ -196,23 +201,93 @@ system desktop libraries.
 
 ### Auto-updater behavior
 
-The auto-updater detects `.deb` mode when the running executable path starts with
-`/opt/navis` — which is always the case for a `dpkg`-installed app.
+Debian packages select `linuxDeb-amd64` / `linuxDeb-arm64`; RPM packages select
+`linuxRpm-x86_64` / `linuxRpm-aarch64` when published. Missing architecture keys
+do not fall back to another architecture or package family. Official RPM
+packages target Fedora/RHEL's dnf family; openSUSE/zypper is out of scope.
 
-The manifest key is `linuxDeb-<arch>` (`linuxDeb-amd64` or `linuxDeb-arm64`). An install
-only ever uses the key for its own architecture; if the manifest has none, no update is
-offered (there is no cross-architecture fallback).
+1. Download the matching artifact and verify signed size and SHA-256.
+2. Run one `pkexec /bin/sh -c` script with the path/hash/kind as arguments. The
+   user authenticates through their desktop's polkit agent.
+3. Copy into a root-owned temporary directory under `/var/tmp`, recheck SHA-256,
+   then run `apt-get -o DPkg::Lock::Timeout=120 install -y --no-install-recommends`
+   or `dnf install -y` on that copy. The EXIT trap removes the root copy.
+4. After a successful installation, relaunch `/opt/navis/navis` and exit the old
+   process. Cancelling returns silently to confirm. Missing pkexec/agent shows
+   the package-manager screen. Installer stderr stays in logs for diagnosis.
+   An integrity failure offers Retry (download and verify again); other install
+   failures keep the app alive with Download Manually.
 
-Update flow:
-1. Downloads `navis-vX.Y.Z-linux-amd64.deb` (or `-arm64`).
-2. Checks its size and SHA-256 against the signed manifest; a mismatch deletes the file
-   and shows "The update download was damaged".
-3. Runs `pkexec dpkg -i <path>` — the user sees a polkit authentication dialog.
-4. After `dpkg` exits cleanly, the app relaunches from `Platform.resolvedExecutable`.
+### Package updater runtime diagnostics (R1–R9)
 
-If `pkexec` is missing, or `pkexec`/`dpkg` exits non-zero (including a cancelled
-authentication dialog), the update dialog shows "Could not apply the update
-automatically." with a "Download Manually" button and no Retry.
+`tool/linux/package_update_diagnostics.sh` uses the existing R2 publisher,
+transport and handshake/API helpers. It records private artifacts under
+`build/linux-package-update-diagnostics` (override with `--run-dir=PATH` on
+**every** command). Run one staging test at a time; it temporarily replaces the
+staging manifest and never writes stable/dev. Publication requires an empty or
+older staging channel; the existing publisher ordering/signature guards remain
+enabled and run before building the update fixtures. Load R2 settings/signing key through
+ignored `tool/release.env`; do not enable shell tracing or share handshake files.
+
+```bash
+./tool/linux/package_update_diagnostics.sh build
+./tool/linux/package_update_diagnostics.sh publish
+./tool/linux/package_update_diagnostics.sh run --host=user@debian-host
+# Owner supplies/removes the temporary polkit rule before/after R2:
+./tool/linux/package_update_diagnostics.sh run --host=user@debian-host --repeat=3
+./tool/linux/package_update_diagnostics.sh run --host=user@debian-host --corrupt
+./tool/linux/package_update_diagnostics.sh run --host=user@debian-host --manual
+./tool/linux/package_update_diagnostics.sh run --containers
+./tool/linux/package_update_diagnostics.sh cleanup
+```
+
+`build` packages `1.4.N`, where N is a per-run epoch patch number. `publish`
+builds signed `N+1` and `N+2` staging packages, corrupts the latter's origin
+bytes before the app's first request, and restores the signed `N+1` envelope.
+The builder uses profile mode, staging and isolated clone diagnostics defines;
+embedded app and package versions match. Each remote run records the original
+package state before installation, installs N with sudo, and launches through
+`systemd-run --user` with the graphical session's DISPLAY/WAYLAND_DISPLAY,
+D-Bus and XDG environment. The session must already be active and its environment
+imported into the user manager; the remote systemd must support `ExitType=cgroup`
+(Ubuntu 24.04 does). No real library/account is required for the update API.
+
+The temporary R2 polkit rule (test hosts only) must allow `org.freedesktop.policykit.exec` for the test user with the program `/bin/sh`. On Fedora pkexec resolves `/bin/sh` to `/usr/bin/bash`, so match `/bin/sh`, `/usr/bin/sh` and `/usr/bin/bash`. Remove the rule afterwards.
+
+R1 needs the owner at the real polkit prompt. R2 repeats the successful
+check/download/apply flow three times with an owner-managed temporary rule.
+Automated success requires the expected package version, a new live pid from
+`/opt/navis/navis`, the old pid gone, a clean dpkg audit and no
+`/var/tmp/navis-update.*` leftovers. The tunnel is closed on exit.
+
+For R3/R4/R5-swap/R6, use `--manual` and the real update dialog: cancel once;
+use a graphical session without a polkit agent; replace the artifact while the
+dialog is at confirm; or have the owner hold the dpkg frontend's **fcntl** lock
+for longer than 120 seconds (flock alone does not contend dpkg's lock). Press
+Enter once the expected UI is visible. The harness captures an app-owned
+screenshot and user journal, asserts the package/pid stayed unchanged, then
+shuts down. Inspect the screenshot, relevant exit-code stderr and UI state;
+these assertions alone do not certify the dialog. `--corrupt` separately
+asserts `integrity_mismatch` with no installation or relaunch.
+
+R7 uses `run --host=user@fedora-host --family=rpm` on an isolated Fedora graphical
+host/VM. With Xvfb, a separately built test elevator must be a **single executable
+wrapper** on PATH containing `exec sudo -n "$@"`; this covers dnf/relaunch, not
+polkit. R8 remains an owner-run AUR/unknown-owner dialog check with no download,
+backed by `update_dialog_test.dart`; do not use the download API for R8 because
+that endpoint intentionally bypasses the dialog's capability guard. R9's
+`--containers` runs Ubuntu 22.04, Debian 12 and Fedora sequentially, checks
+ownership, and executes the actual production root script to upgrade N → N+1
+without polkit. It never launches a GUI.
+
+`cleanup` deletes this run's release objects and only deletes the staging
+manifest if it still points at this run. It stops the task-owned remote unit,
+removes its isolated profile/package transfer and uninstalls the test package
+only if no installed package was recorded before the run. An existing package
+is retained at the test version: restore it manually. Use a fresh run directory
+for another run; never reuse patch URLs cached by the CDN. Preserve evidence
+before removing local artifacts. These commands are a recipe, not runtime
+acceptance evidence until actually executed.
 
 ---
 

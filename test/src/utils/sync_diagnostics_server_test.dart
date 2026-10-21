@@ -1117,6 +1117,7 @@ void main() {
         );
         expect(before.statusCode, HttpStatus.ok);
         expect(before.body, {
+          'lastApplyError': null,
           'manifestUrl': UpdateRepository.manifestUrlFor(),
           'channel': UpdateRepository.channelFor(),
           'url': null,

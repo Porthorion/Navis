@@ -69,6 +69,12 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
           message: l10n.updateUpToDate,
           level: AppNoticeLevel.info,
         );
+      } else if (next.hasError) {
+        showAppNotice(
+          context,
+          message: l10n.updateCheckFailed,
+          level: AppNoticeLevel.error,
+        );
       } else if (info != null) {
         unawaited(
           showUpdateDialog(
@@ -654,7 +660,7 @@ class _AboutUpdates extends StatelessWidget {
                         ? l10n.updateAvailableBody(info.tagName)
                         : l10n.updateUpToDate,
                     loading: () => l10n.updateCheckSub(version),
-                    error: (_, _) => l10n.updateCheckSub(version),
+                    error: (_, _) => l10n.updateCheckFailedSub,
                   ),
           ),
           trailing: update.isLoading
