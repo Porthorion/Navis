@@ -399,6 +399,8 @@ extension _NavisNavigation on NavisAudioHandler {
         _completeQueueLoad(generation);
         // A song left mid-way as an offset stream still holds its offset
         // and would start there: reopen it from the start.
+        // ponytail: a short burst of offset audio plays until the reopen
+        // lands; pausing around it needs the seek lane to own the resume.
         if (!rebuiltPendingQueue &&
             _positionOffsetOf(_queueItems.elementAtOrNull(index)) >
                 Duration.zero) {

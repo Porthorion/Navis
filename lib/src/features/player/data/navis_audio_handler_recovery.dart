@@ -36,9 +36,11 @@ extension _NavisRecovery on NavisAudioHandler {
       _autoFailovers = 0;
       // Sustained play also renews this song's one stream retry. A retry
       // resumes at the song position and resets the counter, so each cycle
-      // needs healthyPlayback of real advance: a source that keeps failing
-      // either plays on through the song or fails within seconds and is
-      // skipped.
+      // needs healthyPlayback of real advance: a source that fails again
+      // within that is skipped. ponytail: a source that fails only every few
+      // seconds renews forever under Repeat One (loop restarts are not
+      // detected, see above); Repeat One is endless and each cycle plays real
+      // audio, so there is no bound.
       _remotePlaybackRecoveryAttempts.remove('$_transportGeneration:$songId');
     }
   }
@@ -287,6 +289,8 @@ extension _NavisRecovery on NavisAudioHandler {
   /// advance (a repeat-all wrap) onto a song left mid-way as an offset stream
   /// starts it there too. just_audio reports both as an autoAdvance
   /// discontinuity; reload the song from the start without an offset.
+  /// ponytail: the advance case plays a short burst of offset audio until the
+  /// reload lands.
   void _onPositionDiscontinuity(PositionDiscontinuity discontinuity) {
     final index = discontinuity.event.currentIndex;
     final sequence = _player.sequence;
@@ -301,7 +305,10 @@ extension _NavisRecovery on NavisAudioHandler {
       return;
     }
     final source = sequence[index];
-    if (source is UriAudioSource && source.positionOffset > Duration.zero) {
+    // A deck handover rebuilds the sources but not the queue entries, so the
+    // entry's offset can outlive the stream's: reopening clears it too.
+    if ((source is UriAudioSource && source.positionOffset > Duration.zero) ||
+        _positionOffsetOf(_queueItems.elementAtOrNull(index)) > Duration.zero) {
       unawaited(seek(Duration.zero));
     }
   }

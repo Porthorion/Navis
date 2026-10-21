@@ -520,8 +520,9 @@ extension _NavisCrossfade on NavisAudioHandler {
       _broadcastPlaybackState();
       _emitSnapshot();
       _scheduleTransportPersistence(context: 'crossfade handoff');
-      // The deck swap reports no discontinuity: a wrap onto a song left as an
-      // offset stream reopens it from the start here.
+      // The deck swap reports no discontinuity. The trigger never fades into
+      // an offset entry, but a shuffle pass can: reopen it from the start.
+      // ponytail: that fade plays offset audio until the reopen lands.
       if (_positionOffsetOf(_resolveCurrentQueueMetadata().mediaItem) >
           Duration.zero) {
         unawaited(seek(Duration.zero));

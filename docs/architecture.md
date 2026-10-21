@@ -4786,8 +4786,10 @@ same signal: the retry resets the play counter, and once the song has then
 advanced for `healthyPlayback` the retry is available again, so two cuts a
 minute apart both resume. A source that keeps failing within `healthyPlayback`
 of each retry is skipped. A song left mid-way as an offset (transcode) stream
-reopens from its start when Previous, a selection, a repeat-all wrap or a
-crossfade handover lands on it again. If the final pause or stop times out, the player
+reopens from its start when Previous, a selection, or a repeat-all wrap lands on it
+again (a crossfade is not started into such a song; a shuffle-pass handover
+reopens it). Repeat One has no bound on retry renewal: it is endless, and each
+cycle plays real audio. If the final pause or stop times out, the player
 is replaced through the timeout-recovery path so Play reloads on a fresh one. Native timeout recovery and failed seeks log
 diagnostics without emitting user notices; automatic recovery needs no user
 action. Mobile exhausted requests suppress automatic stream retries until

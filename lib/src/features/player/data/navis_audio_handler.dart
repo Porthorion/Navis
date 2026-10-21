@@ -1051,6 +1051,10 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
+    // A target left as an offset stream would fade in mid-song: advance
+    // normally instead, and the advance reopens it from the start.
+    if (_positionOffsetOf(_queueItems[nextIndex]) > Duration.zero) return;
+
     // Smart mode: only cross-fade between tracks from different albums.
     if (_crossfadeType == 'smart') {
       final currentAlbumId =
