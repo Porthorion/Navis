@@ -818,7 +818,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
         _sources.insertAll(at, sources);
         if (index != null && at <= index!) index = index! + sources.length;
         _indices.add(index);
+        afterInsertSources?.call();
       });
+
+  /// Runs once a batch insert has landed, before the call returns.
+  void Function()? afterInsertSources;
 
   @override
   Future<void> seek(Duration? position, {int? index}) => _mutate(() async {
@@ -7644,6 +7648,68 @@ void main() {
           expect(handler.collectPlaybackDiagnostics()['positionOffsetMs'], 0);
         },
       );
+
+      test('a repair never removes the song that became current', () async {
+        final (handler, player, _) = await offsetHandler();
+        await start(handler);
+        await seekAndSettle(handler, const Duration(seconds: 90));
+        final stale = player.sequence[1];
+        // The player advances onto the stale entry while its twin is being
+        // inserted, before the old source would be removed.
+        player.afterInsertSources = () {
+          player.afterInsertSources = null;
+          player
+            ..index = 1
+            ..simulatedPosition = Duration.zero
+            .._indices.add(1);
+        };
+        await handler.skipToNext();
+        await until(() => player.index == 1);
+        await settleQueue(handler);
+        await pumpEventQueue(times: 50);
+
+        expect(player.sequence[1], same(stale), reason: 'current kept');
+        expect(player.sourceIds, ['song-0', 'song-1', 'song-2']);
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
+      });
+
+      test('a skip chain enqueues one repair', () async {
+        late _GatedSourceResolver resolver;
+        final (handler, player, _) = await offsetHandler(
+          count: 4,
+          wrapResolver: (base) => resolver = _GatedSourceResolver(base),
+        );
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+          'song-2',
+          'song-3',
+        ], expandMatchFlows: false);
+        await settleQueue(handler);
+        await handler.play();
+        await seekAndSettle(handler, const Duration(seconds: 90));
+        resolver
+          ..blockedSongId = 'song-0'
+          ..entered = Completer<void>()
+          ..release = Completer<void>();
+        addTearDown(() {
+          if (!resolver.release!.isCompleted) resolver.release!.complete();
+        });
+        final edits = handler.debugQueueEditCount;
+
+        player.finishCurrentTrack();
+        await resolver.entered!.future;
+        player.finishCurrentTrack();
+        await pumpEventQueue(times: 50);
+
+        expect(handler.debugQueueEditCount, edits + 1);
+        resolver.release!.complete();
+        await until(
+          () =>
+              handler.queue.value[0].extras!['positionOffsetMs'] == 0 &&
+              !handler.snapshot.isLoading,
+        );
+      });
 
       for (final edit in ['remove', 'move']) {
         test(
