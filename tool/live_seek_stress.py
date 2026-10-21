@@ -1409,18 +1409,27 @@ def oracle_i87(run: Run, rate: float | None, full_expected=False) -> list[dict]:
     Keeps a 1 s series; overshoot = drawn - max(cache, player buffer); full_expected: the line must reach the duration."""
     out, series, last_sec = [], [], -1
     max_lag = max_over = max_over_cplay = max_lag_cplay = 0.0
+    first_audio = next((s['t'] for s in run.samples if s['playing'] and s['proc'] == 'ready' and (s['pos'] or 0) > 0), None)
+    win, win_c = [], []  # (t, lag) over the last 3 s: a lag only counts when it lasted that long
+
+    def sustained(window, t, lag):
+        window.append((t, lag))
+        while window and t - window[0][0] > 3.0:
+            window.pop(0)
+        return min(x[1] for x in window) if t - window[0][0] >= 2.9 else 0.0
+
     for s in run.samples:
-        if s['bar'] is None or s['dur'] is None or s['t'] < 1:
+        if s['bar'] is None or s['dur'] is None or first_audio is None or s['t'] < first_audio + 1:
             continue
         dur_s = s['dur'] / 1000
         bar_s = s['bar'] / 1000
         cache_s = min(dur_s, s['cacheB'] / rate) if rate and s['cacheB'] is not None else None
         pbuf_s = (s['pbuf'] or 0) / 1000 if s['pbuf'] is not None else None
         cplay_s = s['cplay'] / 1000 if s['cplay'] is not None else None
-        if s['t'] > 5 and cache_s is not None:
-            max_lag = max(max_lag, cache_s - bar_s)
-        if s['t'] > 5 and cplay_s is not None:
-            max_lag_cplay = max(max_lag_cplay, cplay_s - bar_s)
+        if cache_s is not None:
+            max_lag = max(max_lag, sustained(win, s['t'], cache_s - bar_s))
+        if cplay_s is not None:
+            max_lag_cplay = max(max_lag_cplay, sustained(win_c, s['t'], cplay_s - bar_s))
         bound = max([x for x in (cache_s, pbuf_s, cplay_s) if x is not None] or [0.0])
         max_over = max(max_over, bar_s - bound)
         if cplay_s is not None:
