@@ -23,7 +23,9 @@ Last updated: 2026-10-21
   0), now reopened from the start. 5b: the per-song stream retry renews after
   `healthyPlayback` of real advance (failed before: `Expected: song-1 / Actual:
   song-2`); the second-cut-too-soon and frozen-position cases still skip. 5c is
-  runtime-only.
+  runtime-only. Round 4: a departed offset entry is repaired as a queued edit
+  (fresh source inserted behind it, old one removed, never the current song),
+  and a Repeat One loop starts a new play-time occurrence.
 - [ ] Issue #86, round 10 bounded failover — partial: 2026-10-21
   (`fix/seek-settlement`, remaining: coordinator Linux/Android runtime pass
   against a `release/1.5` baseline and independent review). Round-9 runs showed

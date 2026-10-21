@@ -523,6 +523,82 @@ extension _NavisQueueEditing on NavisAudioHandler {
     }
   }
 
+  bool _entryHasOffset(int index) {
+    final source = _player.sequence.elementAtOrNull(index);
+    return (source is UriAudioSource &&
+            source.positionOffset > Duration.zero) ||
+        _positionOffsetOf(_queueItems.elementAtOrNull(index)) > Duration.zero;
+  }
+
+  /// A song left mid-way as an offset (transcode) stream still holds its
+  /// offset and would start there when played again. Replaces every such
+  /// non-current entry with a fresh, offset-free source, as an ordinary queue
+  /// edit: it keeps FIFO order with user edits and a navigation queued
+  /// later lands after it. Never touches the current song.
+  void _repairDepartedOffsetEntries() {
+    final current = _player.currentIndex;
+    if (_disposeHandlerStarted ||
+        !List<int>.generate(
+          _queueItems.length,
+          (i) => i,
+        ).any((i) => i != current && _entryHasOffset(i))) {
+      return;
+    }
+    unawaited(
+      _enqueueQueueEdit(_repairOffsetEntriesLocked).catchError((Object error) {
+        // A superseding replacement rebuilds the queue anyway.
+        AppLogger.debug('Offset entry repair skipped: $error');
+      }),
+    );
+  }
+
+  Future<void> _repairOffsetEntriesLocked(OperationToken token) async {
+    final stale = <MediaItem>[
+      for (var i = 0; i < _queueItems.length; i++)
+        if (i != _player.currentIndex && _entryHasOffset(i)) _queueItems[i],
+    ];
+    var edited = false;
+    for (final item in stale) {
+      token.checkCancelled();
+      if (!_sequenceMatchesQueue(_player)) break;
+      final rows = await _rowsForDeferredEntries(<_DeferredQueueEntry>[
+        _deferredEntryForItem(item),
+      ]);
+      final (:prepared, offsets: _) = await _prepareRowsConcurrently(
+        rows,
+        token: token,
+      );
+      token.checkCancelled();
+      // Nothing else edits the queue while this edit holds the lane, but an
+      // earlier one may have moved, removed or reached the entry: find it
+      // again by identity, with no await before the native calls.
+      final at = _queueItems.indexWhere((entry) => identical(entry, item));
+      if (prepared.isEmpty ||
+          at < 0 ||
+          at == _player.currentIndex ||
+          !_sequenceMatchesQueue(_player)) {
+        continue;
+      }
+      // Insert the fresh source behind the old one, then drop the old one:
+      // the entry is never missing and the current song is never touched.
+      final inserted = await _applyMaterialisedInsert(
+        prepared,
+        at: at + 1,
+        operation: 'repair offset entry',
+      );
+      if (inserted.isEmpty) continue;
+      final removed = _queueItems.removeAt(at);
+      await _timedQueueEdit(
+        'remove queue item',
+        (player) => player.removeAudioSourceAt(at),
+        songId: removed.id,
+        mirror: (deck) => deck.sequence.length > at,
+      );
+      edited = true;
+    }
+    if (edited) _afterQueueEdit(context: 'offset entry repair');
+  }
+
   /// Rewrites queued songs to their canonical ids after an alias update.
   void _remapQueueToCanonicalIds() {
     MediaItem remap(MediaItem item) {
