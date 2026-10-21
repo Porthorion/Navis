@@ -28,6 +28,7 @@ extension _NavisNavigation on NavisAudioHandler {
       generation == _transportGeneration;
 
   Future<void> _navigateRelative({required bool forward}) {
+    _autoFailovers = 0; // A user skip is a fresh intent.
     final logicalIds = _logicalQueueIds;
     final confirmedIndex = _logicalIndexOf(
       _resolveCurrentQueueMetadata().currentIndex ?? _player.currentIndex,

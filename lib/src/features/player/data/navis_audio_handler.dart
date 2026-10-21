@@ -1508,14 +1508,17 @@ class NavisAudioHandler extends BaseAudioHandler
     bool autoPlay = true,
     bool expandMatchFlows = true,
     List<String>? originalOrder,
-  }) => _replaceQueueIds(
-    songIds,
-    startIndex: startIndex,
-    autoPlay: autoPlay,
-    expandMatchFlows: expandMatchFlows,
-    originalOrder: originalOrder,
-    inPlayOrder: false,
-  );
+  }) {
+    _autoFailovers = 0; // A user selection is a fresh intent.
+    return _replaceQueueIds(
+      songIds,
+      startIndex: startIndex,
+      autoPlay: autoPlay,
+      expandMatchFlows: expandMatchFlows,
+      originalOrder: originalOrder,
+      inPlayOrder: false,
+    );
+  }
 
   @override
   Future<void> replaceQueueWithData(
@@ -1524,14 +1527,17 @@ class NavisAudioHandler extends BaseAudioHandler
     bool autoPlay = true,
     bool expandMatchFlows = true,
     List<String>? originalOrder,
-  }) => _replaceQueueRows(
-    songs,
-    startIndex: startIndex,
-    autoPlay: autoPlay,
-    expandMatchFlows: expandMatchFlows,
-    originalOrder: originalOrder,
-    inPlayOrder: false,
-  );
+  }) {
+    _autoFailovers = 0; // A user selection is a fresh intent.
+    return _replaceQueueRows(
+      songs,
+      startIndex: startIndex,
+      autoPlay: autoPlay,
+      expandMatchFlows: expandMatchFlows,
+      originalOrder: originalOrder,
+      inPlayOrder: false,
+    );
+  }
 
   @override
   Future<void> addToQueue(
@@ -1934,6 +1940,7 @@ class NavisAudioHandler extends BaseAudioHandler
       () => <String, Object?>{'action': 'playFromIndex', 'index': index},
     );
     _invalidatePendingStartupSelection();
+    _autoFailovers = 0; // A user selection is a fresh intent.
     return _applyNavigationDecision(
       _navigationIntent.select(index),
       logicalIds: logicalIds,

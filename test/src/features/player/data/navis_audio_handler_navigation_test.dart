@@ -10662,6 +10662,44 @@ void main() {
       expect(rebuilt.last.processingState, ProcessingState.ready);
     });
 
+    for (final command in ['playFromIndex', 'skipToNext', 'replaceQueue']) {
+      test('$command after a cap stop gets automatic failover again', () async {
+        final rebuilt = <_ControllableAudioPlayer>[];
+        // Songs 0-2 hit the cap; the user's pick then fails and is skipped.
+        final hung = <String>{
+          for (final i in [0, 1, 2, if (command == 'skipToNext') 3 else 4])
+            'song-$i',
+        };
+        final (handler, _, _) = await fixture(
+          timeouts: quick,
+          count: 8,
+          rebuiltPlayers: rebuilt,
+          hungLoadSongs: hung,
+        );
+        await handler.replaceQueue(songIds(8), expandMatchFlows: false);
+        await idle(handler);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        switch (command) {
+          case 'playFromIndex':
+            await handler.playFromIndex(4);
+          case 'skipToNext':
+            await handler.skipToNext();
+          default:
+            await handler.replaceQueue(
+              songIds(8),
+              startIndex: 4,
+              expandMatchFlows: false,
+            );
+        }
+        await idle(handler);
+        expect(
+          handler.snapshot.currentSongId,
+          command == 'skipToNext' ? 'song-4' : 'song-5',
+        );
+        expect(handler.snapshot.playing, isTrue);
+      });
+    }
+
     test('seek and stall failovers share one cap', () async {
       final (handler, player, _) = await fixture(timeouts: quick, count: 6);
       await handler.replaceQueue(songIds(6), expandMatchFlows: false);
