@@ -10737,6 +10737,117 @@ void main() {
       expect(handler.snapshot.playing, isTrue);
     });
 
+    test(
+      'a song that played healthily and ends early is not a failure',
+      () async {
+        final (handler, _, _) = await fixture(
+          timeouts: quick,
+          count: 8,
+          positionStreams: true,
+        );
+        await handler.replaceQueue(songIds(8), expandMatchFlows: false);
+        Future<void> complete(Duration at) async {
+          final active = handler.debugActivePlayer as _ControllableAudioPlayer;
+          active
+            ..state = ProcessingState.completed
+            ..simulatedPosition = at
+            .._events.add(active.playbackEvent);
+          await idle(handler);
+        }
+
+        // Song 0 plays past healthyPlayback, then ends 30 s short of its
+        // (overstated) duration: a normal completion, not counted.
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+        await complete(const Duration(minutes: 2, seconds: 30));
+        expect(handler.snapshot.currentSongId, 'song-1');
+        // Songs 1 and 2 never play: two counted failures, then the cap on 3.
+        await complete(Duration.zero);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        await complete(Duration.zero);
+        expect(handler.snapshot.currentSongId, 'song-3');
+        expect(handler.snapshot.playing, isTrue);
+        await complete(Duration.zero);
+        expect(handler.snapshot.currentSongId, 'song-3');
+        expect(handler.snapshot.playing, isFalse);
+      },
+    );
+
+    test('a ready backend with a frozen native position stays dead', () async {
+      final (handler, player, _) = await fixture(
+        timeouts: quick,
+        positionStreams: true,
+      );
+      await handler.replaceQueue(songIds(2), expandMatchFlows: false);
+      // The interpolated clock moves; the backend reports no position.
+      player
+        ..ignoreSeeks = true
+        ..nativePositionFrozen = true;
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      await handler.seek(const Duration(seconds: 90));
+      await idle(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+    });
+
+    test('a frozen native position never clears the failover count', () async {
+      final (handler, player, _) = await fixture(
+        timeouts: const NavisPlaybackTimeouts(
+          load: Duration(milliseconds: 300),
+          seekBufferingRecovery: Duration(milliseconds: 400),
+          seekProgress: Duration(milliseconds: 1200),
+          desktopSeekSettle: Duration(milliseconds: 600),
+          progressIdle: Duration(milliseconds: 300),
+          reset: Duration(milliseconds: 300),
+          healthyPlayback: Duration(milliseconds: 800),
+        ),
+        count: 6,
+        positionStreams: true,
+      );
+      await handler.replaceQueue(songIds(6), expandMatchFlows: false);
+      Future<void> fail(String id) async {
+        player
+          ..failLoadSongId = id
+          ..state = ProcessingState.buffering;
+        await handler.debugRecoverCurrentSong();
+        await idle(handler);
+      }
+
+      player.nativePositionFrozen = true;
+      await fail('song-0');
+      player
+        ..failLoadSongId = null
+        ..state = ProcessingState.ready;
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      await fail('song-1');
+      await fail('song-2');
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(handler.snapshot.playing, isFalse);
+    });
+
+    test('a hung final stop retires the player so Play reloads', () async {
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final (handler, player, _) = await fixture(
+        timeouts: quick,
+        rebuiltPlayers: rebuilt,
+      );
+      await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+      player
+        ..state = ProcessingState.ready
+        ..nativePositionFrozen = true
+        ..hangStopsFrom = 3;
+      await handler
+          .seek(const Duration(seconds: 60))
+          .timeout(const Duration(seconds: 8));
+      await idle(handler);
+      expect(rebuilt, hasLength(1));
+      await handler.play();
+      await idle(handler);
+      expect(handler.debugActivePlayer, same(rebuilt.last));
+      expect(handler.snapshot.currentSongId, 'song-0');
+      expect(handler.snapshot.playing, isTrue);
+      expect(rebuilt.last.sourceIds, contains('song-0'));
+      expect(rebuilt.last.processingState, ProcessingState.ready);
+    });
+
     test('sources that complete at once advance at most twice', () async {
       final (handler, _, _) = await fixture(timeouts: quick, count: 8);
       await handler.replaceQueue(songIds(8), expandMatchFlows: false);

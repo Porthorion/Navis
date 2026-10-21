@@ -4776,7 +4776,12 @@ advances never reset it), the next failure stops quietly on the current song
 instead of skipping further. A seek that was waiting on a load ending in such a
 stop fails at once, and seek source readiness never waits longer than
 `seekProgress` in total. A quiet stop leaves the player without sources, so the
-background tail release skips it until Play reloads the queue. Native timeout recovery and failed seeks log
+background tail release skips it until Play reloads the queue. Advance is measured on the
+backend's own position on desktop, never the interpolated clock, so a backend
+stuck in `ready` neither clears the cap nor counts as alive. A completion far
+short of the duration counts as a failed stream only for a song that never
+played for `healthyPlayback`. If the final pause or stop times out, the player
+is replaced through the timeout-recovery path so Play reloads on a fresh one. Native timeout recovery and failed seeks log
 diagnostics without emitting user notices; automatic recovery needs no user
 action. Mobile exhausted requests suppress automatic stream retries until
 another explicit transport/selection request, or until the song has played on

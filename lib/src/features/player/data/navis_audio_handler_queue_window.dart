@@ -134,13 +134,16 @@ extension _NavisQueueWindow on NavisAudioHandler {
         _desiredLoopMode == LoopMode.all;
     if (next >= _logicalQueueIds.length && !wrap) return;
     _continuingIntoDeferredTail = true;
-    // A song that ends long before its duration is a failed stream, not a
-    // finished song: advance under the automatic failover cap.
+    // A song that never played healthily and ends long before its duration
+    // is a failed stream: advance under the automatic failover cap. One that
+    // did play (an overstated duration) simply finished.
     final duration = _player.duration;
     final premature =
         !wrap &&
         duration != null &&
+        _playedSinceFailover < _timeouts.healthyPlayback &&
         _player.position + _timeouts.healthyPlayback < duration;
+    if (!premature) _playedSinceFailover = Duration.zero;
     unawaited(
       (premature
               ? _skipPastFailedRemoteSong(current, autoPlay: true)

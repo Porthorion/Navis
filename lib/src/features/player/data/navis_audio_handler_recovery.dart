@@ -6,15 +6,24 @@ const _maxAutoFailovers = 2;
 
 extension _NavisRecovery on NavisAudioHandler {
   /// Fed by the position stream: a source that really advances is alive, and
-  /// a few seconds of it end a failover chain. Seek jumps are not advance.
-  void _observePlaybackAdvance(Duration position) {
+  /// a few seconds of it end a failover chain. Reads the backend's own
+  /// position on desktop (see [_seekSettlementPosition]), because the
+  /// interpolated clock keeps moving on a backend stuck in `ready`. Seek
+  /// jumps are not advance, and a new song starts its own play time.
+  void _observePlaybackAdvance() {
+    final position = _seekSettlementPosition;
     final previous = _advancePosition;
     _advancePosition = position;
+    final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
+    if (songId != _advanceSongId) {
+      _advanceSongId = songId;
+      _playedSinceFailover = Duration.zero;
+    }
     final delta = previous == null ? Duration.zero : position - previous;
     if (!_player.playing ||
         _player.processingState != ProcessingState.ready ||
         delta <= Duration.zero ||
-        delta > const Duration(seconds: 1)) {
+        delta > const Duration(seconds: 2)) {
       return;
     }
     _lastAdvanceAt = DateTime.now();
@@ -1581,12 +1590,21 @@ extension _NavisRecovery on NavisAudioHandler {
     // Best effort, like _disposeAbandonedPlayer: a stuck native stop must not
     // park the seek lane that called this.
     final player = _player;
+    var wedged = false;
     for (final halt in <Future<void> Function()>[player.pause, player.stop]) {
       try {
         await halt().timeout(_playerResetTimeout);
       } on Object {
-        // The song stays failed and reloadable by Play either way.
+        wedged = true;
       }
+    }
+    // A native call that never returned may leave the platform stuck, which
+    // Play would then wait on: replace the player, keeping the queue.
+    if (wedged) {
+      await _recoverPlayersFromTimeout(
+        generation: _activeLoadGeneration,
+        operation: 'final quiet stop',
+      );
     }
     _loadedSourceFailed = true;
     _broadcastPlaybackState();

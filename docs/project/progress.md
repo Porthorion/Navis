@@ -42,6 +42,11 @@ Last updated: 2026-10-21
   release appended the deferred songs to the stopped, source-less player, so
   native index 7 mapped to logical 9. `_shouldReleaseTail` now skips an empty
   player (regression: sources `['song-3', 'song-4', 'song-5']` before).
+  Codex review fixes: an early completion after healthy play is not a failure
+  (`Expected: song-3 / Actual: song-2` before); the advance signal uses the
+  backend position, not the interpolated one (`Expected: song-1 / Actual:
+  song-0`, and `song-2` / `song-3` for the cap reset); a hung final stop
+  replaces the player (`Expected: an object with length of <1>` before).
 
 - [ ] Issue #86, round 9 cold seek recovery — partial: 2026-10-21
   (`fix/seek-settlement`, remaining: coordinator live large-FLAC/Android
