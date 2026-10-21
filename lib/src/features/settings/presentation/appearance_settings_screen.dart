@@ -483,6 +483,18 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                               await db.appSettingsDao.updateHomeSectionsHidden(
                                 jsonEncode(current),
                               );
+                              // A hidden-by-default section the user has never
+                              // seen resolves hidden again unless the order
+                              // marks it as seen (see resolveHidden).
+                              if (visible &&
+                                  HomeSectionIds.resolveHidden(
+                                    current,
+                                    persistedOrder: persistedOrder,
+                                  ).contains(sectionId)) {
+                                await db.appSettingsDao.updateHomeSectionOrder(
+                                  jsonEncode(sanitizedOrder),
+                                );
+                              }
                             },
                       ),
                     ],
@@ -1773,6 +1785,8 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
         return l10n.homeSectionLikedTracks;
       case HomeSectionIds.recentlyAdded:
         return l10n.homeSectionRecentlyAdded;
+      case HomeSectionIds.randomAlbumList:
+        return l10n.homeSectionRandomAlbumList;
       case HomeSectionIds.recentlyPlayed:
         return l10n.homeSectionRecentlyPlayed;
       case HomeSectionIds.randomAlbums:

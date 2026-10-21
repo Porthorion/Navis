@@ -2760,6 +2760,7 @@ and Subsonic delivery continues independently.
   `updates.automatic` blocks only the automatic one. The request is a plain
   field on `UpdateForceCheckNotifier`, not provider state, because the provider
   consumes it while building.
+  A failed manual check shows an error notice and a "check failed" tile subtitle in About.
 - **Weekly playlists.** `listenBrainzDiscoverStreamProvider` watches
   `isEnabled(listenbrainz.weeklyPlaylists)`. When the gate closes it clears the
   session cache and last-visible list, so the Home hero and Library › Playlists
@@ -3310,6 +3311,16 @@ predecessor that is present; unknown and repeated ids are dropped. A saved
 hidden list decides every section the user has seen; a section hidden by
 default that is in neither saved list (added after 1.4.2) stays hidden.
 
+**Random Albums** (section id `random_album_list`, hidden by default, right
+after Recently Added; a saved hidden list that predates it leaves it hidden).
+A plain carousel of 20 albums: `homeRandomAlbumListProvider` is its own
+`getAlbumList2(random)` draw, separate from `homeRandomAlbumsProvider` (You Might
+Like falls back to that one), and `homeDownloadedRandomAlbumsProvider` is a
+one-shot `getAllAlbums()` snapshot for Downloaded only, so albums-table writes do
+not reshuffle it. Both re-pick when a library sync finishes (succeeded or
+partial, never mid-sync) and on Home pull-to-refresh; the legacy id
+`random_albums` is You Might Like.
+
 **New Releases** (`deezer.newReleases`, section id `new_releases`, right under
 You Might Like in the default order; a saved order that lacks it gets it
 there, one that already places it is left alone). `homeNewReleasesProvider`
@@ -3661,23 +3672,32 @@ unsigned derived fields.
   `UpdateInfo` (with `downloadUrl`, `assetFileName`, `sha256` and `size`) when a newer
   version is available. A manifest that fails any check is dropped (the reason is kept
   for diagnostics) and reads as "no update".
-- `data/update_service.dart` — downloads each desktop artifact into a fresh private
+- `data/update_service.dart` — downloads each new desktop artifact into a fresh private
   `navis_update_*` work directory under `getTemporaryDirectory()`. POSIX downloads
   require `chmod 700` on that directory before writing any contents. Navis then
   verifies the artifact and applies the update. Diagnostics overrides of the temp base are
   preserved. Android retains `<cache>/navis_updates/` for its FileProvider.
+  The service remembers the last verified digest/path in memory for the app session.
+  A matching digest reuses the file only after checking its size and SHA-256 again,
+  reporting completed progress without network usage. Missing or damaged files
+  download again. A different digest removes the old desktop work directory
+  (only the artifact on Android); deletion errors do not block the new download.
+  Startup cleanup still removes leftover desktop work directories after relaunch.
   Distribution is resolved at runtime:
   - **Sideload Android APK builds** (`NAVIS_SELF_UPDATE=true`) download the
     APK and invoke the system installer via a gated `MethodChannel`.
   - **Google Play installs** (detected via install-source metadata, or Play AAB builds
     with `NAVIS_SELF_UPDATE=false`) open the Play Store listing instead of sideloading.
   - **Desktop** runs a platform-appropriate apply strategy:
-  - **Linux deb:** `pkexec dpkg -i` + relaunch.
-  - **Linux RPM/AUR:** package-manager updates. These use root-owned `/opt/navis`
-    and the existing write-access check shows Download Manually for normal users.
-    The detector still selects Debian mode, so an offer requires `linuxDeb-amd64`;
-    the published `linuxRpm-x86_64` key is for download consumers only. See
-    [release-linux.md](release/release-linux.md) for the Ubuntu 22.04 build and package flow.
+  - **Linux Debian/RPM:** package ownership of `/opt/navis/navis` selects
+    `linuxDeb` (`dpkg-query -S`) or `linuxRpm` (`rpm -qf`). One `pkexec /bin/sh`
+    invocation copies the signed artifact into a root-owned `/var/tmp/navis-update.*`
+    directory, rechecks SHA-256, and installs with `apt-get` (120-second lock wait)
+    or `dnf`, then relaunches. An EXIT trap removes the root copy. Artifact paths,
+    hashes and package kind are positional arguments, never script interpolation.
+  - **Linux AUR/unknown package owner:** `linuxPackageManaged` shows the system
+    package-manager instructions without downloading. Its offer uses `linuxPortable`
+    for version/notes. See [release-linux.md](release/release-linux.md).
   - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
     subdirectory of the downloaded artifact's private work directory, writes a
     self-deleting shell/batch script inside that same work directory, launches it
@@ -3687,7 +3707,9 @@ unsigned derived fields.
     Its silent relaunch uses `runasoriginaluser` so Navis resumes without installer elevation.
 - `data/update_install_mode.dart` — `UpdateInstallMode` enum and `detectInstallMode()`
   function. Detects the current install type from filesystem heuristics (e.g. presence of
-  `unins000.exe` for Windows installer mode; executable under `/opt/navis` for Linux deb).
+  `unins000.exe` for Windows installer mode). Linux executables under `/opt/navis`
+  query Debian then RPM ownership; missing commands or unrecognized ownership use
+  `linuxPackageManaged`. The detected mode is cached for the process.
 - `data/archive_utils.dart` — cross-platform archive extraction (`tar`, `ditto`, PowerShell
   `Expand-Archive`).
 - `data/update_scripts.dart` — generates the platform-specific updater scripts (`.sh` for
@@ -3720,8 +3742,9 @@ these hold; each failure is recorded as a reject reason and nothing is offered:
   `PackageInfo.buildNumber` (`version_not_newer`). Stable and manifests without
   `build` use semver alone; malformed build values reject as `malformed_payload`;
 - the platform's asset key exists (`missing_asset`). Keys are the `UpdateInstallMode`
-  names, with `linuxDeb-<arch>` (`amd64` or `arm64`) for Debian packages; Debian never
-  falls back across architectures. Android's existing `com.navis.app/distribution`
+  names, with `linuxDeb-<arch>` (`amd64` or `arm64`) for Debian and
+  `linuxRpm-<arch>` (`x86_64` or `aarch64`) for RPM. Packages never fall back
+  across architectures or package families. Android's existing `com.navis.app/distribution`
   `getInstallSource` response includes `primaryAbi` from `Build.SUPPORTED_ABIS[0]`.
   For `arm64-v8a`, `armeabi-v7a` and `x86_64`, the updater prefers
   `androidApk-<abi>` when present, otherwise `androidApk` (universal). Unknown or
@@ -3749,13 +3772,27 @@ the production download and integrity check without installing anything; it adds
 `downloaded`, `artifactPath` and `downloadError` (`integrity_mismatch` for a size or
 SHA-256 mismatch). With the body `{"apply": true}` on desktop it then runs the production
 apply (`applyDesktopUpdate`) after responding, which replaces the running build and exits;
+if that apply fails, the GET route reports the error type in `lastApplyError` (cleared at the next apply);
 this is how a clone proves the whole R2-to-installed path. The GET route is available in every diagnostics mode; the POST
 routes are clone-only. See [release-r2.md](release/release-r2.md) for publishing and key handling.
 
 ### Write-access guard
 
-Before starting any download, `UpdateService.canApplyUpdate(mode)` probes the target
-directory for write access. If the directory is not writable (e.g. app installed to
+Before starting any download, `UpdateService.canApplyUpdate(mode)` checks for
+`pkexec` on PATH for Debian/RPM packages, without requiring `/opt/navis` to be
+user-writable. Unknown package owners always return false. Missing elevation
+shows the package-manager instructions. Exit 126 returns the dialog to confirm
+silently; exit 127, or 11 (the root script found no `apt-get`/`dnf`), shows the
+package-manager instructions. Installer stderr is
+logged before mapping these codes, since commands inside the root script can
+also return 126/127. A root-side integrity mismatch keeps Retry visible so the
+artifact can be downloaded and verified again; other installer failures show
+an apply error with Download Manually. Shipped builds fix the elevator to
+`pkexec`; `NAVIS_TEST_UPDATE_ELEVATOR` accepts one executable path for diagnostics
+and is rejected by the release script.
+
+For other desktop modes, the service probes the target directory for write
+access. If the directory is not writable (e.g. app installed to
 `/Applications` by an admin user, or a read-only portable location), the update dialog
 shows a "Download Manually" prompt linking to the release notes page (or the website
 download page) instead of attempting

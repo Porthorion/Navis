@@ -763,6 +763,21 @@ the key). It is not secrecy: the app must hold the key to use it, anyone running
 it can recover it, and a Last.fm API key is a client identifier rather than a
 credential. No Last.fm shared secret is bundled or used.
 
+### Linux package updater checks
+
+`tool/linux/verify_packages.sh` checks the installed owner of `/opt/navis/navis`
+as root in Ubuntu 22.04, Debian 12 and Fedora; it no longer expects a manual
+write-access fallback. `NAVIS_LINUX_PACKAGE_DIR` selects an absolute artifact
+directory for isolated diagnostics instead of the repository root.
+`tool/linux/package_update_diagnostics.sh` reuses the R2 publisher/transport and
+the source-safe handshake/API helpers in `r2_update_diagnostics.sh`. It builds
+profile-mode staging packages with matching embedded versions, supports remote
+package/pid/temp-cleanup assertions, and runs real root-script upgrades in the
+three verification images. Normal release builds still default to release mode.
+See [the Linux release guide](../release/release-linux.md#package-updater-runtime-diagnostics-r1r9)
+for usage, owner-driven checks and cleanup. Shell syntax checks alone do not
+certify polkit, apt/dnf, dialog states or relaunch; retain R1–R9 runtime evidence.
+
 ### Additional packaging prerequisites
 
 Android builds use AGP 9.3.1, the checksum-pinned Gradle 9.5.0 wrapper and Kotlin

@@ -584,7 +584,9 @@ class _ListenBrainzWeeklyDetailContentState
             onPressed: serverSongs.isEmpty ? null : _downloadVirtualAlbum,
           ),
           IconButton(
-            tooltip: l10n.weeklyPlaylistMatchAction,
+            tooltip: _playlistIsMatching
+                ? l10n.weeklyPlaylistMatching
+                : l10n.weeklyPlaylistMatchAction,
             icon: _playlistIsMatching
                 ? const SizedBox.square(
                     dimension: 18,
@@ -631,7 +633,11 @@ class _ListenBrainzWeeklyDetailContentState
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.sync_rounded),
-          label: Text(l10n.weeklyPlaylistMatchAction),
+          label: Text(
+            _playlistIsMatching
+                ? l10n.weeklyPlaylistMatching
+                : l10n.weeklyPlaylistMatchAction,
+          ),
         ),
       ],
     );
@@ -960,6 +966,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     await ref.read(librarySyncControllerProvider.notifier).syncNow();
     ref.invalidate(homeRecentlyAddedProvider);
     ref.invalidate(homeRandomAlbumsProvider);
+    ref.invalidate(homeRandomAlbumListProvider);
     ref.invalidate(homeDownloadedRandomAlbumsProvider);
     ref.invalidate(homeRandomAlbumShowcaseProvider);
     ref.invalidate(homeRandomShowcaseProvider);
@@ -1484,6 +1491,89 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             emptyTitle: l10n.homeRecentlyAddedEmptyTitle,
             emptySubtitle: l10n.homeRecentlyAddedEmptySubtitle,
             onRetry: () => ref.invalidate(homeRecentlyAddedProvider),
+          ),
+        ];
+
+      case HomeSectionIds.randomAlbumList:
+        if (downloadedOnly) {
+          return <Widget>[
+            _HomeSection<List<AlbumsTableData>>(
+              title: l10n.homeRandomAlbumListTitle,
+              desktopMode: desktopMode,
+              adaptiveLayoutClass: adaptiveLayoutClass,
+              compactWideLandscapeMode: compactWideLandscapeMode,
+              template: _HomeSectionTemplate.carousel,
+              density: sectionDensity,
+              data: ref
+                  .watch(homeDownloadedRandomAlbumsProvider)
+                  .whenData(
+                    (albums) => likedOnly
+                        ? albums
+                              .where((album) => album.starred != null)
+                              .toList(growable: false)
+                        : albums,
+                  ),
+              isEmpty: (items) => items.isEmpty,
+              builder: (context, albums) => _LocalAlbumCarousel(
+                albums: albums,
+                heroContext: 'home_random_album_list',
+                density: sectionDensity,
+                desktopMode: desktopMode,
+                tabletMode:
+                    !desktopMode &&
+                    adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
+                adaptiveLayoutClass: adaptiveLayoutClass,
+                compactWideLandscapeMode: compactWideLandscapeMode,
+                onTap: (album, heroTag) => NavService.openAlbumDetail(
+                  context,
+                  ref,
+                  album.id,
+                  heroTag: heroTag,
+                ),
+              ),
+              emptyTitle: l10n.libraryDownloadedOnlyEmpty,
+              emptySubtitle: l10n.libraryDownloadedOnlyEmptySubtitle,
+            ),
+          ];
+        }
+        return <Widget>[
+          _HomeSection<List<Album>>(
+            title: l10n.homeRandomAlbumListTitle,
+            desktopMode: desktopMode,
+            adaptiveLayoutClass: adaptiveLayoutClass,
+            compactWideLandscapeMode: compactWideLandscapeMode,
+            template: _HomeSectionTemplate.carousel,
+            density: sectionDensity,
+            data: ref
+                .watch(homeRandomAlbumListProvider)
+                .whenData(
+                  (albums) => likedOnly
+                      ? albums
+                            .where((album) => album.starred != null)
+                            .toList(growable: false)
+                      : albums,
+                ),
+            isEmpty: (items) => items.isEmpty,
+            builder: (context, albums) => _ServerAlbumCarousel(
+              albums: albums,
+              heroContext: 'home_random_album_list',
+              density: sectionDensity,
+              desktopMode: desktopMode,
+              tabletMode:
+                  !desktopMode &&
+                  adaptiveLayoutClass != AdaptiveLayoutClass.phoneCompact,
+              adaptiveLayoutClass: adaptiveLayoutClass,
+              compactWideLandscapeMode: compactWideLandscapeMode,
+              onTap: (album, heroTag) => NavService.openAlbumDetail(
+                context,
+                ref,
+                album.id,
+                heroTag: heroTag,
+              ),
+            ),
+            emptyTitle: l10n.homeRandomAlbumListEmptyTitle,
+            emptySubtitle: l10n.homeRandomAlbumListEmptySubtitle,
+            onRetry: () => ref.invalidate(homeRandomAlbumListProvider),
           ),
         ];
 

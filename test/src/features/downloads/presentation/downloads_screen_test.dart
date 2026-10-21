@@ -29,6 +29,7 @@ import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:navis/src/features/downloads/presentation/download_missing_section.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
+import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -958,6 +959,112 @@ void main() {
     expect(find.textContaining('No results for "missing"'), findsNothing);
   });
 
+  group('manual import', () {
+    late _FolderService service;
+    late ProviderContainer container;
+
+    // Opens Settings with one unmatched file pending, matches it to a song
+    // and taps Import, leaving the gated import running.
+    Future<void> startManualImport(WidgetTester tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 1800);
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPhysicalSize();
+      });
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'song-1', title: 'unknown'),
+      ]);
+      service = _FolderService(database)..importGate = Completer<void>();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              downloadFolderProblemProvider.overrideWithValue(
+                const AsyncData(null),
+              ),
+              downloadServiceProvider.overrideWithValue(service),
+              customDownloadFolderEnabledProvider.overrideWithValue(true),
+              customDownloadFolderPathProvider.overrideWithValue(
+                '/music/navis',
+              ),
+              downloadQueueProvider.overrideWithValue(
+                const AsyncData(<DownloadQueueTableData>[]),
+              ),
+              permanentCachedTracksProvider.overrideWithValue(
+                const AsyncData(<CachedTracksTableData>[]),
+              ),
+            ],
+          ),
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const DownloadsScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      container = ProviderScope.containerOf(
+        tester.element(find.byType(DownloadsScreen)),
+      );
+      container
+          .read(manualDownloadMatchingProvider.notifier)
+          .recordScan(
+            const PermanentDownloadImportPreview(
+              rootPath: '/music/navis',
+              items: <PermanentDownloadImportItem>[
+                PermanentDownloadImportItem(
+                  relativePath: 'unknown.flac',
+                  fileSize: 1,
+                  format: 'flac',
+                  disposition: PermanentDownloadImportDisposition.unmatched,
+                ),
+              ],
+            ),
+            automaticallyImported: 0,
+          );
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Manual Matching'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('unknown.flac'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'unknown'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Import 1'));
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('says "Importing downloads…" while the import runs', (
+      tester,
+    ) async {
+      await startManualImport(tester);
+      expect(find.text('Importing downloads…'), findsOneWidget);
+      expect(find.text('Moving downloaded tracks...'), findsNothing);
+
+      service.importGate!.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Importing downloads…'), findsNothing);
+      expect(container.read(manualDownloadMatchingProvider).pendingCount, 0);
+    });
+
+    testWidgets('marks files imported even if the tab was left mid-import', (
+      tester,
+    ) async {
+      await startManualImport(tester);
+      await tester.tap(find.text('Downloaded'));
+      await tester.pumpAndSettle();
+
+      service.importGate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(container.read(manualDownloadMatchingProvider).pendingCount, 0);
+    });
+  });
+
   testWidgets('turning off the custom folder asks first', (tester) async {
     final service = _MockDownloadService();
     when(
@@ -1536,6 +1643,7 @@ class _FolderService extends Fake implements DownloadService {
   final NavisDatabase database;
   final List<String> calls = <String>[];
   final Completer<void> previewGate = Completer<void>();
+  Completer<void>? importGate;
 
   @override
   Future<PermanentDownloadImportPreview> previewCustomDownloadFolder(
@@ -1575,6 +1683,7 @@ class _FolderService extends Fake implements DownloadService {
     bool includeRecognized = true,
   }) async {
     calls.add('import ${preview.rootPath}');
+    await importGate?.future;
     return const PermanentDownloadImportResult(
       importedCount: 0,
       skippedCount: 0,

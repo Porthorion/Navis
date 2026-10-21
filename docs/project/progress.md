@@ -14,6 +14,55 @@ Last updated: 2026-10-21
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #92, optional Home Random Albums section — 2026-10-20
+  (`feat/home-random-albums`): `random_album_list` after Recently Added,
+  hidden by default. Its own server `getAlbumList2(random, 20)` draw; the
+  downloaded-only list is now a one-shot snapshot. Both re-pick after every
+  finished library sync. Showing a never-seen hidden-by-default section now
+  also saves the order, or `resolveHidden` hid it again (GLM review P1).
+  Runtime check in the app still to do.
+- [x] Issue #111, specific failure messages — 2026-10-20
+  (`fix/specific-failure-messages`): sub-items 1-3 were verified unreachable
+  (radio and Instant Mix never receive invalidKey/rateLimited; Last.fm key
+  validation already shows a connection message inline), so only the relink
+  message changed. Evidence: focused tests from the original change passed;
+  `./tool/check.sh`: all checks passed on the pre-fix commit (will be rerun).
+- [x] Issue #112, explain long waits — review round — 2026-10-21
+  (`fix/explain-long-waits`): manual import now says "Importing downloads…"
+  (`downloadsImporting`) instead of "Moving downloaded tracks..." via a
+  screen-local flag; folder choose and rescan keep their text. Fixed a
+  pre-existing bug: `markImported` used `ref.read` after the awaited import, so
+  leaving the tab mid-import skipped it and committed files reappeared as
+  pending; both notifiers are now read before the await. Evidence: new widget
+  tests in `downloads_screen_test.dart` (busy text while a gated import runs,
+  and pending cleared after the tab is left mid-import); the text test fails
+  without the flag. `flutter gen-l10n` run; `flutter test` on
+  `downloads_screen_test.dart` and `custom_download_folder_controller_test.dart`
+  passed `+39: All tests passed!`; `./tool/check.sh`: all checks passed on the
+  pre-fix commit (will be rerun).
+- [x] Issue #110, About "Check now" failure feedback — 2026-10-20
+  (`fix/about-check-now-error`): a user-triggered failed check shows an error
+  notice; automatic failures deliberately only show the failed subtitle. Review
+  round added a widget test pinning that no notice is raised for an automatic
+  failure. Evidence: `flutter test
+  test/src/features/settings/presentation/about_screen_test.dart` passed
+  `+14: All tests passed!`; `flutter analyze` on the file clean;
+  `./tool/check.sh`: all checks passed on the pre-fix commit (will be rerun).
+- [x] Verified update download reuse after cancelled installation — 2026-10-20:
+  `UpdateService` retains one digest/path per session, re-verifies before reuse,
+  re-downloads missing/tampered files and removes superseded artifacts. The
+  existing private-directory test now asserts reuse and one HTTP request;
+  additional cases cover case-insensitive hashes, progress/network accounting,
+  tampering, deletion and changed-digest directory removal before downloading.
+  Test-first service run failed four cases (`00:00 +38 -4: Some tests failed.`).
+  `flutter test test/src/features/settings/data/update_service_test.dart
+  test/src/features/settings/presentation/update_dialog_test.dart` passed
+  (`00:02 +53: All tests passed!`); changed Dart files pass formatting.
+  `flutter analyze lib/src/features/settings test/src/features/settings`
+  reports four existing infos in untouched appearance tests (escaping quotes,
+  setter style, constructor type and braces); no findings in the changed code.
+  Runtime/polkit validation remains with the coordinator; `./tool/check.sh`
+  was explicitly reserved for the orchestrator.
 - [ ] Issue #86, round 10 bounded failover — partial: 2026-10-21
   (`fix/seek-settlement`, remaining: coordinator Linux/Android runtime pass
   against a `release/1.5` baseline and independent review). Round-9 runs showed
@@ -3370,3 +3419,38 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - 2026-10-18 — Notification Title Case (issue #68, branch `fix/notification-title-case`): seven `app_en.arb` notification titles moved to Title Case ("Scanning Library", "Library Scan Complete", "Library Scan Failed", "Library Scan Cancelled", "Download Failed", "Downloading {count} Songs", "Downloads Waiting for Storage or Access"); bodies, channel descriptions and channel IDs unchanged, and the already-correct hardcoded channel names ("Playback", "Downloads", "Library Scan") left alone. Localizations regenerated with `flutter gen-l10n`; assertions in `test/src/utils/notifications/download_notifier_test.dart` and `library_sync_notifier_test.dart` updated; "UI text casing" rule in `docs/development/agentic-engineering.md` extended and the 1.5.0 Title Case changelog entry folded to cover notifications. `flutter analyze --no-fatal-infos` reports no errors/warnings; both touched test files pass in one run (`00:02 +7: All tests passed!`). `./tool/check.sh` left to the coordinator.
 
 - 2026-10-18 — Issue #76: the existing download backfill pump detects an effective LRCLIB permission off→on transition, drains active automatic/manual passes, and clears empty non-instrumental lyrics miss backoff in one DAO update before retrying automatically, including persisting the reset while offline. Startup and repeated enabled values preserve backoff; stored lyrics, instrumental rows and the Missing predicate are unchanged. Test-first re-enable/offline regressions failed before implementation; 94 focused DAO/backfill/provider/resolver tests pass. `make gen` completed without tracked generated changes; `flutter analyze --no-fatal-infos` exited 0 with no errors/warnings (200 informational findings). Isolated Linux diagnostics passed authenticated health, server-only miss persistence, disabled backoff preservation, offline enable reset, automatic retry without force and clean-restart startup backoff preservation before and after the full gate, each with a fresh isolated profile and clean restart (`build/issue-76-runtime/report.json`, `build/issue-76-runtime-final/report.json`). The full gate ran once under `flock /tmp/navis-heavy.lock systemd-run --user --scope -p MemoryMax=10G ./tool/check.sh`: 8,830 tests passed, one skipped; exact final line `[check] All checks passed.` No changelog change, per owner instruction for the unreleased 1.5.0 backfill refinement.
+
+- 2026-10-20 — Linux package updater second-round review: the release guard now
+  tolerates empty inherited defines on Bash 3.2; nonzero elevated installer
+  results retain stderr before exit-code mapping; apply-time integrity failures
+  offer Retry and download again; package-manager-only modes rely on the shared
+  capability guard. Corrected the test elevator recipe to one executable wrapper.
+  Test-first regressions failed for both missing exit-code logs and the missing
+  Retry action; focused service/dialog validation passed:
+  `00:02 +49: All tests passed!`. Empty/unset define cases pass on the available
+  Bash; Bash 3.2 itself was not available. Full gate, builds and runtime evidence
+  are explicitly deferred by this task's validation restrictions.
+
+- 2026-10-20 — Linux package updater Task 5: architecture/release guides now
+  describe package ownership, privileged verify/install, cancellation, Retry
+  and the 1.5.1 rollout boundary. Added the user-facing 1.5.1 entry to
+  `changelog_data.dart`; the release-notes CLI generates from this source, and
+  there is no separate tracked 1.5.1 notes/CHANGELOG file to synchronize.
+  Replaced package verification's manual-update assertion with root ownership
+  queries. Added `package_update_diagnostics.sh` for build/publish/remote run/
+  cleanup, repeated cycles, corrupt downloads and real root-script container
+  upgrades; owner-driven UI scenarios and R8 remain explicit acceptance steps.
+  Shared existing handshake/API and R2 transport functions instead of copying
+  their implementation. The builder now accepts profile mode and embedded
+  version flags because diagnostics rejects release mode and package-only
+  version overrides do not change the running app version. A test-first mocked
+  builder case failed on the unsupported profile flag before implementation;
+  default release behavior and source-only handshake reuse also have coverage.
+  Nine focused test files passed: `00:16 +259: All tests passed!`. After the final
+  formatting adjustment, builder/helper and release-notes tests passed again:
+  `00:00 +7: All tests passed!`. Changed-file `dart analyze` reports
+  `No issues found!`; all nine touched shell scripts pass `bash -n` and
+  `git diff --check` passes. ShellCheck is not installed. Per explicit task
+  limits, the new harness was not run: no builds, publication, SSH, containers,
+  app launches, emulators or full gate. R1–R9 runtime acceptance remains open;
+  the active plan stays under `docs/plans/` until that evidence exists.
