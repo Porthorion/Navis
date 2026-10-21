@@ -434,7 +434,7 @@ extension _NavisMediaSession on NavisAudioHandler {
             _positionController.add(position);
             _lastPositionEmitAt = DateTime.now();
           }
-          _observePlaybackAdvance(position);
+          _observePlaybackAdvance();
           // Paused edits may wait longer than the controller's bounded refresh
           // window. Observe their first processed block when playback resumes.
           if (equalizerCapabilities.supported &&

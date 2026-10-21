@@ -250,6 +250,7 @@ class NavisAudioHandler extends BaseAudioHandler
   int _autoFailovers = 0;
   Duration _playedSinceFailover = Duration.zero;
   Duration? _advancePosition;
+  String? _advanceSongId;
   DateTime? _lastAdvanceAt;
 
   final LibraryDao _libraryDao;
