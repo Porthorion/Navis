@@ -135,7 +135,8 @@ const List<ChangelogVersion> changelogs = [
         'seeking before the first load finishes, and continue to the next song '
         'if a seek recovery cannot reload the stream. Retry slow cold seeks '
         'with a fresh source, recover silently, and keep the final stopped '
-        'song available to Play again',
+        'song available to Play again. Stop quietly instead of skipping '
+        'through the queue when several songs in a row cannot play',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

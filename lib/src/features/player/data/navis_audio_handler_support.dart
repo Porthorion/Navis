@@ -99,6 +99,7 @@ class NavisPlaybackTimeouts {
     this.focusRetry = const Duration(minutes: 2),
     this.radioRecovery = const Duration(minutes: 10),
     this.radioHealthyPlay = const Duration(minutes: 1),
+    this.healthyPlayback = const Duration(seconds: 5),
   });
 
   /// Initial deadline for a native load, or fixed deadline for queue edits.
@@ -140,6 +141,10 @@ class NavisPlaybackTimeouts {
   /// How long a reconnected station must play before its next failure starts
   /// a fresh [radioRecovery] budget.
   final Duration radioHealthyPlay;
+
+  /// How long a song must really advance before earlier automatic failovers
+  /// stop counting towards the consecutive cap.
+  final Duration healthyPlayback;
 }
 
 /// A request belongs to the selected queue occurrence, independent of whether

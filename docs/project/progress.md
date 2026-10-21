@@ -14,6 +14,30 @@ Last updated: 2026-10-21
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, round 10 bounded failover — partial: 2026-10-21
+  (`fix/seek-settlement`, remaining: coordinator Linux/Android runtime pass
+  against a `release/1.5` baseline and independent review). Round-9 runs showed
+  a 12-second load-timeout cascade through the queue (idx 0 to 4) and a
+  desktop seek failure that skipped a song which was still playing. Now: the
+  final quiet stop bounds `pause()/stop()` by the reset timeout; a failed
+  desktop seek fails over only when the source is not advancing; automatic
+  failovers from seek, stall and queue-load share a cap of two songs until
+  five seconds of real playback (position stream) or Play, after which playback
+  stops quietly on the current song, reloadable by Play; `_waitForSeekSource`
+  fails at once after a quiet stop and is capped by `seekProgress` in total.
+  Regressions (each failed before its change): hung final stop (seek lane
+  parked, test timeout), still-playing song skipped (`Expected: song-0 / Actual:
+  song-1`), cascade (`Expected: song-2 / Actual: song-5`), seek plus stall
+  cascade and healthy-play reset (`Actual: song-3` / `song-2`), a seek
+  waiting on a load that ends in a quiet stop (2,004 ms), cold load holding a
+  seek (outcome null). `./tool/check.sh` passed (8,952 tests; 435 s). A seek
+  failover cannot repeat after the queue moved: every queue move already
+  cancels the pending seek, and that regression passed unchanged. The r9
+  cold-a.1 mid-song advance is not a premature completion: that file is 51.0 s
+  long and the harness seeks to 60 s, so the track ended at 51.2 s (trace
+  `dur: 51000`, `pos: 51200`); the FLAC decode errors follow the seek into the
+  partial download. No code change for it.
+
 - [ ] Issue #86, round 9 cold seek recovery — partial: 2026-10-21
   (`fix/seek-settlement`, remaining: coordinator live large-FLAC/Android
   revalidation and independent review). Focused seek, transcode and deadline runs

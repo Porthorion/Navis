@@ -227,6 +227,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
   }
 
   int? _nextPlayableIndexAfterFailure(int failedIndex, int totalCount) {
+    // Past the cap the trouble is not one song: stop quietly on this one.
+    if (_autoFailovers >= _maxAutoFailovers) return null;
     final nextIndex = failedIndex + 1;
     if (nextIndex >= 0 && nextIndex < totalCount) {
       return nextIndex;
@@ -1613,6 +1615,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
     return _queueLane.run((token) async {
       int? nextRecoveryIndex;
+      int? failedStartIndex;
       try {
         await _ready;
         _checkQueueWorkCurrent(token, generation);
@@ -1631,6 +1634,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
           _completeQueueLoad(generation);
           return;
         }
+        failedStartIndex = resolvedStartIndex;
         final nextOccurrence = _nextPlayableIndexAfterFailure(
           resolvedStartIndex,
           songs.length,
@@ -1682,9 +1686,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
         AppLogger.debug('$context cancelled — superseded by newer command.');
       } on PlaybackLoadTimeoutException catch (error) {
         if (!_isActiveLoadGeneration(generation)) return;
-        final nextIndex = nextRecoveryIndex;
+        // The count may have grown since the start was resolved.
+        final capped = _autoFailovers >= _maxAutoFailovers;
+        final nextIndex = capped ? null : nextRecoveryIndex;
         if (_player.audioSources.isEmpty &&
-            (nextIndex != null || !_isDesktopRuntime)) {
+            (nextIndex != null || (!_isDesktopRuntime && !capped))) {
           _queueItems.clear();
           _clearQueueReplacementMetadataAnchor();
           _setCurrentMediaItem(null);
@@ -1698,7 +1704,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
               ids,
               _pendingLogicalQueueSongs ?? const <SongsTableData>[],
               _queueItems.first,
-              seek?.queueIndex ?? ids.length - 1,
+              seek?.queueIndex ?? failedStartIndex ?? ids.length - 1,
               (
                 index: 0,
                 position: seek?.position ?? Duration.zero,
@@ -1711,6 +1717,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         if (nextIndex != null) {
           // Admission of the recovery owns the next loading target; do not
           // publish a settled song backed by the empty retired player first.
+          _countAutoFailover();
           unawaited(
             recover(
               startIndex: nextIndex,
