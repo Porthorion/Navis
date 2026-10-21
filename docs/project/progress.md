@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-21
+Last updated: 2026-10-22
 
 ---
 
@@ -14,6 +14,15 @@ Last updated: 2026-10-21
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #120, Last.fm recommendations fell back to server similar songs —
+  2026-10-22 (`fix/lastfm-similar-fallback`): cause was Last.fm itself.
+  `track.getSimilar` returns an empty list for most songs released since about
+  2015 (Starboy, Anti-Hero, Shape of You) with a healthy key. The client now
+  retries the title without qualifiers, then uses the top tracks of the seed
+  artist's similar artists; empty answers are cached for 10 minutes, not 24
+  hours; error 6 reads as empty. Evidence: focused tests pass (1897); the real
+  Same Vibes notifier against the live server used the server fallback for 30
+  of 43 library songs before and 9 after (`./tool/check.sh` not yet run).
 - [x] Issue #111, specific failure messages — 2026-10-20
   (`fix/specific-failure-messages`): sub-items 1-3 were verified unreachable
   (radio and Instant Mix never receive invalidKey/rateLimited; Last.fm key

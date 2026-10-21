@@ -2677,12 +2677,20 @@ Backfill skips marked tracks even for **Backfill Now**, and its automatic
 remaining-work check excludes them. Ordinary unknown-track misses retain the
 seven-day backoff; rate-limited responses never mark a track instrumental.
 
-Last.fm `track.getsimilar` responses are cached for 24 hours in
-`IntegrationJsonCache` under `lastfm.similar-tracks`, keyed by normalized artist
-and track (case and whitespace). The client is the shared layer for Same Vibes
-and Instant Radio. Successful empty responses are cached; request errors are
-not. Each entry records its request limit, so a larger request refreshes an
-undersized entry and smaller reads return only the requested number of tracks.
+Last.fm similar-track results are cached in `IntegrationJsonCache` under
+`lastfm.similar-tracks`, keyed by normalized artist and track (case and
+whitespace). The client is the shared layer for Same Vibes and Instant Radio.
+Last.fm has no `track.getsimilar` data for most songs released since about
+2015, and answers "Track not found" (code 6) for some qualified titles, so
+`getSimilarTracksResult` tries three steps and caches the final result: the
+title as given, the title without qualifiers (`stripTitleQualifiers`), then the
+top three tracks of each of the five most similar artists (`artist.getSimilar`
+plus the existing `getArtistTopTracks`), interleaved one track per artist.
+`LastFmTrackFetchResult.source` tells the two origins apart in the Same Vibes
+diagnostics. Results with tracks are kept 24 hours; an empty result is kept ten
+minutes; request errors are not cached. Each entry records its request limit,
+so a larger request refreshes an undersized entry and smaller reads return only
+the requested number of tracks.
 Cache I/O uses the existing asynchronous read and atomic-write path.
 
 ListenBrainz connection validation and listen submissions distinguish explicit token
