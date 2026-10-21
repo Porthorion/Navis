@@ -79,6 +79,7 @@ extension _NavisCache on NavisAudioHandler {
           );
         },
         onComplete: (cacheFile) async {
+          _completedCacheSongIds.add(song.id);
           await _registerRollingCacheTrack(
             song: song,
             resolvedSource: ResolvedPlaybackSource.directStream(
@@ -167,7 +168,7 @@ extension _NavisCache on NavisAudioHandler {
   ) {
     _rollingCacheActivities[cacheFilePath] = activity;
     _reportRollingCacheActivity?.call(activity);
-    _refreshBufferState(_bufferState.songId);
+    _refreshBufferState(_currentBufferSongId);
   }
 
   /// How much of [songId], the current song, is playable from local data:
@@ -195,7 +196,7 @@ extension _NavisCache on NavisAudioHandler {
     } else if (bytes != null && bitRate != null && bitRate > 0) {
       cached = Duration(milliseconds: bytes * 8 ~/ bitRate);
     } else {
-      return _completedSidecarAvailable(songId) ? duration : null;
+      return _completedCacheSongIds.contains(songId) ? duration : null;
     }
     if (cached >= duration) return duration;
     // Whole seconds, so a download does not rebuild the seek bar per chunk.
@@ -236,7 +237,7 @@ extension _NavisCache on NavisAudioHandler {
       _rollingCacheActivities.values.lastOrNull ??
           const RollingCacheActivity.idle(),
     );
-    _refreshBufferState(_bufferState.songId);
+    _refreshBufferState(_currentBufferSongId);
   }
 
   Future<void> _registerRollingCacheTrack({

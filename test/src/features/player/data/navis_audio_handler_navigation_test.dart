@@ -12793,6 +12793,27 @@ void main() {
       expect(line(handler), handler.snapshot.duration);
     });
 
+    test('a sidecar completed before the song became current draws the full '
+        'duration', () async {
+      final (handler, player) = await serve();
+      await startSong(handler);
+      player.emitBuffered(const Duration(seconds: 3));
+      release.complete();
+      await until(() => line(handler) >= handler.snapshot.duration);
+      // The finished download must unregister its activity first.
+      await until(
+        () => handler.collectPlaybackDiagnostics()['cacheActivity'] == null,
+      );
+      await handler.skipToNext();
+      await settleQueue(handler);
+      expect(handler.bufferState.songId, 'song-1');
+      await handler.skipToPrevious();
+      await settleQueue(handler);
+      player.emitBuffered(const Duration(seconds: 1));
+      await until(() => line(handler) >= handler.snapshot.duration);
+      expect(line(handler), handler.snapshot.duration);
+    });
+
     test('a completed lock-cache download draws the full duration', () async {
       final (handler, player) = await serve(sidecar: false);
       await startSong(handler);

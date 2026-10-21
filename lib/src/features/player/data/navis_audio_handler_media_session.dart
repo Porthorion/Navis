@@ -9,6 +9,11 @@ extension _NavisMediaSession on NavisAudioHandler {
     }
     final nextSongId = _radioStation == null ? item?.id : null;
     _completedCacheSongIds.removeWhere((id) => id != item?.id);
+    // Re-learn a sidecar that finished while its song was not current: the
+    // set is the only per-event source for the buffered line.
+    if (item != null && _completedSidecarAvailable(item.id)) {
+      _completedCacheSongIds.add(item.id);
+    }
     if (_bufferState.songId != nextSongId) {
       _playerBufferedPosition = Duration.zero;
       _emitBufferState(
@@ -424,11 +429,8 @@ extension _NavisMediaSession on NavisAudioHandler {
       bufferedPosition,
     ) {
       if (!identical(_player, wiredPlayer)) return;
-      final songId = _radioStation == null
-          ? _resolveCurrentQueueMetadata().mediaItem?.id
-          : null;
       _playerBufferedPosition = bufferedPosition;
-      _refreshBufferState(songId);
+      _refreshBufferState(_currentBufferSongId);
     });
 
     // Position monitoring for cross-fade triggering.
@@ -441,6 +443,12 @@ extension _NavisMediaSession on NavisAudioHandler {
           if (identical(_player, wiredPlayer)) _checkCrossfadeTrigger(position);
         });
   }
+
+  /// The song id the seek bar buffered line tracks: the current queue song,
+  /// or null while a radio station plays.
+  String? get _currentBufferSongId => _radioStation == null
+      ? _resolveCurrentQueueMetadata().mediaItem?.id
+      : null;
 
   /// Draws the seek bar line for [songId] as the further of the player's
   /// buffered position and what the rolling cache holds locally.
