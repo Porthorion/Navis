@@ -130,13 +130,23 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Bound desktop seek waits and recover stuck positions automatically; '
+        'keep slow song starts loading while data arrives, including when '
+        'seeking before the first load finishes, and continue to the next song '
+        'if a seek recovery cannot reload the stream. Retry slow cold seeks '
+        'with a fresh source, recover silently, and keep the final stopped '
+        'song available to Play again. Stop quietly instead of skipping '
+        'through the queue when several songs in a row cannot play',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fix Repeat One silently rewinding streamed songs before the end '
         'on Android and stalling when the queue fills in the background',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Resume transcoded songs at the current position after a network stall '
-        'instead of replaying them from the start',
+        'or disconnect instead of replaying them or skipping to the next song',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -159,6 +169,11 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Seeking in a transcoded song now jumps straight to the new position '
         'on servers that support it, instead of waiting for the download',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The seek bar now shows how much of a song is already downloaded, '
+        'instead of stopping short after a seek',
         type: ChangelogEntryType.fix,
       ),
     ],

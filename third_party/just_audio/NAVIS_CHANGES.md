@@ -27,12 +27,32 @@ request starts over. Navis cancels downloads of songs the player has moved on
 from, which otherwise ran to completion and starved the current song on a slow
 link.
 
+`LockCachingAudioSource.downloadedBytes` exposes the current download's
+in-memory byte count. `downloadProgressStream` emits on every body chunk,
+including repeated whole-percent values for sub-percent or unknown-length
+transfers. Navis uses those events for player-side progress deadlines without
+polling partial-file metadata. The completion value remains reserved for the
+flushed, published cache file.
+
 The stream proxy closes range requests whose response has no known content
 length with HTTP 500 instead of dereferencing null while constructing
 `Content-Range`. Navis can then recover the remote source; completed cache reads
 still provide sized ranges.
 
 The stream proxy restores chunked framing for unknown-length bodies and explicitly sends `Content-Length: 0` for empty HTTP 500 responses after clearing headers (#86).
+
+Lock-cache origin disconnects and the existing 30-second body-progress timeout
+discard partial files and fail in-progress response streams. The stream proxy
+uses `HttpResponse.addStream` to propagate errors, then aborts the connection
+with `HttpResponse.deadline = Duration.zero` instead of sending clean EOF (#86).
+Detaching is unavailable after headers have been sent. The URI/header proxy
+also aborts body errors, including short sized responses, without retrying them
+as HTTP/0.9. Its raw HTTP/0.9 fallback destroys both sockets on read errors;
+normal EOF remains valid for that unframed protocol. Complete bodies still
+close cleanly, and radio retains native retries and no added body timeout.
+Fixtures verify partial delivery, client errors, cache cleanup, fresh fetches,
+and clean live-stream completion. A JVM fixture reads an incomplete chunked
+body and verifies its `IOException` selects the existing fatal load policy.
 
 Keep upgrades narrow and re-run the native response/lifecycle fixtures and
 Navis playback tests when updating either vendored package.

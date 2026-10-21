@@ -3980,8 +3980,16 @@ still permits a later explicit Play.
 
 Lock-cache origin and range fetches have cancellable 15-second connection and
 header deadlines and a 30-second body-progress deadline. Failed partial files
-are discarded and requests may restart. `networkReconciliationProvider` shares
-the existing bounded connectivity, metering and server-reachability check
+are discarded and requests may restart. An origin disconnect or body-progress
+timeout fails in-progress lock-cache streams; the local proxy aborts the
+client connection without a terminating chunk so Media3 reports a load error
+and position-preserving recovery runs instead of advancing early. The URI/header
+proxy also aborts origin body errors rather than entering its HTTP/0.9 fallback.
+Short sized bodies fail too; complete bodies close cleanly. Radio keeps native
+retries and the URI proxy has no added body deadline. A later lock-cache request
+refetches the source using the existing cleanup path.
+`networkReconciliationProvider` shares the existing bounded connectivity,
+metering and server-reachability check
 between resume and playback, and reports device connectivity separately from
 server reachability. Scoped container subscriptions keep these bounded
 checks active even when UI provider listeners are paused, and metering is read
@@ -4730,24 +4738,82 @@ between ready and buffering several times a second, so settlement rests on the
 native position: a playing request is settled once the position advances from
 the target, a paused one once it has held the target for 300 ms. Native
 buffering may probe several byte ranges before producing a packet, so it counts
-as activity: only a player that is not buffering and neither moves nor fills for
-three seconds, or that stays away from the target for three seconds, has
-stalled. A probe that is still buffering at the load deadline keeps waiting, up
-to `NavisPlaybackTimeouts.seekProgress` (45 s), while the player's own buffer
-grew within the last three seconds or the song's cache download (desktop
-sidecar or Android lock cache) is at least half done and still receiving
-bytes: on a slow link
-a far seek in a large file legitimately takes that long, and a reload would
-start the same transfer over. When the desktop sidecar file completes first the
-probe stops and the song is reloaded from it. Each probe that gives up records
-why (`missed target`, `no progress`, `cache complete`, `deadline`) with the
-state it saw in the seek's `unsettled` diagnostics. Each current
-request permits one recovery attempt, plus a reload from a sidecar file that
-completes during it. An exhausted request reports failure and
-suppresses automatic stream retries until another explicit transport/selection
-request, or until the song has played on normally for five seconds past where
-the seek failed, preventing a failed seek from later restarting or skipping the
-song without leaving a later, unrelated stall unrecovered.
+as activity until the settlement deadline. Desktop seek settlement uses a fixed
+25-second deadline
+(`NavisPlaybackTimeouts.desktopSeekSettle`) for every probe, including the
+probe after recovery. Neither mpv download activity, independent sidecar bytes
+nor decoded buffer growth extends that deadline. Linear downloads can continue
+while a seek is stuck, so they cannot establish seek progress. The existing
+near-target, advancing/paused settlement, missed-target, no-progress and
+cache-complete rules can still end a probe earlier. Two stuck buffering probes
+therefore consume about 50 seconds of settlement time, plus the existing bounded
+native control/source reload work, instead of 45 + 45 seconds.
+
+Native song loads and mobile seek probes reuse `_PlaybackProgressDeadline`.
+Android/iOS retain native `bufferedPosition` growth and received lock-cache
+byte events, including sub-percent and unknown-length transfers. Desktop loads
+starting at position zero may extend using the sidecar's in-memory received byte
+counter: downloading linearly is useful progress there. Desktop loads at a seek
+offset retain their fixed native load deadline while the same 250 ms loop
+continues checking cancellation. mpv input-rate APIs and sampling
+are absent. Progress only extends loading/buffering, with an eight-second idle
+window (`progressIdle`) and 45-second cap (`seekProgress`). No received bytes
+still means a 12-second native load deadline. Sidecar bytes prove server
+progress, not player progress: a wedged desktop demuxer with a trickling server
+can stay alive until the bounded 45-second cold-start cap.
+
+Native queue loads check progress every 250 ms while awaiting the existing
+operation future. A pending seek for the loading song preserves this extension:
+it waits behind the active queue apply without changing its load generation or
+operation token, then seeks once loading/filling finishes. Even rapid same-song
+seeks retain the selected song; older seek requests are superseded. A cold
+native load may publish no buffer or mpv input estimate, so excluding the
+sidecar previously caused a 12-second queue-apply timeout, next-song failover,
+and cancellation of the waiting seek. Other lane backlog retains the original
+load deadline. If a desktop cold load times out with a same-song seek pending,
+the existing phase-one source fallback prepares a fresh source and reloads once
+at that target on the rebuilt player. AudioSource objects cannot be transferred
+from the retired player: its asynchronous disposal clears their attachments.
+This cold retry has the existing 45-second `seekProgress` budget, including
+silent-body waits, with no second extension; ordinary seek recovery loads keep
+the 12-second deadline. Source readiness follows the active same-song load's
+bounded lifetime rather than expiring during it. A transcode retry opens the
+server offset directly, and settlement verifies that load without reopening it.
+A completed-cache fallback remains available if that retry does not settle.
+A failed retry uses the ordinary queue-load failover; the final failed occurrence
+remains queued and reloadable by Play. A new selection/queue or
+Stop retires a superseded load on the next check. Controls, queue edits and radio
+keep fixed timeouts; failures report actual elapsed time. When the desktop
+sidecar completes first, settlement stops and existing recovery reloads from it.
+Each unsuccessful probe records
+`reason`, `elapsedMs`, `positionMs`, `bufferedMs`, `processingState` and `playing`
+in the seek's `unsettled` diagnostics. Each current request permits one recovery
+attempt, plus a reload from a sidecar file that completes during it. An
+exhausted desktop request on a dead source uses the existing failed-song
+failover, preserving latest Play/Pause intent and queue; a song whose position
+still advances keeps playing quietly. With no successor it stops quietly (pause
+and stop each bounded by the reset timeout, so a stuck native stop cannot park
+the seek lane) and marks the source failed so Play reloads it. Automatic
+failovers (seek, stall, queue-load and a song that completes far short of
+its duration) share a cap of two songs in a row: until
+a song advances for five seconds (`healthyPlayback`, from the position stream)
+or the user selects a song (Play, skip, queue item, new queue; natural
+advances never reset it), the next failure stops quietly on the current song
+instead of skipping further. A seek that was waiting on a load ending in such a
+stop fails at once, and seek source readiness never waits longer than
+`seekProgress` in total. A quiet stop leaves the player without sources, so the
+background tail release skips it until Play reloads the queue. Advance is measured on the
+backend's own position on desktop, never the interpolated clock, so a backend
+stuck in `ready` neither clears the cap nor counts as alive. A completion far
+short of the duration counts as a failed stream only for a song that never
+played for `healthyPlayback`. If the final pause or stop times out, the player
+is replaced through the timeout-recovery path so Play reloads on a fresh one. Native timeout recovery and failed seeks log
+diagnostics without emitting user notices; automatic recovery needs no user
+action. Mobile exhausted requests suppress automatic stream retries until
+another explicit transport/selection request, or until the song has played on
+normally for five seconds past where the seek failed, preventing a failed seek
+from later restarting or skipping the song without leaving a later, unrelated
+stall unrecovered.
 Diagnostics expose `seek` generation,
 requested position, pending flag, stage, outcome and recovery count, with a bounded
 `seekEvents` history. On desktop a load's initial position is applied by mpv
@@ -5131,7 +5197,16 @@ creates a window; the owned Rust adapter uses manual SMTC, retains and revokes
 WinRT event tokens, converts incoming seek requests from 100 ns ticks to the
 Dart stream's milliseconds, serializes complete state writes, and omits unusable
 artwork while retaining text metadata. Interactive seek bars render `bufferStateStream` as a subtle
-secondary track and ignore states keyed to another song. For queued songs,
+secondary track and ignore states keyed to another song. The handler emits the
+further of the player's buffered position and the locally playable cached
+position (`_cachedPlayablePosition`): the full duration for a file source or a
+finished rolling-cache download, else the running download's fraction, or its
+received bytes at `resolvedBitRate` when the length is unknown, floored to whole
+seconds. The player re-opens its stream after a seek and so reports only a short
+window while the cache keeps filling. Seek deadlines and recovery still read the
+player's own buffered position and received bytes. Diagnostics report
+`playerBufferedPositionMs` (raw), `cachedPlayablePositionMs` and
+`drawnBufferedPositionMs` (the line). For queued songs,
 `MediaItem.duration` remains authoritative while a transcoded decoder reports a
 growing partial duration; the decoder duration is only a fallback when metadata
 is unavailable. The inactive crossfade deck exists only while crossfade is
