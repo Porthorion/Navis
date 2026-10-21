@@ -1035,6 +1035,8 @@ class Run:
             'loading': state.get('isLoading'), 'qlen': state.get('queueLength'),
             'settled': state.get('queueSettled'), 'dur': state.get('durationMs'),
             'buf': state.get('bufferedPositionMs'),
+            'pbuf': state.get('playerBufferedPositionMs'), 'cplay': state.get('cachedPlayablePositionMs'),
+            'drawn': state.get('drawnBufferedPositionMs'),
             'bar': bar.get('bufferedMs') if bar.get('songId') == state.get('songId') else None,
             'cacheB': cache.get('receivedBytes'), 'cacheTotal': cache.get('totalBytes'),
             'seekOutcome': seek.get('outcome'), 'seekPending': seek.get('pending'),
@@ -1398,6 +1400,44 @@ def oracle_buffer_lag(run: Run, bytes_per_second: float | None) -> list[dict]:
             break
     run.metrics['bufferMaxLagS'] = round(max_lag, 1)
     run.metrics['bufferFinal'] = final
+    return out
+
+
+def oracle_i87(run: Run, rate: float | None, full_expected=False) -> list[dict]:
+    """#87 measurements (no hard verdicts): the drawn line (seekBar.bufferedMs on both builds) against the cache
+    position (received bytes / bytes per second), the player's raw buffer and, on the fix, cachedPlayablePositionMs.
+    Keeps a 1 s series; overshoot = drawn - max(cache, player buffer); full_expected: the line must reach the duration."""
+    out, series, last_sec = [], [], -1
+    max_lag = max_over = max_over_cplay = max_lag_cplay = 0.0
+    for s in run.samples:
+        if s['bar'] is None or s['dur'] is None or s['t'] < 1:
+            continue
+        dur_s = s['dur'] / 1000
+        bar_s = s['bar'] / 1000
+        cache_s = min(dur_s, s['cacheB'] / rate) if rate and s['cacheB'] is not None else None
+        pbuf_s = (s['pbuf'] or 0) / 1000 if s['pbuf'] is not None else None
+        cplay_s = s['cplay'] / 1000 if s['cplay'] is not None else None
+        if s['t'] > 5 and cache_s is not None:
+            max_lag = max(max_lag, cache_s - bar_s)
+        if s['t'] > 5 and cplay_s is not None:
+            max_lag_cplay = max(max_lag_cplay, cplay_s - bar_s)
+        bound = max([x for x in (cache_s, pbuf_s, cplay_s) if x is not None] or [0.0])
+        max_over = max(max_over, bar_s - bound)
+        if cplay_s is not None:
+            max_over_cplay = max(max_over_cplay, bar_s - max(cplay_s, pbuf_s or 0.0))
+        if int(s['t']) != last_sec:
+            last_sec = int(s['t'])
+            series.append([round(s['t'], 1), round(bar_s, 1), None if cache_s is None else round(cache_s, 1),
+                           None if pbuf_s is None else round(pbuf_s, 1), None if cplay_s is None else round(cplay_s, 1),
+                           None if s['pos'] is None else round(s['pos'] / 1000, 1), s['src']])
+    final = next((s for s in reversed(run.samples) if s['bar'] is not None and s['dur']), None)
+    run.metrics['i87'] = {'maxLagS': round(max_lag, 1), 'maxLagCplayS': round(max_lag_cplay, 1),
+                          'maxOvershootS': round(max_over, 1), 'maxOvershootCplayS': round(max_over_cplay, 1),
+                          'finalBarS': final and round(final['bar'] / 1000, 1), 'durS': final and round(final['dur'] / 1000, 1),
+                          'series': series}
+    if full_expected and final and final['bar'] < final['dur'] - 1000:
+        out.append(violation('bufferNotFull', final['t'], f"line {final['bar'] / 1000:.0f}s of {final['dur'] / 1000:.0f}s "
+                             f"(src {final['src']}) on a song that is fully local", run, passive=True))
     return out
 
 
@@ -2894,6 +2934,90 @@ def case_offset_prev(run: Run, env):
     run.checks.append(check)
 
 
+def i87_start(run: Run, env):
+    song = env.backend.fresh_songs(1)[0]
+    run.i87_rate = bytes_per_second(song, run.quality)
+    start_single(run, song)
+    return song, int(song['duration']) * 1000
+
+
+def i87_seek(run: Run, target: int, observe_s: float):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        rec = issue_seek(run, pool, target)
+        landed(run, rec)
+        finish_futures(run)
+    run.observe(observe_s)
+    return rec
+
+
+def case_i87_natural(run: Run, env):
+    """#87: natural play, no seek, 60 s."""
+    i87_start(run, env)
+    run.observe(60.0)
+
+
+def case_i87_seekpast(run: Run, env):
+    """#87: seek past the downloaded part, then watch the line for 25 s."""
+    _, dur = i87_start(run, env)
+    run.observe(3.0)
+    i87_seek(run, int(dur * 0.8), 25.0)
+
+
+def case_i87_seekdl(run: Run, env):
+    """#87: play until about 30 s are downloaded, seek to 80% of the downloaded part (ahead of the playhead), watch 20 s."""
+    _, dur = i87_start(run, env)
+    deadline = time.monotonic() + 40
+    cache_s = 0.0
+    while time.monotonic() < deadline:
+        run.observe(1.0)
+        cache_s = ((run.last()['cacheB'] or 0) / run.i87_rate) if run.i87_rate else 0.0
+        if cache_s >= 30:
+            break
+    run.metrics['seekdlCacheS'] = round(cache_s, 1)
+    target = int(0.8 * min(cache_s * 1000, 0.9 * dur))
+    i87_seek(run, max(target, 5000), 20.0)
+
+
+def case_i87_download(run: Run, env):
+    """#87: a permanently downloaded song plays with the line at its full duration, also after a seek."""
+    song = env.backend.fresh_songs(1)[0]
+    fmt, kbps = QUALITIES[run.quality]
+    body = {'songIds': [song['id']], **({'quality': kbps, 'format': fmt} if fmt else {})}
+    run.app.api('/v1/downloads/enqueue', body, timeout=60)
+    deadline = time.monotonic() + 240
+    while time.monotonic() < deadline:
+        status = run.app.api('/v1/downloads/status', timeout=30)
+        if any(e.get('songId') == song['id'] for e in status.get('permanentDownloads') or []):
+            break
+        time.sleep(1.0)
+    else:
+        raise CaseAbort('download did not complete')
+    run.i87_rate = bytes_per_second(song, run.quality)
+    start_single(run, song)
+    run.observe(8.0)
+    i87_seek(run, int(song['duration']) * 500, 8.0)
+    run.metrics['i87src'] = run.last()['src']
+    run.i87_full = True
+
+
+def case_i87_cached(run: Run, env):
+    """#87: play until the rolling cache holds the whole song, then seek to the middle: the line stays full."""
+    song, dur = i87_start(run, env)
+    complete = lambda: [r for r in run.env.proxy.log[run.proxy_mark:]
+                        if r['id'] == song['id'] and r.get('status') == 200 and r.get('end') == 'complete'
+                        and r['endpoint'] in ('stream', 'download')]
+    deadline = time.monotonic() + 150
+    while time.monotonic() < deadline:
+        run.observe(1.0)
+        last = run.last()
+        if complete() or (run.i87_rate and (last['cacheB'] or 0) / run.i87_rate >= dur / 1000):
+            break
+    run.observe(3.0)
+    run.metrics['cachedAtS'] = run.now()
+    i87_seek(run, dur // 2, 8.0)
+    run.i87_full = True
+
+
 CASE_FUNCS = {
     'seek_early': seek_case([0.3], play_s=0),
     'seek_pastdl': seek_case([0.92], play_s=0),
@@ -2920,6 +3044,8 @@ CASE_FUNCS = {
     'repeat_one_fill': case_repeat_one_fill,
     'chain_end': case_chain_end,
     'natural_play3': case_natural_play3,
+    'i87_natural': case_i87_natural, 'i87_seekpast': case_i87_seekpast, 'i87_seekdl': case_i87_seekdl,
+    'i87_download': case_i87_download, 'i87_cached': case_i87_cached,
     'chain_end_all': case_chain_end_all,
     'repeat_switch_off': case_repeat_switch_off,
     'base_repeat_one': case_base_repeat_one,
@@ -3053,6 +3179,8 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
                 if r['id'] == song['id'] and r.get('status') == 200 and not r.get('aborted')]
         rate = max(done) / song['duration'] if done else bytes_per_second(song, quality)
         run.violations += oracle_buffer_lag(run, rate)
+        if case.startswith('i87'):
+            run.violations += oracle_i87(run, rate, getattr(run, 'i87_full', False))
     # Collapse repeats of one oracle to its first occurrence.
     seen, unique = set(), []
     for v in run.violations:
