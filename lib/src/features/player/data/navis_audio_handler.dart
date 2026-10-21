@@ -245,6 +245,13 @@ class NavisAudioHandler extends BaseAudioHandler
   /// another load, this lasts only until the next load or progress.
   bool _loadedSourceFailed = false;
 
+  /// Automatic failovers since playback last advanced for
+  /// [NavisPlaybackTimeouts.healthyPlayback]; [_maxAutoFailovers] is the cap.
+  int _autoFailovers = 0;
+  Duration _playedSinceFailover = Duration.zero;
+  Duration? _advancePosition;
+  DateTime? _lastAdvanceAt;
+
   final LibraryDao _libraryDao;
   final PlaylistDao _playlistDao;
   final PlayQueueDao _playQueueDao;
@@ -2087,6 +2094,7 @@ class NavisAudioHandler extends BaseAudioHandler
       shouldPlay: true,
       preserveSeek: true,
     );
+    _autoFailovers = 0;
     await _ready;
     if (!_isCurrentTransportIntent(transportGeneration)) return;
     await _startupQueueRestore;
@@ -2382,7 +2390,8 @@ class NavisAudioHandler extends BaseAudioHandler
         request.outcome = 'failed';
         request.stage = 'done';
         if (identical(_pendingSeek, request)) {
-          final shouldFailOver = _isDesktopRuntime;
+          // A song that still advances is alive: it keeps playing quietly.
+          final shouldFailOver = _isDesktopRuntime && !_playbackAdvancing;
           _seekFailureBlocksRecovery = !shouldFailOver;
           _seekFailurePosition = _player.position;
           AppLogger.warning('Seek failed: ${error.runtimeType}\n$stackTrace');

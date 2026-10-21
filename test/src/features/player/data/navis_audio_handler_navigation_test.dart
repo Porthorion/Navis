@@ -347,6 +347,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Completer<void>? replacementLoadGate;
   Completer<void>? stopGate;
   Completer<void>? stopEntered;
+
+  /// Every stop from this call number on never completes.
+  int? hangStopsFrom;
   Completer<void>? seekGate;
   Completer<void>? seekEntered;
   bool gateNonEmptyLoadsOnly = false;
@@ -644,6 +647,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Future<void> stop() => _mutate(() async {
     stopCalls++;
     await _hangIf('stop');
+    if (stopCalls >= (hangStopsFrom ?? 1 << 30)) {
+      await Completer<void>().future;
+    }
     final gate = stopGate;
     stopGate = null;
     if (gate != null) {
@@ -10040,6 +10046,8 @@ void main() {
       List<_ControllableAudioPlayer>? rebuiltPlayers,
       Set<String>? hungLoadSongs,
       bool transcode = false,
+      bool positionStreams = false,
+      int count = 2,
     }) async {
       final previousHttp = HttpOverrides.current;
       HttpOverrides.global = null;
@@ -10080,7 +10088,8 @@ void main() {
       );
       final (handler, player, database) = await createHandler(
         directory,
-        2,
+        count,
+        positionStreams: positionStreams,
         sidecarStreams: true,
         streamingQuality: transcode
             ? const StreamingQuality(
@@ -10534,6 +10543,294 @@ void main() {
         },
       );
     }
+
+    // Round 10: bounded failover. Scaled deadlines; a short reset window and
+    // healthy-play window keep the cascades quick.
+    const quick = NavisPlaybackTimeouts(
+      load: Duration(milliseconds: 300),
+      seekBufferingRecovery: Duration(milliseconds: 400),
+      seekProgress: Duration(milliseconds: 1200),
+      desktopSeekSettle: Duration(milliseconds: 600),
+      progressIdle: Duration(milliseconds: 300),
+      reset: Duration(milliseconds: 300),
+      healthyPlayback: Duration(milliseconds: 400),
+    );
+
+    Future<void> idle(NavisAudioHandler handler) async {
+      var quiet = 0;
+      for (var i = 0; i < 600 && quiet < 4; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+        quiet = !handler.snapshot.isLoading && handler.debugQueueLaneIdle
+            ? quiet + 1
+            : 0;
+      }
+      expect(quiet, 4, reason: 'handler did not go idle');
+    }
+
+    List<String> songIds(int count) =>
+        List<String>.generate(count, (i) => 'song-$i');
+
+    test('a hung final stop never parks the seek lane', () async {
+      final (handler, player, _) = await fixture(timeouts: quick);
+      await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+      player
+        ..state = ProcessingState.ready
+        ..nativePositionFrozen = true
+        // Seek recovery stops twice; the third stop is the final quiet one.
+        ..hangStopsFrom = 3;
+      await handler
+          .seek(const Duration(seconds: 60))
+          .timeout(const Duration(seconds: 8));
+      expect(
+        (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+        'failed',
+      );
+      await handler
+          .seek(const Duration(seconds: 30))
+          .timeout(const Duration(seconds: 8));
+      expect(handler.snapshot.currentSongId, 'song-0');
+    });
+
+    test(
+      'a failed seek on a song that keeps playing does not skip it',
+      () async {
+        final (handler, player, _) = await fixture(
+          timeouts: quick,
+          positionStreams: true,
+        );
+        await handler.replaceQueue(songIds(2), expandMatchFlows: false);
+        final failures = <PlaybackLoadFailure>[];
+        final notices = handler.loadFailureStream.listen(failures.add);
+        addTearDown(notices.cancel);
+        // Seeks never land and reloads restart the song, which plays on.
+        player
+          ..ignoreSeeks = true
+          ..ignoreInitialPosition = true;
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        await handler.seek(const Duration(seconds: 90));
+        await idle(handler);
+        expect(
+          (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+          'failed',
+        );
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(handler.snapshot.playing, isTrue);
+        expect(failures, isEmpty);
+      },
+    );
+
+    test('a dead source still fails over after a failed seek', () async {
+      final (handler, player, _) = await fixture(
+        timeouts: quick,
+        positionStreams: true,
+      );
+      await handler.replaceQueue(songIds(2), expandMatchFlows: false);
+      player
+        ..ignoreSeeks = true
+        ..simulateProgress = false
+        ..nativePositionFrozen = true;
+      // Long enough for the last advance to age out.
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      await handler.seek(const Duration(seconds: 90));
+      await idle(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+    });
+
+    test('automatic failover stops quietly after two skipped songs', () async {
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final hung = <String>{for (var i = 0; i < 5; i++) 'song-$i'};
+      final (handler, _, _) = await fixture(
+        timeouts: quick,
+        count: 6,
+        rebuiltPlayers: rebuilt,
+        hungLoadSongs: hung,
+      );
+      final failures = <PlaybackLoadFailure>[];
+      final notices = handler.loadFailureStream.listen(failures.add);
+      addTearDown(notices.cancel);
+      await handler.replaceQueue(songIds(6), expandMatchFlows: false);
+      await idle(handler);
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(handler.snapshot.queueSongIds, songIds(6));
+      expect(handler.snapshot.playing, isFalse);
+      expect(failures, isEmpty);
+      hung.clear();
+      await handler.play();
+      await idle(handler);
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(handler.snapshot.playing, isTrue);
+      expect(rebuilt.last.processingState, ProcessingState.ready);
+    });
+
+    test('seek and stall failovers share one cap', () async {
+      final (handler, player, _) = await fixture(timeouts: quick, count: 6);
+      await handler.replaceQueue(songIds(6), expandMatchFlows: false);
+      player
+        ..ignoreSeeks = true
+        ..simulateProgress = false
+        ..nativePositionFrozen = true;
+      await handler.seek(const Duration(seconds: 90));
+      await idle(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      for (final id in ['song-1', 'song-2']) {
+        // Each song fails again when reloaded, as a dead stream would.
+        player
+          ..failLoadSongId = id
+          ..state = ProcessingState.buffering;
+        await handler.debugRecoverCurrentSong();
+        await idle(handler);
+      }
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(handler.snapshot.queueSongIds, songIds(6));
+      expect(handler.snapshot.playing, isFalse);
+      player.failLoadSongId = null;
+      await handler.play();
+      await idle(handler);
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(handler.snapshot.playing, isTrue);
+    });
+
+    test('healthy playback restarts the failover count', () async {
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final (handler, player, _) = await fixture(
+        timeouts: const NavisPlaybackTimeouts(
+          load: Duration(milliseconds: 300),
+          seekBufferingRecovery: Duration(milliseconds: 400),
+          seekProgress: Duration(milliseconds: 1200),
+          desktopSeekSettle: Duration(milliseconds: 600),
+          progressIdle: Duration(milliseconds: 300),
+          reset: Duration(milliseconds: 300),
+          healthyPlayback: Duration(milliseconds: 800),
+        ),
+        count: 6,
+        rebuiltPlayers: rebuilt,
+        positionStreams: true,
+      );
+      await handler.replaceQueue(songIds(6), expandMatchFlows: false);
+      var current = player;
+      Future<void> fail(String id) async {
+        current
+          ..failLoadSongId = id
+          ..state = ProcessingState.buffering;
+        await handler.debugRecoverCurrentSong();
+        await idle(handler);
+      }
+
+      await fail('song-0');
+      expect(handler.snapshot.currentSongId, 'song-1');
+      // Song 1 plays long enough to count as healthy, which clears the count.
+      current
+        ..failLoadSongId = null
+        ..state = ProcessingState.ready;
+      await Future<void>.delayed(const Duration(milliseconds: 1500));
+      await fail('song-1');
+      expect(handler.snapshot.currentSongId, 'song-2');
+      await fail('song-2');
+      expect(handler.snapshot.currentSongId, 'song-3');
+    });
+
+    test(
+      'a seek waiting on a load that ends in a quiet stop fails at once',
+      () async {
+        final hung = <String>{};
+        final (handler, player, _) = await fixture(
+          hungLoadSongs: hung,
+          timeouts: const NavisPlaybackTimeouts(
+            load: Duration(seconds: 2),
+            seekBufferingRecovery: Duration(milliseconds: 150),
+            seekProgress: Duration(seconds: 10),
+            desktopSeekSettle: Duration(milliseconds: 600),
+            progressIdle: Duration(milliseconds: 300),
+            reset: Duration(milliseconds: 300),
+          ),
+        );
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..loadGate = gate
+          ..loadEntered = entered
+          ..gateNonEmptyLoadsOnly = true;
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        final loading = handler.replaceQueue([
+          'song-0',
+        ], expandMatchFlows: false);
+        await entered.future;
+        hung.add('song-0');
+        final seeking = handler.seek(const Duration(seconds: 90));
+        await loading;
+        final stopped = Stopwatch()..start();
+        await seeking;
+        expect(stopped.elapsedMilliseconds, lessThan(1000));
+        expect(
+          (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+          'failed',
+        );
+      },
+    );
+
+    test('a cold load cannot hold a seek past the seek progress cap', () async {
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final (handler, player, _) = await fixture(
+        rebuiltPlayers: rebuilt,
+        timeouts: const NavisPlaybackTimeouts(
+          load: Duration(milliseconds: 600),
+          seekProgress: Duration(milliseconds: 1000),
+          reset: Duration(milliseconds: 300),
+        ),
+      );
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..claimedSources = <AudioSource>{}
+        ..replacementLoadGate = gate
+        ..loadGate = gate
+        ..loadEntered = entered
+        ..gateNonEmptyLoadsOnly = true;
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
+      final loading = handler.replaceQueue(['song-0'], expandMatchFlows: false);
+      await entered.future;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      final seeking = handler.seek(const Duration(seconds: 60));
+      await Future<void>.delayed(const Duration(milliseconds: 1800));
+      expect(
+        (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+        'failed',
+      );
+      gate.complete();
+      await Future.wait([loading, seeking]);
+    });
+
+    test('a failover that already moved the queue is not repeated', () async {
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final hungSongs = <String>{};
+      final (handler, player, _) = await fixture(
+        timeouts: quick,
+        count: 3,
+        rebuiltPlayers: rebuilt,
+        hungLoadSongs: hungSongs,
+      );
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..loadGate = gate
+        ..loadEntered = entered
+        ..gateNonEmptyLoadsOnly = true;
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
+      final loading = handler.replaceQueue(songIds(3), expandMatchFlows: false);
+      await entered.future;
+      hungSongs.add('song-0');
+      final seeking = handler.seek(const Duration(seconds: 90));
+      await Future.wait([loading, seeking]);
+      await idle(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(handler.snapshot.playing, isTrue);
+    });
 
     test('sidecar bytes cannot extend a seek recovery load deadline', () async {
       final (handler, player, grow) = await fixture(

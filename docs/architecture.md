@@ -4763,9 +4763,17 @@ Each unsuccessful probe records
 `reason`, `elapsedMs`, `positionMs`, `bufferedMs`, `processingState` and `playing`
 in the seek's `unsettled` diagnostics. Each current request permits one recovery
 attempt, plus a reload from a sidecar file that completes during it. An
-exhausted desktop request uses the existing failed-song failover, preserving
-latest Play/Pause intent and queue. With no successor, it stops quietly and marks the
-source failed so Play reloads it. Native timeout recovery and failed seeks log
+exhausted desktop request on a dead source uses the existing failed-song
+failover, preserving latest Play/Pause intent and queue; a song whose position
+still advances keeps playing quietly. With no successor it stops quietly (pause
+and stop each bounded by the reset timeout, so a stuck native stop cannot park
+the seek lane) and marks the source failed so Play reloads it. Automatic
+failovers (seek, stall and queue-load) share a cap of two songs in a row: until
+a song advances for five seconds (`healthyPlayback`, from the position stream)
+or the user presses Play, the next failure stops quietly on the current song
+instead of skipping further. A seek that was waiting on a load ending in such a
+stop fails at once, and seek source readiness never waits longer than
+`seekProgress` in total. Native timeout recovery and failed seeks log
 diagnostics without emitting user notices; automatic recovery needs no user
 action. Mobile exhausted requests suppress automatic stream retries until
 another explicit transport/selection request, or until the song has played on

@@ -1,6 +1,39 @@
 part of 'navis_audio_handler.dart';
 
+/// Songs skipped automatically in a row, with no healthy playback between,
+/// before playback stops quietly on the current song.
+const _maxAutoFailovers = 2;
+
 extension _NavisRecovery on NavisAudioHandler {
+  /// Fed by the position stream: a source that really advances is alive, and
+  /// a few seconds of it end a failover chain. Seek jumps are not advance.
+  void _observePlaybackAdvance(Duration position) {
+    final previous = _advancePosition;
+    _advancePosition = position;
+    final delta = previous == null ? Duration.zero : position - previous;
+    if (!_player.playing ||
+        _player.processingState != ProcessingState.ready ||
+        delta <= Duration.zero ||
+        delta > const Duration(seconds: 1)) {
+      return;
+    }
+    _lastAdvanceAt = DateTime.now();
+    _playedSinceFailover += delta;
+    if (_playedSinceFailover >= _timeouts.healthyPlayback) _autoFailovers = 0;
+  }
+
+  bool get _playbackAdvancing =>
+      _player.playing &&
+      _player.processingState == ProcessingState.ready &&
+      _lastAdvanceAt != null &&
+      DateTime.now().difference(_lastAdvanceAt!) <
+          _seekBufferingRecoveryTimeout;
+
+  void _countAutoFailover() {
+    _autoFailovers++;
+    _playedSinceFailover = Duration.zero;
+  }
+
   void _cancelPendingSeek() {
     final request = _pendingSeek;
     if (request != null) {
@@ -36,12 +69,26 @@ extension _NavisRecovery on NavisAudioHandler {
     _PendingSeek request,
     OperationToken token,
   ) async {
+    var sawLoading = _isLoading;
     // Phase one must finish before an older occurrence of the same song can
     // be mistaken for readiness on the source selected by this request.
     await _queueLane.enqueue((_) async => _checkSeekCurrent(request, token));
     final wait = Stopwatch()..start();
+    final total = Stopwatch()..start();
     while (true) {
       _checkSeekCurrent(request, token);
+      // A load this seek waited on ended in a quiet stop: nothing is loading
+      // and nothing will become ready. (A seek made after the stop still
+      // waits, because Play may re-arm the source.)
+      sawLoading |= _isLoading;
+      final stopped =
+          sawLoading &&
+          _remoteSourceFailed &&
+          !_isLoading &&
+          !_remotePlaybackRecoveryInProgress;
+      if (stopped || total.elapsed >= _timeouts.seekProgress) {
+        throw PlaybackLoadTimeoutException(operation: 'seek source readiness');
+      }
       final selected = _resolveCurrentQueueMetadata().mediaItem?.id;
       final processing = _player.processingState;
       if (selected == request.songId &&
@@ -1528,8 +1575,9 @@ extension _NavisRecovery on NavisAudioHandler {
     }
   }
 
-  /// Plays the song after logical index [failedIndex], or stops when none
-  /// follows (or the failed song is no longer queued).
+  /// Plays the song after logical index [failedIndex], or stops quietly when
+  /// none follows, the failover cap is reached, or the song is no longer
+  /// queued. Play reloads the stopped song.
   Future<void> _skipPastFailedRemoteSong(
     int failedIndex, {
     required bool autoPlay,
@@ -1547,6 +1595,7 @@ extension _NavisRecovery on NavisAudioHandler {
         ? null
         : _nextPlayableIndexAfterFailure(failedIndex, _logicalQueueIds.length);
     if (nextIndex != null) {
+      _countAutoFailover();
       await _applyNavigationDecision(
         _navigationIntent.select(nextIndex),
         logicalIds: _logicalQueueIds,
@@ -1556,8 +1605,16 @@ extension _NavisRecovery on NavisAudioHandler {
       return;
     }
 
-    await _player.pause();
-    await _player.stop();
+    // Best effort, like _disposeAbandonedPlayer: a stuck native stop must not
+    // park the seek lane that called this.
+    final player = _player;
+    for (final halt in <Future<void> Function()>[player.pause, player.stop]) {
+      try {
+        await halt().timeout(_playerResetTimeout);
+      } on Object {
+        // The song stays failed and reloadable by Play either way.
+      }
+    }
     _loadedSourceFailed = true;
     _broadcastPlaybackState();
     _emitSnapshot();
