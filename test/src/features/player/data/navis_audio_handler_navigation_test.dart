@@ -814,12 +814,22 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Future<void> insertAudioSources(int at, List<AudioSource> sources) =>
       _mutate(() async {
         await _hangIf('insertAudioSources');
+        final gate = insertGate;
+        insertGate = null;
+        if (gate != null) {
+          insertEntered?.complete();
+          await gate.future;
+        }
         batchMutationCount++;
         _sources.insertAll(at, sources);
         if (index != null && at <= index!) index = index! + sources.length;
         _indices.add(index);
         afterInsertSources?.call();
       });
+
+  /// Holds the next batch insert until completed.
+  Completer<void>? insertGate;
+  Completer<void>? insertEntered;
 
   /// Runs once a batch insert has landed, before the call returns.
   void Function()? afterInsertSources;
@@ -7035,6 +7045,59 @@ void main() {
       expect(active.sourceIds, <String>[...ids(10), 'song-1']);
     });
 
+    test('an inactive deck insert that never returns frees the lane', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-deck-');
+      final (handler, _, database) = await createHandler(
+        directory,
+        4,
+        crossfade: true,
+        timeouts: timeouts,
+        rebuiltPlayers: <_ControllableAudioPlayer>[],
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.replaceQueue(ids(3), expandMatchFlows: false);
+      // A prepared deck mirrors the queue edits.
+      await handler.debugStartCrossfade();
+      final deck = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      expect(deck.sequence, hasLength(3));
+      deck.hang.add('insertAudioSources');
+
+      await handler
+          .playNext(<String>['song-3'], expandMatchFlows: false)
+          .timeout(const Duration(seconds: 3));
+      await handler
+          .playNext(<String>['song-3'], expandMatchFlows: false)
+          .timeout(const Duration(seconds: 3));
+
+      expect(
+        handler.snapshot.queueSongIds.where((id) => id == 'song-3'),
+        hasLength(2),
+      );
+    });
+
+    test(
+      'a removal before the current song that times out keeps the song',
+      () async {
+        final (handler, player, rebuilt) = await playingAt(3);
+        player.hang.add('removeAudioSourceAt');
+
+        await expectLater(
+          handler.removeAt(1),
+          throwsA(isA<PlaybackLoadTimeoutException>()),
+        );
+
+        final expected = ids(10)..removeAt(1);
+        expect(rebuilt.first.sourceIds, expected);
+        expect(rebuilt.first.index, 2);
+        expect(handler.snapshot.currentSongId, 'song-3');
+        expect(handler.snapshot.queueSongIds, expected);
+      },
+    );
+
     test('a removal that times out still removes the song', () async {
       final (handler, player, rebuilt) = await playingAt(3);
       player.hang.add('removeAudioSourceAt');
@@ -7110,6 +7173,7 @@ void main() {
       ScrobbleService? scrobbleService,
       bool positionStreams = false,
       NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
+      List<_ControllableAudioPlayer>? rebuiltPlayers,
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-offset-');
@@ -7123,6 +7187,7 @@ void main() {
         scrobbleService: scrobbleService,
         positionStreams: positionStreams,
         timeouts: timeouts,
+        rebuiltPlayers: rebuiltPlayers,
         wrapResolver: wrapResolver,
       );
       addTearDown(() async {
@@ -7709,6 +7774,40 @@ void main() {
               handler.queue.value[0].extras!['positionOffsetMs'] == 0 &&
               !handler.snapshot.isLoading,
         );
+      });
+
+      test('a repair removal that times out keeps the playing song', () async {
+        final rebuilt = <_ControllableAudioPlayer>[];
+        final (handler, player, _) = await offsetHandler(
+          count: 4,
+          rebuiltPlayers: rebuilt,
+          timeouts: const NavisPlaybackTimeouts(
+            load: Duration(milliseconds: 300),
+            reset: Duration(milliseconds: 300),
+          ),
+        );
+        await handler.replaceQueue(
+          ['song-0', 'song-1', 'song-2', 'song-3'],
+          startIndex: 1,
+          expandMatchFlows: false,
+        );
+        await settleQueue(handler);
+        await handler.play();
+        await seekAndSettle(handler, const Duration(seconds: 90));
+        player.hang.add('removeAudioSourceAt');
+
+        await handler.skipToNext();
+        await until(() => rebuilt.isNotEmpty);
+        await settleQueue(handler);
+
+        expect(rebuilt.first.sourceIds, [
+          'song-0',
+          'song-1',
+          'song-2',
+          'song-3',
+        ]);
+        expect(rebuilt.first.index, 2);
+        expect(handler.snapshot.currentSongId, 'song-2');
       });
 
       for (final edit in ['remove', 'move']) {
@@ -9382,6 +9481,7 @@ void main() {
       ScrobbleService? scrobbleService,
       String replayGainMode = 'off',
       bool transcodeOffset = false,
+      NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-fade-');
@@ -9398,6 +9498,7 @@ void main() {
               )
             : const StreamingQuality(label: 'original'),
         supportsTranscodeOffset: transcodeOffset,
+        timeouts: timeouts,
         wrapResolver: wrapResolver,
         positionStreams: positionStreams,
         crossfadeType: crossfadeType,
@@ -9557,6 +9658,54 @@ void main() {
         expect(handler.debugActivePlayer, same(deck));
         expect(deck.sourceLoads, loads);
       });
+
+      test(
+        'a tap during the repair resolves against the shown queue',
+        () async {
+          final (handler, outgoing, _) = await crossfading(
+            4,
+            transcodeOffset: true,
+            timeouts: const NavisPlaybackTimeouts(
+              load: Duration(seconds: 2),
+              reset: Duration(seconds: 2),
+            ),
+          );
+          outgoing.simulateProgress = true;
+          await handler.replaceQueue(ids(4), expandMatchFlows: false);
+          await handler.seek(const Duration(seconds: 90));
+          await waitForFade(() => !handler.snapshot.isLoading);
+          final incoming =
+              handler.debugInactiveDeck! as _ControllableAudioPlayer;
+          incoming.simulateProgress = true;
+          handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+          await waitForFade(() => incoming.playing && incoming.volume > 0);
+          // The old player becomes the deck: its mirror of the repair waits.
+          final gate = Completer<void>();
+          outgoing
+            ..insertGate = gate
+            ..insertEntered = Completer<void>();
+          addTearDown(() {
+            if (!gate.isCompleted) gate.complete();
+          });
+          await handler.debugCompleteCrossfade();
+          await waitForFade(() => handler.snapshot.currentSongId == 'song-1');
+          // The repair is inserting its twin and waits on the deck mirror.
+          await outgoing.insertEntered!.future;
+          expect(handler.queue.value.map((item) => item.id), ids(4));
+
+          final tap = handler.skipToQueueItem(2);
+          await pumpEventQueue(times: 20);
+          gate.complete();
+          await tap;
+          await waitForFade(
+            () =>
+                handler.snapshot.currentSongId == 'song-2' &&
+                !handler.snapshot.isLoading,
+          );
+
+          expect(handler.snapshot.currentSongId, 'song-2');
+        },
+      );
 
       test('Previous loads the offset song from its start', () async {
         final (handler, incoming) = await swapped();
