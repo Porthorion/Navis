@@ -130,6 +130,16 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Bound desktop seek waits and recover stuck positions automatically; '
+        'keep slow song starts loading while data arrives, including when '
+        'seeking before the first load finishes, and continue to the next song '
+        'if a seek recovery cannot reload the stream. Retry slow cold seeks '
+        'with a fresh source, recover silently, and keep the final stopped '
+        'song available to Play again. Stop quietly instead of skipping '
+        'through the queue when several songs in a row cannot play',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fix Repeat One silently rewinding streamed songs before the end '
         'on Android and stalling when the queue fills in the background',
         type: ChangelogEntryType.fix,
