@@ -4997,6 +4997,18 @@ abstract class AppLocalizations {
   /// **'Cache cleared.'**
   String get cacheSettingsClearSuccess;
 
+  /// No description provided for @cacheSettingsClearing.
+  ///
+  /// In en, this message translates to:
+  /// **'Clearing cache…'**
+  String get cacheSettingsClearing;
+
+  /// No description provided for @downloadsRemoving.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing downloads…'**
+  String get downloadsRemoving;
+
   /// No description provided for @cacheSettingsBudgetSaved.
   ///
   /// In en, this message translates to:
@@ -5350,6 +5362,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Moving downloaded tracks...'**
   String get downloadsCustomFolderUpdating;
+
+  /// No description provided for @downloadsImporting.
+  ///
+  /// In en, this message translates to:
+  /// **'Importing downloads…'**
+  String get downloadsImporting;
 
   /// No description provided for @downloadsScanError.
   ///

@@ -3160,6 +3160,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cacheSettingsClearSuccess => 'Cache cleared.';
 
   @override
+  String get cacheSettingsClearing => 'Clearing cache…';
+
+  @override
+  String get downloadsRemoving => 'Removing downloads…';
+
+  @override
   String get cacheSettingsBudgetSaved => 'Cache budget updated.';
 
   @override
@@ -3384,6 +3390,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadsCustomFolderUpdating => 'Moving downloaded tracks...';
+
+  @override
+  String get downloadsImporting => 'Importing downloads…';
 
   @override
   String get downloadsScanError => 'Could not scan the downloads folder.';

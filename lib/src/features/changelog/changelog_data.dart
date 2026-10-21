@@ -172,6 +172,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Clearing a cache, importing manually matched downloads and matching '
+        'a weekly playlist now say what they are doing while they run',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Report a failed "Check now" in About instead of staying silent',
         type: ChangelogEntryType.fix,
       ),
