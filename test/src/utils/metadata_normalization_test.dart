@@ -228,5 +228,15 @@ void main() {
     expect(stripTitleQualifiers('Song [Deluxe] ft. Guest'), 'Song');
     expect(stripTitleQualifiers('Plain Title'), 'Plain Title');
     expect(stripTitleQualifiers('(Intro)'), '(Intro)');
+    expect(stripTitleQualifiers('Song - 2011 Remaster'), 'Song');
+    expect(stripTitleQualifiers('Song - Radio Edit'), 'Song');
+    expect(stripTitleQualifiers('Song feat. Guest'), 'Song');
+    expect(stripTitleQualifiers('Song ft Guest'), 'Song');
+  });
+
+  test('stripTitleQualifiers leaves real titles with a dash or ft word', () {
+    expect(stripTitleQualifiers('Intro - Outro'), 'Intro - Outro');
+    expect(stripTitleQualifiers('Ft. Worth Blues'), 'Ft. Worth Blues');
+    expect(stripTitleQualifiers('Lift'), 'Lift');
   });
 }

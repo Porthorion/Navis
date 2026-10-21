@@ -129,7 +129,8 @@ class LastFmApiClient {
     LastFmTrackFetchResult result,
     int limit,
   ) async {
-    final empty = result.outcome == LastFmFetchOutcome.noResults;
+    // "Track not found" is as final an answer as an empty list.
+    final empty = _hasNoSimilarTracks(result);
     if (result.outcome != LastFmFetchOutcome.success && !empty) return;
     await _cache?.write(similarTracksNamespace, key, <String, Object?>{
       'limit': limit,
@@ -237,6 +238,9 @@ class LastFmApiClient {
     }
   }
 
+  // ponytail: concurrent seeds each run their own fan-out (no single-flight),
+  // and a fetch in the middle of the fallback cannot be cancelled; add a
+  // shared in-flight map and a CancelToken parameter if either shows up.
   Future<LastFmTrackFetchResult> getSimilarTracksResult({
     required String artist,
     required String track,
@@ -474,11 +478,16 @@ class LastFmApiClient {
       );
       final data = response.data;
       if (data == null || data['error'] != null) return const [];
+      // Last.fm sometimes lists the artist itself among its neighbours.
+      final seed = normalizeMetadata(artist);
+      bool isSeed(String name) =>
+          seed.isNotEmpty && normalizeMetadata(name) == seed;
       return [
         for (final entry in _asMapList(
           _asMap(data['similarartists'])['artist'],
         ))
-          if (((entry['name'] as String?)?.trim() ?? '').isNotEmpty)
+          if (((entry['name'] as String?)?.trim() ?? '').isNotEmpty &&
+              !isSeed(entry['name'] as String))
             (
               name: (entry['name'] as String).trim(),
               match: switch (entry['match']) {

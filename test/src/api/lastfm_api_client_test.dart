@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
@@ -734,6 +735,134 @@ void main() {
         first.tracks.map((t) => t.title),
       );
       expect(requests, hasLength(seen));
+    });
+
+    test(
+      'a final "Track not found" is kept for ten minutes, not re-asked',
+      () async {
+        final root = await Directory.systemTemp.createTemp('lastfm-code6-');
+        addTearDown(() async => root.delete(recursive: true));
+        var now = DateTime.utc(2026, 10, 22);
+        final cache = IntegrationJsonCache(
+          readRootDirectory: () async => root,
+          now: () => now,
+        );
+        final requests = <Map<String, dynamic>>[];
+        final dio = routedDio({
+          'track.getsimilar': (_) => {'error': 6, 'message': 'Track not found'},
+          'artist.getsimilar': (_) => {
+            'error': 6,
+            'message': 'Artist not found',
+          },
+        }, requests);
+        final client = LastFmApiClient(apiKey: 'key', dio: dio, cache: cache);
+        Future<void> ask() =>
+            client.getSimilarTracksResult(artist: 'Band', track: 'Song');
+
+        await ask();
+        final firstRound = requests.length;
+        await ask();
+        expect(requests, hasLength(firstRound));
+        now = now.add(const Duration(minutes: 11));
+        await ask();
+        expect(requests.length, greaterThan(firstRound));
+      },
+    );
+
+    test('an error from the similar-artist request caches an empty answer '
+        'for ten minutes only', () async {
+      final root = await Directory.systemTemp.createTemp('lastfm-art29-');
+      addTearDown(() async => root.delete(recursive: true));
+      var now = DateTime.utc(2026, 10, 22);
+      final cache = IntegrationJsonCache(
+        readRootDirectory: () async => root,
+        now: () => now,
+      );
+      final requests = <Map<String, dynamic>>[];
+      final dio = routedDio({
+        'track.getsimilar': (_) => emptySimilar,
+        'artist.getsimilar': (_) => {'error': 29, 'message': 'limit'},
+      }, requests);
+      final client = LastFmApiClient(apiKey: 'key', dio: dio, cache: cache);
+      Future<LastFmFetchOutcome> ask() async =>
+          (await client.getSimilarTracksResult(
+            artist: 'Band',
+            track: 'Song',
+          )).outcome;
+
+      expect(await ask(), LastFmFetchOutcome.noResults);
+      final firstRound = requests.length;
+      expect(await ask(), LastFmFetchOutcome.noResults);
+      expect(requests, hasLength(firstRound));
+      now = now.add(const Duration(minutes: 11));
+      await ask();
+      expect(requests.length, greaterThan(firstRound));
+    });
+
+    test('a cache entry in the old format reads as a miss', () async {
+      final root = await Directory.systemTemp.createTemp('lastfm-oldcache-');
+      addTearDown(() async => root.delete(recursive: true));
+      final cache = IntegrationJsonCache(readRootDirectory: () async => root);
+      await cache.write(
+        LastFmApiClient.similarTracksNamespace,
+        jsonEncode(['band', 'song']),
+        <String, Object?>{
+          'limit': 20,
+          'data': similarTracks([('Old', 'Entry')]),
+        },
+        ttl: const Duration(hours: 24),
+      );
+      final requests = <Map<String, dynamic>>[];
+      final dio = routedDio({
+        'track.getsimilar': (_) => similarTracks([('New', 'Answer')]),
+      }, requests);
+      final result = await LastFmApiClient(
+        apiKey: 'key',
+        dio: dio,
+        cache: cache,
+      ).getSimilarTracksResult(artist: 'Band', track: 'Song');
+
+      expect(requests, hasLength(1));
+      expect(result.tracks.single.title, 'Answer');
+    });
+
+    test('at most five similar artists get a top-tracks request', () async {
+      final requests = <Map<String, dynamic>>[];
+      final dio = routedDio({
+        'track.getsimilar': (_) => emptySimilar,
+        'artist.getsimilar': (_) => similarArtists([
+          for (var i = 0; i < 10; i++) ('Artist $i', 1.0 - i / 20),
+        ]),
+        'artist.gettoptracks': (params) =>
+            topTracks(params['artist'] as String, 3),
+      }, requests);
+      final result = await LastFmApiClient(
+        apiKey: 'key',
+        dio: dio,
+      ).getSimilarTracksResult(artist: 'Seed', track: 'Song', limit: 20);
+
+      final charts = requests.where(
+        (r) => (r['method'] as String).toLowerCase() == 'artist.gettoptracks',
+      );
+      expect(charts, hasLength(5));
+      expect(result.tracks, hasLength(15));
+    });
+
+    test('the seed artist is not its own similar artist', () async {
+      final requests = <Map<String, dynamic>>[];
+      final dio = routedDio({
+        'track.getsimilar': (_) => emptySimilar,
+        'artist.getsimilar': (_) =>
+            similarArtists([('SEED  Artist!', 1.0), ('Alpha', 0.8)]),
+        'artist.gettoptracks': (params) =>
+            topTracks(params['artist'] as String, 1),
+      }, requests);
+      final result = await LastFmApiClient(
+        apiKey: 'key',
+        dio: dio,
+      ).getSimilarTracksResult(artist: 'seed artist', track: 'Song');
+
+      expect(result.tracks.map((t) => t.artist), ['Alpha']);
     });
   });
 }
