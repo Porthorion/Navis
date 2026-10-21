@@ -1361,6 +1361,16 @@ class AppLocalizationsEn extends AppLocalizations {
       'Pull to refresh to fetch newly added albums.';
 
   @override
+  String get homeRandomAlbumListTitle => 'Random Albums';
+
+  @override
+  String get homeRandomAlbumListEmptyTitle => 'No Random Albums';
+
+  @override
+  String get homeRandomAlbumListEmptySubtitle =>
+      'Pull to refresh to pick new albums.';
+
+  @override
   String get homeNewReleasesTitle => 'New Releases';
 
   @override
@@ -4553,6 +4563,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeSectionRandomAlbums => 'You Might Like';
+
+  @override
+  String get homeSectionRandomAlbumList => 'Random Albums';
 
   @override
   String get homeSectionMostPlayed => 'Most Played';

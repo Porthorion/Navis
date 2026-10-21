@@ -1904,6 +1904,43 @@ final homeRecentlyPlayedAlbumsProvider = StreamProvider<List<AlbumsTableData>>((
   return dao.watchRecentlyPlayedAlbums(limit: 20);
 });
 
+/// Re-picks the calling random row once each library sync finishes (never
+/// mid-sync). Deferred so a sync transition cannot invalidate it while Home is
+/// building.
+void _repickAfterLibrarySync(Ref ref) {
+  ref.listen<LibrarySyncState>(librarySyncControllerProvider, (previous, next) {
+    final finished =
+        next.status == LibrarySyncStatus.succeeded ||
+        next.status == LibrarySyncStatus.partial;
+    if (finished && previous?.status != next.status) {
+      unawaited(
+        Future<void>(() {
+          if (ref.mounted) ref.invalidateSelf();
+        }),
+      );
+    }
+  });
+}
+
+/// The Home Random Albums row: its own server draw, separate from
+/// [homeRandomAlbumsProvider] (You Might Like falls back to that list).
+final homeRandomAlbumListProvider = FutureProvider<List<Album>>((ref) async {
+  _repickAfterLibrarySync(ref);
+  final api = ref.watch(subsonicApiProvider);
+  if (api == null) {
+    return const <Album>[];
+  }
+
+  final cancelToken = CancelToken();
+  ref.onDispose(cancelToken.cancel);
+
+  return await api.getAlbumList2(
+    type: 'random',
+    size: 20,
+    cancelToken: cancelToken,
+  );
+});
+
 /// Random albums from the server API.
 final homeRandomAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   final api = ref.watch(subsonicApiProvider);
@@ -1973,20 +2010,20 @@ final homeDownloadedRecentlyPlayedAlbumsProvider =
           );
     });
 
+/// One-shot snapshot (like You Might Like): albums-table writes must not
+/// reshuffle the row; only a finished sync or a refresh re-picks.
 final homeDownloadedRandomAlbumsProvider =
-    StreamProvider<List<AlbumsTableData>>((ref) {
+    FutureProvider<List<AlbumsTableData>>((ref) async {
+      _repickAfterLibrarySync(ref);
       final dao = ref.watch(navisDatabaseProvider).libraryDao;
       final downloadedAlbumIds =
           ref.watch(downloadedContentIdsProvider).asData?.value.albumIds ??
           const <String>{};
-      final random = Random();
-      return dao.watchAlbumsSorted(sort: AlbumSortOrder.name).map((albums) {
-        final filtered = albums
-            .where((album) => downloadedAlbumIds.contains(album.id))
-            .toList(growable: true);
-        filtered.shuffle(random);
-        return filtered.take(20).toList(growable: false);
-      });
+      final albums = (await dao.getAllAlbums())
+          .where((album) => downloadedAlbumIds.contains(album.id))
+          .toList(growable: true);
+      albums.shuffle(Random());
+      return albums.take(20).toList(growable: false);
     });
 
 // Stable partition: retain each source's random order within both groups.

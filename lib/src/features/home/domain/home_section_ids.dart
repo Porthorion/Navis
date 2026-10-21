@@ -7,6 +7,10 @@ class HomeSectionIds {
   static const String recentlyLikedAlbums = 'recently_liked_albums';
   static const String likedTracks = 'liked_tracks';
   static const String recentlyAdded = 'recently_added';
+
+  /// A plain random-albums row (opt-in). Not [randomAlbums], the legacy id of
+  /// You Might Like.
+  static const String randomAlbumList = 'random_album_list';
   static const String recentlyPlayed = 'recently_played';
   static const String randomAlbums = 'random_albums';
   static const String mostPlayed = 'most_played';
@@ -24,6 +28,7 @@ class HomeSectionIds {
     recentlyLikedAlbums,
     likedTracks,
     recentlyAdded,
+    randomAlbumList,
     recentlyPlayed,
     mostPlayed,
     recentlyPlayedTracks,
@@ -31,6 +36,7 @@ class HomeSectionIds {
   ];
 
   static const List<String> defaultHidden = <String>[
+    randomAlbumList,
     recentlyPlayedTracks,
     frequentAlbums,
   ];

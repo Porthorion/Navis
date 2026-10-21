@@ -3311,6 +3311,16 @@ predecessor that is present; unknown and repeated ids are dropped. A saved
 hidden list decides every section the user has seen; a section hidden by
 default that is in neither saved list (added after 1.4.2) stays hidden.
 
+**Random Albums** (section id `random_album_list`, hidden by default, right
+after Recently Added; a saved hidden list that predates it leaves it hidden).
+A plain carousel of 20 albums: `homeRandomAlbumListProvider` is its own
+`getAlbumList2(random)` draw, separate from `homeRandomAlbumsProvider` (You Might
+Like falls back to that one), and `homeDownloadedRandomAlbumsProvider` is a
+one-shot `getAllAlbums()` snapshot for Downloaded only, so albums-table writes do
+not reshuffle it. Both re-pick when a library sync finishes (succeeded or
+partial, never mid-sync) and on Home pull-to-refresh; the legacy id
+`random_albums` is You Might Like.
+
 **New Releases** (`deezer.newReleases`, section id `new_releases`, right under
 You Might Like in the default order; a saved order that lacks it gets it
 there, one that already places it is left alone). `homeNewReleasesProvider`
