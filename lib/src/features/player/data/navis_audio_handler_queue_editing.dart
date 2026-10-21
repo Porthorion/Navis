@@ -69,6 +69,8 @@ extension _NavisQueueEditing on NavisAudioHandler {
     List<_PreparedQueueItem> prepared, {
     required int at,
     required String operation,
+    // The repair mirrors its twin itself, after the Dart queue is final.
+    bool mirrorDeck = true,
   }) async {
     final inactiveDeck = _crossfadePlayer;
     final deckInSync =
@@ -119,22 +121,47 @@ extension _NavisQueueEditing on NavisAudioHandler {
         index++;
       }
     }
-    if (deckInSync && inserted.isNotEmpty) {
-      final clones = inserted
-          .map((item) => item.source.asClonedAudioSource(tag: item.mediaItem))
-          .toList(growable: false);
-      try {
-        if (at >= inactiveDeck.sequence.length) {
-          await inactiveDeck.addAudioSources(clones);
-        } else {
-          await inactiveDeck.insertAudioSources(at, clones);
-        }
-      } on Object catch (error) {
-        AppLogger.debug('$operation inactive deck mirror failed: $error');
-      }
+    if (deckInSync && mirrorDeck && inserted.isNotEmpty) {
+      await _mirrorInsertOnDeck(
+        inactiveDeck,
+        inserted,
+        at: at,
+        operation: operation,
+      );
     }
     _observeLockCacheForPrepared(inserted);
     return inserted;
+  }
+
+  /// Mirrors an insert on the inactive crossfade deck, bounded like every
+  /// other mirrored edit so a hung deck cannot hold the queue lane. Returns
+  /// whether the deck took it.
+  Future<bool> _mirrorInsertOnDeck(
+    AudioPlayer deck,
+    List<_PreparedQueueItem> inserted, {
+    required int at,
+    required String operation,
+  }) async {
+    final clones = inserted
+        .map((item) => item.source.asClonedAudioSource(tag: item.mediaItem))
+        .toList(growable: false);
+    try {
+      await _runTimedPlayerOperation(
+        generation: _activeLoadGeneration,
+        operation: '$operation inactive',
+        action: () => at >= deck.sequence.length
+            ? deck.addAudioSources(clones)
+            : deck.insertAudioSources(at, clones),
+        songId: inserted.first.song.id,
+        timeout: _playerResetTimeout,
+        cancelAfterSuccess: false,
+        reloadQueueOnTimeout: true,
+      );
+      return true;
+    } on Object catch (error) {
+      AppLogger.debug('$operation inactive deck mirror failed: $error');
+      return false;
+    }
   }
 
   /// Publishes a queue edit: one queue emission, one coalesced save, one
@@ -602,10 +629,16 @@ extension _NavisQueueEditing on NavisAudioHandler {
     }
     // Insert the fresh source behind the old one, then drop the old one:
     // the entry is never missing and the current song is never touched.
+    // The deck is mirrored last, so the Dart queue never holds both entries
+    // across an await (a tap or navigation would resolve against the twin).
+    final deck = _crossfadePlayer;
+    final deckInSync =
+        deck != null && deck.sequence.length == _queueItems.length;
     final inserted = await _applyMaterialisedInsert(
       prepared,
       at: at + 1,
       operation: 'repair offset entry',
+      mirrorDeck: false,
     );
     if (inserted.isEmpty) return false;
     // The player may have advanced onto the old entry while the twin was
@@ -621,8 +654,30 @@ extension _NavisQueueEditing on NavisAudioHandler {
       'remove queue item',
       (player) => player.removeAudioSourceAt(dropAt),
       songId: removed.id,
-      mirror: (deck) => deck.sequence.length > dropAt,
     );
+    if (deckInSync && !becameCurrent) {
+      final mirrored = await _mirrorInsertOnDeck(
+        deck,
+        inserted,
+        at: at + 1,
+        operation: 'repair offset entry',
+      );
+      if (mirrored) {
+        try {
+          await _runTimedPlayerOperation(
+            generation: _activeLoadGeneration,
+            operation: 'remove queue item inactive',
+            action: () => deck.removeAudioSourceAt(at),
+            songId: removed.id,
+            timeout: _playerResetTimeout,
+            cancelAfterSuccess: false,
+            reloadQueueOnTimeout: true,
+          );
+        } on Object catch (error) {
+          AppLogger.debug('Offset repair deck removal failed: $error');
+        }
+      }
+    }
     return !becameCurrent;
   }
 
