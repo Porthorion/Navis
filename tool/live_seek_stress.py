@@ -2721,7 +2721,7 @@ def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0, at_start=False)
 def case_dead_source_hold(run: Run, env, kbps=1000, window_s=90.0):
     """Round 9 (E): a one-song queue whose media is held for the whole observation window. The seek cannot ever load;
     expected: a quiet stop (no notice, no load-failure event). Then the hold is lifted and Play must restart it."""
-    ids = env.backend.fresh_album()[:1]
+    ids = env.backend.fresh_album()  # the start API needs 2+ songs; the queue stays at 1 while the first load is held
     run.songs = [{'id': i} for i in ids]
     run.queue_ids = list(ids)
     restore = THROTTLES[run.throttle]
