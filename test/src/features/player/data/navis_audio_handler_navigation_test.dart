@@ -10772,6 +10772,55 @@ void main() {
       },
     );
 
+    for (final command in ['skipToNext', 'playFromIndex', 'replaceQueue']) {
+      test(
+        '$command from a healthy song starts the next one unplayed',
+        () async {
+          final (handler, _, _) = await fixture(
+            timeouts: quick,
+            count: 8,
+            positionStreams: true,
+          );
+          await handler.replaceQueue(songIds(8), expandMatchFlows: false);
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(
+            handler.debugPlayedSinceFailover,
+            greaterThan(quick.healthyPlayback),
+          );
+          // At once, before any position tick of the new song can reset it.
+          final selecting = switch (command) {
+            'skipToNext' => handler.skipToNext(),
+            'playFromIndex' => handler.playFromIndex(3),
+            _ => handler.replaceQueue(songIds(8), expandMatchFlows: false),
+          };
+          expect(handler.debugPlayedSinceFailover, Duration.zero);
+          await selecting;
+        },
+      );
+    }
+
+    test('the same song twice in a row is a new occurrence', () async {
+      final (handler, player, _) = await fixture(
+        timeouts: quick,
+        count: 8,
+        positionStreams: true,
+      );
+      await handler.replaceQueue([
+        'song-0',
+        'song-0',
+        'song-1',
+      ], expandMatchFlows: false);
+      await Future<void>.delayed(const Duration(milliseconds: 900));
+      expect(
+        handler.debugPlayedSinceFailover,
+        greaterThan(quick.healthyPlayback),
+      );
+      player.finishCurrentTrack();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(handler.snapshot.currentIndex, 1);
+      expect(handler.debugPlayedSinceFailover, lessThan(quick.healthyPlayback));
+    });
+
     test('a ready backend with a frozen native position stays dead', () async {
       final (handler, player, _) = await fixture(
         timeouts: quick,

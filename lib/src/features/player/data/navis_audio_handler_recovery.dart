@@ -15,8 +15,12 @@ extension _NavisRecovery on NavisAudioHandler {
     final previous = _advancePosition;
     _advancePosition = position;
     final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
-    if (songId != _advanceSongId) {
+    final index = _player.currentIndex;
+    // An occurrence is a song at a queue position. ponytail: a Repeat One
+    // loop restart is not detected, so a looped song keeps its play time.
+    if (songId != _advanceSongId || index != _advanceIndex) {
       _advanceSongId = songId;
+      _advanceIndex = index;
       _playedSinceFailover = Duration.zero;
     }
     final delta = previous == null ? Duration.zero : position - previous;
@@ -37,6 +41,13 @@ extension _NavisRecovery on NavisAudioHandler {
       _lastAdvanceAt != null &&
       DateTime.now().difference(_lastAdvanceAt!) <
           _seekBufferingRecoveryTimeout;
+
+  /// A user selection is a fresh intent: no failover history and no play time
+  /// carried over from the previous song.
+  void _resetFailoverAccounting() {
+    _autoFailovers = 0;
+    _playedSinceFailover = Duration.zero;
+  }
 
   void _countAutoFailover() {
     _autoFailovers++;

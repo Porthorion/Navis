@@ -250,6 +250,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Duration _playedSinceFailover = Duration.zero;
   Duration? _advancePosition;
   String? _advanceSongId;
+  int? _advanceIndex;
   DateTime? _lastAdvanceAt;
 
   final LibraryDao _libraryDao;
@@ -1483,7 +1484,7 @@ class NavisAudioHandler extends BaseAudioHandler
     bool expandMatchFlows = true,
     List<String>? originalOrder,
   }) {
-    _autoFailovers = 0; // A user selection is a fresh intent.
+    _resetFailoverAccounting();
     return _replaceQueueIds(
       songIds,
       startIndex: startIndex,
@@ -1502,7 +1503,7 @@ class NavisAudioHandler extends BaseAudioHandler
     bool expandMatchFlows = true,
     List<String>? originalOrder,
   }) {
-    _autoFailovers = 0; // A user selection is a fresh intent.
+    _resetFailoverAccounting();
     return _replaceQueueRows(
       songs,
       startIndex: startIndex,
@@ -1899,7 +1900,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> playFromIndex(int index) {
-    _autoFailovers = 0; // A user selection is a fresh intent.
+    _resetFailoverAccounting();
     return _selectIndex(index);
   }
 
@@ -2853,6 +2854,10 @@ class NavisAudioHandler extends BaseAudioHandler
   @visibleForTesting
   void debugCheckCrossfadeTrigger(Duration position) =>
       _checkCrossfadeTrigger(position);
+
+  /// Play time counted towards the current failover chain.
+  @visibleForTesting
+  Duration get debugPlayedSinceFailover => _playedSinceFailover;
 
   /// Recovers the current remote song as the stall watchdog would.
   @visibleForTesting
