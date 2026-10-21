@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-20
+Last updated: 2026-10-21
 
 ---
 
@@ -22,6 +22,348 @@ Last updated: 2026-10-20
   test/src/features/settings/presentation/about_screen_test.dart` passed
   `+14: All tests passed!`; `flutter analyze` on the file clean;
   `./tool/check.sh`: all checks passed on the pre-fix commit (will be rerun).
+- [x] Verified update download reuse after cancelled installation — 2026-10-20:
+  `UpdateService` retains one digest/path per session, re-verifies before reuse,
+  re-downloads missing/tampered files and removes superseded artifacts. The
+  existing private-directory test now asserts reuse and one HTTP request;
+  additional cases cover case-insensitive hashes, progress/network accounting,
+  tampering, deletion and changed-digest directory removal before downloading.
+  Test-first service run failed four cases (`00:00 +38 -4: Some tests failed.`).
+  `flutter test test/src/features/settings/data/update_service_test.dart
+  test/src/features/settings/presentation/update_dialog_test.dart` passed
+  (`00:02 +53: All tests passed!`); changed Dart files pass formatting.
+  `flutter analyze lib/src/features/settings test/src/features/settings`
+  reports four existing infos in untouched appearance tests (escaping quotes,
+  setter style, constructor type and braces); no findings in the changed code.
+  Runtime/polkit validation remains with the coordinator; `./tool/check.sh`
+  was explicitly reserved for the orchestrator.
+- [ ] Issue #86, round 10 bounded failover — partial: 2026-10-21
+  (`fix/seek-settlement`, remaining: coordinator Linux/Android runtime pass
+  against a `release/1.5` baseline and independent review). Round-9 runs showed
+  a 12-second load-timeout cascade through the queue (idx 0 to 4) and a
+  desktop seek failure that skipped a song which was still playing. Now: the
+  final quiet stop bounds `pause()/stop()` by the reset timeout; a failed
+  desktop seek fails over only when the source is not advancing; automatic
+  failovers from seek, stall and queue-load share a cap of two songs until
+  five seconds of real playback (position stream) or Play, after which playback
+  stops quietly on the current song, reloadable by Play; `_waitForSeekSource`
+  fails at once after a quiet stop and is capped by `seekProgress` in total.
+  Regressions (each failed before its change): hung final stop (seek lane
+  parked, test timeout), still-playing song skipped (`Expected: song-0 / Actual:
+  song-1`), cascade (`Expected: song-2 / Actual: song-5`), seek plus stall
+  cascade and healthy-play reset (`Actual: song-3` / `song-2`), a seek
+  waiting on a load that ends in a quiet stop (2,004 ms), cold load holding a
+  seek (outcome null). `./tool/check.sh` passed (8,952 tests; 435 s). A seek
+  failover cannot repeat after the queue moved: every queue move already
+  cancels the pending seek, and that regression passed unchanged. The r9
+  cold-a.1 mid-song advance is not a premature completion: that file is 51.0 s
+  long and the harness seeks to 60 s, so the track ended at 51.2 s (trace
+  `dur: 51000`, `pos: 51200`); the FLAC decode errors follow the seek into the
+  partial download. No code change for it.
+  Runtime r10 dead-source finding: after the cap stop the current index
+  jumped from 2 to 9 (`nativeIndex index 7 songId 2C3I…` at +81.498). The tail
+  release appended the deferred songs to the stopped, source-less player, so
+  native index 7 mapped to logical 9. `_shouldReleaseTail` now skips an empty
+  player (regression: sources `['song-3', 'song-4', 'song-5']` before).
+  Codex review fixes: an early completion after healthy play is not a failure
+  (`Expected: song-3 / Actual: song-2` before); the advance signal uses the
+  backend position, not the interpolated one (`Expected: song-1 / Actual:
+  song-0`, and `song-2` / `song-3` for the cap reset); a hung final stop
+  replaces the player (`Expected: an object with length of <1>` before).
+
+- [ ] Issue #86, round 9 cold seek recovery — partial: 2026-10-21
+  (`fix/seek-settlement`, remaining: coordinator live large-FLAC/Android
+  revalidation and independent review). Focused seek, transcode and deadline runs
+  pass 74 tests, including both held-body durations for original/transcoded
+  sources, single-song cold retry exhaustion, silent failover, and Play restart.
+  Round-8 hold traces show `active queue apply` timing out at +12.158 s,
+  `seekStage: recovering` immediately afterward, then `seekEvent: failed` at
+  +24.198 s (`elapsedMs: 19142`) with no second timeout or media request.
+  At +13 s the logical queue had shrunk to its one materialized source;
+  +25 s and +50 s stayed loading at position zero despite sidecar bytes.
+  The round-8 retry reused AudioSource objects while retiring their owner;
+  just_audio disposal clears those objects' attachments. The new regression
+  models that lifecycle and reproduced the early failed seek; both held-body
+  cases failed before the repair. The existing phase-one fallback now prepares
+  a fresh source and uses one bounded 45-second cold retry, opening transcodes
+  directly at the server offset. Seek source readiness follows its active load;
+  settlement retains the completed-file fallback. Internal timeouts and seek
+  failures stay quiet. Exhausted desktop recovery fails over or
+  stops the final song, retaining a failed source that Play can reload.
+  The native failing-Range fixture also exposed a frozen `ready` source
+  (`reason: no progress`, `positionMs: 90000`) after recovery, so desktop
+  exhaustion now uses failover in every processing state. Its regression
+  first failed with `Expected: false / Actual: true` for Playing.
+  The final-song timeout regression also failed before the retention repair
+  (`Expected: song-0 / Actual: null`). Natural cold-seek traces differ: they
+  issue the seek at +5.056 s, then exhaust two 25-second buffering probes at
+  60,000 ms. Their proxy records repeated FLAC byte-range searches; an app-side
+  source-wait expiry does not explain those cases. Native revalidation must
+  distinguish those decoder waits from the repaired cold-source ownership bug.
+  Isolated Linux evidence: `.dart_tool/round9_seek_runtime.py` extends the
+  existing synthetic seek runner only in ignored local evidence, holding every
+  media body for 20/40 s and issuing the seek at +5 s. The FLAC run passed all
+  22 required scenarios across two clean starts (`build/seek-reliability/r9-flac-holds/report.json`),
+  including all four held-body cases. Initial hold20/hold40 seeks completed
+  in 16,106/36,085 ms at positions 60,332/60,343 ms, using one recovery each.
+  After removing the frozen-ready exception, `.dart_tool/round9_terminal_runtime.py`
+  rebuilt the final implementation and verified two clean starts with failing
+  Range responses: both reported `quietStop: true`, `playRestarted: true` after
+  Range support returned (`build/seek-reliability/r9-terminal/report.json`).
+  App-owned lyrics/player screenshots were inspected; the Mini Player capture
+  was obscured by the existing Return to Desktop View prompt. Both runtime
+  runners exited successfully and shut down their isolated processes.
+  Android retains its load/seek retry timing and source selection. Shared
+  changes make internal timeout/seek failures quiet, follow an active source
+  load's deadline, and stop/mark the final failed source reloadable by Play.
+  Final `./tool/check.sh` passed: formatting, generation, analyzer, dead-code
+  baseline, 103 migration tests, 283 critical reliability tests and the full
+  suite (8,943 passed, one skipped; 426 s). The complete diff was reviewed;
+  generated files stayed unchanged. Evidence: `.dart_tool/round9-check.log`.
+
+- [ ] Issue #86, slow-stream seek settlement and song start — partial: 2026-10-20
+  (`fix/seek-settlement`, remaining: coordinator native FLAC/Android
+  revalidation and independent review): round 8 repairs exhausted source-load
+  recovery while preserving the existing deadlines. The round-7 cold-b traces
+  show successful initial loads at +13.994 s / +18.717 s, then seeks, a 25-second
+  settlement deadline, and recovery reloads at 60,000 ms. Both reloads end with
+  `decision: playerOperationTimedOut`, `operation: active queue apply`,
+  `timeoutMs: 12000`, followed by idle and a failed seek. Offset loads deliberately
+  have `hardCap == initial`; sidecar bytes cannot extend them (received bytes
+  still grew 1,589,248 → 2,211,840 and 2,424,832 → 3,506,176 during those reloads).
+  The seek error handler then blocked stream recovery even though its retired
+  player was empty.
+  An exhausted desktop recovery load now uses the existing failed-song failover.
+  A desktop cold initial apply that times out with a same-song seek pending uses the existing
+  source-apply retry once at that target, then ordinary load failover if it fails.
+  Both paths preserve the queue and latest Play/Pause intent. The repair is
+  desktop-only; Android's existing source retry and offset paths are unchanged.
+  Regressions first failed with `Expected: song-0 / Actual: song-1` (missing same-song retry),
+  `Expected: an object with length of <2>` (no attempted retry before failover),
+  and `Expected: <2> / Actual: <0>` (empty native queue after seek recovery).
+  All three passed after the repair (`00:03 +3`); the focused progress-aware
+  deadline suite passed `00:17 +22`.
+  The healthy h4 snap-back is a harness false positive: its first seek completed
+  at 140,747 ms; a second request explicitly targeted 35,100 ms at +36.854 s.
+  The first request's snap-back oracle kept comparing samples to its old moving
+  position after that new command. The recovery `initialPositionMs` is 35,100,
+  its deadline position is 35,100, and it completes at 35,435 ms in 56.682 s
+  (the accepted 25 s + reload + 25 s bound). No application snap-back repair
+  is justified: the raw position stream temporarily reports zero while the
+  native deck is paused/loading, but `pendingSeekMs` remains 35,100 throughout;
+  `watchDisplayedPlaybackPosition` gives that pending target priority. Across ten
+  cold traces the first seek runs 0–158 ms after both request and source readiness;
+  FLAC range requests and degraded-server waits, rather than a fixed app delay, explain the remaining latency. The fixed-cap
+  comment, server-versus-player-progress architecture note and neutral ICY test
+  property were also corrected. The isolated Linux FLAC runtime command
+  `WAYLAND_DISPLAY=wayland-1 GDK_BACKEND=wayland CMAKE_BUILD_PARALLEL_LEVEL=2
+  python3 tool/seek_reliability_diagnostics.py --platform linux --codecs flac
+  --restarts 2 --output build/seek-reliability/r8-flac-wayland` completed with
+  18/18 required scenarios across two clean starts; the two failing-Range
+  negative cases remained failures. The native run preceded only a lint-only
+  local-variable rename and explicit desktop guards; Linux behavior is unchanged. Evidence is in that directory's
+  `report.json`, `app.log` and app-owned screenshots. The first attempt built
+  successfully but exited before startup with `Gtk-WARNING: cannot open display`;
+  using the available Wayland display resolved it. Inspected lyrics screenshots
+  show the paused target and intact controls; the compact capture has a
+  desktop-return dialog, so compact visual acceptance is limited. The live
+  degraded-server cold-seek rerun and independent review remain with the
+  coordinator; Android, #87 and crossfade offsets were not revalidated here.
+  Final validation: the desktop-scoped deadline suite passed again (`00:17 +22`),
+  and the neutral ICY property suite passed `00:00 +3`. `./tool/check.sh` completed
+  successfully (`build/r8-check-complete.log`): formatting, generation, analysis,
+  dead code, 103 migration tests, 283 critical reliability tests, and
+  `06:41 +8935 ~1: All tests passed!` for the full suite. Its 201 informational
+  analyzer findings include none on added/changed lines; all 16 findings in edited
+  Dart files map to unchanged lines. The complete diff passes `git diff --check`.
+  No generated source changed and no runtime/test jobs remain. Earlier round
+  details follow.
+  Desktop seek probes use a fixed
+  25-second settlement deadline, including recovery. Desktop zero-position
+  loads use sidecar received bytes for the existing 12-second/idle/45-second
+  progress deadline; mobile buffer and lock-cache byte events remain intact.
+  Same-song cold seeks keep the active load's ownership. The sampled mpv
+  input APIs and their diagnostics were removed. Cache-complete reloads,
+  transcode-offset selection, cancellation, Play/Pause intent and radio keep
+  their existing paths. Earlier rounds and their superseded policies follow.
+  The tests use shortened injectable production budgets
+  and a real loopback sidecar transfer. Before the fix, the six-case regression
+  run ended `00:02 +1 -5: Some tests failed.`; both seek states, idle/cap
+  preconditions and the growing start failed. Seek assertions reported
+  `Expected: <0>` / `Actual: <1>`; the start reported `Expected: <false>` /
+  `Actual: <true>`. The no-byte start already passed. The first fixed rerun
+  passed `00:06 +6: All tests passed!`; additional start idle/cap cases cover
+  the shared bound. The requested `flutter test --concurrency=4` run of
+  `navis_audio_handler_navigation_test.dart` and `position_offset_test.dart`
+  passed `05:21 +588: All tests passed!`. After lint corrections, the eight
+  deadline regressions passed again: `00:08 +8: All tests passed!`. All eight
+  edited Dart files pass `dart format --set-exit-if-changed`; scoped
+  `flutter analyze --no-fatal-infos` exits successfully with no errors or
+  warnings and 16 existing informational findings, each mapped to an unchanged
+  `HEAD` line. The complete diff passes `git diff --check`. No app, emulator
+  or VM was launched; runtime validation and the full gate remain with the
+  coordinator per this task's scope.
+  Round 2: rebased onto `github/release/1.5` including PR #106, without
+  conflicts. The coordinator reported round-1 Linux native-direct FLAC seeks
+  (6/6, 6–18 seconds), FLAC cold starts (3–11 seconds), dead-stream failover at
+  12 seconds and Android offset-seek/stall-recovery checks passing. Review
+  finding 2 was confirmed: `_partialCacheBytesForSong` returned independent
+  desktop sidecar bytes. Both deadline consumers now use player-side signals.
+  Waiting queue commands and superseded load generations remove extended
+  waits using the existing lane backlog and generation; native-load checks
+  run every 250 ms without file I/O. The lock-cache source emits progress on
+  each received chunk and exposes its in-memory byte count, preserving
+  sub-percent and unknown-length progress. Timeout messages and exceptions
+  report elapsed time, and the cap assertion allows scheduling slack.
+  Before the fixes, the ten deadline cases ended
+  `00:12 +8 -2: Some tests failed.`: the frozen desktop seek reported
+  `Expected: 'missed target'` / `Actual: 'deadline'`, and the waiting-seek
+  case reported `Expected: true` / `Actual: <false>`. The first fixed run
+  passed `00:10 +10: All tests passed!`. The requested three-file
+  `flutter test --concurrency=4` command (navigation, position-offset and
+  lock-cache source) passed `05:23 +611: All tests passed!`. After final style
+  cleanup, the ten deadline cases and two new sub-percent/unknown-length
+  lock-cache event cases passed `00:10 +12: All tests passed!`. All eight
+  edited Dart files pass `dart format --set-exit-if-changed` unchanged.
+  Scoped `flutter analyze --no-fatal-infos` exits successfully with no errors
+  or warnings; its 29 informational findings map to unchanged `HEAD` lines.
+  The complete diff passes `git diff --check`. No app, emulator, VM or
+  `./tool/check.sh` was run for this round, per the assigned scope.
+  Round 3: coordinator Linux evidence rejected round 2: mpv buffered position
+  froze during range probes, causing five recoveries in twelve seeks and a
+  cold-start seek timeout cascade. Desktop deadlines now sample mpv's own
+  `cache-speed` input rate through the existing native property bridge, at
+  most every 250 ms; desktop buffer and sidecar growth are excluded. A waiting
+  same-song seek preserves a progressing load; next/Stop retire a superseded
+  load on the next check, including before its original deadline. Android
+  lock-cache events, bounds, cache-complete/offset recovery and telemetry stay
+  intact. Tests were written first: `00:10 +3 -12: Some tests failed.`
+  Exact failures included `Expected: <0>` / `Actual: <1>` for frozen-buffer
+  seeks and `Expected: false` / `Actual: <true>` for both cold-start variants.
+  The mpv property is a network-layer estimate updated when demux reads return;
+  it can lag in blocking reads and is unavailable before demuxer publication.
+  Native slow-probe/cold-open coverage remains a coordinator runtime question.
+  The requested three-file run plus the two edited media_kit fixtures passed
+  `05:26 +628: All tests passed!` with `flutter test --concurrency=4`.
+  All eleven edited Dart files pass formatting; scoped analysis has no errors
+  or warnings and 27 existing informational findings on unchanged HEAD lines.
+  The complete diff passes `git diff --check`. No app, emulator, VM or full
+  gate was run, per the assigned scope; native acceptance remains open.
+  Round 4: coordinator Linux evidence reported a ready/playing seek frozen at
+  its target waiting 45 seconds twice because a positive mpv rate kept extending it.
+  The shared deadline now permits input extensions only while loading/buffering;
+  ready uses the existing three-second no-progress/missed-target handling.
+  A late landing gets that short motion-confirmation window rather than failing
+  the already expired load budget; recent input survives brief state flapping
+  but cannot extend the ready state's wait. Round 5 corrects the adapter rule:
+  input qualifies at >=8 KiB/s with a sampled change in either direction in
+  the last two seconds; unchanged samples between mpv recomputes remain active.
+  Decay below the floor and blocked-read values stale for two seconds expire.
+  Seek-lane inspection found no independent cancellation defect in same-song
+  load preservation: a playing seek needs 250 ms of native advancement after
+  landing, and a newer seek marks an unconfirmed request `superseded`. Stale
+  input could keep that earlier request pending until the next seek; the
+  regression requires a frozen ready request to finish recovery first.
+  The exact 26-second coordinator trace is unavailable in this worktree, so
+  attributing that individual event remains conditional on its native motion.
+  Tests were written first on `c585bf12`: `00:06 +0 -5: Some tests failed.`;
+  ready-at-target reported `Expected: 'no progress'` / `Actual: 'deadline'`,
+  and both unchanged/decaying-rate cases reported `Expected: false` /
+  `Actual: <true>`. Re-running the final five regressions against that commit's
+  implementation again failed all five, including `Expected: 'failed'` /
+  `Actual: 'superseded'` for the landed-frozen request followed by a later seek.
+  After the fix the focused run passed
+  `00:16 +21: All tests passed!`; an additional late state-flapping case
+  retains the round-3 buffering contract. The former ready/frozen extension
+  expectation is replaced with prompt recovery as required by this round.
+  The final requested three-file run plus `mediakit_seek_test.dart` passed
+  `05:30 +630: All tests passed!` with `flutter test --concurrency=4`.
+  All seven edited Dart files pass `dart format --set-exit-if-changed` unchanged;
+  scoped `flutter analyze --no-fatal-infos` exits successfully with no errors
+  or warnings and 13 informational findings mapped to unchanged HEAD lines.
+  The complete diff passes `git diff --check`. No app, emulator, VM or
+  `./tool/check.sh` was run, per the assigned scope; coordinator native
+  revalidation and independent review remain open.
+  Round 5: replaces rising-only mpv activity with the >=8 KiB/s floor and
+  two-second age of the last sampled change in either direction. The shared
+  loading/buffering gate and ready/frozen recovery timers remain unchanged.
+  Tests were written first on `5e5c32c8`: `00:24 +4 -4: Some tests failed.`;
+  the real 12-second buffering regression reloaded despite steady input
+  (`Expected: <1>` / `Actual: <2>` source loads). Unchanged samples, downward
+  recomputes and halving decay also failed (`Expected: true` or
+  `Expected: <true>` / `Actual: <false>`). The focused adapter/deadline run
+  passed `00:31 +24: All tests passed!`, including the ready/frozen and
+  superseded-seek regressions. The requested three-file run plus the edited
+  `mediakit_seek_test.dart` passed `05:43 +632: All tests passed!` with
+  `flutter test --concurrency=4`. All three edited Dart files pass formatting;
+  scoped `flutter analyze --no-fatal-infos` exits successfully with no errors
+  or warnings and seven informational findings mapped to unchanged HEAD lines.
+  The complete diff passes `git diff --check`. Native acceptance, independent
+  review and the full gate remain with the coordinator; no app, emulator, VM
+  or `./tool/check.sh` was run, per the assigned scope.
+  Round 6: coordinator Linux/live-server FLAC evidence rejected the floor and
+  sampled-change heuristic (5/15 direct, 10 recoveries, eight failed outcomes).
+  Restores input activity for any sampled mpv `cache-speed` > 0, including low,
+  constant or falling estimates during range probes. The loading/buffering
+  gate, ready/frozen timers, idle window and 45-second cap remain. A stale
+  positive estimate while buffering may extend a truly stuck load or seek to
+  that cap; the accepted ceiling is documented with a `ponytail:` comment.
+  Existing seek `unsettled` maps now include the latest `inputBytesPerSecond`
+  (null when unavailable) and `inputExtensionActive`; sampling also observes
+  ready states without extending them. Tests cover a constant 1 byte/s rate
+  through the real 12-second buffering deadline, decaying input while ready,
+  zero/unavailable input diagnostics, the active hard cap, the superseded
+  regression, and the retained cold-start seek/Next/Stop cases. Floor and
+  sampled-change expectations were removed. The focused deadline run passed
+  `00:29 +20: All tests passed!`. The requested three-file command plus the
+  touched `mediakit_seek_test.dart` passed
+  `05:42 +632: All tests passed!` with `flutter test --concurrency=4`.
+  All ten edited Dart files pass `dart format --set-exit-if-changed` unchanged;
+  scoped `flutter analyze --no-fatal-infos` exits 0 with no errors or warnings
+  and 25 existing informational findings mapped to unchanged HEAD lines.
+  The complete diff passes `git diff --check`. Native acceptance, independent
+  review and the full gate remain with the coordinator; no app, emulator, VM
+  or `./tool/check.sh` was run, per the assigned scope.
+  Round 7 (2026-10-21): coordinator slow FLAC evidence showed mpv's input rate
+  measures linear download activity even when seeking is stuck. Both desktop
+  settlement probes now use `desktopSeekSettle` (25 seconds) through the existing
+  deadline helper. Source control/reload timeouts remain additional bounded work.
+  Desktop zero-position loads use sidecar counters without file polling; loads
+  at a seek position cannot extend from those independent bytes. The mobile
+  byte-event extension, 12-second dead start and next-check Next/Stop cancellation
+  remain. No queue token/generation change was needed: read-only r5/r6 cold
+  traces show `active queue apply` timing out at 12 seconds, then next-song
+  failover superseding the waiting seek. A cold mpv load has no useful progress
+  sample while sidecar bytes are arriving. The test-first regression reproduced
+  this with no mpv input signal: `00:04 +1 -3: Some tests failed.`; the fixed
+  deadline expected 600–1000 ms but observed 1200 ms, and both cold starts
+  expected `disposed == false` but observed `true`. The third-party native
+  buffering seek test already passed. Single and rapid same-song seeks now
+  verify no failure notice, no retirement and completion at the latest target.
+  Final review found that bypassing the progress loop for nonzero recovery loads
+  also bypassed generation cancellation. Next/Stop regressions first failed
+  `00:01 +0 -2: Some tests failed.` (`Expected: true` / `Actual: <false>` for
+  retirement within one check). Those loads now keep the same polling helper,
+  with its hard cap set to the existing load deadline; arriving sidecar bytes
+  cannot extend them. A third regression checks that fixed cap.
+  The four-file serial run before the added cancellation cases (navigation,
+  media-kit seek, position-offset and lock-cache tests) passed
+  `05:39 +625: All tests passed!`. The final focused deadline/native-seek run
+  passed `00:17 +22: All tests passed!`. An isolated muted
+  Linux profile used the authenticated diagnostics API against a synthetic WAV
+  fixture: the native read waited 14 seconds while sidecar bytes arrived; a
+  same-song cold seek completed in 14.57 seconds with zero recovery attempts,
+  surviving the 12-second load threshold without a skip. A paused backward seek
+  reached 29,901 ms for a 30,000 ms target; clean restart restored both queue
+  occurrences. Evidence: `build/round7-runtime/report.json` and app logs. The
+  native FLAC stuck-probe/Android harness and independent review remain external
+  acceptance work. `./tool/check.sh` passed with two test workers: migration
+  `00:03 +103`, critical reliability `00:10 +283`, and full suite
+  `10:55 +8933 ~1: All tests passed!`, followed by `[check] All checks passed.`
+  The temporary concurrency config was removed. Final formatting passes all
+  eleven edited Dart files unchanged; final scoped analysis exits 0 with no
+  errors or warnings and 25 informational findings mapped to unchanged HEAD
+  lines. The complete diff passes `git diff --check`.
 - [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
   (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
   runtime probes, independent review and `./tool/check.sh`): native repeat-one
@@ -3072,3 +3414,38 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
 - 2026-10-18 — Notification Title Case (issue #68, branch `fix/notification-title-case`): seven `app_en.arb` notification titles moved to Title Case ("Scanning Library", "Library Scan Complete", "Library Scan Failed", "Library Scan Cancelled", "Download Failed", "Downloading {count} Songs", "Downloads Waiting for Storage or Access"); bodies, channel descriptions and channel IDs unchanged, and the already-correct hardcoded channel names ("Playback", "Downloads", "Library Scan") left alone. Localizations regenerated with `flutter gen-l10n`; assertions in `test/src/utils/notifications/download_notifier_test.dart` and `library_sync_notifier_test.dart` updated; "UI text casing" rule in `docs/development/agentic-engineering.md` extended and the 1.5.0 Title Case changelog entry folded to cover notifications. `flutter analyze --no-fatal-infos` reports no errors/warnings; both touched test files pass in one run (`00:02 +7: All tests passed!`). `./tool/check.sh` left to the coordinator.
 
 - 2026-10-18 — Issue #76: the existing download backfill pump detects an effective LRCLIB permission off→on transition, drains active automatic/manual passes, and clears empty non-instrumental lyrics miss backoff in one DAO update before retrying automatically, including persisting the reset while offline. Startup and repeated enabled values preserve backoff; stored lyrics, instrumental rows and the Missing predicate are unchanged. Test-first re-enable/offline regressions failed before implementation; 94 focused DAO/backfill/provider/resolver tests pass. `make gen` completed without tracked generated changes; `flutter analyze --no-fatal-infos` exited 0 with no errors/warnings (200 informational findings). Isolated Linux diagnostics passed authenticated health, server-only miss persistence, disabled backoff preservation, offline enable reset, automatic retry without force and clean-restart startup backoff preservation before and after the full gate, each with a fresh isolated profile and clean restart (`build/issue-76-runtime/report.json`, `build/issue-76-runtime-final/report.json`). The full gate ran once under `flock /tmp/navis-heavy.lock systemd-run --user --scope -p MemoryMax=10G ./tool/check.sh`: 8,830 tests passed, one skipped; exact final line `[check] All checks passed.` No changelog change, per owner instruction for the unreleased 1.5.0 backfill refinement.
+
+- 2026-10-20 — Linux package updater second-round review: the release guard now
+  tolerates empty inherited defines on Bash 3.2; nonzero elevated installer
+  results retain stderr before exit-code mapping; apply-time integrity failures
+  offer Retry and download again; package-manager-only modes rely on the shared
+  capability guard. Corrected the test elevator recipe to one executable wrapper.
+  Test-first regressions failed for both missing exit-code logs and the missing
+  Retry action; focused service/dialog validation passed:
+  `00:02 +49: All tests passed!`. Empty/unset define cases pass on the available
+  Bash; Bash 3.2 itself was not available. Full gate, builds and runtime evidence
+  are explicitly deferred by this task's validation restrictions.
+
+- 2026-10-20 — Linux package updater Task 5: architecture/release guides now
+  describe package ownership, privileged verify/install, cancellation, Retry
+  and the 1.5.1 rollout boundary. Added the user-facing 1.5.1 entry to
+  `changelog_data.dart`; the release-notes CLI generates from this source, and
+  there is no separate tracked 1.5.1 notes/CHANGELOG file to synchronize.
+  Replaced package verification's manual-update assertion with root ownership
+  queries. Added `package_update_diagnostics.sh` for build/publish/remote run/
+  cleanup, repeated cycles, corrupt downloads and real root-script container
+  upgrades; owner-driven UI scenarios and R8 remain explicit acceptance steps.
+  Shared existing handshake/API and R2 transport functions instead of copying
+  their implementation. The builder now accepts profile mode and embedded
+  version flags because diagnostics rejects release mode and package-only
+  version overrides do not change the running app version. A test-first mocked
+  builder case failed on the unsupported profile flag before implementation;
+  default release behavior and source-only handshake reuse also have coverage.
+  Nine focused test files passed: `00:16 +259: All tests passed!`. After the final
+  formatting adjustment, builder/helper and release-notes tests passed again:
+  `00:00 +7: All tests passed!`. Changed-file `dart analyze` reports
+  `No issues found!`; all nine touched shell scripts pass `bash -n` and
+  `git diff --check` passes. ShellCheck is not installed. Per explicit task
+  limits, the new harness was not run: no builds, publication, SSH, containers,
+  app launches, emulators or full gate. R1–R9 runtime acceptance remains open;
+  the active plan stays under `docs/plans/` until that evidence exists.

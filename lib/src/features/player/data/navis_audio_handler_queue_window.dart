@@ -99,7 +99,11 @@ extension _NavisQueueWindow on NavisAudioHandler {
         _pendingLogicalQueueSongIds != null ||
         _isLoading ||
         _isCrossfading ||
-        _crossfadeHandoffInProgress) {
+        _crossfadeHandoffInProgress ||
+        // A quiet stop on a failed song leaves its player without sources;
+        // appending would number the tail from the wrong song. Play reloads
+        // the queue around the current song.
+        _player.audioSources.isEmpty) {
       return false;
     }
     final retryAt = _tailReleaseRetryAt;
@@ -130,10 +134,22 @@ extension _NavisQueueWindow on NavisAudioHandler {
         _desiredLoopMode == LoopMode.all;
     if (next >= _logicalQueueIds.length && !wrap) return;
     _continuingIntoDeferredTail = true;
+    // A song that never played healthily and ends long before its duration
+    // is a failed stream: advance under the automatic failover cap. One that
+    // did play (an overstated duration) simply finished.
+    final duration = _player.duration;
+    final premature =
+        !wrap &&
+        duration != null &&
+        _playedSinceFailover < _timeouts.healthyPlayback &&
+        _player.position + _timeouts.healthyPlayback < duration;
+    if (!premature) _playedSinceFailover = Duration.zero;
     unawaited(
-      (wrap && _shuffleEnabled && _logicalQueueIds.length > 1
+      (premature
+              ? _skipPastFailedRemoteSong(current, autoPlay: true)
+              : wrap && _shuffleEnabled && _logicalQueueIds.length > 1
               ? _startNextShufflePass()
-              : playFromIndex(wrap ? 0 : next))
+              : _selectIndex(wrap ? 0 : next))
           .whenComplete(() => _continuingIntoDeferredTail = false),
     );
   }

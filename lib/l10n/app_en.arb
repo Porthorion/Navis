@@ -2083,6 +2083,7 @@
   "updateRestartAndUpdate": "Restart & Update",
   "updateApplying": "Applying update…",
   "updateNoWriteAccess": "Navis cannot update itself from this location. Please download manually.",
+  "updateUsePackageManager": "Navis was installed by your system's package manager. Update it from there, for example with your software updater or AUR helper.",
   "updateSignatureMismatch": "This update is signed with a different key than your installed version. Uninstall Navis, then install the new version manually.",
   "updateDownloadManually": "Download Manually",
 

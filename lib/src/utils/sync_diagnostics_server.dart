@@ -3500,9 +3500,19 @@ class SyncDiagnosticsServer {
           'applying': apply && artifactPath != null,
         });
         if (apply && artifactPath != null) {
-          await _container
-              .read(updateServiceProvider)
-              .applyDesktopUpdate(artifactPath, detectInstallMode());
+          _lastApplyError = null;
+          try {
+            await _container
+                .read(updateServiceProvider)
+                .applyDesktopUpdate(
+                  artifactPath,
+                  detectInstallMode(),
+                  expectedSha256: info!.sha256,
+                );
+          } on Object catch (error) {
+            // The response is already sent; expose the failure via GET instead.
+            _lastApplyError = error.runtimeType.toString();
+          }
         }
         return;
       }
@@ -3571,9 +3581,12 @@ class SyncDiagnosticsServer {
     }
   }
 
+  String? _lastApplyError;
+
   Map<String, Object?> _updateDiagnosticsJson() {
     final record = _container.read(updateRepositoryProvider).lastCheck;
     return {
+      'lastApplyError': _lastApplyError,
       'manifestUrl': UpdateRepository.manifestUrlFor(
         null,
         _container.read(effectiveUpdateSourceProvider),

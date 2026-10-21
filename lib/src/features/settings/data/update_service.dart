@@ -27,17 +27,46 @@ class UpdateIntegrityException implements Exception {
   String toString() => 'Update download failed integrity verification';
 }
 
+/// The user dismissed the system authorization prompt.
+class UpdateCancelledException implements Exception {
+  const new();
+}
+
+/// System elevation is missing or has no authorization agent.
+class UpdateElevationUnavailableException implements Exception {
+  const new();
+}
+
+typedef ProcessRunner = Future<ProcessResult> Function(
+  String exe,
+  List<String> args,
+);
+
+const _updateElevator = String.fromEnvironment(
+  'NAVIS_TEST_UPDATE_ELEVATOR',
+  defaultValue: 'pkexec',
+);
+
 /// Handles downloading a verified release artifact and applying it.
 class UpdateService {
   new({
     Dio? dio,
     this._networkUsageReporter,
     this.source = UpdateSource.porthorion,
-  }) : _dio = dio ?? Dio();
+    ProcessRunner? processRunner,
+    this._relaunchAndExit,
+    this._executableSearchPath,
+  }) : _dio = dio ?? Dio(),
+       _processRunner = processRunner ?? Process.run;
+
+  final ProcessRunner _processRunner;
+  final void Function()? _relaunchAndExit;
+  final String? _executableSearchPath;
 
   final Dio _dio;
   final UpdateSource source;
   final NetworkUsageReporter? _networkUsageReporter;
+  ({String sha256, String path})? _verifiedDownload;
 
   static const _channel = MethodChannel('com.navis.app/updater');
 
@@ -67,6 +96,36 @@ class UpdateService {
     }
     if (info.sha256 == null || info.size == null) {
       throw StateError('Update download has no manifest integrity metadata');
+    }
+
+    final sha256 = info.sha256!.toLowerCase();
+    final previous = _verifiedDownload;
+    if (previous != null) {
+      final file = File(previous.path);
+      if (previous.sha256 == sha256) {
+        if (file.existsSync()) {
+          try {
+            await verifyArtifact(previous.path, info);
+            onProgress?.call(1);
+            return previous.path;
+          } on UpdateIntegrityException catch (_) {
+            // Verification deletes damaged files; retry with a fresh download.
+          } on FileSystemException catch (_) {
+            // The file may disappear or become unreadable during verification.
+          }
+        }
+      } else {
+        try {
+          if (Platform.isAndroid) {
+            await file.delete();
+          } else {
+            await file.parent.delete(recursive: true);
+          }
+        } on FileSystemException catch (_) {
+          // Superseded artifacts must not prevent downloading a newer update.
+        }
+      }
+      _verifiedDownload = null;
     }
 
     final cacheDir = await getTemporaryDirectory();
@@ -133,6 +192,7 @@ class UpdateService {
     );
 
     await verifyArtifact(filePath, info);
+    _verifiedDownload = (sha256: sha256, path: filePath);
     AppLogger.info('Verified artifact downloaded to $filePath');
     return filePath;
   }
@@ -193,14 +253,14 @@ class UpdateService {
 
     final fallback = fallbackUrl?.trim();
     if (fallback == null || fallback.isEmpty) return false;
-    return launchExternalHttpUrl(fallback);
+    return await launchExternalHttpUrl(fallback);
   }
 
   // ---------------------------------------------------------------------------
   // Desktop apply
   // ---------------------------------------------------------------------------
 
-  /// Returns `true` if the target directory for [mode] is writable.
+  /// Returns whether this install can apply an update locally or via elevation.
   ///
   /// Should be called before initiating a download so we can fail fast and
   /// direct the user to download manually instead.
@@ -209,6 +269,27 @@ class UpdateService {
     // itself in the install directory — we don't need write access to
     // C:\Program Files\... beforehand.
     if (mode == UpdateInstallMode.windowsInstaller) return true;
+    if (mode == UpdateInstallMode.linuxPackageManaged) return false;
+    if (isLinuxSystemPackageMode(mode)) {
+      try {
+        return Process.runSync(
+              '/bin/sh',
+              [
+                '-c',
+                r'command -v "$1" >/dev/null 2>&1',
+                'navis-update',
+                _updateElevator,
+              ],
+              environment: {
+                'PATH':
+                    _executableSearchPath ?? Platform.environment['PATH'] ?? '',
+              },
+            ).exitCode ==
+            0;
+      } on ProcessException catch (_) {
+        return false;
+      }
+    }
 
     try {
       final targetDir = _resolveTargetDir(mode);
@@ -222,16 +303,21 @@ class UpdateService {
   /// updater script, launches it detached, then exits the app.
   ///
   /// For [UpdateInstallMode.windowsInstaller] and
-  /// [UpdateInstallMode.linuxDeb], no extraction is needed — the artifact is
+  /// Linux packages, no extraction is needed — the artifact is
   /// launched/applied directly.
   ///
   /// [downloadedPath] must come from [downloadArtifact], which verifies the
   /// artifact against the manifest before returning it.
   Future<void> applyDesktopUpdate(
     String downloadedPath,
-    UpdateInstallMode mode,
-  ) async {
+    UpdateInstallMode mode, {
+    String? expectedSha256,
+  }) async {
     AppLogger.info('Applying desktop update: mode=$mode path=$downloadedPath');
+    if (isLinuxSystemPackageMode(mode) &&
+        (expectedSha256 == null || expectedSha256.isEmpty)) {
+      throw const UpdateIntegrityException();
+    }
 
     switch (mode) {
       case UpdateInstallMode.windowsInstaller:
@@ -244,7 +330,10 @@ class UpdateService {
         await _applyMacosBundle(downloadedPath);
 
       case UpdateInstallMode.linuxDeb:
-        await _applyLinuxDeb(downloadedPath);
+      case UpdateInstallMode.linuxRpm:
+        await _applyLinuxPackage(downloadedPath, expectedSha256!, mode);
+      case UpdateInstallMode.linuxPackageManaged:
+        throw UnsupportedError('Use the system package manager');
 
       case UpdateInstallMode.linuxPortable:
         await _applyLinuxPortable(downloadedPath);
@@ -319,21 +408,56 @@ class UpdateService {
     exit(0);
   }
 
-  // ---- Linux deb ------------------------------------------------------------
+  // ---- Linux system package ------------------------------------------------
 
-  Future<void> _applyLinuxDeb(String debPath) async {
-    AppLogger.info('Installing deb via pkexec dpkg -i $debPath');
-    final result = await Process.run('pkexec', ['dpkg', '-i', debPath]);
+  Future<void> _applyLinuxPackage(
+    String path,
+    String expectedSha256,
+    UpdateInstallMode mode,
+  ) async {
+    final args = [
+      '/bin/sh',
+      '-c',
+      linuxPackageInstallScript,
+      'navis-update',
+      path,
+      expectedSha256.toLowerCase(),
+      if (mode == UpdateInstallMode.linuxDeb) 'deb' else 'rpm',
+    ];
+    final ProcessResult result;
+    try {
+      result = await _processRunner(_updateElevator, args);
+    } on ProcessException catch (_) {
+      throw const UpdateElevationUnavailableException();
+    }
     if (result.exitCode != 0) {
-      throw ProcessException(
-        'pkexec',
-        ['dpkg', '-i', debPath],
-        'dpkg exited with code ${result.exitCode}\n${result.stderr}',
-        result.exitCode,
+      AppLogger.warning(
+        'Linux package installer exited with code ${result.exitCode}: '
+        '${result.stderr}',
       );
     }
-    // Re-launch the freshly installed binary from the system launcher path,
-    // then exit the old process.
+    switch (result.exitCode) {
+      case 0:
+        break;
+      case 126:
+        throw const UpdateCancelledException();
+      // 11: the owning package manager's installer (apt-get/dnf) is missing.
+      case 127 || 11:
+        throw const UpdateElevationUnavailableException();
+      case 10:
+        throw const UpdateIntegrityException();
+      default:
+        throw ProcessException(
+          _updateElevator,
+          args,
+          'Package installer exited with code ${result.exitCode}\n${result.stderr}',
+          result.exitCode,
+        );
+    }
+    if (_relaunchAndExit != null) {
+      _relaunchAndExit();
+      return;
+    }
     await Process.start(
       Platform.resolvedExecutable,
       [],
@@ -456,6 +580,8 @@ class UpdateService {
         ); // e.g. /Applications, not /Applications/Navis.app
 
       case UpdateInstallMode.linuxDeb:
+      case UpdateInstallMode.linuxRpm:
+      case UpdateInstallMode.linuxPackageManaged:
         return p.dirname(Platform.resolvedExecutable);
 
       case UpdateInstallMode.androidApk:

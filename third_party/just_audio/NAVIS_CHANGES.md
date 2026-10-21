@@ -27,6 +27,13 @@ request starts over. Navis cancels downloads of songs the player has moved on
 from, which otherwise ran to completion and starved the current song on a slow
 link.
 
+`LockCachingAudioSource.downloadedBytes` exposes the current download's
+in-memory byte count. `downloadProgressStream` emits on every body chunk,
+including repeated whole-percent values for sub-percent or unknown-length
+transfers. Navis uses those events for player-side progress deadlines without
+polling partial-file metadata. The completion value remains reserved for the
+flushed, published cache file.
+
 The stream proxy closes range requests whose response has no known content
 length with HTTP 500 instead of dereferencing null while constructing
 `Content-Range`. Navis can then recover the remote source; completed cache reads

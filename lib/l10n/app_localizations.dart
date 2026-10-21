@@ -6977,6 +6977,12 @@ abstract class AppLocalizations {
   /// **'Navis cannot update itself from this location. Please download manually.'**
   String get updateNoWriteAccess;
 
+  /// No description provided for @updateUsePackageManager.
+  ///
+  /// In en, this message translates to:
+  /// **'Navis was installed by your system\'s package manager. Update it from there, for example with your software updater or AUR helper.'**
+  String get updateUsePackageManager;
+
   /// No description provided for @updateSignatureMismatch.
   ///
   /// In en, this message translates to:
