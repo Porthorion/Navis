@@ -2446,6 +2446,36 @@ def paused_spans(run: Run, t0: float, t1: float, minimum=1.0) -> list:
     return spans
 
 
+def case_natural_play3(run: Run, env, songs=3):
+    """Round 11 (G): plain album playback, no injection and no user command: [songs] songs play to their natural end and
+    hand over in order. No recovery decision (quiet stop, failover, skip) may appear, and no song may end early."""
+    ids = env.backend.fresh_album()
+    run.songs = [{'id': i} for i in ids]
+    rec = start_queue(run, ids)
+    await_audio(run, rec, ids[0])
+    hand = []
+    for n in range(songs):
+        cur = run.last()
+        dur = (cur['dur'] or 240000) / 1000
+        moved = run.until(lambda s, n=n: s['songId'] == ids[n + 1], dur + 90)
+        prev = [x for x in run.samples if x['songId'] == ids[n] and x['pos'] is not None][-1:]
+        if moved is None:
+            run.violations.append(violation('naturalNoAdvance', run.now(), f'song {n + 1} never followed song {n}', run))
+            raise CaseAbort('no advance')
+        hand.append({'from': n, 'dur': cur['dur'], 'lastPos': prev[0]['pos'] if prev else None, 'handoverAtS': moved['t']})
+        if prev and cur['dur'] and prev[0]['pos'] < cur['dur'] - 5000:
+            run.violations.append(violation('endedEarly', moved['t'], f"song {n} ended at {prev[0]['pos']} of {cur['dur']}", run))
+        ok = run.until(lambda s, n=n: s['songId'] == ids[n + 1] and s['playing'] and s['proc'] == 'ready' and (s['pos'] or 0) > 1000, 20)
+        if ok is None:
+            run.violations.append(violation('pausedAtSongEnd', moved['t'], f'song {n + 1} not playing 20 s after the handover', run))
+    run.metrics['handovers'] = hand
+    hits = [e for e in run.trace if e['kind'] == 'recovery']
+    run.metrics['recoveryEntries'] = [{k: e.get(k) for k in ('decision', 'reason', 'rel')} for e in hits][:8]
+    if hits:
+        run.violations.append(violation('unexpectedRecovery', hits[0]['rel'], f'{len(hits)} recovery entries on a fault-free run: {run.metrics["recoveryEntries"]}', run))
+    run.checks.append(lambda: oracle_sequence(run, ids, minimum=songs + 1))
+
+
 def case_chain_end(run: Run, env):
     """Repeat off, album: four songs each seeked to 6 s before their end; every boundary must hand over
     to the next song without a pause (setPauseAtEndOfMediaItems must not leak into normal playback)."""
@@ -2889,6 +2919,7 @@ CASE_FUNCS = {
     'cut40x2': cut_at_case(0.40, 2),
     'repeat_one_fill': case_repeat_one_fill,
     'chain_end': case_chain_end,
+    'natural_play3': case_natural_play3,
     'chain_end_all': case_chain_end_all,
     'repeat_switch_off': case_repeat_switch_off,
     'base_repeat_one': case_base_repeat_one,
