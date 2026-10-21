@@ -14,6 +14,16 @@ Last updated: 2026-10-21
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 5 follow-ups — partial: 2026-10-21
+  (`fix/item5-followups`, remaining: coordinator check.sh, runtime pass and
+  review). 5a: after a crossfade deck swap the current item, diagnostics offset,
+  seek and restart readers are not stale (tests passed unchanged); the real leak
+  was a non-current song keeping its offset entry, so Previous/selection back to
+  it started at the offset (failed before: `positionOffsetMs` 90000, expected
+  0), now reopened from the start. 5b: the per-song stream retry renews after
+  `healthyPlayback` of real advance (failed before: `Expected: song-1 / Actual:
+  song-2`); the second-cut-too-soon and frozen-position cases still skip. 5c is
+  runtime-only.
 - [ ] Issue #86, round 10 bounded failover — partial: 2026-10-21
   (`fix/seek-settlement`, remaining: coordinator Linux/Android runtime pass
   against a `release/1.5` baseline and independent review). Round-9 runs showed

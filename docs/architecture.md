@@ -4780,7 +4780,13 @@ background tail release skips it until Play reloads the queue. Advance is measur
 backend's own position on desktop, never the interpolated clock, so a backend
 stuck in `ready` neither clears the cap nor counts as alive. A completion far
 short of the duration counts as a failed stream only for a song that never
-played for `healthyPlayback`. If the final pause or stop times out, the player
+played for `healthyPlayback`. A stalled remote song gets one stream retry
+(resume at its position); a second cut skips it. That bound renews with the
+same signal: the retry resets the play counter, and once the song has then
+advanced for `healthyPlayback` the retry is available again, so two cuts a
+minute apart both resume. A source that keeps failing within `healthyPlayback`
+of each retry is skipped. A song left mid-way as an offset (transcode) stream
+reopens from its start when Previous or a selection lands on it again. If the final pause or stop times out, the player
 is replaced through the timeout-recovery path so Play reloads on a fresh one. Native timeout recovery and failed seeks log
 diagnostics without emitting user notices; automatic recovery needs no user
 action. Mobile exhausted requests suppress automatic stream retries until
