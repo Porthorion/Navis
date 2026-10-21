@@ -1403,45 +1403,64 @@ def oracle_buffer_lag(run: Run, bytes_per_second: float | None) -> list[dict]:
     return out
 
 
-def oracle_i87(run: Run, rate: float | None, full_expected=False) -> list[dict]:
-    """#87 measurements (no hard verdicts): the drawn line (seekBar.bufferedMs on both builds) against the cache
-    position (received bytes / bytes per second), the player's raw buffer and, on the fix, cachedPlayablePositionMs.
-    Keeps a 1 s series; overshoot = drawn - max(cache, player buffer); full_expected: the line must reach the duration."""
+def oracle_i87(run: Run, song: dict, quality: str, media: list, full_expected=False) -> list[dict]:
+    """#87 measurements (no hard verdicts). The drawn line is seekBar.bufferedMs (the handler's buffer state, on both builds).
+    Two references for how much audio the cache holds, from the received bytes (cacheProgress.receivedBytes):
+      A (nominal, what the app can know; the 2026-10-19 baseline method): original = bytes / total bytes * duration,
+        transcode = bytes * 8 / bitrate;
+      B (true): bytes / (the finished response's size / duration); a VBR transcode differs from A.
+    lag = reference - drawn, counted only when it lasted 3 s; overshoot = drawn - max(reference, player's raw buffer).
+    Keeps a 1 s series [t, drawn, A, B, player buffer, cachedPlayable, position, source]."""
+    fmt, kbps = QUALITIES[quality]
+    dur_s_song = float(song.get('duration') or 0)
+    finished = [r['bytes'] for r in media if r['id'] == song['id'] and r.get('status') == 200 and r.get('end') == 'complete']
+    true_bps = max(finished) / dur_s_song if finished and dur_s_song else None
     out, series, last_sec = [], [], -1
-    max_lag = max_over = max_over_cplay = max_lag_cplay = 0.0
     first_audio = next((s['t'] for s in run.samples if s['playing'] and s['proc'] == 'ready' and (s['pos'] or 0) > 0), None)
-    win, win_c = [], []  # (t, lag) over the last 3 s: a lag only counts when it lasted that long
+    worst = {'lagA': 0.0, 'lagB': 0.0, 'lagCp': 0.0, 'overA': 0.0, 'overB': 0.0}
+    wins = {k: [] for k in ('lagA', 'lagB', 'lagCp')}
 
-    def sustained(window, t, lag):
+    def sustained(key, t, lag):
+        window = wins[key]
         window.append((t, lag))
         while window and t - window[0][0] > 3.0:
             window.pop(0)
-        return min(x[1] for x in window) if t - window[0][0] >= 2.9 else 0.0
+        worst[key] = max(worst[key], min(x[1] for x in window) if t - window[0][0] >= 2.9 else 0.0)
 
     for s in run.samples:
-        if s['bar'] is None or s['dur'] is None or first_audio is None or s['t'] < first_audio + 1:
+        if s['bar'] is None or not s['dur'] or first_audio is None or s['t'] < first_audio + 1:
             continue
-        dur_s = s['dur'] / 1000
-        bar_s = s['bar'] / 1000
-        cache_s = min(dur_s, s['cacheB'] / rate) if rate and s['cacheB'] is not None else None
-        pbuf_s = (s['pbuf'] or 0) / 1000 if s['pbuf'] is not None else None
-        cplay_s = s['cplay'] / 1000 if s['cplay'] is not None else None
-        if cache_s is not None:
-            max_lag = max(max_lag, sustained(win, s['t'], cache_s - bar_s))
+        dur_s, bar_s = s['dur'] / 1000, s['bar'] / 1000
+        raw = s['cacheB']
+        ref_a = ref_b = None
+        if raw is not None:
+            if fmt:
+                ref_a = raw * 8 / (kbps * 1000)
+            elif s['cacheTotal']:
+                ref_a = raw / s['cacheTotal'] * dur_s
+            elif song.get('size'):
+                ref_a = raw / song['size'] * dur_s
+            if true_bps:
+                ref_b = raw / true_bps
+            ref_a = None if ref_a is None else min(dur_s, ref_a)
+            ref_b = None if ref_b is None else min(dur_s, ref_b)
+        pbuf_s = None if s['pbuf'] is None else s['pbuf'] / 1000
+        cplay_s = None if s['cplay'] is None else s['cplay'] / 1000
+        if ref_a is not None:
+            sustained('lagA', s['t'], ref_a - bar_s)
+            worst['overA'] = max(worst['overA'], bar_s - max(ref_a, pbuf_s or 0.0))
+        if ref_b is not None:
+            sustained('lagB', s['t'], ref_b - bar_s)
+            worst['overB'] = max(worst['overB'], bar_s - max(ref_b, pbuf_s or 0.0))
         if cplay_s is not None:
-            max_lag_cplay = max(max_lag_cplay, sustained(win_c, s['t'], cplay_s - bar_s))
-        bound = max([x for x in (cache_s, pbuf_s, cplay_s) if x is not None] or [0.0])
-        max_over = max(max_over, bar_s - bound)
-        if cplay_s is not None:
-            max_over_cplay = max(max_over_cplay, bar_s - max(cplay_s, pbuf_s or 0.0))
+            sustained('lagCp', s['t'], cplay_s - bar_s)
         if int(s['t']) != last_sec:
             last_sec = int(s['t'])
-            series.append([round(s['t'], 1), round(bar_s, 1), None if cache_s is None else round(cache_s, 1),
-                           None if pbuf_s is None else round(pbuf_s, 1), None if cplay_s is None else round(cplay_s, 1),
+            rnd = lambda v: None if v is None else round(v, 1)
+            series.append([round(s['t'], 1), rnd(bar_s), rnd(ref_a), rnd(ref_b), rnd(pbuf_s), rnd(cplay_s),
                            None if s['pos'] is None else round(s['pos'] / 1000, 1), s['src']])
     final = next((s for s in reversed(run.samples) if s['bar'] is not None and s['dur']), None)
-    run.metrics['i87'] = {'maxLagS': round(max_lag, 1), 'maxLagCplayS': round(max_lag_cplay, 1),
-                          'maxOvershootS': round(max_over, 1), 'maxOvershootCplayS': round(max_over_cplay, 1),
+    run.metrics['i87'] = {**{k: round(v, 1) for k, v in worst.items()}, 'trueBps': true_bps and round(true_bps),
                           'finalBarS': final and round(final['bar'] / 1000, 1), 'durS': final and round(final['dur'] / 1000, 1),
                           'series': series}
     if full_expected and final and final['bar'] < final['dur'] - 1000:
@@ -3185,11 +3204,11 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
         # Bytes per second of audio: what the server actually sent for a
         # complete response, else the nominal bitrate.
         done = [r['bytes'] for r in proxy.log[proxy_mark:]
-                if r['id'] == song['id'] and r.get('status') == 200 and not r.get('aborted')]
+                if r['id'] == song['id'] and r.get('status') == 200 and r.get('end') == 'complete']
         rate = max(done) / song['duration'] if done else bytes_per_second(song, quality)
         run.violations += oracle_buffer_lag(run, rate)
         if case.startswith('i87'):
-            run.violations += oracle_i87(run, rate, getattr(run, 'i87_full', False))
+            run.violations += oracle_i87(run, song, quality, proxy.log[proxy_mark:], getattr(run, 'i87_full', False))
     # Collapse repeats of one oracle to its first occurrence.
     seen, unique = set(), []
     for v in run.violations:
@@ -3208,7 +3227,7 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
         'actions': [{k: v for k, v in a.items() if k != 'future'} for a in run.actions],
         'proxyRequests': proxy.log[proxy_mark:], 'sampleErrors': run.errors[:5],
     }
-    if hard or unique or VERIFY_OFFSET:
+    if hard or unique or VERIFY_OFFSET or case.startswith('i87'):
         (out_dir / 'traces').mkdir(exist_ok=True)
         (out_dir / 'traces' / f'{serial:04d}-{case}-{quality}-{throttle}.json').write_text(json.dumps(
             {'row': row, 'samples': run.samples, 'trace': run.trace}, indent=1))
