@@ -7428,6 +7428,51 @@ void main() {
         expect(lastSeekEvent(handler)['outcome'], 'skipped');
       });
 
+      Future<(NavisAudioHandler, _ControllableAudioPlayer)>
+      repeatingOne() async {
+        final (handler, player, _) = await offsetHandler(
+          positionStreams: true,
+          timeouts: quick,
+        );
+        await start(handler);
+        await handler.setRepeatMode(AudioServiceRepeatMode.one);
+        return (handler, player);
+      }
+
+      test('a Repeat One loop starts a new play-time occurrence', () async {
+        final (handler, player) = await repeatingOne();
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+        expect(
+          handler.debugPlayedSinceFailover,
+          greaterThan(quick.healthyPlayback),
+        );
+
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+
+        expect(
+          handler.debugPlayedSinceFailover,
+          lessThan(quick.healthyPlayback),
+        );
+      });
+
+      test(
+        'play time before a Repeat One loop does not renew the retry',
+        () async {
+          final (handler, player) = await repeatingOne();
+          await failAt(handler, player, const Duration(milliseconds: 500));
+          expect(lastSeekEvent(handler)['outcome'], 'reloaded');
+          // Neither half of the play reaches healthyPlayback on its own.
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          player.finishCurrentTrack();
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+
+          await failAt(handler, player, const Duration(milliseconds: 900));
+
+          expect(lastSeekEvent(handler)['outcome'], 'skipped');
+        },
+      );
+
       test('Repeat One retries again after healthy play', () async {
         final (handler, player, _) = await offsetHandler(
           positionStreams: true,
@@ -7515,6 +7560,141 @@ void main() {
         );
       },
     );
+
+    group('departed offset entry repair', () {
+      bool clean(NavisAudioHandler handler, _ControllableAudioPlayer player) =>
+          handler.queue.value[1].extras!['positionOffsetMs'] == 0 &&
+          (player.sequence[1] as UriAudioSource).positionOffset ==
+              Duration.zero &&
+          !handler.snapshot.isLoading;
+
+      Future<(NavisAudioHandler, _ControllableAudioPlayer)> leftOffset({
+        PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
+      }) async {
+        final (handler, player, _) = await offsetHandler(wrapResolver: wrap);
+        await start(handler);
+        await seekAndSettle(handler, const Duration(seconds: 90));
+        await handler.skipToNext();
+        await until(() => handler.snapshot.currentSongId == 'song-2');
+        return (handler, player);
+      }
+
+      test('leaving an offset song repairs its entry in place', () async {
+        final (handler, player) = await leftOffset();
+        final loads = player.sourceLoads;
+        final seeks = player.seekCalls;
+
+        await until(() => clean(handler, player));
+        await settleQueue(handler);
+
+        expect(player.sourceLoads, loads);
+        expect(player.seekCalls, seeks);
+        expect(player.index, 2);
+        expect(player.sourceIds, ['song-0', 'song-1', 'song-2']);
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
+        expect(handler.snapshot.currentSongId, 'song-2');
+      });
+
+      test('Previous right after leaving never starts the offset', () async {
+        final (handler, player) = await leftOffset();
+        final loads = player.sourceLoads;
+        player.simulatedPosition = const Duration(seconds: 1);
+
+        await handler.skipToPrevious();
+        await until(
+          () =>
+              handler.snapshot.currentSongId == 'song-1' &&
+              !handler.snapshot.isLoading,
+        );
+        await settleQueue(handler);
+
+        expect(current(player).positionOffset, Duration.zero);
+        expect(player.sourceLoads, loads, reason: 'no reopen safety net');
+        expect(handler.collectPlaybackDiagnostics()['positionOffsetMs'], 0);
+      });
+
+      test(
+        'the repeat-all wrap lands on a repaired entry without a reopen',
+        () async {
+          final (handler, player, _) = await offsetHandler(count: 2);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          await settleQueue(handler);
+          await handler.play();
+          await handler.setRepeatMode(AudioServiceRepeatMode.all);
+          await seekAndSettle(handler, const Duration(seconds: 90));
+          player.finishCurrentTrack();
+          await until(
+            () =>
+                handler.snapshot.currentSongId == 'song-1' &&
+                handler.queue.value[0].extras!['positionOffsetMs'] == 0 &&
+                (player.sequence[0] as UriAudioSource).positionOffset ==
+                    Duration.zero,
+          );
+          await settleQueue(handler);
+          final loads = player.sourceLoads;
+
+          player.finishCurrentTrack();
+          await until(() => handler.snapshot.currentSongId == 'song-0');
+          await settleQueue(handler);
+
+          expect(player.sourceLoads, loads);
+          expect(handler.collectPlaybackDiagnostics()['positionOffsetMs'], 0);
+        },
+      );
+
+      for (final edit in ['remove', 'move']) {
+        test(
+          'a repair racing a queue $edit leaves the queue consistent',
+          () async {
+            late _GatedSourceResolver resolver;
+            final (handler, player) = await leftOffset(
+              wrap: (base) => resolver = _GatedSourceResolver(base),
+            );
+            // The next song is repaired only after its entry was already
+            // left: hold that repair, then edit the queue under it.
+            await until(() => clean(handler, player));
+            await seekAndSettle(handler, const Duration(seconds: 100));
+            resolver
+              ..blockedSongId = 'song-2'
+              ..entered = Completer<void>()
+              ..release = Completer<void>();
+            player.simulatedPosition = const Duration(seconds: 1);
+            await handler.skipToPrevious();
+            await until(() => handler.snapshot.currentSongId == 'song-1');
+            await resolver.entered!.future;
+            final editing = edit == 'remove'
+                ? handler.removeAt(2)
+                : handler.reorderQueue(2, 0);
+            resolver
+              ..blockedSongId = null
+              ..release!.complete();
+            await editing;
+            await settleQueue(handler);
+
+            final ids = handler.snapshot.queueSongIds;
+            expect(
+              ids.toSet(),
+              edit == 'remove'
+                  ? {'song-0', 'song-1'}
+                  : {'song-0', 'song-1', 'song-2'},
+            );
+            expect(player.sourceIds, ids);
+            expect(handler.snapshot.currentSongId, 'song-1');
+            for (var i = 0; i < player.sequence.length; i++) {
+              expect(
+                (player.sequence[i] as UriAudioSource).positionOffset,
+                player.index == i
+                    ? greaterThanOrEqualTo(Duration.zero)
+                    : Duration.zero,
+              );
+            }
+          },
+        );
+      }
+    });
 
     test('a seek on an offset source reopens it at the new offset', () async {
       final (handler, player, _) = await offsetHandler();
@@ -9136,6 +9316,7 @@ void main() {
       ScrobbleService? scrobbleService,
       String replayGainMode = 'off',
       bool transcodeOffset = false,
+      PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-fade-');
       final created = await createHandler(
@@ -9151,6 +9332,7 @@ void main() {
               )
             : const StreamingQuality(label: 'original'),
         supportsTranscodeOffset: transcodeOffset,
+        wrapResolver: wrapResolver,
         positionStreams: positionStreams,
         crossfadeType: crossfadeType,
         readCrossfadeType: readCrossfadeType,
@@ -9226,11 +9408,13 @@ void main() {
       });
 
       test(
-        'no crossfade into the offset song: the wrap starts it at 0',
+        'no crossfade into an unrepaired offset song: the wrap starts it at 0',
         () async {
+          late _GatedSourceResolver resolver;
           final (handler, outgoing, _) = await crossfading(
             2,
             transcodeOffset: true,
+            wrapResolver: (base) => resolver = _GatedSourceResolver(base),
           );
           outgoing.simulateProgress = true;
           await handler.replaceQueue(ids(2), expandMatchFlows: false);
@@ -9241,6 +9425,13 @@ void main() {
           first.simulateProgress = true;
           handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
           await waitForFade(() => first.playing && first.volume > 0);
+          // Hold the repair of song 0 once it is left.
+          resolver
+            ..blockedSongId = 'song-0'
+            ..release = Completer<void>();
+          addTearDown(() {
+            if (!resolver.release!.isCompleted) resolver.release!.complete();
+          });
           await handler.debugCompleteCrossfade();
           await waitForFade(() => handler.snapshot.currentSongId == 'song-1');
 
@@ -9252,6 +9443,8 @@ void main() {
           expect(deck?.playing ?? false, isFalse);
           final active = handler.debugActivePlayer as _ControllableAudioPlayer;
           active.finishCurrentTrack();
+          await pumpEventQueue(times: 20);
+          resolver.release!.complete();
           await waitForFade(
             () =>
                 handler.snapshot.currentSongId == 'song-0' &&
@@ -9262,6 +9455,42 @@ void main() {
           expect(source.positionOffset, Duration.zero);
         },
       );
+
+      test('a crossfade into the repaired entry needs no reopen', () async {
+        final (handler, outgoing, _) = await crossfading(
+          2,
+          transcodeOffset: true,
+        );
+        outgoing.simulateProgress = true;
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        await handler.setRepeatMode(AudioServiceRepeatMode.all);
+        await handler.seek(const Duration(seconds: 90));
+        await waitForFade(() => !handler.snapshot.isLoading);
+        final first = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        first.simulateProgress = true;
+        handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+        await waitForFade(() => first.playing && first.volume > 0);
+        await handler.debugCompleteCrossfade();
+        await waitForFade(
+          () =>
+              handler.snapshot.currentSongId == 'song-1' &&
+              handler.queue.value[0].extras!['positionOffsetMs'] == 0 &&
+              !handler.snapshot.isLoading,
+        );
+        await settleQueue(handler);
+        final deck = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        final loads = deck.sourceLoads;
+        deck.simulateProgress = true;
+        handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+        await waitForFade(() => deck.playing && deck.volume > 0);
+        await handler.debugCompleteCrossfade();
+        await waitForFade(() => handler.snapshot.currentSongId == 'song-0');
+        await settleQueue(handler);
+
+        expect(handler.collectPlaybackDiagnostics()['positionOffsetMs'], 0);
+        expect(handler.debugActivePlayer, same(deck));
+        expect(deck.sourceLoads, loads);
+      });
 
       test('Previous loads the offset song from its start', () async {
         final (handler, incoming) = await swapped();
