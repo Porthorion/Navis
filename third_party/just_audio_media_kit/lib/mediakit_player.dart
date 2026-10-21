@@ -95,8 +95,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       _updatePlaybackEvent();
     });
 
+    final properties = icyPropertySource ?? createIcyPropertySource(_player);
     _icyMetadata = IcyMetadataObserver(
-      source: icyPropertySource ?? createIcyPropertySource(_player),
+      source: properties,
       onChanged: (_) {
         if (!_released) _updatePlaybackEvent();
       },

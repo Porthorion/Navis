@@ -152,6 +152,52 @@ void main() {
   });
   tearDown(() => directory.delete(recursive: true));
 
+  for (final knownLength in [true, false]) {
+    test('body bytes emit progress before a whole percent '
+        '(knownLength=$knownLength)', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final finish = Completer<void>();
+      addTearDown(() {
+        if (!finish.isCompleted) finish.complete();
+      });
+      server.listen((request) async {
+        final response = request.response..bufferOutput = false;
+        if (knownLength) response.contentLength = 20000;
+        response.add(List<int>.filled(128, 7));
+        await response.flush();
+        await finish.future;
+        response.add(List<int>.filled(20000 - 128, 7));
+        await response.close();
+      });
+      final cacheFile = File(p.join(directory.path, 'byte-progress.mp3'));
+      // ignore: experimental_member_use, reason: tests player-side lock-cache byte events.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/song'),
+        cacheFile: cacheFile,
+      );
+      addTearDown(source.cancelDownload);
+      final received = Completer<int>();
+      final published = Completer<void>();
+      final subscription = source.downloadProgressStream.listen((progress) {
+        if (source.downloadedBytes == 128 && !received.isCompleted) {
+          expect(progress, 0);
+          received.complete(source.downloadedBytes);
+        }
+        if (progress == 1 && !published.isCompleted) published.complete();
+      });
+      addTearDown(subscription.cancel);
+      final response = await source.request();
+      final drained = response.stream.drain<void>();
+      expect(await received.future.timeout(const Duration(seconds: 2)), 128);
+      expect(cacheFile.existsSync(), isFalse);
+      finish.complete();
+      await drained;
+      await published.future.timeout(const Duration(seconds: 2));
+      expect(source.downloadedBytes, 20000);
+    });
+  }
+
   test('proxy frames an unknown-length keep-alive response', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
