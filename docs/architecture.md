@@ -5171,7 +5171,16 @@ creates a window; the owned Rust adapter uses manual SMTC, retains and revokes
 WinRT event tokens, converts incoming seek requests from 100 ns ticks to the
 Dart stream's milliseconds, serializes complete state writes, and omits unusable
 artwork while retaining text metadata. Interactive seek bars render `bufferStateStream` as a subtle
-secondary track and ignore states keyed to another song. For queued songs,
+secondary track and ignore states keyed to another song. The handler emits the
+further of the player's buffered position and the locally playable cached
+position (`_cachedPlayablePosition`): the full duration for a file source or a
+finished rolling-cache download, else the running download's fraction, or its
+received bytes at `resolvedBitRate` when the length is unknown, floored to whole
+seconds. The player re-opens its stream after a seek and so reports only a short
+window while the cache keeps filling. Seek deadlines and recovery still read the
+player's own buffered position and received bytes. Diagnostics report
+`playerBufferedPositionMs` (raw), `cachedPlayablePositionMs` and
+`drawnBufferedPositionMs` (the line). For queued songs,
 `MediaItem.duration` remains authoritative while a transcoded decoder reports a
 growing partial duration; the decoder duration is only a fallback when metadata
 is unavailable. The inactive crossfade deck exists only while crossfade is
