@@ -2621,6 +2621,18 @@ def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=176):
     return case
 
 
+def cold_seek_target(song_id: str, wanted_ms=60000) -> int:
+    """The cold-seek target clamped to the song: at least 10 s before its end (a 51 s track made a 60 s seek run off the end)."""
+    try:
+        with sqlite3.connect(f'file:{ROOT / "navis.sqlite"}?mode=ro', uri=True) as db:
+            row = db.execute('SELECT duration FROM songs WHERE id = ?', (song_id,)).fetchone()
+    except Exception:
+        row = None
+    if not row or not row[0]:
+        return wanted_ms
+    return min(wanted_ms, max(5000, int(row[0]) * 1000 - 10000))
+
+
 def cold_command_case(kind: str, kbps=1000):
     """Item 3 round 2: while a slow cold start is still loading, a user command (next or seek) issued ~5 s in
     must be acted on within a few seconds, not after the extended load finishes."""
@@ -2644,7 +2656,8 @@ def cold_command_case(kind: str, kbps=1000):
                     pool.submit(lambda: run.app.api('/v1/playback/next', {}, timeout=120))
                     hit = run.until(lambda s: s['songId'] == ids[1], 60)
                 else:
-                    target = 60000
+                    target = cold_seek_target(ids[0])
+                    run.metrics['coldSeekTarget'] = target
                     seek = issue_seek(run, pool, target)
                     seek['song'] = ids[0]
                     hit = run.until(lambda s: s['songId'] == ids[0] and abs((s['pos'] or 0) - target) <= 1500 and s['proc'] == 'ready', 60)
@@ -2664,6 +2677,8 @@ def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0, at_start=False)
     (and its retry) times out at 12 s. Records the state 20 s after the seek and the final state, and flags an idle player."""
     ids = env.backend.fresh_album()
     run.songs = [{'id': i} for i in ids]
+    tgt = cold_seek_target(ids[0])
+    run.metrics['coldSeekTarget'] = tgt
     run.queue_ids = list(ids)
     restore = THROTTLES[run.throttle]
     env.proxy.set_profile(kbps, 300)
@@ -2681,7 +2696,7 @@ def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0, at_start=False)
         run.metrics['stateAt5s'] = pick(run.last())
         t_cmd = run.now()
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            seek = issue_seek(run, pool, 60000)
+            seek = issue_seek(run, pool, tgt)
             seek['song'] = ids[0]
             loaded = run.until(lambda s: s['songId'] == ids[0] and s['proc'] in ('ready', 'buffering') and not s['loading'], 90)
             run.metrics['coldLoadedAfterS'] = None if loaded is None else round(loaded['t'] - t_cmd, 1)
@@ -2709,7 +2724,7 @@ def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0, at_start=False)
                 last = cur
     run.metrics['timeline'] = timeline[:60]
     near = next((x for x in run.samples if x['t'] >= t_cmd and x['playing'] and x['proc'] in ('ready', 'buffering')
-                 and x['songId'] == ids[0] and (x['pos'] or 0) >= 55000), None)
+                 and x['songId'] == ids[0] and (x['pos'] or 0) >= tgt - 5000), None)
     run.metrics['playingNearTargetAtS'] = None if near is None else round(near['t'] - t_cmd, 1)  # since the seek command
     run.metrics['holdEndsAtS'] = round(t_start + stall_s - t_cmd, 1) if at_start else None
     if final is None or final['proc'] in ('idle', None) or final['songId'] is None:
@@ -2754,7 +2769,7 @@ def case_dead_source_hold(run: Run, env, kbps=1000, window_s=90.0):
         time.sleep(5.0)
         t_cmd = run.now()
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            seek = issue_seek(run, pool, 60000)
+            seek = issue_seek(run, pool, cold_seek_target(ids[0]))
             seek['song'] = ids[0]
             shots = {}
             for at in (15, 40):
