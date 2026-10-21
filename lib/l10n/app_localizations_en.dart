@@ -4320,6 +4320,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get updateCheckFailed =>
+      'Couldn\'t check for updates. Check your connection and try again.';
+
+  @override
+  String get updateCheckFailedSub => 'Update check failed. Tap to try again.';
+
+  @override
   String get updateAvailableTitle => 'Update Available';
 
   @override

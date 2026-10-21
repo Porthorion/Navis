@@ -14,6 +14,14 @@ Last updated: 2026-10-21
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #110, About "Check now" failure feedback — 2026-10-20
+  (`fix/about-check-now-error`): a user-triggered failed check shows an error
+  notice; automatic failures deliberately only show the failed subtitle. Review
+  round added a widget test pinning that no notice is raised for an automatic
+  failure. Evidence: `flutter test
+  test/src/features/settings/presentation/about_screen_test.dart` passed
+  `+14: All tests passed!`; `flutter analyze` on the file clean;
+  `./tool/check.sh`: all checks passed on the pre-fix commit (will be rerun).
 - [x] Verified update download reuse after cancelled installation — 2026-10-20:
   `UpdateService` retains one digest/path per session, re-verifies before reuse,
   re-downloads missing/tampered files and removes superseded artifacts. The

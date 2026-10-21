@@ -172,6 +172,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Report a failed "Check now" in About instead of staying silent',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'The seek bar now shows how much of a song is already downloaded, '
         'instead of stopping short after a seek',
         type: ChangelogEntryType.fix,
