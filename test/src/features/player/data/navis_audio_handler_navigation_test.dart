@@ -7558,6 +7558,92 @@ void main() {
       },
     );
 
+    test('repeat all wrapping onto a song that played as an offset starts it '
+        'at 0', () async {
+      final (handler, player, _) = await offsetHandler(count: 2);
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      await settleQueue(handler);
+      await handler.play();
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      await seekAndSettle(handler, const Duration(seconds: 90));
+      expect(current(player).positionOffset, const Duration(seconds: 90));
+
+      player.finishCurrentTrack();
+      await until(() => handler.snapshot.currentSongId == 'song-1');
+      player.finishCurrentTrack();
+      await until(
+        () =>
+            handler.snapshot.currentSongId == 'song-0' &&
+            !handler.snapshot.isLoading &&
+            current(player).positionOffset == Duration.zero,
+      );
+
+      expect(handler.collectPlaybackDiagnostics()['positionOffsetMs'], 0);
+      expect(handler.queue.value[0].extras!['positionOffsetMs'], 0);
+      expect(
+        current(player).uri.queryParameters,
+        isNot(contains('timeOffset')),
+      );
+      expect(player.position, lessThan(const Duration(seconds: 2)));
+    });
+
+    test('an offset reload of the current song starts no extra seek', () async {
+      final (handler, player, _) = await offsetHandler();
+      await start(handler);
+      final loads = player.sourceLoads;
+      final events =
+          (handler.collectPlaybackDiagnostics()['seekEvents']! as List).length;
+
+      await seekAndSettle(handler, const Duration(seconds: 90));
+      // The reload's own index change and playback events are not loops.
+      player._events.add(player.playbackEvent);
+      await pumpEventQueue(times: 50);
+      await settleQueue(handler);
+
+      expect(player.sourceLoads, loads + 1);
+      expect(
+        (handler.collectPlaybackDiagnostics()['seekEvents']! as List).length,
+        events + 1,
+      );
+      expect(current(player).positionOffset, const Duration(seconds: 90));
+    });
+
+    test('an index change during an offset reload is not a wrap', () async {
+      final (handler, player, _) = await offsetHandler();
+      await start(handler);
+      await seekAndSettle(handler, const Duration(seconds: 90));
+      final loads = player.sourceLoads;
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..loadGate = gate
+        ..loadEntered = entered;
+
+      final seeking = handler.seek(const Duration(seconds: 120));
+      await entered.future;
+      // The reload reports an index change while the old offset source is
+      // still in the sequence.
+      player._discontinuities.add(
+        PositionDiscontinuity(
+          PositionDiscontinuityReason.autoAdvance,
+          PlaybackEvent(
+            processingState: ProcessingState.ready,
+            updatePosition: const Duration(seconds: 3),
+            currentIndex: 0,
+          ),
+          player.playbackEvent,
+        ),
+      );
+      await pumpEventQueue(times: 50);
+      gate.complete();
+      await seeking;
+      await until(() => !handler.snapshot.isLoading);
+      await settleQueue(handler);
+
+      expect(player.sourceLoads, loads + 1);
+      expect(current(player).positionOffset, const Duration(seconds: 120));
+    });
+
     for (final index in [1, 2]) {
       test('edge 3: repeat one reloads offset item $index exactly once', () async {
         final (handler, player, _) = await offsetHandler();
@@ -9106,6 +9192,36 @@ void main() {
         expect(handler.snapshot.currentSongId, 'song-1');
         expect(incoming.sourceLoads, loads);
         expect(handler.collectPlaybackDiagnostics()['positionOffsetMs'], 0);
+      });
+
+      test('a crossfade wrap onto the offset song starts it at 0', () async {
+        final (handler, outgoing, _) = await crossfading(
+          2,
+          transcodeOffset: true,
+        );
+        outgoing.simulateProgress = true;
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        await handler.setRepeatMode(AudioServiceRepeatMode.all);
+        await handler.seek(const Duration(seconds: 90));
+        await waitForFade(() => !handler.snapshot.isLoading);
+        for (final target in ['song-1', 'song-0']) {
+          final incoming =
+              handler.debugInactiveDeck! as _ControllableAudioPlayer;
+          incoming.simulateProgress = true;
+          handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+          await waitForFade(() => incoming.playing && incoming.volume > 0);
+          await handler.debugCompleteCrossfade();
+          await waitForFade(() => handler.snapshot.currentSongId == target);
+        }
+        await waitForFade(
+          () =>
+              !handler.snapshot.isLoading &&
+              handler.collectPlaybackDiagnostics()['positionOffsetMs'] == 0,
+        );
+        final source =
+            (handler.debugActivePlayer as _ControllableAudioPlayer).sequence[0]
+                as UriAudioSource;
+        expect(source.positionOffset, Duration.zero);
       });
 
       test('Previous loads the offset song from its start', () async {
