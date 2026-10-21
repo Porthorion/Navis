@@ -23,6 +23,13 @@ Last updated: 2026-10-22
   hours; error 6 reads as empty. Evidence: focused tests pass (1897); the real
   Same Vibes notifier against the live server used the server fallback for 30
   of 43 library songs before and 9 after (`./tool/check.sh` not yet run).
+- [x] Issue #92, optional Home Random Albums section — 2026-10-20
+  (`feat/home-random-albums`): `random_album_list` after Recently Added,
+  hidden by default. Its own server `getAlbumList2(random, 20)` draw; the
+  downloaded-only list is now a one-shot snapshot. Both re-pick after every
+  finished library sync. Showing a never-seen hidden-by-default section now
+  also saves the order, or `resolveHidden` hid it again (GLM review P1).
+  Runtime check in the app still to do.
 - [x] Issue #111, specific failure messages — 2026-10-20
   (`fix/specific-failure-messages`): sub-items 1-3 were verified unreachable
   (radio and Instant Mix never receive invalidKey/rateLimited; Last.fm key

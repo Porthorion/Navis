@@ -2064,6 +2064,30 @@ void main() {
     },
   );
 
+  testWidgets('Random Albums section renders its title and albums', (
+    tester,
+  ) async {
+    final settings = const AppSettingsModel.defaults().copyWith(
+      homeSectionOrder: <String>[HomeSectionIds.randomAlbumList],
+      homeSectionsHidden: _hiddenExcept(<String>[
+        HomeSectionIds.randomAlbumList,
+      ]),
+    );
+    await _pumpHomeWithAppSettings(
+      tester,
+      database: database,
+      appSettings: settings,
+      overrides: <Override>[
+        homeRandomAlbumListProvider.overrideWithValue(
+          const AsyncData(<Album>[Album(id: 'r1', name: 'Rolled Album')]),
+        ),
+      ],
+    );
+
+    expect(find.text('Random Albums'), findsOneWidget);
+    expect(find.text('Rolled Album'), findsOneWidget);
+  });
+
   for (final albumQueue in <bool>[true, false]) {
     for (final sectionId in <String>[
       HomeSectionIds.mostPlayed,

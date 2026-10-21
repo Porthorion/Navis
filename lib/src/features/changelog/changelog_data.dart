@@ -174,6 +174,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Add an optional Random Albums section to Home (Settings › Appearance)',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Seeking in a transcoded song now jumps straight to the new position '
         'on servers that support it, instead of waiting for the download',
         type: ChangelogEntryType.fix,

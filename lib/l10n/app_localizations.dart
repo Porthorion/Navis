@@ -2010,6 +2010,24 @@ abstract class AppLocalizations {
   /// **'Pull to refresh to fetch newly added albums.'**
   String get homeRecentlyAddedEmptySubtitle;
 
+  /// No description provided for @homeRandomAlbumListTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Random Albums'**
+  String get homeRandomAlbumListTitle;
+
+  /// No description provided for @homeRandomAlbumListEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No Random Albums'**
+  String get homeRandomAlbumListEmptyTitle;
+
+  /// No description provided for @homeRandomAlbumListEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pull to refresh to pick new albums.'**
+  String get homeRandomAlbumListEmptySubtitle;
+
   /// No description provided for @homeNewReleasesTitle.
   ///
   /// In en, this message translates to:
@@ -7258,6 +7276,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You Might Like'**
   String get homeSectionRandomAlbums;
+
+  /// No description provided for @homeSectionRandomAlbumList.
+  ///
+  /// In en, this message translates to:
+  /// **'Random Albums'**
+  String get homeSectionRandomAlbumList;
 
   /// No description provided for @homeSectionMostPlayed.
   ///

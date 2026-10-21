@@ -95,6 +95,7 @@ void main() {
         HomeSectionIds.recentlyLikedAlbums,
         HomeSectionIds.likedTracks,
         HomeSectionIds.recentlyAdded,
+        HomeSectionIds.randomAlbumList,
         HomeSectionIds.recentlyPlayed,
         HomeSectionIds.mostPlayed,
         HomeSectionIds.recentlyPlayedTracks,
@@ -102,6 +103,27 @@ void main() {
         HomeSectionIds.newReleases,
       ];
       expect(HomeSectionIds.resolveOrder(saved), saved);
+    });
+
+    test('Random Albums follows Recently Added by default', () {
+      final order = HomeSectionIds.defaultOrder;
+      expect(
+        order.indexOf(HomeSectionIds.randomAlbumList),
+        order.indexOf(HomeSectionIds.recentlyAdded) + 1,
+      );
+    });
+
+    test('a saved order that predates Random Albums gets it after Recently '
+        'Added', () {
+      const saved = <String>[
+        HomeSectionIds.recentlyAdded,
+        HomeSectionIds.likedTracks,
+      ];
+      final resolved = HomeSectionIds.resolveOrder(saved);
+      expect(
+        resolved.indexOf(HomeSectionIds.randomAlbumList),
+        resolved.indexOf(HomeSectionIds.recentlyAdded) + 1,
+      );
     });
 
     test('a saved order of the shipped sections keeps every default', () {
@@ -149,6 +171,24 @@ void main() {
       );
     });
 
+    test('Random Albums is hidden by default and for existing users', () {
+      expect(
+        HomeSectionIds.defaultHidden,
+        contains(HomeSectionIds.randomAlbumList),
+      );
+      // Saved lists that predate the section.
+      expect(
+        HomeSectionIds.resolveHidden(
+          <String>[HomeSectionIds.likedTracks],
+          persistedOrder: <String>[
+            HomeSectionIds.recentlyAdded,
+            HomeSectionIds.likedTracks,
+          ],
+        ),
+        contains(HomeSectionIds.randomAlbumList),
+      );
+    });
+
     test('a new section visible by default shows for a saved list', () {
       expect(
         HomeSectionIds.resolveHidden(
@@ -166,7 +206,7 @@ void main() {
           'genres',
           HomeSectionIds.mostPlayed,
         ]),
-        <String>[HomeSectionIds.mostPlayed],
+        <String>[HomeSectionIds.mostPlayed, HomeSectionIds.randomAlbumList],
       );
     });
   });
