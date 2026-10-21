@@ -1,12 +1,15 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logger/logger.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
+import 'package:navis/src/features/settings/data/update_scripts.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/utils/constants.dart';
@@ -15,7 +18,7 @@ import 'package:path/path.dart' as p;
 
 class _ArtifactAdapter implements HttpClientAdapter {
   new(this.bytes);
-  final List<int> bytes;
+  List<int> bytes;
   final List<RequestOptions> requests = [];
   String? redirect;
 
@@ -127,26 +130,116 @@ void main() {
     expect(adapter.requests, isEmpty);
   });
 
-  test('desktop downloads use distinct private dirs instead of shared navis_updates', () async {
+  test('desktop downloads reuse a verified private dir instead of shared navis_updates', () async {
     final shared = await Directory(p.join(temp.path, 'navis_updates')).create();
     final chmod = await Process.run('chmod', ['777', shared.path]);
     expect(chmod.exitCode, 0);
     expect(shared.statSync().mode & 0x1ff, 0x1ff);
 
     final first = await service.downloadArtifact(info());
+    expect(adapter.requests, hasLength(1));
     final second = await service.downloadArtifact(info());
     final firstDir = Directory(p.dirname(first));
-    final secondDir = Directory(p.dirname(second));
-    expect(firstDir.path, isNot(secondDir.path));
-    for (final dir in [firstDir, secondDir]) {
-      expect(p.dirname(dir.path), temp.path);
-      expect(p.basename(dir.path), startsWith('navis_update_'));
-      expect(dir.statSync().mode & 0x1ff, 0x1c0);
-    }
+    expect(second, first);
+    expect(adapter.requests, hasLength(1));
+    expect(p.dirname(firstDir.path), temp.path);
+    expect(p.basename(firstDir.path), startsWith('navis_update_'));
+    expect(firstDir.statSync().mode & 0x1ff, 0x1c0);
     expect(shared.listSync(), isEmpty);
     expect(await File(first).readAsBytes(), bytes);
     expect(await File(second).readAsBytes(), bytes);
   }, skip: Platform.isWindows);
+
+  test(
+    'reuses a case-insensitive digest with completion and no network usage',
+    () async {
+      final reportedBytes = <int>[];
+      service = UpdateService(
+        dio: dio,
+        networkUsageReporter: ({required category, required bytes, operation}) {
+          reportedBytes.add(bytes);
+        },
+      );
+      final first = await service.downloadArtifact(
+        info(hash: crypto.sha256.convert(bytes).toString().toUpperCase()),
+      );
+      expect(adapter.requests, hasLength(1));
+      expect(reportedBytes, [bytes.length]);
+
+      final progress = <double>[];
+      final second = await service.downloadArtifact(
+        info(),
+        onProgress: progress.add,
+      );
+
+      expect(second, first);
+      expect(adapter.requests, hasLength(1));
+      expect(reportedBytes, [bytes.length]);
+      expect(progress, [1.0]);
+      expect(await File(second).readAsBytes(), bytes);
+    },
+  );
+
+  test(
+    're-downloads when the remembered file has been tampered with',
+    () async {
+      final first = await service.downloadArtifact(info());
+      expect(adapter.requests, hasLength(1));
+      await File(first).writeAsBytes(List<int>.filled(bytes.length, 0));
+
+      final second = await service.downloadArtifact(info());
+
+      expect(adapter.requests, hasLength(2));
+      expect(File(first).existsSync(), isFalse);
+      expect(await File(second).readAsBytes(), bytes);
+      await service.verifyArtifact(second, info());
+    },
+  );
+
+  test('re-downloads when the remembered file has been deleted', () async {
+    final first = await service.downloadArtifact(info());
+    expect(adapter.requests, hasLength(1));
+    await File(first).delete();
+
+    final second = await service.downloadArtifact(info());
+
+    expect(adapter.requests, hasLength(2));
+    expect(await File(second).readAsBytes(), bytes);
+    await service.verifyArtifact(second, info());
+  });
+
+  test(
+    'a different digest deletes the old private work dir before downloading',
+    () async {
+      final first = await service.downloadArtifact(info());
+      expect(adapter.requests, hasLength(1));
+      final oldDir = File(first).parent;
+      await File(p.join(oldDir.path, 'leftover-script.sh'))
+          .writeAsString('stale');
+      final newerBytes = bytes.reversed.toList();
+      final newerInfo = info(
+        hash: crypto.sha256.convert(newerBytes).toString(),
+      );
+      adapter.bytes = newerBytes;
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            expect(oldDir.existsSync(), isFalse);
+            handler.next(options);
+          },
+        ),
+      );
+
+      final second = await service.downloadArtifact(newerInfo);
+
+      expect(adapter.requests, hasLength(2));
+      expect(File(second).parent.path, isNot(oldDir.path));
+      expect(oldDir.existsSync(), isFalse);
+      expect(await File(second).readAsBytes(), newerBytes);
+      await service.verifyArtifact(second, newerInfo);
+    },
+    skip: Platform.isAndroid,
+  );
 
   test(
     'Linux extraction stages inside the downloaded artifact private dir',
@@ -278,4 +371,230 @@ void main() {
     );
     expect(adapter.requests, isEmpty);
   });
+
+  group('Linux package apply', () {
+    const hash =
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const artifact = r'/tmp/package $(literal) name.deb';
+
+    for (final mode in [
+      UpdateInstallMode.linuxDeb,
+      UpdateInstallMode.linuxRpm,
+    ]) {
+      test(
+        '$mode checks elevator availability instead of directory writes',
+        () async {
+          final bin = await Directory(p.join(temp.path, 'bin')).create();
+          final elevator = File(p.join(bin.path, 'pkexec'));
+          final updater = UpdateService(executableSearchPath: bin.path);
+          expect(updater.canApplyUpdate(mode), isFalse);
+          await elevator.writeAsString('#!/bin/sh\nexit 0\n');
+          expect(
+            (await Process.run('chmod', ['700', elevator.path])).exitCode,
+            0,
+          );
+          expect(updater.canApplyUpdate(mode), isTrue);
+          expect(
+            updater.canApplyUpdate(UpdateInstallMode.linuxPackageManaged),
+            isFalse,
+          );
+        },
+        skip: !Platform.isLinux,
+      );
+
+      test(
+        '$mode invokes one positional-argument root script and relaunches',
+        () async {
+          var relaunched = false;
+          var calls = 0;
+          final updater = UpdateService(
+            processRunner: (exe, args) async {
+              calls++;
+              expect(exe, 'pkexec');
+              expect(args, [
+                '/bin/sh',
+                '-c',
+                linuxPackageInstallScript,
+                'navis-update',
+                artifact,
+                hash,
+                if (mode == UpdateInstallMode.linuxDeb) 'deb' else 'rpm',
+              ]);
+              return ProcessResult(1, 0, '', '');
+            },
+            relaunchAndExit: () => relaunched = true,
+          );
+          await updater.applyDesktopUpdate(
+            artifact,
+            mode,
+            expectedSha256: hash,
+          );
+          expect(calls, 1);
+          expect(relaunched, isTrue);
+        },
+      );
+    }
+
+    for (final code in [126, 127, 10, 11, 23]) {
+      test(
+        'exit $code maps to the expected failure without relaunch',
+        () async {
+          var relaunched = false;
+          final logs = <LogEvent>[];
+          void recordLog(LogEvent event) => logs.add(event);
+          Logger.addLogListener(recordLog);
+          addTearDown(() => Logger.removeLogListener(recordLog));
+          final updater = UpdateService(
+            processRunner: (_, _) async =>
+                ProcessResult(1, code, '', 'installer stderr $code'),
+            relaunchAndExit: () => relaunched = true,
+          );
+          final matcher = switch (code) {
+            126 => isA<UpdateCancelledException>(),
+            127 || 11 => isA<UpdateElevationUnavailableException>(),
+            10 => isA<UpdateIntegrityException>(),
+            _ => isA<ProcessException>().having(
+              (e) => e.errorCode,
+              'code',
+              code,
+            ),
+          };
+          await expectLater(
+            updater.applyDesktopUpdate(
+              artifact,
+              UpdateInstallMode.linuxDeb,
+              expectedSha256: hash,
+            ),
+            throwsA(matcher),
+          );
+          expect(relaunched, isFalse);
+          if (code == 126 || code == 127) {
+            expect(
+              logs.any(
+                (event) =>
+                    event.message.toString().contains('installer stderr $code'),
+              ),
+              isTrue,
+            );
+          }
+        },
+      );
+    }
+
+    test(
+      'normalizes the signed digest to lowercase for the root script',
+      () async {
+        final updater = UpdateService(
+          processRunner: (_, args) async {
+            expect(args[5], hash);
+            return ProcessResult(1, 0, '', '');
+          },
+          relaunchAndExit: () {},
+        );
+        await updater.applyDesktopUpdate(
+          artifact,
+          UpdateInstallMode.linuxDeb,
+          expectedSha256: hash.toUpperCase(),
+        );
+      },
+    );
+
+    test('missing elevator is unavailable', () async {
+      final updater = UpdateService(
+        processRunner: (exe, args) async {
+          throw ProcessException(exe, args);
+        },
+      );
+      await expectLater(
+        updater.applyDesktopUpdate(
+          artifact,
+          UpdateInstallMode.linuxDeb,
+          expectedSha256: hash,
+        ),
+        throwsA(isA<UpdateElevationUnavailableException>()),
+      );
+    });
+
+    for (final mode in UpdateInstallMode.values.where(
+      isLinuxSystemPackageMode,
+    )) {
+      for (final missingHash in <String?>[null, '']) {
+        test('$mode refuses hash=$missingHash before elevation', () async {
+          final updater = UpdateService(
+            processRunner: (_, _) async => fail('Elevated without hash'),
+          );
+          await expectLater(
+            updater.applyDesktopUpdate(
+              artifact,
+              mode,
+              expectedSha256: missingHash,
+            ),
+            throwsA(isA<UpdateIntegrityException>()),
+          );
+        });
+      }
+    }
+
+    test('unknown package owner never invokes elevation', () async {
+      final updater = UpdateService(
+        processRunner: (_, _) async => fail('Unknown owner elevated'),
+      );
+      expect(
+        updater.canApplyUpdate(UpdateInstallMode.linuxPackageManaged),
+        isFalse,
+      );
+      await expectLater(
+        updater.applyDesktopUpdate(
+          artifact,
+          UpdateInstallMode.linuxPackageManaged,
+          expectedSha256: hash,
+        ),
+        throwsUnsupportedError,
+      );
+    });
+  });
+
+  for (final defines in <String?>[null, '']) {
+    test('release accepts empty/unset inherited defines: $defines', () async {
+      final environment = Map<String, String>.of(Platform.environment)
+        ..remove('NAVIS_TEST_UPDATE_ELEVATOR')
+        ..remove('DART_DEFINES');
+      if (defines != null) environment['DART_DEFINES'] = defines;
+      final result = await Process.run(
+        'bash',
+        ['tool/release.sh'],
+        environment: environment,
+        includeParentEnvironment: false,
+      );
+      expect(result.exitCode, 1);
+      expect(result.stdout, contains('Usage: ./tool/release.sh'));
+      expect(result.stderr, isNot(contains('unbound variable')));
+    }, skip: Platform.isWindows);
+  }
+
+  for (final encoded in [false, true]) {
+    test(
+      'release refuses test elevator with encoded define=$encoded',
+      () async {
+        final result = await Process.run(
+          'bash',
+          ['tool/release.sh'],
+          environment: {
+            if (encoded)
+              'DART_DEFINES': base64Encode(
+                utf8.encode('NAVIS_TEST_UPDATE_ELEVATOR=/test/elevator'),
+              )
+            else
+              'NAVIS_TEST_UPDATE_ELEVATOR': '/test/elevator',
+          },
+        );
+        expect(result.exitCode, 1);
+        expect(
+          '${result.stdout}${result.stderr}',
+          contains('NAVIS_TEST_UPDATE_ELEVATOR is test-only'),
+        );
+      },
+      skip: Platform.isWindows,
+    );
+  }
 }

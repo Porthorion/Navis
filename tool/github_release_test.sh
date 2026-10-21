@@ -94,7 +94,7 @@ refused navis_github_verify_manifest v1.5.0 "${tmp}/manifest.json"
 # Exercise release.sh's automatic policy from a copy with no release.env.
 mkdir -p "${tmp}/repo/tool/lib"
 cp "${SCRIPT_DIR}/release.sh" "${SCRIPT_DIR}/r2_publish.sh" "${tmp}/repo/tool/"
-cp "${SCRIPT_DIR}/lib/"{r2_tags,lastfm_key_defines,scan_artifact_secret,release_dist,github_release}.sh "${tmp}/repo/tool/lib/"
+cp "${SCRIPT_DIR}/lib/"{r2_tags,r2_storage,lastfm_key_defines,scan_artifact_secret,release_dist,github_release}.sh "${tmp}/repo/tool/lib/"
 TEST_NO_AUTH=1 refused "${tmp}/repo/tool/release.sh" v1.5.0 --targets=linux
 rg -q 'gh authentication is required' "${tmp}/error" || fail 'stable did not require GitHub early'
 TEST_NO_REMOTE=1 refused "${tmp}/repo/tool/release.sh" v1.5.0 --targets=linux
