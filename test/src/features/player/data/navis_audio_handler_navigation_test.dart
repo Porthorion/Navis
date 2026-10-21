@@ -422,8 +422,16 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Stream<LoopMode> get loopModeStream => const Stream<LoopMode>.empty();
 
+  final _bufferedPositions = StreamController<Duration>.broadcast();
+
+  /// Sets the native buffered position and announces it, as the player does.
+  void emitBuffered(Duration value) {
+    simulatedBuffered = value;
+    _bufferedPositions.add(value);
+  }
+
   @override
-  Stream<Duration> get bufferedPositionStream => const Stream<Duration>.empty();
+  Stream<Duration> get bufferedPositionStream => _bufferedPositions.stream;
 
   @override
   Stream<Duration> createPositionStream({
@@ -12620,5 +12628,230 @@ void main() {
         }
       }
     }, timeout: const Timeout(Duration(minutes: 10)));
+  });
+
+  group('seek bar buffered line', () {
+    late HttpServer server;
+    late Completer<void> release;
+    late Completer<void> more;
+    late Directory directory;
+    var requests = 0;
+
+    // The server sends [first] bytes, waits for [release], then ends or, for
+    // an unknown length, waits for [more] and sends [second] further bytes.
+    Future<(NavisAudioHandler, _ControllableAudioPlayer)> serve({
+      int? length = 100 * 1024,
+      int first = 40 * 1024,
+      int second = 0,
+      bool fail = false,
+      bool sidecar = true,
+      bool cacheSongs = false,
+      int count = 2,
+      StreamingQuality quality = const StreamingQuality(label: 'original'),
+    }) async {
+      final previousHttp = HttpOverrides.current;
+      HttpOverrides.global = null;
+      requests = 0;
+      release = Completer<void>();
+      more = Completer<void>();
+      server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        final nth = requests++;
+        try {
+          final response = request.response..bufferOutput = false;
+          if (length != null) response.contentLength = length;
+          if (nth == 0) response.add(List<int>.filled(first, 1));
+          await response.flush();
+          if (nth != 0) return;
+          if (length != null || fail) await release.future;
+          if (fail) {
+            await server.close(force: true);
+            return;
+          }
+          if (length != null) {
+            response.add(List<int>.filled(length - first, 1));
+          } else if (second > 0) {
+            await more.future;
+            response.add(List<int>.filled(second, 1));
+          }
+          if (length != null) await response.close();
+        } on HttpException {
+          // The handler cancels the unfinished transfer.
+        }
+      });
+      final api = SubsonicApiClient(
+        baseUrl: 'http://127.0.0.1:${server.port}',
+        authConfig: const SubsonicAuthConfig(
+          username: 'fixture',
+          password: 'synthetic',
+          apiVersion: '1.16.1',
+        ),
+        enableLogging: false,
+      );
+      directory = await Directory.systemTemp.createTemp('navis-buffered-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        count,
+        sidecarStreams: sidecar,
+        cacheSongs: cacheSongs,
+        readApiClient: () => api,
+        streamingQuality: quality,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        if (!release.isCompleted) release.complete();
+        if (!more.isCompleted) more.complete();
+        await database.close();
+        await server.close(force: true);
+        await directory.delete(recursive: true);
+        HttpOverrides.global = previousHttp;
+      });
+      return (handler, player);
+    }
+
+    Future<void> until(bool Function() condition) async {
+      for (var i = 0; i < 400 && !condition(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+    }
+
+    Duration line(NavisAudioHandler handler) =>
+        handler.bufferState.bufferedPosition;
+
+    Duration fraction(NavisAudioHandler handler, double value) => Duration(
+      seconds: (handler.snapshot.duration.inSeconds * value).floor(),
+    );
+
+    Future<void> startSong(NavisAudioHandler handler) async {
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      await settleQueue(handler);
+    }
+
+    test('after a seek the line follows the known-length download', () async {
+      final (handler, player) = await serve();
+      await startSong(handler);
+      player.emitBuffered(const Duration(seconds: 5));
+      await until(() => line(handler) >= fraction(handler, 0.4));
+      expect(handler.snapshot.duration, greaterThan(Duration.zero));
+      expect(line(handler), fraction(handler, 0.4));
+      expect(handler.bufferState.songId, 'song-0');
+      final diagnostics = handler.collectPlaybackDiagnostics();
+      expect(
+        diagnostics['cachedPlayablePositionMs'],
+        line(handler).inMilliseconds,
+      );
+      expect(diagnostics['playerBufferedPositionMs'], 5000);
+    });
+
+    test('a player buffered ahead of the download sets the line', () async {
+      final (handler, player) = await serve();
+      await startSong(handler);
+      await until(
+        () => handler.collectPlaybackDiagnostics()['cacheActivity'] != null,
+      );
+      player.emitBuffered(fraction(handler, 0.9));
+      await pumpEventQueue();
+      expect(line(handler), fraction(handler, 0.9));
+    });
+
+    test('an unknown-length transcode counts bytes at the bitrate', () async {
+      final (handler, player) = await serve(
+        length: null,
+        first: 160000,
+        second: 3000000,
+        quality: const StreamingQuality(
+          label: 'opus',
+          maxBitRate: 128,
+          format: 'opus',
+        ),
+      );
+      await startSong(handler);
+      player.emitBuffered(const Duration(seconds: 2));
+      await until(() => line(handler) >= const Duration(seconds: 10));
+      expect(line(handler), const Duration(seconds: 10));
+      more.complete();
+      await until(() => line(handler) >= handler.snapshot.duration);
+      // 3 MB at 128 kbit/s is longer than the song: clamped to its duration.
+      expect(line(handler), handler.snapshot.duration);
+    });
+
+    test('a file source draws the full duration', () async {
+      final (handler, player) = await serve(sidecar: false, cacheSongs: true);
+      await startSong(handler);
+      expect(handler.queue.value[0].extras!['sourceKind'], 'file');
+      player.emitBuffered(const Duration(seconds: 3));
+      await pumpEventQueue();
+      expect(line(handler), handler.snapshot.duration);
+    });
+
+    test('a completed sidecar download draws the full duration', () async {
+      final (handler, player) = await serve();
+      await startSong(handler);
+      player.emitBuffered(const Duration(seconds: 3));
+      release.complete();
+      await until(() => line(handler) >= handler.snapshot.duration);
+      expect(line(handler), handler.snapshot.duration);
+    });
+
+    test('a completed lock-cache download draws the full duration', () async {
+      final (handler, player) = await serve(sidecar: false);
+      await startSong(handler);
+      final extras = handler.queue.value[0].extras!;
+      expect(extras['sourceKind'], 'lockCachedStream');
+      // ignore: experimental_member_use, reason: drives the lock-cache download the player would.
+      final source = player.audioSources[0] as LockCachingAudioSource;
+      final drained = (await source.request()).stream.drain<void>();
+      await until(() => line(handler) >= fraction(handler, 0.4));
+      expect(line(handler), fraction(handler, 0.4));
+      release.complete();
+      await drained;
+      await until(() => line(handler) >= handler.snapshot.duration);
+      expect(line(handler), handler.snapshot.duration);
+      // The finished song's activity is gone; the line stays full.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      player.emitBuffered(const Duration(seconds: 3));
+      await pumpEventQueue();
+      expect(line(handler), handler.snapshot.duration);
+    });
+
+    test('a failed download does not draw the full duration', () async {
+      final (handler, player) = await serve(fail: true);
+      await startSong(handler);
+      player.emitBuffered(const Duration(seconds: 5));
+      await until(() => line(handler) >= fraction(handler, 0.4));
+      release.complete();
+      await until(
+        () => handler.collectPlaybackDiagnostics()['cacheActivity'] == null,
+      );
+      player.emitBuffered(const Duration(seconds: 6));
+      await pumpEventQueue();
+      expect(line(handler), const Duration(seconds: 6));
+    });
+
+    test('the previous song cache does not reach the next song', () async {
+      final (handler, player) = await serve();
+      await startSong(handler);
+      await until(() => line(handler) >= fraction(handler, 0.4));
+      await handler.skipToNext();
+      await pumpEventQueue();
+      expect(handler.bufferState.songId, 'song-1');
+      expect(line(handler), Duration.zero);
+      player.emitBuffered(const Duration(seconds: 4));
+      await pumpEventQueue();
+      expect(line(handler), const Duration(seconds: 4));
+    });
+
+    test('radio draws no line', () async {
+      final (handler, player) = await serve(cacheSongs: true, sidecar: false);
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example.invalid/live',
+      );
+      player.emitBuffered(const Duration(seconds: 10));
+      await pumpEventQueue();
+      expect(handler.bufferState.songId, isNull);
+      expect(line(handler), Duration.zero);
+    });
   });
 }

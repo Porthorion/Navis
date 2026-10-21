@@ -8,13 +8,16 @@ extension _NavisMediaSession on NavisAudioHandler {
       _pendingRemoteRecovery = null;
     }
     final nextSongId = _radioStation == null ? item?.id : null;
+    _completedCacheSongIds.removeWhere((id) => id != item?.id);
     if (_bufferState.songId != nextSongId) {
+      _playerBufferedPosition = Duration.zero;
       _emitBufferState(
         songId: nextSongId,
         bufferedPosition: Duration.zero,
         force: true,
       );
     }
+    _refreshBufferState(nextSongId);
     mediaItem.add(item);
     if (item != null && _artCache != null) {
       unawaited(_updateArtCacheFile(item));
@@ -164,6 +167,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     final wiredPlayer = _player;
     _queueFinished = false;
     _finishObservedProcessingState = null;
+    _playerBufferedPosition = Duration.zero;
     _emitBufferState(
       songId: _radioStation == null ? _currentMediaItem?.id : null,
       bufferedPosition: Duration.zero,
@@ -423,10 +427,8 @@ extension _NavisMediaSession on NavisAudioHandler {
       final songId = _radioStation == null
           ? _resolveCurrentQueueMetadata().mediaItem?.id
           : null;
-      _emitBufferState(
-        songId: songId,
-        bufferedPosition: songId == null ? Duration.zero : bufferedPosition,
-      );
+      _playerBufferedPosition = bufferedPosition;
+      _refreshBufferState(songId);
     });
 
     // Position monitoring for cross-fade triggering.
@@ -438,6 +440,21 @@ extension _NavisMediaSession on NavisAudioHandler {
         .listen((position) {
           if (identical(_player, wiredPlayer)) _checkCrossfadeTrigger(position);
         });
+  }
+
+  /// Draws the seek bar line for [songId] as the further of the player's
+  /// buffered position and what the rolling cache holds locally.
+  void _refreshBufferState(String? songId) {
+    var buffered = Duration.zero;
+    if (songId != null) {
+      buffered = _playerBufferedPosition;
+      final cached = _cachedPlayablePosition(
+        songId,
+        _effectivePlaybackDuration(_currentMediaItem),
+      );
+      if (cached != null && cached > buffered) buffered = cached;
+    }
+    _emitBufferState(songId: songId, bufferedPosition: buffered);
   }
 
   void _emitBufferState({
