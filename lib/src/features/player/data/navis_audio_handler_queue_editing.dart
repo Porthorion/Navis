@@ -544,59 +544,86 @@ extension _NavisQueueEditing on NavisAudioHandler {
         ).any((i) => i != current && _entryHasOffset(i))) {
       return;
     }
+    // One repair covers every stale entry, including songs left while it
+    // runs (it rescans), so none is enqueued while another is in flight.
+    if (_offsetRepairInFlight) return;
+    _offsetRepairInFlight = true;
     unawaited(
-      _enqueueQueueEdit(_repairOffsetEntriesLocked).catchError((Object error) {
-        // A superseding replacement rebuilds the queue anyway.
-        AppLogger.debug('Offset entry repair skipped: $error');
-      }),
+      _enqueueQueueEdit(_repairOffsetEntriesLocked)
+          .catchError((Object error) {
+            // A superseding replacement rebuilds the queue anyway.
+            AppLogger.debug('Offset entry repair skipped: $error');
+          })
+          .whenComplete(() => _offsetRepairInFlight = false),
     );
   }
 
   Future<void> _repairOffsetEntriesLocked(OperationToken token) async {
-    final stale = <MediaItem>[
-      for (var i = 0; i < _queueItems.length; i++)
-        if (i != _player.currentIndex && _entryHasOffset(i)) _queueItems[i],
-    ];
+    final tried = Set<MediaItem>.identity();
     var edited = false;
-    for (final item in stale) {
-      token.checkCancelled();
-      if (!_sequenceMatchesQueue(_player)) break;
-      final rows = await _rowsForDeferredEntries(<_DeferredQueueEntry>[
-        _deferredEntryForItem(item),
-      ]);
-      final (:prepared, offsets: _) = await _prepareRowsConcurrently(
-        rows,
-        token: token,
-      );
-      token.checkCancelled();
-      // Nothing else edits the queue while this edit holds the lane, but an
-      // earlier one may have moved, removed or reached the entry: find it
-      // again by identity, with no await before the native calls.
-      final at = _queueItems.indexWhere((entry) => identical(entry, item));
-      if (prepared.isEmpty ||
-          at < 0 ||
-          at == _player.currentIndex ||
-          !_sequenceMatchesQueue(_player)) {
-        continue;
+    while (true) {
+      final stale = <MediaItem>[
+        for (var i = 0; i < _queueItems.length; i++)
+          if (i != _player.currentIndex &&
+              _entryHasOffset(i) &&
+              !tried.contains(_queueItems[i]))
+            _queueItems[i],
+      ];
+      if (stale.isEmpty) break;
+      for (final item in stale) {
+        tried.add(item);
+        edited |= await _repairOffsetEntry(item, token);
       }
-      // Insert the fresh source behind the old one, then drop the old one:
-      // the entry is never missing and the current song is never touched.
-      final inserted = await _applyMaterialisedInsert(
-        prepared,
-        at: at + 1,
-        operation: 'repair offset entry',
-      );
-      if (inserted.isEmpty) continue;
-      final removed = _queueItems.removeAt(at);
-      await _timedQueueEdit(
-        'remove queue item',
-        (player) => player.removeAudioSourceAt(at),
-        songId: removed.id,
-        mirror: (deck) => deck.sequence.length > at,
-      );
-      edited = true;
     }
     if (edited) _afterQueueEdit(context: 'offset entry repair');
+  }
+
+  /// Replaces the queue entry [item] with a fresh source; whether it did.
+  Future<bool> _repairOffsetEntry(MediaItem item, OperationToken token) async {
+    token.checkCancelled();
+    if (!_sequenceMatchesQueue(_player)) return false;
+    final rows = await _rowsForDeferredEntries(<_DeferredQueueEntry>[
+      _deferredEntryForItem(item),
+    ]);
+    final (:prepared, offsets: _) = await _prepareRowsConcurrently(
+      rows,
+      token: token,
+    );
+    token.checkCancelled();
+    // Nothing else edits the queue while this edit holds the lane, but an
+    // earlier one may have moved, removed or reached the entry: find it
+    // again by identity, with no await before the native calls.
+    final at = _queueItems.indexWhere((entry) => identical(entry, item));
+    if (prepared.isEmpty ||
+        at < 0 ||
+        at == _player.currentIndex ||
+        !_sequenceMatchesQueue(_player)) {
+      return false;
+    }
+    // Insert the fresh source behind the old one, then drop the old one:
+    // the entry is never missing and the current song is never touched.
+    final inserted = await _applyMaterialisedInsert(
+      prepared,
+      at: at + 1,
+      operation: 'repair offset entry',
+    );
+    if (inserted.isEmpty) return false;
+    // The player may have advanced onto the old entry while the twin was
+    // inserted: keep that source and drop the twin; the discontinuity reopen
+    // restarts it from 0.
+    final becameCurrent = _player.currentIndex == at;
+    final dropAt = becameCurrent ? at + 1 : at;
+    if (becameCurrent) {
+      AppLogger.debug('Offset repair rolled back: ${item.id} became current.');
+    }
+    final removed = _queueItems.removeAt(dropAt);
+    await _timedQueueEdit(
+      'remove queue item',
+      (player) => player.removeAudioSourceAt(dropAt),
+      songId: removed.id,
+      mirror: (deck) => deck.sequence.length > dropAt,
+    );
+    return !becameCurrent;
   }
 
   /// Rewrites queued songs to their canonical ids after an alias update.

@@ -385,6 +385,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void>? _deferredQueueRestoreRetry;
   final NavisSupersedingLane _queueLane = NavisSupersedingLane();
   int _queueEditSequence = 0;
+  bool _offsetRepairInFlight = false;
 
   /// Edits waiting at the back of the queue lane for a load to finish.
   final Set<int> _requeuedQueueEdits = <int>{};
@@ -2858,6 +2859,10 @@ class NavisAudioHandler extends BaseAudioHandler
   @visibleForTesting
   void debugCheckCrossfadeTrigger(Duration position) =>
       _checkCrossfadeTrigger(position);
+
+  /// Queue edits enqueued so far.
+  @visibleForTesting
+  int get debugQueueEditCount => _queueEditSequence;
 
   /// Play time counted towards the current failover chain.
   @visibleForTesting
