@@ -49,7 +49,7 @@ print('build number: repeat, rollback, day boundary, concurrent allocation, Andr
 PY
 mkdir -p "${tmp}/repo/tool/lib" "${tmp}/repo/lib/src/utils" "${tmp}/bin" "${tmp}/store" "${tmp}/home"
 cp "${SCRIPT_DIR}/r2_publish.sh" "${SCRIPT_DIR}/dev_release.sh" "${SCRIPT_DIR}/dev_app.sh" "${SCRIPT_DIR}/dev_build_number.py" "${tmp}/repo/tool/"
-cp "${SCRIPT_DIR}/lib/"{r2_tags,lastfm_key_defines,scan_artifact_secret,github_release}.sh "${tmp}/repo/tool/lib/"
+cp "${SCRIPT_DIR}/lib/"{r2_tags,r2_storage,lastfm_key_defines,scan_artifact_secret,github_release}.sh "${tmp}/repo/tool/lib/"
 # A disposable key and pin, never the repository's real signing key.
 openssl genpkey -algorithm ed25519 -out "${tmp}/test.pem" 2>/dev/null
 pub="$(openssl pkey -in "${tmp}/test.pem" -pubout -outform DER | tail -c 32 | base64)"

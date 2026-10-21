@@ -28,6 +28,7 @@ extension _NavisNavigation on NavisAudioHandler {
       generation == _transportGeneration;
 
   Future<void> _navigateRelative({required bool forward}) {
+    _resetFailoverAccounting();
     final logicalIds = _logicalQueueIds;
     final confirmedIndex = _logicalIndexOf(
       _resolveCurrentQueueMetadata().currentIndex ?? _player.currentIndex,
@@ -359,6 +360,7 @@ extension _NavisNavigation on NavisAudioHandler {
             await _runTimedPlayerOperation(
               generation: generation,
               operation: 'manual navigation reload',
+              extendWhileDownloading: true,
               timeout: coldRemote ? _timeouts.remoteLoad : _playerLoadTimeout,
               action: () => _player.setAudioSources(
                 sources,

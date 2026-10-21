@@ -2,12 +2,13 @@
 # Disposable, capped package installs; never starts Navis or a GUI.
 set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+package_dir="${NAVIS_LINUX_PACKAGE_DIR:-$repo}"
 version="${1:?vX.Y.Z}"; shift
 if (( $# == 0 )); then set -- ubuntu:22.04 debian:12 fedora:latest; fi
 for image in "$@"; do
   echo "==> Install verification: ${image}"
   docker run --rm -i --memory=2g --memory-swap=2g --cpus=2 \
-    --mount "type=bind,src=${repo},dst=/artifacts,readonly" \
+    --mount "type=bind,src=${package_dir},dst=/artifacts,readonly" \
     -e VERSION="${version}" "$image" bash -s <<'CONTAINER'
 set -euo pipefail
 if command -v dpkg >/dev/null; then
@@ -39,14 +40,13 @@ grep -E '^(Exec|Icon)=' /usr/share/applications/navis.desktop
 test -x /usr/bin/navis
 test -f /usr/share/icons/hicolor/512x512/apps/navis.png
 echo 'desktop launcher and 512x512 icon: OK'
-# Check the updater's existing write-access fallback as an ordinary user.
-if command -v su >/dev/null; then
-  su -s /bin/sh nobody -c 'test ! -w /opt/navis'
+# Match the updater's ownership queries as root in every installed image.
+if command -v dpkg-query >/dev/null; then
+  test "$(dpkg-query -S /opt/navis/navis)" = 'navis: /opt/navis/navis'
 else
-  # Minimal Fedora images omit su; root ownership and 0755 give neither
-  # group nor other users permission to write the installed directory.
-  test "$(stat -c '%u:%a' /opt/navis)" = '0:755'
+  owner="$(rpm -qf /opt/navis/navis)"
+  test "${owner}" = "$(rpm -q navis)"
 fi
-echo 'unprivileged /opt/navis write access: denied (manual update fallback)'
+echo 'package owner of /opt/navis/navis: navis'
 CONTAINER
 done

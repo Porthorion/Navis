@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio_media_kit/mediakit_player.dart';
+import 'package:just_audio_media_kit/src/icy_metadata.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:mocktail/mocktail.dart';
@@ -10,9 +11,31 @@ class _Player extends Mock implements Player;
 
 class _Streams extends Mock implements PlayerStream;
 
+class _Properties implements IcyPropertySource {
+  String inputRate = '';
+  int inputReads = 0;
+
+  @override
+  Future<String> read(String property) async {
+    if (property != 'cache-speed') return '';
+    inputReads++;
+    return inputRate;
+  }
+
+  @override
+  Future<void> observe(
+    String property,
+    Future<void> Function(String) listener,
+  ) async {}
+
+  @override
+  Future<void> unobserve(String property) async {}
+}
+
 void main() {
   late _Player player;
   late MediaKitPlayer adapter;
+  late _Properties properties;
   late StreamController<Duration> duration;
   late PlayerState state;
 
@@ -58,7 +81,12 @@ void main() {
     when(player.pause).thenAnswer((_) async {});
     when(() => player.seek(any())).thenAnswer((_) async {});
     when(player.dispose).thenAnswer((_) async {});
-    adapter = MediaKitPlayer('test', player: player);
+    properties = _Properties();
+    adapter = MediaKitPlayer(
+      'test',
+      player: player,
+      icyPropertySource: properties,
+    );
     await adapter.load(
       LoadRequest(
         audioSourceMessage: ConcatenatingAudioSourceMessage(
@@ -86,6 +114,20 @@ void main() {
     await adapter.release();
     await duration.close();
   });
+
+  test(
+    'buffering current-track seek uses native position with no input polling',
+    () async {
+      state = state.copyWith(buffering: true);
+      properties.inputRate = '187496';
+      const target = Duration(seconds: 30);
+      await adapter.seek(SeekRequest(index: null, position: target));
+      verify(() => player.seek(target)).called(1);
+      expect(state.position, Duration.zero);
+      expect(state.buffer, Duration.zero);
+      expect(properties.inputReads, 0);
+    },
+  );
 
   test(
     'jump with zero position issues no native seek, even after ready',
