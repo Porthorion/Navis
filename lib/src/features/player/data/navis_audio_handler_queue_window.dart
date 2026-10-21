@@ -99,7 +99,11 @@ extension _NavisQueueWindow on NavisAudioHandler {
         _pendingLogicalQueueSongIds != null ||
         _isLoading ||
         _isCrossfading ||
-        _crossfadeHandoffInProgress) {
+        _crossfadeHandoffInProgress ||
+        // A quiet stop on a failed song leaves its player without sources;
+        // appending would number the tail from the wrong song. Play reloads
+        // the queue around the current song.
+        _player.audioSources.isEmpty) {
       return false;
     }
     final retryAt = _tailReleaseRetryAt;

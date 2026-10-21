@@ -37,6 +37,11 @@ Last updated: 2026-10-21
   long and the harness seeks to 60 s, so the track ended at 51.2 s (trace
   `dur: 51000`, `pos: 51200`); the FLAC decode errors follow the seek into the
   partial download. No code change for it.
+  Runtime r10 dead-source finding: after the cap stop the current index
+  jumped from 2 to 9 (`nativeIndex index 7 songId 2C3I…` at +81.498). The tail
+  release appended the deferred songs to the stopped, source-less player, so
+  native index 7 mapped to logical 9. `_shouldReleaseTail` now skips an empty
+  player (regression: sources `['song-3', 'song-4', 'song-5']` before).
 
 - [ ] Issue #86, round 9 cold seek recovery — partial: 2026-10-21
   (`fix/seek-settlement`, remaining: coordinator live large-FLAC/Android
