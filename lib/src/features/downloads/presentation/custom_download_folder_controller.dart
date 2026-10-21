@@ -63,6 +63,20 @@ class CustomDownloadFolderController
     return result;
   });
 
+  /// Imports the files the user matched by hand in Manual Matching.
+  Future<PermanentDownloadImportResult> importManual(
+    PermanentDownloadImportPreview preview,
+    Map<String, String> manualSongIds,
+  ) => _serialized(
+    () => ref
+        .read(downloadServiceProvider)
+        .importCustomDownloadFolder(
+          preview,
+          manualSongIds: manualSongIds,
+          includeRecognized: false,
+        ),
+  );
+
   Future<T> _serialized<T>(Future<T> Function() operation) {
     _queued++;
     state = const CustomDownloadFolderState(busy: true);

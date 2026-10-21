@@ -57,9 +57,11 @@ The decoded payload:
 Asset keys are based on the `UpdateInstallMode` names: `androidApk`,
 `androidApk-arm64-v8a`, `androidApk-armeabi-v7a`, `androidApk-x86_64`,
 `windowsInstaller`, `windowsPortable`, `macosBundle`, `linuxDeb-amd64`,
-`linuxDeb-arm64` and `linuxPortable`. `linuxRpm-x86_64` is available for
-download consumers; RPM uses manual package-manager updates, not a new
-`UpdateInstallMode`. See [release-linux.md](release-linux.md). iOS has no
+`linuxDeb-arm64`, `linuxRpm-x86_64` and `linuxPortable`. Starting with 1.5.1,
+`linuxRpm` selects the matching RPM architecture key for in-app installation
+through dnf. A missing package architecture is never replaced with a Debian
+asset. AUR/unknown owners use `linuxPortable` for notes and update through
+their package manager. See [release-linux.md](release-linux.md). iOS has no
 updater, so `.ipa` files are not published. Additional asset keys do not change
 schema 1; clients ignore keys they do not select.
 

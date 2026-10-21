@@ -130,12 +130,69 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Bound desktop seek waits and recover stuck positions automatically; '
+        'keep slow song starts loading while data arrives, including when '
+        'seeking before the first load finishes, and continue to the next song '
+        'if a seek recovery cannot reload the stream. Retry slow cold seeks '
+        'with a fresh source, recover silently, and keep the final stopped '
+        'song available to Play again. Stop quietly instead of skipping '
+        'through the queue when several songs in a row cannot play',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fix Repeat One silently rewinding streamed songs before the end '
+        'on Android and stalling when the queue fills in the background',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Resume transcoded songs at the current position after a network stall '
+        'or disconnect instead of replaying them or skipping to the next song',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fix in-app Linux updates for Debian and Fedora packages with a system '
+        'authentication prompt; AUR and other package-managed installs show '
+        'package-manager instructions. Automatic installation works from the '
+        'first update after 1.5.1; 1.5.0 users update to 1.5.1 manually or '
+        'through their package manager.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Reuse the verified update download after cancelling installation or '
+        'reopening the update dialog, checking the file again before retrying',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fix transcoded songs replaying after the stream finishes on Android',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Add an optional Random Albums section to Home (Settings › Appearance)',
         type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Seeking in a transcoded song now jumps straight to the new position '
+        'on servers that support it, instead of waiting for the download',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Show a clear message when relinking an unavailable song fails, '
+        'instead of saying the selection is out of date',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Clearing a cache, importing manually matched downloads and matching '
+        'a weekly playlist now say what they are doing while they run',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Report a failed "Check now" in About instead of staying silent',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The seek bar now shows how much of a song is already downloaded, '
+        'instead of stopping short after a seek',
+        type: ChangelogEntryType.fix,
       ),
     ],
   ),
@@ -240,7 +297,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Playlists that live only on this device can be created and edited offline, show a 2x2 mosaic of their songs\' covers, and work in the queue, downloads and Android Auto',
+        "Playlists that live only on this device can be created and edited offline, show a 2x2 mosaic of their songs' covers, and work in the queue, downloads and Android Auto",
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

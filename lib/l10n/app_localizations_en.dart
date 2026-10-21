@@ -3170,6 +3170,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cacheSettingsClearSuccess => 'Cache cleared.';
 
   @override
+  String get cacheSettingsClearing => 'Clearing cache…';
+
+  @override
+  String get downloadsRemoving => 'Removing downloads…';
+
+  @override
   String get cacheSettingsBudgetSaved => 'Cache budget updated.';
 
   @override
@@ -3394,6 +3400,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get downloadsCustomFolderUpdating => 'Moving downloaded tracks...';
+
+  @override
+  String get downloadsImporting => 'Importing downloads…';
 
   @override
   String get downloadsScanError => 'Could not scan the downloads folder.';
@@ -4330,6 +4339,13 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get updateCheckFailed =>
+      'Couldn\'t check for updates. Check your connection and try again.';
+
+  @override
+  String get updateCheckFailedSub => 'Update check failed. Tap to try again.';
+
+  @override
   String get updateAvailableTitle => 'Update Available';
 
   @override
@@ -4403,6 +4419,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get updateNoWriteAccess =>
       'Navis cannot update itself from this location. Please download manually.';
+
+  @override
+  String get updateUsePackageManager =>
+      'Navis was installed by your system\'s package manager. Update it from there, for example with your software updater or AUR helper.';
 
   @override
   String get updateSignatureMismatch =>
@@ -4936,6 +4956,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get unavailableReviewStaleSelection =>
       'This selection is no longer current. Nothing was changed; the list was refreshed.';
+
+  @override
+  String get unavailableReviewRelinkFailed =>
+      'Couldn’t relink this item. Try again.';
 
   @override
   String get unavailableReviewAlreadyResolved =>

@@ -114,6 +114,7 @@ void main() {
     String? signingKey,
     UpdateInstallMode mode = UpdateInstallMode.linuxPortable,
     String arch = 'amd64',
+    String rpmArch = 'x86_64',
   }) => UpdateRepository(
     dio: dio,
     source: source,
@@ -124,6 +125,7 @@ void main() {
     installSourceService: _FakeInstallSourceService(installer, primaryAbi),
     installModeDetector: () => mode,
     linuxDebArch: () => arch,
+    linuxRpmArch: () => rpmArch,
   );
 
   setUp(() async {
@@ -870,6 +872,46 @@ void main() {
       expect(repo.lastCheck!.rejectReason, reason);
     });
   }
+
+  test('RPM selects the matching raw uname architecture asset', () async {
+    (payload['assets']! as Map)['linuxRpm-x86_64'] = {
+      'url': _assetUrl,
+      'sha256': _hash,
+      'size': 123,
+    };
+    envelope = await sign(payload);
+    final repo = repository(mode: UpdateInstallMode.linuxRpm);
+    expect(await repo.checkForUpdate(), isNotNull);
+    expect(repo.lastCheck!.assetKey, 'linuxRpm-x86_64');
+  });
+
+  test('RPM never falls back to deb or another architecture', () async {
+    (payload['assets']! as Map)['linuxRpm-x86_64'] = {
+      'url': _assetUrl,
+      'sha256': _hash,
+      'size': 123,
+    };
+    envelope = await sign(payload);
+    final repo = repository(
+      mode: UpdateInstallMode.linuxRpm,
+      rpmArch: 'aarch64',
+    );
+    expect(await repo.checkForUpdate(), isNull);
+    expect(repo.lastCheck!.assetKey, 'linuxRpm-aarch64');
+    expect(repo.lastCheck!.rejectReason, 'missing_asset');
+  });
+
+  test(
+    'unknown package owner retains an offer through the portable asset',
+    () async {
+      final repo = repository(mode: UpdateInstallMode.linuxPackageManaged);
+      final result = await repo.checkForUpdate();
+      expect(result, isNotNull);
+      expect(result!.tagName, 'v1.5.1');
+      expect(result.releaseNotes, '**Release notes**');
+      expect(repo.lastCheck!.assetKey, 'linuxPortable');
+    },
+  );
 
   test('Deb selection never falls back from arm64 to amd64', () async {
     final repo = repository(mode: UpdateInstallMode.linuxDeb, arch: 'arm64');

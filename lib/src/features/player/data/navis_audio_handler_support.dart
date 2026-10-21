@@ -93,14 +93,17 @@ class NavisPlaybackTimeouts {
     this.reset = const Duration(seconds: 4),
     this.control = const Duration(seconds: 4),
     this.seekProgress = const Duration(seconds: 45),
+    this.desktopSeekSettle = const Duration(seconds: 25),
+    this.progressIdle = const Duration(seconds: 8),
     this.remoteLoad = const Duration(seconds: 45),
     this.focusRetry = const Duration(minutes: 2),
     this.radioRecovery = const Duration(minutes: 10),
     this.radioHealthyPlay = const Duration(minutes: 1),
+    this.healthyPlayback = const Duration(seconds: 5),
   });
 
-  /// A native load or queue mutation that takes longer is abandoned and the
-  /// players are rebuilt.
+  /// Initial deadline for a native load, or fixed deadline for queue edits.
+  /// A song load may extend while bytes or its native buffer advance.
   final Duration load;
 
   /// A remote stream that stops making progress for this long is recovered.
@@ -113,10 +116,15 @@ class NavisPlaybackTimeouts {
   /// A single transport control call.
   final Duration control;
 
-  /// How long a seek may keep waiting past [load] while the song's cache
-  /// download is still receiving bytes: on a slow link a far seek in a large
-  /// file legitimately takes longer, and reloading would start it over.
+  /// Hard cap for a mobile seek or native song load receiving data.
   final Duration seekProgress;
+
+  /// Fixed settlement budget for each desktop seek probe, including recovery.
+  final Duration desktopSeekSettle;
+
+  // Eight seconds tolerates slow range/index probes; the 45 s seekProgress
+  // cap prevents a trickling download from holding a load or seek forever.
+  final Duration progressIdle;
 
   /// Loading a remote (external) song that is not cached. The server fetches
   /// the whole file before it answers, which routinely takes longer than
@@ -133,6 +141,10 @@ class NavisPlaybackTimeouts {
   /// How long a reconnected station must play before its next failure starts
   /// a fresh [radioRecovery] budget.
   final Duration radioHealthyPlay;
+
+  /// How long a song must really advance before earlier automatic failovers
+  /// stop counting towards the consecutive cap.
+  final Duration healthyPlayback;
 }
 
 /// A request belongs to the selected queue occurrence, independent of whether
@@ -143,17 +155,72 @@ class _PendingSeek {
     required this.songId,
     required this.queueIndex,
     required this.position,
+    this.isRemoteRecovery = false,
   });
 
   final int generation;
   final String songId;
   int? queueIndex;
   final Duration position;
+
+  /// Automatic recovery permits Play to rearm a failed source while it waits.
+  final bool isRemoteRecovery;
   String stage = 'waiting for source';
   String? outcome;
   int recoveryAttempts = 0;
 
+  /// Set when the seek was served by reopening the transcode at an offset.
+  String? path;
+
   /// Why each settlement probe that did not confirm the seek gave up, for
   /// diagnostics: the rule that ended it and the state it saw.
   final List<Map<String, Object?>> unsettled = <Map<String, Object?>>[];
+}
+
+/// Shares the bounded extension policy between native loads and seek probes.
+class _PlaybackProgressDeadline {
+  new({
+    required this.initial,
+    required this.idle,
+    required this.hardCap,
+    required int? bytes,
+    required this._buffer,
+  }) : _bytes = bytes ?? 0;
+
+  bool _waitingForInput = false;
+
+  final Duration initial;
+  final Duration idle;
+  final Duration hardCap;
+  int _bytes;
+  Duration _buffer;
+  Duration? _progressAt;
+
+  void observe(
+    Duration now, {
+    required int? bytes,
+    required Duration buffer,
+    required ProcessingState processing,
+  }) {
+    _waitingForInput =
+        processing == ProcessingState.loading ||
+        processing == ProcessingState.buffering;
+    if (!_waitingForInput) {
+      // Ready playback must advance; input cannot hide a frozen decoder.
+      _bytes = bytes ?? 0;
+      _buffer = buffer;
+      return;
+    }
+    if ((bytes ?? 0) > _bytes || buffer > _buffer) {
+      _progressAt = now;
+    }
+    _bytes = bytes ?? 0;
+    _buffer = buffer;
+  }
+
+  bool progressing(Duration now) =>
+      _waitingForInput && _progressAt != null && now - _progressAt! < idle;
+
+  bool expired(Duration now) =>
+      now >= hardCap || (now >= initial && !progressing(now));
 }

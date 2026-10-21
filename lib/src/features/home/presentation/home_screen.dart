@@ -584,7 +584,9 @@ class _ListenBrainzWeeklyDetailContentState
             onPressed: serverSongs.isEmpty ? null : _downloadVirtualAlbum,
           ),
           IconButton(
-            tooltip: l10n.weeklyPlaylistMatchAction,
+            tooltip: _playlistIsMatching
+                ? l10n.weeklyPlaylistMatching
+                : l10n.weeklyPlaylistMatchAction,
             icon: _playlistIsMatching
                 ? const SizedBox.square(
                     dimension: 18,
@@ -631,7 +633,11 @@ class _ListenBrainzWeeklyDetailContentState
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Icon(Icons.sync_rounded),
-          label: Text(l10n.weeklyPlaylistMatchAction),
+          label: Text(
+            _playlistIsMatching
+                ? l10n.weeklyPlaylistMatching
+                : l10n.weeklyPlaylistMatchAction,
+          ),
         ),
       ],
     );

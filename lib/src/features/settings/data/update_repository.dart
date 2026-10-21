@@ -64,13 +64,15 @@ class UpdateRepository {
     bool? isAndroid,
     UpdateInstallMode Function()? installModeDetector,
     String Function()? linuxDebArch,
+    String Function()? linuxRpmArch,
   }) : _dio = dio ?? Dio(),
        _installSourceService = installSourceService ?? InstallSourceService(),
        _updateCheckStore = updateCheckStore ?? UpdateCheckStore(),
        _isIOS = isIOS ?? Platform.isIOS,
        _isAndroid = isAndroid ?? Platform.isAndroid,
        _installModeDetector = installModeDetector ?? detectInstallMode,
-       _debArch = linuxDebArch ?? _linuxDebArch;
+       _debArch = linuxDebArch ?? _linuxDebArch,
+       _rpmArch = linuxRpmArch ?? _linuxRpmArch;
 
   final Dio _dio;
   final UpdateSource source;
@@ -81,6 +83,7 @@ class UpdateRepository {
   final bool _isAndroid;
   final UpdateInstallMode Function() _installModeDetector;
   final String Function() _debArch;
+  final String Function() _rpmArch;
   UpdateCheckRecord? _lastCheck;
 
   UpdateCheckRecord? get lastCheck => _lastCheck;
@@ -269,9 +272,12 @@ class UpdateRepository {
           ? await _installSourceService.getInstallSource()
           : null;
       final mode = _installModeDetector();
-      assetKey = mode == UpdateInstallMode.linuxDeb
-          ? 'linuxDeb-${_debArch()}'
-          : mode.name;
+      assetKey = switch (mode) {
+        UpdateInstallMode.linuxDeb => 'linuxDeb-${_debArch()}',
+        UpdateInstallMode.linuxRpm => 'linuxRpm-${_rpmArch()}',
+        UpdateInstallMode.linuxPackageManaged => 'linuxPortable',
+        _ => mode.name,
+      };
       final assets = payload['assets'];
       if (mode == UpdateInstallMode.androidApk && assets is Map) {
         final abi = installSource?.primaryAbi;
@@ -357,5 +363,14 @@ String _linuxDebArch() {
       return machine;
     }
   } on Object catch (_) {}
+  return 'unknown';
+}
+
+/// Returns the raw RPM architecture reported by uname.
+String _linuxRpmArch() {
+  try {
+    final result = Process.runSync('uname', ['-m']);
+    if (result.exitCode == 0) return (result.stdout as String).trim();
+  } on ProcessException catch (_) {}
   return 'unknown';
 }

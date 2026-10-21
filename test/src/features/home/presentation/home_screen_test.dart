@@ -126,6 +126,11 @@ class _PendingRefreshLibrarySyncController extends LibrarySyncController {
   }
 }
 
+class _MatchingRematchController extends ListenBrainzPlaylistRematchController {
+  @override
+  Set<String> build() => const <String>{'weekly-jams'};
+}
+
 class _AutoAdvancePreference extends Notifier<bool> {
   @override
   bool build() => true;
@@ -760,12 +765,14 @@ Future<void> _pumpWeeklyDetail(
   String sourcePatch = 'weekly-jams',
   NavisDatabase? database,
   ThemeData? theme,
+  List<Override> overrides = const <Override>[],
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       key: ValueKey<Stream<List<ListenBrainzDiscoverPlaylist>>>(playlists),
       overrides: database == null
           ? <Override>[
+              ...overrides,
               listenBrainzDiscoverStreamProvider.overrideWith(
                 (ref) => playlists,
               ),
@@ -1075,6 +1082,46 @@ void main() {
     expect(statusTooltip('Not available on your server'), findsOneWidget);
     expect(find.byTooltip('Matching'), findsOneWidget);
     expect(find.byTooltip('Search'), findsNWidgets(2));
+  });
+
+  testWidgets('weekly detail labels the Match action while a rematch runs', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 900));
+    const playlist = ListenBrainzDiscoverPlaylist(
+      playlist: ListenBrainzPlaylist(
+        identifier: 'jams',
+        title: 'Weekly Jams for alice',
+        sourcePatch: 'weekly-jams',
+        tracks: <ListenBrainzPlaylistTrack>[
+          ListenBrainzPlaylistTrack(title: 'Unavailable track'),
+        ],
+      ),
+      recommendations: <ListenBrainzResolvedRecommendation>[
+        ListenBrainzResolvedRecommendation(
+          track: ListenBrainzPlaylistTrack(title: 'Unavailable track'),
+          status: ListenBrainzRecommendationMatchStatus.unmatched,
+        ),
+      ],
+    );
+
+    await _pumpWeeklyDetail(
+      tester,
+      playlists: Stream<List<ListenBrainzDiscoverPlaylist>>.value(
+        const <ListenBrainzDiscoverPlaylist>[playlist],
+      ),
+      overrides: <Override>[
+        listenBrainzPlaylistRematchControllerProvider.overrideWith(
+          _MatchingRematchController.new,
+        ),
+      ],
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    final matching = find.text('Matching');
+    expect(matching, findsOneWidget);
+    expect(find.text('Match'), findsNothing);
   });
 
   group('update tile', () {

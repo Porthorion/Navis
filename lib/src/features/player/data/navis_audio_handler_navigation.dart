@@ -28,6 +28,7 @@ extension _NavisNavigation on NavisAudioHandler {
       generation == _transportGeneration;
 
   Future<void> _navigateRelative({required bool forward}) {
+    _resetFailoverAccounting();
     final logicalIds = _logicalQueueIds;
     final confirmedIndex = _logicalIndexOf(
       _resolveCurrentQueueMetadata().currentIndex ?? _player.currentIndex,
@@ -92,6 +93,14 @@ extension _NavisNavigation on NavisAudioHandler {
     required bool shouldPlay,
     required String context,
   }) {
+    // Landing on the song that plays as an offset stream would restart it at
+    // its offset, the middle of the song: reload it from the start instead.
+    if (decision.index == _logicalCurrentIndex &&
+        _positionOffsetOf(_currentMediaItem) > Duration.zero) {
+      _navigationIntent.confirm(decision.revision);
+      _supersedeTransportIntent(shouldPlay: shouldPlay);
+      return seek(Duration.zero);
+    }
     final restorePosition =
         decision.outcome != PlaybackNavigationOutcome.restart &&
             _restoredQueueIndex == decision.index
@@ -351,6 +360,7 @@ extension _NavisNavigation on NavisAudioHandler {
             await _runTimedPlayerOperation(
               generation: generation,
               operation: 'manual navigation reload',
+              extendWhileDownloading: true,
               timeout: coldRemote ? _timeouts.remoteLoad : _playerLoadTimeout,
               action: () => _player.setAudioSources(
                 sources,

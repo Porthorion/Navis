@@ -612,7 +612,7 @@ class _ReviewCard extends ConsumerWidget {
       if (context.mounted) {
         showAppNotice(
           context,
-          message: l10n.unavailableReviewStaleSelection,
+          message: l10n.unavailableReviewRelinkFailed,
           level: AppNoticeLevel.error,
         );
       }

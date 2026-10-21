@@ -183,15 +183,21 @@ class AudioPlayer {
         // If the item is the same, try to determine whether we have looped
         // back.
         if (loopMode == LoopMode.off) return;
-        final prevPos = _getPositionFor(prevEvent);
-        final currPos = _getPositionFor(currEvent);
+        // Navis: an offset stream loops back to its own start, so judge it in
+        // platform time (without the offset).
+        final offset = currSource is UriAudioSource
+            ? currSource.positionOffset
+            : Duration.zero;
+        final prevPos = _getPositionFor(prevEvent) - offset;
+        final currPos = _getPositionFor(currEvent) - offset;
         // if (loopMode != LoopMode.one) return;
         if (currPos >= prevPos) return;
         if (currPos >= const Duration(milliseconds: 300)) return;
-        final duration = this.duration;
+        var duration = this.duration;
+        if (duration != null && offset > Duration.zero) duration -= offset;
         if (duration != null && prevPos < duration * 0.6) return;
         if (duration == null &&
-            currPos - prevPos < const Duration(seconds: 1)) {
+            prevPos - currPos < const Duration(seconds: 1)) {
           return;
         }
         _positionDiscontinuitySubject.add(PositionDiscontinuity(
@@ -371,6 +377,13 @@ class AudioPlayer {
   bool _disposed = false;
   _PluginLoadRequest? _pluginLoadRequest;
   final AudioPipeline _audioPipeline;
+
+  /// Navis: playlist edits whose platform call has not completed. While one
+  /// is in flight an event with the previous event's index still describes
+  /// the previous event's item, not whatever now sits at that index.
+  int _sequenceEditsInFlight = 0;
+  IndexedAudioSource? _lastEventSource;
+  int? _lastEventIndex;
 
   Future<Duration?>? _loadFuture;
   final _shuffleIndicesInv = <int>[];
@@ -672,6 +685,16 @@ class AudioPlayer {
 
   /// The current position of the player.
   Duration get position => _getPositionFor(playbackEvent);
+
+  /// The [UriAudioSource.positionOffset] of the item at [index], or zero.
+  Duration _positionOffsetAt(int? index) {
+    final sequence = this.sequence;
+    if (index == null || index < 0 || index >= sequence.length) {
+      return Duration.zero;
+    }
+    final source = sequence[index];
+    return source is UriAudioSource ? source.positionOffset : Duration.zero;
+  }
 
   Duration _getPositionFor(PlaybackEvent playbackEvent) {
     if (playing && processingState == ProcessingState.ready) {
@@ -1011,13 +1034,19 @@ class AudioPlayer {
       source._shuffle(initialIndex: initialSeekValues?.index ?? 0);
       await _broadcastSequence();
       checkInterruption();
+      _lastEventSource = null;
+      _lastEventIndex = null;
+      final loadOffset = _positionOffsetAt(initialSeekValues?.index ?? 0);
       _loadFuture = platform
           .load(LoadRequest(
             audioSourceMessage: source._toMessage(),
-            initialPosition: initialSeekValues?.position,
+            initialPosition:
+                _toPlatformPosition(initialSeekValues?.position, loadOffset),
             initialIndex: initialSeekValues?.index,
           ))
-          .then((response) => response.duration);
+          .then((response) => response.duration == null
+              ? null
+              : response.duration! + loadOffset);
       final duration = await _loadFuture;
       checkInterruption();
       if (platform != _platformValue) {
@@ -1376,8 +1405,10 @@ class AudioPlayer {
               PositionDiscontinuityReason.seek,
               prevPlaybackEvent,
               playbackEvent));
-          await (await _platform)
-              .seek(SeekRequest(position: position, index: index));
+          await (await _platform).seek(SeekRequest(
+              position: _toPlatformPosition(
+                  position, _positionOffsetAt(index ?? currentIndex)),
+              index: index));
           if (playing && !_active) {
             _setPlatformActive(true)?.catchError((dynamic e) async => null);
           }
@@ -1385,6 +1416,13 @@ class AudioPlayer {
           _seeking = false;
         }
     }
+  }
+
+  /// Song time to the time of an offset stream; never before its own start.
+  static Duration? _toPlatformPosition(Duration? position, Duration offset) {
+    if (position == null || offset == Duration.zero) return position;
+    final result = position - offset;
+    return result.isNegative ? Duration.zero : result;
   }
 
   /// Seeks to the next item, or does nothing if there is no next item.
@@ -1605,11 +1643,28 @@ class AudioPlayer {
           platform.playbackEventMessageStream.listen((message) {
         var duration = message.duration;
         final index = message.currentIndex ?? currentIndex;
-        if (index != null && index < sequence.length) {
+        final IndexedAudioSource? source;
+        if (_sequenceEditsInFlight > 0 &&
+            index != null &&
+            index == _lastEventIndex &&
+            _lastEventSource != null) {
+          source = _lastEventSource;
+        } else {
+          source = index != null && index >= 0 && index < sequence.length
+              ? sequence[index]
+              : null;
+        }
+        _lastEventSource = source;
+        _lastEventIndex = index;
+        final positionOffset =
+            source is UriAudioSource ? source.positionOffset : Duration.zero;
+        if (source != null) {
           if (duration == null) {
-            duration = sequence[index].duration;
+            duration = source.duration;
           } else {
-            sequence[index].duration = duration;
+            // Stored in song time, like every position the app sees.
+            duration += positionOffset;
+            source.duration = duration;
           }
         }
         if (_platformLoading &&
@@ -1623,8 +1678,8 @@ class AudioPlayer {
               ? ProcessingState.loading
               : ProcessingState.values[message.processingState.index],
           updateTime: message.updateTime,
-          updatePosition: message.updatePosition,
-          bufferedPosition: message.bufferedPosition,
+          updatePosition: message.updatePosition + positionOffset,
+          bufferedPosition: message.bufferedPosition + positionOffset,
           duration: duration,
           icyMetadata: message.icyMetadata == null
               ? null
@@ -2468,12 +2523,18 @@ class ProgressiveAudioSourceOptions {
   const ProgressiveAudioSourceOptions({
     this.androidExtractorOptions,
     this.darwinAssetOptions,
+    this.androidUseDefaultLoadErrorHandling = false,
   });
+
+  /// Keeps Media3's native load retries, including live-stream restarts.
+  final bool androidUseDefaultLoadErrorHandling;
+
   final AndroidExtractorOptions? androidExtractorOptions;
   final DarwinAssetOptions? darwinAssetOptions;
 
   ProgressiveAudioSourceOptionsMessage _toMessage() =>
       ProgressiveAudioSourceOptionsMessage(
+        androidUseDefaultLoadErrorHandling: androidUseDefaultLoadErrorHandling,
         androidExtractorOptions: androidExtractorOptions?._toMessage(),
         darwinAssetOptions: darwinAssetOptions?._toMessage(),
       );
@@ -2672,8 +2733,18 @@ abstract class AudioSource {
   /// provided by that package. If you wish to have more control over the tag
   /// for background audio purposes, consider using the plugin audio_service
   /// instead of just_audio_background.
+  ///
+  /// Navis: [positionOffset] marks a stream that starts [positionOffset] into
+  /// the song (a server transcode opened with `timeOffset`). The platform
+  /// reports time from zero; [AudioPlayer] adds the offset to everything it
+  /// reads from the platform and subtracts it from everything it sends, so
+  /// callers only ever see song time. [options] applies to progressive sources;
+  /// DASH and HLS keep their own loading policies.
   static UriAudioSource uri(Uri uri,
-      {Map<String, String>? headers, dynamic tag}) {
+      {Map<String, String>? headers,
+      dynamic tag,
+      Duration positionOffset = Duration.zero,
+      ProgressiveAudioSourceOptions? options}) {
     bool hasExtension(Uri uri, String extension) =>
         uri.path.toLowerCase().endsWith('.$extension') ||
         uri.fragment.toLowerCase().endsWith('.$extension');
@@ -2682,7 +2753,11 @@ abstract class AudioSource {
     } else if (hasExtension(uri, 'm3u8')) {
       return HlsAudioSource(uri, headers: headers, tag: tag);
     } else {
-      return ProgressiveAudioSource(uri, headers: headers, tag: tag);
+      return ProgressiveAudioSource(uri,
+          headers: headers,
+          tag: tag,
+          positionOffset: positionOffset,
+          options: options);
     }
   }
 
@@ -2767,10 +2842,17 @@ abstract class IndexedAudioSource extends AudioSource {
 
 /// An abstract class representing audio sources that are loaded from a URI.
 abstract class UriAudioSource extends IndexedAudioSource {
-  UriAudioSource(this.uri, {this.headers, dynamic tag, Duration? duration})
+  UriAudioSource(this.uri,
+      {this.headers,
+      dynamic tag,
+      Duration? duration,
+      this.positionOffset = Duration.zero})
       : super(tag: tag, duration: duration);
   final Uri uri;
   final Map<String, String>? headers;
+
+  /// How far into the song this stream starts; see [AudioSource.uri].
+  final Duration positionOffset;
   Uri? _overrideUri;
 
   /// If [uri] points to an asset, this gives us [_overrideUri] which is the URI
@@ -2868,6 +2950,7 @@ class ProgressiveAudioSource extends UriAudioSource {
     super.headers,
     super.tag,
     super.duration,
+    super.positionOffset,
     this.options,
   });
   final ProgressiveAudioSourceOptions? options;
@@ -3037,17 +3120,24 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.insert(index, 1);
       final player = _player;
       if (player != null) {
-        audioSource._onAttach(player);
-        await player._broadcastSequence();
-        if (player._active) {
-          await audioSource._onLoad();
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          audioSource._onAttach(player);
+          await player._broadcastSequence();
+          if (player._active) {
+            await audioSource._onLoad();
+          }
+          await (await player._platform).concatenatingInsertAll(
+              ConcatenatingInsertAllRequest(
+                  id: _id,
+                  index: index,
+                  children: [audioSource._toMessage()],
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
         }
-        await (await player._platform).concatenatingInsertAll(
-            ConcatenatingInsertAllRequest(
-                id: _id,
-                index: index,
-                children: [audioSource._toMessage()],
-                shuffleOrder: List.of(_shuffleOrder.indices)));
       }
     });
   }
@@ -3059,17 +3149,24 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.insert(index, 1);
       final player = _player;
       if (player != null) {
-        audioSource._onAttach(player);
-        await player._broadcastSequence();
-        if (player._active) {
-          await audioSource._onLoad();
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          audioSource._onAttach(player);
+          await player._broadcastSequence();
+          if (player._active) {
+            await audioSource._onLoad();
+          }
+          await (await player._platform).concatenatingInsertAll(
+              ConcatenatingInsertAllRequest(
+                  id: _id,
+                  index: index,
+                  children: [audioSource._toMessage()],
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
         }
-        await (await player._platform).concatenatingInsertAll(
-            ConcatenatingInsertAllRequest(
-                id: _id,
-                index: index,
-                children: [audioSource._toMessage()],
-                shuffleOrder: List.of(_shuffleOrder.indices)));
       }
     });
   }
@@ -3082,21 +3179,29 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.insert(index, children.length);
       final player = _player;
       if (player != null) {
-        for (var child in children) {
-          child._onAttach(player);
-        }
-        await player._broadcastSequence();
-        if (player._active) {
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
           for (var child in children) {
-            await child._onLoad();
+            child._onAttach(player);
           }
+          await player._broadcastSequence();
+          if (player._active) {
+            for (var child in children) {
+              await child._onLoad();
+            }
+          }
+          await (await player._platform).concatenatingInsertAll(
+              ConcatenatingInsertAllRequest(
+                  id: _id,
+                  index: index,
+                  children:
+                      children.map((child) => child._toMessage()).toList(),
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
         }
-        await (await player._platform).concatenatingInsertAll(
-            ConcatenatingInsertAllRequest(
-                id: _id,
-                index: index,
-                children: children.map((child) => child._toMessage()).toList(),
-                shuffleOrder: List.of(_shuffleOrder.indices)));
       }
     });
   }
@@ -3108,21 +3213,29 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.insert(index, children.length);
       final player = _player;
       if (player != null) {
-        for (var child in children) {
-          child._onAttach(player);
-        }
-        await player._broadcastSequence();
-        if (player._active) {
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
           for (var child in children) {
-            await child._onLoad();
+            child._onAttach(player);
           }
+          await player._broadcastSequence();
+          if (player._active) {
+            for (var child in children) {
+              await child._onLoad();
+            }
+          }
+          await (await player._platform).concatenatingInsertAll(
+              ConcatenatingInsertAllRequest(
+                  id: _id,
+                  index: index,
+                  children:
+                      children.map((child) => child._toMessage()).toList(),
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
         }
-        await (await player._platform).concatenatingInsertAll(
-            ConcatenatingInsertAllRequest(
-                id: _id,
-                index: index,
-                children: children.map((child) => child._toMessage()).toList(),
-                shuffleOrder: List.of(_shuffleOrder.indices)));
       }
     });
   }
@@ -3135,13 +3248,20 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.removeRange(index, index + 1);
       final player = _player;
       if (player != null) {
-        await player._broadcastSequence();
-        await (await player._platform).concatenatingRemoveRange(
-            ConcatenatingRemoveRangeRequest(
-                id: _id,
-                startIndex: index,
-                endIndex: index + 1,
-                shuffleOrder: List.of(_shuffleOrder.indices)));
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          await player._broadcastSequence();
+          await (await player._platform).concatenatingRemoveRange(
+              ConcatenatingRemoveRangeRequest(
+                  id: _id,
+                  startIndex: index,
+                  endIndex: index + 1,
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
+        }
       }
     });
   }
@@ -3154,13 +3274,20 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.removeRange(start, end);
       final player = _player;
       if (player != null) {
-        await player._broadcastSequence();
-        await (await player._platform).concatenatingRemoveRange(
-            ConcatenatingRemoveRangeRequest(
-                id: _id,
-                startIndex: start,
-                endIndex: end,
-                shuffleOrder: List.of(_shuffleOrder.indices)));
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          await player._broadcastSequence();
+          await (await player._platform).concatenatingRemoveRange(
+              ConcatenatingRemoveRangeRequest(
+                  id: _id,
+                  startIndex: start,
+                  endIndex: end,
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
+        }
       }
     });
   }
@@ -3173,13 +3300,20 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.insert(newIndex, 1);
       final player = _player;
       if (player != null) {
-        await player._broadcastSequence();
-        await (await player._platform).concatenatingMove(
-            ConcatenatingMoveRequest(
-                id: _id,
-                currentIndex: currentIndex,
-                newIndex: newIndex,
-                shuffleOrder: List.of(_shuffleOrder.indices)));
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          await player._broadcastSequence();
+          await (await player._platform).concatenatingMove(
+              ConcatenatingMoveRequest(
+                  id: _id,
+                  currentIndex: currentIndex,
+                  newIndex: newIndex,
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
+        }
       }
     });
   }
@@ -3192,13 +3326,20 @@ class ConcatenatingAudioSource extends AudioSource {
       _shuffleOrder.clear();
       final player = _player;
       if (player != null) {
-        await player._broadcastSequence();
-        await (await player._platform).concatenatingRemoveRange(
-            ConcatenatingRemoveRangeRequest(
-                id: _id,
-                startIndex: 0,
-                endIndex: end,
-                shuffleOrder: List.of(_shuffleOrder.indices)));
+        // Navis: until the platform has applied the edit its events still
+        // carry the old indices.
+        player._sequenceEditsInFlight++;
+        try {
+          await player._broadcastSequence();
+          await (await player._platform).concatenatingRemoveRange(
+              ConcatenatingRemoveRangeRequest(
+                  id: _id,
+                  startIndex: 0,
+                  endIndex: end,
+                  shuffleOrder: List.of(_shuffleOrder.indices)));
+        } finally {
+          player._sequenceEditsInFlight--;
+        }
       }
     });
   }
@@ -3458,7 +3599,14 @@ class LockCachingAudioSource extends StreamAudioSource {
 
   /// Emits the current download progress as a double value from 0.0 (nothing
   /// downloaded) to 1.0 (download complete).
+  ///
+  /// Navis: values may repeat when bytes arrive without a whole-percent change.
   Stream<double> get downloadProgressStream => _downloadProgressSubject.stream;
+
+  /// Navis: the bytes received by the current lock-cache download.
+  ///
+  /// Includes unknown-length bodies. Read on [downloadProgressStream] events.
+  int get downloadedBytes => _progress;
 
   /// Navis: whether the origin answered the download with byte-range support,
   /// or null before its response arrives. Without it, this source serves every
@@ -3585,12 +3733,10 @@ class LockCachingAudioSource extends StreamAudioSource {
     await mimeFile.writeAsString(mimeType);
     final inProgressResponses = <_InProgressCacheResponse>[];
     late StreamSubscription<List<int>> subscription;
-    var percentProgress = 0;
-    void updateProgress(int newPercentProgress) {
-      if (newPercentProgress != percentProgress) {
-        percentProgress = newPercentProgress;
-        _downloadProgressSubject.add(percentProgress / 100);
-      }
+    void updateProgress(int percentProgress) {
+      // Navis: emit on every body chunk, including sub-percent growth and
+      // unknown-length downloads, so playback deadlines need no file polling.
+      _downloadProgressSubject.add(percentProgress / 100);
     }
 
     _progress = 0;
@@ -3937,17 +4083,15 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
       request.response.statusCode = 200;
     }
 
-    final completer = Completer<void>();
-    final subscription = stream.listen(request.response.add,
-        onError: (e, st) {}, onDone: completer.complete);
-
-    request.response.done.then((dynamic value) {
-      subscription.cancel();
-    });
-
-    await completer.future;
-
-    await request.response.close();
+    request.response.bufferOutput = false;
+    request.response.done.ignore();
+    try {
+      await request.response.addStream(stream);
+      await request.response.close();
+    } catch (_) {
+      // Navis: a terminating chunk would turn a failed download into song EOF.
+      request.response.deadline = Duration.zero;
+    }
   }
 
   return handler;
@@ -3965,6 +4109,8 @@ _ProxyHandler _proxyHandlerForUri(
     final client = _createHttpClient(userAgent: userAgent);
     // Try to make normal request
     String? host;
+    var receivedResponse = false;
+    request.response.done.ignore();
     try {
       final requestHeaders = <String, String>{};
       request.headers
@@ -3975,6 +4121,7 @@ _ProxyHandler _proxyHandlerForUri(
           await _getUrl(client, redirectedUri ?? uri, headers: requestHeaders);
       host = originRequest.headers.value(HttpHeaders.hostHeader);
       final originResponse = await originRequest.close();
+      receivedResponse = true;
       if (originResponse.redirects.isNotEmpty) {
         redirectedUri = originResponse.redirects.last.location;
       }
@@ -4022,17 +4169,15 @@ _ProxyHandler _proxyHandlerForUri(
         request.response.add(utf8.encode(m3u8));
       } else {
         request.response.bufferOutput = false;
-        var done = false;
-        request.response.done.then((dynamic _) => done = true);
-        await for (var chunk in originResponse) {
-          if (done) break;
-          request.response.add(chunk);
-          await request.response.flush();
-        }
+        await request.response.addStream(originResponse);
       }
       await request.response.flush();
       await request.response.close();
     } on HttpException {
+      if (receivedResponse) {
+        request.response.deadline = Duration.zero;
+        return;
+      }
       // We likely are dealing with a streaming protocol
       if (uri.scheme == 'http') {
         // Try parsing HTTP 0.9 response
@@ -4049,6 +4194,12 @@ _ProxyHandler _proxyHandlerForUri(
             clientSocket.close();
             done.complete();
           },
+          onError: (Object _, StackTrace __) {
+            socket.destroy();
+            clientSocket.destroy();
+            done.complete();
+          },
+          cancelOnError: true,
         );
         // Rewrite headers
         final headers = <String, String?>{};
@@ -4071,6 +4222,10 @@ _ProxyHandler _proxyHandlerForUri(
         await socket.flush();
         await done.future;
       }
+    } catch (_) {
+      request.response.deadline = Duration.zero;
+    } finally {
+      client.close(force: true);
     }
   }
 
@@ -4206,10 +4361,16 @@ class _IdleAudioPlayer extends AudioPlayerPlatform {
     ));
   }
 
-  Duration? _getDurationAtIndex(int? index) =>
-      index != null && index < _sequence.length
-          ? _sequence[index].duration
-          : null;
+  /// The idle platform speaks platform time like any other, so an offset
+  /// stream's song-time duration is shifted back for [AudioPlayer] to re-add.
+  Duration? _getDurationAtIndex(int? index) {
+    if (index == null || index >= _sequence.length) return null;
+    final source = _sequence[index];
+    final duration = source.duration;
+    if (duration == null || source is! UriAudioSource) return duration;
+    final platformDuration = duration - source.positionOffset;
+    return platformDuration.isNegative ? Duration.zero : platformDuration;
+  }
 
   @override
   Stream<PlaybackEventMessage> get playbackEventMessageStream =>
