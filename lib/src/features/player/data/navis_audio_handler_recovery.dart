@@ -1358,6 +1358,7 @@ extension _NavisRecovery on NavisAudioHandler {
     _remotePlaybackStallPosition = position;
     _remotePlaybackStallBufferedPosition = bufferedPosition;
     _remotePlaybackStallTimer = Timer(_remotePlaybackStallTimeout, () {
+      _anomalies.event('stall');
       unawaited(
         _recoverCurrentSongFromRemotePlaybackFailure(
           reason: 'remote playback stalled',
@@ -1488,6 +1489,10 @@ extension _NavisRecovery on NavisAudioHandler {
       _remotePlaybackRecoveryAttempts.add(attemptKey);
       _playedSinceFailover = Duration.zero;
     }
+    _anomalies.event('recovery', {
+      'targetMs': position.inMilliseconds,
+      'retry': isRetry,
+    });
     AppLogger.startup(
       StartupEvent.streamRecovery,
       attempt: isRetry ? 1 : 2,
@@ -1543,7 +1548,10 @@ extension _NavisRecovery on NavisAudioHandler {
                 );
               }
             } finally {
-              if (identical(_pendingSeek, request)) _pendingSeek = null;
+              if (identical(_pendingSeek, request)) {
+                _pendingSeek = null;
+                _anomalies.event('seekDone', {'outcome': 'recovery'});
+              }
             }
           });
           AppLogger.startup(

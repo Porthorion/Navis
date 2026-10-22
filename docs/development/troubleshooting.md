@@ -247,6 +247,36 @@ Use this quick matrix to classify failures:
   status. Without the capability, or at original quality, the cache-wait path
   applies. See "Transcode-offset seeking" in `docs/architecture.md`.
 
+6. Position moved back or a song restarted with no user action:
+- Symptoms: Android steps back about 5 s after a stream cut; a desktop song
+  plays to its end and starts again from the beginning.
+- `PlaybackAnomalyRecorder` watches for this without changing playback. It
+  prints a record when the position of the same song moves back more than
+  2 s with no seek, navigation, loop or stop to explain it (`backwardJump`),
+  or when a song that reached its last 10 s plays again from under 3 s within
+  10 s (`replayNearEnd`, same entry or another entry holding the same song,
+  never Repeat One). One record per kind per song, at most 20 per run.
+  Pressing Play within 10 s of a single-song queue completing also records
+  `replayNearEnd`; the `restartCompleted` row tells it apart.
+  A pause or a completed queue ends the comparison baseline, so resuming or
+  pressing Play later is never compared with the old position; a position
+  that stays frozen and then resumes behind is still a `backwardJump`.
+- Read it: records go through `debugPrint`, so they print in release and
+  profile builds too (`AppLogger` drops everything without asserts and is not
+  used). On Android: `adb logcat -s flutter | grep PLAYBACK_ANOMALY` (logcat
+  tag `flutter`). On desktop: the process stdout, or
+  `journalctl --user -f | grep PLAYBACK_ANOMALY` under systemd. The first line is a JSON header (`kind`, `fromMs`, `toMs`, `sourceKind`,
+  `loopMode`, `shuffle`, `crossfade`, `gapless`, `processingState`,
+  `sameEntry`); each following line is one transport event of the last 30 s,
+  with `t` in ms relative to detection (`pb` playback events, at most one a
+  second unless the state, index or native clock changes, with
+  `updatePositionMs`/`updateTimeAgoMs`, `pos` samples, `disc`, `index`,
+  `seek`, `seekDone`, `recovery`, `stall`, `reload`, `restartCompleted`).
+  Records hold no URLs, song ids, titles or account data. Windows has no
+  console, so use the diagnostics API there.
+- `GET /v1/playback/status`: `anomalies` holds the last 5 records. Only the
+  newest carries its events; older ones keep the header and an `eventCount`.
+
 ## Android `VRI` / `SurfaceView` logs while backgrounding
 
 Symptoms:

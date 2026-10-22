@@ -513,6 +513,7 @@ extension _NavisCrossfade on NavisAudioHandler {
         // play. Prewarming alone must never start a second scrobble session.
         _updateScrobbleSession(null);
       }
+      _anomalies.expect('swap');
       _wirePlayerListeners();
       listenersNeedRebinding = false;
       _rebindRadioMetadataServiceToActivePlayer();

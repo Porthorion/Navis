@@ -245,6 +245,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       'Recovering audio players after timeout in $operation '
       '(song=${songId ?? 'n/a'} generation=$generation).',
     );
+    _anomalies.event('reload', {'via': 'players'});
     _cancelCrossfade();
     _silenceAbandonedPlayer(_player);
     final inactive = _crossfadePlayer;
@@ -463,6 +464,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
     ({int? index, Duration position, bool playing}) capture,
   ) async {
     if (_queueItems.isEmpty) return;
+    _anomalies.event('reload', {
+      'via': 'queue',
+      'targetMs': capture.position.inMilliseconds,
+    });
     var current = (capture.index ?? 0).clamp(0, _queueItems.length - 1);
     // The captured index is the player's, but the Dart queue may already
     // carry the edit (an entry removed ahead of the playing song, which has
@@ -1348,6 +1353,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
   }
 
   Future<void> _rebuildPlayerWithoutEqualizer() async {
+    _anomalies.event('reload', {'via': 'equalizer'});
     final previousPlayer = _player;
     final previousLoopMode = previousPlayer.loopMode;
 

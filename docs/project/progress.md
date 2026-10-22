@@ -14,6 +14,18 @@ Last updated: 2026-10-22
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 9 silent playback anomaly recorder — partial: 2026-10-22
+  (`fix/anomaly-recorder`, remaining: independent review and the Android and
+  Linux runtime pass against a release/1.5 baseline). Observe-only: a
+  `[PLAYBACK_ANOMALY]` warning, with the last 30 s of transport events, when a
+  queue entry's position moves back more than 2 s with no seek, navigation,
+  loop or stop (`backwardJump`), or a song from its last 10 s replays from
+  under 3 s within 10 s without Repeat One (`replayNearEnd`). The last 5 records
+  are in `GET /v1/playback/status` as `anomalies`. Evidence: recorder unit
+  tests (48) and handler tests (8) pass; the handler tests fail without the
+  seek, navigation and loop explanations. Records print through `debugPrint`
+  (AppLogger drops them without asserts); jumps are judged by song, so entry
+  swaps (likes, art cache, recovery rebuilds) do not hide them.
 - [ ] Issue #86, shuffle per queue — partial: 2026-10-22
   (`fix/shuffle-per-queue`, remaining: coordinator check.sh, review and the
   Android and Linux runtime pass). Shuffle is a property of the current queue:

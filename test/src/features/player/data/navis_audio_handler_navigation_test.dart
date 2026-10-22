@@ -2,7 +2,8 @@ import 'dart:math';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show debugPrint, listEquals, visibleForTesting;
 
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
@@ -7230,6 +7231,238 @@ void main() {
       expect(handler.queue.value[1].extras!['sourceKind'], 'file');
     },
   );
+
+  group('playback anomaly recorder', () {
+    Future<(NavisAudioHandler, _ControllableAudioPlayer, List<String>)>
+    anomalyHandler() async {
+      final directory = await Directory.systemTemp.createTemp('navis-anomaly-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        positionStreams: true,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final warnings = <String>[];
+      final printer = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null && message.contains('[PLAYBACK_ANOMALY]')) {
+          warnings.add(message);
+        }
+      };
+      addTearDown(() => debugPrint = printer);
+      // The position stream only reports a moving position.
+      player.simulateProgress = true;
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-2'],
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      // Let the load's own position moves leave the recorder's grace window.
+      await Future<void>.delayed(const Duration(milliseconds: 1700));
+      return (handler, player, warnings);
+    }
+
+    Future<void> pause(int ms) =>
+        Future<void>.delayed(Duration(milliseconds: ms));
+
+    // One printed line per record header; the rest are its events.
+    List<String> headers(List<String> lines) =>
+        lines.where((line) => line.contains('"kind":')).toList();
+
+    List<Object?> anomalies(NavisAudioHandler handler) =>
+        handler.collectPlaybackDiagnostics()['anomalies']! as List<Object?>;
+
+    test(
+      'a raw player step back is recorded once, with the log line',
+      () async {
+        final (handler, player, warnings) = await anomalyHandler();
+        player.simulatedPosition = const Duration(seconds: 90);
+        await pause(500);
+        player.simulatedPosition = const Duration(seconds: 80);
+        await pause(1200);
+
+        expect(anomalies(handler), hasLength(1));
+        expect(headers(warnings), hasLength(1));
+        expect(warnings.join('\n'), contains('"kind":"backwardJump"'));
+        expect(warnings.join('\n'), isNot(contains('song-1')));
+      },
+    );
+
+    test('a swapped queue entry mid-song does not hide a rewind', () async {
+      final (handler, player, warnings) = await anomalyHandler();
+      player.simulatedPosition = const Duration(seconds: 90);
+      await pause(500);
+      // Likes, art caching and recovery rebuilds replace the entry object.
+      await handler.syncSongLikedState('song-1', liked: true);
+      await pause(500);
+      player.simulatedPosition = const Duration(seconds: 85);
+      await pause(1200);
+
+      expect(anomalies(handler), hasLength(1));
+      expect(headers(warnings), hasLength(1));
+    });
+
+    test('a recovery rebuild landing behind its target is recorded', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-anomaly-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        sidecarStreams: true,
+        positionStreams: true,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final warnings = <String>[];
+      final printer = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null && message.contains('[PLAYBACK_ANOMALY]')) {
+          warnings.add(message);
+        }
+      };
+      addTearDown(() => debugPrint = printer);
+      player.simulateProgress = true;
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-2'],
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      await pause(1700);
+      player.simulatedPosition = const Duration(seconds: 70);
+      await pause(500);
+
+      // The reload ignores its start position and every correction seek.
+      player
+        ..ignoreInitialPosition = true
+        ..ignoreSeeks = true
+        ..simulatedPosition = const Duration(seconds: 70)
+        ..state = ProcessingState.idle;
+      player._events.addError(PlayerException(2002, 'Read timed out', 1));
+      for (var i = 0; i < 300 && anomalies(handler).isEmpty; i++) {
+        await pause(50);
+      }
+
+      expect(anomalies(handler), hasLength(1));
+      expect(warnings.join('\n'), contains('"e":"recovery"'));
+      // The automatic recovery ends with a seekDone row, like a user seek.
+      expect(warnings.join('\n'), contains('"outcome":"recovery"'));
+    });
+
+    test('a skip whose song is published early is not a rewind', () async {
+      final (handler, player, warnings) = await anomalyHandler();
+      player.simulatedPosition = const Duration(seconds: 90);
+      await pause(500);
+      // The native seek to the next song hangs, as a slow load does: the
+      // handler publishes song-2 while the player still plays song-1.
+      final gate = Completer<void>();
+      player.seekGate = gate;
+      final skip = handler.skipToNext();
+      await pause(300);
+      expect(handler.currentMediaItem?.id, 'song-2');
+      expect(player.index, 1);
+      await pause(1900);
+      gate.complete();
+      await skip;
+      await pause(1500);
+      expect(anomalies(handler), isEmpty);
+      expect(warnings, isEmpty);
+
+      // A real rewind on the new song is still caught.
+      player.simulatedPosition = const Duration(seconds: 40);
+      await pause(500);
+      player.simulatedPosition = const Duration(seconds: 30);
+      await pause(1200);
+      expect(anomalies(handler), hasLength(1));
+    });
+
+    test('a seek during an outage is explained', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-anomaly-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        sidecarStreams: true,
+        positionStreams: true,
+        reconcileNetwork: () async =>
+            (connected: false, serverReachable: false),
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      player.simulateProgress = true;
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-2'],
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      await pause(1700);
+      player.simulatedPosition = const Duration(seconds: 60);
+      await pause(500);
+
+      // The stream drops; offline, the recovery is held, not run.
+      player
+        ..simulatedPosition = const Duration(seconds: 60)
+        ..state = ProcessingState.idle;
+      player._events.addError(PlayerException(2002, 'Read timed out', 1));
+      await pause(500);
+      await handler.seek(const Duration(seconds: 30));
+      player
+        ..simulatedPosition = const Duration(seconds: 30)
+        ..state = ProcessingState.ready;
+      await pause(1500);
+
+      expect(anomalies(handler), isEmpty);
+    });
+
+    test('a handler seek back is not an anomaly', () async {
+      final (handler, player, warnings) = await anomalyHandler();
+      player.simulatedPosition = const Duration(seconds: 90);
+      await pause(500);
+      await handler.seek(const Duration(seconds: 30));
+      await pause(1500);
+
+      expect(player.position, lessThan(const Duration(seconds: 40)));
+      expect(anomalies(handler), isEmpty);
+      expect(warnings, isEmpty);
+    });
+
+    test('a skipToPrevious restart is not an anomaly', () async {
+      final (handler, player, warnings) = await anomalyHandler();
+      player.simulatedPosition = const Duration(seconds: 90);
+      await pause(500);
+      await handler.skipToPrevious();
+      await settleQueue(handler);
+      await pause(1500);
+
+      expect(anomalies(handler), isEmpty);
+      expect(warnings, isEmpty);
+    });
+
+    test('a Repeat One loop is not an anomaly', () async {
+      final (handler, player, warnings) = await anomalyHandler();
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      player.simulatedPosition = const Duration(seconds: 170);
+      await pause(500);
+      player.finishCurrentTrack();
+      await pause(1500);
+
+      expect(anomalies(handler), isEmpty);
+      expect(warnings, isEmpty);
+    });
+  });
 
   group('transcode offset seek', () {
     const opus128 = StreamingQuality(
