@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
@@ -16,6 +17,16 @@ enum LastFmFetchOutcome {
   notConfigured,
 }
 
+/// Where a similar-track result came from.
+enum LastFmSimilarSource {
+  /// `track.getSimilar` for the seed (or its title without qualifiers).
+  track,
+
+  /// The top tracks of the seed artist's similar artists: Last.fm has no
+  /// similar tracks for most songs released since about 2015.
+  artistSimilar,
+}
+
 class LastFmTrackFetchResult {
   const new({
     required this.outcome,
@@ -23,9 +34,11 @@ class LastFmTrackFetchResult {
     this.statusCode,
     this.apiErrorCode,
     this.message,
+    this.source = LastFmSimilarSource.track,
   });
 
   final LastFmFetchOutcome outcome;
+  final LastFmSimilarSource source;
   final List<LastFmTrackRecommendation> tracks;
   final int? statusCode;
   final int? apiErrorCode;
@@ -98,15 +111,70 @@ class LastFmApiClient {
   static const similarTracksNamespace = 'lastfm.similar-tracks';
   static const similarTracksTtl = Duration(hours: 24);
 
+  /// An empty answer is kept briefly: Last.fm's index changes, and a later
+  /// mix should ask again soon rather than stay empty for a day.
+  static const emptySimilarTracksTtl = Duration(minutes: 10);
+
+  /// Artist-level fallback: similar artists asked for, and how many of them
+  /// get a top-tracks request of [_fallbackTracksPerArtist] tracks each.
+  static const _similarArtistLimit = 10;
+  static const _fallbackArtistCount = 5;
+  static const _fallbackTracksPerArtist = 3;
+
+  /// Each later track of one artist counts for this much of the one before.
+  static const _fallbackRankDecay = 0.6;
+
   Future<void> _storeSimilarTracks(
     String key,
-    Map<String, dynamic> data,
+    LastFmTrackFetchResult result,
     int limit,
   ) async {
+    // "Track not found" is as final an answer as an empty list.
+    final empty = _hasNoSimilarTracks(result);
+    if (result.outcome != LastFmFetchOutcome.success && !empty) return;
     await _cache?.write(similarTracksNamespace, key, <String, Object?>{
       'limit': limit,
-      'data': data,
-    }, ttl: similarTracksTtl);
+      'source': result.source.name,
+      'tracks': [
+        for (final track in result.tracks)
+          <String, Object?>{
+            'artist': track.artist,
+            'title': track.title,
+            'match': track.match,
+          },
+      ],
+    }, ttl: empty ? emptySimilarTracksTtl : similarTracksTtl);
+  }
+
+  Future<LastFmTrackFetchResult?> _readSimilarTracks(
+    String key,
+    int limit,
+  ) async {
+    final cached = (await _cache?.read(similarTracksNamespace, key))?.value;
+    if (cached is! Map<String, dynamic> ||
+        cached['limit'] is! int ||
+        (cached['limit'] as int) < limit ||
+        cached['tracks'] is! List) {
+      return null;
+    }
+    final tracks = [
+      for (final entry in _asMapList(cached['tracks']))
+        LastFmTrackRecommendation(
+          artist: entry['artist'] as String? ?? '',
+          title: entry['title'] as String? ?? '',
+          match: (entry['match'] as num?)?.toDouble(),
+        ),
+    ].where((rec) => rec.isUsable).take(limit).toList(growable: false);
+    return LastFmTrackFetchResult(
+      outcome: tracks.isEmpty
+          ? LastFmFetchOutcome.noResults
+          : LastFmFetchOutcome.success,
+      tracks: tracks,
+      statusCode: 200,
+      source: cached['source'] == LastFmSimilarSource.artistSimilar.name
+          ? LastFmSimilarSource.artistSimilar
+          : LastFmSimilarSource.track,
+    );
   }
 
   Future<LastFmApiKeyValidationResult> validateApiKey() async {
@@ -170,6 +238,9 @@ class LastFmApiClient {
     }
   }
 
+  // ponytail: concurrent seeds each run their own fan-out (no single-flight),
+  // and a fetch in the middle of the fallback cannot be cancelled; add a
+  // shared in-flight map and a CancelToken parameter if either shows up.
   Future<LastFmTrackFetchResult> getSimilarTracksResult({
     required String artist,
     required String track,
@@ -198,34 +269,74 @@ class LastFmApiClient {
       normalizedArtist.toLowerCase().replaceAll(RegExp(r'\s+'), ' '),
       normalizedTrack.toLowerCase().replaceAll(RegExp(r'\s+'), ' '),
     ]);
-    final hit = await _cache?.read(similarTracksNamespace, key);
-    final cached = hit?.value;
-    final cachedData =
-        cached is Map<String, dynamic> &&
-            cached['limit'] is int &&
-            (cached['limit'] as int) >= limit &&
-            cached['data'] is Map<String, dynamic>
-        ? cached['data'] as Map<String, dynamic>
-        : null;
+    final cached = await _readSimilarTracks(key, limit);
+    if (cached != null) return cached;
+
+    var result = await _fetchTrackSimilar(
+      normalizedArtist,
+      normalizedTrack,
+      limit,
+    );
+    // Last.fm answers "no similar tracks" or "Track not found" for most songs
+    // released since about 2015 and for titles with a qualifier; neither says
+    // the artist is unknown. Try the plain title, then the artist's neighbours.
+    if (_hasNoSimilarTracks(result)) {
+      final plainTitle = stripTitleQualifiers(normalizedTrack);
+      if (plainTitle.toLowerCase() != normalizedTrack.toLowerCase()) {
+        final retry = await _fetchTrackSimilar(
+          normalizedArtist,
+          plainTitle,
+          limit,
+        );
+        if (retry.outcome == LastFmFetchOutcome.success) result = retry;
+      }
+    }
+    if (_hasNoSimilarTracks(result)) {
+      final viaArtists = await _similarArtistTracks(normalizedArtist, limit);
+      if (viaArtists.isNotEmpty) {
+        AppLogger.debug(
+          'LastFm diagnostics: artist-level fallback tracks='
+          '${viaArtists.length} artist="$normalizedArtist"',
+        );
+        result = LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.success,
+          tracks: viaArtists,
+          statusCode: 200,
+          source: LastFmSimilarSource.artistSimilar,
+        );
+      }
+    }
+    await _storeSimilarTracks(key, result, limit);
+    return result;
+  }
+
+  static bool _hasNoSimilarTracks(LastFmTrackFetchResult result) =>
+      result.outcome == LastFmFetchOutcome.noResults ||
+      (result.outcome == LastFmFetchOutcome.apiError &&
+          result.apiErrorCode == _trackNotFoundErrorCode);
+
+  /// Last.fm's "Track not found".
+  static const _trackNotFoundErrorCode = 6;
+
+  /// One `track.getSimilar` request, with no cache or fallback.
+  Future<LastFmTrackFetchResult> _fetchTrackSimilar(
+    String normalizedArtist,
+    String normalizedTrack,
+    int limit,
+  ) async {
     try {
-      final response = cachedData != null
-          ? Response<Map<String, dynamic>>(
-              requestOptions: RequestOptions(),
-              data: cachedData,
-              statusCode: 200,
-            )
-          : await _dio.get<Map<String, dynamic>>(
-              '',
-              queryParameters: <String, dynamic>{
-                'method': 'track.getsimilar',
-                'artist': normalizedArtist,
-                'track': normalizedTrack,
-                'api_key': _apiKey,
-                'format': 'json',
-                'autocorrect': 1,
-                'limit': limit,
-              },
-            );
+      final response = await _dio.get<Map<String, dynamic>>(
+        '',
+        queryParameters: <String, dynamic>{
+          'method': 'track.getsimilar',
+          'artist': normalizedArtist,
+          'track': normalizedTrack,
+          'api_key': _apiKey,
+          'format': 'json',
+          'autocorrect': 1,
+          'limit': limit,
+        },
+      );
       final data = response.data;
       if (data == null || data.isEmpty) {
         AppLogger.debug(
@@ -265,9 +376,6 @@ class LastFmApiClient {
       final similarRoot = _asMap(data['similartracks']);
       final tracks = _asMapList(similarRoot['track']);
       if (tracks.isEmpty) {
-        if (cachedData == null && data['similartracks'] is Map) {
-          await _storeSimilarTracks(key, data, limit);
-        }
         AppLogger.debug(
           'LastFm diagnostics: no similar tracks artist="$normalizedArtist" '
           'track="$normalizedTrack"',
@@ -284,7 +392,6 @@ class LastFmApiClient {
           .whereType<LastFmTrackRecommendation>()
           .where((rec) => rec.isUsable)
           .toList(growable: false);
-      if (cachedData == null) await _storeSimilarTracks(key, data, limit);
       AppLogger.debug(
         'LastFm diagnostics: recommendations=${recommendations.length} '
         'artist="$normalizedArtist" track="$normalizedTrack"',
@@ -316,6 +423,84 @@ class LastFmApiClient {
         outcome: LastFmFetchOutcome.parseError,
         tracks: <LastFmTrackRecommendation>[],
       );
+    }
+  }
+
+  /// Top tracks of [artist]'s similar artists, one track per artist at a time
+  /// (the best of each, then the second best of each) so no artist floods the
+  /// mix. Costs one `artist.getSimilar` and up to [_fallbackArtistCount]
+  /// `artist.getTopTracks` requests; empty when Last.fm knows no neighbours.
+  Future<List<LastFmTrackRecommendation>> _similarArtistTracks(
+    String artist,
+    int limit,
+  ) async {
+    final neighbours = (await _similarArtists(artist))
+        .take(_fallbackArtistCount)
+        .toList(growable: false);
+    final charts = await Future.wait([
+      for (final neighbour in neighbours)
+        getArtistTopTracks(
+          artist: neighbour.name,
+          limit: _fallbackTracksPerArtist,
+        ),
+    ]);
+    final recommendations = <LastFmTrackRecommendation>[];
+    for (var rank = 0; rank < _fallbackTracksPerArtist; rank++) {
+      for (var i = 0; i < neighbours.length; i++) {
+        if (rank >= charts[i].length) continue;
+        final track = charts[i][rank];
+        recommendations.add(
+          LastFmTrackRecommendation(
+            artist: track.artist,
+            title: track.title,
+            match: neighbours[i].match * math.pow(_fallbackRankDecay, rank),
+          ),
+        );
+      }
+    }
+    return recommendations.take(limit).toList(growable: false);
+  }
+
+  Future<List<({String name, double match})>> _similarArtists(
+    String artist,
+  ) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '',
+        queryParameters: <String, dynamic>{
+          'method': 'artist.getsimilar',
+          'artist': artist,
+          'api_key': _apiKey,
+          'format': 'json',
+          'autocorrect': 1,
+          'limit': _similarArtistLimit,
+        },
+      );
+      final data = response.data;
+      if (data == null || data['error'] != null) return const [];
+      // Last.fm sometimes lists the artist itself among its neighbours.
+      final seed = normalizeMetadata(artist);
+      bool isSeed(String name) =>
+          seed.isNotEmpty && normalizeMetadata(name) == seed;
+      return [
+        for (final entry in _asMapList(
+          _asMap(data['similarartists'])['artist'],
+        ))
+          if (((entry['name'] as String?)?.trim() ?? '').isNotEmpty &&
+              !isSeed(entry['name'] as String))
+            (
+              name: (entry['name'] as String).trim(),
+              match: switch (entry['match']) {
+                final num value => value.toDouble(),
+                final String value => double.tryParse(value) ?? 0.5,
+                _ => 0.5,
+              },
+            ),
+      ]..sort((a, b) => b.match.compareTo(a.match));
+    } on DioException {
+      return const [];
+    } on FormatException {
+      return const [];
     }
   }
 

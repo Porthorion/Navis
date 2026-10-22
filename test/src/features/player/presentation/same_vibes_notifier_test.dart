@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -2473,5 +2474,213 @@ void main() {
         expect(similarCalls, 7);
       },
     );
+  });
+
+  group('Last.fm similar-track fallbacks', () {
+    // Runs one first refill for seed "seed" and returns the queue recorder.
+    Future<RecordingRecommendationQueue> activate({
+      required _MockSubsonicApiClient api,
+      required LastFmApiClient lastFm,
+    }) async {
+      when(
+        () => api.getSong(any(), cancelToken: any(named: 'cancelToken')),
+      ).thenAnswer(
+        (_) async =>
+            const Song(id: 'seed', title: 'Seed Song', artist: 'Seed Artist'),
+      );
+      final container = createRecommendationContainer(
+        overrides: [
+          queueProvider.overrideWith(() => RecordingRecommendationQueue()),
+          subsonicApiProvider.overrideWithValue(api),
+          lastFmApiClientProvider.overrideWithValue(lastFm),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
+          currentMediaItemProvider.overrideWith(
+            (ref) => Stream<MediaItem?>.value(
+              const MediaItem(
+                id: 'seed',
+                title: 'Seed Song',
+                artist: 'Seed Artist',
+              ),
+            ),
+          ),
+          downloadedSongIdsProvider.overrideWithValue(
+            const AsyncData(<String>{}),
+          ),
+          cachedSongIdsProvider.overrideWithValue(const AsyncData(<String>{})),
+          sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+            (albumIds) async => const <String, int?>{},
+          ),
+          sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+            (songIds) async => const <String>{},
+          ),
+        ],
+      );
+      container.listen(currentMediaItemProvider, (_, _) {});
+      await container.read(currentMediaItemProvider.future);
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: const <String>['seed'],
+              currentSongId: 'seed',
+              currentIndex: 0,
+            ),
+          );
+      await container.read(sameVibesProvider.notifier).activate('seed');
+      return container.read(queueProvider.notifier)
+          as RecordingRecommendationQueue;
+    }
+
+    void stubSearch(_MockSubsonicApiClient api, List<Song> library) {
+      when(
+        () => api.search3(
+          query: any(named: 'query'),
+          artistCount: any(named: 'artistCount'),
+          albumCount: any(named: 'albumCount'),
+          songCount: any(named: 'songCount'),
+          artistOffset: any(named: 'artistOffset'),
+          albumOffset: any(named: 'albumOffset'),
+          songOffset: any(named: 'songOffset'),
+        ),
+      ).thenAnswer((_) async => SearchResult3(songs: library));
+    }
+
+    test('a song Last.fm has no similar tracks for still mixes from Last.fm '
+        'through similar artists, without asking the server', () async {
+      final dio = Dio();
+      addTearDown(dio.close);
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            final params = options.queryParameters;
+            final method = (params['method'] as String).toLowerCase();
+            handler.resolve(
+              Response<Map<String, dynamic>>(
+                requestOptions: options,
+                statusCode: 200,
+                data: switch (method) {
+                  'track.getsimilar' => {
+                    'similartracks': {'track': <dynamic>[]},
+                  },
+                  'artist.getsimilar' => {
+                    'similarartists': {
+                      'artist': [
+                        for (final name in [
+                          'Alpha',
+                          'Beta',
+                          'Gamma',
+                          'Delta',
+                          'Epsilon',
+                        ])
+                          {'name': name, 'match': 0.9},
+                      ],
+                    },
+                  },
+                  _ => {
+                    'toptracks': {
+                      '@attr': {'artist': params['artist']},
+                      'track': [
+                        {
+                          'name': '${params['artist']} hit',
+                          'artist': {'name': params['artist']},
+                          '@attr': {'rank': '1'},
+                        },
+                      ],
+                    },
+                  },
+                },
+              ),
+            );
+          },
+        ),
+      );
+      final api = _MockSubsonicApiClient();
+      stubSearch(api, const <Song>[
+        Song(id: 'a', title: 'Alpha hit', artist: 'Alpha'),
+        Song(id: 'b', title: 'Beta hit', artist: 'Beta'),
+        Song(id: 'c', title: 'Gamma hit', artist: 'Gamma'),
+        Song(id: 'd', title: 'Delta hit', artist: 'Delta'),
+        Song(id: 'e', title: 'Epsilon hit', artist: 'Epsilon'),
+      ]);
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => const <Song>[]);
+
+      final queue = await activate(
+        api: api,
+        lastFm: LastFmApiClient(apiKey: 'key', dio: dio),
+      );
+
+      expect(queue.queuedSongs.map((song) => song.id).toSet(), {
+        'a',
+        'b',
+        'c',
+        'd',
+        'e',
+      });
+      verifyNever(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      );
+    });
+
+    test('Last.fm songs below the batch size are kept and topped up from '
+        'the server', () async {
+      final lastFm = _MockLastFmApiClient();
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer(
+        (_) async => const LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.success,
+          tracks: <LastFmTrackRecommendation>[
+            LastFmTrackRecommendation(artist: 'A', title: 'One', match: 1),
+            LastFmTrackRecommendation(artist: 'B', title: 'Two', match: 0.9),
+            LastFmTrackRecommendation(artist: 'C', title: 'Three', match: 0.8),
+          ],
+        ),
+      );
+      final api = _MockSubsonicApiClient();
+      stubSearch(api, const <Song>[
+        Song(id: 'l1', title: 'One', artist: 'A'),
+        Song(id: 'l2', title: 'Two', artist: 'B'),
+        Song(id: 'l3', title: 'Three', artist: 'C'),
+      ]);
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => const <Song>[
+          Song(id: 's1', title: 'Server One', artist: 'X'),
+          Song(id: 's2', title: 'Server Two', artist: 'Y'),
+          Song(id: 's3', title: 'Server Three', artist: 'Z'),
+        ],
+      );
+
+      final queue = await activate(api: api, lastFm: lastFm);
+
+      expect(queue.queuedSongs.map((song) => song.id).toList(), [
+        'l1',
+        'l2',
+        'l3',
+        's1',
+        's2',
+      ]);
+    });
   });
 }
