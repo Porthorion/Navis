@@ -97,6 +97,54 @@ void main() {
     expect(row.playbackPitchSemitones, 2);
   });
 
+  testWidgets('clearing the cover art cache says what is happening', (
+    tester,
+  ) async {
+    final database = createTestDatabase();
+    final gate = Completer<void>();
+    final container = ProviderContainer(
+      overrides: withTestDatabase(
+        database,
+        overrides: <Override>[
+          rollingCacheStatsProvider.overrideWith(
+            (ref) =>
+                Stream.value(const CacheStats(trackCount: 0, totalBytes: 0)),
+          ),
+          clearCoverArtCachesProvider.overrideWithValue(() => gate.future),
+        ],
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await database.close();
+    });
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const CacheSettingsScreen(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Clear Cover Art Cache'), 400);
+    await tester.tap(find.text('Clear Cover Art Cache'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Clear Cover Art Cache'),
+    );
+    await tester.pump();
+
+    expect(find.text('Clearing cache…'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    gate.complete();
+    await tester.pumpAndSettle();
+    expect(find.text('Clearing cache…'), findsNothing);
+  });
+
   testWidgets('shows an active write before completed cache totals update', (
     tester,
   ) async {

@@ -26,6 +26,32 @@ Last updated: 2026-10-21
   runtime-only. Round 4: a departed offset entry is repaired as a queued edit
   (fresh source inserted behind it, old one removed, never the current song),
   and a Repeat One loop starts a new play-time occurrence.
+- [x] Issue #92, optional Home Random Albums section — 2026-10-20
+  (`feat/home-random-albums`): `random_album_list` after Recently Added,
+  hidden by default. Its own server `getAlbumList2(random, 20)` draw; the
+  downloaded-only list is now a one-shot snapshot. Both re-pick after every
+  finished library sync. Showing a never-seen hidden-by-default section now
+  also saves the order, or `resolveHidden` hid it again (GLM review P1).
+  Runtime check in the app still to do.
+- [x] Issue #111, specific failure messages — 2026-10-20
+  (`fix/specific-failure-messages`): sub-items 1-3 were verified unreachable
+  (radio and Instant Mix never receive invalidKey/rateLimited; Last.fm key
+  validation already shows a connection message inline), so only the relink
+  message changed. Evidence: focused tests from the original change passed;
+  `./tool/check.sh`: all checks passed on the pre-fix commit (will be rerun).
+- [x] Issue #112, explain long waits — review round — 2026-10-21
+  (`fix/explain-long-waits`): manual import now says "Importing downloads…"
+  (`downloadsImporting`) instead of "Moving downloaded tracks..." via a
+  screen-local flag; folder choose and rescan keep their text. Fixed a
+  pre-existing bug: `markImported` used `ref.read` after the awaited import, so
+  leaving the tab mid-import skipped it and committed files reappeared as
+  pending; both notifiers are now read before the await. Evidence: new widget
+  tests in `downloads_screen_test.dart` (busy text while a gated import runs,
+  and pending cleared after the tab is left mid-import); the text test fails
+  without the flag. `flutter gen-l10n` run; `flutter test` on
+  `downloads_screen_test.dart` and `custom_download_folder_controller_test.dart`
+  passed `+39: All tests passed!`; `./tool/check.sh`: all checks passed on the
+  pre-fix commit (will be rerun).
 - [x] Issue #110, About "Check now" failure feedback — 2026-10-20
   (`fix/about-check-now-error`): a user-triggered failed check shows an error
   notice; automatic failures deliberately only show the failed subtitle. Review

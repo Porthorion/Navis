@@ -1102,6 +1102,9 @@ class _DownloadSettingsTab extends ConsumerStatefulWidget {
 class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
   bool _clearing = false;
 
+  /// Only picks the busy text: manual import registers files in place.
+  bool _importingManual = false;
+
   bool get _supportsCustomDownloadFolderSelection =>
       Platform.isAndroid ||
       Platform.isIOS ||
@@ -1218,17 +1221,14 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
       ),
     );
     if (manualSongIds == null || manualSongIds.isEmpty || !mounted) return;
+    // Read before the await: `ref` throws once this tab is disposed, but the
+    // import still commits and its entries must leave the pending list.
+    final folder = ref.read(customDownloadFolderControllerProvider.notifier);
+    final matchingNotifier = ref.read(manualDownloadMatchingProvider.notifier);
+    _importingManual = true;
     try {
-      final result = await ref
-          .read(downloadServiceProvider)
-          .importCustomDownloadFolder(
-            preview,
-            manualSongIds: manualSongIds,
-            includeRecognized: false,
-          );
-      ref
-          .read(manualDownloadMatchingProvider.notifier)
-          .markImported(manualSongIds.keys);
+      final result = await folder.importManual(preview, manualSongIds);
+      matchingNotifier.markImported(manualSongIds.keys);
       if (!mounted) return;
       showAppNotice(
         context,
@@ -1245,6 +1245,8 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           level: AppNoticeLevel.error,
         );
       }
+    } finally {
+      _importingManual = false;
     }
   }
 
@@ -1267,9 +1269,11 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
             const CircularProgressIndicator(),
             const SizedBox(height: 12),
             Text(
-              updatingFolder
-                  ? l10n.downloadsCustomFolderUpdating
-                  : l10n.cacheSettingsClearPermanent,
+              !updatingFolder
+                  ? l10n.downloadsRemoving
+                  : _importingManual
+                  ? l10n.downloadsImporting
+                  : l10n.downloadsCustomFolderUpdating,
             ),
           ],
         ),
