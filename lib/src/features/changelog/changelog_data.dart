@@ -130,6 +130,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Same Vibes and Personal Radio use Last.fm for far more songs again: '
+        'when Last.fm has no similar tracks for a song, Navis now mixes from '
+        'the best-known tracks of similar artists instead of falling back to '
+        'the server',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Bound desktop seek waits and recover stuck positions automatically; '
         'keep slow song starts loading while data arrives, including when '
         'seeking before the first load finishes, and continue to the next song '
@@ -146,7 +153,9 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Resume transcoded songs at the current position after a network stall '
-        'or disconnect instead of replaying them or skipping to the next song',
+        'or disconnect instead of replaying them or skipping to the next song, '
+        'again after a later stall in the same song, and play a song you '
+        'return to from its start',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

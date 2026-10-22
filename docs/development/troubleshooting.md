@@ -296,6 +296,9 @@ draw from eligible liked, recent, and local songs. The client does not infer a
 plugin's analysis progress from an empty response.
 
 **Last.fm · Same Vibes** needs a valid Last.fm key to use Last.fm matches.
+Last.fm has no similar tracks for most songs released since about 2015, so for
+those Navis mixes from the top tracks of similar artists (the debug log shows
+`source=artistSimilar`).
 When the service has only a few playable library matches, Navis keeps them
 and fills from standard server similarity where available. A rejected key or
 rate limit is shown as an actionable failure rather than retried on every

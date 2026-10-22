@@ -544,4 +544,32 @@ void main() {
       );
     }, skip: !sqliteAvailable);
   });
+
+  test(
+    'Last.fm "track not found" reads as an empty answer, not a network failure',
+    () {
+      RecommendationIssue issueFor(LastFmTrackFetchResult result) =>
+          lastFmRecommendationIssue(result);
+      expect(
+        issueFor(
+          const LastFmTrackFetchResult(
+            outcome: LastFmFetchOutcome.apiError,
+            tracks: <LastFmTrackRecommendation>[],
+            apiErrorCode: 6,
+          ),
+        ),
+        RecommendationIssue.empty,
+      );
+      expect(
+        issueFor(
+          const LastFmTrackFetchResult(
+            outcome: LastFmFetchOutcome.apiError,
+            tracks: <LastFmTrackRecommendation>[],
+            apiErrorCode: 10,
+          ),
+        ),
+        RecommendationIssue.invalidKey,
+      );
+    },
+  );
 }

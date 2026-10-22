@@ -481,17 +481,7 @@ class RecommendationService {
       track: seed.title,
       limit: 20,
     );
-    final issue = switch (result.outcome) {
-      LastFmFetchOutcome.success => RecommendationIssue.none,
-      LastFmFetchOutcome.noResults => RecommendationIssue.empty,
-      LastFmFetchOutcome.notConfigured => RecommendationIssue.invalidKey,
-      LastFmFetchOutcome.networkError => RecommendationIssue.networkFailure,
-      LastFmFetchOutcome.apiError when result.apiErrorCode == 10 =>
-        RecommendationIssue.invalidKey,
-      LastFmFetchOutcome.apiError when result.statusCode == 429 =>
-        RecommendationIssue.rateLimited,
-      _ => RecommendationIssue.networkFailure,
-    };
+    final issue = lastFmRecommendationIssue(result);
     final byIdentity = <String, List<SongsTableData>>{};
     final cache = identities ?? _IdentityCache();
     for (final song in eligible) {
@@ -567,6 +557,24 @@ class RecommendationService {
     musicBrainzId: row.recordingMbid,
   );
 }
+
+/// Why a Last.fm answer gave no songs. "Track not found" (code 6) is an empty
+/// answer like "no similar tracks", not a failure of the network.
+@visibleForTesting
+RecommendationIssue lastFmRecommendationIssue(LastFmTrackFetchResult result) =>
+    switch (result.outcome) {
+      LastFmFetchOutcome.success => RecommendationIssue.none,
+      LastFmFetchOutcome.noResults => RecommendationIssue.empty,
+      LastFmFetchOutcome.notConfigured => RecommendationIssue.invalidKey,
+      LastFmFetchOutcome.networkError => RecommendationIssue.networkFailure,
+      LastFmFetchOutcome.apiError when result.apiErrorCode == 6 =>
+        RecommendationIssue.empty,
+      LastFmFetchOutcome.apiError when result.apiErrorCode == 10 =>
+        RecommendationIssue.invalidKey,
+      LastFmFetchOutcome.apiError when result.statusCode == 429 =>
+        RecommendationIssue.rateLimited,
+      _ => RecommendationIssue.networkFailure,
+    };
 
 /// Interleaves recommendations with familiar anchors, then fills any shortfall
 /// from eligible library songs. Identity and artist spacing apply to all three.

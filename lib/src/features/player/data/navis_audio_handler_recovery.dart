@@ -16,8 +16,8 @@ extension _NavisRecovery on NavisAudioHandler {
     _advancePosition = position;
     final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
     final index = _player.currentIndex;
-    // An occurrence is a song at a queue position. ponytail: a Repeat One
-    // loop restart is not detected, so a looped song keeps its play time.
+    // An occurrence is a song at a queue position; a native loop starts a new
+    // one (see _onPositionDiscontinuity).
     if (songId != _advanceSongId || index != _advanceIndex) {
       _advanceSongId = songId;
       _advanceIndex = index;
@@ -32,7 +32,16 @@ extension _NavisRecovery on NavisAudioHandler {
     }
     _lastAdvanceAt = DateTime.now();
     _playedSinceFailover += delta;
-    if (_playedSinceFailover >= _timeouts.healthyPlayback) _autoFailovers = 0;
+    if (_playedSinceFailover >= _timeouts.healthyPlayback) {
+      _autoFailovers = 0;
+      // Sustained play also renews this song's one stream retry. A retry
+      // resumes at the song position and resets the counter, so each cycle
+      // needs healthyPlayback of real advance: a source that fails again
+      // within that is skipped. ponytail: a source that keeps failing but
+      // plays healthyPlayback each cycle renews forever, which is accepted
+      // under Repeat One (endless by definition, each cycle plays real audio).
+      _remotePlaybackRecoveryAttempts.remove('$_transportGeneration:$songId');
+    }
   }
 
   bool get _playbackAdvancing =>
@@ -274,27 +283,39 @@ extension _NavisRecovery on NavisAudioHandler {
   Duration _positionOffsetOf(MediaItem? item) =>
       Duration(milliseconds: (item?.extras?['positionOffsetMs'] as int?) ?? 0);
 
-  /// A native loop (repeat one, or repeat all over one song) restarts an
-  /// offset stream at its own start, which is the offset into the song. just_audio
-  /// reports that loop as an autoAdvance discontinuity within one index; reload
-  /// the song from the start without an offset. A real advance to another index
-  /// never matches.
+  /// just_audio reports a native loop (repeat one, or repeat all over one
+  /// song) and an advance as an autoAdvance discontinuity. A loop on the same
+  /// index starts a new occurrence for the healthy-play counter, so the play
+  /// time of the previous loop counts toward neither the new loop's healthy
+  /// play nor its premature-end check. An advance leaves a song behind:
+  /// repair it if it was an offset stream. A loop restarts an offset stream at
+  /// its own start (the offset into the song) and an advance onto a song
+  /// still holding an offset starts it there: reload the song from the start
+  /// without an offset.
   void _onPositionDiscontinuity(PositionDiscontinuity discontinuity) {
     final index = discontinuity.event.currentIndex;
     final sequence = _player.sequence;
     if (discontinuity.reason != PositionDiscontinuityReason.autoAdvance ||
         index == null ||
-        index != discontinuity.previousEvent.currentIndex ||
         index < 0 ||
         index >= sequence.length ||
-        _disposeHandlerStarted ||
-        // seek() serialises behind the background queue fill that still holds
-        // _isLoading after an offset reload, so a loop then is not dropped.
-        _pendingSeek != null) {
+        _disposeHandlerStarted) {
       return;
     }
+    if (index == discontinuity.previousEvent.currentIndex) {
+      _advancePosition = null;
+      _playedSinceFailover = Duration.zero;
+    } else {
+      _repairDepartedOffsetEntries();
+    }
+    // seek() serialises behind the background queue fill that still holds
+    // _isLoading after an offset reload, so a loop then is not dropped.
+    if (_pendingSeek != null) return;
     final source = sequence[index];
-    if (source is UriAudioSource && source.positionOffset > Duration.zero) {
+    // A deck handover rebuilds the sources but not the queue entries, so the
+    // entry's offset can outlive the stream's: reopening clears it too.
+    if ((source is UriAudioSource && source.positionOffset > Duration.zero) ||
+        _positionOffsetOf(_queueItems.elementAtOrNull(index)) > Duration.zero) {
       unawaited(seek(Duration.zero));
     }
   }
@@ -1461,6 +1482,7 @@ extension _NavisRecovery on NavisAudioHandler {
         );
     if (isRetry) {
       _remotePlaybackRecoveryAttempts.add(attemptKey);
+      _playedSinceFailover = Duration.zero;
     }
     AppLogger.startup(
       StartupEvent.streamRecovery,

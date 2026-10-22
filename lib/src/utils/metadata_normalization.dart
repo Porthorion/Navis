@@ -89,6 +89,41 @@ String normalizeMetadataKeepingEdition(String value) {
   return _words(folded);
 }
 
+// A credit after a space: "Song feat. X", "Song ft X". A title that starts
+// with the word ("Ft. Worth Blues") has no title before it and is left alone.
+final RegExp _featuringCredit = RegExp(
+  r'\s(?:feat|ft)(?:\.|\s).*$',
+  caseSensitive: false,
+);
+
+// A " - " tail that is a qualifier, not part of the name, in word form:
+// "Live", "Live at X", "Radio Edit", "feat. X". Mastering qualifiers are
+// `_nonEditionQualifier`.
+final RegExp _tailQualifier = RegExp(
+  r'^(?:live(?: .*)?|(?:radio|single|album) edit|(?:feat|ft) .*)$',
+);
+
+/// [title] as written, without bracketed qualifiers, a qualifier after " - "
+/// or a featured-artist credit: "Song (Remastered 2011)", "Song - Live" and
+/// "Song (feat. X)" all give "Song", while "Intro - Outro" stays whole. Unlike
+/// [normalizeMetadata] it keeps case and punctuation, so the result can be
+/// sent to a service that looks titles up by name. A title that would become
+/// empty is returned unchanged.
+String stripTitleQualifiers(String title) {
+  final stripped = title
+      .replaceAll(_closedBrackets, ' ')
+      .replaceFirstMapped(_dashSuffix, (match) {
+        final tail = _words(_fold(match[1]!));
+        return _isNonEdition(tail) || _tailQualifier.hasMatch(tail)
+            ? ''
+            : match[0]!;
+      })
+      .replaceFirst(_featuringCredit, '')
+      .replaceAll(_whitespace, ' ')
+      .trim();
+  return stripped.isEmpty ? title : stripped;
+}
+
 // Preserve locations such as "Live at Ft. Worth" inside brackets. Masking
 // retains offsets, so only an outside featuring credit truncates the title.
 String _stripFeaturing(String value) {
