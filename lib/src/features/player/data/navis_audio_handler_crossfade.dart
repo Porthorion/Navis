@@ -520,6 +520,14 @@ extension _NavisCrossfade on NavisAudioHandler {
       _broadcastPlaybackState();
       _emitSnapshot();
       _scheduleTransportPersistence(context: 'crossfade handoff');
+      // The deck swap reports no discontinuity. Repair the song just left;
+      // the reopen is the safety net for a handover onto an offset entry
+      // (a shuffle pass can start one before its repair).
+      _repairDepartedOffsetEntries();
+      if (_positionOffsetOf(_resolveCurrentQueueMetadata().mediaItem) >
+          Duration.zero) {
+        unawaited(seek(Duration.zero));
+      }
 
       try {
         await _crossfadePlayer?.pause();

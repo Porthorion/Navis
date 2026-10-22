@@ -14,6 +14,18 @@ Last updated: 2026-10-21
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 5 follow-ups — partial: 2026-10-21
+  (`fix/item5-followups`, remaining: coordinator check.sh, runtime pass and
+  review). 5a: after a crossfade deck swap the current item, diagnostics offset,
+  seek and restart readers are not stale (tests passed unchanged); the real leak
+  was a non-current song keeping its offset entry, so Previous/selection back to
+  it started at the offset (failed before: `positionOffsetMs` 90000, expected
+  0), now reopened from the start. 5b: the per-song stream retry renews after
+  `healthyPlayback` of real advance (failed before: `Expected: song-1 / Actual:
+  song-2`); the second-cut-too-soon and frozen-position cases still skip. 5c is
+  runtime-only. Round 4: a departed offset entry is repaired as a queued edit
+  (fresh source inserted behind it, old one removed, never the current song),
+  and a Repeat One loop starts a new play-time occurrence.
 - [x] Issue #92, optional Home Random Albums section — 2026-10-20
   (`feat/home-random-albums`): `random_album_list` after Recently Added,
   hidden by default. Its own server `getAlbumList2(random, 20)` draw; the
