@@ -463,7 +463,18 @@ extension _NavisQueueLoading on NavisAudioHandler {
     ({int? index, Duration position, bool playing}) capture,
   ) async {
     if (_queueItems.isEmpty) return;
-    final current = (capture.index ?? 0).clamp(0, _queueItems.length - 1);
+    var current = (capture.index ?? 0).clamp(0, _queueItems.length - 1);
+    // The captured index is the player's, but the Dart queue may already
+    // carry the edit (an entry removed ahead of the playing song, which has
+    // not happened natively): follow the song that was playing instead.
+    final playingId = _currentMediaItem?.id;
+    if (playingId != null && _queueItems[current].id != playingId) {
+      final moved = <int>[
+        for (var i = 0; i < _queueItems.length; i++)
+          if (_queueItems[i].id == playingId) i,
+      ]..sort((a, b) => (a - current).abs().compareTo((b - current).abs()));
+      if (moved.isNotEmpty) current = moved.first;
+    }
     final end = math.min(_queueItems.length, current + _queueWindow.ahead + 1);
     final items = _queueItems.sublist(0, end);
     final beyond = _queueItems.sublist(end);

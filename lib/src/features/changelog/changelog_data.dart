@@ -153,7 +153,9 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Resume transcoded songs at the current position after a network stall '
-        'or disconnect instead of replaying them or skipping to the next song',
+        'or disconnect instead of replaying them or skipping to the next song, '
+        'again after a later stall in the same song, and play a song you '
+        'return to from its start',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

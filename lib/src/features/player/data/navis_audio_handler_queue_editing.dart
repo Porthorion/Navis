@@ -69,6 +69,8 @@ extension _NavisQueueEditing on NavisAudioHandler {
     List<_PreparedQueueItem> prepared, {
     required int at,
     required String operation,
+    // The repair mirrors its twin itself, after the Dart queue is final.
+    bool mirrorDeck = true,
   }) async {
     final inactiveDeck = _crossfadePlayer;
     final deckInSync =
@@ -119,22 +121,47 @@ extension _NavisQueueEditing on NavisAudioHandler {
         index++;
       }
     }
-    if (deckInSync && inserted.isNotEmpty) {
-      final clones = inserted
-          .map((item) => item.source.asClonedAudioSource(tag: item.mediaItem))
-          .toList(growable: false);
-      try {
-        if (at >= inactiveDeck.sequence.length) {
-          await inactiveDeck.addAudioSources(clones);
-        } else {
-          await inactiveDeck.insertAudioSources(at, clones);
-        }
-      } on Object catch (error) {
-        AppLogger.debug('$operation inactive deck mirror failed: $error');
-      }
+    if (deckInSync && mirrorDeck && inserted.isNotEmpty) {
+      await _mirrorInsertOnDeck(
+        inactiveDeck,
+        inserted,
+        at: at,
+        operation: operation,
+      );
     }
     _observeLockCacheForPrepared(inserted);
     return inserted;
+  }
+
+  /// Mirrors an insert on the inactive crossfade deck, bounded like every
+  /// other mirrored edit so a hung deck cannot hold the queue lane. Returns
+  /// whether the deck took it.
+  Future<bool> _mirrorInsertOnDeck(
+    AudioPlayer deck,
+    List<_PreparedQueueItem> inserted, {
+    required int at,
+    required String operation,
+  }) async {
+    final clones = inserted
+        .map((item) => item.source.asClonedAudioSource(tag: item.mediaItem))
+        .toList(growable: false);
+    try {
+      await _runTimedPlayerOperation(
+        generation: _activeLoadGeneration,
+        operation: '$operation inactive',
+        action: () => at >= deck.sequence.length
+            ? deck.addAudioSources(clones)
+            : deck.insertAudioSources(at, clones),
+        songId: inserted.first.song.id,
+        timeout: _playerResetTimeout,
+        cancelAfterSuccess: false,
+        reloadQueueOnTimeout: true,
+      );
+      return true;
+    } on Object catch (error) {
+      AppLogger.debug('$operation inactive deck mirror failed: $error');
+      return false;
+    }
   }
 
   /// Publishes a queue edit: one queue emission, one coalesced save, one
@@ -521,6 +548,137 @@ extension _NavisQueueEditing on NavisAudioHandler {
       // rewrites every row. Persist once the burst settles.
       _afterQueueEdit(context: 'reorder queue');
     }
+  }
+
+  bool _entryHasOffset(int index) {
+    final source = _player.sequence.elementAtOrNull(index);
+    return (source is UriAudioSource &&
+            source.positionOffset > Duration.zero) ||
+        _positionOffsetOf(_queueItems.elementAtOrNull(index)) > Duration.zero;
+  }
+
+  /// A song left mid-way as an offset (transcode) stream still holds its
+  /// offset and would start there when played again. Replaces every such
+  /// non-current entry with a fresh, offset-free source, as an ordinary queue
+  /// edit: it keeps FIFO order with user edits and a navigation queued
+  /// later lands after it. Never touches the current song.
+  void _repairDepartedOffsetEntries() {
+    final current = _player.currentIndex;
+    if (_disposeHandlerStarted ||
+        !List<int>.generate(
+          _queueItems.length,
+          (i) => i,
+        ).any((i) => i != current && _entryHasOffset(i))) {
+      return;
+    }
+    // One repair covers every stale entry, including songs left while it
+    // runs (it rescans), so none is enqueued while another is in flight.
+    if (_offsetRepairInFlight) return;
+    _offsetRepairInFlight = true;
+    unawaited(
+      _enqueueQueueEdit(_repairOffsetEntriesLocked)
+          .catchError((Object error) {
+            // A superseding replacement rebuilds the queue anyway.
+            AppLogger.debug('Offset entry repair skipped: $error');
+          })
+          .whenComplete(() => _offsetRepairInFlight = false),
+    );
+  }
+
+  Future<void> _repairOffsetEntriesLocked(OperationToken token) async {
+    final tried = Set<MediaItem>.identity();
+    var edited = false;
+    while (true) {
+      final stale = <MediaItem>[
+        for (var i = 0; i < _queueItems.length; i++)
+          if (i != _player.currentIndex &&
+              _entryHasOffset(i) &&
+              !tried.contains(_queueItems[i]))
+            _queueItems[i],
+      ];
+      if (stale.isEmpty) break;
+      for (final item in stale) {
+        tried.add(item);
+        edited |= await _repairOffsetEntry(item, token);
+      }
+    }
+    if (edited) _afterQueueEdit(context: 'offset entry repair');
+  }
+
+  /// Replaces the queue entry [item] with a fresh source; whether it did.
+  Future<bool> _repairOffsetEntry(MediaItem item, OperationToken token) async {
+    token.checkCancelled();
+    if (!_sequenceMatchesQueue(_player)) return false;
+    final rows = await _rowsForDeferredEntries(<_DeferredQueueEntry>[
+      _deferredEntryForItem(item),
+    ]);
+    final (:prepared, offsets: _) = await _prepareRowsConcurrently(
+      rows,
+      token: token,
+    );
+    token.checkCancelled();
+    // Nothing else edits the queue while this edit holds the lane, but an
+    // earlier one may have moved, removed or reached the entry: find it
+    // again by identity, with no await before the native calls.
+    final at = _queueItems.indexWhere((entry) => identical(entry, item));
+    if (prepared.isEmpty ||
+        at < 0 ||
+        at == _player.currentIndex ||
+        !_sequenceMatchesQueue(_player)) {
+      return false;
+    }
+    // Insert the fresh source behind the old one, then drop the old one:
+    // the entry is never missing and the current song is never touched.
+    // The deck is mirrored last, so the Dart queue never holds both entries
+    // across an await (a tap or navigation would resolve against the twin).
+    final deck = _crossfadePlayer;
+    final deckInSync =
+        deck != null && deck.sequence.length == _queueItems.length;
+    final inserted = await _applyMaterialisedInsert(
+      prepared,
+      at: at + 1,
+      operation: 'repair offset entry',
+      mirrorDeck: false,
+    );
+    if (inserted.isEmpty) return false;
+    // The player may have advanced onto the old entry while the twin was
+    // inserted: keep that source and drop the twin; the discontinuity reopen
+    // restarts it from 0.
+    final becameCurrent = _player.currentIndex == at;
+    final dropAt = becameCurrent ? at + 1 : at;
+    if (becameCurrent) {
+      AppLogger.debug('Offset repair rolled back: ${item.id} became current.');
+    }
+    final removed = _queueItems.removeAt(dropAt);
+    await _timedQueueEdit(
+      'remove queue item',
+      (player) => player.removeAudioSourceAt(dropAt),
+      songId: removed.id,
+    );
+    if (deckInSync && !becameCurrent) {
+      final mirrored = await _mirrorInsertOnDeck(
+        deck,
+        inserted,
+        at: at + 1,
+        operation: 'repair offset entry',
+      );
+      if (mirrored) {
+        try {
+          await _runTimedPlayerOperation(
+            generation: _activeLoadGeneration,
+            operation: 'remove queue item inactive',
+            action: () => deck.removeAudioSourceAt(at),
+            songId: removed.id,
+            timeout: _playerResetTimeout,
+            cancelAfterSuccess: false,
+            reloadQueueOnTimeout: true,
+          );
+        } on Object catch (error) {
+          AppLogger.debug('Offset repair deck removal failed: $error');
+        }
+      }
+    }
+    return !becameCurrent;
   }
 
   /// Rewrites queued songs to their canonical ids after an alias update.
