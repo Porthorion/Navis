@@ -1855,6 +1855,9 @@ class NavisAudioHandler extends BaseAudioHandler
           currentIndex = fallbackIndex;
         }
 
+        // The mix starts a new queue from the current song: it takes its own
+        // mode (in order, shuffle off), not the previous queue's.
+        _applyNewQueueMode(inPlayOrder: false);
         if (_queueItems.length == 1 &&
             currentIndex == 0 &&
             _deferredHead.isEmpty &&

@@ -1399,8 +1399,14 @@ extension _NavisQueueLoading on NavisAudioHandler {
     List<String> ids, {
     required int startIndex,
     required bool autoPlay,
+    required bool inPlayOrder,
+    required bool shuffled,
     List<SongsTableData>? suppliedRows,
   }) {
+    // The first broadcast of the new queue already carries its mode. The
+    // original order follows in [_applyNewQueueMode], once the rows are known:
+    // saving the old queue against it would reconcile it away.
+    if (!inPlayOrder) _shuffleEnabled = shuffled;
     _cancelCrossfade();
     _restoredQueueIndex = null;
     _restoredQueuePosition = Duration.zero;
@@ -1440,6 +1446,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
       canonicalIds,
       startIndex: startIndex,
       autoPlay: autoPlay,
+      inPlayOrder: inPlayOrder,
+      shuffled: originalOrder != null,
     );
     if (canonicalIds.isNotEmpty) {
       final selected =
@@ -1510,6 +1518,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
       canonicalIds,
       startIndex: startIndex,
       autoPlay: autoPlay,
+      inPlayOrder: inPlayOrder,
+      shuffled: originalOrder != null,
       suppliedRows: songs,
     );
     // Mixed-source queues keep every row, including a retired local identity;

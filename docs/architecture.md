@@ -4699,7 +4699,9 @@ play order with the optional `originalOrder` of the unshuffled IDs and turns
 shuffle on, including its persisted toggle state; the handler preserves the
 supplied order and never shuffles it twice. Every other start (Play, a song
 tap, Play now, search, radio and mixes, share and deep links) plays in order
-with shuffle off, whatever the previous queue's mode was. Reloads of the
+with shuffle off, whatever the previous queue's mode was (a mix start that
+keeps the current song as the new queue included). A replacement announces its
+mode in the same broadcast that first carries the new queue. Reloads of the
 current queue (`inPlayOrder`: recovery and failover) and queue edits (Add to
 queue, Play next, batched and radio appends) keep the mode they have, and
 clearing the queue ends it. A failed radio or mix start restores the previous
