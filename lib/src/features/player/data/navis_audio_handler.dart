@@ -1880,6 +1880,9 @@ class NavisAudioHandler extends BaseAudioHandler
           currentIndex = fallbackIndex;
         }
 
+        // The mix starts a new queue from the current song: it takes its own
+        // mode (in order, shuffle off), not the previous queue's.
+        _applyNewQueueMode(inPlayOrder: false);
         if (_queueItems.length == 1 &&
             currentIndex == 0 &&
             _deferredHead.isEmpty &&
@@ -2657,7 +2660,7 @@ class NavisAudioHandler extends BaseAudioHandler
       final entries = _logicalQueueEntries();
       final current = _logicalCurrentIndex;
       if (entries.isEmpty || current == null) {
-        // Nothing to reorder yet; the next queue starts shuffled.
+        // Nothing to reorder yet; a new queue sets its own mode.
         _shuffleEnabled = enabled;
         _originalOrder = enabled
             ? entries.map((entry) => entry.id).toList(growable: false)

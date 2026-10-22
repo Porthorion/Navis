@@ -2,7 +2,7 @@ import 'dart:math';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
 
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
@@ -3463,12 +3463,12 @@ void main() {
                 crossfade: crossfade,
                 queueWindow: const NavisQueueWindow(),
               );
-              await handler.setShuffleMode(AudioServiceShuffleMode.all);
               await handler.replaceQueue(
                 ids(count),
                 startIndex: 2,
                 expandMatchFlows: false,
               );
+              await handler.setShuffleMode(AudioServiceShuffleMode.all);
               await handler.setRepeatMode(
                 action == 'restart'
                     ? AudioServiceRepeatMode.none
@@ -3557,10 +3557,11 @@ void main() {
       test('shuffled next pass preserves occurrences $original', () async {
         final players = <_ControllableAudioPlayer>[];
         final (handler, _, _) = await fixture(players, count: 3);
-        await handler.setShuffleMode(AudioServiceShuffleMode.all);
         await handler.replaceQueue(original, expandMatchFlows: false);
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
         await handler.setRepeatMode(AudioServiceRepeatMode.all);
         await handler.playFromIndex(original.length - 1);
+        expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.all);
         await settleQueue(handler);
         final finished = handler.snapshot.currentSongId;
         final check = watchAudioMetadata(handler, players);
@@ -3589,11 +3590,12 @@ void main() {
           count: 6,
           crossfade: true,
         );
-        await handler.setShuffleMode(AudioServiceShuffleMode.all);
         await handler.replaceQueue(ids(6), expandMatchFlows: false);
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
         await handler.setRepeatMode(AudioServiceRepeatMode.all);
         await handler.playFromIndex(5);
         await settleQueue(handler);
+        expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.all);
         final active = handler.debugActivePlayer as _ControllableAudioPlayer;
         final finished = handler.snapshot.currentSongId;
         (handler.debugInactiveDeck as _ControllableAudioPlayer).failPlay = true;
@@ -3620,6 +3622,7 @@ void main() {
           AudioServiceRepeatMode.one,
         ]) {
           for (final (shuffled, entity) in [
+            // Toggled on after the plain replace has started (see below).
             (true, false),
             (true, true),
             // Native Repeat All must not loop the one-song fill unshuffled
@@ -3636,7 +3639,7 @@ void main() {
                 crossfade: crossfade,
                 queueWindow: const NavisQueueWindow(),
               );
-              if (shuffled) {
+              if (shuffled && entity) {
                 await handler.setShuffleMode(AudioServiceShuffleMode.all);
               }
               await handler.setRepeatMode(repeat);
@@ -3663,8 +3666,10 @@ void main() {
                     );
               await entered.future;
               final order = List<String>.of(handler.snapshot.queueSongIds);
-              // Shuffle moves the start song first; unshuffled it stays put.
-              final start = shuffled ? 0 : 2;
+              // Entity Shuffle supplies the play order with the start song
+              // first; a plain replace plays in order from the start song,
+              // whatever the previous queue's shuffle mode was.
+              final start = entity ? 0 : 2;
               expect(player.sourceIds, [order[start]]);
               expect(player.index, 0);
               final check = watchAudioMetadata(handler, players);
@@ -3685,6 +3690,19 @@ void main() {
               expect(player.audibleSongId, expected);
               expect(player.simulatedPosition, Duration.zero);
               expect(handler.snapshot.queueSongIds, order);
+              if (shuffled && !entity) {
+                // Shuffle toggled on after the plain replace shuffles around
+                // the current song and restores the order when turned off.
+                await handler.setShuffleMode(AudioServiceShuffleMode.all);
+                await settleQueue(handler);
+                expect(handler.snapshot.currentSongId, expected);
+                expect(handler.snapshot.queueSongIds.first, expected);
+                expect(handler.snapshot.queueSongIds.toSet(), order.toSet());
+                await handler.setShuffleMode(AudioServiceShuffleMode.none);
+                await settleQueue(handler);
+                expect(handler.snapshot.queueSongIds, order);
+                expect(handler.snapshot.currentSongId, expected);
+              }
               await check();
             });
           }
@@ -3840,7 +3858,7 @@ void main() {
             'shuffle then navigation during Phase 2, fade=$crossfade repeat=$repeat forward=$forward',
             () async {
               final players = <_ControllableAudioPlayer>[];
-              final (handler, player, _) = await fixture(
+              final (handler, player, database) = await fixture(
                 players,
                 crossfade: crossfade,
                 count: 6,
@@ -3849,15 +3867,18 @@ void main() {
               await handler.replaceQueue(ids(6), expandMatchFlows: false);
               await handler.setShuffleMode(AudioServiceShuffleMode.all);
               await handler.setRepeatMode(repeat);
+              final rows = await database.libraryDao.getSongsByIds(ids(6));
+              rows.shuffle(Random(19));
               final check = watchAudioMetadata(handler, players);
               final gate = Completer<void>();
               final entered = Completer<void>();
               player
                 ..appendGate = gate
                 ..appendEntered = entered;
-              final replacing = handler.replaceQueue(
-                ids(6),
-                startIndex: 2,
+              // Entity Shuffle: the supplied play order starts at its first song.
+              final replacing = handler.replaceQueueWithData(
+                rows,
+                originalOrder: ids(6),
                 expandMatchFlows: false,
               );
               await entered.future;
@@ -3877,6 +3898,43 @@ void main() {
             },
           );
         }
+
+        test(
+          'plain replace during Phase 2 after a shuffled queue plays in order, fade=$crossfade repeat=$repeat',
+          () async {
+            final players = <_ControllableAudioPlayer>[];
+            final (handler, player, _) = await fixture(
+              players,
+              crossfade: crossfade,
+              count: 6,
+              queueWindow: const NavisQueueWindow(),
+            );
+            await handler.replaceQueue(ids(6), expandMatchFlows: false);
+            await handler.setShuffleMode(AudioServiceShuffleMode.all);
+            await handler.setRepeatMode(repeat);
+            final check = watchAudioMetadata(handler, players);
+            final gate = Completer<void>();
+            final entered = Completer<void>();
+            player
+              ..appendGate = gate
+              ..appendEntered = entered;
+            final replacing = handler.replaceQueue(
+              ids(6),
+              startIndex: 2,
+              expandMatchFlows: false,
+            );
+            await entered.future;
+            expect(handler.snapshot.queueSongIds, ids(6));
+            expect(handler.snapshot.currentSongId, 'song-2');
+            gate.complete();
+            await replacing;
+            await settleQueue(handler);
+            expect(handler.snapshot.queueSongIds, ids(6));
+            expect(handler.snapshot.currentSongId, 'song-2');
+            expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.none);
+            await check();
+          },
+        );
 
         test(
           'shuffle toggle during replacement waits for the new queue, fade=$crossfade repeat=$repeat',
@@ -6687,10 +6745,10 @@ void main() {
             row.copyWith(title: 'Supplied ${row.id}', isExternal: true),
         ];
         await handler.applySongIdentityAliases({'song-3': 'song-4'});
-        await handler.setShuffleMode(AudioServiceShuffleMode.all);
         final inputIds = suppliedRows
             ? ids
             : ['song-0', 'song-1', 'song-2', 'song-4', 'song-4'];
+        // Entity Shuffle supplies the shuffled play order and its original.
         final expected = shuffledFromStart(inputIds, 2, Random(7));
         final gate = Completer<void>();
         final entered = Completer<void>();
@@ -6698,8 +6756,14 @@ void main() {
           ..loadGate = gate
           ..loadEntered = entered;
         final replacement = suppliedRows
-            ? handler.replaceQueueWithData(rows, startIndex: 2)
-            : handler.replaceQueue(ids, startIndex: 2, expandMatchFlows: false);
+            ? handler.replaceQueueWithData([
+                for (final id in expected) rows.firstWhere((r) => r.id == id),
+              ], originalOrder: inputIds)
+            : handler.replaceQueue(
+                expected,
+                originalOrder: inputIds,
+                expandMatchFlows: false,
+              );
         await entered.future;
         await handler.pause();
         await replacement;
@@ -9182,27 +9246,195 @@ void main() {
         expectNativeMirrorsQueue(handler, player);
       });
 
-      test(
-        'a queue started with shuffle on begins at the chosen song',
-        () async {
-          final (handler, player, _) = await windowed(60);
+      Future<void> expectMode(
+        NavisAudioHandler handler,
+        NavisDatabase database,
+        AudioServiceShuffleMode mode,
+      ) async {
+        await handler.debugFlushQueuePersistence();
+        expect(handler.snapshot.shuffleMode, mode);
+        expect(handler.playbackState.value.shuffleMode, mode);
+        expect(
+          (await database.playQueueDao.getQueueState())!.shuffleMode,
+          mode == AudioServiceShuffleMode.all
+              ? ShuffleMode.all
+              : ShuffleMode.off,
+        );
+      }
+
+      for (final rows in [false, true]) {
+        test('a plain replace after shuffle plays in order with shuffle off '
+            '(rows=$rows)', () async {
+          final (handler, player, database) = await windowed(60);
+          await handler.replaceQueue(ids(60), expandMatchFlows: false);
           await handler.setShuffleMode(AudioServiceShuffleMode.all);
-          await handler.replaceQueue(
-            ids(60),
-            startIndex: 10,
-            expandMatchFlows: false,
-          );
-          final queue = handler.snapshot.queueSongIds;
-          expect(queue.first, 'song-10');
-          expect(queue.toSet(), ids(60).toSet());
-          expect(queue, isNot(ids(60)));
+          await expectMode(handler, database, AudioServiceShuffleMode.all);
+          expect(handler.snapshot.queueSongIds, isNot(ids(60)));
+
+          if (rows) {
+            await handler.replaceQueueWithData(
+              await database.libraryDao.getSongsByIds(ids(60)),
+              startIndex: 10,
+              expandMatchFlows: false,
+            );
+          } else {
+            await handler.replaceQueue(
+              ids(60),
+              startIndex: 10,
+              expandMatchFlows: false,
+            );
+          }
+          expect(handler.snapshot.queueSongIds, ids(60));
+          expect(handler.snapshot.currentSongId, 'song-10');
+          await expectMode(handler, database, AudioServiceShuffleMode.none);
           expectNativeMirrorsQueue(handler, player);
 
+          // The toggle still shuffles and restores the new queue.
+          await handler.setShuffleMode(AudioServiceShuffleMode.all);
+          expect(handler.snapshot.currentSongId, 'song-10');
+          expect(handler.snapshot.queueSongIds.first, 'song-10');
+          expect(handler.snapshot.queueSongIds, isNot(ids(60)));
           await handler.setShuffleMode(AudioServiceShuffleMode.none);
           expect(handler.snapshot.queueSongIds, ids(60));
           expect(handler.snapshot.currentSongId, 'song-10');
+        });
+      }
+
+      test(
+        'entity Shuffle turns shuffle on and the next Play turns it off',
+        () async {
+          final (handler, player, database) = await windowed(60);
+          final shuffled = (await database.libraryDao.getSongsByIds(ids(60)))
+            ..shuffle(Random(5));
+          await handler.replaceQueueWithData(
+            shuffled,
+            originalOrder: ids(60),
+            expandMatchFlows: false,
+          );
+          expect(handler.snapshot.queueSongIds, [
+            for (final r in shuffled) r.id,
+          ]);
+          await expectMode(handler, database, AudioServiceShuffleMode.all);
+
+          await handler.replaceQueue(ids(60), expandMatchFlows: false);
+          expect(handler.snapshot.queueSongIds, ids(60));
+          await expectMode(handler, database, AudioServiceShuffleMode.none);
+          expectNativeMirrorsQueue(handler, player);
         },
       );
+
+      test(
+        'Add to queue and Play next never change the shuffle mode',
+        () async {
+          final (handler, _, database) = await windowed(30);
+          await handler.replaceQueue(ids(10), expandMatchFlows: false);
+          await handler.setShuffleMode(AudioServiceShuffleMode.all);
+          await handler.addToQueue(['song-20'], expandMatchFlows: false);
+          await handler.playNext(['song-21'], expandMatchFlows: false);
+          await expectMode(handler, database, AudioServiceShuffleMode.all);
+          expect(handler.snapshot.queueSongIds, hasLength(12));
+
+          await handler.setShuffleMode(AudioServiceShuffleMode.none);
+          await handler.addToQueue(['song-22'], expandMatchFlows: false);
+          await handler.playNext(['song-23'], expandMatchFlows: false);
+          await expectMode(handler, database, AudioServiceShuffleMode.none);
+        },
+      );
+
+      test('batched inserts into a shuffled queue keep it shuffled', () async {
+        final (handler, _, database) = await windowed(30);
+        await handler.replaceQueue(ids(10), expandMatchFlows: false);
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+        final order = List.of(handler.snapshot.queueSongIds);
+        await handler.mergeIntoUpcoming(
+          await database.libraryDao.getSongsByIds(ids(30, 10)),
+          notBefore: 1,
+          random: Random(7),
+        );
+        await expectMode(handler, database, AudioServiceShuffleMode.all);
+        expect(handler.snapshot.queueSongIds, hasLength(30));
+        // The earlier songs keep their shuffled order.
+        expect(
+          handler.snapshot.queueSongIds.where(ids(10).contains).toList(),
+          order,
+        );
+      });
+
+      test('clearing the queue ends its shuffle mode', () async {
+        final (handler, _, database) = await windowed(30);
+        await handler.replaceQueue(ids(10), expandMatchFlows: false);
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+        await handler.clearQueue();
+        expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.none);
+        await handler.addToQueue(ids(5), expandMatchFlows: false);
+        expect(handler.snapshot.queueSongIds, ids(5));
+        await expectMode(handler, database, AudioServiceShuffleMode.none);
+      });
+
+      test(
+        'a mix started from a shuffled queue starts with shuffle off',
+        () async {
+          final (handler, _, database) = await windowed(30);
+          await handler.replaceQueue(ids(10), expandMatchFlows: false);
+          await handler.setShuffleMode(AudioServiceShuffleMode.all);
+          final current = handler.snapshot.currentSongId!;
+          await handler.retainCurrentSongAsQueue(current);
+          await handler.addToQueue(ids(30, 20), expandMatchFlows: false);
+          expect(handler.snapshot.queueSongIds, [current, ...ids(30, 20)]);
+          await expectMode(handler, database, AudioServiceShuffleMode.none);
+
+          // Toggling on and off again still restores the mix order.
+          await handler.setShuffleMode(AudioServiceShuffleMode.all);
+          await handler.setShuffleMode(AudioServiceShuffleMode.none);
+          expect(handler.snapshot.queueSongIds, [current, ...ids(30, 20)]);
+        },
+      );
+
+      test(
+        'no emission pairs the old queue with the new mode or the reverse',
+        () async {
+          final (handler, _, _) = await windowed(30);
+          await handler.replaceQueue(ids(10), expandMatchFlows: false);
+          await handler.setShuffleMode(AudioServiceShuffleMode.all);
+          final shuffled = List.of(handler.snapshot.queueSongIds);
+          expect(shuffled, isNot(ids(10)));
+          final seen = <PlaybackSnapshot>[];
+          final sub = handler.snapshotStream.listen(seen.add);
+          await handler.replaceQueue(
+            ids(10),
+            startIndex: 3,
+            expandMatchFlows: false,
+          );
+          await settleQueue(handler);
+          await sub.cancel();
+          expect(seen, isNotEmpty);
+          for (final snapshot in seen) {
+            final oldQueue = listEquals(snapshot.queueSongIds, shuffled);
+            final newQueue = listEquals(snapshot.queueSongIds, ids(10));
+            expect(oldQueue || newQueue, isTrue);
+            expect(
+              snapshot.shuffleMode,
+              oldQueue
+                  ? AudioServiceShuffleMode.all
+                  : AudioServiceShuffleMode.none,
+              reason: 'queue ${snapshot.queueSongIds}',
+            );
+          }
+        },
+      );
+
+      test('repeat all never reshuffles an in-order queue', () async {
+        final (handler, player, _) = await windowed(12);
+        await handler.replaceQueue(ids(12), expandMatchFlows: false);
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+        await handler.replaceQueue(ids(12), expandMatchFlows: false);
+        await handler.setRepeatMode(AudioServiceRepeatMode.all);
+        player.moveTo(11);
+        await handler.skipToNext();
+        await until(() => handler.snapshot.currentSongId == 'song-0');
+        expect(handler.snapshot.queueSongIds, ids(12));
+        expect(handler.snapshot.shuffleMode, AudioServiceShuffleMode.none);
+      });
 
       Future<(NavisAudioHandler, _ControllableAudioPlayer)> restoring({
         required List<String> playOrder,

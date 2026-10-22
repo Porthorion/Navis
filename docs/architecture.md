@@ -4692,12 +4692,23 @@ without restarting it or resetting its playback position, then shuffles every
 other occurrence, including played songs and deferred head/tail entries, with
 `shuffledFromStart`. `_rearrangeQueue` retains the current native source and
 materialises only the usual window; the remaining shuffled entries stay
-deferred. A queue started with shuffle on follows the same order. The
-unshuffled order is kept in `_originalOrder`
-(entity Shuffle callers pass the optional `originalOrder` of their unshuffled
-IDs alongside pre-shuffled rows, so the handler preserves the supplied order
-and never shuffles it twice). Supplying that order also enables shuffle mode,
-including its persisted toggle state. Android Auto’s Shuffle liked projection passes
+deferred. Shuffle belongs to a queue, not to the app: `_applyNewQueueMode`,
+the single decision point for every new queue, takes the mode from the action
+that started it. Entity Shuffle (and Android Auto’s Shuffle liked) supplies its
+play order with the optional `originalOrder` of the unshuffled IDs and turns
+shuffle on, including its persisted toggle state; the handler preserves the
+supplied order and never shuffles it twice. Every other start (Play, a song
+tap, Play now, search, radio and mixes, share and deep links) plays in order
+with shuffle off, whatever the previous queue's mode was (a mix start that
+keeps the current song as the new queue included). A replacement announces its
+mode in the same broadcast that first carries the new queue. Reloads of the
+current queue (`inPlayOrder`: recovery and failover) and queue edits (Add to
+queue, Play next, batched and radio appends) keep the mode they have, and
+clearing the queue ends it. A failed radio or mix start restores the previous
+queue with its mode (the saved play order stands in for the lost unshuffled
+order). The toggle (queue header, desktop mini player, MPRIS, SMTC,
+`toggleShuffle`) is unchanged and acts on the current queue at any time. The
+unshuffled order is kept in `_originalOrder`. Android Auto’s Shuffle liked projection passes
 the same original order through the row-loading adapter. It is reconciled with edits
 (`reconcileOriginalRanks`: songs matched by occurrence, a song played next
 lands after the current song, appended songs go last, removed songs drop).
