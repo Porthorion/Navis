@@ -173,17 +173,33 @@ extension _NavisCache on NavisAudioHandler {
 
   /// How much of [songId], the current song, is playable from local data:
   /// all of it from a file or a finished download, else what the running
-  /// download has fetched (its fraction, or bytes at the stream's bitrate
-  /// when its length is unknown). Null when nothing is known.
-  Duration? _cachedPlayablePosition(String songId, Duration duration) {
+  /// download has fetched (read exactly from an Ogg or FLAC partial file, else
+  /// its fraction, or bytes at the stream's bitrate when its length is
+  /// unknown). Null when nothing is known.
+  Duration? _cachedPlayablePosition(String songId, Duration duration) =>
+      _cachedPlayable(songId, duration).position;
+
+  /// [_cachedPlayablePosition] and where it came from, for diagnostics:
+  /// `full`, `exact`, `progress`, `bitrate` or `none`.
+  ({Duration? position, String source}) _cachedPlayable(
+    String songId,
+    Duration duration,
+  ) {
     final item = _currentMediaItem;
     if (item == null || item.id != songId || duration <= Duration.zero) {
-      return null;
+      return (position: null, source: 'none');
     }
     if (item.extras?['sourceKind'] == PlaybackSourceKind.file.name ||
         _completedCacheSongIds.contains(songId)) {
-      return duration;
+      return (position: duration, source: 'full');
     }
+    final probe = _cachedExtent;
+    final exact =
+        probe != null &&
+            probe.songId == songId &&
+            probe.path == _partFilePathForSong(songId)
+        ? probe.extent
+        : null;
     final progress = _rollingCacheActivities.values
         .where((activity) => activity.songId == songId)
         .firstOrNull
@@ -191,16 +207,80 @@ extension _NavisCache on NavisAudioHandler {
     final bitRate = item.extras?['resolvedBitRate'] as int?;
     final bytes = _receivedCacheBytesForSong(songId);
     final Duration cached;
-    if (progress != null && progress > 0) {
+    final String source;
+    if (exact != null) {
+      cached = exact;
+      source = 'exact';
+    } else if (progress != null && progress > 0) {
       cached = duration * progress;
+      source = 'progress';
     } else if (bytes != null && bitRate != null && bitRate > 0) {
       cached = Duration(milliseconds: bytes * 8 ~/ bitRate);
+      source = 'bitrate';
     } else {
-      return _completedCacheSongIds.contains(songId) ? duration : null;
+      return (position: null, source: 'none');
     }
-    if (cached >= duration) return duration;
+    if (cached >= duration) return (position: duration, source: source);
     // Whole seconds, so a download does not rebuild the seek bar per chunk.
-    return Duration(seconds: cached.inSeconds);
+    return (position: Duration(seconds: cached.inSeconds), source: source);
+  }
+
+  /// The partial file the running download of [songId] writes, contiguous
+  /// from byte 0 (the full stream, also while an offset stream plays).
+  String? _partFilePathForSong(String songId) {
+    if (_isDesktopRuntime) {
+      return _sidecarDownloader.activeSongId == songId
+          ? _sidecarDownloader.activePartFilePath
+          : null;
+    }
+    for (final entry in _rollingCacheActivities.entries) {
+      if (entry.value.songId == songId) return '${entry.key}.part';
+    }
+    return null;
+  }
+
+  /// Starts the throttled read of the exact cached time: one small file read
+  /// at most once a second, however many chunks arrive. A failed read or an
+  /// unknown format leaves the estimate in place.
+  void _probeCachedExtent(String songId) {
+    final item = _currentMediaItem;
+    if (item == null ||
+        item.id != songId ||
+        item.extras?['sourceKind'] == PlaybackSourceKind.file.name ||
+        _completedCacheSongIds.contains(songId)) {
+      return;
+    }
+    final path = _partFilePathForSong(songId);
+    if (path == null) return;
+    var probe = _cachedExtent;
+    if (probe == null || probe.songId != songId || probe.path != path) {
+      probe = _cachedExtent = _CachedExtentProbe(songId, path);
+    }
+    final now = DateTime.now();
+    final last = probe.lastAt;
+    if (probe.inFlight ||
+        (last != null && now.difference(last) < const Duration(seconds: 1))) {
+      return;
+    }
+    probe
+      ..inFlight = true
+      ..lastAt = now;
+    _cachedExtentProbeCount++;
+    final current = probe;
+    unawaited(
+      Future<Duration?>.sync(() => cachedExtentReader(path))
+          .catchError((Object _) => null)
+          .then((extent) {
+            current.inFlight = false;
+            // Another song or file took over while the read ran.
+            if (!identical(_cachedExtent, current)) return;
+            final best = current.extent;
+            if (extent != null && (best == null || extent > best)) {
+              current.extent = extent;
+            }
+            _refreshBufferState(_currentBufferSongId);
+          }),
+    );
   }
 
   // Sidecar bytes prove linear load progress, never desktop seek progress.

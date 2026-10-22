@@ -9,6 +9,8 @@ extension _NavisMediaSession on NavisAudioHandler {
     }
     final nextSongId = _radioStation == null ? item?.id : null;
     _completedCacheSongIds.removeWhere((id) => id != item?.id);
+    if (_cachedExtent?.songId != item?.id) _cachedExtent = null;
+    if (_playerRangeStart?.songId != item?.id) _playerRangeStart = null;
     // Re-learn a sidecar that finished while its song was not current: the
     // set is the only per-event source for the buffered line.
     if (item != null && _completedSidecarAvailable(item.id)) {
@@ -450,24 +452,57 @@ extension _NavisMediaSession on NavisAudioHandler {
       ? _resolveCurrentQueueMetadata().mediaItem?.id
       : null;
 
-  /// Draws the seek bar line for [songId] as the further of the player's
-  /// buffered position and what the rolling cache holds locally.
+  /// Draws the seek bar lines for [songId]: the range playable from the start
+  /// (the further of the player's buffered position and what the rolling cache
+  /// holds locally) and, after a seek past it, the player's own range ahead.
   void _refreshBufferState(String? songId) {
     var buffered = Duration.zero;
+    Duration? aheadStart;
+    Duration? aheadEnd;
     if (songId != null) {
-      buffered = _playerBufferedPosition;
-      final cached = _cachedPlayablePosition(
-        songId,
-        _effectivePlaybackDuration(_currentMediaItem),
-      );
-      if (cached != null && cached > buffered) buffered = cached;
+      _probeCachedExtent(songId);
+      final raw = _playerBufferedPosition;
+      final cached =
+          _cachedPlayablePosition(
+            songId,
+            _effectivePlaybackDuration(_currentMediaItem),
+          ) ??
+          Duration.zero;
+      final start = _playerRangeStartOf(songId);
+      if (start <= cached + const Duration(seconds: 2) || raw <= cached) {
+        buffered = raw > cached ? raw : cached;
+      } else {
+        buffered = cached;
+        if (raw > start) {
+          aheadStart = start;
+          aheadEnd = raw;
+        }
+      }
     }
-    _emitBufferState(songId: songId, bufferedPosition: buffered);
+    _emitBufferState(
+      songId: songId,
+      bufferedPosition: buffered,
+      aheadStart: aheadStart,
+      aheadEnd: aheadEnd,
+    );
+  }
+
+  /// Where the player's buffered range begins: the offset of an offset stream,
+  /// else the target of the last seek in this queue occurrence, else 0.
+  Duration _playerRangeStartOf(String songId) {
+    final offset = _positionOffsetOf(_currentMediaItem);
+    if (offset > Duration.zero) return offset;
+    final seek = _playerRangeStart;
+    return seek != null && seek.songId == songId
+        ? seek.position
+        : Duration.zero;
   }
 
   void _emitBufferState({
     required String? songId,
     required Duration bufferedPosition,
+    Duration? aheadStart,
+    Duration? aheadEnd,
     bool force = false,
   }) {
     final safeBufferedPosition = bufferedPosition < Duration.zero
@@ -476,12 +511,10 @@ extension _NavisMediaSession on NavisAudioHandler {
     final next = PlaybackBufferState(
       songId: songId,
       bufferedPosition: safeBufferedPosition,
+      aheadStart: aheadStart,
+      aheadEnd: aheadEnd,
     );
-    if (!force &&
-        _bufferState.songId == next.songId &&
-        _bufferState.bufferedPosition == next.bufferedPosition) {
-      return;
-    }
+    if (!force && _bufferState == next) return;
     _bufferState = next;
     if (!_bufferStateController.isClosed) {
       _bufferStateController.add(next);

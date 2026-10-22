@@ -302,6 +302,12 @@ extension _NavisRecovery on NavisAudioHandler {
         _disposeHandlerStarted) {
       return;
     }
+    // A loop or an advance starts a new occurrence: the player's buffered
+    // range starts over from its own position.
+    if (_playerRangeStart != null) {
+      _playerRangeStart = null;
+      _refreshBufferState(_currentBufferSongId);
+    }
     if (index == discontinuity.previousEvent.currentIndex) {
       _advancePosition = null;
       _playedSinceFailover = Duration.zero;

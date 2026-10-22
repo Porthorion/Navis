@@ -147,6 +147,17 @@ class NavisPlaybackTimeouts {
   final Duration healthyPlayback;
 }
 
+/// The newest exact cached time read from a song's partial download file.
+class _CachedExtentProbe {
+  new(this.songId, this.path);
+
+  final String songId;
+  final String path;
+  Duration? extent;
+  bool inFlight = false;
+  DateTime? lastAt;
+}
+
 /// A request belongs to the selected queue occurrence, independent of whether
 /// the native player is temporarily paused while loading or recovering.
 class _PendingSeek {
