@@ -9,7 +9,10 @@ extension _NavisMediaSession on NavisAudioHandler {
     }
     final nextSongId = _radioStation == null ? item?.id : null;
     _completedCacheSongIds.removeWhere((id) => id != item?.id);
-    if (_cachedExtent?.songId != item?.id) _cachedExtent = null;
+    if (_cachedExtent?.songId != item?.id) {
+      _cachedExtent = null;
+      _cancelCachedExtentTimer();
+    }
     if (_playerRangeStart?.songId != item?.id) _playerRangeStart = null;
     // Re-learn a sidecar that finished while its song was not current: the
     // set is the only per-event source for the buffered line.
@@ -455,12 +458,15 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// Draws the seek bar lines for [songId]: the range playable from the start
   /// (the further of the player's buffered position and what the rolling cache
   /// holds locally) and, after a seek past it, the player's own range ahead.
-  void _refreshBufferState(String? songId) {
+  ///
+  /// [probe] is false for the refresh that follows a probe's own result, which
+  /// must not start the next probe (the trailing timer does that).
+  void _refreshBufferState(String? songId, {bool probe = true}) {
     var buffered = Duration.zero;
     Duration? aheadStart;
     Duration? aheadEnd;
     if (songId != null) {
-      _probeCachedExtent(songId);
+      if (probe) _probeCachedExtent(songId);
       final raw = _playerBufferedPosition;
       final cached =
           _cachedPlayablePosition(

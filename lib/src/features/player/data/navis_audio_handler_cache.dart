@@ -1,5 +1,8 @@
 part of 'navis_audio_handler.dart';
 
+/// Unchanged probe results after which the trailing probe stops.
+const _cachedExtentMaxUnchanged = 5;
+
 extension _NavisCache on NavisAudioHandler {
   /// Stops lock-cache downloads of songs other than the current and next
   /// ones. Such a download otherwise runs to completion after the player has
@@ -240,26 +243,30 @@ extension _NavisCache on NavisAudioHandler {
   }
 
   /// Starts the throttled read of the exact cached time: one small file read
-  /// at most once a second, however many chunks arrive. A failed read or an
-  /// unknown format leaves the estimate in place.
-  void _probeCachedExtent(String songId) {
+  /// at most once an interval (a second), however many chunks arrive. A failed
+  /// read or an unknown format leaves the estimate in place. [retry] is the
+  /// trailing probe; an event that finds the retries stopped restarts them.
+  void _probeCachedExtent(String songId, {bool retry = false}) {
     final item = _currentMediaItem;
+    final path = item?.id == songId ? _partFilePathForSong(songId) : null;
     if (item == null ||
-        item.id != songId ||
         item.extras?['sourceKind'] == PlaybackSourceKind.file.name ||
-        _completedCacheSongIds.contains(songId)) {
+        _completedCacheSongIds.contains(songId) ||
+        path == null) {
+      _cancelCachedExtentTimer();
       return;
     }
-    final path = _partFilePathForSong(songId);
-    if (path == null) return;
     var probe = _cachedExtent;
     if (probe == null || probe.songId != songId || probe.path != path) {
       probe = _cachedExtent = _CachedExtentProbe(songId, path);
     }
+    if (!retry && probe.unchanged >= _cachedExtentMaxUnchanged) {
+      probe.unchanged = 0;
+    }
     final now = DateTime.now();
     final last = probe.lastAt;
     if (probe.inFlight ||
-        (last != null && now.difference(last) < const Duration(seconds: 1))) {
+        (last != null && now.difference(last) < cachedExtentInterval)) {
       return;
     }
     probe
@@ -284,10 +291,44 @@ extension _NavisCache on NavisAudioHandler {
             final best = target.extent;
             if (extent != null && (best == null || extent > best)) {
               target.extent = extent;
+              target.unchanged = 0;
+            } else {
+              target.unchanged++;
             }
-            _refreshBufferState(_currentBufferSongId);
+            _refreshBufferState(_currentBufferSongId, probe: false);
+            _armCachedExtentTimer(target);
           }),
     );
+  }
+
+  /// Probes once more after an interval, so a download that grows while the
+  /// player sends no buffer events (a held or slow Android stream) is still
+  /// followed. Stops after a streak of unchanged results (a stalled
+  /// download); the next buffer event restarts it. ponytail: 1 Hz tail read
+  /// while a partial download of the current song grows; the only Timer of
+  /// the probe, an event-driven read with its own throttle is the alternative
+  /// if the player ever reports its buffer on a steady clock.
+  void _armCachedExtentTimer(_CachedExtentProbe probe) {
+    if (_cachedExtentTimer?.isActive ?? false) return;
+    if (_disposeHandlerStarted ||
+        probe.unchanged >= _cachedExtentMaxUnchanged ||
+        !identical(_cachedExtent, probe) ||
+        _currentMediaItem?.id != probe.songId ||
+        _currentMediaItem?.extras?['sourceKind'] ==
+            PlaybackSourceKind.file.name ||
+        _completedCacheSongIds.contains(probe.songId) ||
+        _partFilePathForSong(probe.songId) != probe.path) {
+      return;
+    }
+    _cachedExtentTimer = Timer(cachedExtentInterval, () {
+      _cachedExtentTimer = null;
+      _probeCachedExtent(probe.songId, retry: true);
+    });
+  }
+
+  void _cancelCachedExtentTimer() {
+    _cachedExtentTimer?.cancel();
+    _cachedExtentTimer = null;
   }
 
   // Sidecar bytes prove linear load progress, never desktop seek progress.

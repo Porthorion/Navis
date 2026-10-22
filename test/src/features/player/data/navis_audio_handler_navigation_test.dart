@@ -13941,6 +13941,97 @@ void main() {
       },
     );
 
+    // A held or slow download sends no buffer events, so the probe re-arms
+    // itself while the part file grows (a shortened interval keeps these fast).
+    group('trailing probe', () {
+      const interval = Duration(milliseconds: 100);
+
+      test('re-probes a growing part file without buffer events', () async {
+        final (handler, _) = await serve(length: null, first: 160000);
+        var reads = 0;
+        handler
+          ..cachedExtentInterval = interval
+          ..cachedExtentReader = (_) async => Duration(seconds: 30 + reads++);
+        await startSong(handler);
+        await until(() => line(handler) >= const Duration(seconds: 34));
+        expect(
+          line(handler),
+          greaterThanOrEqualTo(const Duration(seconds: 34)),
+        );
+        expect(probes(handler), greaterThanOrEqualTo(5));
+        expect(
+          handler.collectPlaybackDiagnostics()['cachedPlayableSource'],
+          'exact',
+        );
+      });
+
+      test(
+        'stops after an unchanged streak and restarts on an event',
+        () async {
+          final (handler, player) = await serve(length: null, first: 160000);
+          handler
+            ..cachedExtentInterval = interval
+            ..cachedExtentReader = (_) async => const Duration(seconds: 30);
+          await startSong(handler);
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          final settled = probes(handler);
+          expect(settled, inInclusiveRange(6, 8));
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          expect(probes(handler), settled);
+          expect(handler.cachedExtentTimerActive, isFalse);
+          player.emitBuffered(const Duration(seconds: 3));
+          await until(() => probes(handler) > settled);
+          expect(probes(handler), settled + 1);
+        },
+      );
+
+      // A long interval keeps an armed timer visibly pending.
+      Future<NavisAudioHandler> armed({
+        int? length,
+        int first = 160000,
+        FutureOr<Duration?> Function(String path)? after,
+      }) async {
+        final (handler, _) = await serve(length: length, first: first);
+        var reads = 0;
+        handler
+          ..cachedExtentInterval = const Duration(seconds: 5)
+          ..cachedExtentReader = (path) => reads++ == 0
+              ? Future.value(const Duration(seconds: 10))
+              : Future.value(after?.call(path));
+        await startSong(handler);
+        await until(() => handler.cachedExtentTimerActive);
+        expect(handler.cachedExtentTimerActive, isTrue);
+        return handler;
+      }
+
+      test('a song change cancels the timer', () async {
+        final handler = await armed(
+          after: (_) => Completer<Duration?>().future,
+        );
+        await handler.skipToNext();
+        await settleQueue(handler);
+        expect(handler.bufferState.songId, 'song-1');
+        // The next song's probe never returns, so only a leftover timer of
+        // the previous song could still be pending.
+        await until(() => probes(handler) >= 2);
+        expect(handler.cachedExtentTimerActive, isFalse);
+      });
+
+      test('cache completion cancels the timer', () async {
+        final handler = await armed(length: 100 * 1024, first: 40 * 1024);
+        release.complete();
+        await until(() => !handler.cachedExtentTimerActive);
+        expect(handler.cachedExtentTimerActive, isFalse);
+        expect(line(handler), handler.snapshot.duration);
+      });
+
+      test('dispose cancels the timer', () async {
+        final handler = await armed();
+        await handler.disposeHandler();
+        expect(handler.cachedExtentTimerActive, isFalse);
+      });
+    });
+
     test('a Repeat One loop clears the ahead range start', () async {
       final (handler, player) = await serve();
       player.simulateProgress = true;

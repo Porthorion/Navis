@@ -5249,9 +5249,13 @@ Ogg page, or the first-sample index of the last FLAC frame whose header passes
 its CRC-8 and continues the previous header's frame. The part file is
 `'<cache>.part'` (Android LockCaching) or the sidecar's `activePartFilePath`
 (desktop); both start at byte 0 and hold the full stream, also while an offset
-transcode plays. `_probeCachedExtent` reads it at most once a second from
-`_refreshBufferState`, keeps the largest value per song and file, and ignores a
-result for another song; an I/O error, an unknown format or a zero extent (only the
+transcode plays. `_probeCachedExtent` reads it at most once a second, from
+`_refreshBufferState` events and from one trailing one-shot timer that re-probes
+a second after each result (a held or slow Android download sends no player
+events). The timer stops after five unchanged results, on a song change, on
+cache completion and on dispose; the next event restarts it. The probe keeps the
+largest value per song and file, and ignores a result for another song or part
+file; an I/O error, an unknown format or a zero extent (only the
 Opus header and tags pages so far) leaves the estimate in place without a
 notice. The second range starts at `_playerRangeStartOf`: the
 stream's `positionOffsetMs`, else the target of the last seek in this queue

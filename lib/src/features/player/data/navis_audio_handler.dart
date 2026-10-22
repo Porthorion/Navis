@@ -389,6 +389,17 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<Duration?> Function(String path) cachedExtentReader =
       readCachedAudioExtent;
 
+  /// The pace of the exact-extent probe: at most one read per interval, and
+  /// the trailing re-probe after it. A seam for tests.
+  @visibleForTesting
+  Duration cachedExtentInterval = const Duration(seconds: 1);
+
+  // The one-shot trailing probe (see [_armCachedExtentTimer]).
+  Timer? _cachedExtentTimer;
+
+  @visibleForTesting
+  bool get cachedExtentTimerActive => _cachedExtentTimer?.isActive ?? false;
+
   // Where the player's buffered range starts after the user's seek within the
   // current queue occurrence. A native loop or another song drops it.
   ({String songId, Duration position})? _playerRangeStart;
@@ -3043,6 +3054,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _cancelRemotePlaybackStallWatchdog();
     _positionPersistTimer?.cancel();
     _transportPersistTimer?.cancel();
+    _cancelCachedExtentTimer();
     _radioStation = null;
     _radioMetadataService.dispose();
     await _networkRecoverySubscription?.cancel();

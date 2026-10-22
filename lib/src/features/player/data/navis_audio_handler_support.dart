@@ -156,6 +156,9 @@ class _CachedExtentProbe {
   Duration? extent;
   bool inFlight = false;
   DateTime? lastAt;
+
+  /// Consecutive probes that found nothing new.
+  int unchanged = 0;
 }
 
 /// A request belongs to the selected queue occurrence, independent of whether
