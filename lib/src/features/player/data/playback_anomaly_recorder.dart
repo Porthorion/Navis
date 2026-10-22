@@ -36,7 +36,6 @@ class PlaybackAnomalyRecorder {
   static const _jump = Duration(milliseconds: 2000);
   static const _grace = Duration(milliseconds: 1500);
   static const _confirmAfter = Duration(milliseconds: 300);
-  static const _staleBaseline = Duration(seconds: 10);
   static const _nearEnd = Duration(seconds: 10);
   static const _replayStart = Duration(seconds: 3);
 
@@ -81,27 +80,30 @@ class PlaybackAnomalyRecorder {
   ];
 
   /// Adds a transport event to the ring. It explains nothing.
-  void event(String kind, [Map<String, Object?> fields = const {}]) {
-    final at = _now();
-    _rows.add(_Row(at, kind, fields));
-    _prune(at);
-    // A recovery or seek reload can freeze the position stream (it is
-    // distinct), so no sample refreshes the baseline's age. Only these two
-    // kinds do: restartCompleted must leave a stale baseline stale.
-    final held = _prev;
-    if (held != null && (kind == 'recovery' || kind == 'seekDone')) {
-      _prev = _Sample(held.position, at, held.entry, held.songId);
+  void event(String kind, [Map<String, Object?> fields = const {}]) =>
+      _guard(() {
+        final at = _now();
+        _rows.add(_Row(at, kind, fields));
+        _prune(at);
+      });
+
+  /// A recorder failure must never reach a player listener or `seek()`.
+  void _guard(void Function() body) {
+    try {
+      body();
+    } on Object {
+      // Observe only: losing a row is better than disturbing playback.
     }
   }
 
   /// The native index stream repeats itself at the playback event rate: only
   /// a change is a row.
-  void index(int? index) {
+  void index(int? index) => _guard(() {
     if (index == _lastIndex && _indexSeen) return;
     _indexSeen = true;
     _lastIndex = index;
     event('index', {'index': index});
-  }
+  });
 
   /// Adds a native playback event row. Desktop engines emit one per position
   /// tick, which would fill the ring in seconds: unchanged events are kept at
@@ -114,8 +116,12 @@ class PlaybackAnomalyRecorder {
     required Duration updatePosition,
     required DateTime updateTime,
     required bool advancing,
+    required bool active,
     required Map<String, Object?> Function() fields,
-  }) {
+  }) => _guard(() {
+    // Paused, idle or completed: the position is not expected to move, so the
+    // next sample starts a new baseline (the near-end memory stays).
+    if (!active) _prev = _candidate = null;
     final at = _now();
     final last = _lastPlaybackEvent;
     _lastPlaybackEvent = (
@@ -137,15 +143,16 @@ class PlaybackAnomalyRecorder {
     }
     _lastPlaybackRow = at;
     event('pb', fields());
-  }
+  });
 
   /// Adds a transport event that explains a position move (seek, navigation,
   /// loop, stop, deck swap) and forgets the baseline it moves.
-  void expect(String kind, [Map<String, Object?> fields = const {}]) {
-    event(kind, fields);
-    _expectedAt = _now();
-    _prev = _candidate = _end = null;
-  }
+  void expect(String kind, [Map<String, Object?> fields = const {}]) =>
+      _guard(() {
+        event(kind, fields);
+        _expectedAt = _now();
+        _prev = _candidate = _end = null;
+      });
 
   /// Feeds one position sample, in song time, of the current queue entry
   /// [entryKey] (compared by identity, only to tell entries apart in a
@@ -160,7 +167,7 @@ class PlaybackAnomalyRecorder {
     required bool repeatOne,
     required bool playing,
     bool seeking = false,
-  }) {
+  }) => _guard(() {
     final at = _now();
     final ms = position.inMilliseconds;
     _raw.add(_Row(at, 'pos', {'ms': ms}));
@@ -175,15 +182,10 @@ class PlaybackAnomalyRecorder {
     _prune(at);
     if (seeking || !playing) {
       _candidate = null;
-      // Seeking time (a slow recovery) must not age the baseline.
-      final held = _prev;
-      if (seeking && held != null) {
-        _prev = _Sample(held.position, at, held.entry, held.songId);
-      }
       return;
     }
 
-    final sample = _Sample(position, at, entryKey, songId);
+    final sample = _Sample(position, entryKey, songId);
     final previous = _prev;
     final pending = _candidate;
     _prev = sample;
@@ -206,11 +208,11 @@ class PlaybackAnomalyRecorder {
     if (duration != null && position >= duration - _nearEnd) {
       _end = _NearEnd(at, entryKey, songId, position);
     }
-    if (explained || previous == null) return;
+    if (explained) return;
 
-    var sameEntry = identical(entryKey, previous.entry);
+    var sameEntry = identical(entryKey, previous?.entry);
     String? kind;
-    var from = previous.position;
+    var from = previous?.position ?? position;
     if (end != null &&
         !repeatOne &&
         songId == end.songId &&
@@ -220,25 +222,24 @@ class PlaybackAnomalyRecorder {
       kind = 'replayNearEnd';
       from = end.position;
       sameEntry = identical(entryKey, end.entry);
-    } else if (songId == previous.songId &&
+    } else if (previous != null &&
+        songId == previous.songId &&
         // A loop restarts a Repeat One song even where the native loop
-        // heuristic misses it (late first tick, short song).
+        // heuristic misses it (late first tick, short song, late landing).
         !(repeatOne &&
-            position < _replayStart &&
+            position < _nearEnd &&
             _nearTheEnd(previous.position, duration)) &&
-        // An older baseline is stale (a queue that completed, then Play).
-        at.difference(previous.at) <= _staleBaseline &&
         previous.position - position > _jump) {
       kind = 'backwardJump';
     }
     if (kind != null) {
       _candidate = _Candidate(kind, from, position, at, songId, sameEntry);
     }
-  }
+  });
 
   /// Whether [position] is where a song loops from: the last 10 s, or from 60%
   /// of a song under 20 s. ponytail: an unknown duration counts as near the
-  /// end, so Repeat One hides every rewind to the start there; fetch the
+  /// end, so Repeat One hides every rewind to under 10 s there; fetch the
   /// duration elsewhere if that ever hides a real bug.
   static bool _nearTheEnd(Duration position, Duration? duration) {
     if (duration == null) return true;
@@ -257,7 +258,7 @@ class PlaybackAnomalyRecorder {
       'toMs': c.to.inMilliseconds,
       'durationMs': duration?.inMilliseconds,
       'sameEntry': c.sameEntry,
-      ...?_header?.call(),
+      ...?_safeHeader(),
     };
     // Recent position rows lag by up to a second; the raw samples fill in.
     final rows = <_Row>[
@@ -292,6 +293,14 @@ class PlaybackAnomalyRecorder {
       );
   }
 
+  Map<String, Object?>? _safeHeader() {
+    try {
+      return _header?.call();
+    } on Object {
+      return null;
+    }
+  }
+
   void _prune(DateTime at) {
     while (_rows.isNotEmpty &&
         (_rows.length > _maxRows || at.difference(_rows.first.at) > _window)) {
@@ -308,9 +317,8 @@ class _Row {
 }
 
 class _Sample {
-  const _Sample(this.position, this.at, this.entry, this.songId);
+  const _Sample(this.position, this.entry, this.songId);
   final Duration position;
-  final DateTime at;
   final Object entry;
   final String songId;
 }

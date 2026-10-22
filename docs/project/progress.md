@@ -22,7 +22,7 @@ Last updated: 2026-10-22
   loop or stop (`backwardJump`), or a song from its last 10 s replays from
   under 3 s within 10 s without Repeat One (`replayNearEnd`). The last 5 records
   are in `GET /v1/playback/status` as `anomalies`. Evidence: recorder unit
-  tests (29) and handler tests (6) pass; the handler tests fail without the
+  tests (48) and handler tests (8) pass; the handler tests fail without the
   seek, navigation and loop explanations. Records print through `debugPrint`
   (AppLogger drops them without asserts); jumps are judged by song, so entry
   swaps (likes, art cache, recovery rebuilds) do not hide them.

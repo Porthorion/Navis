@@ -258,6 +258,9 @@ Use this quick matrix to classify failures:
   never Repeat One). One record per kind per song, at most 20 per run.
   Pressing Play within 10 s of a single-song queue completing also records
   `replayNearEnd`; the `restartCompleted` row tells it apart.
+  A pause or a completed queue ends the comparison baseline, so resuming or
+  pressing Play later is never compared with the old position; a position
+  that stays frozen and then resumes behind is still a `backwardJump`.
 - Read it: records go through `debugPrint`, so they print in release and
   profile builds too (`AppLogger` drops everything without asserts and is not
   used). On Android: `adb logcat -s flutter | grep PLAYBACK_ANOMALY` (logcat

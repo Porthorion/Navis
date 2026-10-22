@@ -58,6 +58,19 @@ void main() {
     );
   }
 
+  void pbEvent(int atMs, {String state = 'ready', required bool active}) {
+    at(atMs);
+    recorder.playbackEvent(
+      state: state,
+      index: 1,
+      updatePosition: Duration.zero,
+      updateTime: clock,
+      advancing: false,
+      active: active,
+      fields: () => {'state': state},
+    );
+  }
+
   List<String> lines(String log) => const LineSplitter().convert(log);
   Map<String, Object?> header(String log) =>
       jsonDecode(lines(log).first.substring('[PLAYBACK_ANOMALY] '.length))
@@ -217,35 +230,55 @@ void main() {
       expect(logs, isEmpty);
     });
 
-    test('recovery and seekDone events keep the baseline fresh', () {
+    test('a position frozen for 11 s that resumes behind is recorded', () {
       sample(0, 60000);
-      recorder.event('recovery', {'targetMs': 60000});
-      recorder.event('seekDone');
-      // No samples at all: a frozen buffering position emits nothing.
-      at(11000);
-      recorder.event('seekDone');
-      sample(11500, 52000);
-      sample(11900, 52400);
+      // A frozen position emits no samples (the stream is distinct).
+      sample(11000, 54900);
+      sample(11400, 55300);
 
       expect(logs, hasLength(1));
-      expect(header(logs.single)['kind'], 'backwardJump');
+      final head = header(logs.single);
+      expect(head['kind'], 'backwardJump');
+      expect(head['fromMs'], 60000);
+      expect(head['toMs'], 54900);
     });
 
-    test('restartCompleted does not keep a stale baseline fresh', () {
-      sample(0, 199000);
-      sample(200, 199800, playing: false);
-      at(20000);
-      recorder.event('restartCompleted');
-      sample(20500, 100);
-      sample(20900, 500);
+    test(
+      'a recovery with silent samples then a landing behind is recorded',
+      () {
+        sample(0, 60000);
+        recorder.event('recovery', {'targetMs': 60000});
+        recorder.event('seekDone');
+        sample(15000, 52000);
+        sample(15400, 52400);
+        expect(logs, hasLength(1));
+      },
+    );
+
+    test('pause then resume never compares across the pause', () {
+      sample(0, 60000);
+      pbEvent(200, active: false);
+      sample(5000, 52000);
+      sample(5400, 52400);
       expect(logs, isEmpty);
     });
 
-    test('a baseline older than 10 s is stale', () {
+    test('Play minutes after the queue completed is not recorded', () {
       sample(0, 199000);
-      sample(60000, 100, playing: true);
+      pbEvent(200, state: 'completed', active: false);
+      sample(60000, 100);
       sample(60400, 500);
       expect(logs, isEmpty);
+    });
+
+    test('a restart within seconds of completing is recorded', () {
+      sample(0, 199000);
+      pbEvent(200, state: 'completed', active: false);
+      sample(3000, 100);
+      sample(3400, 500);
+
+      expect(logs, hasLength(1));
+      expect(header(logs.single)['kind'], 'replayNearEnd');
     });
   });
 
@@ -281,6 +314,13 @@ void main() {
       sample(0, 9000, durationMs: 10000, repeatOne: true);
       sample(200, 300, durationMs: 10000, repeatOne: true);
       sample(600, 700, durationMs: 10000, repeatOne: true);
+      expect(logs, isEmpty);
+    });
+
+    test('a delayed Repeat One loop landing at 3.2 s is not recorded', () {
+      sample(0, 196000, repeatOne: true);
+      sample(200, 3200, repeatOne: true);
+      sample(600, 3600, repeatOne: true);
       expect(logs, isEmpty);
     });
 
@@ -351,7 +391,7 @@ void main() {
 
     test('Play after the queue completed minutes later is not recorded', () {
       sample(0, 199000);
-      sample(200, 199800, playing: false);
+      pbEvent(200, state: 'completed', active: false);
       sample(60000, 100);
       sample(60400, 500);
       expect(logs, isEmpty);
@@ -369,6 +409,7 @@ void main() {
 
     test('a replay 30 s after the end is a user action', () {
       sample(0, 197000);
+      pbEvent(200, state: 'completed', active: false);
       sample(30000, 500, entry: entryB);
       sample(30400, 900, entry: entryB);
       expect(logs, isEmpty);
@@ -383,6 +424,78 @@ void main() {
       expect(logs, hasLength(1));
       expect(header(logs.single)['kind'], 'backwardJump');
       expect(header(logs.single)['sameEntry'], isFalse);
+    });
+  });
+
+  group('failures stay inside the recorder', () {
+    test('a throwing header still records, without the header fields', () {
+      final r = PlaybackAnomalyRecorder(
+        now: () => clock,
+        log: logs.add,
+        header: () => throw StateError('header'),
+      );
+      void feed(int atMs, int pos) {
+        at(atMs);
+        r.observePosition(
+          position: Duration(milliseconds: pos),
+          entryKey: entryA,
+          songId: 's',
+          duration: const Duration(seconds: 200),
+          repeatOne: false,
+          playing: true,
+        );
+      }
+
+      feed(0, 60000);
+      feed(200, 50000);
+      feed(600, 50400);
+
+      expect(logs, hasLength(1));
+      expect(header(logs.single)['kind'], 'backwardJump');
+      expect(header(logs.single), isNot(contains('platform')));
+    });
+
+    test('a throwing sink never escapes and later records still log', () {
+      var calls = 0;
+      final r = PlaybackAnomalyRecorder(
+        now: () => clock,
+        log: (text) {
+          if (calls++ == 0) throw StateError('sink');
+          logs.add(text);
+        },
+      );
+      void feed(int atMs, int pos, String song) {
+        at(atMs);
+        r.observePosition(
+          position: Duration(milliseconds: pos),
+          entryKey: entryA,
+          songId: song,
+          duration: const Duration(seconds: 200),
+          repeatOne: false,
+          playing: true,
+        );
+      }
+
+      feed(0, 60000, 'a');
+      feed(200, 50000, 'a');
+      expect(() => feed(600, 50400, 'a'), returnsNormally);
+      feed(5000, 60000, 'b');
+      feed(5200, 50000, 'b');
+      feed(5600, 50400, 'b');
+
+      expect(logs, hasLength(1));
+      expect(
+        () => r.playbackEvent(
+          state: 'ready',
+          index: 1,
+          updatePosition: Duration.zero,
+          updateTime: clock,
+          advancing: true,
+          active: true,
+          fields: () => throw StateError('fields'),
+        ),
+        returnsNormally,
+      );
     });
   });
 
@@ -412,6 +525,7 @@ void main() {
         updatePosition: Duration(milliseconds: updateMs),
         updateTime: clock,
         advancing: state == 'ready',
+        active: true,
         fields: () => {'state': state, 'updatePositionMs': updateMs},
       );
     }

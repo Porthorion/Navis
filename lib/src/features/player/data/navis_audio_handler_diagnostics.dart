@@ -32,12 +32,22 @@ extension _NavisDiagnostics on NavisAudioHandler {
       _desiredLoopMode == LoopMode.one ||
       (_desiredLoopMode == LoopMode.all && _queueItems.length == 1);
 
-  void _observeAnomalyPosition(Duration position) {
+  /// Observation must never reach a player listener or a transport command.
+  void _anomalySafely(void Function() body) {
+    try {
+      body();
+    } on Object {
+      // Observe only.
+    }
+  }
+
+  void _observeAnomalyPosition(Duration position) => _anomalySafely(() {
     // The song the player itself plays, from the same event as its position:
     // _currentMediaItem is published up to ~1.5 s before a skipped-to song
     // loads, while the position stream still reports the previous song's.
     // The tag also stays right on a single-source cross-fade deck.
-    final index = _player.playbackEvent.currentIndex;
+    final raw = _player.playbackEvent.currentIndex;
+    final index = raw == null || raw < 0 ? null : raw;
     final tag = index == null
         ? null
         : _player.sequence.elementAtOrNull(index)?.tag;
@@ -58,10 +68,10 @@ extension _NavisDiagnostics on NavisAudioHandler {
               state == ProcessingState.buffering),
       seeking: _pendingSeek != null,
     );
-  }
+  });
 
   /// Rows of the last 30 s kept for a record (downsampled by the recorder).
-  void _recordAnomalyPlaybackEvent(PlaybackEvent event) {
+  void _recordAnomalyPlaybackEvent(PlaybackEvent event) => _anomalySafely(() {
     _anomalies.playbackEvent(
       state: event.processingState.name,
       index: event.currentIndex,
@@ -69,6 +79,13 @@ extension _NavisDiagnostics on NavisAudioHandler {
       updateTime: event.updateTime,
       advancing:
           _player.playing && event.processingState == ProcessingState.ready,
+      // Paused or completed: the next position is a new baseline. Idle is
+      // not: a failing stream goes idle, and its recovery must still be
+      // compared with the position it lost (stop and loads are expectations).
+      // A reload under a pending seek may drop `playing` for a moment.
+      active:
+          (_player.playing || _pendingSeek != null) &&
+          event.processingState != ProcessingState.completed,
       fields: () => <String, Object?>{
         'state': event.processingState.name,
         'updatePositionMs': event.updatePosition.inMilliseconds,
@@ -79,26 +96,27 @@ extension _NavisDiagnostics on NavisAudioHandler {
         'index': event.currentIndex,
       },
     );
-  }
+  });
 
   /// A native loop on the same entry is expected, anything else a plain row.
-  void _recordAnomalyDiscontinuity(PositionDiscontinuity discontinuity) {
-    final index = discontinuity.event.currentIndex;
-    final fields = <String, Object?>{
-      'reason': discontinuity.reason.name,
-      'index': index,
-      'fromIndex': discontinuity.previousEvent.currentIndex,
-    };
-    final loops =
-        discontinuity.reason == PositionDiscontinuityReason.autoAdvance &&
-        index == discontinuity.previousEvent.currentIndex &&
-        _anomalyLooping;
-    if (loops) {
-      _anomalies.expect('loop', fields);
-    } else {
-      _anomalies.event('disc', fields);
-    }
-  }
+  void _recordAnomalyDiscontinuity(PositionDiscontinuity discontinuity) =>
+      _anomalySafely(() {
+        final index = discontinuity.event.currentIndex;
+        final fields = <String, Object?>{
+          'reason': discontinuity.reason.name,
+          'index': index,
+          'fromIndex': discontinuity.previousEvent.currentIndex,
+        };
+        final loops =
+            discontinuity.reason == PositionDiscontinuityReason.autoAdvance &&
+            index == discontinuity.previousEvent.currentIndex &&
+            _anomalyLooping;
+        if (loops) {
+          _anomalies.expect('loop', fields);
+        } else {
+          _anomalies.event('disc', fields);
+        }
+      });
 
   /// Whether [player] holds exactly the materialised queue, by song id (an
   /// id remapped to its canonical song since it was loaded still matches).
