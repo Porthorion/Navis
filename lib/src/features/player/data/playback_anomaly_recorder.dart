@@ -111,6 +111,11 @@ class PlaybackAnomalyRecorder {
     _prune(at);
     if (seeking || !playing) {
       _candidate = null;
+      // Seeking time (a slow recovery) must not age the baseline.
+      final held = _prev;
+      if (seeking && held != null) {
+        _prev = _Sample(held.position, at, held.entry, held.songId);
+      }
       return;
     }
 
@@ -152,6 +157,9 @@ class PlaybackAnomalyRecorder {
       from = end.position;
       sameEntry = identical(entryKey, end.entry);
     } else if (songId == previous.songId &&
+        // A loop restarts a Repeat One song even where the native loop
+        // heuristic misses it (late first tick, short song).
+        !(repeatOne && position < _replayStart) &&
         // An older baseline is stale (a queue that completed, then Play).
         at.difference(previous.at) <= _staleBaseline &&
         previous.position - position > _jump) {

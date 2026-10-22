@@ -27,6 +27,11 @@ extension _NavisDiagnostics on NavisAudioHandler {
     'processingState': _player.processingState.name,
   };
 
+  /// Repeat One, or Repeat All over a single entry: the song restarts itself.
+  bool get _anomalyLooping =>
+      _desiredLoopMode == LoopMode.one ||
+      (_desiredLoopMode == LoopMode.all && _queueItems.length == 1);
+
   void _observeAnomalyPosition(Duration position) {
     // The song the handler publishes: the native index is not the queue index
     // on a single-source cross-fade deck. The entry only labels a record.
@@ -41,7 +46,7 @@ extension _NavisDiagnostics on NavisAudioHandler {
           (index == null ? null : _queueItems.elementAtOrNull(index)) ?? song,
       songId: song.id,
       duration: duration > Duration.zero ? duration : null,
-      repeatOne: _desiredLoopMode == LoopMode.one,
+      repeatOne: _anomalyLooping,
       playing:
           _player.playing &&
           (state == ProcessingState.ready ||
@@ -81,8 +86,7 @@ extension _NavisDiagnostics on NavisAudioHandler {
     final loops =
         discontinuity.reason == PositionDiscontinuityReason.autoAdvance &&
         index == discontinuity.previousEvent.currentIndex &&
-        (_desiredLoopMode == LoopMode.one ||
-            (_desiredLoopMode == LoopMode.all && _queueItems.length == 1));
+        _anomalyLooping;
     if (loops) {
       _anomalies.expect('loop', fields);
     } else {

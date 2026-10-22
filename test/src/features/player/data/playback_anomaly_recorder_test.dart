@@ -193,6 +193,30 @@ void main() {
       expect(logs, isEmpty);
     });
 
+    test('a long seeking gap does not make the baseline stale', () {
+      sample(0, 60000);
+      recorder.event('recovery', {'targetMs': 60000});
+      for (var t = 1000; t <= 11000; t += 1000) {
+        sample(t, 20000, seeking: true);
+      }
+      sample(12000, 52000);
+      sample(12400, 52400);
+
+      expect(logs, hasLength(1));
+      expect(header(logs.single)['kind'], 'backwardJump');
+    });
+
+    test('a user seek back after a long seeking gap is explained', () {
+      sample(0, 60000);
+      recorder.expect('seek', {'targetMs': 30000});
+      for (var t = 1000; t <= 11000; t += 1000) {
+        sample(t, 60000, seeking: true);
+      }
+      sample(12000, 30000);
+      sample(12400, 30400);
+      expect(logs, isEmpty);
+    });
+
     test('a baseline older than 10 s is stale', () {
       sample(0, 199000);
       sample(60000, 100, playing: true);
@@ -213,18 +237,19 @@ void main() {
       expect(head['sameEntry'], isTrue);
     });
 
-    test('Repeat One and a loop expectation suppress it', () {
+    test('Repeat One suppresses both records without a loop expectation', () {
       sample(0, 196000, repeatOne: true);
       sample(200, 400, repeatOne: true);
       sample(600, 800, repeatOne: true);
-      expect(logs.where((l) => l.contains('replayNearEnd')), isEmpty);
+      expect(logs, isEmpty);
+    });
 
+    test('a loop expectation suppresses both records', () {
+      sample(0, 196000);
       recorder.expect('loop');
-      sample(1000, 196000);
-      recorder.expect('loop');
-      sample(1200, 400);
-      sample(1600, 800);
-      expect(logs.where((l) => l.contains('replayNearEnd')), isEmpty);
+      sample(200, 400);
+      sample(600, 800);
+      expect(logs, isEmpty);
     });
 
     test('another entry holding the same song replaying is recorded', () {

@@ -256,6 +256,8 @@ Use this quick matrix to classify failures:
   or when a song that reached its last 10 s plays again from under 3 s within
   10 s (`replayNearEnd`, same entry or another entry holding the same song,
   never Repeat One). One record per kind per song, at most 20 per run.
+  Pressing Play within 10 s of a single-song queue completing also records
+  `replayNearEnd`; the `restartCompleted` row tells it apart.
 - Read it: records go through `debugPrint`, so they print in release and
   profile builds too (`AppLogger` drops everything without asserts and is not
   used). On Android: `adb logcat -s flutter | grep PLAYBACK_ANOMALY` (logcat
