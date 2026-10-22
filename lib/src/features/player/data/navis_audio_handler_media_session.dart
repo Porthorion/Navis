@@ -305,7 +305,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           index != wiredPlayer.currentIndex) {
         return;
       }
-      _anomalies.event('index', {'index': index});
+      _anomalies.index(index);
       // Stop may deliver old playlist indices during remote warm-up. Native
       // edits also emit indices before their materialised mirror commits.
       final pendingAnchor = _queueReplacementMetadataAnchor;

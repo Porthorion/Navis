@@ -55,6 +55,8 @@ class PlaybackAnomalyRecorder {
   DateTime? _expectedAt;
   DateTime? _lastPositionRow;
   DateTime? _lastPlaybackRow;
+  int? _lastIndex;
+  var _indexSeen = false;
   ({
     String state,
     int? index,
@@ -83,6 +85,22 @@ class PlaybackAnomalyRecorder {
     final at = _now();
     _rows.add(_Row(at, kind, fields));
     _prune(at);
+    // A recovery or seek reload can freeze the position stream (it is
+    // distinct), so no sample refreshes the baseline's age. Only these two
+    // kinds do: restartCompleted must leave a stale baseline stale.
+    final held = _prev;
+    if (held != null && (kind == 'recovery' || kind == 'seekDone')) {
+      _prev = _Sample(held.position, at, held.entry, held.songId);
+    }
+  }
+
+  /// The native index stream repeats itself at the playback event rate: only
+  /// a change is a row.
+  void index(int? index) {
+    if (index == _lastIndex && _indexSeen) return;
+    _indexSeen = true;
+    _lastIndex = index;
+    event('index', {'index': index});
   }
 
   /// Adds a native playback event row. Desktop engines emit one per position
@@ -205,7 +223,9 @@ class PlaybackAnomalyRecorder {
     } else if (songId == previous.songId &&
         // A loop restarts a Repeat One song even where the native loop
         // heuristic misses it (late first tick, short song).
-        !(repeatOne && position < _replayStart) &&
+        !(repeatOne &&
+            position < _replayStart &&
+            _nearTheEnd(previous.position, duration)) &&
         // An older baseline is stale (a queue that completed, then Play).
         at.difference(previous.at) <= _staleBaseline &&
         previous.position - position > _jump) {
@@ -214,6 +234,17 @@ class PlaybackAnomalyRecorder {
     if (kind != null) {
       _candidate = _Candidate(kind, from, position, at, songId, sameEntry);
     }
+  }
+
+  /// Whether [position] is where a song loops from: the last 10 s, or from 60%
+  /// of a song under 20 s. ponytail: an unknown duration counts as near the
+  /// end, so Repeat One hides every rewind to the start there; fetch the
+  /// duration elsewhere if that ever hides a real bug.
+  static bool _nearTheEnd(Duration position, Duration? duration) {
+    if (duration == null) return true;
+    return duration < const Duration(seconds: 20)
+        ? position.inMilliseconds >= duration.inMilliseconds * 0.6
+        : position >= duration - _nearEnd;
   }
 
   void _emit(_Candidate c, {Duration? duration, required DateTime at}) {

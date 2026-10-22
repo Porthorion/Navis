@@ -217,6 +217,30 @@ void main() {
       expect(logs, isEmpty);
     });
 
+    test('recovery and seekDone events keep the baseline fresh', () {
+      sample(0, 60000);
+      recorder.event('recovery', {'targetMs': 60000});
+      recorder.event('seekDone');
+      // No samples at all: a frozen buffering position emits nothing.
+      at(11000);
+      recorder.event('seekDone');
+      sample(11500, 52000);
+      sample(11900, 52400);
+
+      expect(logs, hasLength(1));
+      expect(header(logs.single)['kind'], 'backwardJump');
+    });
+
+    test('restartCompleted does not keep a stale baseline fresh', () {
+      sample(0, 199000);
+      sample(200, 199800, playing: false);
+      at(20000);
+      recorder.event('restartCompleted');
+      sample(20500, 100);
+      sample(20900, 500);
+      expect(logs, isEmpty);
+    });
+
     test('a baseline older than 10 s is stale', () {
       sample(0, 199000);
       sample(60000, 100, playing: true);
@@ -241,6 +265,29 @@ void main() {
       sample(0, 196000, repeatOne: true);
       sample(200, 400, repeatOne: true);
       sample(600, 800, repeatOne: true);
+      expect(logs, isEmpty);
+    });
+
+    test('Repeat One hides only a rewind from near the end', () {
+      sample(0, 60000, repeatOne: true);
+      sample(200, 500, repeatOne: true);
+      sample(600, 900, repeatOne: true);
+
+      expect(logs, hasLength(1));
+      expect(header(logs.single)['kind'], 'backwardJump');
+    });
+
+    test('Repeat One on a short song hides a rewind from 60% on', () {
+      sample(0, 9000, durationMs: 10000, repeatOne: true);
+      sample(200, 300, durationMs: 10000, repeatOne: true);
+      sample(600, 700, durationMs: 10000, repeatOne: true);
+      expect(logs, isEmpty);
+    });
+
+    test('Repeat One with an unknown duration keeps suppressing', () {
+      sample(0, 60000, durationMs: null, repeatOne: true);
+      sample(200, 500, durationMs: null, repeatOne: true);
+      sample(600, 900, durationMs: null, repeatOne: true);
       expect(logs, isEmpty);
     });
 
@@ -380,6 +427,40 @@ void main() {
         ),
         isTrue,
         reason: 'the discontinuity row is kept',
+      );
+    });
+
+    test('identical index rows are kept once', () {
+      for (var t = 0; t <= 40000; t += 100) {
+        at(t);
+        recorder.index(1);
+        pb(t, t + 100);
+        if (t % 1000 == 0) sample(t, 60000 + t);
+      }
+      sample(40200, 52000);
+      sample(40600, 52400);
+
+      final events = lines(logs.single).skip(1).toList();
+      expect(events.length, lessThan(150));
+      final first = jsonDecode(events.first.split(' ').skip(2).join(' '));
+      expect((first as Map)['t'], lessThanOrEqualTo(-29000));
+      // The single index row is older than the 30 s window: none is left.
+      expect(events.where((l) => l.contains('"e":"index"')), isEmpty);
+    });
+
+    test('an index change is a row', () {
+      at(0);
+      recorder.index(1);
+      recorder.index(1);
+      at(100);
+      recorder.index(2);
+      sample(0, 60000);
+      sample(200, 50000);
+      sample(600, 50400);
+
+      expect(
+        lines(logs.single).where((l) => l.contains('"e":"index"')),
+        hasLength(2),
       );
     });
 
