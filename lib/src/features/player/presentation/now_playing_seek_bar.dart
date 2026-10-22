@@ -50,6 +50,13 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
         SliderTheme(
           data: SliderTheme.of(context).copyWith(
             trackHeight: 4,
+            trackShape: resolveAheadTrackShape(
+              context,
+              currentSongId: widget.playback.currentSongId,
+              bufferState: bufferState,
+              duration: duration,
+              max: sliderMax,
+            ),
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
           ),

@@ -38,14 +38,41 @@ class TransportVisualCue {
 ///
 /// The song id prevents a late buffered-position event from being rendered on
 /// a newly selected track.
+///
+/// [bufferedPosition] is the range playable from the start of the song. After
+/// a seek past it the player buffers a second range, [aheadStart] to
+/// [aheadEnd], that is not contiguous with the first (both null otherwise).
 @immutable
 class PlaybackBufferState {
-  const new({required this.songId, required this.bufferedPosition});
+  const new({
+    required this.songId,
+    required this.bufferedPosition,
+    this.aheadStart,
+    this.aheadEnd,
+  });
 
-  const new idle() : songId = null, bufferedPosition = Duration.zero;
+  const new idle()
+    : songId = null,
+      bufferedPosition = Duration.zero,
+      aheadStart = null,
+      aheadEnd = null;
 
   final String? songId;
   final Duration bufferedPosition;
+  final Duration? aheadStart;
+  final Duration? aheadEnd;
+
+  @override
+  bool operator ==(Object other) =>
+      other is PlaybackBufferState &&
+      other.songId == songId &&
+      other.bufferedPosition == bufferedPosition &&
+      other.aheadStart == aheadStart &&
+      other.aheadEnd == aheadEnd;
+
+  @override
+  int get hashCode =>
+      Object.hash(songId, bufferedPosition, aheadStart, aheadEnd);
 }
 
 Duration resolveEffectivePlaybackDuration({

@@ -5,6 +5,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/playback_seek_bar_style.dart'
+    show AheadRangeTrackShape;
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
@@ -160,6 +162,32 @@ void main() {
     expect(seekSlider.max, _song1Playback.duration.inMilliseconds);
     expect(seekSlider.secondaryTrackValue, 80000);
     expect(seekSlider.secondaryActiveColor, isNotNull);
+  }, skip: !sqliteAvailable);
+
+  testWidgets('seek bar draws the ahead range apart from the cached one', (
+    tester,
+  ) async {
+    final container = _createContainer(
+      cueStream: const Stream<TransportVisualCue>.empty(),
+      bufferState: const PlaybackBufferState(
+        songId: 'song-1',
+        bufferedPosition: Duration(seconds: 20),
+        aheadStart: Duration(minutes: 1),
+        aheadEnd: Duration(minutes: 1, seconds: 30),
+      ),
+    );
+
+    await pumpPlainNowPlayingScreen(tester, container);
+
+    emitNowPlayingPlayback(container, _song1Playback);
+    await tester.pumpAndSettle();
+
+    final slider = find.byType(Slider).first;
+    expect(tester.widget<Slider>(slider).secondaryTrackValue, 20000);
+    final shape = SliderTheme.of(tester.element(slider)).trackShape;
+    expect(shape, isA<AheadRangeTrackShape>());
+    expect((shape! as AheadRangeTrackShape).start, 60000);
+    expect((shape as AheadRangeTrackShape).end, 90000);
   }, skip: !sqliteAvailable);
 
   testWidgets('manual song changes swap to the new cover-art child', (

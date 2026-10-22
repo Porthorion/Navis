@@ -586,6 +586,16 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                   padding: EdgeInsets.zero,
                                                   trackHeight:
                                                       sliderTrackHeight,
+                                                  trackShape:
+                                                      resolveAheadTrackShape(
+                                                        context,
+                                                        currentSongId: playback
+                                                            .currentSongId,
+                                                        bufferState:
+                                                            bufferState,
+                                                        duration: duration,
+                                                        max: sliderMax,
+                                                      ),
                                                   thumbShape:
                                                       RoundSliderThumbShape(
                                                         enabledThumbRadius:
