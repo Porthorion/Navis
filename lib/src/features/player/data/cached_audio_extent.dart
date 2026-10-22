@@ -5,7 +5,7 @@ import 'dart:typed_data';
 /// file holds, read exactly from the file's own framing: the granule of the
 /// last complete Ogg page, or the sample index of the last verified FLAC
 /// frame. Null when the format is another one or nothing complete is found, so
-/// callers fall back to their estimate.
+/// callers fall back to their estimate (also when the extent is zero).
 ///
 /// [head] is the first bytes of the file (the stream headers) and [tail] the
 /// last ones (the newest pages or frames).
@@ -73,7 +73,10 @@ Duration? _oggExtent(Uint8List head, Uint8List tail) {
   if (rate <= 0) return null;
   final granule = _lastOggGranule(tail);
   if (granule == null) return null;
-  final samples = granule > preSkip ? granule - preSkip : 0;
+  // Nothing played yet (the tags page has granule 0) is not an exact time, and
+  // a granule beyond 2^40 samples is corrupt (and would overflow below).
+  final samples = granule - preSkip;
+  if (samples <= 0 || samples >= 1 << 40) return null;
   return Duration(microseconds: samples * 1000000 ~/ rate);
 }
 

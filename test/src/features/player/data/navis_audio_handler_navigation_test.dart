@@ -13407,6 +13407,7 @@ void main() {
       StreamingQuality quality = const StreamingQuality(label: 'original'),
       Uint8List? payload,
       bool supportsTranscodeOffset = false,
+      NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     }) async {
       List<int> chunk(int from, int to) => payload == null
           ? List<int>.filled(to - from, 1)
@@ -13459,6 +13460,7 @@ void main() {
         readApiClient: () => api,
         streamingQuality: quality,
         supportsTranscodeOffset: supportsTranscodeOffset,
+        timeouts: timeouts,
       );
       addTearDown(() async {
         await handler.disposeHandler();
@@ -13833,6 +13835,111 @@ void main() {
       expect(handler.bufferState.aheadStart, isNull);
       expect(handler.bufferState.aheadEnd, isNull);
     });
+
+    test('a page-less Opus start still shows the estimate', () async {
+      // Early in a download the last complete page is OpusTags (granule 0):
+      // that is not an exact time, so the bitrate estimate stays.
+      final bytes = concat([
+        opusHeadPage(),
+        oggPage('OpusTags'.codeUnits, granule: 0),
+        oggAudioPage(-1, size: 3000),
+      ]);
+      final (handler, player) = await serve(
+        length: null,
+        first: bytes.length,
+        payload: bytes,
+        quality: const StreamingQuality(
+          label: 'opus',
+          maxBitRate: 8,
+          format: 'opus',
+        ),
+      );
+      await startSong(handler);
+      await until(() => partHolds(bytes.length));
+      // A probe after the whole file is on disk has run.
+      await drawUntil(player, () => probes(handler) >= 2);
+      await pumpEventQueue();
+      expect(line(handler), const Duration(seconds: 3));
+      expect(
+        handler.collectPlaybackDiagnostics()['cachedPlayableSource'],
+        'bitrate',
+      );
+    });
+
+    test('a failed seek past the download draws no ahead range', () async {
+      final (handler, player) = await serve(
+        timeouts: const NavisPlaybackTimeouts(
+          seekProgress: Duration(seconds: 1),
+          progressIdle: Duration(milliseconds: 300),
+          desktopSeekSettle: Duration(seconds: 1),
+        ),
+      );
+      final states = <PlaybackBufferState>[];
+      final subscription = handler.bufferStateStream.listen(states.add);
+      addTearDown(subscription.cancel);
+      await startSong(handler);
+      // The seek never settles and recovery cannot reload the stream.
+      player
+        ..ignoreSeeks = true
+        ..failLoadSongId = 'song-0';
+      final seeking = handler.seek(const Duration(seconds: 150));
+      player.emitBuffered(const Duration(seconds: 170));
+      await pumpEventQueue();
+      expect(handler.bufferState.aheadStart, const Duration(seconds: 150));
+      await seeking;
+      await until(
+        () =>
+            (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'] ==
+            'failed',
+      );
+      // Failover may then move to the next song; before it, the failed
+      // seek's target is forgotten and the line is the player's range.
+      final ahead = states.indexWhere((state) => state.aheadStart != null);
+      expect(ahead, isNonNegative);
+      expect(
+        states
+            .skip(ahead + 1)
+            .any(
+              (state) =>
+                  state.songId == 'song-0' &&
+                  state.aheadStart == null &&
+                  state.bufferedPosition == const Duration(seconds: 170),
+            ),
+        isTrue,
+      );
+    });
+
+    test(
+      'a late probe for a restarted download of the same song is ignored',
+      () async {
+        final (handler, player) = await serve(length: null, first: 160000);
+        final gate = Completer<Duration?>();
+        final paths = <String>[];
+        handler.cachedExtentReader = (path) async {
+          paths.add(path);
+          return paths.length == 1 ? gate.future : null;
+        };
+        await startSong(handler);
+        await until(() => paths.isNotEmpty);
+        // Away and back: the song's download restarts into a new part file.
+        await handler.skipToNext();
+        await settleQueue(handler);
+        await handler.skipToPrevious();
+        await settleQueue(handler);
+        expect(handler.bufferState.songId, 'song-0');
+        await drawUntil(player, () => paths.length >= 2);
+        expect(paths.first, isNot(paths.last), reason: 'a new part file');
+        gate.complete(const Duration(seconds: 90));
+        await pumpEventQueue();
+        player.emitBuffered(const Duration(seconds: 4));
+        await pumpEventQueue();
+        expect(line(handler), const Duration(seconds: 4));
+        expect(
+          handler.collectPlaybackDiagnostics()['cachedPlayableSource'],
+          isNot('exact'),
+        );
+      },
+    );
 
     test('a Repeat One loop clears the ahead range start', () async {
       final (handler, player) = await serve();

@@ -272,11 +272,18 @@ extension _NavisCache on NavisAudioHandler {
           .catchError((Object _) => null)
           .then((extent) {
             current.inFlight = false;
-            // Another song or file took over while the read ran.
-            if (!identical(_cachedExtent, current)) return;
-            final best = current.extent;
+            // Apply the result only to the probe of the file it was read
+            // from: another song, or a restarted download (a new part file
+            // for the same song), took over while the read ran.
+            final target = _cachedExtent;
+            if (target == null ||
+                target.songId != current.songId ||
+                target.path != current.path) {
+              return;
+            }
+            final best = target.extent;
             if (extent != null && (best == null || extent > best)) {
-              current.extent = extent;
+              target.extent = extent;
             }
             _refreshBufferState(_currentBufferSongId);
           }),

@@ -487,6 +487,14 @@ extension _NavisMediaSession on NavisAudioHandler {
     );
   }
 
+  /// Forgets the last seek target, so the player's range is no longer drawn
+  /// apart (the seek failed, was cancelled, or a loop began a new occurrence).
+  void _dropPlayerRangeStart() {
+    if (_playerRangeStart == null) return;
+    _playerRangeStart = null;
+    _refreshBufferState(_currentBufferSongId);
+  }
+
   /// Where the player's buffered range begins: the offset of an offset stream,
   /// else the target of the last seek in this queue occurrence, else 0.
   Duration _playerRangeStartOf(String songId) {

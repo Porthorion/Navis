@@ -2353,9 +2353,13 @@ class NavisAudioHandler extends BaseAudioHandler
       } on OperationCancelledException {
         request.outcome = 'superseded';
         request.stage = 'done';
+        // A newer seek has set its own target; otherwise the target was never
+        // opened.
+        if (identical(_lastSeek, request)) _dropPlayerRangeStart();
       } on Object catch (error, stackTrace) {
         request.outcome = 'failed';
         request.stage = 'done';
+        if (identical(_lastSeek, request)) _dropPlayerRangeStart();
         if (identical(_pendingSeek, request)) {
           // A song that still advances is alive: it keeps playing quietly.
           final shouldFailOver = _isDesktopRuntime && !_playbackAdvancing;
@@ -2427,6 +2431,9 @@ class NavisAudioHandler extends BaseAudioHandler
     final songId = snapshot.currentSongId;
     final cacheActivity = _rollingCacheActivities.values.lastOrNull;
     final partialCacheBytes = _partialCacheBytesForSong(songId);
+    final cachedPlayable = songId == null
+        ? null
+        : _cachedPlayable(songId, snapshot.duration);
     final radio = _radioStation;
     final publishedArt =
         radio != null && mediaItem.value?.id == 'radio:${radio.stationId}'
@@ -2557,12 +2564,8 @@ class NavisAudioHandler extends BaseAudioHandler
       'drawnBufferedPositionMs': _bufferState.bufferedPosition.inMilliseconds,
       'drawnAheadStartMs': _bufferState.aheadStart?.inMilliseconds,
       'drawnAheadEndMs': _bufferState.aheadEnd?.inMilliseconds,
-      'cachedPlayablePositionMs': songId == null
-          ? null
-          : _cachedPlayablePosition(songId, snapshot.duration)?.inMilliseconds,
-      'cachedPlayableSource': songId == null
-          ? null
-          : _cachedPlayable(songId, snapshot.duration).source,
+      'cachedPlayablePositionMs': cachedPlayable?.position?.inMilliseconds,
+      'cachedPlayableSource': cachedPlayable?.source,
       'cachedExtentProbes': _cachedExtentProbeCount,
       'userVolume': _userVolume,
       'effectivePlayerVolume': _player.volume,

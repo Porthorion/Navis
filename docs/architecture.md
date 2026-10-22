@@ -5251,11 +5251,12 @@ its CRC-8 and continues the previous header's frame. The part file is
 (desktop); both start at byte 0 and hold the full stream, also while an offset
 transcode plays. `_probeCachedExtent` reads it at most once a second from
 `_refreshBufferState`, keeps the largest value per song and file, and ignores a
-result for another song; an I/O error or unknown format leaves the estimate in
-place without a notice. The second range starts at `_playerRangeStartOf`: the
+result for another song; an I/O error, an unknown format or a zero extent (only the
+Opus header and tags pages so far) leaves the estimate in place without a
+notice. The second range starts at `_playerRangeStartOf`: the
 stream's `positionOffsetMs`, else the target of the last seek in this queue
-occurrence (`_playerRangeStart`, dropped on another song and on a native loop
-or advance). It is drawn apart only when that start is more than 2 s past the
+occurrence (`_playerRangeStart`, dropped on another song, on a native loop
+or advance, and when the seek fails or is cancelled). It is drawn apart only when that start is more than 2 s past the
 cached range and the player's range reaches beyond it; otherwise one range is
 drawn as before. The player re-opens its stream after a seek and so reports
 only a short window while the cache keeps filling. Seek deadlines and recovery

@@ -76,16 +76,27 @@ void main() {
       expect(extent(bytes), seconds(5));
     });
 
-    test('a pre-skip longer than the granule clamps to zero', () {
-      expect(extent(opus([100])), Duration.zero);
+    test('a pre-skip not yet played, or the tags page alone, is not exact', () {
+      expect(extent(opus([100])), isNull);
+      // Early in a download the last complete page is OpusTags, granule 0.
+      expect(
+        extent(
+          concat([opusHeadPage(), oggPage('OpusTags'.codeUnits, granule: 0)]),
+        ),
+        isNull,
+      );
+      expect(extent(opusHeadPage()), isNull);
+    });
+
+    test('a corrupt huge granule returns null instead of overflowing', () {
+      expect(extent(opus([1 << 45])), isNull);
+      expect(extent(opus([0x7FFFFFFFFFFFFFFF])), isNull);
     });
 
     test('unknown first packet, garbage and no pages return null', () {
       expect(extent(oggPage('OggFLAC'.codeUnits, granule: 0)), isNull);
       expect(extent(Uint8List.fromList(List<int>.filled(500, 3))), isNull);
       expect(extent(Uint8List(0)), isNull);
-      // Only the identification page: nothing is playable yet.
-      expect(extent(opusHeadPage()), Duration.zero);
     });
   });
 

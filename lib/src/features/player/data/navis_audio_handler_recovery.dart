@@ -69,6 +69,7 @@ extension _NavisRecovery on NavisAudioHandler {
       request.outcome = 'superseded';
       request.stage = 'done';
       _pendingSeek = null;
+      _dropPlayerRangeStart();
     }
   }
 
@@ -304,10 +305,7 @@ extension _NavisRecovery on NavisAudioHandler {
     }
     // A loop or an advance starts a new occurrence: the player's buffered
     // range starts over from its own position.
-    if (_playerRangeStart != null) {
-      _playerRangeStart = null;
-      _refreshBufferState(_currentBufferSongId);
-    }
+    _dropPlayerRangeStart();
     if (index == discontinuity.previousEvent.currentIndex) {
       _advancePosition = null;
       _playedSinceFailover = Duration.zero;
