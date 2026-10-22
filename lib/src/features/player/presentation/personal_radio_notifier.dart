@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart' show AudioServiceShuffleMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -237,6 +238,10 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
             startIndex: snapshot.currentIndex ?? 0,
             autoPlay: snapshot.playing,
             expandMatchFlows: false,
+            // A shuffled queue stays shuffled; the queue ids are its play order.
+            originalOrder: snapshot.shuffleMode == AudioServiceShuffleMode.all
+                ? snapshot.queueSongIds
+                : null,
             notifyMixSessionReset: false,
           );
     } on Object {

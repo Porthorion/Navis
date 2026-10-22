@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:audio_service/audio_service.dart' show AudioServiceShuffleMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
@@ -676,6 +677,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             startIndex: snapshot.currentIndex ?? 0,
             autoPlay: snapshot.playing,
             expandMatchFlows: false,
+            // A shuffled queue stays shuffled; the queue ids are its play order.
+            originalOrder: snapshot.shuffleMode == AudioServiceShuffleMode.all
+                ? snapshot.queueSongIds
+                : null,
             notifyMixSessionReset: false,
           );
     } on Object {
