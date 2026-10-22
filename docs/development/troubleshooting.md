@@ -247,6 +247,28 @@ Use this quick matrix to classify failures:
   status. Without the capability, or at original quality, the cache-wait path
   applies. See "Transcode-offset seeking" in `docs/architecture.md`.
 
+6. Position moved back or a song restarted with no user action:
+- Symptoms: Android steps back about 5 s after a stream cut; a desktop song
+  plays to its end and starts again from the beginning.
+- `PlaybackAnomalyRecorder` watches for this without changing playback. It
+  writes one warning when the same queue entry's position moves back more than
+  2 s with no seek, navigation, loop or stop to explain it (`backwardJump`),
+  or when a song that reached its last 10 s plays again from under 3 s within
+  10 s (`replayNearEnd`, same entry or another entry holding the same song,
+  never Repeat One). One record per kind per entry, at most 20 per run.
+- Read it: `adb logcat | grep PLAYBACK_ANOMALY` on Android, or
+  `journalctl --user -f | grep PLAYBACK_ANOMALY` (or the terminal stdout) on
+  Linux. The first line is a JSON header (`kind`, `fromMs`, `toMs`, `sourceKind`,
+  `loopMode`, `shuffle`, `crossfade`, `gapless`, `processingState`,
+  `sameEntry`); each following line is one transport event of the last 30 s,
+  with `t` in ms relative to detection (`pb` playback events with
+  `updatePositionMs`/`updateTimeAgoMs`, `pos` samples, `disc`, `index`,
+  `seek`, `seekDone`, `recovery`, `stall`, `reload`, `restartCompleted`).
+  Records hold no URLs, song ids, titles or account data. Windows has no
+  console, so use the diagnostics API there.
+- `GET /v1/playback/status`: `anomalies` holds the last 5 records with the
+  same events.
+
 ## Android `VRI` / `SurfaceView` logs while backgrounding
 
 Symptoms:

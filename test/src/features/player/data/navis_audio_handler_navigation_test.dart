@@ -26,6 +26,7 @@ import 'package:path/path.dart' as p;
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:logger/logger.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/models/models.dart' as models;
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -7230,6 +7231,101 @@ void main() {
       expect(handler.queue.value[1].extras!['sourceKind'], 'file');
     },
   );
+
+  group('playback anomaly recorder', () {
+    Future<(NavisAudioHandler, _ControllableAudioPlayer, List<String>)>
+    anomalyHandler() async {
+      final directory = await Directory.systemTemp.createTemp('navis-anomaly-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        positionStreams: true,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final warnings = <String>[];
+      void capture(LogEvent event) {
+        final message = '${event.message}';
+        if (message.contains('[PLAYBACK_ANOMALY]')) warnings.add(message);
+      }
+
+      Logger.addLogListener(capture);
+      addTearDown(() => Logger.removeLogListener(capture));
+      // The position stream only reports a moving position.
+      player.simulateProgress = true;
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-2'],
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      // Let the load's own position moves leave the recorder's grace window.
+      await Future<void>.delayed(const Duration(milliseconds: 1700));
+      return (handler, player, warnings);
+    }
+
+    Future<void> pause(int ms) =>
+        Future<void>.delayed(Duration(milliseconds: ms));
+
+    List<Object?> anomalies(NavisAudioHandler handler) =>
+        handler.collectPlaybackDiagnostics()['anomalies']! as List<Object?>;
+
+    test(
+      'a raw player step back is recorded once, with the log line',
+      () async {
+        final (handler, player, warnings) = await anomalyHandler();
+        player.simulatedPosition = const Duration(seconds: 90);
+        await pause(500);
+        player.simulatedPosition = const Duration(seconds: 80);
+        await pause(1200);
+
+        expect(anomalies(handler), hasLength(1));
+        expect(warnings, hasLength(1));
+        expect(warnings.single, contains('"kind":"backwardJump"'));
+        expect(warnings.single, isNot(contains('song-1')));
+      },
+    );
+
+    test('a handler seek back is not an anomaly', () async {
+      final (handler, player, warnings) = await anomalyHandler();
+      player.simulatedPosition = const Duration(seconds: 90);
+      await pause(500);
+      await handler.seek(const Duration(seconds: 30));
+      await pause(1500);
+
+      expect(player.position, lessThan(const Duration(seconds: 40)));
+      expect(anomalies(handler), isEmpty);
+      expect(warnings, isEmpty);
+    });
+
+    test('a skipToPrevious restart is not an anomaly', () async {
+      final (handler, player, warnings) = await anomalyHandler();
+      player.simulatedPosition = const Duration(seconds: 90);
+      await pause(500);
+      await handler.skipToPrevious();
+      await settleQueue(handler);
+      await pause(1500);
+
+      expect(anomalies(handler), isEmpty);
+      expect(warnings, isEmpty);
+    });
+
+    test('a Repeat One loop is not an anomaly', () async {
+      final (handler, player, warnings) = await anomalyHandler();
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      player.simulatedPosition = const Duration(seconds: 170);
+      await pause(500);
+      player.finishCurrentTrack();
+      await pause(1500);
+
+      expect(anomalies(handler), isEmpty);
+      expect(warnings, isEmpty);
+    });
+  });
 
   group('transcode offset seek', () {
     const opus128 = StreamingQuality(

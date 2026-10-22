@@ -224,6 +224,7 @@ extension _NavisMediaSession on NavisAudioHandler {
 
     _playbackEventSubscription = _player.playbackEventStream.listen((event) {
       if (!identical(_player, wiredPlayer)) return;
+      _recordAnomalyPlaybackEvent(event);
       if (_player.playing) _onPlayerPlaying();
       // just_audio 0.10 reports native failures as event data. Repeated idle
       // events carry the same error; admit that failure only once.
@@ -295,6 +296,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     _positionDiscontinuitySubscription = _player.positionDiscontinuityStream
         .listen((discontinuity) {
           if (!identical(_player, wiredPlayer)) return;
+          _recordAnomalyDiscontinuity(discontinuity);
           _onPositionDiscontinuity(discontinuity);
         });
 
@@ -303,6 +305,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           index != wiredPlayer.currentIndex) {
         return;
       }
+      _anomalies.event('index', {'index': index});
       // Stop may deliver old playlist indices during remote warm-up. Native
       // edits also emit indices before their materialised mirror commits.
       final pendingAnchor = _queueReplacementMetadataAnchor;
@@ -399,6 +402,7 @@ extension _NavisMediaSession on NavisAudioHandler {
             _lastPositionEmitAt = DateTime.now();
           }
           _observePlaybackAdvance();
+          _observeAnomalyPosition(position);
           // Paused edits may wait longer than the controller's bounded refresh
           // window. Observe their first processed block when playback resumes.
           if (equalizerCapabilities.supported &&

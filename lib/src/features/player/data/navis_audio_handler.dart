@@ -37,6 +37,7 @@ import 'package:navis/src/features/integrations/domain/integration_artwork.dart'
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/cached_audio_extent.dart';
+import 'package:navis/src/features/player/data/playback_anomaly_recorder.dart';
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:navis/src/features/player/data/android_system_art.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -474,6 +475,10 @@ class NavisAudioHandler extends BaseAudioHandler
   final List<Map<String, Object?>> _seekDiagnosticsEvents =
       <Map<String, Object?>>[];
   static const int _maxSeekDiagnosticsEvents = 32;
+  // Observe-only recorder of unexplained position moves (see its docs).
+  late final _anomalies = PlaybackAnomalyRecorder(header: _anomalyHeader);
+  ({ProcessingState state, int? index, Duration position})?
+  _lastAnomalyPlaybackEvent;
   final RollingCacheSidecarDownloader _sidecarDownloader =
       RollingCacheSidecarDownloader();
   final Map<String, SongsTableData> _sidecarSongsById =
@@ -2181,6 +2186,7 @@ class NavisAudioHandler extends BaseAudioHandler
         currentIndex: current,
         hasPendingLogicalQueue: false,
       )) {
+        _anomalies.event('restartCompleted');
         if (_shuffleEnabled && length > 1) {
           await _startNextShufflePass();
           return;
@@ -2330,6 +2336,7 @@ class NavisAudioHandler extends BaseAudioHandler
       return Future<void>.value();
     }
     _queueFinished = false;
+    _anomalies.expect('seek', {'targetMs': position.inMilliseconds});
     final generation = _supersedeTransportIntent(preserveSeek: true);
     _cancelPendingSeek();
     final request = _PendingSeek(
@@ -2395,6 +2402,7 @@ class NavisAudioHandler extends BaseAudioHandler
           }
         }
       } finally {
+        _anomalies.event('seekDone', {'outcome': request.outcome});
         _recordSeekDiagnosticsEvent(<String, Object?>{
           'at': DateTime.now().toUtc().toIso8601String(),
           'generation': request.generation,
@@ -2595,6 +2603,7 @@ class NavisAudioHandler extends BaseAudioHandler
           ? _crossfadePlayer?.pitch
           : null,
       'seekEvents': List<Map<String, Object?>>.from(_seekDiagnosticsEvents),
+      'anomalies': _anomalies.recent,
       'positionStreamLastEmitAgoMs': _lastPositionEmitAt == null
           ? null
           : DateTime.now().difference(_lastPositionEmitAt!).inMilliseconds,
