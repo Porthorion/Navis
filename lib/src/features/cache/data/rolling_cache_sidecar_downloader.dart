@@ -44,7 +44,7 @@ class RollingCacheSidecarDownloader {
     final gate = _pauseGate;
     _pauseGate = null;
     gate?.complete();
-    if (_activeSongId != null) _activeTime.start();
+    if ((_activeReceivedBytes ?? 0) > 0) _activeTime.start();
   }
 
   String? get activeSongId => _activeSongId;
@@ -72,9 +72,7 @@ class RollingCacheSidecarDownloader {
     _activeSongId = songId;
     _activeCacheFilePath = cacheFilePath;
     _activeReceivedBytes = 0;
-    _activeTime
-      ..reset()
-      ..start();
+    _activeTime.reset();
     _activeOnTerminated = onTerminated;
     final client = _httpClientFactory();
     _activeClient = client;
@@ -131,6 +129,7 @@ class RollingCacheSidecarDownloader {
           if (!_isCurrent(generation)) {
             break;
           }
+          if (received == 0) _activeTime.start();
           sink.add(chunk);
           received += chunk.length;
           _activeReceivedBytes = received;

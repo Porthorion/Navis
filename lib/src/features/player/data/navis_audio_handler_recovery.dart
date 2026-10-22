@@ -69,6 +69,7 @@ extension _NavisRecovery on NavisAudioHandler {
       request.outcome = 'superseded';
       request.stage = 'done';
       _pendingSeek = null;
+      _syncBridgeDownloadPriority();
       _dropPlayerRangeStart();
     }
   }
@@ -207,17 +208,26 @@ extension _NavisRecovery on NavisAudioHandler {
         } else {
           if (!bridging && !_fastSeekLinkIsSlow(item)) {
             nativeSeekTried = true;
-            await _runNativeSeek(
-              seekRequest,
-              token,
-              operation: 'fast seek guard',
-            );
-            if (await _waitForSeekSettlement(
-              seekRequest,
-              token,
-              deadline: _timeouts.fastSeekGuard,
-            )) {
-              return;
+            try {
+              await _runNativeSeek(
+                seekRequest,
+                token,
+                operation: 'fast seek guard',
+              );
+              if (await _waitForSeekSettlement(
+                seekRequest,
+                token,
+                deadline: _timeouts.fastSeekGuard,
+              )) {
+                return;
+              }
+            } on OperationCancelledException {
+              rethrow;
+            } on Object catch (error) {
+              _checkSeekCurrent(seekRequest, token);
+              AppLogger.debug(
+                'Fast seek guard failed: ${error.runtimeType}; trying bridge.',
+              );
             }
           }
           _checkSeekCurrent(seekRequest, token);
@@ -482,15 +492,8 @@ extension _NavisRecovery on NavisAudioHandler {
     seekRequest
       ..path = fastSeekBridge ? 'fastSeekBridge' : 'transcodeOffset'
       ..stage = 'recovering';
-    final bridgePosition =
-        duration > const Duration(seconds: 1) &&
-            position > duration - const Duration(seconds: 1)
-        ? duration - const Duration(seconds: 1)
-        : position;
     final rebuilt = await _rebuildQueueForSeekRecovery(
-      fastSeekBridge && offset != null
-          ? bridgePosition
-          : offset ?? Duration.zero,
+      offset ?? Duration.zero,
       autoPlay: _requestedPlaying,
       token: token,
       transportGeneration: transportGeneration,
@@ -1063,7 +1066,12 @@ extension _NavisRecovery on NavisAudioHandler {
           // rebuilds the player around the next one.
           _recoveryStage = 'reload failed';
           _restoreQueueLists(restore);
-          _afterQueueEdit(context: 'seek recovery failed');
+          if (fastSeekBridge) {
+            // Native may already hold the failed bridge's single-item playlist.
+            await _reloadQueueAfterTimeout(restore.capture);
+          } else {
+            _afterQueueEdit(context: 'seek recovery failed');
+          }
           rethrow;
         }
         rebuilt = true;
@@ -1632,7 +1640,6 @@ extension _NavisRecovery on NavisAudioHandler {
               final bridging =
                   _currentMediaItem?.extras?['bridgeFormat'] != null;
               rebuilt =
-                  !bridging &&
                   _completedCacheFileFor(_currentMediaItem) != null &&
                   await _trySeekViaCompletedCacheFile(
                     position,
@@ -1672,6 +1679,7 @@ extension _NavisRecovery on NavisAudioHandler {
                 _pendingSeek = null;
                 _anomalies.event('seekDone', {'outcome': 'recovery'});
               }
+              _syncBridgeDownloadPriority();
             }
           });
           AppLogger.startup(

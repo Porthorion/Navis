@@ -2397,6 +2397,7 @@ class NavisAudioHandler extends BaseAudioHandler
               request.queueIndex ?? 0,
             );
             _pendingSeek = null;
+            _syncBridgeDownloadPriority();
             await _skipPastFailedRemoteSong(
               failedIndex,
               autoPlay: _requestedPlaying,
@@ -2427,6 +2428,7 @@ class NavisAudioHandler extends BaseAudioHandler
           _broadcastPlaybackState();
           _emitSnapshot();
         }
+        _syncBridgeDownloadPriority();
       }
     });
   }

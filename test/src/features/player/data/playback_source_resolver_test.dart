@@ -99,6 +99,16 @@ void main() {
     }
 
     test(
+      'lossless formats follow inferred suffixes without treating m4a as ALAC',
+      () {
+        expect(isLosslessPlaybackFormat('aif'), isTrue);
+        expect(isLosslessPlaybackFormat('aiff'), isTrue);
+        expect(isLosslessPlaybackFormat('alac'), isFalse);
+        expect(isLosslessPlaybackFormat('m4a'), isFalse);
+      },
+    );
+
+    test(
       'fast seek bridge preserves the original sidecar and metadata',
       () async {
         final song = await _insertSong(

@@ -766,7 +766,7 @@ bool _defaultSupportsLockCaching() => !kIsWeb;
 /// Whether [format] identifies a lossless original eligible for fast seeking.
 bool isLosslessPlaybackFormat(String? format) => const {
   'flac',
-  'alac',
+  'aif',
   'wav',
   'aiff',
   'ape',

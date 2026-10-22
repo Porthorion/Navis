@@ -133,7 +133,8 @@ const List<ChangelogVersion> changelogs = [
         'Fast Seeking on Linux and Windows plays an Opus 256 kbps stream when '
         'seeking beyond a lossless download on a slow connection. The original '
         'keeps downloading; seek back into the downloaded part or play the '
-        'song again to return to lossless. Disable it in Playback settings.',
+        'song again to return to lossless. Bridge failures fall back to the '
+        'original stream or completed local copy. Disable it in Playback settings.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

@@ -44,7 +44,7 @@ extension _NavisCache on NavisAudioHandler {
         _player.processingState == ProcessingState.loading ||
         _player.processingState == ProcessingState.buffering;
     if (_currentMediaItem?.extras?['bridgeFormat'] != null &&
-        (_requestedPlaying || _pendingSeek != null) &&
+        _requestedPlaying &&
         buffering &&
         _sidecarDownloader.activeSongId == _currentMediaItem?.id) {
       _sidecarDownloader.pause();

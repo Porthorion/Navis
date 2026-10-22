@@ -32,6 +32,56 @@ void main() {
     }
   });
 
+  for (final pauseBeforeData in [false, true]) {
+    test(
+      'transfer rate excludes response latency, pause before data=$pauseBeforeData',
+      () async {
+        final streaming = await HttpServer.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+        );
+        addTearDown(() => streaming.close(force: true));
+        final responseReady = Completer<HttpResponse>();
+        streaming.listen((request) {
+          request.response.headers.contentLength = 2 * 65536;
+          responseReady.complete(request.response);
+        });
+        final downloader = RollingCacheSidecarDownloader();
+        addTearDown(downloader.dispose);
+        final firstChunk = Completer<void>();
+        final downloading = downloader.start(
+          songId: 'delayed',
+          uri: Uri.parse('http://127.0.0.1:${streaming.port}/audio'),
+          cacheFilePath: p.join(tempDir.path, 'delayed.flac'),
+          onProgress: (_) {
+            if ((downloader.activeReceivedBytes ?? 0) >= 65536 &&
+                !firstChunk.isCompleted) {
+              firstChunk.complete();
+            }
+          },
+          onTerminated: () {},
+          onComplete: (_) async {},
+        );
+        final response = await responseReady.future;
+        if (pauseBeforeData) {
+          downloader.pause();
+          downloader.resume();
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        response.add(List<int>.filled(65536, 1));
+        await response.flush();
+        await firstChunk.future;
+        downloader.pause();
+        final rate = downloader.activeBytesPerSecond;
+        downloader.resume();
+        response.add(List<int>.filled(65536, 2));
+        await response.close();
+        await downloading;
+        expect(rate, greaterThan(65536 / .25));
+      },
+    );
+  }
+
   for (final cancel in [false, true]) {
     test(
       'paused sidecar ${cancel ? 'cancels without hanging' : 'resumes the same GET and excludes paused time'}',

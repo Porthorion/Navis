@@ -4447,15 +4447,17 @@ external catalog songs, existing transcodes and lossy originals. A seek more
 than two seconds beyond the known cached extent (or an unknown extent) bridges
 immediately when the sidecar's active download rate is less than twice the
 original bitrate; fast or unknown rates try a native seek first. The average
-rate excludes paused time and is unavailable until two seconds or 64 KiB.
+rate starts at the first received chunk, excludes paused time and is unavailable
+until two seconds or 64 KiB.
 The original sidecar keeps its song/path identity, full-stream URI and metadata:
 bridge reloads never restart it, and only the complete original is registered
 in the cache. If no sidecar is running, the bridge starts one for the original.
 The existing playback-event listener pauses the sidecar's read loop while the
-bridge loads or buffers, applying stream backpressure, and resumes on ready,
-lossless upgrade, song change or Stop. Cancellation and disposal release the
-pause gate. Diagnostics expose `fastSeekBridge` (`format`, `offsetMs`) and
-`sidecar` (`paused`, `bytesPerSecond`) without stream URLs.
+bridge loads or buffers with playback requested, applying stream backpressure,
+and resumes on ready, Pause, lossless upgrade, song change or Stop. Seek
+completion and cancellation also recalculate that priority. Cancellation and
+disposal release the pause gate. Diagnostics expose `fastSeekBridge` (`format`,
+`offsetMs`) and `sidecar` (`paused`, `bytesPerSecond`) without stream URLs.
 
 libmpv therefore opens the credential-bearing `stream.view` URL (and radio
 stream URLs) itself. Its built-in ytdl hook would retry any http(s) URL that
@@ -5168,8 +5170,11 @@ Now Playing prefers the bridge quality, shows the transcode icon and omits the
 original sample rate. A bridge stays active when the original finishes
 caching; the next seek uses the local file. A seek into the downloaded extent,
 a new play/queue entry or a Repeat One loop removes bridge extras and returns
-to lossless. Stream-error and stall recovery reopen the bridge at song time,
-including the subsecond position, instead of switching to a lossless offset.
+to lossless. Stream-error and stall recovery prefer a completed local original;
+otherwise they reopen the bridge at the whole-second song offset without a
+subsecond native seek into the linear stream. A rejected native guard seek still
+attempts the bridge. If the bridge fails, recovery reloads the original without
+an offset and reconciles the native playlist before ordinary seek recovery.
 The Playback switch is available on Linux and Windows only. Its
 `fastSeekingEnabled` value follows the existing settings/DAO/runtime-settings
 layers, with a guarded `from105To106` migration adding

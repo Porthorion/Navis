@@ -395,6 +395,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   }
 
   bool ignoreSeeks = false;
+  bool rejectNextSeek = false;
+  bool rejectBridgeLoad = false;
+  final bridgeInitialPositions = <Duration?>[];
 
   /// This many further seeks are ignored, as a native no-op would be.
   int ignoredSeeks = 0;
@@ -840,6 +843,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       errorCode = 0;
       _events.add(playbackEvent);
     }
+    if (source is IndexedAudioSource &&
+        (source.tag as MediaItem?)?.extras?['bridgeFormat'] != null) {
+      bridgeInitialPositions.add(initialPosition);
+      if (rejectBridgeLoad) throw StateError('bridge load failed');
+    }
     _indices.add(index);
     return const Duration(minutes: 3);
   });
@@ -929,6 +937,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> seek(Duration? position, {int? index}) => _mutate(() async {
     seekCalls++;
+    if (rejectNextSeek) {
+      rejectNextSeek = false;
+      throw StateError('native seek failed');
+    }
     await _hangIf('seek');
     final gate = seekGate;
     seekGate = null;
@@ -7684,6 +7696,69 @@ void main() {
       },
     );
 
+    test(
+      'installed bridge load failure restores the native queue before fallback',
+      () async {
+        final (handler, player, _, downloader) = await bridgeHandler();
+        final starts = downloader.starts;
+        final notices = <PlaybackLoadFailure>[];
+        final subscription = handler.loadFailureStream.listen(notices.add);
+        addTearDown(subscription.cancel);
+        player.rejectBridgeLoad = true;
+        await seekTo(handler, target);
+        expectNativeMirrorsQueue(handler, player);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(current(player).positionOffset, Duration.zero);
+        expect(current(player).uri.queryParameters['format'], isNot('opus'));
+        expect(bridging(handler), isFalse);
+        expect(event(handler)['outcome'], 'completed');
+        expect(notices, isEmpty);
+        expect(downloader.starts, starts);
+      },
+    );
+
+    test('native guard exception still attempts the bridge', () async {
+      final (handler, player, _, _) = await bridgeHandler(slow: false);
+      player.rejectNextSeek = true;
+      await seekTo(handler, target);
+      expect(bridging(handler), isTrue);
+      expect(event(handler)['path'], 'fastSeekBridge');
+      expect(player.seekCalls, 1);
+    });
+
+    test(
+      'paused buffering bridge resumes the original after seek settlement',
+      () async {
+        final (handler, player, _, downloader) = await bridgeHandler();
+        await handler.pause();
+        player.bufferAfterLoad = true;
+        await seekTo(handler, target);
+        expect(bridging(handler), isTrue);
+        expect(event(handler)['outcome'], 'completed');
+        expect(player.processingState, ProcessingState.buffering);
+        expect(player.playing, isFalse);
+        expect(downloader.isPaused, isFalse);
+        player._events.add(player.playbackEvent);
+        await pumpEventQueue(times: 20);
+        expect(downloader.isPaused, isFalse);
+      },
+    );
+
+    for (final milliseconds in [90750, 179750]) {
+      test(
+        'bridge reload starts at whole-second offset for $milliseconds ms',
+        () async {
+          final (handler, player, _, _) = await bridgeHandler();
+          await seekTo(handler, Duration(milliseconds: milliseconds));
+          expect(bridging(handler), isTrue);
+          expect(
+            player.bridgeInitialPositions.single,
+            current(player).positionOffset,
+          );
+        },
+      );
+    }
+
     test('fast or unknown link settles natively without a bridge', () async {
       final (handler, player, _, _) = await bridgeHandler(slow: false);
       final loads = player.sourceLoads;
@@ -7879,37 +7954,46 @@ void main() {
       expect(player.position, lessThan(const Duration(seconds: 112)));
     });
 
-    test(
-      'completed original does not replace the bridge during remote recovery',
-      () async {
-        final (handler, player, _, downloader) = await bridgeHandler();
-        await seekTo(handler, target);
-        await downloader.finish();
-        player.simulatedPosition = const Duration(milliseconds: 110750);
-        player.state = ProcessingState.idle;
-        final before =
-            (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
-                .length;
-        player._events.addError(PlayerException(2002, 'Read timed out', 1));
-        for (
-          var i = 0;
-          i < 300 &&
+    for (final rejectBridge in [false, true]) {
+      test(
+        'completed original replaces the bridge during remote recovery, bridge fails=$rejectBridge',
+        () async {
+          late _GatedSourceResolver resolver;
+          final (handler, player, _, downloader) = await bridgeHandler(
+            wrap: (base) => resolver = _GatedSourceResolver(base),
+          );
+          await seekTo(handler, target);
+          await downloader.finish();
+          resolver.rejectBridge = rejectBridge;
+          player.simulatedPosition = const Duration(milliseconds: 110750);
+          player.state = ProcessingState.idle;
+          final before =
               (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
-                      .length ==
-                  before;
-          i++
-        ) {
-          await Future<void>.delayed(const Duration(milliseconds: 10));
-        }
-        await settleQueue(handler);
-        expect(bridging(handler), isTrue);
-        expect(current(player).uri.queryParameters['timeOffset'], '110');
-        expect(
-          player.position,
-          greaterThanOrEqualTo(const Duration(milliseconds: 110750)),
-        );
-      },
-    );
+                  .length;
+          player._events.addError(PlayerException(2002, 'Read timed out', 1));
+          for (
+            var i = 0;
+            i < 300 &&
+                (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                        .length ==
+                    before;
+            i++
+          ) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          await settleQueue(handler);
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(bridging(handler), isFalse);
+          expect(current(player).uri.scheme, 'file');
+          expect(current(player).positionOffset, Duration.zero);
+          expectNativeMirrorsQueue(handler, player);
+          expect(
+            player.position,
+            greaterThanOrEqualTo(const Duration(milliseconds: 110750)),
+          );
+        },
+      );
+    }
 
     test('superseded bridge seek reloads only the newest target and clamps the tail', () async {
       late _GatedSourceResolver resolver;
