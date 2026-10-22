@@ -397,6 +397,15 @@ extension _NavisNavigation on NavisAudioHandler {
         }
         confirmSelection();
         _completeQueueLoad(generation);
+        // The song just left may be an offset stream: repair its entry as a
+        // queued edit, ahead of any later navigation. The reopen below is the
+        // safety net for a landing that beat the repair.
+        _repairDepartedOffsetEntries();
+        if (!rebuiltPendingQueue &&
+            _positionOffsetOf(_queueItems.elementAtOrNull(index)) >
+                Duration.zero) {
+          unawaited(seek(Duration.zero));
+        }
       } on OperationCancelledException catch (error, stackTrace) {
         // Usually a later command cancelled this work and owns the target.
         // When nothing did, the cancellation came from inside (a release that
