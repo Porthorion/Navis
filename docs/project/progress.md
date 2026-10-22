@@ -23,6 +23,19 @@ Last updated: 2026-10-22
   hours; error 6 reads as empty. Evidence: focused tests pass (1897); the real
   Same Vibes notifier against the live server used the server fallback for 30
   of 43 library songs before and 9 after (`./tool/check.sh` not yet run).
+- [ ] Issue #86, item 8 two-range seek bar and exact cached time — partial:
+  2026-10-22 (`fix/two-range-seek`, remaining: coordinator check.sh result,
+  Linux and Android runtime pass, review). The seek bar draws the cached range
+  from 0 and, after a seek past the download or on an offset stream, the
+  player's own range `[S, raw]` apart, so the gap is no longer drawn as
+  buffered. For Ogg (Opus, Vorbis) and FLAC the cached time is read from the
+  partial file (last complete Ogg page granule, last CRC-8-verified chained FLAC
+  frame) at most once a second; MP3 and AAC keep the estimate. Evidence: new
+  parser, handler, style and shell widget tests pass; handler tests failed
+  before the change (compile error for the new state, then wrong ranges). Test
+  rendering of the three thumb positions is in
+  `~/.cache/claude-navis-logs/playback-151/i8/shots/`. The Windows read of a
+  part file open for writing is unverified (a failed read falls back silently).
 - [ ] Issue #86, item 5 follow-ups — partial: 2026-10-21
   (`fix/item5-followups`, remaining: coordinator check.sh, runtime pass and
   review). 5a: after a crossfade deck swap the current item, diagnostics offset,

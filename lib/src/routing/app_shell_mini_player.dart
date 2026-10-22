@@ -552,6 +552,13 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                       return SliderTheme(
                         data: SliderTheme.of(context).copyWith(
                           trackHeight: 3,
+                          trackShape: resolveAheadTrackShape(
+                            context,
+                            currentSongId: playback.currentSongId,
+                            bufferState: bufferState,
+                            duration: duration,
+                            max: sliderMax,
+                          ),
                           thumbShape: const RoundSliderThumbShape(
                             enabledThumbRadius: 6,
                           ),
