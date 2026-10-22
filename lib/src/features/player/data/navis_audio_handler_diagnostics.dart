@@ -28,17 +28,18 @@ extension _NavisDiagnostics on NavisAudioHandler {
   };
 
   void _observeAnomalyPosition(Duration position) {
+    // The song the handler publishes: the native index is not the queue index
+    // on a single-source cross-fade deck. The entry only labels a record.
+    final song = _currentMediaItem;
+    if (song == null || _radioStation != null) return;
     final index = _player.currentIndex;
-    final item = index == null ? null : _queueItems.elementAtOrNull(index);
-    if (item == null || _radioStation != null) return;
     final state = _player.processingState;
-    final duration = _effectivePlaybackDuration(item);
+    final duration = _effectivePlaybackDuration(song);
     _anomalies.observePosition(
       position: position,
-      // The queue entry itself, as _repairDepartedOffsetEntries tells entries
-      // apart: an index shift from a queue edit is not a jump.
-      entryKey: item,
-      songId: item.id,
+      entryKey:
+          (index == null ? null : _queueItems.elementAtOrNull(index)) ?? song,
+      songId: song.id,
       duration: duration > Duration.zero ? duration : null,
       repeatOne: _desiredLoopMode == LoopMode.one,
       playing:

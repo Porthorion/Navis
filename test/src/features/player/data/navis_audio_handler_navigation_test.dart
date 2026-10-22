@@ -2,7 +2,8 @@ import 'dart:math';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:rxdart/rxdart.dart';
-import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
+import 'package:flutter/foundation.dart'
+    show debugPrint, listEquals, visibleForTesting;
 
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
@@ -26,7 +27,6 @@ import 'package:path/path.dart' as p;
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:logger/logger.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/models/models.dart' as models;
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -7247,13 +7247,13 @@ void main() {
         await directory.delete(recursive: true);
       });
       final warnings = <String>[];
-      void capture(LogEvent event) {
-        final message = '${event.message}';
-        if (message.contains('[PLAYBACK_ANOMALY]')) warnings.add(message);
-      }
-
-      Logger.addLogListener(capture);
-      addTearDown(() => Logger.removeLogListener(capture));
+      final printer = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null && message.contains('[PLAYBACK_ANOMALY]')) {
+          warnings.add(message);
+        }
+      };
+      addTearDown(() => debugPrint = printer);
       // The position stream only reports a moving position.
       player.simulateProgress = true;
       await handler.replaceQueue(
@@ -7271,6 +7271,10 @@ void main() {
     Future<void> pause(int ms) =>
         Future<void>.delayed(Duration(milliseconds: ms));
 
+    // One printed line per record header; the rest are its events.
+    List<String> headers(List<String> lines) =>
+        lines.where((line) => line.contains('"kind":')).toList();
+
     List<Object?> anomalies(NavisAudioHandler handler) =>
         handler.collectPlaybackDiagnostics()['anomalies']! as List<Object?>;
 
@@ -7284,11 +7288,73 @@ void main() {
         await pause(1200);
 
         expect(anomalies(handler), hasLength(1));
-        expect(warnings, hasLength(1));
-        expect(warnings.single, contains('"kind":"backwardJump"'));
-        expect(warnings.single, isNot(contains('song-1')));
+        expect(headers(warnings), hasLength(1));
+        expect(warnings.join('\n'), contains('"kind":"backwardJump"'));
+        expect(warnings.join('\n'), isNot(contains('song-1')));
       },
     );
+
+    test('a swapped queue entry mid-song does not hide a rewind', () async {
+      final (handler, player, warnings) = await anomalyHandler();
+      player.simulatedPosition = const Duration(seconds: 90);
+      await pause(500);
+      // Likes, art caching and recovery rebuilds replace the entry object.
+      await handler.syncSongLikedState('song-1', liked: true);
+      await pause(500);
+      player.simulatedPosition = const Duration(seconds: 85);
+      await pause(1200);
+
+      expect(anomalies(handler), hasLength(1));
+      expect(headers(warnings), hasLength(1));
+    });
+
+    test('a recovery rebuild landing behind its target is recorded', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-anomaly-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        sidecarStreams: true,
+        positionStreams: true,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final warnings = <String>[];
+      final printer = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null && message.contains('[PLAYBACK_ANOMALY]')) {
+          warnings.add(message);
+        }
+      };
+      addTearDown(() => debugPrint = printer);
+      player.simulateProgress = true;
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-2'],
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      await pause(1700);
+      player.simulatedPosition = const Duration(seconds: 70);
+      await pause(500);
+
+      // The reload ignores its start position and every correction seek.
+      player
+        ..ignoreInitialPosition = true
+        ..ignoreSeeks = true
+        ..simulatedPosition = const Duration(seconds: 70)
+        ..state = ProcessingState.idle;
+      player._events.addError(PlayerException(2002, 'Read timed out', 1));
+      for (var i = 0; i < 300 && anomalies(handler).isEmpty; i++) {
+        await pause(50);
+      }
+
+      expect(anomalies(handler), hasLength(1));
+      expect(warnings.join('\n'), contains('"e":"recovery"'));
+    });
 
     test('a handler seek back is not an anomaly', () async {
       final (handler, player, warnings) = await anomalyHandler();

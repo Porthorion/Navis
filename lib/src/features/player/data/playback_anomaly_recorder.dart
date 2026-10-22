@@ -1,10 +1,10 @@
 import 'dart:collection';
 import 'dart:convert';
 
-import 'package:navis/src/utils/app_logger.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 /// Silent recorder for two playback anomalies that no user action explains:
-/// a position that moves back more than 2 s on the same queue entry
+/// a position that moves back more than 2 s within the same song
 /// (`backwardJump`), and a song that reached its last 10 s playing again from
 /// under 3 s within 10 s (`replayNearEnd`).
 ///
@@ -17,8 +17,14 @@ class PlaybackAnomalyRecorder {
     void Function(String)? log,
     Map<String, Object?> Function()? header,
   }) : _now = now ?? DateTime.now,
-       _log = log ?? AppLogger.warning,
+       _log = log ?? _debugPrintLines,
        _header = header;
+
+  /// AppLogger drops every call without asserts, so release and profile logs
+  /// never saw a record. debugPrint prints in every mode (logcat tag
+  /// `flutter`, desktop stdout) and goes through the credential redaction.
+  static void _debugPrintLines(String text) =>
+      text.split('\n').forEach(debugPrint);
 
   static const _window = Duration(seconds: 30);
   static const _maxRows = 400;
@@ -29,7 +35,7 @@ class PlaybackAnomalyRecorder {
   static const _jump = Duration(milliseconds: 2000);
   static const _grace = Duration(milliseconds: 1500);
   static const _confirmAfter = Duration(milliseconds: 300);
-  static const _confirmWithin = Duration(seconds: 3);
+  static const _staleBaseline = Duration(seconds: 10);
   static const _nearEnd = Duration(seconds: 10);
   static const _replayStart = Duration(seconds: 3);
 
@@ -40,7 +46,7 @@ class PlaybackAnomalyRecorder {
   final _rows = ListQueue<_Row>();
   final _raw = ListQueue<_Row>();
   final _recent = <Map<String, Object?>>[];
-  final _recorded = <String, Set<Object>>{};
+  final _recorded = <String, Set<String>>{};
   var _count = 0;
   _Sample? _prev;
   _Candidate? _candidate;
@@ -48,8 +54,19 @@ class PlaybackAnomalyRecorder {
   DateTime? _expectedAt;
   DateTime? _lastPositionRow;
 
-  /// The last 5 records, newest last: the header fields plus `events`.
-  List<Map<String, Object?>> get recent => List.of(_recent);
+  /// The last 5 records, newest last. Only the newest carries its `events`;
+  /// older ones keep their header and an `eventCount`.
+  List<Map<String, Object?>> get recent => [
+    for (var i = 0; i < _recent.length; i++)
+      if (i == _recent.length - 1)
+        _recent[i]
+      else
+        {
+          for (final e in _recent[i].entries)
+            if (e.key != 'events') e.key: e.value,
+          'eventCount': (_recent[i]['events']! as List).length,
+        },
+  ];
 
   /// Adds a transport event to the ring. It explains nothing.
   void event(String kind, [Map<String, Object?> fields = const {}]) {
@@ -67,7 +84,10 @@ class PlaybackAnomalyRecorder {
   }
 
   /// Feeds one position sample, in song time, of the current queue entry
-  /// [entryKey] (compared by identity). [seeking] samples are ignored.
+  /// [entryKey] (compared by identity, only to tell entries apart in a
+  /// record). A jump is judged by [songId]: queue entries are swapped for
+  /// fresh objects mid-song (art cache, likes, recovery rebuilds). [seeking]
+  /// samples are ignored.
   void observePosition({
     required Duration position,
     required Object entryKey,
@@ -99,11 +119,10 @@ class PlaybackAnomalyRecorder {
     final pending = _candidate;
     _prev = sample;
     if (pending != null) {
-      final age = at.difference(pending.at);
-      if (age < _confirmAfter) return;
+      // Confirmed by the next sample at least 300 ms later, however late.
+      if (at.difference(pending.at) < _confirmAfter) return;
       _candidate = null;
-      if (age <= _confirmWithin &&
-          identical(entryKey, pending.entry) &&
+      if (songId == pending.songId &&
           (pending.kind == 'replayNearEnd'
               ? position < _nearEnd
               : position < pending.from)) {
@@ -120,7 +139,7 @@ class PlaybackAnomalyRecorder {
     }
     if (explained || previous == null) return;
 
-    final sameEntry = identical(entryKey, previous.entry);
+    var sameEntry = identical(entryKey, previous.entry);
     String? kind;
     var from = previous.position;
     if (end != null &&
@@ -128,20 +147,24 @@ class PlaybackAnomalyRecorder {
         songId == end.songId &&
         position < _replayStart &&
         at.difference(end.at) <= _nearEnd &&
-        (!identical(entryKey, end.entry) || end.position - position > _jump)) {
+        end.position - position > _jump) {
       kind = 'replayNearEnd';
       from = end.position;
-    } else if (sameEntry && previous.position - position > _jump) {
+      sameEntry = identical(entryKey, end.entry);
+    } else if (songId == previous.songId &&
+        // An older baseline is stale (a queue that completed, then Play).
+        at.difference(previous.at) <= _staleBaseline &&
+        previous.position - position > _jump) {
       kind = 'backwardJump';
     }
     if (kind != null) {
-      _candidate = _Candidate(kind, from, position, at, entryKey, sameEntry);
+      _candidate = _Candidate(kind, from, position, at, songId, sameEntry);
     }
   }
 
   void _emit(_Candidate c, {Duration? duration, required DateTime at}) {
-    final seen = _recorded.putIfAbsent(c.kind, Set<Object>.identity);
-    if (_count >= _maxRecords || !seen.add(c.entry)) return;
+    final seen = _recorded.putIfAbsent(c.kind, () => <String>{});
+    if (_count >= _maxRecords || !seen.add(c.songId)) return;
     final id = ++_count;
     final header = <String, Object?>{
       'kind': c.kind,
@@ -221,13 +244,13 @@ class _Candidate {
     this.from,
     this.to,
     this.at,
-    this.entry,
+    this.songId,
     this.sameEntry,
   );
   final String kind;
   final Duration from;
   final Duration to;
   final DateTime at;
-  final Object entry;
+  final String songId;
   final bool sameEntry;
 }

@@ -251,14 +251,16 @@ Use this quick matrix to classify failures:
 - Symptoms: Android steps back about 5 s after a stream cut; a desktop song
   plays to its end and starts again from the beginning.
 - `PlaybackAnomalyRecorder` watches for this without changing playback. It
-  writes one warning when the same queue entry's position moves back more than
+  prints a record when the position of the same song moves back more than
   2 s with no seek, navigation, loop or stop to explain it (`backwardJump`),
   or when a song that reached its last 10 s plays again from under 3 s within
   10 s (`replayNearEnd`, same entry or another entry holding the same song,
-  never Repeat One). One record per kind per entry, at most 20 per run.
-- Read it: `adb logcat | grep PLAYBACK_ANOMALY` on Android, or
-  `journalctl --user -f | grep PLAYBACK_ANOMALY` (or the terminal stdout) on
-  Linux. The first line is a JSON header (`kind`, `fromMs`, `toMs`, `sourceKind`,
+  never Repeat One). One record per kind per song, at most 20 per run.
+- Read it: records go through `debugPrint`, so they print in release and
+  profile builds too (`AppLogger` drops everything without asserts and is not
+  used). On Android: `adb logcat -s flutter | grep PLAYBACK_ANOMALY` (logcat
+  tag `flutter`). On desktop: the process stdout, or
+  `journalctl --user -f | grep PLAYBACK_ANOMALY` under systemd. The first line is a JSON header (`kind`, `fromMs`, `toMs`, `sourceKind`,
   `loopMode`, `shuffle`, `crossfade`, `gapless`, `processingState`,
   `sameEntry`); each following line is one transport event of the last 30 s,
   with `t` in ms relative to detection (`pb` playback events with
@@ -266,8 +268,8 @@ Use this quick matrix to classify failures:
   `seek`, `seekDone`, `recovery`, `stall`, `reload`, `restartCompleted`).
   Records hold no URLs, song ids, titles or account data. Windows has no
   console, so use the diagnostics API there.
-- `GET /v1/playback/status`: `anomalies` holds the last 5 records with the
-  same events.
+- `GET /v1/playback/status`: `anomalies` holds the last 5 records. Only the
+  newest carries its events; older ones keep the header and an `eventCount`.
 
 ## Android `VRI` / `SurfaceView` logs while backgrounding
 

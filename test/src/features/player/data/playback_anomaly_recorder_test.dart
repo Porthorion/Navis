@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/data/playback_anomaly_recorder.dart';
 
@@ -42,6 +43,18 @@ void main() {
       repeatOne: repeatOne,
       playing: playing,
       seeking: seeking,
+    );
+  }
+
+  void sample0(PlaybackAnomalyRecorder r, int atMs, int positionMs) {
+    at(atMs);
+    r.observePosition(
+      position: Duration(milliseconds: positionMs),
+      entryKey: entryA,
+      songId: 's',
+      duration: const Duration(seconds: 200),
+      repeatOne: false,
+      playing: true,
     );
   }
 
@@ -151,6 +164,43 @@ void main() {
     });
   });
 
+  group('backwardJump late and stale', () {
+    test('a late confirming sample still records the jump', () {
+      sample(0, 60000);
+      sample(200, 52000);
+      sample(5200, 57000);
+
+      expect(logs, hasLength(1));
+      expect(header(logs.single)['kind'], 'backwardJump');
+    });
+
+    test('a swapped queue entry for the same song keeps the baseline', () {
+      sample(0, 60000);
+      sample(1000, 61000, entry: entryB);
+      sample(6000, 56000, entry: entryB);
+      sample(6400, 56400, entry: entryB);
+
+      expect(logs, hasLength(1));
+      final head = header(logs.single);
+      expect(head['kind'], 'backwardJump');
+      expect(head['sameEntry'], isTrue);
+    });
+
+    test('a different song is never a backward jump', () {
+      sample(0, 60000);
+      sample(200, 52000, song: 'secret-song-2');
+      sample(600, 52400, song: 'secret-song-2');
+      expect(logs, isEmpty);
+    });
+
+    test('a baseline older than 10 s is stale', () {
+      sample(0, 199000);
+      sample(60000, 100, playing: true);
+      sample(60400, 500);
+      expect(logs, isEmpty);
+    });
+  });
+
   group('replayNearEnd', () {
     test('the same entry replaying from the start is recorded', () {
       sample(0, 196000);
@@ -213,6 +263,24 @@ void main() {
       expect(logs.single, contains('"e":"restartCompleted"'));
     });
 
+    test('Play after the queue completed minutes later is not recorded', () {
+      sample(0, 199000);
+      sample(200, 199800, playing: false);
+      sample(60000, 100);
+      sample(60400, 500);
+      expect(logs, isEmpty);
+    });
+
+    test('a restart within seconds of the end is recorded', () {
+      sample(0, 199000);
+      sample(200, 199800, playing: false);
+      sample(3000, 100);
+      sample(3400, 500);
+
+      expect(logs, hasLength(1));
+      expect(header(logs.single)['kind'], 'replayNearEnd');
+    });
+
     test('a replay 30 s after the end is a user action', () {
       sample(0, 197000);
       sample(30000, 500, entry: entryB);
@@ -224,31 +292,56 @@ void main() {
       sample(0, 197000, durationMs: null);
       sample(2000, 500, entry: entryB, durationMs: null);
       sample(2400, 900, entry: entryB, durationMs: null);
-      expect(logs, isEmpty);
+
+      // Only the backward jump of the same song is left.
+      expect(logs, hasLength(1));
+      expect(header(logs.single)['kind'], 'backwardJump');
+      expect(header(logs.single)['sameEntry'], isFalse);
+    });
+  });
+
+  group('sink', () {
+    test('the default sink prints every line with debugPrint', () {
+      final printed = <String?>[];
+      final original = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) => printed.add(message);
+      addTearDown(() => debugPrint = original);
+      final plain = PlaybackAnomalyRecorder(now: () => clock);
+      sample0(plain, 0, 60000);
+      sample0(plain, 200, 52000);
+      sample0(plain, 600, 52400);
+
+      expect(printed, isNotEmpty);
+      expect(printed.every((l) => l!.startsWith('[PLAYBACK_ANOMALY]')), isTrue);
+      expect(printed.first, contains('"kind":"backwardJump"'));
     });
   });
 
   group('limits and content', () {
-    void jump(int atMs, Object entry) {
-      sample(atMs, 60000, entry: entry);
-      sample(atMs + 200, 50000, entry: entry);
-      sample(atMs + 600, 50400, entry: entry);
+    void jump(int atMs, String song) {
+      sample(atMs, 60000, song: song);
+      sample(atMs + 200, 50000, song: song);
+      sample(atMs + 600, 50400, song: song);
     }
 
-    test('one record per kind per entry', () {
-      jump(0, entryA);
-      jump(5000, entryA);
+    test('one record per kind per song', () {
+      jump(0, 'a');
+      jump(5000, 'a');
       expect(logs, hasLength(1));
-      jump(10000, entryB);
+      jump(10000, 'b');
       expect(logs, hasLength(2));
     });
 
     test('at most 20 records per session, and recent keeps 5', () {
       for (var i = 0; i < 25; i++) {
-        jump(i * 5000, Object());
+        jump(i * 5000, 'song-$i');
       }
       expect(logs, hasLength(20));
       expect(recorder.recent, hasLength(5));
+      // Only the newest record carries its events.
+      expect(recorder.recent.last, contains('events'));
+      expect(recorder.recent.first, isNot(contains('events')));
+      expect(recorder.recent.first['eventCount'], isA<int>());
     });
 
     test('the ring holds at most 400 rows', () {
