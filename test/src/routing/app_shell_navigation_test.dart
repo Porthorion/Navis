@@ -32,6 +32,8 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/playback_seek_bar_style.dart'
+    show AheadRangeTrackShape;
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:drift/drift.dart' show Value;
@@ -425,6 +427,70 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  // A seek past the download: the cached range 0:20 and the player's own
+  // range from 1:00 to 1:30.
+  const detachedBuffer = PlaybackBufferState(
+    songId: 'song-1',
+    bufferedPosition: Duration(seconds: 20),
+    aheadStart: Duration(minutes: 1),
+    aheadEnd: Duration(minutes: 1, seconds: 30),
+  );
+
+  void expectAheadRange(WidgetTester tester, Finder slider) {
+    final shape = SliderTheme.of(tester.element(slider)).trackShape;
+    expect(shape, isA<AheadRangeTrackShape>());
+    expect((shape! as AheadRangeTrackShape).start, 60000);
+    expect((shape as AheadRangeTrackShape).end, 90000);
+    expect(tester.widget<Slider>(slider).secondaryTrackValue, 20000);
+  }
+
+  testWidgets('the desktop player bar draws the ahead range', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 600);
+    addTearDown(tester.view.reset);
+    final container = _createContainerWithDatabase(
+      overrides: [
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        playbackBufferStateProvider.overrideWithValue(
+          const AsyncData(detachedBuffer),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    expectAheadRange(
+      tester,
+      find.byKey(const ValueKey('desktopPlayerSeekSlider')),
+    );
+  });
+
+  testWidgets('the rail mini player draws the ahead range', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.reset);
+    final container = _createContainerWithDatabase(
+      overrides: [
+        ..._authenticatedShellOverrides(),
+        playbackBufferStateProvider.overrideWithValue(
+          const AsyncData(detachedBuffer),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    expectAheadRange(
+      tester,
+      find.descendant(
+        of: find.byKey(const ValueKey('railMiniPlayer')),
+        matching: find.byType(Slider),
+      ),
+    );
+  });
 
   testWidgets('the shell initializes the download service at launch', (
     tester,

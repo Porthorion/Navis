@@ -36,6 +36,7 @@ import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.d
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
+import 'package:navis/src/features/player/data/cached_audio_extent.dart';
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:navis/src/features/player/data/android_system_art.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -378,6 +379,30 @@ class NavisAudioHandler extends BaseAudioHandler
   // The player's own buffered position, before the cache is taken into
   // account for the seek bar line. Deadline logic reads the player directly.
   Duration _playerBufferedPosition = Duration.zero;
+  // The exact cached time read from the current song's partial download
+  // file, at most once a second (see [_probeCachedExtent]).
+  _CachedExtentProbe? _cachedExtent;
+  int _cachedExtentProbeCount = 0;
+
+  /// Reads how much audio a partial file holds; a seam for tests.
+  @visibleForTesting
+  Future<Duration?> Function(String path) cachedExtentReader =
+      readCachedAudioExtent;
+
+  /// The pace of the exact-extent probe: at most one read per interval, and
+  /// the trailing re-probe after it. A seam for tests.
+  @visibleForTesting
+  Duration cachedExtentInterval = const Duration(seconds: 1);
+
+  // The one-shot trailing probe (see [_armCachedExtentTimer]).
+  Timer? _cachedExtentTimer;
+
+  @visibleForTesting
+  bool get cachedExtentTimerActive => _cachedExtentTimer?.isActive ?? false;
+
+  // Where the player's buffered range starts after the user's seek within the
+  // current queue occurrence. A native loop or another song drops it.
+  ({String songId, Duration position})? _playerRangeStart;
   // Songs whose rolling-cache download finished, until another song plays.
   final Set<String> _completedCacheSongIds = <String>{};
   Timer? _positionPersistTimer;
@@ -2312,6 +2337,7 @@ class NavisAudioHandler extends BaseAudioHandler
     );
     _seekFailureBlocksRecovery = false;
     _pendingSeek = _lastSeek = request;
+    _playerRangeStart = (songId: songId, position: request.position);
     _broadcastPlaybackState();
     _emitSnapshot();
     return _seekLane.run((token) async {
@@ -2338,9 +2364,13 @@ class NavisAudioHandler extends BaseAudioHandler
       } on OperationCancelledException {
         request.outcome = 'superseded';
         request.stage = 'done';
+        // A newer seek has set its own target; otherwise the target was never
+        // opened.
+        if (identical(_lastSeek, request)) _dropPlayerRangeStart();
       } on Object catch (error, stackTrace) {
         request.outcome = 'failed';
         request.stage = 'done';
+        if (identical(_lastSeek, request)) _dropPlayerRangeStart();
         if (identical(_pendingSeek, request)) {
           // A song that still advances is alive: it keeps playing quietly.
           final shouldFailOver = _isDesktopRuntime && !_playbackAdvancing;
@@ -2412,6 +2442,9 @@ class NavisAudioHandler extends BaseAudioHandler
     final songId = snapshot.currentSongId;
     final cacheActivity = _rollingCacheActivities.values.lastOrNull;
     final partialCacheBytes = _partialCacheBytesForSong(songId);
+    final cachedPlayable = songId == null
+        ? null
+        : _cachedPlayable(songId, snapshot.duration);
     final radio = _radioStation;
     final publishedArt =
         radio != null && mediaItem.value?.id == 'radio:${radio.stationId}'
@@ -2540,9 +2573,11 @@ class NavisAudioHandler extends BaseAudioHandler
       'playerPositionMs': _player.position.inMilliseconds,
       'playerBufferedPositionMs': _player.bufferedPosition.inMilliseconds,
       'drawnBufferedPositionMs': _bufferState.bufferedPosition.inMilliseconds,
-      'cachedPlayablePositionMs': songId == null
-          ? null
-          : _cachedPlayablePosition(songId, snapshot.duration)?.inMilliseconds,
+      'drawnAheadStartMs': _bufferState.aheadStart?.inMilliseconds,
+      'drawnAheadEndMs': _bufferState.aheadEnd?.inMilliseconds,
+      'cachedPlayablePositionMs': cachedPlayable?.position?.inMilliseconds,
+      'cachedPlayableSource': cachedPlayable?.source,
+      'cachedExtentProbes': _cachedExtentProbeCount,
       'userVolume': _userVolume,
       'effectivePlayerVolume': _player.volume,
       'playbackSpeed': _appliedAdjustments.speed,
@@ -3019,6 +3054,7 @@ class NavisAudioHandler extends BaseAudioHandler
     _cancelRemotePlaybackStallWatchdog();
     _positionPersistTimer?.cancel();
     _transportPersistTimer?.cancel();
+    _cancelCachedExtentTimer();
     _radioStation = null;
     _radioMetadataService.dispose();
     await _networkRecoverySubscription?.cancel();
