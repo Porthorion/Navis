@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 
 import 'dart:async';
@@ -54,6 +56,7 @@ class _PlaybackSettingsScreenState
   bool _cachedPlaybackFirst = false;
   bool _scrobbleEnabled = true;
   bool _gaplessEnabled = true;
+  bool _fastSeekingEnabled = true;
   bool _fullscreenModeLyrics = false;
   bool _albumQueueEnabled = false;
   bool _likedQueueEnabled = false;
@@ -255,6 +258,19 @@ class _PlaybackSettingsScreenState
                         title: Text(l10n.playbackSettingsLikedQueueTitle),
                         subtitle: Text(l10n.playbackSettingsLikedQueueSubtitle),
                       ),
+                    ),
+                  if (!kIsWeb &&
+                      (defaultTargetPlatform == TargetPlatform.linux ||
+                          defaultTargetPlatform == TargetPlatform.windows))
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      value: _fastSeekingEnabled,
+                      onChanged: _isSaving
+                          ? null
+                          : (value) =>
+                                setState(() => _fastSeekingEnabled = value),
+                      title: Text(l10n.playbackSettingsFastSeekingTitle),
+                      subtitle: Text(l10n.playbackSettingsFastSeekingSubtitle),
                     ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -586,6 +602,7 @@ class _PlaybackSettingsScreenState
     _cachedPlaybackFirst = settings.cachedPlaybackFirst;
     _scrobbleEnabled = settings.scrobbleEnabled;
     _gaplessEnabled = settings.gaplessEnabled || settings.crossfadeEnabled;
+    _fastSeekingEnabled = settings.fastSeekingEnabled;
     _fullscreenModeLyrics = settings.skipSilenceEnabled;
     _albumQueueEnabled = settings.albumQueueEnabled;
     _likedQueueEnabled = settings.likedQueueEnabled;
@@ -623,6 +640,7 @@ class _PlaybackSettingsScreenState
       _cachedPlaybackFirst,
       _scrobbleEnabled,
       _gaplessEnabled,
+      _fastSeekingEnabled,
       _fullscreenModeLyrics,
 
       _crossfadeEnabled,
@@ -675,6 +693,7 @@ class _PlaybackSettingsScreenState
         cachedPlaybackFirst: _cachedPlaybackFirst,
         scrobbleEnabled: _scrobbleEnabled,
         gaplessEnabled: _gaplessEnabled || _crossfadeEnabled,
+        fastSeekingEnabled: _fastSeekingEnabled,
         skipSilenceEnabled: _fullscreenModeLyrics,
         crossfadeEnabled: _crossfadeEnabled,
         crossfadeDurationSeconds: _crossfadeDurationSeconds,

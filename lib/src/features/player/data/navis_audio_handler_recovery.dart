@@ -147,6 +147,7 @@ extension _NavisRecovery on NavisAudioHandler {
     required _PendingSeek seekRequest,
   }) async {
     _checkSeekCurrent(seekRequest, token);
+    var nativeSeekTried = false;
     if (_isDesktopRuntime && seekRequest.recoveryAttempts > 0) {
       // A cold-source retry already opened the target, including transcodes.
       if (await _waitForSeekSettlement(seekRequest, token)) return;
@@ -184,6 +185,65 @@ extension _NavisRecovery on NavisAudioHandler {
       _checkSeekCurrent(seekRequest, token);
       seekRequest.path = null;
     }
+    if (_shouldFastSeek(position, seekRequest)) {
+      try {
+        final item = _currentMediaItem!;
+        final bridging = item.extras?['bridgeFormat'] != null;
+        final cached = _cachedPlayablePosition(
+          item.id,
+          _effectivePlaybackDuration(item),
+        );
+        if (bridging && cached != null && position <= cached) {
+          final rebuilt = await _rebuildQueueForSeekRecovery(
+            position,
+            autoPlay: _requestedPlaying,
+            token: token,
+            transportGeneration: transportGeneration,
+            seekRequest: seekRequest,
+          );
+          if (rebuilt && await _waitForSeekSettlement(seekRequest, token)) {
+            return;
+          }
+        } else {
+          if (!bridging && !_fastSeekLinkIsSlow(item)) {
+            nativeSeekTried = true;
+            await _runNativeSeek(
+              seekRequest,
+              token,
+              operation: 'fast seek guard',
+            );
+            if (await _waitForSeekSettlement(
+              seekRequest,
+              token,
+              deadline: _timeouts.fastSeekGuard,
+            )) {
+              return;
+            }
+          }
+          _checkSeekCurrent(seekRequest, token);
+          if (seekRequest.unsettled.lastOrNull?['reason'] != 'cache complete' &&
+              await _seekViaTranscodeOffset(
+                position,
+                token: token,
+                transportGeneration: transportGeneration,
+                seekRequest: seekRequest,
+                fastSeekBridge: true,
+              )) {
+            return;
+          }
+        }
+      } on OperationCancelledException {
+        rethrow;
+      } on Object catch (error) {
+        _checkSeekCurrent(seekRequest, token);
+        AppLogger.debug(
+          'Fast seek bridge failed: ${error.runtimeType}; using native recovery.',
+        );
+        nativeSeekTried = false;
+      }
+      _checkSeekCurrent(seekRequest, token);
+      seekRequest.path = null;
+    }
     if (_currentSourceKind == PlaybackSourceKind.lockCachedStream.name &&
         position >= const Duration(seconds: 1) &&
         !await _lockCacheServesRanges(seekRequest, token)) {
@@ -211,7 +271,8 @@ extension _NavisRecovery on NavisAudioHandler {
     try {
       // An offset stream is linear, like any server transcode: it cannot
       // seek natively, so go straight to the completed file or a reload.
-      if (_positionOffsetOf(_currentMediaItem) == Duration.zero) {
+      if (!nativeSeekTried &&
+          _positionOffsetOf(_currentMediaItem) == Duration.zero) {
         await _runNativeSeek(seekRequest, token, operation: 'seek');
         _checkSeekCurrent(seekRequest, token);
         if (await _waitForSeekSettlement(seekRequest, token)) return;
@@ -277,6 +338,45 @@ extension _NavisRecovery on NavisAudioHandler {
       return;
     }
     throw StateError('Seek failed after source recovery.');
+  }
+
+  bool _shouldFastSeek(Duration target, _PendingSeek request) {
+    final item = _currentMediaItem;
+    if (kIsWeb ||
+        (defaultTargetPlatform != TargetPlatform.linux &&
+            defaultTargetPlatform != TargetPlatform.windows) ||
+        !_readRuntimeSettings().fastSeekingEnabled ||
+        !_sourceResolver.supportsFastSeeking ||
+        item == null ||
+        item.id != request.songId ||
+        _radioStation != null ||
+        isExternalCatalogSource(id: item.id) ||
+        (_sidecarSongsById[item.id] ?? _remoteRows[item.id])?.isExternal ==
+            true ||
+        item.extras?['sourceKind'] != PlaybackSourceKind.directStream.name ||
+        item.extras?['transcodingApplied'] != false ||
+        !isLosslessPlaybackFormat(item.extras?['resolvedFormat'] as String?) ||
+        !_sourceResolver.supportsTranscodeOffset ||
+        _completedCacheFileFor(item) != null) {
+      return false;
+    }
+    if (item.extras?['bridgeFormat'] != null) return true;
+    final cached = _cachedPlayablePosition(
+      item.id,
+      _effectivePlaybackDuration(item),
+    );
+    return target >= const Duration(seconds: 1) &&
+        (cached == null || target > cached + const Duration(seconds: 2));
+  }
+
+  bool _fastSeekLinkIsSlow(MediaItem item) {
+    if (_sidecarDownloader.activeSongId != item.id) return false;
+    final rate = _sidecarDownloader.activeBytesPerSecond;
+    final song = _sidecarSongsById[item.id] ?? _remoteRows[item.id];
+    final kbps =
+        item.extras?['resolvedBitRate'] as int? ?? song?.bitRate ?? 1000;
+    // ponytail: average-rate heuristic, replace with a windowed estimator if it misclassifies
+    return rate != null && rate * 8 / 1000 < 2 * kbps;
   }
 
   /// How far into the song the media item's stream starts (a `timeOffset`
@@ -368,6 +468,7 @@ extension _NavisRecovery on NavisAudioHandler {
     required OperationToken token,
     required int transportGeneration,
     required _PendingSeek seekRequest,
+    bool fastSeekBridge = false,
   }) async {
     final duration = _effectivePlaybackDuration(_currentMediaItem);
     var seconds = position.inSeconds;
@@ -379,15 +480,23 @@ extension _NavisRecovery on NavisAudioHandler {
     }
     final offset = seconds < 1 ? null : Duration(seconds: seconds);
     seekRequest
-      ..path = 'transcodeOffset'
+      ..path = fastSeekBridge ? 'fastSeekBridge' : 'transcodeOffset'
       ..stage = 'recovering';
+    final bridgePosition =
+        duration > const Duration(seconds: 1) &&
+            position > duration - const Duration(seconds: 1)
+        ? duration - const Duration(seconds: 1)
+        : position;
     final rebuilt = await _rebuildQueueForSeekRecovery(
-      offset ?? Duration.zero,
+      fastSeekBridge && offset != null
+          ? bridgePosition
+          : offset ?? Duration.zero,
       autoPlay: _requestedPlaying,
       token: token,
       transportGeneration: transportGeneration,
       seekRequest: seekRequest,
       transcodeOffset: offset,
+      fastSeekBridge: fastSeekBridge,
     );
     _checkSeekCurrent(seekRequest, token);
     return rebuilt && await _waitForSeekSettlement(seekRequest, token);
@@ -433,10 +542,11 @@ extension _NavisRecovery on NavisAudioHandler {
 
   Future<bool> _waitForSeekSettlement(
     _PendingSeek request,
-    OperationToken token,
-  ) async {
+    OperationToken token, {
+    Duration? deadline,
+  }) async {
     request.stage = 'confirming';
-    final deadline = _isDesktopRuntime
+    deadline ??= _isDesktopRuntime
         ? _timeouts.desktopSeekSettle
         : _timeouts.seekProgress;
     final elapsed = Stopwatch()..start();
@@ -528,7 +638,8 @@ extension _NavisRecovery on NavisAudioHandler {
           now - lastActivity >= _seekBufferingRecoveryTimeout) {
         // A paused player holding the target is expected to stand still.
         unsettled = 'no progress';
-      } else if (_completedSidecarAvailable(request.songId)) {
+      } else if (_currentMediaItem?.extras?['bridgeFormat'] == null &&
+          _completedSidecarAvailable(request.songId)) {
         // The local copy seeks without the network: reload from it rather
         // than wait for the remote range.
         unsettled = 'cache complete';
@@ -714,7 +825,9 @@ extension _NavisRecovery on NavisAudioHandler {
     );
     final mediaItem = item.copyWith(
       extras: <String, Object?>{
-        ...extras,
+        ...Map<String, Object?>.of(extras)
+          ..remove('bridgeFormat')
+          ..remove('bridgeBitRate'),
         'sourceKind': PlaybackSourceKind.file.name,
         'localSource': true,
         'cachedFilePath': cacheFile.path,
@@ -765,6 +878,7 @@ extension _NavisRecovery on NavisAudioHandler {
     _PendingSeek? seekRequest,
     _PreparedQueueItem? preparedStart,
     Duration? transcodeOffset,
+    bool fastSeekBridge = false,
   }) async {
     final metadata = _resolveCurrentQueueMetadata();
     // While a queue replacement is still filling, the player and the queue
@@ -931,6 +1045,7 @@ extension _NavisRecovery on NavisAudioHandler {
             initialPosition: position,
             preferLockCaching: false,
             transcodeOffset: transcodeOffset,
+            fastSeekBridge: fastSeekBridge,
             // A newer seek reloads at its own offset: one reload, not two.
             isStillWanted: transcodeOffset == null || seekRequest == null
                 ? null
@@ -1514,7 +1629,10 @@ extension _NavisRecovery on NavisAudioHandler {
             );
             _pendingSeek = request;
             try {
+              final bridging =
+                  _currentMediaItem?.extras?['bridgeFormat'] != null;
               rebuilt =
+                  !bridging &&
                   _completedCacheFileFor(_currentMediaItem) != null &&
                   await _trySeekViaCompletedCacheFile(
                     position,
@@ -1525,16 +1643,18 @@ extension _NavisRecovery on NavisAudioHandler {
                   );
               _checkSeekCurrent(request, recoveryToken);
               if (rebuilt) return;
-              if (await _shouldSeekViaTranscodeOffset(
-                position,
-                request,
-                recoveryToken,
-              )) {
+              if (bridging ||
+                  await _shouldSeekViaTranscodeOffset(
+                    position,
+                    request,
+                    recoveryToken,
+                  )) {
                 rebuilt = await _seekViaTranscodeOffset(
                   position,
                   token: recoveryToken,
                   transportGeneration: transportGeneration,
                   seekRequest: request,
+                  fastSeekBridge: bridging,
                 );
                 if (!rebuilt) {
                   throw StateError('Remote recovery did not settle.');

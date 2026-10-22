@@ -39,7 +39,22 @@ extension _NavisCache on NavisAudioHandler {
     }
   }
 
+  void _syncBridgeDownloadPriority() {
+    final buffering =
+        _player.processingState == ProcessingState.loading ||
+        _player.processingState == ProcessingState.buffering;
+    if (_currentMediaItem?.extras?['bridgeFormat'] != null &&
+        (_requestedPlaying || _pendingSeek != null) &&
+        buffering &&
+        _sidecarDownloader.activeSongId == _currentMediaItem?.id) {
+      _sidecarDownloader.pause();
+    } else {
+      _sidecarDownloader.resume();
+    }
+  }
+
   void _syncSidecarRollingCache(MediaItem? item) {
+    if (item?.extras?['bridgeFormat'] == null) _sidecarDownloader.resume();
     if (!_isDesktopRuntime || _radioStation != null) {
       unawaited(_sidecarDownloader.cancel());
       return;
@@ -103,6 +118,7 @@ extension _NavisCache on NavisAudioHandler {
         onTerminated: () => _completeRollingCacheActivity(sidecarPath),
       ),
     );
+    _syncBridgeDownloadPriority();
   }
 
   void _observeLockCachingSource({

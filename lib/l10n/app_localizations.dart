@@ -1524,6 +1524,18 @@ abstract class AppLocalizations {
   /// **'Report tracks you play to the server (now-playing and play counts). Disable to listen anonymously.'**
   String get playbackSettingsScrobbleSubtitle;
 
+  /// No description provided for @playbackSettingsFastSeekingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fast Seeking'**
+  String get playbackSettingsFastSeekingTitle;
+
+  /// No description provided for @playbackSettingsFastSeekingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Seeking ahead in a lossless song that is still downloading plays a high-quality compressed stream right away. Lossless returns on the next play.'**
+  String get playbackSettingsFastSeekingSubtitle;
+
   /// No description provided for @playbackSettingsGaplessTitle.
   ///
   /// In en, this message translates to:

@@ -35,6 +35,7 @@ class AppSettingsModel {
     this.cachedPlaybackFirst = false,
     required this.scrobbleEnabled,
     required this.gaplessEnabled,
+    this.fastSeekingEnabled = true,
     required this.skipSilenceEnabled,
     required this.showAlbumsPage,
     required this.showRadioPage,
@@ -128,6 +129,7 @@ class AppSettingsModel {
       cachedPlaybackFirst = false,
       scrobbleEnabled = true,
       gaplessEnabled = true,
+      fastSeekingEnabled = true,
       skipSilenceEnabled = false,
       showAlbumsPage = true,
       showRadioPage = true,
@@ -219,6 +221,7 @@ class AppSettingsModel {
   final bool cachedPlaybackFirst;
   final bool scrobbleEnabled;
   final bool gaplessEnabled;
+  final bool fastSeekingEnabled;
   // Compatibility-only persisted field retained to keep schema upgrades safe.
   // Runtime playback behavior intentionally does not consume this setting.
   final bool skipSilenceEnabled;
@@ -405,6 +408,7 @@ class AppSettingsModel {
     bool? cachedPlaybackFirst,
     bool? scrobbleEnabled,
     bool? gaplessEnabled,
+    bool? fastSeekingEnabled,
     bool? skipSilenceEnabled,
     bool? showAlbumsPage,
     bool? showRadioPage,
@@ -521,6 +525,7 @@ class AppSettingsModel {
       cachedPlaybackFirst: cachedPlaybackFirst ?? this.cachedPlaybackFirst,
       scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
       gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
+      fastSeekingEnabled: fastSeekingEnabled ?? this.fastSeekingEnabled,
       skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
       showAlbumsPage: showAlbumsPage ?? this.showAlbumsPage,
       showRadioPage: showRadioPage ?? this.showRadioPage,

@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-22
+Last updated: 2026-10-23
 
 ---
 
@@ -14,6 +14,22 @@ Last updated: 2026-10-22
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 10 Fast Seeking — implementation on `fix/fast-seeking`:
+  Linux/Windows lossless-to-Opus seek bridge, original-only sidecar caching,
+  backpressure during bridge buffering, lossless upgrades, settings and schema
+  105→106. Test-first regressions cover sidecar lifecycle/rate, resolver gates,
+  handler settlement/recovery/queue transitions, settings migration/persistence
+  and Now Playing quality. Runtime evidence and `./tool/check.sh` remain with
+  the batch coordinator under the worktree's memory restrictions; no app,
+  emulator, VM or application build was launched here. Evidence: bootstrap,
+  build_runner and gen-l10n completed; downloader (6), resolver (45), settings
+  repository (24), migrations (104), settings screen (17), Now Playing (39)
+  and unchanged desktop preview golden (2) tests pass using
+  `flutter test --concurrency=4 --timeout 60s` with specific files. All 22 new
+  bridge handler cases pass. `dart analyze` on changed Dart files exits 0
+  with no errors or warnings; its 30 infos point to unchanged lines. The full
+  `navis_audio_handler_navigation_test.dart` run passes all 710 tests, for 947
+  passing tests across the eight validated files.
 - [ ] Issue #86, item 9 silent playback anomaly recorder — partial: 2026-10-22
   (`fix/anomaly-recorder`, remaining: independent review and the Android and
   Linux runtime pass against a release/1.5 baseline). Observe-only: a
