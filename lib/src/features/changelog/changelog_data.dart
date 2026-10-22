@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Play now always plays in order; Shuffle shuffles. The shuffle button '
+        'still shuffles or restores the current queue at any time.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Same Vibes and Personal Radio use Last.fm for far more songs again: '
         'when Last.fm has no similar tracks for a song, Navis now mixes from '
         'the best-known tracks of similar artists instead of falling back to '

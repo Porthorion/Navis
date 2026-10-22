@@ -1,6 +1,7 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -72,5 +73,60 @@ void main() {
     await tester.tap(find.byKey(QueueShuffleToggle.toggleKey));
     await tester.pump();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('queue shows shuffle off after a plain Play replaces it', (
+    tester,
+  ) async {
+    final mode = StateProvider<AudioServiceShuffleMode>(
+      (ref) => AudioServiceShuffleMode.all,
+    );
+    PlaybackSnapshot snapshot(AudioServiceShuffleMode shuffleMode) =>
+        PlaybackSnapshot(
+          queueSongIds: const <String>['song-1'],
+          currentSongId: 'song-1',
+          currentIndex: 0,
+          playing: true,
+          position: Duration.zero,
+          bufferedPosition: Duration.zero,
+          duration: Duration.zero,
+          processingState: AudioProcessingState.ready,
+          repeatMode: AudioServiceRepeatMode.none,
+          shuffleMode: shuffleMode,
+        );
+    final container = ProviderContainer(
+      overrides: [
+        playerStateProvider.overrideWith((ref) => snapshot(ref.watch(mode))),
+        audioHandlerProvider.overrideWithValue(null),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(
+            body: Row(
+              children: [
+                QueueShuffleToggle(),
+                QueueShuffleBadge(child: Icon(Icons.queue_music_outlined)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(toggle(tester).isSelected, isTrue);
+    expect(badge(tester).isLabelVisible, isTrue);
+
+    // The handler reports the new queue's own mode when Play starts it.
+    container.read(mode.notifier).state = AudioServiceShuffleMode.none;
+    await tester.pump();
+    expect(toggle(tester).isSelected, isFalse);
+    expect(toggle(tester).tooltip, 'Shuffle Off');
+    expect(badge(tester).isLabelVisible, isFalse);
   });
 }

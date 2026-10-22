@@ -2622,7 +2622,7 @@ class NavisAudioHandler extends BaseAudioHandler
       final entries = _logicalQueueEntries();
       final current = _logicalCurrentIndex;
       if (entries.isEmpty || current == null) {
-        // Nothing to reorder yet; the next queue starts shuffled.
+        // Nothing to reorder yet; a new queue sets its own mode.
         _shuffleEnabled = enabled;
         _originalOrder = enabled
             ? entries.map((entry) => entry.id).toList(growable: false)
