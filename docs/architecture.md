@@ -5231,16 +5231,39 @@ creates a window; the owned Rust adapter uses manual SMTC, retains and revokes
 WinRT event tokens, converts incoming seek requests from 100 ns ticks to the
 Dart stream's milliseconds, serializes complete state writes, and omits unusable
 artwork while retaining text metadata. Interactive seek bars render `bufferStateStream` as a subtle
-secondary track and ignore states keyed to another song. The handler emits the
-further of the player's buffered position and the locally playable cached
-position (`_cachedPlayablePosition`): the full duration for a file source or a
-finished rolling-cache download, else the running download's fraction, or its
-received bytes at `resolvedBitRate` when the length is unknown, floored to whole
-seconds. The player re-opens its stream after a seek and so reports only a short
-window while the cache keeps filling. Seek deadlines and recovery still read the
-player's own buffered position and received bytes. Diagnostics report
-`playerBufferedPositionMs` (raw), `cachedPlayablePositionMs` and
-`drawnBufferedPositionMs` (the line). For queued songs,
+secondary track and ignore states keyed to another song. `PlaybackBufferState`
+carries up to two ranges: `bufferedPosition`, contiguous from 0, and, after a
+seek past the download, the player's own range `aheadStart` to `aheadEnd`
+(drawn by `AheadRangeTrackShape`, which wraps the theme's track shape at the
+three Slider sites, from the thumb on when the thumb is inside it). The first
+range is the further of the player's buffered position and the locally playable
+cached position (`_cachedPlayablePosition`): the full duration for a file
+source or a finished rolling-cache download; else, for an Ogg (Opus, Vorbis) or
+FLAC download, the exact time read from the partial file; else the running
+download's fraction, or its received bytes at `resolvedBitRate` when the length
+is unknown (MP3 and AAC keep these estimates), floored to whole seconds. The
+exact time comes from `readCachedAudioExtent` (`cached_audio_extent.dart`): the
+first 4 KB give the format (`OggS`, `fLaC`), the Opus pre-skip or Vorbis rate and
+the FLAC STREAMINFO, and the last 128 KB give the granule of the last complete
+Ogg page, or the first-sample index of the last FLAC frame whose header passes
+its CRC-8 and continues the previous header's frame. The part file is
+`'<cache>.part'` (Android LockCaching) or the sidecar's `activePartFilePath`
+(desktop); both start at byte 0 and hold the full stream, also while an offset
+transcode plays. `_probeCachedExtent` reads it at most once a second from
+`_refreshBufferState`, keeps the largest value per song and file, and ignores a
+result for another song; an I/O error or unknown format leaves the estimate in
+place without a notice. The second range starts at `_playerRangeStartOf`: the
+stream's `positionOffsetMs`, else the target of the last seek in this queue
+occurrence (`_playerRangeStart`, dropped on another song and on a native loop
+or advance). It is drawn apart only when that start is more than 2 s past the
+cached range and the player's range reaches beyond it; otherwise one range is
+drawn as before. The player re-opens its stream after a seek and so reports
+only a short window while the cache keeps filling. Seek deadlines and recovery
+still read the player's own buffered position and received bytes. Diagnostics
+report `playerBufferedPositionMs` (raw), `cachedPlayablePositionMs`,
+`cachedPlayableSource` (`full`, `exact`, `progress`, `bitrate`, `none`),
+`cachedExtentProbes`, `drawnBufferedPositionMs` (the line) and
+`drawnAheadStartMs`/`drawnAheadEndMs`. For queued songs,
 `MediaItem.duration` remains authoritative while a transcoded decoder reports a
 growing partial duration; the decoder duration is only a fallback when metadata
 is unavailable. The inactive crossfade deck exists only while crossfade is
