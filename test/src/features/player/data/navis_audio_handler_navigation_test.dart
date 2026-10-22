@@ -7354,6 +7354,8 @@ void main() {
 
       expect(anomalies(handler), hasLength(1));
       expect(warnings.join('\n'), contains('"e":"recovery"'));
+      // The automatic recovery ends with a seekDone row, like a user seek.
+      expect(warnings.join('\n'), contains('"outcome":"recovery"'));
     });
 
     test('a skip whose song is published early is not a rewind', () async {
@@ -7381,6 +7383,48 @@ void main() {
       player.simulatedPosition = const Duration(seconds: 30);
       await pause(1200);
       expect(anomalies(handler), hasLength(1));
+    });
+
+    test('a seek during an outage is explained', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-anomaly-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        3,
+        sidecarStreams: true,
+        positionStreams: true,
+        reconcileNetwork: () async =>
+            (connected: false, serverReachable: false),
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      player.simulateProgress = true;
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-2'],
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      await pause(1700);
+      player.simulatedPosition = const Duration(seconds: 60);
+      await pause(500);
+
+      // The stream drops; offline, the recovery is held, not run.
+      player
+        ..simulatedPosition = const Duration(seconds: 60)
+        ..state = ProcessingState.idle;
+      player._events.addError(PlayerException(2002, 'Read timed out', 1));
+      await pause(500);
+      await handler.seek(const Duration(seconds: 30));
+      player
+        ..simulatedPosition = const Duration(seconds: 30)
+        ..state = ProcessingState.ready;
+      await pause(1500);
+
+      expect(anomalies(handler), isEmpty);
     });
 
     test('a handler seek back is not an anomaly', () async {

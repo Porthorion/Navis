@@ -1548,7 +1548,10 @@ extension _NavisRecovery on NavisAudioHandler {
                 );
               }
             } finally {
-              if (identical(_pendingSeek, request)) _pendingSeek = null;
+              if (identical(_pendingSeek, request)) {
+                _pendingSeek = null;
+                _anomalies.event('seekDone', {'outcome': 'recovery'});
+              }
             }
           });
           AppLogger.startup(

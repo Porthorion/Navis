@@ -284,6 +284,20 @@ void main() {
       expect(logs, isEmpty);
     });
 
+    test('Repeat One on a 15 s song uses only the 60% rule', () {
+      sample(0, 7500, durationMs: 15000, repeatOne: true);
+      sample(200, 400, durationMs: 15000, repeatOne: true);
+      sample(600, 800, durationMs: 15000, repeatOne: true);
+      expect(logs, hasLength(1));
+    });
+
+    test('Repeat One on a 15 s song hides a loop from 67%', () {
+      sample(0, 10000, durationMs: 15000, repeatOne: true);
+      sample(200, 400, durationMs: 15000, repeatOne: true);
+      sample(600, 800, durationMs: 15000, repeatOne: true);
+      expect(logs, isEmpty);
+    });
+
     test('Repeat One with an unknown duration keeps suppressing', () {
       sample(0, 60000, durationMs: null, repeatOne: true);
       sample(200, 500, durationMs: null, repeatOne: true);

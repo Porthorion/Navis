@@ -2320,6 +2320,9 @@ class NavisAudioHandler extends BaseAudioHandler
     final songId =
         _loadingSongId ?? _resolveCurrentQueueMetadata().mediaItem?.id;
     if (songId == null) return Future<void>.value();
+    // Every accepted user seek explains the move, even one that only re-arms
+    // a held recovery.
+    _anomalies.expect('seek', {'targetMs': position.inMilliseconds});
     final pending = _pendingRemoteRecovery;
     // A failed stream cannot seek; recovery reloads it at the new target.
     if (pending != null &&
@@ -2334,7 +2337,6 @@ class NavisAudioHandler extends BaseAudioHandler
       return Future<void>.value();
     }
     _queueFinished = false;
-    _anomalies.expect('seek', {'targetMs': position.inMilliseconds});
     final generation = _supersedeTransportIntent(preserveSeek: true);
     _cancelPendingSeek();
     final request = _PendingSeek(
