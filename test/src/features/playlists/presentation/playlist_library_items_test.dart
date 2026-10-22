@@ -293,6 +293,9 @@ void main() {
     final c = ProviderContainer(
       overrides: <Override>[
         subsonicApiProvider.overrideWithValue(null),
+        // Without this the viewer lookup opens the real database through
+        // path_provider, which fails asynchronously (uncaught) under load.
+        serverConfigProvider.overrideWithBuild((ref, _) => null),
         integrationPolicyProvider.overrideWithValue(
           const IntegrationPolicy(masterEnabled: false),
         ),
