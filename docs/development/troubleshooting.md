@@ -265,7 +265,8 @@ Use this quick matrix to classify failures:
   `journalctl --user -f | grep PLAYBACK_ANOMALY` under systemd. The first line is a JSON header (`kind`, `fromMs`, `toMs`, `sourceKind`,
   `loopMode`, `shuffle`, `crossfade`, `gapless`, `processingState`,
   `sameEntry`); each following line is one transport event of the last 30 s,
-  with `t` in ms relative to detection (`pb` playback events with
+  with `t` in ms relative to detection (`pb` playback events, at most one a
+  second unless the state, index or native clock changes, with
   `updatePositionMs`/`updateTimeAgoMs`, `pos` samples, `disc`, `index`,
   `seek`, `seekDone`, `recovery`, `stall`, `reload`, `restartCompleted`).
   Records hold no URLs, song ids, titles or account data. Windows has no

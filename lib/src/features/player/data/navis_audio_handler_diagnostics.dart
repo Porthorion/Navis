@@ -33,11 +33,16 @@ extension _NavisDiagnostics on NavisAudioHandler {
       (_desiredLoopMode == LoopMode.all && _queueItems.length == 1);
 
   void _observeAnomalyPosition(Duration position) {
-    // The song the handler publishes: the native index is not the queue index
-    // on a single-source cross-fade deck. The entry only labels a record.
-    final song = _currentMediaItem;
+    // The song the player itself plays, from the same event as its position:
+    // _currentMediaItem is published up to ~1.5 s before a skipped-to song
+    // loads, while the position stream still reports the previous song's.
+    // The tag also stays right on a single-source cross-fade deck.
+    final index = _player.playbackEvent.currentIndex;
+    final tag = index == null
+        ? null
+        : _player.sequence.elementAtOrNull(index)?.tag;
+    final song = tag is MediaItem ? tag : _currentMediaItem;
     if (song == null || _radioStation != null) return;
-    final index = _player.currentIndex;
     final state = _player.processingState;
     final duration = _effectivePlaybackDuration(song);
     _anomalies.observePosition(
@@ -55,24 +60,25 @@ extension _NavisDiagnostics on NavisAudioHandler {
     );
   }
 
-  /// Rows of the last 30 s kept for a record; unchanged events are skipped.
+  /// Rows of the last 30 s kept for a record (downsampled by the recorder).
   void _recordAnomalyPlaybackEvent(PlaybackEvent event) {
-    final key = (
-      state: event.processingState,
+    _anomalies.playbackEvent(
+      state: event.processingState.name,
       index: event.currentIndex,
-      position: event.updatePosition,
+      updatePosition: event.updatePosition,
+      updateTime: event.updateTime,
+      advancing:
+          _player.playing && event.processingState == ProcessingState.ready,
+      fields: () => <String, Object?>{
+        'state': event.processingState.name,
+        'updatePositionMs': event.updatePosition.inMilliseconds,
+        'updateTimeAgoMs': DateTime.now()
+            .difference(event.updateTime)
+            .inMilliseconds,
+        'bufferedMs': event.bufferedPosition.inMilliseconds,
+        'index': event.currentIndex,
+      },
     );
-    if (key == _lastAnomalyPlaybackEvent) return;
-    _lastAnomalyPlaybackEvent = key;
-    _anomalies.event('pb', <String, Object?>{
-      'state': event.processingState.name,
-      'updatePositionMs': event.updatePosition.inMilliseconds,
-      'updateTimeAgoMs': DateTime.now()
-          .difference(event.updateTime)
-          .inMilliseconds,
-      'bufferedMs': event.bufferedPosition.inMilliseconds,
-      'index': event.currentIndex,
-    });
   }
 
   /// A native loop on the same entry is expected, anything else a plain row.

@@ -477,8 +477,6 @@ class NavisAudioHandler extends BaseAudioHandler
   static const int _maxSeekDiagnosticsEvents = 32;
   // Observe-only recorder of unexplained position moves (see its docs).
   late final _anomalies = PlaybackAnomalyRecorder(header: _anomalyHeader);
-  ({ProcessingState state, int? index, Duration position})?
-  _lastAnomalyPlaybackEvent;
   final RollingCacheSidecarDownloader _sidecarDownloader =
       RollingCacheSidecarDownloader();
   final Map<String, SongsTableData> _sidecarSongsById =

@@ -26,6 +26,7 @@ class PlaybackAnomalyRecorder {
   static void _debugPrintLines(String text) =>
       text.split('\n').forEach(debugPrint);
 
+  static const _clockDrift = Duration(milliseconds: 250);
   static const _window = Duration(seconds: 30);
   static const _maxRows = 400;
   static const _recentRecords = 5;
@@ -53,6 +54,15 @@ class PlaybackAnomalyRecorder {
   _NearEnd? _end;
   DateTime? _expectedAt;
   DateTime? _lastPositionRow;
+  DateTime? _lastPlaybackRow;
+  ({
+    String state,
+    int? index,
+    Duration position,
+    DateTime time,
+    bool advancing,
+  })?
+  _lastPlaybackEvent;
 
   /// The last 5 records, newest last. Only the newest carries its `events`;
   /// older ones keep their header and an `eventCount`.
@@ -73,6 +83,42 @@ class PlaybackAnomalyRecorder {
     final at = _now();
     _rows.add(_Row(at, kind, fields));
     _prune(at);
+  }
+
+  /// Adds a native playback event row. Desktop engines emit one per position
+  /// tick, which would fill the ring in seconds: unchanged events are kept at
+  /// most once a second, but a state or index change, or a native clock that
+  /// differs from the previous event's position plus the elapsed time by more
+  /// than 250 ms, is always kept. [fields] is only built for a kept row.
+  void playbackEvent({
+    required String state,
+    required int? index,
+    required Duration updatePosition,
+    required DateTime updateTime,
+    required bool advancing,
+    required Map<String, Object?> Function() fields,
+  }) {
+    final at = _now();
+    final last = _lastPlaybackEvent;
+    _lastPlaybackEvent = (
+      state: state,
+      index: index,
+      position: updatePosition,
+      time: updateTime,
+      advancing: advancing,
+    );
+    if (last != null && last.state == state && last.index == index) {
+      final expected =
+          last.position +
+          (last.advancing ? updateTime.difference(last.time) : Duration.zero);
+      if ((updatePosition - expected).abs() <= _clockDrift &&
+          _lastPlaybackRow != null &&
+          at.difference(_lastPlaybackRow!) < const Duration(seconds: 1)) {
+        return;
+      }
+    }
+    _lastPlaybackRow = at;
+    event('pb', fields());
   }
 
   /// Adds a transport event that explains a position move (seek, navigation,

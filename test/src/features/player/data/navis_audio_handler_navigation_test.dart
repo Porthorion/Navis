@@ -7356,6 +7356,33 @@ void main() {
       expect(warnings.join('\n'), contains('"e":"recovery"'));
     });
 
+    test('a skip whose song is published early is not a rewind', () async {
+      final (handler, player, warnings) = await anomalyHandler();
+      player.simulatedPosition = const Duration(seconds: 90);
+      await pause(500);
+      // The native seek to the next song hangs, as a slow load does: the
+      // handler publishes song-2 while the player still plays song-1.
+      final gate = Completer<void>();
+      player.seekGate = gate;
+      final skip = handler.skipToNext();
+      await pause(300);
+      expect(handler.currentMediaItem?.id, 'song-2');
+      expect(player.index, 1);
+      await pause(1900);
+      gate.complete();
+      await skip;
+      await pause(1500);
+      expect(anomalies(handler), isEmpty);
+      expect(warnings, isEmpty);
+
+      // A real rewind on the new song is still caught.
+      player.simulatedPosition = const Duration(seconds: 40);
+      await pause(500);
+      player.simulatedPosition = const Duration(seconds: 30);
+      await pause(1200);
+      expect(anomalies(handler), hasLength(1));
+    });
+
     test('a handler seek back is not an anomaly', () async {
       final (handler, player, warnings) = await anomalyHandler();
       player.simulatedPosition = const Duration(seconds: 90);

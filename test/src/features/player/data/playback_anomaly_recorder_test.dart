@@ -342,6 +342,64 @@ void main() {
     });
   });
 
+  group('playback events', () {
+    void pb(int atMs, int updateMs, {String state = 'ready', int index = 1}) {
+      at(atMs);
+      recorder.playbackEvent(
+        state: state,
+        index: index,
+        updatePosition: Duration(milliseconds: updateMs),
+        updateTime: clock,
+        advancing: state == 'ready',
+        fields: () => {'state': state, 'updatePositionMs': updateMs},
+      );
+    }
+
+    test('10 Hz events are downsampled and keep a clock discontinuity', () {
+      var update = 0;
+      for (var t = 0; t <= 40000; t += 100) {
+        update += 100;
+        // The native clock jumps back 3 s at 20.3 s.
+        if (t == 20300) update -= 3000;
+        pb(t, update);
+        if (t % 1000 == 0) sample(t, 60000 + t);
+      }
+      sample(40200, 52000);
+      sample(40600, 52400);
+
+      expect(logs, hasLength(1));
+      final events = lines(logs.single).skip(1).toList();
+      expect(events.length, lessThan(150));
+      final first = jsonDecode(events.first.split(' ').skip(2).join(' '));
+      expect((first as Map)['t'], lessThanOrEqualTo(-29000));
+      expect(events.where((l) => l.contains('"e":"pb"')).length, lessThan(45));
+      expect(
+        events.any(
+          (l) =>
+              l.contains('"e":"pb"') && l.contains('"updatePositionMs":17400'),
+        ),
+        isTrue,
+        reason: 'the discontinuity row is kept',
+      );
+    });
+
+    test('a state or index change is always kept', () {
+      pb(0, 1000);
+      pb(100, 1100);
+      pb(200, 1200, state: 'buffering');
+      pb(300, 1200, state: 'ready');
+      pb(400, 1300, index: 2);
+      sample(0, 60000);
+      sample(200, 50000);
+      sample(600, 50400);
+
+      expect(
+        lines(logs.single).where((l) => l.contains('"e":"pb"')),
+        hasLength(4),
+      );
+    });
+  });
+
   group('limits and content', () {
     void jump(int atMs, String song) {
       sample(atMs, 60000, song: song);
