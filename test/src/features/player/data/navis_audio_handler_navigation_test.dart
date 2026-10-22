@@ -633,10 +633,18 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Future<void> shuffle() async {}
 
   int rangeRemovals = 0;
+  Completer<void>? removeGate;
+  Completer<void>? removeEntered;
 
   @override
   Future<void> removeAudioSourceAt(int index) => _mutate(() async {
     await _hangIf('removeAudioSourceAt');
+    final gate = removeGate;
+    removeGate = null;
+    if (gate != null) {
+      removeEntered?.complete();
+      await gate.future;
+    }
     _sources.removeAt(index);
     if (this.index != null && index < this.index!) this.index = this.index! - 1;
   });
@@ -7890,6 +7898,40 @@ void main() {
     });
 
     test(
+      'pause resumes the original while a queue edit hides player events',
+      () async {
+        final (handler, player, _, downloader) = await bridgeHandler();
+        await seekTo(handler, target);
+        player.state = ProcessingState.buffering;
+        player._events.add(player.playbackEvent);
+        await pumpEventQueue(times: 20);
+        expect(downloader.isPaused, isTrue);
+        final gate = Completer<void>();
+        player
+          ..removeGate = gate
+          ..removeEntered = Completer<void>();
+        final removing = handler.removeQueueItemAt(2);
+        try {
+          await player.removeEntered!.future;
+          expect(handler.debugQueueLaneIdle, isFalse);
+          expect(
+            handler.collectPlaybackDiagnostics()['playerMatchesQueue'],
+            isFalse,
+          );
+          await handler.pause();
+          player._events.add(player.playbackEvent);
+          await pumpEventQueue(times: 20);
+          expect(player.playing, isFalse);
+          expect(downloader.isPaused, isFalse);
+        } finally {
+          gate.complete();
+          await removing;
+        }
+        await settleQueue(handler);
+      },
+    );
+
+    test(
       'seek into downloaded extent upgrades lossless and stays paused',
       () async {
         final (handler, player, _, _) = await bridgeHandler();
@@ -7991,6 +8033,72 @@ void main() {
             player.position,
             greaterThanOrEqualTo(const Duration(milliseconds: 110750)),
           );
+        },
+      );
+    }
+
+    for (final completesDuringReopen in [true, false]) {
+      test(
+        'failed bridge recovery falls back without skipping, cache completes during reopen=$completesDuringReopen',
+        () async {
+          final (handler, player, _, downloader) = await bridgeHandler();
+          await seekTo(handler, target);
+          final starts = downloader.starts;
+          final notices = <PlaybackLoadFailure>[];
+          final subscription = handler.loadFailureStream.listen(notices.add);
+          addTearDown(subscription.cancel);
+          final gate = Completer<void>();
+          player
+            ..rejectBridgeLoad = true
+            ..loadGate = gate
+            ..loadEntered = Completer<void>()
+            ..simulatedPosition = const Duration(milliseconds: 110750)
+            ..state = ProcessingState.idle;
+          final before =
+              (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                  .length;
+          player._events.addError(PlayerException(2002, 'Read timed out', 1));
+          try {
+            await player.loadEntered!.future;
+            if (completesDuringReopen) await downloader.finish();
+          } finally {
+            gate.complete();
+          }
+          for (
+            var i = 0;
+            i < 300 &&
+                (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                        .length ==
+                    before;
+            i++
+          ) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          await settleQueue(handler);
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(event(handler)['outcome'], 'reloaded');
+          expect(bridging(handler), isFalse);
+          expect(
+            handler.mediaItem.value!.extras,
+            isNot(contains('bridgeBitRate')),
+          );
+          expect(
+            current(player).uri.scheme,
+            completesDuringReopen ? 'file' : 'https',
+          );
+          expect(current(player).uri.queryParameters['format'], isNot('opus'));
+          expect(current(player).uri.queryParameters['timeOffset'], isNull);
+          expect(handler.mediaItem.value!.extras!['resolvedFormat'], 'flac');
+          expect(current(player).positionOffset, Duration.zero);
+          expectNativeMirrorsQueue(handler, player);
+          expect(
+            player.position,
+            greaterThanOrEqualTo(const Duration(milliseconds: 110750)),
+          );
+          expect(player.position, lessThan(const Duration(seconds: 112)));
+          expect(player.playing, isTrue);
+          expect(notices, isEmpty);
+          expect(downloader.starts, starts);
         },
       );
     }

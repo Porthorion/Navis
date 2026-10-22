@@ -2239,6 +2239,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (!_isCurrentTransportIntent(transportGeneration)) return;
     _cancelCrossfade();
     await _player.pause();
+    _syncBridgeDownloadPriority();
     _broadcastPlaybackState();
     _emitSnapshot();
     _scheduleTransportPersistence(context: 'pause');

@@ -49,6 +49,20 @@ Last updated: 2026-10-23
   or warnings; its 26 infos point to unchanged lines. No app, emulator, VM,
   build or full quality gate was run in this round, per the coordinator's
   workspace restrictions; native runtime acceptance remains coordinator-owned.
+  Round-3 review repairs recheck the completed original after a bridge reopen
+  fails, then use the existing lossless stream recovery at the song position
+  before allowing failover. Explicit Pause recalculates sidecar priority even
+  when a queue edit suppresses player events. Both gated-reopen cases skipped
+  the song before repair; the queue-edit Pause regression left the original
+  download paused before its fix. Evidence:
+  `flutter test --concurrency=4 --timeout 60s test/src/features/player/data/navis_audio_handler_navigation_test.dart`
+  passes all 719 tests (`07:36 +719: All tests passed!`), including all three
+  new regressions. The pre-fix runs ended with 716 passes / 3 failures (including
+  a corrected initial test-setup assertion) and 718 passes / 1 expected failure.
+  `dart analyze` on the four changed Dart files exits 0 with no errors or
+  warnings; all 20 infos map to unchanged lines. Runtime validation, app builds
+  and `./tool/check.sh` remain coordinator-owned under the explicit round-3
+  workspace restrictions.
 - [ ] Issue #86, item 9 silent playback anomaly recorder — partial: 2026-10-22
   (`fix/anomaly-recorder`, remaining: independent review and the Android and
   Linux runtime pass against a release/1.5 baseline). Observe-only: a

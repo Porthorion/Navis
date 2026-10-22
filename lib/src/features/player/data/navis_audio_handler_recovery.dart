@@ -1656,15 +1656,46 @@ extension _NavisRecovery on NavisAudioHandler {
                     request,
                     recoveryToken,
                   )) {
-                rebuilt = await _seekViaTranscodeOffset(
-                  position,
-                  token: recoveryToken,
-                  transportGeneration: transportGeneration,
-                  seekRequest: request,
-                  fastSeekBridge: bridging,
-                );
-                if (!rebuilt) {
-                  throw StateError('Remote recovery did not settle.');
+                try {
+                  rebuilt = await _seekViaTranscodeOffset(
+                    position,
+                    token: recoveryToken,
+                    transportGeneration: transportGeneration,
+                    seekRequest: request,
+                    fastSeekBridge: bridging,
+                  );
+                  if (!rebuilt) {
+                    throw StateError('Remote recovery did not settle.');
+                  }
+                } on OperationCancelledException {
+                  rethrow;
+                } on Object catch (error) {
+                  if (!bridging) rethrow;
+                  _checkSeekCurrent(request, recoveryToken);
+                  AppLogger.debug(
+                    'Bridge recovery rejected: ${error.runtimeType}; '
+                    'recovering original.',
+                  );
+                  // The original may finish while the bridge reopen is pending.
+                  rebuilt =
+                      _completedCacheFileFor(_currentMediaItem) != null &&
+                      await _trySeekViaCompletedCacheFile(
+                        position,
+                        autoPlay: autoPlay,
+                        token: recoveryToken,
+                        transportGeneration: transportGeneration,
+                        seekRequest: request,
+                      );
+                  _checkSeekCurrent(request, recoveryToken);
+                  if (!rebuilt) {
+                    rebuilt = await _rebuildQueueForSeekRecovery(
+                      position,
+                      autoPlay: autoPlay,
+                      token: recoveryToken,
+                      transportGeneration: transportGeneration,
+                    );
+                  }
+                  if (!rebuilt) rethrow;
                 }
               } else {
                 rebuilt = await _rebuildQueueForSeekRecovery(

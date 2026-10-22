@@ -4455,9 +4455,14 @@ in the cache. If no sidecar is running, the bridge starts one for the original.
 The existing playback-event listener pauses the sidecar's read loop while the
 bridge loads or buffers with playback requested, applying stream backpressure,
 and resumes on ready, Pause, lossless upgrade, song change or Stop. Seek
-completion and cancellation also recalculate that priority. Cancellation and
-disposal release the pause gate. Diagnostics expose `fastSeekBridge` (`format`,
+completion, cancellation and explicit Pause also recalculate that priority,
+even while a queue edit suppresses player events. Cancellation and disposal
+release the pause gate. Diagnostics expose `fastSeekBridge` (`format`,
 `offsetMs`) and `sidecar` (`paused`, `bytesPerSecond`) without stream URLs.
+If a remote recovery bridge reopen fails, recovery checks again for a completed
+original before rebuilding the lossless stream at the song position without an
+offset or bridge metadata. Only a failed original recovery proceeds to the
+existing silent song failover.
 
 libmpv therefore opens the credential-bearing `stream.view` URL (and radio
 stream URLs) itself. Its built-in ytdl hook would retry any http(s) URL that
