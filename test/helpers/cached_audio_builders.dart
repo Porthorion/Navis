@@ -120,7 +120,7 @@ Uint8List flacFrame(
 }) {
   final header = <int>[
     0xFF,
-    variable ? 0xF9 : 0xF8,
+    if (variable) 0xF9 else 0xF8,
     (blockSizeCode << 4),
     (1 << 4) | (4 << 1),
     ..._codedNumber(number),
@@ -129,7 +129,7 @@ Uint8List flacFrame(
   final crc = crc8(header);
   return Uint8List.fromList([
     ...header,
-    badCrc ? (crc ^ 0x5A) : crc,
+    if (badCrc) crc ^ 0x5A else crc,
     ...List<int>.filled(body, _filler),
   ]);
 }
