@@ -14,6 +14,16 @@ Last updated: 2026-10-22
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, shuffle per queue — partial: 2026-10-22
+  (`fix/shuffle-per-queue`, remaining: coordinator check.sh, review and the
+  Android and Linux runtime pass). Shuffle is a property of the current queue:
+  `_applyNewQueueMode` (was `_playOrderForLoad`) sets it for every new queue,
+  so Play, song taps, Play now, search, radio, mixes and links play in order
+  with shuffle off and only entity Shuffle turns it on. Reloads, edits and
+  appends keep the mode; clearing the queue ends it; the toggle is unchanged.
+  Evidence: new handler tests fail on the old code (a plain replace after
+  Shuffle stayed shuffled) and pass now; targeted player, auto, common widget
+  and library presentation suites pass (2452).
 - [x] Issue #120, Last.fm recommendations fell back to server similar songs —
   2026-10-22 (`fix/lastfm-similar-fallback`): cause was Last.fm itself.
   `track.getSimilar` returns an empty list for most songs released since about
