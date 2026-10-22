@@ -1400,8 +1400,13 @@ extension _NavisQueueLoading on NavisAudioHandler {
     required int startIndex,
     required bool autoPlay,
     required bool inPlayOrder,
+    required bool shuffled,
     List<SongsTableData>? suppliedRows,
   }) {
+    // The first broadcast of the new queue already carries its mode. The
+    // original order follows in [_applyNewQueueMode], once the rows are known:
+    // saving the old queue against it would reconcile it away.
+    if (!inPlayOrder) _shuffleEnabled = shuffled;
     _cancelCrossfade();
     _restoredQueueIndex = null;
     _restoredQueuePosition = Duration.zero;
@@ -1422,8 +1427,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     return _supersedeQueueWork(
       isLoading: ids.isNotEmpty,
       loadingSongId: ids.isEmpty ? null : ids[start],
-      pendingLogicalQueueSongIds:
-          ids.length > 1 && (inPlayOrder || !_shuffleEnabled) ? ids : null,
+      pendingLogicalQueueSongIds: ids.length > 1 ? ids : null,
     );
   }
 
@@ -1443,6 +1447,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       startIndex: startIndex,
       autoPlay: autoPlay,
       inPlayOrder: inPlayOrder,
+      shuffled: originalOrder != null,
     );
     if (canonicalIds.isNotEmpty) {
       final selected =
@@ -1464,15 +1469,14 @@ extension _NavisQueueLoading on NavisAudioHandler {
       expandMatchFlows: expandMatchFlows,
     );
     if (!_isActiveLoadGeneration(admittedGeneration)) return;
-    final (orderedIds, orderedStart) = _playOrderForLoad(
-      expansion.songIds,
-      expansion.startIndex,
-      (id) => id,
+    _applyNewQueueMode(
       inPlayOrder: inPlayOrder,
       originalOrder: originalOrder
           ?.map(_canonicalSongId)
           .toList(growable: false),
     );
+    final orderedIds = expansion.songIds;
+    final orderedStart = expansion.startIndex;
     await _runQueueReplacement(
       songIds: orderedIds,
       startIndex: orderedStart,
@@ -1515,6 +1519,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       startIndex: startIndex,
       autoPlay: autoPlay,
       inPlayOrder: inPlayOrder,
+      shuffled: originalOrder != null,
       suppliedRows: songs,
     );
     // Mixed-source queues keep every row, including a retired local identity;
@@ -1566,13 +1571,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
       return;
     }
     if (!_isActiveLoadGeneration(admittedGeneration)) return;
-    final (orderedSongs, orderedStart) = _playOrderForLoad(
-      songs,
-      startIndex,
-      (song) => song.id,
-      inPlayOrder: inPlayOrder,
-      originalOrder: originalOrder,
-    );
+    _applyNewQueueMode(inPlayOrder: inPlayOrder, originalOrder: originalOrder);
+    final orderedSongs = songs;
+    final orderedStart = startIndex;
     await _runQueueReplacement(
       songIds: orderedSongs.map((song) => song.id).toList(growable: false),
       startIndex: orderedStart,
@@ -1753,31 +1754,22 @@ extension _NavisQueueLoading on NavisAudioHandler {
     });
   }
 
-  /// The play order for a new queue: with shuffle on, the start song first
-  /// and the rest shuffled, remembering the given order to unshuffle to.
-  /// [inPlayOrder] reloads keep the order they are given.
-  (List<T>, int) _playOrderForLoad<T>(
-    List<T> items,
-    int startIndex,
-    String Function(T item) idOf, {
+  /// A new queue takes its shuffle mode from the action that started it:
+  /// entity Shuffle supplies its play order with the pre-shuffle ranks
+  /// ([originalOrder], never shuffled twice) and turns shuffle on; every other
+  /// start (Play, a song tap, search, radio, mixes, links) plays in order with
+  /// shuffle off. [inPlayOrder] reloads of the current queue (failure
+  /// recovery) keep the mode and order they have. The shuffle toggle still
+  /// acts on the current queue afterwards.
+  void _applyNewQueueMode({
     required bool inPlayOrder,
     List<String>? originalOrder,
   }) {
-    if (originalOrder != null && !inPlayOrder) {
-      // Entity Shuffle supplies its play order and its pre-shuffle ranks.
-      // Never shuffle it twice or record randomized ranks as the original.
-      _shuffleEnabled = true;
-      _originalOrder = List<String>.of(originalOrder);
-      return (items, startIndex);
-    }
-    if (inPlayOrder || items.isEmpty) return (items, startIndex);
-    if (!_shuffleEnabled) {
-      _originalOrder = null;
-      return (items, startIndex);
-    }
-    final start = startIndex.clamp(0, items.length - 1);
-    _originalOrder = items.map(idOf).toList(growable: false);
-    return (shuffledFromStart(items, start, _shuffleRandom), 0);
+    if (inPlayOrder) return;
+    _shuffleEnabled = originalOrder != null;
+    _originalOrder = originalOrder == null
+        ? null
+        : List<String>.of(originalOrder);
   }
 
   Future<void> _replaceQueueFromIds(
@@ -1792,13 +1784,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
       startIndex: startIndex,
       expandMatchFlows: expandMatchFlows,
     );
-    (songIds, startIndex) = _playOrderForLoad(
-      expansion.songIds,
-      expansion.startIndex,
-      (id) => id,
-      inPlayOrder: false,
-    );
-    final songs = await _libraryDao.getSongsByIds(songIds);
+    _applyNewQueueMode(inPlayOrder: false);
+    startIndex = expansion.startIndex;
+    final songs = await _libraryDao.getSongsByIds(expansion.songIds);
     if (songs.isEmpty) {
       await _clearQueueInternal(persist: persist);
       return;
@@ -1837,8 +1825,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _restoredQueueIndex = null;
     _clearQueueReplacementMetadataAnchor();
     _queueItems.clear();
-    // Shuffle stays on for the next queue, which records its own order.
-    _originalOrder = _shuffleEnabled ? const <String>[] : null;
+    // Shuffle belongs to a queue: the next one takes its mode from the action
+    // that starts it.
+    _shuffleEnabled = false;
+    _originalOrder = null;
     await _clearDeferredTail();
     checkCurrent();
     if (generation > 0) {

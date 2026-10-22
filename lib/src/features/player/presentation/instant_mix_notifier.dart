@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart' show AudioServiceShuffleMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -389,6 +390,10 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
             startIndex: snapshot.currentIndex ?? 0,
             autoPlay: snapshot.playing,
             expandMatchFlows: false,
+            // A shuffled queue stays shuffled; the queue ids are its play order.
+            originalOrder: snapshot.shuffleMode == AudioServiceShuffleMode.all
+                ? snapshot.queueSongIds
+                : null,
             notifyMixSessionReset: false,
           );
     } on Object {
