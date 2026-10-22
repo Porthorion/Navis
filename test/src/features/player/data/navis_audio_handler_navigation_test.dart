@@ -11,6 +11,7 @@ import 'package:audio_session/audio_session.dart';
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -50,6 +51,7 @@ import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/streaming_quality.dart';
 
+import '../../../../helpers/cached_audio_builders.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/library_sync_plan.dart';
@@ -13635,7 +13637,13 @@ void main() {
       bool cacheSongs = false,
       int count = 2,
       StreamingQuality quality = const StreamingQuality(label: 'original'),
+      Uint8List? payload,
+      bool supportsTranscodeOffset = false,
+      NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     }) async {
+      List<int> chunk(int from, int to) => payload == null
+          ? List<int>.filled(to - from, 1)
+          : payload.sublist(from, to);
       final previousHttp = HttpOverrides.current;
       HttpOverrides.global = null;
       requests = 0;
@@ -13647,7 +13655,7 @@ void main() {
         try {
           final response = request.response..bufferOutput = false;
           if (length != null) response.contentLength = length;
-          if (nth == 0) response.add(List<int>.filled(first, 1));
+          if (nth == 0) response.add(chunk(0, first));
           await response.flush();
           if (nth != 0) return;
           if (length != null || fail) await release.future;
@@ -13656,10 +13664,10 @@ void main() {
             return;
           }
           if (length != null) {
-            response.add(List<int>.filled(length - first, 1));
+            response.add(chunk(first, length));
           } else if (second > 0) {
             await more.future;
-            response.add(List<int>.filled(second, 1));
+            response.add(chunk(first, first + second));
           }
           if (length != null) await response.close();
         } on HttpException {
@@ -13683,6 +13691,8 @@ void main() {
         cacheSongs: cacheSongs,
         readApiClient: () => api,
         streamingQuality: quality,
+        supportsTranscodeOffset: supportsTranscodeOffset,
+        timeouts: timeouts,
       );
       addTearDown(() async {
         await handler.disposeHandler();
@@ -13847,6 +13857,453 @@ void main() {
       player.emitBuffered(const Duration(seconds: 4));
       await pumpEventQueue();
       expect(line(handler), const Duration(seconds: 4));
+    });
+
+    const opus = StreamingQuality(
+      label: 'opus',
+      maxBitRate: 128,
+      format: 'opus',
+    );
+
+    // 20 Opus pages of about 8 kB (161 kB: 10 s at 128 kbit/s) whose last
+    // granule says 90 s.
+    Uint8List opusBytes() => concat([
+      opusHeadPage(),
+      for (var i = 0; i < 20; i++)
+        oggAudioPage(48000 * 90 * (i + 1) ~/ 20 + 312, size: 8000),
+    ]);
+
+    bool partHolds(int bytes) => directory
+        .listSync(recursive: true)
+        .whereType<File>()
+        .any((f) => f.path.contains('.part') && f.lengthSync() >= bytes);
+
+    // The cache refreshes per chunk and per player event; keep emitting the
+    // player's own value until the line shows [done].
+    Future<void> drawUntil(
+      _ControllableAudioPlayer player,
+      bool Function() done,
+    ) async {
+      for (var i = 0; i < 80 && !done(); i++) {
+        player.emitBuffered(player.simulatedBuffered);
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+    }
+
+    int probes(NavisAudioHandler handler) =>
+        handler.collectPlaybackDiagnostics()['cachedExtentProbes']! as int;
+
+    test('an Ogg part file draws its exact time, not the estimate', () async {
+      final bytes = opusBytes();
+      final (handler, player) = await serve(
+        length: null,
+        first: bytes.length,
+        payload: bytes,
+        quality: opus,
+      );
+      await startSong(handler);
+      await until(() => partHolds(bytes.length));
+      await drawUntil(
+        player,
+        () => line(handler) >= const Duration(seconds: 90),
+      );
+      expect(line(handler), const Duration(seconds: 90));
+      final diagnostics = handler.collectPlaybackDiagnostics();
+      expect(diagnostics['cachedPlayableSource'], 'exact');
+      expect(diagnostics['cachedPlayablePositionMs'], 90000);
+    });
+
+    test('a FLAC part file draws the last verified frame time', () async {
+      final bytes = concat([
+        flacHead(),
+        for (var n = 1000; n < 1250; n++) flacFrame(n),
+      ]);
+      final (handler, player) = await serve(
+        length: bytes.length,
+        first: 40 * 1024,
+        payload: bytes,
+      );
+      await startSong(handler);
+      await until(() => partHolds(40 * 1024));
+      // 1100 frames of 4096 samples at 44.1 kHz; the progress fraction
+      // (40%) would say 72 s.
+      await drawUntil(
+        player,
+        () => line(handler) >= const Duration(seconds: 100),
+      );
+      expect(line(handler), const Duration(seconds: 102));
+      expect(
+        handler.collectPlaybackDiagnostics()['cachedPlayableSource'],
+        'exact',
+      );
+    });
+
+    test('an unparseable part file falls back to the estimate', () async {
+      final (handler, player) = await serve(
+        length: null,
+        first: 160000,
+        quality: opus,
+      );
+      await startSong(handler);
+      await until(() => probes(handler) >= 1);
+      await drawUntil(
+        player,
+        () => line(handler) >= const Duration(seconds: 10),
+      );
+      expect(line(handler), const Duration(seconds: 10));
+      expect(
+        handler.collectPlaybackDiagnostics()['cachedPlayableSource'],
+        'bitrate',
+      );
+    });
+
+    test('chunk updates within a second start one probe', () async {
+      final bytes = opusBytes();
+      final (handler, player) = await serve(
+        length: null,
+        first: bytes.length,
+        second: 1000,
+        payload: concat([bytes, Uint8List(1000)]),
+        quality: opus,
+      );
+      await startSong(handler);
+      await until(() => probes(handler) >= 1);
+      more.complete();
+      for (var i = 0; i < 20; i++) {
+        player.emitBuffered(Duration(seconds: i));
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(probes(handler), 1);
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      player.emitBuffered(const Duration(seconds: 30));
+      await until(() => probes(handler) >= 2);
+      expect(probes(handler), 2);
+    });
+
+    test('a late probe for the previous song is ignored', () async {
+      final (handler, player) = await serve(length: null, first: 160000);
+      final gate = Completer<Duration?>();
+      var reads = 0;
+      handler.cachedExtentReader = (_) async =>
+          reads++ == 0 ? gate.future : null;
+      await startSong(handler);
+      await until(() => probes(handler) >= 1);
+      await handler.skipToNext();
+      await settleQueue(handler);
+      expect(handler.bufferState.songId, 'song-1');
+      gate.complete(const Duration(seconds: 90));
+      await pumpEventQueue();
+      player.emitBuffered(const Duration(seconds: 4));
+      await pumpEventQueue();
+      expect(line(handler), const Duration(seconds: 4));
+    });
+
+    Future<void> seekPast(NavisAudioHandler handler, Duration to) async {
+      await handler.seek(to);
+      await until(() => !handler.snapshot.isLoading);
+    }
+
+    test('an offset stream draws the cached range and its own ahead', () async {
+      final bytes = opusBytes();
+      final (handler, player) = await serve(
+        length: null,
+        first: bytes.length,
+        payload: bytes,
+        quality: opus,
+        supportsTranscodeOffset: true,
+      );
+      player.simulateProgress = true;
+      await startSong(handler);
+      await handler.play();
+      await until(() => partHolds(bytes.length));
+      await drawUntil(
+        player,
+        () => line(handler) >= const Duration(seconds: 90),
+      );
+      await seekPast(handler, const Duration(seconds: 120));
+      expect(handler.collectPlaybackDiagnostics()['positionOffsetMs'], 120000);
+      player.emitBuffered(const Duration(seconds: 150));
+      await drawUntil(player, () => handler.bufferState.aheadStart != null);
+      expect(line(handler), const Duration(seconds: 90));
+      expect(handler.bufferState.aheadStart, const Duration(seconds: 120));
+      expect(handler.bufferState.aheadEnd, const Duration(seconds: 150));
+      final diagnostics = handler.collectPlaybackDiagnostics();
+      expect(diagnostics['drawnAheadStartMs'], 120000);
+      expect(diagnostics['drawnAheadEndMs'], 150000);
+      expect(diagnostics['playerBufferedPositionMs'], 150000);
+    });
+
+    test(
+      'a seek past the download starts the ahead range at its target',
+      () async {
+        final (handler, player) = await serve();
+        player.simulateProgress = true;
+        await startSong(handler);
+        await handler.play();
+        await until(() => line(handler) >= fraction(handler, 0.4));
+        await seekPast(handler, const Duration(seconds: 150));
+        player.emitBuffered(const Duration(seconds: 170));
+        await pumpEventQueue();
+        expect(line(handler), fraction(handler, 0.4));
+        expect(handler.bufferState.aheadStart, const Duration(seconds: 150));
+        expect(handler.bufferState.aheadEnd, const Duration(seconds: 170));
+      },
+    );
+
+    test('a seek inside the download or no seek draws one range', () async {
+      final (handler, player) = await serve();
+      player.simulateProgress = true;
+      await startSong(handler);
+      await handler.play();
+      await until(() => line(handler) >= fraction(handler, 0.4));
+      player.emitBuffered(const Duration(seconds: 100));
+      await pumpEventQueue();
+      expect(line(handler), const Duration(seconds: 100));
+      expect(handler.bufferState.aheadStart, isNull);
+      await seekPast(handler, const Duration(seconds: 30));
+      player.emitBuffered(const Duration(seconds: 120));
+      await pumpEventQueue();
+      expect(line(handler), const Duration(seconds: 120));
+      expect(handler.bufferState.aheadStart, isNull);
+      expect(handler.bufferState.aheadEnd, isNull);
+    });
+
+    test('a page-less Opus start still shows the estimate', () async {
+      // Early in a download the last complete page is OpusTags (granule 0):
+      // that is not an exact time, so the bitrate estimate stays.
+      final bytes = concat([
+        opusHeadPage(),
+        oggPage('OpusTags'.codeUnits, granule: 0),
+        oggAudioPage(-1, size: 3000),
+      ]);
+      final (handler, player) = await serve(
+        length: null,
+        first: bytes.length,
+        payload: bytes,
+        quality: const StreamingQuality(
+          label: 'opus',
+          maxBitRate: 8,
+          format: 'opus',
+        ),
+      );
+      await startSong(handler);
+      await until(() => partHolds(bytes.length));
+      // A probe after the whole file is on disk has run.
+      await drawUntil(player, () => probes(handler) >= 2);
+      await pumpEventQueue();
+      expect(line(handler), const Duration(seconds: 3));
+      expect(
+        handler.collectPlaybackDiagnostics()['cachedPlayableSource'],
+        'bitrate',
+      );
+    });
+
+    test('a failed seek past the download draws no ahead range', () async {
+      final (handler, player) = await serve(
+        timeouts: const NavisPlaybackTimeouts(
+          seekProgress: Duration(seconds: 1),
+          progressIdle: Duration(milliseconds: 300),
+          desktopSeekSettle: Duration(seconds: 1),
+        ),
+      );
+      final states = <PlaybackBufferState>[];
+      final subscription = handler.bufferStateStream.listen(states.add);
+      addTearDown(subscription.cancel);
+      await startSong(handler);
+      // The seek never settles and recovery cannot reload the stream.
+      player
+        ..ignoreSeeks = true
+        ..failLoadSongId = 'song-0';
+      final seeking = handler.seek(const Duration(seconds: 150));
+      player.emitBuffered(const Duration(seconds: 170));
+      await pumpEventQueue();
+      expect(handler.bufferState.aheadStart, const Duration(seconds: 150));
+      await seeking;
+      await until(
+        () =>
+            (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'] ==
+            'failed',
+      );
+      // Failover may then move to the next song; before it, the failed
+      // seek's target is forgotten and the line is the player's range.
+      final ahead = states.indexWhere((state) => state.aheadStart != null);
+      expect(ahead, isNonNegative);
+      expect(
+        states
+            .skip(ahead + 1)
+            .any(
+              (state) =>
+                  state.songId == 'song-0' &&
+                  state.aheadStart == null &&
+                  state.bufferedPosition == const Duration(seconds: 170),
+            ),
+        isTrue,
+      );
+    });
+
+    test(
+      'a late probe for a restarted download of the same song is ignored',
+      () async {
+        final (handler, player) = await serve(length: null, first: 160000);
+        final gate = Completer<Duration?>();
+        final paths = <String>[];
+        handler.cachedExtentReader = (path) async {
+          paths.add(path);
+          return paths.length == 1 ? gate.future : null;
+        };
+        await startSong(handler);
+        await until(() => paths.isNotEmpty);
+        // Away and back: the song's download restarts into a new part file.
+        await handler.skipToNext();
+        await settleQueue(handler);
+        await handler.skipToPrevious();
+        await settleQueue(handler);
+        expect(handler.bufferState.songId, 'song-0');
+        await drawUntil(player, () => paths.length >= 2);
+        expect(paths.first, isNot(paths.last), reason: 'a new part file');
+        gate.complete(const Duration(seconds: 90));
+        await pumpEventQueue();
+        player.emitBuffered(const Duration(seconds: 4));
+        await pumpEventQueue();
+        expect(line(handler), const Duration(seconds: 4));
+        expect(
+          handler.collectPlaybackDiagnostics()['cachedPlayableSource'],
+          isNot('exact'),
+        );
+      },
+    );
+
+    // A held or slow download sends no buffer events, so the probe re-arms
+    // itself while the part file grows (a shortened interval keeps these fast).
+    group('trailing probe', () {
+      const interval = Duration(milliseconds: 100);
+
+      test('re-probes a growing part file without buffer events', () async {
+        final (handler, _) = await serve(length: null, first: 160000);
+        var reads = 0;
+        handler
+          ..cachedExtentInterval = interval
+          ..cachedExtentReader = (_) async => Duration(seconds: 30 + reads++);
+        await startSong(handler);
+        await until(() => line(handler) >= const Duration(seconds: 34));
+        expect(
+          line(handler),
+          greaterThanOrEqualTo(const Duration(seconds: 34)),
+        );
+        expect(probes(handler), greaterThanOrEqualTo(5));
+        expect(
+          handler.collectPlaybackDiagnostics()['cachedPlayableSource'],
+          'exact',
+        );
+      });
+
+      test(
+        'stops after an unchanged streak and restarts on an event',
+        () async {
+          final (handler, player) = await serve(length: null, first: 160000);
+          handler
+            ..cachedExtentInterval = interval
+            ..cachedExtentReader = (_) async => const Duration(seconds: 30);
+          await startSong(handler);
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          final settled = probes(handler);
+          expect(settled, inInclusiveRange(6, 8));
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          expect(probes(handler), settled);
+          expect(handler.cachedExtentTimerActive, isFalse);
+          player.emitBuffered(const Duration(seconds: 3));
+          await until(() => probes(handler) > settled);
+          expect(probes(handler), settled + 1);
+        },
+      );
+
+      // A long interval keeps an armed timer visibly pending.
+      Future<NavisAudioHandler> armed({
+        int? length,
+        int first = 160000,
+        FutureOr<Duration?> Function(String path)? after,
+      }) async {
+        final (handler, _) = await serve(length: length, first: first);
+        var reads = 0;
+        handler
+          ..cachedExtentInterval = const Duration(seconds: 5)
+          ..cachedExtentReader = (path) => reads++ == 0
+              ? Future.value(const Duration(seconds: 10))
+              : Future.value(after?.call(path));
+        await startSong(handler);
+        await until(() => handler.cachedExtentTimerActive);
+        expect(handler.cachedExtentTimerActive, isTrue);
+        return handler;
+      }
+
+      test('a song change cancels the timer', () async {
+        final handler = await armed(
+          after: (_) => Completer<Duration?>().future,
+        );
+        await handler.skipToNext();
+        await settleQueue(handler);
+        expect(handler.bufferState.songId, 'song-1');
+        // The next song's probe never returns, so only a leftover timer of
+        // the previous song could still be pending.
+        await until(() => probes(handler) >= 2);
+        expect(handler.cachedExtentTimerActive, isFalse);
+      });
+
+      test('cache completion cancels the timer', () async {
+        final handler = await armed(length: 100 * 1024, first: 40 * 1024);
+        release.complete();
+        await until(() => !handler.cachedExtentTimerActive);
+        expect(handler.cachedExtentTimerActive, isFalse);
+        expect(line(handler), handler.snapshot.duration);
+      });
+
+      test('dispose cancels the timer', () async {
+        final handler = await armed();
+        await handler.disposeHandler();
+        expect(handler.cachedExtentTimerActive, isFalse);
+      });
+    });
+
+    test('a Repeat One loop clears the ahead range start', () async {
+      final (handler, player) = await serve();
+      player.simulateProgress = true;
+      await startSong(handler);
+      await handler.play();
+      await until(() => line(handler) >= fraction(handler, 0.4));
+      await seekPast(handler, const Duration(seconds: 150));
+      player.emitBuffered(const Duration(seconds: 170));
+      await pumpEventQueue();
+      expect(handler.bufferState.aheadStart, const Duration(seconds: 150));
+      player._discontinuities.add(
+        PositionDiscontinuity(
+          PositionDiscontinuityReason.autoAdvance,
+          PlaybackEvent(
+            processingState: ProcessingState.ready,
+            updatePosition: const Duration(seconds: 175),
+            currentIndex: 0,
+          ),
+          player.playbackEvent,
+        ),
+      );
+      await pumpEventQueue();
+      expect(handler.bufferState.aheadStart, isNull);
+      expect(line(handler), const Duration(seconds: 170));
+    });
+
+    test('the download catching up to the ahead range merges them', () async {
+      final (handler, player) = await serve();
+      player.simulateProgress = true;
+      await startSong(handler);
+      await handler.play();
+      await until(() => line(handler) >= fraction(handler, 0.4));
+      await seekPast(handler, const Duration(seconds: 150));
+      player.emitBuffered(const Duration(seconds: 170));
+      await pumpEventQueue();
+      expect(handler.bufferState.aheadStart, const Duration(seconds: 150));
+      release.complete();
+      await until(() => line(handler) >= handler.snapshot.duration);
+      expect(line(handler), handler.snapshot.duration);
+      expect(handler.bufferState.aheadStart, isNull);
     });
 
     test('radio draws no line', () async {

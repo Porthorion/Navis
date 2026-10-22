@@ -18,11 +18,15 @@ class RollingCacheSidecarDownloader {
   String? _activeSongId;
   String? _activeCacheFilePath;
   int? _activeReceivedBytes;
+  String? _activePartFilePath;
   void Function()? _activeOnTerminated;
 
   String? get activeSongId => _activeSongId;
 
   int? get activeReceivedBytes => _activeReceivedBytes;
+
+  /// The file the running download writes: contiguous from the first byte.
+  String? get activePartFilePath => _activePartFilePath;
 
   Future<void> start({
     required String songId,
@@ -58,6 +62,7 @@ class RollingCacheSidecarDownloader {
     // An older attempt may still be unwinding after cancellation. Give it a
     // distinct file so its cleanup cannot delete this attempt's bytes.
     final partFile = File('$cacheFilePath.part.$pid.$generation');
+    _activePartFilePath = partFile.path;
     try {
       await partFile.parent.create(recursive: true);
       if (!_isCurrent(generation)) return;
@@ -187,6 +192,7 @@ class RollingCacheSidecarDownloader {
     _activeSongId = null;
     _activeCacheFilePath = null;
     _activeReceivedBytes = null;
+    _activePartFilePath = null;
     final onTerminated = _activeOnTerminated;
     _activeOnTerminated = null;
     onTerminated?.call();

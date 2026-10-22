@@ -172,6 +172,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Show the seek bar buffered line exactly: for Opus, Vorbis and FLAC '
+        'the cached part is read from the downloaded file instead of being '
+        'estimated from the bitrate, and after seeking past the download the '
+        'part the player has loaded is drawn on its own instead of filling '
+        'the gap behind it',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Reuse the verified update download after cancelling installation or '
         'reopening the update dialog, checking the file again before retrying',
         type: ChangelogEntryType.fix,
