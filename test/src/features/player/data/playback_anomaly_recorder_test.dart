@@ -283,6 +283,27 @@ void main() {
   });
 
   group('replayNearEnd', () {
+    test('a short-song zero corrected before confirmation is not a replay', () {
+      sample(0, 3368, durationMs: 4000);
+      sample(100, 0, durationMs: 4000);
+      sample(176, 3235, durationMs: 4000);
+      sample(307, 3361, durationMs: 4000);
+      sample(357, 3404, durationMs: 4000);
+      sample(406, 3489, durationMs: 4000);
+
+      expect(logs, isEmpty);
+      expect(recorder.recent, isEmpty);
+    });
+
+    test('a real four-second song replay is still recorded', () {
+      sample(0, 3368, durationMs: 4000);
+      sample(100, 0, durationMs: 4000);
+      sample(406, 306, durationMs: 4000);
+
+      expect(logs, hasLength(1));
+      expect(header(logs.single)['kind'], 'replayNearEnd');
+    });
+
     test('the same entry replaying from the start is recorded', () {
       sample(0, 196000);
       sample(200, 400);

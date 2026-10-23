@@ -139,6 +139,18 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Desktop playback retries a cut transcode at its last song position '
+        'instead of treating it as the end, including Repeat One and the last '
+        'song in a queue, when the server supports transcode offsets. Recovery '
+        'keeps the current listening session and silences the next song while '
+        'reopening, including after artwork refreshes, Play commands or audio-focus '
+        'resume during recovery. Failed recovery still skips quietly or stops at '
+        'the queue end, honoring the latest Play or Pause. A failed final-song '
+        'reopen preserves the queue and Play retries that song where it stopped; '
+        'queue edits keep their normal playback behavior.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Desktop rolling-cache downloads of originals resume after connection '
         'cuts when the server supports byte ranges, preserving the downloaded '
         'prefix and keeping Fast Seeking available. Continuations must retain '

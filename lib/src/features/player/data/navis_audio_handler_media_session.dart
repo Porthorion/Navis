@@ -225,6 +225,7 @@ extension _NavisMediaSession on NavisAudioHandler {
 
     _playbackEventSubscription = _player.playbackEventStream.listen((event) {
       if (!identical(_player, wiredPlayer)) return;
+      _captureTranscodeEndOccurrence();
       _recordAnomalyPlaybackEvent(event);
       if (_player.playing) _onPlayerPlaying();
       // just_audio 0.10 reports native failures as event data. Repeated idle
@@ -302,8 +303,13 @@ extension _NavisMediaSession on NavisAudioHandler {
           _onPositionDiscontinuity(discontinuity);
         });
 
-    _currentIndexSubscription = _player.currentIndexStream.listen((index) {
-      if (!identical(_player, wiredPlayer) ||
+    _currentIndexSubscription = _player.currentIndexStream.listen((
+      index,
+    ) async {
+      // Let a same-turn discontinuity claim a cut before publishing its successor.
+      if (_isDesktopRuntime) await Future<void>.value();
+      if (_prematureTranscodeDeparture != null ||
+          !identical(_player, wiredPlayer) ||
           index != wiredPlayer.currentIndex) {
         return;
       }
@@ -356,6 +362,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         // known item during transient index gaps so UI metadata stays stable.
         _setCurrentMediaItem(null);
       }
+      _captureTranscodeEndOccurrence(indexEvent: true);
       _updateScrobbleSession(item, currentIndex: resolved.currentIndex);
       _applyReplayGainVolume();
       _broadcastPlaybackState();
@@ -403,6 +410,7 @@ extension _NavisMediaSession on NavisAudioHandler {
             _positionController.add(position);
             _lastPositionEmitAt = DateTime.now();
           }
+          _captureTranscodeEndOccurrence();
           _observePlaybackAdvance();
           _observeAnomalyPosition(position);
           // Paused edits may wait longer than the controller's bounded refresh
@@ -731,7 +739,9 @@ extension _NavisMediaSession on NavisAudioHandler {
             nativeSource == null ||
             navisNativeSourceSongId(nativeSource) != _loadingSongId);
     final processingState =
-        _pendingRemoteRecovery != null || _pendingRadioRecovery != null
+        _pendingRemoteRecovery != null ||
+            _pendingRadioRecovery != null ||
+            _prematureTranscodeDeparture != null
         ? AudioProcessingState.buffering
         : _restoredQueueIndex != null && !pending
         ? AudioProcessingState.ready
@@ -795,7 +805,7 @@ extension _NavisMediaSession on NavisAudioHandler {
 
   void _handleScrobbleSignals() {
     // Suppress scrobbling during radio playback.
-    if (_radioStation != null) {
+    if (_radioStation != null || _prematureTranscodeDeparture != null) {
       return;
     }
 
@@ -884,6 +894,15 @@ extension _NavisMediaSession on NavisAudioHandler {
   }
 
   void _updateScrobbleSession(MediaItem? currentItem, {int? currentIndex}) {
+    final departure = _prematureTranscodeDeparture;
+    if (departure != null) {
+      // A source reopen continues this occurrence, including its existing session.
+      if (currentItem?.id == departure.item.id) {
+        _activeScrobbleItem = currentItem;
+        _activeScrobbleIndex = currentIndex;
+      }
+      return;
+    }
     final songId = currentItem?.id;
     // The same play continues when only the queue around it changed (songs
     // inserted, released or moved before it shift its index; the queue entry
@@ -951,7 +970,9 @@ extension _NavisMediaSession on NavisAudioHandler {
           : _logicalIndexOf(resolved.currentIndex),
       playing: _visiblePlaying,
       processingState:
-          _pendingRemoteRecovery != null || _pendingRadioRecovery != null
+          _pendingRemoteRecovery != null ||
+              _pendingRadioRecovery != null ||
+              _prematureTranscodeDeparture != null
           ? AudioProcessingState.buffering
           : _restoredQueueIndex != null && !_isLoading
           ? AudioProcessingState.ready
