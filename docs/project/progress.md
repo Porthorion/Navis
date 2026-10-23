@@ -14,6 +14,31 @@ Last updated: 2026-10-23
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 11a, desktop sidecar Range resume — implementation
+  complete on `fix/sidecar-range-resume`, 2026-10-23; coordinator acceptance
+  pending. Known-length, uncompressed originals retain their generation-owned
+  contiguous part and resume only verified `206` continuations. Backoff waits
+  1/2/4 seconds, respects pause/cancel, excludes outage time from transfer rate,
+  and renews its three-attempt budget after 256 KiB of new data. Transcodes and
+  unknown-length bodies keep their previous behavior. The handler passes
+  existing original-quality metadata. Current-index events cannot restart a
+  full GET during resume; they can restart after abandonment. An active bridge
+  keeps playing without an incomplete-file upgrade. Sink closure also covers
+  cancellation while reconnecting.
+  The new handler regressions failed against the original downloader (both
+  issued a second full GET), then passed with resume. Final validation across
+  nine cache/player test files: `07:53 +903: All tests passed!`; the four
+  targeted restart/bridge/exhaustion cases also passed (`00:09 +4: All tests
+  passed!`). The first broad run exposed a two-second buffered-line test wait;
+  it now waits for terminal cleanup with a ten-second timeout and retains its
+  buffer assertion. `dart analyze` on all five touched Dart files exits 0 with
+  no errors or warnings; 14 infos belong to unchanged handler-test lines.
+  `./tool/dart_format.sh --check` passes (1113 files, zero changes), and
+  `git diff --check` passes. All commands ran in the foreground under the
+  requested memory cap, with zero OOM kills and no pending jobs.
+  Native Linux cut/sha/bridge proof, independent review and `./tool/check.sh`
+  remain coordinator-owned per the build brief; no app, emulator, VM or app
+  build was launched. AI implementation and tests: Codex gpt-6.1-sol.
 - [ ] Issue #86, item 10 Fast Seeking — implementation on `fix/fast-seeking`:
   Linux/Windows lossless-to-Opus seek bridge, original-only sidecar caching,
   backpressure during bridge buffering, lossless upgrades, settings and schema

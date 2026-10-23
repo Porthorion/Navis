@@ -130,6 +130,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Desktop rolling-cache downloads of originals resume after connection '
+        'cuts when the server supports byte ranges, preserving the downloaded '
+        'prefix and keeping Fast Seeking available.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fast Seeking on Linux and Windows plays an Opus 256 kbps stream when '
         'seeking beyond a lossless download on a slow connection. The original '
         'keeps downloading; seek back into the downloaded part or play the '

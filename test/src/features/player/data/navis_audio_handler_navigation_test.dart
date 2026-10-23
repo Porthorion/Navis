@@ -7818,6 +7818,22 @@ void main() {
     });
 
     test(
+      'bridge keeps playing when the original sidecar ends without a file',
+      () async {
+        final (handler, player, db, downloader) = await bridgeHandler();
+        await seekTo(handler, target);
+        final source = current(player);
+        await downloader.cancel();
+        expect(bridging(handler), isTrue);
+        expect(player.playing, isTrue);
+        expect(current(player), same(source));
+        expect(handler.collectPlaybackDiagnostics()['cacheActivity'], isNull);
+        expect(await db.cacheDao.getCachedTrack('song-1'), isNull);
+        expect(File(downloader.path!).existsSync(), isFalse);
+      },
+    );
+
+    test(
       'bridge started without an active sidecar downloads the original',
       () async {
         final (handler, player, db, downloader) = await bridgeHandler();
@@ -14879,19 +14895,23 @@ void main() {
       expect(line(handler), handler.snapshot.duration);
     });
 
-    test('a failed download does not draw the full duration', () async {
-      final (handler, player) = await serve(fail: true);
-      await startSong(handler);
-      player.emitBuffered(const Duration(seconds: 5));
-      await until(() => line(handler) >= fraction(handler, 0.4));
-      release.complete();
-      await until(
-        () => handler.collectPlaybackDiagnostics()['cacheActivity'] == null,
-      );
-      player.emitBuffered(const Duration(seconds: 6));
-      await pumpEventQueue();
-      expect(line(handler), const Duration(seconds: 6));
-    });
+    test(
+      'an exhausted sidecar download does not draw the full duration',
+      () async {
+        final (handler, player) = await serve(fail: true);
+        await startSong(handler);
+        player.emitBuffered(const Duration(seconds: 5));
+        await until(() => line(handler) >= fraction(handler, 0.4));
+        release.complete();
+        await Future.doWhile(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          return handler.collectPlaybackDiagnostics()['cacheActivity'] != null;
+        }).timeout(const Duration(seconds: 10));
+        player.emitBuffered(const Duration(seconds: 6));
+        await pumpEventQueue();
+        expect(line(handler), const Duration(seconds: 6));
+      },
+    );
 
     test('the previous song cache does not reach the next song', () async {
       final (handler, player) = await serve();
