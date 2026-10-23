@@ -22,6 +22,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
+import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -8593,6 +8595,149 @@ void main() {
       Future<void> drain(NavisAudioHandler handler) async {
         await pumpEventQueue(times: 100);
         await settleQueue(handler);
+      }
+
+      for (final duplicate in [false, true]) {
+        test(
+          'cut after artwork refresh recovers the occurrence (duplicate: $duplicate)',
+          () async {
+            final directory = await Directory.systemTemp.createTemp(
+              'navis-cut-art-',
+            );
+            const channel = MethodChannel('plugins.flutter.io/path_provider');
+            final messenger = TestDefaultBinaryMessengerBinding
+                .instance
+                .defaultBinaryMessenger;
+            messenger.setMockMethodCallHandler(
+              channel,
+              (_) async => directory.path,
+            );
+            PlaybackArtCache.resetKeyForTesting();
+            addTearDown(() async {
+              messenger.setMockMethodCallHandler(channel, null);
+              PlaybackArtCache.resetKeyForTesting();
+              await directory.delete(recursive: true);
+            });
+            await PlaybackArtCache.initializeKey(supportDirectory: directory);
+            await File(
+              p.join(
+                directory.path,
+                'navis_art_v2_${PlaybackArtCache.fileKey('cut-cover')}.jpg',
+              ),
+            ).writeAsBytes([1, 2, 3]);
+            late NavisDatabase database;
+            final (handler, player) = await setup(
+              onDatabase: (value) => database = value,
+            );
+            await database.libraryDao.upsertSongs([
+              SongsTableCompanion.insert(
+                id: 'song-1',
+                title: 'Song 1',
+                duration: const Value(300),
+                coverArt: const Value('cut-cover'),
+              ),
+            ]);
+            await handler.replaceQueue(
+              [duplicate ? 'song-1' : 'song-0', 'song-1', 'song-2'],
+              startIndex: 1,
+              expandMatchFlows: false,
+            );
+            await drain(handler);
+            await handler.play();
+            await until(
+              () => handler.currentMediaItem?.extras?['artCacheFile'] != null,
+            );
+            expect(
+              identical(handler.currentMediaItem, handler.queue.value[1]),
+              isFalse,
+            );
+            final loads = player.sourceLoads;
+
+            player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+            await until(() => player.sourceLoads > loads);
+            await drain(handler);
+
+            expect(player.index, 1);
+            expect(handler.snapshot.currentSongId, 'song-1');
+            expect(current(player).positionOffset, const Duration(seconds: 47));
+          },
+        );
+      }
+
+      test(
+        'remove current with a discontinuity after lane release is not a cut',
+        () async {
+          final (handler, player) = await setup();
+          player.simulatedPosition = const Duration(seconds: 47);
+          final before = player.playbackEvent;
+          final loads = player.sourceLoads;
+          await handler.removeAt(1);
+          await drain(handler);
+          expect(handler.debugQueueLaneIdle, isTrue);
+
+          player._discontinuities.add(
+            PositionDiscontinuity(
+              PositionDiscontinuityReason.autoAdvance,
+              before,
+              player.playbackEvent,
+            ),
+          );
+          await drain(handler);
+
+          expect(player.sourceLoads, loads);
+          expect(handler.snapshot.currentSongId, 'song-2');
+          expect(current(player).positionOffset, Duration.zero);
+        },
+      );
+
+      for (final last in [false, true]) {
+        for (final pauseFirst in [false, true]) {
+          test(
+            'Play during cut resolution only records intent (last: $last, pause first: $pauseFirst)',
+            () async {
+              late _GatedSourceResolver resolver;
+              final (handler, player) = await setup(
+                last: last,
+                wrap: (base) => resolver = _GatedSourceResolver(base),
+              );
+              resolver
+                ..blockedSongId = 'song-1'
+                ..entered = Completer<void>()
+                ..release = Completer<void>();
+              addTearDown(() {
+                if (!resolver.release!.isCompleted)
+                  resolver.release!.complete();
+              });
+              final loads = player.sourceLoads;
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 47),
+              );
+              await until(() => resolver.entered!.isCompleted);
+              if (pauseFirst) await handler.pause();
+              final plays = player.playedFrom.length;
+
+              await handler.play();
+              expect(player.playedFrom.length, plays);
+              expect(player.audibleSongId, isNull);
+              expect(player.index, last ? 1 : 2);
+              expect(handler.snapshot.currentSongId, 'song-1');
+              resolver
+                ..blockedSongId = null
+                ..release!.complete();
+              await until(() => player.sourceLoads > loads);
+              await drain(handler);
+              await until(() => handler.snapshot.pendingSeekPosition == null);
+
+              expect(player.index, 1);
+              expect(handler.snapshot.currentSongId, 'song-1');
+              expect(
+                current(player).positionOffset,
+                const Duration(seconds: 47),
+              );
+              expect(player.playing, isTrue);
+            },
+          );
+        }
       }
 
       for (final edit in [
