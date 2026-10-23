@@ -535,6 +535,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   /// Loads succeed and then fail at once, as a stream that drops.
   bool failAfterLoad = false;
+  StateError? loadErrorAfterApply;
 
   @override
   PlaybackEvent get playbackEvent => PlaybackEvent(
@@ -963,6 +964,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       if (rejectBridgeLoad) throw StateError('bridge load failed');
     }
     _indices.add(index);
+    if (loadErrorAfterApply case final error?) {
+      loadErrorAfterApply = null;
+      state = ProcessingState.idle;
+      throw error;
+    }
     return const Duration(minutes: 3);
   });
 
@@ -7582,7 +7588,7 @@ void main() {
 
   group('playback anomaly recorder', () {
     Future<(NavisAudioHandler, _ControllableAudioPlayer, List<String>)>
-    anomalyHandler() async {
+    anomalyHandler({int duration = 180}) async {
       final directory = await Directory.systemTemp.createTemp('navis-anomaly-');
       final (handler, player, database) = await createHandler(
         directory,
@@ -7602,6 +7608,13 @@ void main() {
         }
       };
       addTearDown(() => debugPrint = printer);
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'song-1',
+          title: 'Song 1',
+          duration: Value(duration),
+        ),
+      ]);
       // The position stream only reports a moving position.
       player.simulateProgress = true;
       await handler.replaceQueue(
@@ -7625,6 +7638,27 @@ void main() {
 
     List<Object?> anomalies(NavisAudioHandler handler) =>
         handler.collectPlaybackDiagnostics()['anomalies']! as List<Object?>;
+
+    test(
+      'a four-second natural advance survives the desktop index yield',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final (handler, player, warnings) = await anomalyHandler(duration: 4);
+        player.simulatedPosition = const Duration(milliseconds: 3368);
+        await pause(200);
+        final loads = player.sourceLoads;
+
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 4));
+        player.emitPlayerEvent();
+        await pause(600);
+
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(player.sourceLoads, loads);
+        expect(anomalies(handler), isEmpty);
+        expect(warnings, isEmpty);
+      },
+    );
 
     test(
       'a raw player step back is recorded once, with the log line',
@@ -8689,6 +8723,72 @@ void main() {
           expect(current(player).positionOffset, Duration.zero);
         },
       );
+
+      for (final last in [false, true]) {
+        for (final intent in ['none', 'Play', 'Pause']) {
+          test(
+            'native cut reopen failure preserves the queue after $intent (last: $last)',
+            () async {
+              late _GatedSourceResolver resolver;
+              final (handler, player) = await setup(
+                wrap: (base) => resolver = _GatedSourceResolver(base),
+              );
+              final failedIndex = last ? 2 : 1;
+              final failedSong = 'song-$failedIndex';
+              if (last) {
+                await handler.playFromIndex(2);
+                await drain(handler);
+              }
+              resolver
+                ..blockedSongId = failedSong
+                ..entered = Completer<void>()
+                ..release = Completer<void>();
+              addTearDown(() {
+                if (!resolver.release!.isCompleted)
+                  resolver.release!.complete();
+              });
+              player.loadErrorAfterApply = StateError('HTTP 500 after apply');
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 47),
+              );
+              await until(() => resolver.entered!.isCompleted);
+              if (intent == 'Play') await handler.play();
+              if (intent == 'Pause') await handler.pause();
+              // Reject only the reopen; the next song remains available.
+              resolver.blockedSongId = null;
+              resolver.release!.complete();
+              await drain(handler);
+
+              expect(lastSeekEvent(handler)['outcome'], 'skipped');
+              expect(handler.snapshot.queueSongIds, [
+                'song-0',
+                'song-1',
+                'song-2',
+              ]);
+              expect(handler.snapshot.currentIndex, 2);
+              expect(handler.snapshot.currentSongId, 'song-2');
+              expect(player.playing, !last && intent != 'Pause');
+              expectNativeMirrorsQueue(handler, player);
+              if (last) {
+                expect(player.position, const Duration(seconds: 47));
+                final loads = player.sourceLoads;
+                await handler.play();
+                await until(() => player.sourceLoads > loads);
+                await drain(handler);
+                expect(handler.snapshot.currentSongId, failedSong);
+                expect(player.audibleSongId, failedSong);
+                expect(current(player).uri.queryParameters['id'], failedSong);
+                expect(
+                  current(player).positionOffset,
+                  const Duration(seconds: 47),
+                );
+                expect(handler.snapshot.currentIndex, failedIndex);
+                expectNativeMirrorsQueue(handler, player);
+              }
+            },
+          );
+        }
+      }
 
       for (final last in [false, true]) {
         for (final pauseFirst in [false, true]) {
