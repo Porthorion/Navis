@@ -142,6 +142,7 @@ void main() {
             request.response.headers.set(HttpHeaders.etagHeader, '"original"');
             await cut(request.response, bytes.sublist(0, 65536));
           } else {
+            request.response.headers.contentLength = bytes.length - 65536;
             request.response.statusCode = invalid == '200'
                 ? HttpStatus.ok
                 : invalid == '416'
@@ -162,7 +163,7 @@ void main() {
                 'gzip',
               );
             }
-            request.response.add(bytes);
+            request.response.add(bytes.sublist(65536));
             await request.response.close();
           }
         });
@@ -192,24 +193,27 @@ void main() {
             : 'two cuts resume cumulatively',
         () async {
           final ranges = <String?>[];
+          final body = exhausted ? [...bytes, ...bytes] : bytes;
+          var offset = 0;
           final origin = await serve((request) async {
             ranges.add(request.headers.value(HttpHeaders.rangeHeader));
-            final offset = (ranges.length - 1) * 32768;
-            request.response.headers.contentLength = bytes.length - offset;
+            request.response.headers.contentLength = body.length - offset;
             if (offset > 0) {
               request.response.statusCode = HttpStatus.partialContent;
               request.response.headers.set(
                 'content-range',
-                'bytes $offset-${bytes.length - 1}/${bytes.length}',
+                'bytes $offset-${body.length - 1}/${body.length}',
               );
             }
             if (exhausted || ranges.length < 3) {
-              await cut(
-                request.response,
-                bytes.sublist(offset, offset + 32768),
-              );
+              final nextOffset =
+                  offset +
+                  (exhausted && ranges.length == 1 ? 256 * 1024 - 1 : 32768);
+              final prefix = body.sublist(offset, nextOffset);
+              offset = nextOffset;
+              await cut(request.response, prefix);
             } else {
-              request.response.add(bytes.sublist(offset));
+              request.response.add(body.sublist(offset));
               await request.response.close();
             }
           });
@@ -228,9 +232,14 @@ void main() {
           );
           expect(ranges, [
             null,
-            'bytes=32768-',
-            'bytes=65536-',
-            if (exhausted) 'bytes=98304-',
+            if (exhausted) ...[
+              'bytes=262143-',
+              'bytes=294911-',
+              'bytes=327679-',
+            ] else ...[
+              'bytes=32768-',
+              'bytes=65536-',
+            ],
           ]);
           expect(completed, exhausted ? 0 : 1);
           expect(terminated, 1);
@@ -239,6 +248,46 @@ void main() {
           } else {
             expect(file.readAsBytesSync(), bytes);
           }
+        },
+      );
+    }
+
+    for (final oversized in [false, true]) {
+      test(
+        '${oversized ? 'oversized' : 'short'} chunked resume is never published',
+        () async {
+          var requests = 0;
+          final origin = await serve((request) async {
+            requests++;
+            if (requests == 1) {
+              request.response.contentLength = bytes.length;
+              await cut(request.response, bytes.sublist(0, 65536));
+            } else {
+              request.response.statusCode = HttpStatus.partialContent;
+              request.response.headers.set(
+                'content-range',
+                'bytes 65536-${bytes.length - 1}/${bytes.length}',
+              );
+              request.response.add(
+                oversized ? bytes : bytes.sublist(65536, 65537),
+              );
+              await request.response.close();
+            }
+          });
+          final downloader = RollingCacheSidecarDownloader();
+          addTearDown(downloader.dispose);
+          var completed = false;
+          await downloader.start(
+            songId: 'incomplete',
+            uri: Uri.parse('http://127.0.0.1:${origin.port}/audio'),
+            cacheFilePath: p.join(tempDir.path, 'incomplete.flac'),
+            onProgress: (_) {},
+            onComplete: (_) async => completed = true,
+            onTerminated: () {},
+          );
+          expect(requests, 2);
+          expect(completed, isFalse);
+          expect(tempDir.listSync(), isEmpty);
         },
       );
     }
@@ -300,26 +349,115 @@ void main() {
       );
     }
 
-    test('unknown length cut is not retried', () async {
+    for (final isTranscoded in [false, true]) {
+      test(
+        '${isTranscoded ? 'known length transcode' : 'unknown length'} cut is not retried',
+        () async {
+          var requests = 0;
+          final origin = await serve((request) async {
+            requests++;
+            if (isTranscoded) request.response.contentLength = bytes.length;
+            await cut(request.response, bytes.sublist(0, 65536));
+          });
+          final downloader = RollingCacheSidecarDownloader();
+          addTearDown(downloader.dispose);
+          var completed = 0;
+          await downloader.start(
+            songId: 'unknown',
+            isTranscoded: isTranscoded,
+            uri: Uri.parse('http://127.0.0.1:${origin.port}/audio'),
+            cacheFilePath: p.join(tempDir.path, 'unknown.flac'),
+            onProgress: (_) {},
+            onComplete: (_) async => completed++,
+            onTerminated: () {},
+          );
+          expect(requests, 1);
+          expect(completed, 0);
+          expect(tempDir.listSync(), isEmpty);
+        },
+      );
+    }
+
+    test('a weak ETag falls back to Last-Modified for If-Range', () async {
+      const modified = 'Wed, 21 Oct 2015 07:28:00 GMT';
       var requests = 0;
       final origin = await serve((request) async {
         requests++;
-        await cut(request.response, bytes.sublist(0, 65536));
+        if (requests == 1) {
+          request.response.headers
+            ..contentLength = bytes.length
+            ..set(HttpHeaders.etagHeader, 'W/"original"')
+            ..set(HttpHeaders.lastModifiedHeader, modified);
+          await cut(request.response, bytes.sublist(0, 65536));
+        } else {
+          expect(request.headers.value(HttpHeaders.ifRangeHeader), modified);
+          request.response.statusCode = HttpStatus.partialContent;
+          request.response.headers
+            ..contentLength = bytes.length - 65536
+            ..set(
+              'content-range',
+              'bytes 65536-${bytes.length - 1}/${bytes.length}',
+            );
+          request.response.add(bytes.sublist(65536));
+          await request.response.close();
+        }
       });
       final downloader = RollingCacheSidecarDownloader();
       addTearDown(downloader.dispose);
-      var completed = 0;
+      final file = File(p.join(tempDir.path, 'modified.flac'));
       await downloader.start(
-        songId: 'unknown',
+        songId: 'modified',
         uri: Uri.parse('http://127.0.0.1:${origin.port}/audio'),
-        cacheFilePath: p.join(tempDir.path, 'unknown.flac'),
+        cacheFilePath: file.path,
         onProgress: (_) {},
-        onComplete: (_) async => completed++,
+        onComplete: (_) async {},
         onTerminated: () {},
       );
-      expect(requests, 1);
-      expect(completed, 0);
-      expect(tempDir.listSync(), isEmpty);
+      expect(requests, 2);
+      expect(file.readAsBytesSync(), bytes);
+    });
+
+    test('256 KiB of new data renews the retry budget', () async {
+      final body = [...bytes, ...bytes, ...bytes];
+      var requests = 0;
+      var offset = 0;
+      final origin = await serve((request) async {
+        requests++;
+        request.response.contentLength = body.length - offset;
+        if (requests > 1) {
+          expect(
+            request.headers.value(HttpHeaders.rangeHeader),
+            'bytes=$offset-',
+          );
+          request.response.statusCode = HttpStatus.partialContent;
+          request.response.headers.set(
+            'content-range',
+            'bytes $offset-${body.length - 1}/${body.length}',
+          );
+        }
+        if (requests < 5) {
+          final nextOffset = offset + (requests == 4 ? 256 * 1024 : 32768);
+          final prefix = body.sublist(offset, nextOffset);
+          offset = nextOffset;
+          await cut(request.response, prefix);
+        } else {
+          request.response.add(body.sublist(offset));
+          await request.response.close();
+        }
+      });
+      final downloader = RollingCacheSidecarDownloader();
+      addTearDown(downloader.dispose);
+      final file = File(p.join(tempDir.path, 'budget.flac'));
+      await downloader.start(
+        songId: 'budget',
+        uri: Uri.parse('http://127.0.0.1:${origin.port}/audio'),
+        cacheFilePath: file.path,
+        onProgress: (_) {},
+        onComplete: (_) async {},
+        onTerminated: () {},
+      );
+      expect(requests, 5);
+      expect(file.readAsBytesSync(), body);
     });
 
     test('A-B-A during backoff keeps only the new generation', () async {
@@ -329,7 +467,7 @@ void main() {
           request.response.headers.contentLength = bytes.length;
           await cut(request.response, bytes.sublist(0, 65536));
         } else {
-          request.response.add([request.uri.path == '/a' ? 3 : 2]);
+          request.response.add([if (request.uri.path == '/a') 3 else 2]);
           await request.response.close();
         }
       });
