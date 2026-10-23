@@ -239,6 +239,7 @@ class PlaybackLoadFailure {
 class PlaybackRuntimeSettings {
   const new({
     required this.gaplessEnabled,
+    this.fastSeekingEnabled = true,
     this.equalizer,
     required this.crossfadeEnabled,
     this.crossfadeAllowStreaming = true,
@@ -255,6 +256,7 @@ class PlaybackRuntimeSettings {
 
   const new defaults()
     : gaplessEnabled = true,
+      fastSeekingEnabled = true,
       equalizer = null,
       crossfadeEnabled = false,
       crossfadeAllowStreaming = true,
@@ -269,6 +271,7 @@ class PlaybackRuntimeSettings {
       matchFlowEnabled = false;
 
   final bool gaplessEnabled;
+  final bool fastSeekingEnabled;
   final EqConfiguration? equalizer;
   final bool crossfadeEnabled;
 

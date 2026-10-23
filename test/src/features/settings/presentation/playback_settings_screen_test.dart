@@ -128,6 +128,47 @@ void main() {
       expect(find.text('Reset Defaults'), findsOneWidget);
     });
 
+    for (final platform in [
+      TargetPlatform.linux,
+      TargetPlatform.windows,
+      TargetPlatform.android,
+      TargetPlatform.macOS,
+    ]) {
+      testWidgets('Fast Seeking is desktop only and persists on $platform', (
+        tester,
+      ) async {
+        setAdaptiveTestViewport(tester, const Size(1280, 1000));
+        AppSettingsModel? saved;
+        when(() => repository.saveSettings(any()))
+            .thenAnswer((invocation) async {
+              saved = invocation.positionalArguments.first as AppSettingsModel;
+            });
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              settingsRepositoryProvider.overrideWithValue(repository),
+              appSettingsProvider.overrideWithValue(
+                const AsyncData(initialSettings),
+              ),
+            ],
+            child: _buildTestApp(desktopMode: true),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final toggle = find.widgetWithText(SwitchListTile, 'Fast Seeking');
+        if (platform == TargetPlatform.android ||
+            platform == TargetPlatform.macOS) {
+          expect(toggle, findsNothing);
+        } else {
+          await tester.ensureVisible(toggle);
+          expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+          await tester.tap(toggle);
+          await tester.pumpAndSettle(const Duration(milliseconds: 500));
+          expect(saved?.fastSeekingEnabled, isFalse);
+        }
+      }, variant: TargetPlatformVariant({platform}));
+    }
+
     testWidgets('desktop playback settings keep a Settings return path', (
       tester,
     ) async {

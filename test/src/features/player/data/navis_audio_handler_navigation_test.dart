@@ -1,9 +1,16 @@
+import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
+
 import 'dart:math';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:flutter/foundation.dart'
-    show debugPrint, listEquals, visibleForTesting;
+    show
+        TargetPlatform,
+        debugDefaultTargetPlatformOverride,
+        debugPrint,
+        listEquals,
+        visibleForTesting;
 
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
@@ -123,6 +130,7 @@ class _GatedSourceResolver extends Fake implements PlaybackSourceResolver {
   final PlaybackSourceResolver delegate;
   String? blockedSongId;
   StateError? failure;
+  bool rejectBridge = false;
   Completer<void>? entered;
   Completer<void>? release;
 
@@ -133,12 +141,17 @@ class _GatedSourceResolver extends Fake implements PlaybackSourceResolver {
   bool get supportsTranscodeOffset => delegate.supportsTranscodeOffset;
 
   @override
+  bool get supportsFastSeeking => delegate.supportsFastSeeking;
+
+  @override
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
     bool preferLockCaching = true,
     bool allowStreaming = true,
     Duration? transcodeOffset,
+    bool fastSeekBridge = false,
   }) async {
+    if (fastSeekBridge && rejectBridge) throw StateError('bridge unavailable');
     if (song.id == blockedSongId) {
       if (entered case final signal? when !signal.isCompleted) {
         signal.complete();
@@ -151,6 +164,7 @@ class _GatedSourceResolver extends Fake implements PlaybackSourceResolver {
       preferLockCaching: preferLockCaching,
       allowStreaming: allowStreaming,
       transcodeOffset: transcodeOffset,
+      fastSeekBridge: fastSeekBridge,
     );
   }
 }
@@ -281,6 +295,73 @@ class _TestAudioSession extends Fake implements AudioSession {
   }
 }
 
+class _BridgeSidecar extends RollingCacheSidecarDownloader {
+  String? song;
+  String? path;
+  int bytes = 65536;
+  double? rate = 10000;
+  int starts = 0;
+  bool paused = false;
+  Future<void> Function(File)? complete;
+  void Function(double)? progress;
+  void Function()? terminated;
+  Uri? downloadUri;
+  @override
+  String? get activeSongId => song;
+  @override
+  int? get activeReceivedBytes => song == null ? null : bytes;
+  @override
+  double? get activeBytesPerSecond => rate;
+  @override
+  bool get isPaused => paused;
+  @override
+  void pause() {
+    if (song != null) paused = true;
+  }
+
+  @override
+  void resume() {
+    paused = false;
+  }
+
+  @override
+  Future<void> cancel() async {
+    resume();
+    song = null;
+    terminated?.call();
+  }
+
+  @override
+  Future<void> start({
+    required String songId,
+    required Uri uri,
+    required String cacheFilePath,
+    required void Function(double) onProgress,
+    required Future<void> Function(File) onComplete,
+    required void Function() onTerminated,
+  }) async {
+    if (song == songId && path == cacheFilePath) return;
+    starts++;
+    song = songId;
+    path = cacheFilePath;
+    downloadUri = uri;
+    complete = onComplete;
+    progress = onProgress;
+    terminated = onTerminated;
+    onProgress(.1);
+  }
+
+  Future<void> finish() async {
+    final file = File(path!);
+    await file.writeAsBytes(List<int>.filled(bytes, 1));
+    progress!(1);
+    await complete!(file);
+    song = null;
+    resume();
+    terminated!();
+  }
+}
+
 class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   final StreamController<int?> _indices = StreamController<int?>.broadcast();
   final _events = StreamController<PlaybackEvent>.broadcast();
@@ -314,6 +395,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   }
 
   bool ignoreSeeks = false;
+  bool rejectNextSeek = false;
+  bool rejectBridgeLoad = false;
+  final bridgeInitialPositions = <Duration?>[];
 
   /// This many further seeks are ignored, as a native no-op would be.
   int ignoredSeeks = 0;
@@ -549,10 +633,18 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Future<void> shuffle() async {}
 
   int rangeRemovals = 0;
+  Completer<void>? removeGate;
+  Completer<void>? removeEntered;
 
   @override
   Future<void> removeAudioSourceAt(int index) => _mutate(() async {
     await _hangIf('removeAudioSourceAt');
+    final gate = removeGate;
+    removeGate = null;
+    if (gate != null) {
+      removeEntered?.complete();
+      await gate.future;
+    }
     _sources.removeAt(index);
     if (this.index != null && index < this.index!) this.index = this.index! - 1;
   });
@@ -759,6 +851,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       errorCode = 0;
       _events.add(playbackEvent);
     }
+    if (source is IndexedAudioSource &&
+        (source.tag as MediaItem?)?.extras?['bridgeFormat'] != null) {
+      bridgeInitialPositions.add(initialPosition);
+      if (rejectBridgeLoad) throw StateError('bridge load failed');
+    }
     _indices.add(index);
     return const Duration(minutes: 3);
   });
@@ -848,6 +945,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> seek(Duration? position, {int? index}) => _mutate(() async {
     seekCalls++;
+    if (rejectNextSeek) {
+      rejectNextSeek = false;
+      throw StateError('native seek failed');
+    }
     await _hangIf('seek');
     final gate = seekGate;
     seekGate = null;
@@ -1036,6 +1137,8 @@ void main() {
     Directory directory,
     int count, {
     bool crossfade = false,
+    bool fastSeeking = true,
+    RollingCacheSidecarDownloader? sidecarDownloader,
     bool crossfadeAllowStreaming = true,
     PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     bool positionStreams = false,
@@ -1153,6 +1256,7 @@ void main() {
       startPreferredMix: (_) async {},
       togglePreferredMix: (_) async {},
       artworkFileService: artworkFileService,
+      sidecarDownloader: sidecarDownloader,
       readRadioMetadataAllowed: readRadioMetadataAllowed ?? () => false,
       createRadioMetadataDio: createRadioMetadataDio,
       readRadioPlaybackAllowed: readRadioPlaybackAllowed,
@@ -1176,6 +1280,7 @@ void main() {
       ),
       readRuntimeSettings: () => PlaybackRuntimeSettings(
         gaplessEnabled: true,
+        fastSeekingEnabled: fastSeeking,
 
         crossfadeEnabled: crossfade,
         crossfadeAllowStreaming: crossfadeAllowStreaming,
@@ -7463,6 +7568,583 @@ void main() {
       expect(warnings, isEmpty);
     });
   });
+
+  group('fast seeking bridge', () {
+    setUp(() => debugDefaultTargetPlatformOverride = TargetPlatform.linux);
+    tearDown(() => debugDefaultTargetPlatformOverride = null);
+    const target = Duration(seconds: 90);
+    Future<
+      (
+        NavisAudioHandler,
+        _ControllableAudioPlayer,
+        NavisDatabase,
+        _BridgeSidecar,
+      )
+    >
+    bridgeHandler({
+      bool enabled = true,
+      bool capable = true,
+      bool slow = true,
+      bool lossy = false,
+      bool transcode = false,
+      bool external = false,
+      bool crossfade = false,
+      PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-fast-seek-',
+      );
+      final downloader = _BridgeSidecar()..rate = slow ? 10000 : null;
+      final (handler, player, db) = await createHandler(
+        directory,
+        3,
+        sidecarStreams: true,
+        cacheSongs: false,
+        sidecarDownloader: downloader,
+        supportsTranscodeOffset: capable,
+        fastSeeking: enabled,
+        wrapResolver: wrap,
+        crossfade: crossfade,
+        streamingQuality: transcode
+            ? const StreamingQuality(
+                label: 'opus',
+                format: 'opus',
+                maxBitRate: 128,
+              )
+            : const StreamingQuality(label: 'original'),
+        timeouts: const NavisPlaybackTimeouts(
+          fastSeekGuard: Duration(milliseconds: 500),
+          desktopSeekSettle: Duration(seconds: 1),
+        ),
+        seed: (db) => db.libraryDao.upsertSongs([
+          for (var i = 0; i < 3; i++)
+            SongsTableCompanion.insert(
+              id: 'song-$i',
+              title: 'Song $i',
+              duration: const Value(180),
+              suffix: Value(lossy ? 'mp3' : 'flac'),
+              bitRate: const Value(1000),
+              isExternal: Value(external),
+            ),
+        ]),
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await db.close();
+        await directory.delete(recursive: true);
+      });
+      player.simulateProgress = true;
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-2'],
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      return (handler, player, db, downloader);
+    }
+
+    UriAudioSource current(_ControllableAudioPlayer player) =>
+        player.sequence[player.index!] as UriAudioSource;
+    Future<void> seekTo(NavisAudioHandler handler, Duration position) async {
+      await handler.seek(position);
+      await settleQueue(handler);
+    }
+
+    Map<String, Object?> event(NavisAudioHandler handler) =>
+        (handler.collectPlaybackDiagnostics()['seekEvents']! as List).last
+            as Map<String, Object?>;
+    bool bridging(NavisAudioHandler handler) =>
+        handler.mediaItem.value?.extras?['bridgeFormat'] == 'opus';
+
+    test('slow link bridges immediately without restarting or caching the transcode', () async {
+      final (handler, player, db, downloader) = await bridgeHandler();
+      final starts = downloader.starts;
+      await seekTo(handler, target);
+      expect(bridging(handler), isTrue);
+      expect(current(player).uri.queryParameters['format'], 'opus');
+      expect(current(player).uri.queryParameters['maxBitRate'], '256');
+      expect(current(player).positionOffset, target);
+      expect(downloader.starts, starts);
+      expect(event(handler)['path'], 'fastSeekBridge');
+      expect(handler.collectPlaybackDiagnostics()['anomalies'], isEmpty);
+      expect(downloader.downloadUri!.queryParameters['timeOffset'], isNull);
+      downloader.bytes += 65536;
+      downloader.progress!(.2);
+      expect(handler.collectPlaybackDiagnostics()['partialCacheBytes'], 131072);
+      await downloader.finish();
+      final cached = (await db.cacheDao.getCachedTrack('song-1'))!;
+      expect(cached.filePath, downloader.path);
+      expect(cached.format, 'flac');
+      expect(cached.bitRate, 1000);
+      expect(cached.fileSize, 131072);
+      expect(bridging(handler), isTrue);
+      await seekTo(handler, const Duration(seconds: 110));
+      expect(current(player).uri.scheme, 'file');
+      expect(bridging(handler), isFalse);
+      expect(handler.mediaItem.value!.extras, isNot(contains('bridgeBitRate')));
+    });
+
+    test(
+      'bridge started without an active sidecar downloads the original',
+      () async {
+        final (handler, player, db, downloader) = await bridgeHandler();
+        await downloader.cancel();
+        player.ignoredSeeks = 1;
+        await seekTo(handler, target);
+        expect(bridging(handler), isTrue);
+        expect(
+          downloader.downloadUri!.queryParameters['format'],
+          isNot('opus'),
+        );
+        await downloader.finish();
+        final cached = (await db.cacheDao.getCachedTrack('song-1'))!;
+        expect(cached.format, 'flac');
+        expect(cached.bitRate, 1000);
+      },
+    );
+
+    test(
+      'installed bridge load failure restores the native queue before fallback',
+      () async {
+        final (handler, player, _, downloader) = await bridgeHandler();
+        final starts = downloader.starts;
+        final notices = <PlaybackLoadFailure>[];
+        final subscription = handler.loadFailureStream.listen(notices.add);
+        addTearDown(subscription.cancel);
+        player.rejectBridgeLoad = true;
+        await seekTo(handler, target);
+        expectNativeMirrorsQueue(handler, player);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(current(player).positionOffset, Duration.zero);
+        expect(current(player).uri.queryParameters['format'], isNot('opus'));
+        expect(bridging(handler), isFalse);
+        expect(event(handler)['outcome'], 'completed');
+        expect(notices, isEmpty);
+        expect(downloader.starts, starts);
+      },
+    );
+
+    test('native guard exception still attempts the bridge', () async {
+      final (handler, player, _, _) = await bridgeHandler(slow: false);
+      player.rejectNextSeek = true;
+      await seekTo(handler, target);
+      expect(bridging(handler), isTrue);
+      expect(event(handler)['path'], 'fastSeekBridge');
+      expect(player.seekCalls, 1);
+    });
+
+    test(
+      'paused buffering bridge resumes the original after seek settlement',
+      () async {
+        final (handler, player, _, downloader) = await bridgeHandler();
+        await handler.pause();
+        player.bufferAfterLoad = true;
+        await seekTo(handler, target);
+        expect(bridging(handler), isTrue);
+        expect(event(handler)['outcome'], 'completed');
+        expect(player.processingState, ProcessingState.buffering);
+        expect(player.playing, isFalse);
+        expect(downloader.isPaused, isFalse);
+        player._events.add(player.playbackEvent);
+        await pumpEventQueue(times: 20);
+        expect(downloader.isPaused, isFalse);
+      },
+    );
+
+    for (final milliseconds in [90750, 179750]) {
+      test(
+        'bridge reload starts at whole-second offset for $milliseconds ms',
+        () async {
+          final (handler, player, _, _) = await bridgeHandler();
+          await seekTo(handler, Duration(milliseconds: milliseconds));
+          expect(bridging(handler), isTrue);
+          expect(
+            player.bridgeInitialPositions.single,
+            current(player).positionOffset,
+          );
+        },
+      );
+    }
+
+    test('fast or unknown link settles natively without a bridge', () async {
+      final (handler, player, _, _) = await bridgeHandler(slow: false);
+      final loads = player.sourceLoads;
+      await seekTo(handler, target);
+      expect(bridging(handler), isFalse);
+      expect(player.sourceLoads, loads);
+    });
+
+    test('measured fast link keeps a settled native seek', () async {
+      final (handler, player, _, downloader) = await bridgeHandler();
+      downloader.rate = 10000000;
+      final loads = player.sourceLoads;
+      await seekTo(handler, target);
+      expect(player.sourceLoads, loads);
+      expect(bridging(handler), isFalse);
+    });
+
+    test('failed bridge falls back silently to the native path', () async {
+      late _GatedSourceResolver resolver;
+      final (handler, _, _, _) = await bridgeHandler(
+        wrap: (base) => resolver = _GatedSourceResolver(base),
+      );
+      final notices = <PlaybackLoadFailure>[];
+      final subscription = handler.loadFailureStream.listen(notices.add);
+      addTearDown(subscription.cancel);
+      resolver.rejectBridge = true;
+      await seekTo(handler, target);
+      expect(bridging(handler), isFalse);
+      expect(notices, isEmpty);
+      expect(event(handler)['outcome'], 'completed');
+    });
+
+    test(
+      'crossfade hands over from a bridge to a plain lossless song',
+      () async {
+        final (handler, player, _, downloader) = await bridgeHandler(
+          crossfade: true,
+        );
+        await seekTo(handler, target);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        incoming.simulateProgress = true;
+        player.simulatedPosition = const Duration(seconds: 175);
+        await handler.debugStartCrossfade();
+        await handler.debugCompleteCrossfade();
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(bridging(handler), isFalse);
+        expect(downloader.isPaused, isFalse);
+        expect(current(incoming).positionOffset, Duration.zero);
+      },
+    );
+
+    test('Android runtime keeps the original native seek', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      final (handler, player, _, _) = await bridgeHandler();
+      final loads = player.sourceLoads;
+      await seekTo(handler, target);
+      expect(bridging(handler), isFalse);
+      expect(player.sourceLoads, loads);
+    });
+
+    test('radio keeps its existing non-seekable behavior', () async {
+      final (handler, _, _, _) = await bridgeHandler();
+      await handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example.invalid/live',
+      );
+      await handler.seek(target);
+      expect(bridging(handler), isFalse);
+      expect(handler.snapshot.radioStation?.stationId, 'fixture');
+    });
+
+    test('fast link guard expires and opens a bridge', () async {
+      final (handler, player, _, _) = await bridgeHandler(slow: false);
+      player.ignoredSeeks = 1;
+      await seekTo(handler, target);
+      expect(bridging(handler), isTrue);
+      final probe = (event(handler)['unsettled']! as List).first as Map;
+      expect(probe['elapsedMs'], inInclusiveRange(500, 1000));
+    });
+
+    test('cache completion during guard uses the local original', () async {
+      final (handler, player, _, downloader) = await bridgeHandler(slow: false);
+      player.ignoredSeeks = 1;
+      final seeking = handler.seek(target);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      await downloader.finish();
+      await seeking;
+      await settleQueue(handler);
+      expect(current(player).uri.scheme, 'file');
+      expect(bridging(handler), isFalse);
+    });
+
+    test('bridge yields while loading and buffering and resumes on ready, upgrade, change and stop', () async {
+      final (handler, player, _, downloader) = await bridgeHandler();
+      await seekTo(handler, target);
+      for (final state in [
+        ProcessingState.loading,
+        ProcessingState.buffering,
+        ProcessingState.ready,
+      ]) {
+        player.state = state;
+        player._events.add(player.playbackEvent);
+        await pumpEventQueue(times: 20);
+        expect(downloader.isPaused, state != ProcessingState.ready);
+      }
+      player.state = ProcessingState.buffering;
+      player._events.add(player.playbackEvent);
+      await pumpEventQueue(times: 20);
+      await seekTo(handler, const Duration(seconds: 5));
+      expect(bridging(handler), isFalse);
+      expect(downloader.isPaused, isFalse);
+      await seekTo(handler, target);
+      player.state = ProcessingState.buffering;
+      player._events.add(player.playbackEvent);
+      await pumpEventQueue(times: 20);
+      await handler.skipToNext();
+      await settleQueue(handler);
+      expect(downloader.isPaused, isFalse);
+      await seekTo(handler, target);
+      player.state = ProcessingState.buffering;
+      player._events.add(player.playbackEvent);
+      await pumpEventQueue(times: 20);
+      await handler.stop();
+      player._events.add(player.playbackEvent);
+      await pumpEventQueue(times: 20);
+      expect(downloader.isPaused, isFalse);
+    });
+
+    test(
+      'pause resumes the original while a queue edit hides player events',
+      () async {
+        final (handler, player, _, downloader) = await bridgeHandler();
+        await seekTo(handler, target);
+        player.state = ProcessingState.buffering;
+        player._events.add(player.playbackEvent);
+        await pumpEventQueue(times: 20);
+        expect(downloader.isPaused, isTrue);
+        final gate = Completer<void>();
+        player
+          ..removeGate = gate
+          ..removeEntered = Completer<void>();
+        final removing = handler.removeQueueItemAt(2);
+        try {
+          await player.removeEntered!.future;
+          expect(handler.debugQueueLaneIdle, isFalse);
+          expect(
+            handler.collectPlaybackDiagnostics()['playerMatchesQueue'],
+            isFalse,
+          );
+          await handler.pause();
+          player._events.add(player.playbackEvent);
+          await pumpEventQueue(times: 20);
+          expect(player.playing, isFalse);
+          expect(downloader.isPaused, isFalse);
+        } finally {
+          gate.complete();
+          await removing;
+        }
+        await settleQueue(handler);
+      },
+    );
+
+    test(
+      'seek into downloaded extent upgrades lossless and stays paused',
+      () async {
+        final (handler, player, _, _) = await bridgeHandler();
+        await handler.pause();
+        await seekTo(handler, target);
+        expect(bridging(handler), isTrue);
+        expect(player.playing, isFalse);
+        await seekTo(handler, const Duration(seconds: 5));
+        expect(bridging(handler), isFalse);
+        expect(current(player).positionOffset, Duration.zero);
+        expect(current(player).uri.queryParameters['format'], isNot('opus'));
+        expect(player.playing, isFalse);
+      },
+    );
+
+    test('Repeat One returns to lossless', () async {
+      final (handler, player, _, _) = await bridgeHandler();
+      await seekTo(handler, target);
+      await handler.setRepeatMode(AudioServiceRepeatMode.one);
+      player.finishCurrentTrack();
+      for (var i = 0; i < 300 && bridging(handler); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      await settleQueue(handler);
+      expect(bridging(handler), isFalse);
+      expect(current(player).positionOffset, Duration.zero);
+    });
+
+    test('advancing away and back clears bridge extras', () async {
+      final (handler, player, _, _) = await bridgeHandler();
+      await seekTo(handler, target);
+      await handler.skipToNext();
+      await settleQueue(handler);
+      player.simulatedPosition = Duration.zero;
+      await handler.skipToPrevious();
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(bridging(handler), isFalse);
+      expect(current(player).positionOffset, Duration.zero);
+    });
+
+    test('recovery preserves a bridge at the exact song position', () async {
+      final (handler, player, _, _) = await bridgeHandler();
+      await seekTo(handler, target);
+      player.simulatedPosition = const Duration(milliseconds: 110750);
+      player.state = ProcessingState.idle;
+      player._events.addError(PlayerException(2002, 'Read timed out', 1));
+      for (
+        var i = 0;
+        i < 300 && current(player).positionOffset.inSeconds != 110;
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      await settleQueue(handler);
+      expect(bridging(handler), isTrue);
+      expect(current(player).uri.queryParameters['timeOffset'], '110');
+      expect(
+        player.position,
+        greaterThanOrEqualTo(const Duration(seconds: 110)),
+      );
+      expect(player.position, lessThan(const Duration(seconds: 112)));
+    });
+
+    for (final rejectBridge in [false, true]) {
+      test(
+        'completed original replaces the bridge during remote recovery, bridge fails=$rejectBridge',
+        () async {
+          late _GatedSourceResolver resolver;
+          final (handler, player, _, downloader) = await bridgeHandler(
+            wrap: (base) => resolver = _GatedSourceResolver(base),
+          );
+          await seekTo(handler, target);
+          await downloader.finish();
+          resolver.rejectBridge = rejectBridge;
+          player.simulatedPosition = const Duration(milliseconds: 110750);
+          player.state = ProcessingState.idle;
+          final before =
+              (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                  .length;
+          player._events.addError(PlayerException(2002, 'Read timed out', 1));
+          for (
+            var i = 0;
+            i < 300 &&
+                (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                        .length ==
+                    before;
+            i++
+          ) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          await settleQueue(handler);
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(bridging(handler), isFalse);
+          expect(current(player).uri.scheme, 'file');
+          expect(current(player).positionOffset, Duration.zero);
+          expectNativeMirrorsQueue(handler, player);
+          expect(
+            player.position,
+            greaterThanOrEqualTo(const Duration(milliseconds: 110750)),
+          );
+        },
+      );
+    }
+
+    for (final completesDuringReopen in [true, false]) {
+      test(
+        'failed bridge recovery falls back without skipping, cache completes during reopen=$completesDuringReopen',
+        () async {
+          final (handler, player, _, downloader) = await bridgeHandler();
+          await seekTo(handler, target);
+          final starts = downloader.starts;
+          final notices = <PlaybackLoadFailure>[];
+          final subscription = handler.loadFailureStream.listen(notices.add);
+          addTearDown(subscription.cancel);
+          final gate = Completer<void>();
+          player
+            ..rejectBridgeLoad = true
+            ..loadGate = gate
+            ..loadEntered = Completer<void>()
+            ..simulatedPosition = const Duration(milliseconds: 110750)
+            ..state = ProcessingState.idle;
+          final before =
+              (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                  .length;
+          player._events.addError(PlayerException(2002, 'Read timed out', 1));
+          try {
+            await player.loadEntered!.future;
+            if (completesDuringReopen) await downloader.finish();
+          } finally {
+            gate.complete();
+          }
+          for (
+            var i = 0;
+            i < 300 &&
+                (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                        .length ==
+                    before;
+            i++
+          ) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          await settleQueue(handler);
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(event(handler)['outcome'], 'reloaded');
+          expect(bridging(handler), isFalse);
+          expect(
+            handler.mediaItem.value!.extras,
+            isNot(contains('bridgeBitRate')),
+          );
+          expect(
+            current(player).uri.scheme,
+            completesDuringReopen ? 'file' : 'https',
+          );
+          expect(current(player).uri.queryParameters['format'], isNot('opus'));
+          expect(current(player).uri.queryParameters['timeOffset'], isNull);
+          expect(handler.mediaItem.value!.extras!['resolvedFormat'], 'flac');
+          expect(current(player).positionOffset, Duration.zero);
+          expectNativeMirrorsQueue(handler, player);
+          expect(
+            player.position,
+            greaterThanOrEqualTo(const Duration(milliseconds: 110750)),
+          );
+          expect(player.position, lessThan(const Duration(seconds: 112)));
+          expect(player.playing, isTrue);
+          expect(notices, isEmpty);
+          expect(downloader.starts, starts);
+        },
+      );
+    }
+
+    test('superseded bridge seek reloads only the newest target and clamps the tail', () async {
+      late _GatedSourceResolver resolver;
+      final (handler, player, _, _) = await bridgeHandler(
+        wrap: (base) => resolver = _GatedSourceResolver(base),
+      );
+      resolver
+        ..blockedSongId = 'song-1'
+        ..entered = Completer<void>()
+        ..release = Completer<void>();
+      final loads = player.sourceLoads;
+      final first = handler.seek(target);
+      await resolver.entered!.future;
+      final latest = handler.seek(const Duration(seconds: 180));
+      resolver
+        ..blockedSongId = null
+        ..release!.complete();
+      await Future.wait([first, latest]);
+      await settleQueue(handler);
+      expect(current(player).positionOffset, const Duration(seconds: 179));
+      expect(player.sourceLoads, loads + 1);
+    });
+
+    for (final gate in [
+      'off',
+      'unsupported',
+      'lossy',
+      'transcode',
+      'external',
+    ]) {
+      test('gate $gate keeps existing behavior', () async {
+        final (handler, _, _, _) = await bridgeHandler(
+          enabled: gate != 'off',
+          capable: gate != 'unsupported',
+          lossy: gate == 'lossy',
+          transcode: gate == 'transcode',
+          external: gate == 'external',
+        );
+        await seekTo(handler, target);
+        expect(bridging(handler), isFalse);
+      });
+    }
+  }, skip: !sqliteAvailable);
 
   group('transcode offset seek', () {
     const opus128 = StreamingQuality(

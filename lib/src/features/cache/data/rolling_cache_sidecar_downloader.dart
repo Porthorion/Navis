@@ -15,11 +15,37 @@ class RollingCacheSidecarDownloader {
   final HttpClient Function() _httpClientFactory;
   HttpClient? _activeClient;
   int _generation = 0;
+  Completer<void>? _pauseGate;
+  final Stopwatch _activeTime = Stopwatch();
   String? _activeSongId;
   String? _activeCacheFilePath;
   int? _activeReceivedBytes;
   String? _activePartFilePath;
   void Function()? _activeOnTerminated;
+
+  bool get isPaused => _pauseGate != null;
+
+  double? get activeBytesPerSecond {
+    final bytes = _activeReceivedBytes;
+    final micros = _activeTime.elapsedMicroseconds;
+    if (bytes == null || micros == 0 || (micros < 2000000 && bytes < 65536)) {
+      return null;
+    }
+    return bytes * 1000000 / micros;
+  }
+
+  void pause() {
+    if (_activeSongId == null || isPaused) return;
+    _pauseGate = Completer<void>();
+    _activeTime.stop();
+  }
+
+  void resume() {
+    final gate = _pauseGate;
+    _pauseGate = null;
+    gate?.complete();
+    if ((_activeReceivedBytes ?? 0) > 0) _activeTime.start();
+  }
 
   String? get activeSongId => _activeSongId;
 
@@ -46,6 +72,7 @@ class RollingCacheSidecarDownloader {
     _activeSongId = songId;
     _activeCacheFilePath = cacheFilePath;
     _activeReceivedBytes = 0;
+    _activeTime.reset();
     _activeOnTerminated = onTerminated;
     final client = _httpClientFactory();
     _activeClient = client;
@@ -96,9 +123,13 @@ class RollingCacheSidecarDownloader {
       var received = 0;
       try {
         await for (final chunk in response) {
+          while (_isCurrent(generation) && _pauseGate != null) {
+            await _pauseGate!.future;
+          }
           if (!_isCurrent(generation)) {
             break;
           }
+          if (received == 0) _activeTime.start();
           sink.add(chunk);
           received += chunk.length;
           _activeReceivedBytes = received;
@@ -188,6 +219,8 @@ class RollingCacheSidecarDownloader {
     if (!_isCurrent(generation)) {
       return;
     }
+    resume();
+    _activeTime.stop();
     _activeClient = null;
     _activeSongId = null;
     _activeCacheFilePath = null;

@@ -46,7 +46,9 @@ class ResolvedPlaybackSource {
        lockCachingAudioSource = null,
        sidecarCacheFilePath = null,
        sidecarStreamUri = null,
-       positionOffset = Duration.zero;
+       positionOffset = Duration.zero,
+       bridgeFormat = null,
+       bridgeBitRate = null;
 
   const new lockCachedStream({
     required this.songId,
@@ -58,7 +60,9 @@ class ResolvedPlaybackSource {
        uri = null,
        sidecarCacheFilePath = null,
        sidecarStreamUri = null,
-       positionOffset = Duration.zero;
+       positionOffset = Duration.zero,
+       bridgeFormat = null,
+       bridgeBitRate = null;
 
   const new directStream({
     required this.songId,
@@ -67,6 +71,8 @@ class ResolvedPlaybackSource {
     this.sidecarCacheFilePath,
     this.sidecarStreamUri,
     this.positionOffset = Duration.zero,
+    this.bridgeFormat,
+    this.bridgeBitRate,
     this.cachedFilePath,
   }) : kind = PlaybackSourceKind.directStream,
        lockCachingStreamUri = null,
@@ -95,6 +101,9 @@ class ResolvedPlaybackSource {
   /// How far into the song [uri] starts (a `timeOffset` transcode); zero for
   /// every stream that starts at the beginning.
   final Duration positionOffset;
+
+  final String? bridgeFormat;
+  final int? bridgeBitRate;
   // ignore: experimental_member_use, reason: LockCachingAudioSource is intentionally surfaced so the audio handler can subscribe to cache completion.
   final LockCachingAudioSource? lockCachingAudioSource;
 
@@ -187,19 +196,30 @@ class PlaybackSourceResolver {
   /// Whether the active server accepts `timeOffset` on `stream.view`.
   bool get supportsTranscodeOffset => _readSupportsTranscodeOffset();
 
+  bool get supportsFastSeeking => _readUsesSidecarRollingCache();
+
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
     bool preferLockCaching = true,
     bool allowStreaming = true,
     // Start a server transcode this far into the song (whole seconds). Only
-    // used when the server supports it and the stream is a transcode.
+    // used for supported transcodes or a lossless fast-seek bridge.
     Duration? transcodeOffset,
+    bool fastSeekBridge = false,
   }) async {
     final quality = _readStreamingQuality();
     final streamingMetadata = _resolveStreamingMetadata(
       song: song,
       quality: quality,
     );
+    final offsetSeconds = transcodeOffset?.inSeconds ?? 0;
+    final bridge =
+        fastSeekBridge &&
+        supportsFastSeeking &&
+        !streamingMetadata.isTranscoded &&
+        isLosslessPlaybackFormat(streamingMetadata.format) &&
+        offsetSeconds > 0 &&
+        supportsTranscodeOffset;
     var cachedTrack = await _cacheDao.getCachedTrack(song.id);
     // Startup maintenance reconciles the cache in bulk, but a file can still
     // disappear while Navis is running (manual cleanup, storage pressure, or
@@ -231,8 +251,10 @@ class PlaybackSourceResolver {
                 quality: quality,
                 policy: cachePolicy,
               ));
+    // Recovery keeps an active bridge; explicit seeks use the complete original.
     if (cachedTrack != null &&
         acceptsCache &&
+        (!bridge || cachedTrack.cacheType == CacheType.permanent) &&
         await _cachedLocatorExists(cachedTrack)) {
       if (cachePolicy != null) {
         AppLogger.debug(
@@ -305,11 +327,16 @@ class PlaybackSourceResolver {
       );
     }
     final streamUri = _buildStreamUri(api: api, song: song, quality: quality);
-    final offsetSeconds = transcodeOffset?.inSeconds ?? 0;
-    final offsetUri =
-        offsetSeconds > 0 &&
-            streamingMetadata.isTranscoded &&
-            _readSupportsTranscodeOffset()
+    final offsetUri = bridge
+        ? api.streamUrl(
+            id: song.id,
+            format: 'opus',
+            maxBitRate: 256,
+            timeOffsetSeconds: offsetSeconds,
+          )
+        : offsetSeconds > 0 &&
+              streamingMetadata.isTranscoded &&
+              supportsTranscodeOffset
         ? _buildStreamUri(
             api: api,
             song: song,
@@ -343,6 +370,8 @@ class PlaybackSourceResolver {
         songId: song.id,
         uri: offsetUri ?? streamUri,
         metadata: streamingMetadata,
+        bridgeFormat: bridge ? 'opus' : null,
+        bridgeBitRate: bridge ? 256 : null,
         sidecarCacheFilePath: cacheFile.path,
         sidecarStreamUri: offsetUri == null ? null : streamUri,
         positionOffset: positionOffset,
@@ -733,3 +762,14 @@ bool _readFalse() => false;
 bool _readTrue() => true;
 
 bool _defaultSupportsLockCaching() => !kIsWeb;
+
+/// Whether [format] identifies a lossless original eligible for fast seeking.
+bool isLosslessPlaybackFormat(String? format) => const {
+  'flac',
+  'aif',
+  'wav',
+  'aiff',
+  'ape',
+  'wv',
+  'dsf',
+}.contains(format?.trim().toLowerCase());

@@ -130,6 +130,16 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Fast Seeking on Linux and Windows plays an Opus 256 kbps stream when '
+        'seeking beyond a lossless download on a slow connection. The original '
+        'keeps downloading; seek back into the downloaded part or play the '
+        'song again to return to lossless. Bridge failures fall back to the '
+        'original stream or completed local copy, including downloads that '
+        'finish during recovery. Pausing always lets the original download '
+        'continue. Disable it in Playback settings.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Play now always plays in order; Shuffle shuffles. The shuffle button '
         'still shuffles or restores the current queue at any time.',
         type: ChangelogEntryType.fix,

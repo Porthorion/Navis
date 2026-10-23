@@ -749,6 +749,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     SongsTableData song, {
     required bool preferLockCaching,
     Duration? transcodeOffset,
+    bool fastSeekBridge = false,
   }) async {
     await (_cacheMaintenance ??= _maintainCacheBeforePlayback());
     final startupTrace = _activeStartupTrace;
@@ -765,6 +766,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         song,
         preferLockCaching: effectivePreferLockCaching,
         transcodeOffset: transcodeOffset,
+        fastSeekBridge: fastSeekBridge,
       );
     } on PlaybackSourceUnavailableException {
       rethrow;
@@ -780,6 +782,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         song,
         preferLockCaching: false,
         transcodeOffset: transcodeOffset,
+        fastSeekBridge: fastSeekBridge,
       );
     }
     final item = _mediaItemForSong(song, source: source);
@@ -859,6 +862,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     bool preferLockCaching = true,
     // Open the start song's transcode this far into the song.
     Duration? transcodeOffset,
+    bool fastSeekBridge = false,
     // False once the request that asked for this reload is superseded: its
     // source is then dropped before it stops the playing song.
     bool Function()? isStillWanted,
@@ -896,6 +900,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
           startSong,
           preferLockCaching: preferLockCaching,
           transcodeOffset: transcodeOffset,
+          fastSeekBridge: fastSeekBridge,
         );
       } on PlaybackSourceUnavailableException {
         rethrow;
@@ -911,6 +916,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
           startSong,
           preferLockCaching: false,
           transcodeOffset: transcodeOffset,
+          fastSeekBridge: fastSeekBridge,
         );
       }
     }
@@ -1032,6 +1038,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         startSong,
         preferLockCaching: false,
         transcodeOffset: transcodeOffset,
+        fastSeekBridge: fastSeekBridge,
       );
       _checkQueueWorkCurrent(token, generation);
       _queueItems

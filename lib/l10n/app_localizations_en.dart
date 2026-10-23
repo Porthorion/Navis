@@ -1047,6 +1047,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Report tracks you play to the server (now-playing and play counts). Disable to listen anonymously.';
 
   @override
+  String get playbackSettingsFastSeekingTitle => 'Fast Seeking';
+
+  @override
+  String get playbackSettingsFastSeekingSubtitle =>
+      'Seeking ahead in a lossless song that is still downloading plays a high-quality compressed stream right away. Lossless returns on the next play.';
+
+  @override
   String get playbackSettingsGaplessTitle => 'Enable Gapless Playback';
 
   @override

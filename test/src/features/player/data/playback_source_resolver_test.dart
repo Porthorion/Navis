@@ -98,6 +98,117 @@ void main() {
       return file;
     }
 
+    test(
+      'lossless formats follow inferred suffixes without treating m4a as ALAC',
+      () {
+        expect(isLosslessPlaybackFormat('aif'), isTrue);
+        expect(isLosslessPlaybackFormat('aiff'), isTrue);
+        expect(isLosslessPlaybackFormat('alac'), isFalse);
+        expect(isLosslessPlaybackFormat('m4a'), isFalse);
+      },
+    );
+
+    test(
+      'fast seek bridge preserves the original sidecar and metadata',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'bridge',
+          title: 'Bridge',
+          suffix: 'flac',
+          bitRate: 1000,
+        );
+        final resolver = resolverFor(
+          usesSidecar: () => true,
+          supportsTranscodeOffset: () => true,
+        );
+        final original = await resolver.resolveForSong(song);
+        final bridge = await resolver.resolveForSong(
+          song,
+          transcodeOffset: const Duration(seconds: 90),
+          fastSeekBridge: true,
+        );
+        expect(bridge.uri!.queryParameters, containsPair('format', 'opus'));
+        expect(bridge.uri!.queryParameters, containsPair('maxBitRate', '256'));
+        expect(bridge.uri!.queryParameters, containsPair('timeOffset', '90'));
+        Map<String, String> unsigned(Uri uri) => Map.of(uri.queryParameters)
+          ..remove('s')
+          ..remove('t');
+        expect(bridge.sidecarStreamUri!.path, original.uri!.path);
+        expect(unsigned(bridge.sidecarStreamUri!), unsigned(original.uri!));
+        expect(bridge.sidecarCacheFilePath, original.sidecarCacheFilePath);
+        expect(bridge.metadata.format, 'flac');
+        expect(bridge.metadata.bitRate, 1000);
+        expect(bridge.metadata.isTranscoded, isFalse);
+        expect(bridge.bridgeFormat, 'opus');
+        expect(bridge.bridgeBitRate, 256);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'bridge requests fixed 256 kbps even for a low bitrate lossless original',
+      () async {
+        final song = await _insertSong(
+          database,
+          id: 'quiet',
+          title: 'Quiet',
+          suffix: 'flac',
+          bitRate: 128,
+        );
+        final source =
+            await resolverFor(
+              usesSidecar: () => true,
+              supportsTranscodeOffset: () => true,
+            ).resolveForSong(
+              song,
+              transcodeOffset: const Duration(seconds: 30),
+              fastSeekBridge: true,
+            );
+        expect(source.uri!.queryParameters['maxBitRate'], '256');
+        expect(source.metadata.bitRate, 128);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    for (final gate in [
+      'lossy',
+      'transcoded',
+      'unsupported',
+      'zero',
+      'mobile',
+    ]) {
+      test('fast seek bridge gate: $gate', () async {
+        final song = await _insertSong(
+          database,
+          id: 'gate',
+          title: 'Gate',
+          suffix: gate == 'lossy' ? 'mp3' : 'flac',
+          bitRate: 1000,
+        );
+        final resolver = resolverFor(
+          usesSidecar: () => gate != 'mobile',
+          supportsLockCaching: () => false,
+          supportsTranscodeOffset: () => gate != 'unsupported',
+          quality: () => gate == 'transcoded'
+              ? const StreamingQuality(
+                  label: 'opus',
+                  format: 'opus',
+                  maxBitRate: 128,
+                )
+              : const StreamingQuality(label: 'original'),
+        );
+        final source = await resolver.resolveForSong(
+          song,
+          transcodeOffset: Duration(seconds: gate == 'zero' ? 0 : 90),
+          fastSeekBridge: true,
+        );
+        expect(source.bridgeFormat, isNull);
+        expect(source.bridgeBitRate, isNull);
+        expect(source.uri!.queryParameters['maxBitRate'], isNot('256'));
+      }, skip: !sqliteAvailable);
+    }
+
     test('transcode offset support is off unless the reader says so', () {
       expect(resolverFor().supportsTranscodeOffset, isFalse);
       expect(
