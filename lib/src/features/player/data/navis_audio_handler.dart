@@ -132,6 +132,7 @@ class NavisAudioHandler extends BaseAudioHandler
     this._playerFactory,
     this._queueWindow = const NavisQueueWindow(),
     this._timeouts = const NavisPlaybackTimeouts(),
+    @visibleForTesting this.desktopRuntimeOverride,
     math.Random? shuffleRandom,
   }) : _sidecarDownloader =
            sidecarDownloader ?? RollingCacheSidecarDownloader(),
@@ -212,6 +213,9 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Builds the main player instead of the platform player (tests).
   final AudioPlayer Function()? _playerFactory;
   final NavisPlaybackTimeouts _timeouts;
+  @visibleForTesting
+  final bool? desktopRuntimeOverride;
+  bool get _isDesktopRuntime => desktopRuntimeOverride ?? _isDesktopPlatform;
 
   final Future<NetworkReconciliation> Function()? reconcileNetwork;
 
@@ -786,6 +790,16 @@ class NavisAudioHandler extends BaseAudioHandler
     return _playerFactory?.call() ?? _buildBaseAudioPlayer();
   }
 
+  // Ride out brief outages and leave a reserve for playback recovery.
+  @visibleForTesting
+  static const androidLoadConfiguration = AudioLoadConfiguration(
+    androidLoadControl: AndroidLoadControl(
+      minBufferDuration: Duration(seconds: 180),
+      maxBufferDuration: Duration(seconds: 180),
+      targetBufferBytes: 32 * 1024 * 1024,
+    ),
+  );
+
   AudioPlayer _buildBaseAudioPlayer({AudioPipeline? audioPipeline}) {
     // Pass URLs directly to libmpv so lavf's cache:// protocol gets the
     // original HTTPS stream rather than a local proxy, eliminating the
@@ -793,6 +807,7 @@ class NavisAudioHandler extends BaseAudioHandler
     // is embedded in URL query params so no custom headers are needed.
     return AudioPlayer(
       handleInterruptions: false,
+      audioLoadConfiguration: androidLoadConfiguration,
       audioPipeline: audioPipeline,
       equalizerConfiguration: _equalizerPipelineEnabled
           ? _equalizerMessage(_desiredEqualizer)
@@ -3076,6 +3091,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _disposeHandler() async {
     _disposeHandlerStarted = true;
+    _resumeLockCacheDownloads();
     _focusRetryTimer?.cancel();
     _networkRetryTimer?.cancel();
     final projectionDisposal = _detachNavisAudioServiceHandler(this);

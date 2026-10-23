@@ -4000,9 +4000,14 @@ still permits a later explicit Play.
 Lock-cache origin and range fetches have cancellable 15-second connection and
 header deadlines and a 30-second body-progress deadline. Failed partial files
 are discarded and requests may restart. An origin disconnect or body-progress
-timeout fails in-progress lock-cache streams; the local proxy aborts the
-client connection without a terminating chunk so Media3 reports a load error
-and position-preserving recovery runs instead of advancing early. The URI/header
+timeout fails streams served from the main lock-cache body; independent origin
+ranges keep streaming. Each beyond-cache range has one consumer and owns its
+origin client/subscription. The local response's completion, error or disconnect
+cancels that range; removing or disposing its source cancels every remaining
+range. A range body error aborts its local connection and lets Media3's existing
+known-length retry reopen through the proxy. The proxy aborts failed client
+connections without a terminating chunk so Media3 reports a load error and
+position-preserving recovery runs instead of advancing early. The URI/header
 proxy also aborts origin body errors rather than entering its HTTP/0.9 fallback.
 Short sized bodies fail too; complete bodies close cleanly. Radio keeps native
 retries and the URI proxy has no added body deadline. A later lock-cache request
@@ -4583,6 +4588,24 @@ songs other than the current and next ones are cancelled
 just_audio) and their partial files discarded; desktop already keeps a single
 sidecar download.
 
+While an Android lock-cached song has a live origin range, playback is requested
+and the native forward buffer is under 30 seconds, the current and next songs'
+whole-file downloads pause. The next-song lookup requires the logical queue
+index to still name the current song, including during queue transitions.
+Range activity, native buffer events and the existing position ticks recalculate
+this priority without another timer. Pause, song
+change, queue replacement, Stop, disposal and player retirement release it;
+range completion/failure or a full forward buffer resumes the downloads too.
+Pausing preserves the `.part` prefix and suspends the main body's inactivity
+deadline, which restarts on resume. If the paused main connection later fails,
+the existing cleanup discards its prefix; independent playing ranges survive.
+Ranged main-download resume remains unsupported.
+
+Every Android deck uses a 180-second min/max forward buffer with a 32 MiB
+allocator target and byte thresholds taking priority over time. Playback start
+and rebuffer thresholds remain 2.5 and 5 seconds. This reserve helps ride out
+brief outages; it is per player and does not cap whole-file cache downloads.
+
 The mobile lock-cache proxy rejects a ranged response with an unknown content
 length with HTTP 500 and closes it. It cannot construct a valid `Content-Range`
 without the end byte; returning an error lets ordinary remote-source recovery
@@ -4590,7 +4613,13 @@ retry with direct streaming instead of leaving the native request unanswered.
 Sized ranges and reads from the completed cache file keep their normal responses.
 Unknown-length non-range responses use HTTP chunked framing, including the
 terminal zero-length chunk, so a keep-alive connection cannot hide end-of-stream.
-Empty HTTP 500 responses explicitly send `Content-Length: 0`.
+Empty HTTP 500 responses explicitly send `Content-Length: 0`. The stream proxy
+owns each local socket from acceptance, so a client disconnect cancels its
+origin range even before origin headers arrive or while the body is silent.
+It writes sized/chunked HTTP responses with `Connection: close`, preserves
+header validation and aborts failed bodies without a terminal chunk. Proxy
+shutdown closes its detached sockets. A cancelled range never subscribes to
+its origin body later if its returned stream gains a listener.
 
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. Phase 1 pauses
@@ -4782,11 +4811,23 @@ and account reset cancel them; edits to the same selected occurrence update its
 index. Play/Pause intent is independent of temporary native loading states and
 survives seeking, including commands issued while recovery is in progress.
 
-Native seeks share the queue mutation lane and have the four-second control
-deadline. A stuck call retires its player before later operations can touch the
-engine, then reloads the queue using the existing load/reset deadlines. Listener
-callbacks from retired players are rejected. Settlement probes are scoped to the
-current request and confirm both forward and backward seeks within two seconds
+Native seeks share the queue mutation lane. Desktop retains the four-second
+control deadline. Mobile starts with the same deadline but extends while body
+bytes (including independent range fetches) or native buffer growth arrive during
+loading/buffering: eight seconds without progress ends the extension, with a
+45-second absolute cap. Range bytes are deadline evidence only and never inflate
+the contiguous cached-playable extent. A stuck call retires its player before
+later operations can touch the engine, then reloads the queue using the existing
+load/reset deadlines. A superseding seek cancels the old progress wait and
+releases the queue lane, including for a new target in the same song; it keeps
+the engine and lock cache without bypass, recovery or a reload anomaly. Load
+generation changes still retire the old engine. A genuine timeout cancels the
+retired player's current lock-cache download and ranges before its native Stop
+or the bypass reload, so a hung Stop cannot keep those connections alive.
+Retirement also removes that source's progress subscription, cache activity and
+received-byte tracking, so the current song cannot retain a stale caching status.
+Listener callbacks from retired players are rejected. Settlement probes are
+scoped to the current request and confirm both forward and backward seeks within two seconds
 of the target. While a backend waits for data its processing state can flap
 between ready and buffering several times a second, so settlement rests on the
 native position: a playing request is settled once the position advances from

@@ -39,14 +39,22 @@ length with HTTP 500 instead of dereferencing null while constructing
 `Content-Range`. Navis can then recover the remote source; completed cache reads
 still provide sized ranges.
 
-The stream proxy restores chunked framing for unknown-length bodies and explicitly sends `Content-Length: 0` for empty HTTP 500 responses after clearing headers (#86).
+The stream proxy restores chunked framing for unknown-length bodies and
+explicitly sends `Content-Length: 0` for empty HTTP 500 responses (#86). It
+owns each local socket from acceptance, monitoring its read side independently
+of origin headers or body activity. A disconnect cancels only that request's
+pending/live origin range. Request-scoped cancellation follows virtual
+`StreamAudioSource.request` overrides through a Dart zone without changing the
+public API. Proxy shutdown closes its detached sockets. A range cancelled
+before its returned stream is listened to never subscribes to the closed origin.
+Sized and chunked responses use `Connection: close`; raw header field values
+retain `HttpHeaders` validation and sized bodies retain length checks.
 
 Lock-cache origin disconnects and the existing 30-second body-progress timeout
 discard partial files and fail in-progress response streams. The stream proxy
-uses `HttpResponse.addStream` to propagate errors, then aborts the connection
-with `HttpResponse.deadline = Duration.zero` instead of sending clean EOF (#86).
-Detaching is unavailable after headers have been sent. The URI/header proxy
-also aborts body errors, including short sized responses, without retrying them
+uses `Socket.addStream` to propagate errors and destroys the connection without
+sending a terminating chunk instead of publishing clean EOF (#86). The URI/header
+proxy also aborts body errors, including short sized responses, without retrying them
 as HTTP/0.9. Its raw HTTP/0.9 fallback destroys both sockets on read errors;
 normal EOF remains valid for that unframed protocol. Complete bodies still
 close cleanly, and radio retains native retries and no added body timeout.
