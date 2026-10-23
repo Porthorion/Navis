@@ -2,8 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
 import 'package:path/path.dart' as p;
+
+class _MockHttpClient extends Mock implements HttpClient {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +76,7 @@ void main() {
             request.response.statusCode = HttpStatus.partialContent;
             request.response.headers
               ..contentLength = bytes.length - 65536
+              ..set(HttpHeaders.etagHeader, '"original"')
               ..set(
                 'content-range',
                 'bytes 65536-${bytes.length - 1}/${bytes.length}',
@@ -184,6 +188,173 @@ void main() {
         expect(terminated, 1);
         expect(tempDir.listSync(), isEmpty);
       });
+    }
+
+    for (final header in [
+      HttpHeaders.etagHeader,
+      HttpHeaders.lastModifiedHeader,
+    ]) {
+      for (final missing in [false, true]) {
+        test(
+          'abandons a resume with ${missing ? 'missing' : 'changed'} $header',
+          () async {
+            final original = header == HttpHeaders.etagHeader
+                ? '"original"'
+                : 'Wed, 21 Oct 2015 07:28:00 GMT';
+            var requests = 0;
+            final origin = await serve((request) async {
+              requests++;
+              if (requests == 1) {
+                request.response.headers
+                  ..contentLength = bytes.length
+                  ..set(header, original);
+                await cut(request.response, bytes.sublist(0, 65536));
+              } else {
+                expect(
+                  request.headers.value(HttpHeaders.ifRangeHeader),
+                  original,
+                );
+                request.response.statusCode = HttpStatus.partialContent;
+                request.response.headers
+                  ..contentLength = bytes.length - 65536
+                  ..set(
+                    HttpHeaders.contentRangeHeader,
+                    'bytes 65536-${bytes.length - 1}/${bytes.length}',
+                  );
+                if (!missing) {
+                  request.response.headers.set(
+                    header,
+                    header == HttpHeaders.etagHeader
+                        ? '"replacement"'
+                        : 'Thu, 22 Oct 2015 07:28:00 GMT',
+                  );
+                }
+                request.response.add(
+                  List<int>.filled(bytes.length - 65536, 255),
+                );
+                await request.response.close();
+              }
+            });
+            final downloader = RollingCacheSidecarDownloader();
+            addTearDown(downloader.dispose);
+            var completed = 0;
+            var terminated = 0;
+            await downloader.start(
+              songId: 'validator',
+              uri: Uri.parse('http://127.0.0.1:${origin.port}/audio'),
+              cacheFilePath: p.join(tempDir.path, 'validator.flac'),
+              onProgress: (_) {},
+              onComplete: (_) async => completed++,
+              onTerminated: () => terminated++,
+            );
+            expect(requests, 2);
+            expect(completed, 0);
+            expect(terminated, 1);
+            expect(tempDir.listSync(), isEmpty);
+          },
+        );
+      }
+    }
+
+    test('Accept-Ranges none abandons a cut without retrying', () async {
+      var requests = 0;
+      final origin = await serve((request) async {
+        requests++;
+        request.response.headers
+          ..contentLength = bytes.length
+          ..set(HttpHeaders.acceptRangesHeader, 'none');
+        await cut(request.response, bytes.sublist(0, 65536));
+      });
+      final downloader = RollingCacheSidecarDownloader();
+      addTearDown(downloader.dispose);
+      var completed = 0;
+      var terminated = 0;
+      await downloader.start(
+        songId: 'no-ranges',
+        uri: Uri.parse('http://127.0.0.1:${origin.port}/audio'),
+        cacheFilePath: p.join(tempDir.path, 'no-ranges.flac'),
+        onProgress: (_) {},
+        onComplete: (_) async => completed++,
+        onTerminated: () => terminated++,
+      );
+      expect(requests, 1);
+      expect(completed, 0);
+      expect(terminated, 1);
+      expect(tempDir.listSync(), isEmpty);
+    });
+
+    for (final error in [
+      const HandshakeException('resume connect failed'),
+      const TlsException('resume connect failed'),
+    ]) {
+      for (final exhausted in [false, true]) {
+        test(
+          '${error.runtimeType} on resume ${exhausted ? 'exhausts the same budget' : 'retries the same prefix'}',
+          () async {
+            var requests = 0;
+            final origin = await serve((request) async {
+              requests++;
+              if (requests == 1) {
+                request.response.contentLength = bytes.length;
+                await cut(request.response, bytes.sublist(0, 65536));
+              } else {
+                expect(
+                  request.headers.value(HttpHeaders.rangeHeader),
+                  'bytes=65536-',
+                );
+                request.response.statusCode = HttpStatus.partialContent;
+                request.response.headers
+                  ..contentLength = bytes.length - 65536
+                  ..set(
+                    HttpHeaders.contentRangeHeader,
+                    'bytes 65536-${bytes.length - 1}/${bytes.length}',
+                  );
+                request.response.add(bytes.sublist(65536));
+                await request.response.close();
+              }
+            });
+            final uri = Uri.parse('http://127.0.0.1:${origin.port}/audio');
+            final realClient = HttpClient();
+            addTearDown(() => realClient.close(force: true));
+            final client = _MockHttpClient();
+            var connections = 0;
+            when(() => client.getUrl(uri)).thenAnswer((_) async {
+              connections++;
+              if (connections > 1 && (exhausted || connections == 2)) {
+                throw error;
+              }
+              return realClient.getUrl(uri);
+            });
+            when(() => client.close(force: true)).thenAnswer((_) {
+              realClient.close(force: true);
+            });
+            final downloader = RollingCacheSidecarDownloader(
+              httpClientFactory: () => client,
+            );
+            addTearDown(downloader.dispose);
+            final file = File(p.join(tempDir.path, 'tls.flac'));
+            var completed = 0;
+            var terminated = 0;
+            await downloader.start(
+              songId: 'tls',
+              uri: uri,
+              cacheFilePath: file.path,
+              onProgress: (_) {},
+              onComplete: (_) async => completed++,
+              onTerminated: () => terminated++,
+            );
+            expect(connections, exhausted ? 4 : 3);
+            expect(requests, exhausted ? 1 : 2);
+            expect(completed, exhausted ? 0 : 1);
+            expect(terminated, 1);
+            if (exhausted) {
+              expect(tempDir.listSync(), isEmpty);
+            } else {
+              expect(file.readAsBytesSync(), bytes);
+            }
+          },
+        );
+      }
     }
 
     for (final exhausted in [false, true]) {
@@ -394,6 +565,7 @@ void main() {
           request.response.statusCode = HttpStatus.partialContent;
           request.response.headers
             ..contentLength = bytes.length - 65536
+            ..set(HttpHeaders.lastModifiedHeader, modified)
             ..set(
               'content-range',
               'bytes 65536-${bytes.length - 1}/${bytes.length}',
