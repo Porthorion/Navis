@@ -225,6 +225,7 @@ extension _NavisMediaSession on NavisAudioHandler {
 
     _playbackEventSubscription = _player.playbackEventStream.listen((event) {
       if (!identical(_player, wiredPlayer)) return;
+      _captureTranscodeEndOccurrence();
       _recordAnomalyPlaybackEvent(event);
       if (_player.playing) _onPlayerPlaying();
       // just_audio 0.10 reports native failures as event data. Repeated idle
@@ -306,7 +307,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       index,
     ) async {
       // Let a same-turn discontinuity claim a cut before publishing its successor.
-      await Future<void>.value();
+      if (_isDesktopRuntime) await Future<void>.value();
       if (_prematureTranscodeDeparture != null ||
           !identical(_player, wiredPlayer) ||
           index != wiredPlayer.currentIndex) {
@@ -361,6 +362,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         // known item during transient index gaps so UI metadata stays stable.
         _setCurrentMediaItem(null);
       }
+      _captureTranscodeEndOccurrence(indexEvent: true);
       _updateScrobbleSession(item, currentIndex: resolved.currentIndex);
       _applyReplayGainVolume();
       _broadcastPlaybackState();
@@ -408,6 +410,7 @@ extension _NavisMediaSession on NavisAudioHandler {
             _positionController.add(position);
             _lastPositionEmitAt = DateTime.now();
           }
+          _captureTranscodeEndOccurrence();
           _observePlaybackAdvance();
           _observeAnomalyPosition(position);
           // Paused edits may wait longer than the controller's bounded refresh

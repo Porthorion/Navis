@@ -416,10 +416,7 @@ extension _NavisRecovery on NavisAudioHandler {
         _disposeHandlerStarted) {
       return;
     }
-    if (_retryPrematureTranscodeEnd(
-      discontinuity.previousEvent.currentIndex,
-      discontinuity.previousEvent.updatePosition,
-    )) {
+    if (_retryPrematureTranscodeEnd(discontinuity.previousEvent)) {
       return;
     }
     // A loop or an advance starts a new occurrence: the player's buffered
@@ -443,9 +440,54 @@ extension _NavisRecovery on NavisAudioHandler {
     }
   }
 
+  void _invalidateTranscodeEndOccurrence() {
+    _transcodeEndOccurrence = null;
+    _transcodeEndInvalidatedAt = DateTime.now();
+  }
+
+  void _captureTranscodeEndOccurrence({bool indexEvent = false}) {
+    if (!_isDesktopRuntime || _prematureTranscodeDeparture != null) return;
+    final event = _player.playbackEvent;
+    final index = event.currentIndex;
+    final invalidated = _transcodeEndInvalidatedAt;
+    if (index == null ||
+        event.processingState == ProcessingState.completed ||
+        (invalidated != null && !event.updateTime.isAfter(invalidated)) ||
+        !_sequenceMatchesQueue(_player)) {
+      return;
+    }
+    final source = _player.sequence.elementAtOrNull(index);
+    final item = _queueItems.elementAtOrNull(index);
+    if (source == null ||
+        item == null ||
+        (!indexEvent &&
+            _transcodeEndOccurrence != null &&
+            !identical(source, _transcodeEndOccurrence?.source))) {
+      return;
+    }
+    _transcodeEndOccurrence = (
+      index: index,
+      source: source,
+      item: item,
+      position: event.updatePosition,
+      updateTime: event.updateTime,
+    );
+  }
+
+  int _departedQueueIndex(MediaItem item) {
+    final departure = _prematureTranscodeDeparture;
+    return departure != null && identical(departure.item, item)
+        ? _player.sequence.indexOf(departure.source)
+        : -1;
+  }
+
   /// A transcode can report a clean EOF after a connection cut. Judge its
   /// departed occurrence against server metadata, never the truncated duration.
-  bool _retryPrematureTranscodeEnd(int? index, Duration position) {
+  bool _retryPrematureTranscodeEnd(PlaybackEvent previousEvent) {
+    final occurrence = _transcodeEndOccurrence;
+    final index = previousEvent.currentIndex;
+    // ponytail: cuts during background tail release/trim/fill keep normal EOF
+    // behavior; revisit if recovery must wait for a busy queue lane.
     if (!_isDesktopRuntime ||
         _disposeHandlerStarted ||
         _isLoading ||
@@ -463,9 +505,21 @@ extension _NavisRecovery on NavisAudioHandler {
         index >= _queueItems.length) {
       return false;
     }
-    // The index belongs to the departure, not an already-edited queue.
-    final item = _currentMediaItem;
-    if (item == null || !identical(item, _queueItems[index])) return false;
+    final invalidated = _transcodeEndInvalidatedAt;
+    if (occurrence == null ||
+        occurrence.index != index ||
+        (invalidated != null &&
+            !previousEvent.updateTime.isAfter(invalidated)) ||
+        !identical(
+          occurrence.source,
+          _player.sequence.elementAtOrNull(index),
+        )) {
+      return false;
+    }
+    final item = occurrence.item;
+    final position = previousEvent.updateTime.isBefore(occurrence.updateTime)
+        ? occurrence.position
+        : previousEvent.updatePosition;
     final kind = item.extras?['sourceKind'];
     final duration = item.duration;
     // ponytail: metadata-only EOF detection; add native cut evidence if server
@@ -484,7 +538,12 @@ extension _NavisRecovery on NavisAudioHandler {
         )) {
       return false;
     }
-    _prematureTranscodeDeparture = (item: item, playing: _requestedPlaying);
+    _prematureTranscodeDeparture = (
+      item: item,
+      source: occurrence.source,
+      playing: _requestedPlaying,
+      sourceReady: false,
+    );
     _continuingIntoDeferredTail = true;
     unawaited(
       _retryRemotePlayback(
@@ -498,6 +557,7 @@ extension _NavisRecovery on NavisAudioHandler {
       ).whenComplete(() {
         if (identical(_prematureTranscodeDeparture?.item, item)) {
           _prematureTranscodeDeparture = null;
+          _captureTranscodeEndOccurrence(indexEvent: true);
         }
         _continuingIntoDeferredTail = false;
         _handleScrobbleSignals();
@@ -982,7 +1042,7 @@ extension _NavisRecovery on NavisAudioHandler {
     } else {
       final expectedIndex = departedItem == null
           ? metadata.currentIndex
-          : _queueItems.indexWhere((item) => identical(item, departedItem));
+          : _departedQueueIndex(departedItem);
       if (expectedIndex == null ||
           expectedIndex < 0 ||
           expectedIndex >= _queueItems.length ||
@@ -1039,7 +1099,7 @@ extension _NavisRecovery on NavisAudioHandler {
         final capture = (
           index: departedItem == null
               ? _player.currentIndex
-              : _queueItems.indexWhere((item) => identical(item, departedItem)),
+              : _departedQueueIndex(departedItem),
           position: departedItem == null ? _player.position : position,
           playing: _player.playing,
         );
@@ -1084,7 +1144,7 @@ extension _NavisRecovery on NavisAudioHandler {
         } else {
           final materialisedIndex = departedItem == null
               ? _resolveCurrentQueueMetadata().currentIndex
-              : _queueItems.indexWhere((item) => identical(item, departedItem));
+              : _departedQueueIndex(departedItem);
           if (materialisedIndex == null ||
               materialisedIndex < 0 ||
               materialisedIndex >= _queueItems.length ||
@@ -1291,6 +1351,15 @@ extension _NavisRecovery on NavisAudioHandler {
         );
       }
       if (!current()) return;
+    }
+    final departure = _prematureTranscodeDeparture;
+    if (departure != null && seekRequest?.isRemoteRecovery == true) {
+      _prematureTranscodeDeparture = (
+        item: departure.item,
+        source: departure.source,
+        playing: departure.playing,
+        sourceReady: true,
+      );
     }
     if (seekRequest == null ? autoPlay : _requestedPlaying) {
       unawaited(_playWithFocusRecovery());

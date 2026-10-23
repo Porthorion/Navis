@@ -60,6 +60,29 @@ Last updated: 2026-10-24
   exits 0 with no errors/warnings; all 23 infos map to unchanged lines in `03393250`.
   `./tool/dart_format.sh --check` reports
   `Formatted 1113 files (0 changed) in 5.97 seconds.`
+  Round 3, 2026-10-24: eight regressions were committed before their fixes in
+  `29fffb21` and `5dd74355`. The seven review reproductions failed with
+  `00:12 +31 -7: Some tests failed.`; an additional Play-after-reopen boundary
+  regression failed with `00:00 +0 -1: Some tests failed.` Native source identity,
+  source metadata and backend position now identify the departed occurrence
+  across artwork copies and duplicate songs. Queue edits invalidate that capture
+  at both ends; backend timestamps also reject departures recorded before the
+  edit, after its lane releases. Play during source resolution only records
+  intent, including the completed-last-song case and Pause→Play; once the new
+  source is ready, Play resumes it normally while seek settlement is pending.
+  The index listener's one-microtask yield is now desktop-only, and the
+  architecture documents same-turn ordering rather than arbitrary event order.
+  The accepted busy-lane tail release/trim/fill ceiling is recorded at the lane
+  guard. Focused recovery tests pass `00:06 +39: All tests passed!` Scoped
+  `dart analyze` exits 0 with no errors/warnings; all 23 infos map to unchanged
+  lines in `4d5516d3`. `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 7.10 seconds.` The final foreground
+  rerun covers the nine round-2 suites plus `playback_art_cache_test.dart`:
+  `08:07 +959: All tests passed!` All eight new regressions pass. Heavy commands
+  used the required 8 GiB cap; the final suite exits 0 with zero OOM kills.
+  `git diff --check` passes. `./tool/bootstrap.sh` completed. No apps, emulators
+  or VMs were launched, and no task-owned background jobs remain. Runtime and
+  `./tool/check.sh` remain coordinator-owned under the build brief.
   AI implementation and self-review: T3 Code/Codex, gpt-6.1-sol. No native
   performance or audible-continuity claim is recorded.
 - [ ] Issue #86, item 11a PR A Android seek bandwidth — implementation complete

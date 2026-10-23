@@ -4063,18 +4063,28 @@ support, consumes the same song/transport-generation retry allowance and reopens
 that occurrence at its whole-second song position. Healthy play before the cut
 does not excuse the premature end; the existing healthy-play renewal still
 applies after recovery. Native duration and the interpolated desktop clock do
-not establish the departure position. Detection requires the departed queue
-entry to remain the handler's current occurrence and the queue lane to be idle;
-remove, insert and move events cannot classify an edited queue entry as a cut.
+not establish the departure position. Position/index events capture the native
+source occurrence, its source metadata and last backend position. Artwork
+refreshes can replace `MediaItem` copies without changing that occurrence;
+duplicated songs remain distinct native sources. Queue edits, replacements and
+explicit navigation invalidate the capture, including delayed discontinuities
+whose previous backend event predates the edit. Detection requires the queue
+lane to be idle; a cut during background tail release, trim or fill keeps normal
+EOF behavior.
 On classification the native player pauses before source resolution, and the
 departed occurrence keeps metadata authority and its existing scrobble/history
 session. Successor index events cannot publish a new session, Now Playing or
 history entry; a last-item cut cannot submit a completion scrobble or publish
-completed state. These rules hold whether discontinuity or index arrives first.
-Queue completion and deferred continuation wait while recovery runs. A newer
-seek, skip or Pause retains ownership; if a seek arrives while the departed
-occurrence is resolving, that occurrence loads
-before the newer seek applies. Failed reopen uses the existing bounded silent
+completed state. Desktop index events yield one microtask so a same-turn
+index/discontinuity pair works in either order; real just_audio emits the
+discontinuity first. Android keeps its immediate index handling. Queue
+completion and deferred continuation wait while recovery runs. Play during
+resolution only records the latest play intent, without starting the successor
+or restarting a completed queue; the reopened occurrence honours that intent.
+Once its source is ready, Play resumes it normally while seek settlement runs.
+A newer seek, skip or Pause retains ownership; if a seek arrives while the
+departed occurrence is resolving, that occurrence loads before the newer seek
+applies. Failed reopen uses the existing bounded silent
 failover. Exhausted retries, original streams, unknown durations, ends within
 10 seconds of metadata duration and unsupported servers keep normal end behavior.
 Active crossfades are excluded. This metadata heuristic can also retry a real

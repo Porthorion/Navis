@@ -225,7 +225,12 @@ extension _NavisQueueEditing on NavisAudioHandler {
             return;
           }
           ran = token;
-          await edit(token);
+          _invalidateTranscodeEndOccurrence();
+          try {
+            await edit(token);
+          } finally {
+            _invalidateTranscodeEndOccurrence();
+          }
         });
       } on Object catch (error, stackTrace) {
         _requeuedQueueEdits.remove(sequence);
