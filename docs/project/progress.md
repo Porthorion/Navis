@@ -39,6 +39,21 @@ Last updated: 2026-10-23
   Native Linux cut/sha/bridge proof, independent review and `./tool/check.sh`
   remain coordinator-owned per the build brief; no app, emulator, VM or app
   build was launched. AI implementation and tests: Codex gpt-6.1-sol.
+  Round-2 review fixes require the selected strong ETag or Last-Modified on
+  every continuation, honor `Accept-Ranges: none`, and retry TLS/handshake
+  reconnect errors within the existing budget. Nine new regression cases
+  cover missing/changed validators, range refusal, and transient/exhausted
+  TLS reconnects. Test-first evidence: `00:42 +21 -7: Some tests failed.`
+  before the implementation fix; the failing tests were committed separately.
+  Round-2 validation: downloader plus cache manager, source resolver, cached
+  extent and full handler navigation suites pass (`07:55 +836: All tests
+  passed!`). The final downloader-only rerun passes all 36 cases (`00:58 +36:
+  All tests passed!`), including all nine new cases. `dart analyze` on the
+  three touched Dart files reports `No issues found!`; the repository format
+  check passes (1113 files, zero changes), and `git diff --check` passes.
+  Foreground runs stayed under the requested cap with zero OOM kills and no
+  pending jobs. Runtime validation and `./tool/check.sh` remain with the
+  coordinator; no change to the plan or open implementation question.
 - [ ] Issue #86, item 10 Fast Seeking — implementation on `fix/fast-seeking`:
   Linux/Windows lossless-to-Opus seek bridge, original-only sidecar caching,
   backpressure during bridge buffering, lossless upgrades, settings and schema

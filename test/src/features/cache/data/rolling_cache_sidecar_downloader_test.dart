@@ -6,7 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
 import 'package:path/path.dart' as p;
 
-class _MockHttpClient extends Mock implements HttpClient {}
+class _MockHttpClient extends Mock implements HttpClient;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -323,7 +323,7 @@ void main() {
               if (connections > 1 && (exhausted || connections == 2)) {
                 throw error;
               }
-              return realClient.getUrl(uri);
+              return await realClient.getUrl(uri);
             });
             when(() => client.close(force: true)).thenAnswer((_) {
               realClient.close(force: true);

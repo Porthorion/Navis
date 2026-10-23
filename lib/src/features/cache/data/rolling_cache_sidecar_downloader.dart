@@ -135,11 +135,16 @@ class RollingCacheSidecarDownloader {
       final encoding = response.headers.value(
         HttpHeaders.contentEncodingHeader,
       );
-      // ponytail: without validators, same-length replacements go undetected;
-      // require validators when origins replace originals in place.
+      // ponytail: validator-less origins can replace same-length originals;
+      // require origin validators to detect replacements; supplied ones must match.
       final canResume =
           !isTranscoded &&
           contentLength > 0 &&
+          response.headers
+                  .value(HttpHeaders.acceptRangesHeader)
+                  ?.trim()
+                  .toLowerCase() !=
+              'none' &&
           response.compressionState ==
               HttpClientResponseCompressionState.notCompressed;
       final sink = partFile.openWrite();
@@ -177,6 +182,9 @@ class RollingCacheSidecarDownloader {
                       response.contentLength != contentLength - received) ||
                   response.headers.value(HttpHeaders.contentEncodingHeader) !=
                       encoding ||
+                  (validator != null &&
+                      (validator == etag ? resumedEtag : resumedModified) !=
+                          validator) ||
                   (etag != null &&
                       resumedEtag != null &&
                       resumedEtag != etag) ||
@@ -220,7 +228,9 @@ class RollingCacheSidecarDownloader {
                 !canResume ||
                 received >= contentLength ||
                 retries >= 3 ||
-                (error is! HttpException && error is! SocketException)) {
+                (error is! HttpException &&
+                    error is! SocketException &&
+                    error is! TlsException)) {
               rethrow;
             }
           }

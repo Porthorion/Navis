@@ -6088,8 +6088,11 @@ download naming throws when all 100 collision candidates are occupied.
    connection, it keeps the same contiguous part file and requests the rest with
    `Range` and, when available, a strong ETag or Last-Modified `If-Range`.
    Only an exact `206 Content-Range` continuation with the original total and
-   compatible validators/encoding is appended; `200`, `416` and mismatches
-   discard the part. Retries wait 1, 2 and 4 seconds, with the budget renewed
+   compatible encoding is appended. When `If-Range` uses a strong ETag or
+   Last-Modified, the continuation must repeat that exact validator; a missing
+   or changed validator, `200`, `416` and mismatches discard the part.
+   `Accept-Ranges: none` disables resume. Reconnect TLS/handshake failures use
+   the same retry budget. Retries wait 1, 2 and 4 seconds, with the budget renewed
    after 256 KiB of new data. Backoff and reconnect obey the bridge pause gate
    and cancellation, and do not count toward the active transfer rate. Progress
    stays cumulative, publication requires the full length, and termination is
