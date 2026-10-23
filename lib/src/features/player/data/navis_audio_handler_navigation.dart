@@ -11,6 +11,7 @@ extension _NavisNavigation on NavisAudioHandler {
       _seekLane.cancelCurrent();
       _cancelPendingSeek();
     }
+    _resumeLockCacheDownloads();
     _focusRetryTimer?.cancel();
     _focusDeniedGeneration = null;
     _focusRetries = 0;

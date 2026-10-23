@@ -14,6 +14,54 @@ Last updated: 2026-10-23
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 11a PR A Android seek bandwidth — implementation complete
+  on `fix/android-seek-bandwidth`, 2026-10-23; native runtime acceptance,
+  independent reviews and `./tool/check.sh` remain coordinator-owned under the
+  build brief. Beyond-cache ranges own their client/subscription and close
+  with their proxy consumer or source removal/disposal. A main-fetch cut leaves
+  independent ranges alive. Main pause/resume preserves the prefix and suspends
+  body inactivity; Android playback ranges with under 30 seconds buffered ahead
+  pause the current and next whole-file downloads. Mobile native seek waits
+  count range bytes and buffer growth with idle/hard caps; desktop stays fixed.
+  Every Android deck receives the 180-second / 32 MiB reserve with unchanged
+  2.5-second start and 5-second rebuffer thresholds.
+  Review round 2 fixes early-cancel late-listener errors, silent client
+  disconnects before range headers/during stalled bodies, unnecessary engine
+  retirement on seek supersession, retired range lifetime behind a hung native
+  Stop and next-song priority during queue-index mismatch. Superseded seeks
+  release the lane while retaining their engine/cache with no bypass/reload;
+  load-generation changes and real stalls retain engine retirement. The stream
+  proxy owns sockets from acceptance, preserves virtual source overrides and
+  validates and frames sized/chunked responses, including interrupted bodies.
+  Evidence: six regressions failed before repair and were committed first in
+  `7bfe2493`; six additional framing cases cover exact/chunked/short/oversized
+  bodies, absent MIME metadata and header injection. `./tool/bootstrap.sh`
+  completed. `dart analyze` on all six touched Dart files exits 0 without
+  errors/warnings; all 27 infos map to unchanged lines in `27af9a6a`.
+  Final foreground `flutter test --concurrency=4 --timeout 60s --reporter expanded`
+  passed navigation, source resolver, playback lanes, lock-cache, position-offset,
+  media-kit seek and deferred-seek suites (`07:45 +866: All tests passed!`).
+  The remaining handler rules suite plus a final lock-cache rerun passed
+  (`00:08 +95: All tests passed!`). `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 5.80 seconds.` `git diff --check` passes.
+  Heavy commands used the required 8 GiB cap with zero OOM kills; no task-owned
+  background jobs, apps, emulators or VMs remain. No PR B implementation,
+  dependencies or version change: 1.5.1 is already pending. AI implementation
+  and self-review: T3 Code/Codex, gpt-6.1-sol; no independent review or native
+  performance claim is recorded.
+  Review round 3 clears a retired current source's progress subscription,
+  tracked source, received bytes and caching activity before native Stop or
+  bypass reload. A test first reproduced the stale 40% activity without a song
+  change (`2c9f279c`), then passed after cleanup. The proxy's read-EOF policy
+  stays unchanged; its `ponytail:` comment records the half-closing-client limit
+  and the write-failure/grace-period upgrade path. Foreground validation:
+  navigation and lock-cache suites: `07:44 +778: All tests passed!`; scoped
+  `dart analyze` exits 0
+  with no errors/warnings and 26 infos verified against unchanged lines.
+  `./tool/dart_format.sh` formatted 1113 files (only the new test changed);
+  `git diff --check` passes. Bootstrap completed; all heavy commands used the
+  8 GiB cap with zero OOM kills. Runtime acceptance and `./tool/check.sh`
+  remain coordinator-owned; no apps, emulators, VMs or background jobs ran.
 - [ ] Issue #86, item 11a, desktop sidecar Range resume — implementation
   complete on `fix/sidecar-range-resume`, 2026-10-23; coordinator acceptance
   pending. Known-length, uncompressed originals retain their generation-owned
