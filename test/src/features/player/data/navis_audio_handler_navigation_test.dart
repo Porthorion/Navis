@@ -22,7 +22,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/services.dart';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8638,7 +8638,7 @@ void main() {
               ),
             ]);
             await handler.replaceQueue(
-              [duplicate ? 'song-1' : 'song-0', 'song-1', 'song-2'],
+              [if (duplicate) 'song-1' else 'song-0', 'song-1', 'song-2'],
               startIndex: 1,
               expandMatchFlows: false,
             );
@@ -8705,15 +8705,18 @@ void main() {
                 ..entered = Completer<void>()
                 ..release = Completer<void>();
               addTearDown(() {
-                if (!resolver.release!.isCompleted)
+                if (!resolver.release!.isCompleted) {
                   resolver.release!.complete();
+                }
               });
               final loads = player.sourceLoads;
               player.finishCurrentTrack(
                 endPosition: const Duration(seconds: 47),
               );
               await until(() => resolver.entered!.isCompleted);
-              if (pauseFirst) await handler.pause();
+              if (pauseFirst) {
+                await handler.pause();
+              }
               final plays = player.playedFrom.length;
 
               await handler.play();
@@ -8739,6 +8742,26 @@ void main() {
           );
         }
       }
+
+      test(
+        'Play resumes a reopened source while settlement is pending',
+        () async {
+          final (handler, player) = await setup();
+          final loads = player.sourceLoads;
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => player.sourceLoads > loads && player.playing);
+          expect(handler.snapshot.pendingSeekPosition, isNotNull);
+          await handler.pause();
+          final plays = player.playedFrom.length;
+
+          await handler.play();
+          expect(player.playedFrom.length, plays + 1);
+          expect(player.audibleSongId, 'song-1');
+          await drain(handler);
+          await until(() => handler.snapshot.pendingSeekPosition == null);
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+        },
+      );
 
       for (final edit in [
         'remove current',
