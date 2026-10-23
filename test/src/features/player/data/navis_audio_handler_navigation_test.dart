@@ -8743,6 +8743,125 @@ void main() {
         }
       }
 
+      for (final last in [false, true]) {
+        for (final play in [true, false]) {
+          test(
+            'failed cut resolution keeps failover after ${play ? 'Play' : 'Pause'} (last: $last)',
+            () async {
+              late _GatedSourceResolver resolver;
+              final (handler, player) = await setup(
+                last: last,
+                wrap: (base) => resolver = _GatedSourceResolver(base),
+              );
+              resolver
+                ..blockedSongId = 'song-1'
+                ..entered = Completer<void>()
+                ..release = Completer<void>()
+                ..failure = StateError('source unavailable');
+              addTearDown(() {
+                if (!resolver.release!.isCompleted) resolver.release!.complete();
+              });
+              player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+              await until(() => resolver.entered!.isCompleted);
+
+              if (play) {
+                await handler.play();
+              } else {
+                await handler.pause();
+              }
+              resolver.release!.complete();
+              await drain(handler);
+
+              expect(lastSeekEvent(handler)['outcome'], 'skipped');
+              expect(handler.snapshot.currentSongId, last ? 'song-1' : 'song-2');
+              expect(player.playing, play && !last);
+              if (last && play) {
+                resolver.blockedSongId = null;
+                await handler.play();
+                await drain(handler);
+                expect(player.playing, isTrue);
+                expect(handler.snapshot.currentSongId, 'song-1');
+              }
+            },
+          );
+
+          test(
+            'unbuilt cut recovery keeps failover after ${play ? 'Play' : 'Pause'} (last: $last)',
+            () async {
+              final (handler, player) = await setup(last: last);
+              final entered = Completer<void>();
+              final release = Completer<void>();
+              player
+                ..pauseGate = release
+                ..pauseEntered = entered;
+              addTearDown(() {
+                if (!release.isCompleted) release.complete();
+              });
+              player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+              await until(() => entered.isCompleted);
+              if (play) {
+                await handler.play();
+              } else {
+                await handler.pause();
+              }
+              // Native lost the departed source before the rebuild could find it.
+              player._sources.clear();
+              release.complete();
+              await drain(handler);
+
+              expect(lastSeekEvent(handler)['outcome'], 'skipped');
+              expect(handler.snapshot.currentSongId, last ? 'song-1' : 'song-2');
+              expect(player.playing, play && !last);
+              if (last && play) {
+                await handler.play();
+                await drain(handler);
+                expect(player.playing, isTrue);
+                expect(handler.snapshot.currentSongId, 'song-1');
+              }
+            },
+          );
+        }
+      }
+
+      test('audio-focus regain defers Play during cut resolution', () async {
+        late _GatedSourceResolver resolver;
+        final (handler, player) = await setup(
+          wrap: (base) => resolver = _GatedSourceResolver(base),
+        );
+        final session = _TestAudioSession();
+        handler.debugWireAudioSession(session);
+        addTearDown(session.close);
+        session.interruptions.add(
+          AudioInterruptionEvent(true, AudioInterruptionType.pause),
+        );
+        await pumpEventQueue();
+        resolver
+          ..blockedSongId = 'song-1'
+          ..entered = Completer<void>()
+          ..release = Completer<void>();
+        addTearDown(() {
+          if (!resolver.release!.isCompleted) resolver.release!.complete();
+        });
+        final loads = player.sourceLoads;
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => resolver.entered!.isCompleted);
+        final plays = player.playedFrom.length;
+
+        session.interruptions.add(
+          AudioInterruptionEvent(false, AudioInterruptionType.pause),
+        );
+        await pumpEventQueue();
+        expect(player.playedFrom.length, plays);
+        expect(player.audibleSongId, isNull);
+        resolver
+          ..blockedSongId = null
+          ..release!.complete();
+        await until(() => player.sourceLoads > loads);
+        await drain(handler);
+        await until(() => handler.snapshot.pendingSeekPosition == null);
+        expect(player.audibleSongId, 'song-1');
+      });
+
       test(
         'Play resumes a reopened source while settlement is pending',
         () async {
