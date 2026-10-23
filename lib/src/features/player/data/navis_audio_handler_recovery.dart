@@ -447,6 +447,9 @@ extension _NavisRecovery on NavisAudioHandler {
 
   void _captureTranscodeEndOccurrence({bool indexEvent = false}) {
     if (!_isDesktopRuntime || _prematureTranscodeDeparture != null) return;
+    // ponytail: the index listener can return during tail fill/release before
+    // capturing an occurrence; like busy-lane cuts, these keep normal EOF.
+    // Revisit both windows if recovery must cover background queue work.
     final event = _player.playbackEvent;
     final index = event.currentIndex;
     final invalidated = _transcodeEndInvalidatedAt;
@@ -1408,7 +1411,10 @@ extension _NavisRecovery on NavisAudioHandler {
   }
 
   Future<void> _playWithFocusRecovery({bool lastFocusAttempt = false}) async {
-    if (_disposeHandlerStarted) return;
+    if (_disposeHandlerStarted ||
+        _prematureTranscodeDeparture?.sourceReady == false) {
+      return;
+    }
     final generation = _transportGeneration;
     final player = _player;
     if (_audioInterrupted) {
@@ -1776,6 +1782,7 @@ extension _NavisRecovery on NavisAudioHandler {
     MediaItem? departedItem,
   }) async {
     _remotePlaybackRecoveryInProgress = true;
+    int? departedFailureSeekRevision;
     final attemptKey = '$transportGeneration:$songId';
     final duration = _effectivePlaybackDuration(
       departedItem ?? _currentMediaItem,
@@ -1894,6 +1901,7 @@ extension _NavisRecovery on NavisAudioHandler {
                       autoPlay: autoPlay,
                       token: recoveryToken,
                       transportGeneration: transportGeneration,
+                      seekRequest: request,
                     );
                   }
                   if (!rebuilt) rethrow;
@@ -1907,6 +1915,10 @@ extension _NavisRecovery on NavisAudioHandler {
                 );
               }
             } finally {
+              // Play/Pause preserve this seek even when transport changes.
+              if (departedItem != null && identical(_pendingSeek, request)) {
+                departedFailureSeekRevision = request.generation;
+              }
               if (identical(_pendingSeek, request)) {
                 _pendingSeek = null;
                 _anomalies.event('seekDone', {'outcome': 'recovery'});
@@ -1939,7 +1951,11 @@ extension _NavisRecovery on NavisAudioHandler {
         }
       }
 
-      if (!_isCurrentTransportIntent(transportGeneration)) return;
+      if (!_isCurrentTransportIntent(transportGeneration) &&
+          !(departedFailureSeekRevision == _seekRevision &&
+              identical(_prematureTranscodeDeparture?.item, departedItem))) {
+        return;
+      }
       await _skipPastFailedRemoteSong(
         // By position in the whole queue: played songs may have moved out of
         // the player, and a failed reload restores the queue around it.

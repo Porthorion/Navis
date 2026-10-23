@@ -83,6 +83,28 @@ Last updated: 2026-10-24
   `git diff --check` passes. `./tool/bootstrap.sh` completed. No apps, emulators
   or VMs were launched, and no task-owned background jobs remain. Runtime and
   `./tool/check.sh` remain coordinator-owned under the build brief.
+  Round 4, 2026-10-24: nine regressions were committed first in `0423aeda`
+  after `00:00 +0 -9: Some tests failed.` They cover resolver failures and
+  false rebuilds after Play/Pause for middle/final songs, plus audio-focus
+  regain during source resolution. Failover retains the departed seek's
+  ownership across Play/Pause, checks that no newer seek replaced it, and uses
+  the latest explicit play intent. Final-song failover keeps the existing quiet
+  stop contract; a subsequent Play reloads it. The shared native-play path now
+  defers all resume callers while the departure's source is unresolved. The
+  existing rejected-bridge regression exposed a fallback missing its recovery
+  seek; passing that request also lets this fallback mark its source ready and
+  resume. The capture comment and architecture now name the index listener's
+  early-return window during tail fill/release alongside the busy-lane ceiling.
+  Focused recovery tests pass `00:07 +48: All tests passed!` Scoped
+  `dart analyze` exits 0 with no errors/warnings; all 17 infos map to unchanged
+  lines in `3ee045f00`. `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 5.89 seconds.` Bootstrap completed.
+  The final foreground rerun of all ten round-3 suites passes
+  `08:07 +968: All tests passed!` The required 8 GiB cap reports exit 0,
+  peak 3247 MiB, no swap and zero OOM kills. `git diff --check` passes.
+  No apps, emulators or VMs were launched; no task-owned jobs remain.
+  Runtime acceptance and `./tool/check.sh` remain coordinator-owned under
+  the build brief.
   AI implementation and self-review: T3 Code/Codex, gpt-6.1-sol. No native
   performance or audible-continuity claim is recorded.
 - [ ] Issue #86, item 11a PR A Android seek bandwidth — implementation complete

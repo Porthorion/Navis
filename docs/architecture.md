@@ -4070,7 +4070,8 @@ duplicated songs remain distinct native sources. Queue edits, replacements and
 explicit navigation invalidate the capture, including delayed discontinuities
 whose previous backend event predates the edit. Detection requires the queue
 lane to be idle; a cut during background tail release, trim or fill keeps normal
-EOF behavior.
+EOF behavior. Tail fill/release can also make the index listener return before
+capturing the occurrence, leaving a later departure unclassified.
 On classification the native player pauses before source resolution, and the
 departed occurrence keeps metadata authority and its existing scrobble/history
 session. Successor index events cannot publish a new session, Now Playing or
@@ -4080,13 +4081,17 @@ index/discontinuity pair works in either order; real just_audio emits the
 discontinuity first. Android keeps its immediate index handling. Queue
 completion and deferred continuation wait while recovery runs. Play during
 resolution only records the latest play intent, without starting the successor
-or restarting a completed queue; the reopened occurrence honours that intent.
-Once its source is ready, Play resumes it normally while seek settlement runs.
+or restarting a completed queue; all shared play paths, including audio-focus
+resume, defer native playback until the source is ready. The reopened occurrence
+honours the latest intent. Once its source is ready, Play resumes it normally
+while seek settlement runs.
 A newer seek, skip or Pause retains ownership; if a seek arrives while the
 departed occurrence is resolving, that occurrence loads before the newer seek
-applies. Failed reopen uses the existing bounded silent
-failover. Exhausted retries, original streams, unknown durations, ends within
-10 seconds of metadata duration and unsupported servers keep normal end behavior.
+applies. A failed or unbuilt reopen retains failover ownership after deferred
+Play/Pause commands, using the latest explicit play intent. It uses the existing
+bounded silent failover; a failed final song stops quietly until Play reloads it.
+Exhausted retries, original streams, unknown durations, ends within 10 seconds
+of metadata duration and unsupported servers keep normal end behavior.
 Active crossfades are excluded. This metadata heuristic can also retry a real
 transcode end when server metadata overstates its duration by more than 10 seconds.
 

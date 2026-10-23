@@ -8759,9 +8759,13 @@ void main() {
                 ..release = Completer<void>()
                 ..failure = StateError('source unavailable');
               addTearDown(() {
-                if (!resolver.release!.isCompleted) resolver.release!.complete();
+                if (!resolver.release!.isCompleted) {
+                  resolver.release!.complete();
+                }
               });
-              player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 47),
+              );
               await until(() => resolver.entered!.isCompleted);
 
               if (play) {
@@ -8773,7 +8777,10 @@ void main() {
               await drain(handler);
 
               expect(lastSeekEvent(handler)['outcome'], 'skipped');
-              expect(handler.snapshot.currentSongId, last ? 'song-1' : 'song-2');
+              expect(
+                handler.snapshot.currentSongId,
+                last ? 'song-1' : 'song-2',
+              );
               expect(player.playing, play && !last);
               if (last && play) {
                 resolver.blockedSongId = null;
@@ -8797,7 +8804,9 @@ void main() {
               addTearDown(() {
                 if (!release.isCompleted) release.complete();
               });
-              player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 47),
+              );
               await until(() => entered.isCompleted);
               if (play) {
                 await handler.play();
@@ -8807,10 +8816,15 @@ void main() {
               // Native lost the departed source before the rebuild could find it.
               player._sources.clear();
               release.complete();
-              await drain(handler);
+              // Final-song failover stops quietly; only Play rebuilds lost sources.
+              await pumpEventQueue(times: 100);
+              if (!last) await settleQueue(handler);
 
               expect(lastSeekEvent(handler)['outcome'], 'skipped');
-              expect(handler.snapshot.currentSongId, last ? 'song-1' : 'song-2');
+              expect(
+                handler.snapshot.currentSongId,
+                last ? 'song-1' : 'song-2',
+              );
               expect(player.playing, play && !last);
               if (last && play) {
                 await handler.play();

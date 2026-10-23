@@ -143,8 +143,10 @@ const List<ChangelogVersion> changelogs = [
         'instead of treating it as the end, including Repeat One and the last '
         'song in a queue, when the server supports transcode offsets. Recovery '
         'keeps the current listening session and silences the next song while '
-        'reopening, including after artwork refreshes or Play commands during '
-        'recovery; queue edits keep their normal playback behavior.',
+        'reopening, including after artwork refreshes, Play commands or audio-focus '
+        'resume during recovery. Failed recovery still skips quietly or stops at '
+        'the queue end, honoring the latest Play or Pause; queue edits keep '
+        'their normal playback behavior.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
