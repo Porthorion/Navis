@@ -13464,7 +13464,7 @@ void main() {
     });
 
     test(
-      'new seek retires a progressing superseded native call promptly',
+      'new seek cancels a progressing native wait and keeps lock caching',
       () async {
         final rebuilt = <_ControllableAudioPlayer>[];
         final (handler, player, sources) = await rangeHandler(rebuilt: rebuilt);
@@ -13475,6 +13475,7 @@ void main() {
           ..seekEntered = entered;
         final old = handler.seek(const Duration(seconds: 30));
         await entered.future.timeout(const Duration(seconds: 2));
+        sources['song-0']!.activeRange = true;
         player.state = ProcessingState.buffering;
         final ticker = Timer.periodic(
           const Duration(milliseconds: 50),
@@ -13483,7 +13484,20 @@ void main() {
         final latest = handler.seek(const Duration(seconds: 60));
         try {
           await Future<void>.delayed(const Duration(milliseconds: 900));
-          expect(rebuilt, hasLength(1));
+          expect(rebuilt, isEmpty);
+          expect(player.seekCalls, 2);
+          expect(player.sourceLoads, 1);
+          expect(
+            handler.queue.value.first.extras!['sourceKind'],
+            PlaybackSourceKind.lockCachedStream.name,
+          );
+          expect(sources['song-0']!.activeRange, isTrue);
+          expect(handler.debugQueueLaneIdle, isTrue);
+          expect(
+            handler.collectPlaybackDiagnostics()['lockCachingBypassed'],
+            isFalse,
+          );
+          expect(handler.collectPlaybackDiagnostics()['anomalies'], isEmpty);
         } finally {
           ticker.cancel();
           gate.complete();
@@ -13491,6 +13505,57 @@ void main() {
         }
         expect(handler.snapshot.currentSongId, 'song-0');
         expect(handler.snapshot.pendingSeekPosition, isNull);
+      },
+    );
+
+    test(
+      'dead native seek cancels retired ranges before stop returns',
+      () async {
+        final rebuilt = <_ControllableAudioPlayer>[];
+        final (handler, player, sources) = await rangeHandler(rebuilt: rebuilt);
+        final seekGate = Completer<void>();
+        final stopGate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..seekGate = seekGate
+          ..seekEntered = entered
+          ..stopGate = stopGate;
+        final seek = handler.seek(const Duration(seconds: 30));
+        await entered.future.timeout(const Duration(seconds: 2));
+        sources['song-0']!.activeRange = true;
+        player.state = ProcessingState.buffering;
+        player.emitBuffered(const Duration(seconds: 2));
+        try {
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(rebuilt, hasLength(1));
+          expect(stopGate.isCompleted, isFalse);
+          expect(sources['song-0']!.activeRange, isFalse);
+          expect(sources['song-0']!.paused, isFalse);
+          expect(sources['song-1']!.paused, isFalse);
+        } finally {
+          stopGate.complete();
+          seekGate.complete();
+          await seek;
+        }
+      },
+    );
+
+    test(
+      'range priority ignores a next song from a mismatched queue index',
+      () async {
+        final (handler, player, sources) = await rangeHandler();
+        sources['song-0']!.activeRange = true;
+        player.emitBuffered(const Duration(seconds: 2));
+        await pumpEventQueue();
+        expect(sources['song-1']!.paused, isTrue);
+        // Native index can move before the current media item is published.
+        player.index = 1;
+        sources['song-0']!.progress.add(0);
+        await pumpEventQueue();
+        expect(handler.mediaItem.value!.id, 'song-0');
+        expect(sources['song-0']!.paused, isTrue);
+        expect(sources['song-1']!.paused, isFalse);
+        expect(sources['song-2']!.paused, isFalse);
       },
     );
 

@@ -113,6 +113,7 @@ Future<(HttpServer, List<int>)> _serve(
   _OriginFailure? rangeFailure,
   bool knownLength = false,
   List<int>? closedRanges,
+  bool rangeHeadersPending = false,
 }) async {
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   final downloads = <int>[];
@@ -139,21 +140,34 @@ Future<(HttpServer, List<int>)> _serve(
     }
     if (range != null && closedRanges != null) {
       response.contentLength = end - start;
-      final socket = await response.detachSocket();
+      final socket = await response.detachSocket(
+        writeHeaders: !rangeHeadersPending,
+      );
+      final closed = Completer<void>();
       var disconnected = false;
       final peer = socket.listen(
         (_) {},
         onDone: () {
           disconnected = true;
           closedRanges.add(start);
+          if (!closed.isCompleted) closed.complete();
         },
         onError: (Object _) {
           disconnected = true;
           closedRanges.add(start);
+          if (!closed.isCompleted) closed.complete();
         },
       );
       socket.done.ignore();
       try {
+        if (rangeHeadersPending || rangeFailure == _OriginFailure.stall) {
+          if (!rangeHeadersPending) {
+            socket.add(body.sublist(start, start + 1024));
+            await socket.flush();
+          }
+          await closed.future;
+          return;
+        }
         for (
           var offset = start;
           offset < end && !disconnected;
@@ -282,6 +296,69 @@ void main() {
         second.close(force: true);
         await until(() => closed.contains(131072));
       }
+    });
+  }
+
+  test('subscribing after range cancellation emits no late errors', () async {
+    final (server, _) = await _serve(
+      List<int>.filled(256 * 1024, 7),
+      ranges: true,
+    );
+    addTearDown(() => server.close(force: true));
+    // ignore: experimental_member_use, reason: late subscription to a cancelled origin range.
+    final source = LockCachingAudioSource(
+      Uri.parse('http://127.0.0.1:${server.port}/song'),
+      cacheFile: File(p.join(directory.path, 'late.mp3')),
+    );
+    addTearDown(source.cancelDownload);
+    final response = await source.request(65536);
+    await source.cancelDownload();
+    await response.stream.drain<void>();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+  });
+
+  for (final pendingHeaders in [true, false]) {
+    test('client disconnect cancels a silent range with '
+        '${pendingHeaders ? 'pending headers' : 'a stalled body'}', () async {
+      final closed = <int>[];
+      final (server, downloads) = await _serve(
+        List<int>.filled(256 * 1024, 7),
+        ranges: true,
+        closedRanges: closed,
+        rangeHeadersPending: pendingHeaders,
+        rangeFailure: _OriginFailure.stall,
+      );
+      addTearDown(() => server.close(force: true));
+      // ignore: experimental_member_use, reason: observes cancellation without origin writes.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/song'),
+        cacheFile: File(p.join(directory.path, 'silent.mp3')),
+      );
+      final player = AudioPlayer(
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
+      addTearDown(player.dispose);
+      addTearDown(source.cancelDownload);
+      await player.setAudioSource(source);
+      final client = HttpClient();
+      addTearDown(() => client.close(force: true));
+      final request = await client.getUrl(native.player.proxyUri);
+      request.headers.set(HttpHeaders.rangeHeader, 'bytes=65536-');
+      final response = request.close();
+      response.ignore();
+      await until(() => downloads.length == 2);
+      if (!pendingHeaders) {
+        final received = Completer<void>();
+        (await response).listen((_) {
+          if (!received.isCompleted) received.complete();
+        }, onError: (Object _) {});
+        await received.future.timeout(const Duration(seconds: 2));
+      }
+      client.close(force: true);
+      await until(() => closed.contains(65536))
+          .timeout(const Duration(milliseconds: 500));
+      expect(source.hasActiveRangeFetch, isFalse);
     });
   }
 
