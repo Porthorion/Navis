@@ -13541,6 +13541,38 @@ void main() {
       },
     );
 
+    test('dead native seek clears retired cache activity and tracking', () async {
+      final rebuilt = <_ControllableAudioPlayer>[];
+      final (handler, player, sources) = await rangeHandler(rebuilt: rebuilt);
+      await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+      await pumpEventQueue();
+      final source = sources['song-0']!;
+      source.progress.add(0.4);
+      await pumpEventQueue();
+      expect(
+        handler.collectPlaybackDiagnostics()['cacheActivity'],
+        containsPair('songId', 'song-0'),
+      );
+      final gate = Completer<void>();
+      final entered = Completer<void>();
+      player
+        ..seekGate = gate
+        ..seekEntered = entered;
+      final seek = handler.seek(const Duration(seconds: 30));
+      try {
+        await entered.future.timeout(const Duration(seconds: 2));
+        player.state = ProcessingState.buffering;
+        await Future<void>.delayed(const Duration(milliseconds: 900));
+        expect(rebuilt, hasLength(1));
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(handler.collectPlaybackDiagnostics()['cacheActivity'], isNull);
+        expect(source.progress.hasListener, isFalse);
+      } finally {
+        gate.complete();
+        await seek;
+      }
+    });
+
     test(
       'range priority ignores a next song from a mismatched queue index',
       () async {
