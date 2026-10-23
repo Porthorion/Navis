@@ -7,6 +7,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     List<String>? pendingLogicalQueueSongIds,
     bool navigation = false,
   }) {
+    _invalidateTranscodeEndOccurrence();
     final previousAnchor = _queueReplacementMetadataAnchor;
     _clearQueueReplacementMetadataAnchor();
     _crossfadeFailedFrom = null;
@@ -82,6 +83,16 @@ extension _NavisQueueLoading on NavisAudioHandler {
   }
 
   NavisResolvedQueueMetadata _resolveCurrentQueueMetadata() {
+    final departed = _prematureTranscodeDeparture?.item;
+    if (departed != null) {
+      final index = _departedQueueIndex(departed);
+      if (index >= 0) {
+        return NavisResolvedQueueMetadata(
+          mediaItem: departed,
+          currentIndex: index,
+        );
+      }
+    }
     final restoredIndex = _restoredQueueIndex;
     if (restoredIndex != null && !_isLoading) {
       return NavisResolvedQueueMetadata(
@@ -159,6 +170,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     } else {
       _setCurrentMediaItem(_mediaItemForRadioStation(_radioStation!));
     }
+    _captureTranscodeEndOccurrence(indexEvent: true);
     _broadcastPlaybackState();
     _applyReplayGainVolume();
     _syncRemotePlaybackStallWatchdog();

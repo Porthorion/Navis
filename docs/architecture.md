@@ -4053,6 +4053,59 @@ the reloaded song. If the reloaded song fails again while the rest of the
 queue is still loading, the Play waits and restarts recovery once that load
 completes; only an error-free event that is not idle clears the failure. Song and station state remain buffering while waiting, preserving OS
 transport controls.
+
+On desktop, a native auto-advance (including Repeat One) or final-item
+completion can hide a cut transcode as a clean EOF. Navis compares the departed
+occurrence's last backend position with its authoritative `MediaItem.duration`.
+A remote transcode or offset continuation ending more than 10 seconds early,
+with known metadata duration, no completed local file and server `transcodeOffset`
+support, consumes the same song/transport-generation retry allowance and reopens
+that occurrence at its whole-second song position. Healthy play before the cut
+does not excuse the premature end; the existing healthy-play renewal still
+applies after recovery. Native duration and the interpolated desktop clock do
+not establish the departure position. Position/index events capture the native
+source occurrence, its source metadata and last backend position. Artwork
+refreshes can replace `MediaItem` copies without changing that occurrence;
+duplicated songs remain distinct native sources. Queue edits, replacements and
+explicit navigation invalidate the capture, including delayed discontinuities
+whose previous backend event predates the edit. Detection requires the queue
+lane to be idle; a cut during background tail release, trim or fill keeps normal
+EOF behavior. Tail fill/release can also make the index listener return before
+capturing the occurrence, leaving a later departure unclassified.
+On classification the native player pauses before source resolution, and the
+departed occurrence keeps metadata authority and its existing scrobble/history
+session. Successor index events cannot publish a new session, Now Playing or
+history entry; a last-item cut cannot submit a completion scrobble or publish
+completed state. Desktop index events yield one microtask so a same-turn
+index/discontinuity pair works in either order; real just_audio emits the
+discontinuity first. Android keeps its immediate index handling. Queue
+completion and deferred continuation wait while recovery runs. Play during
+resolution only records the latest play intent, without starting the successor
+or restarting a completed queue; all shared play paths, including audio-focus
+resume, defer native playback until the source is ready. The reopened occurrence
+honours the latest intent. Once its source is ready, Play resumes it normally
+while seek settlement runs.
+A newer seek or skip takes over from the reopen; if a seek arrives while the
+departed occurrence is resolving, that occurrence loads before the newer seek
+applies. A Pause only changes the intent the reopen lands with. A failed or unbuilt reopen retains failover ownership after deferred
+Play/Pause commands, using the latest explicit play intent. It uses the existing
+bounded silent failover; a failed final song stops quietly until Play reloads it.
+If native loading already replaced the playlist with the failed song alone,
+recovery keeps that song materialised and defers its original neighbours.
+The logical order and current index therefore still select the failed occurrence;
+Play reloads it at the departed song position, following the existing stopped
+remote-source retry rule rather than restarting the queue.
+Exhausted retries, original streams, unknown durations, ends within 10 seconds
+of metadata duration and unsupported servers keep normal end behavior.
+Active crossfades are excluded. This metadata heuristic can also retry a real
+transcode end when server metadata overstates its duration by more than 10 seconds.
+
+The silent anomaly recorder confirms a suspected near-end replay only while
+the position remains below its departure position as well as below 10 seconds.
+A transient zero corrected back to the prior timeline before confirmation is
+not a replay, including for songs shorter than 10 seconds. This does not add
+an expectation or grace period around natural advances or recovery.
+
 Verified recovery after an observed outage re-arms the song's reload allowance
 so a later outage does not skip it.
 Network wait retries back off from 3 to 24 seconds. The audio handler's network

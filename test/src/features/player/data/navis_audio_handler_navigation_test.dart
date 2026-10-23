@@ -22,6 +22,8 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart' show MethodChannel;
+import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -533,6 +535,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   /// Loads succeed and then fail at once, as a stream that drops.
   bool failAfterLoad = false;
+  StateError? loadErrorAfterApply;
 
   @override
   PlaybackEvent get playbackEvent => PlaybackEvent(
@@ -691,6 +694,22 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> shuffle() async {}
 
+  bool emitQueueEditDiscontinuity = false;
+
+  Future<void> _emitQueueEditDiscontinuity(PlaybackEvent before) async {
+    if (!emitQueueEditDiscontinuity) return;
+    _discontinuities.add(
+      PositionDiscontinuity(
+        PositionDiscontinuityReason.autoAdvance,
+        before,
+        playbackEvent,
+      ),
+    );
+    _indices.add(index);
+    _events.add(playbackEvent);
+    await pumpEventQueue(times: 5);
+  }
+
   int rangeRemovals = 0;
   Completer<void>? removeGate;
   Completer<void>? removeEntered;
@@ -704,8 +723,13 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       removeEntered?.complete();
       await gate.future;
     }
+    final before = playbackEvent;
     _sources.removeAt(index);
     if (this.index != null && index < this.index!) this.index = this.index! - 1;
+    if (emitQueueEditDiscontinuity && before.currentIndex == index) {
+      simulatedPosition = Duration.zero;
+    }
+    await _emitQueueEditDiscontinuity(before);
   });
 
   @override
@@ -736,7 +760,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   }
 
   /// A native end-of-track transition, including the player's loop policy.
-  void finishCurrentTrack() {
+  void finishCurrentTrack({
+    Duration? endPosition,
+    bool discontinuityFirst = false,
+  }) {
+    if (endPosition != null) simulatedPosition = endPosition;
     final before = playbackEvent;
     final next = index! + 1;
     if (appliedLoopMode == LoopMode.one) {
@@ -747,10 +775,14 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
           ? current.positionOffset
           : Duration.zero;
     } else if (next < _sources.length || appliedLoopMode == LoopMode.all) {
-      moveTo(next % _sources.length);
+      if (discontinuityFirst) {
+        index = next % _sources.length;
+      } else {
+        moveTo(next % _sources.length);
+      }
       simulatedPosition = Duration.zero;
     } else {
-      simulatedPosition = simulatedDuration;
+      simulatedPosition = endPosition ?? simulatedDuration;
       state = ProcessingState.completed;
     }
     if (state != ProcessingState.completed) {
@@ -766,7 +798,17 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       );
     }
     _events.add(playbackEvent);
+    if (discontinuityFirst) {
+      scheduleMicrotask(() {
+        scheduleMicrotask(() {
+          scheduleMicrotask(() => _indices.add(index));
+        });
+      });
+    }
   }
+
+  Completer<void>? pauseGate;
+  Completer<void>? pauseEntered;
 
   @override
   Future<void> pause() async {
@@ -775,6 +817,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     emitPlayerEvent();
     _playing?.complete();
     _playing = null;
+    final gate = pauseGate;
+    pauseGate = null;
+    if (gate != null) {
+      pauseEntered?.complete();
+      await gate.future;
+    }
   }
 
   int focusDenials = 0;
@@ -916,6 +964,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       if (rejectBridgeLoad) throw StateError('bridge load failed');
     }
     _indices.add(index);
+    if (loadErrorAfterApply case final error?) {
+      loadErrorAfterApply = null;
+      state = ProcessingState.idle;
+      throw error;
+    }
     return const Duration(minutes: 3);
   });
 
@@ -942,6 +995,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> moveAudioSource(int currentIndex, int newIndex) =>
       _mutate(() async {
+        final before = playbackEvent;
         _sources.insert(newIndex, _sources.removeAt(currentIndex));
         // Like just_audio: the playing item keeps playing wherever it moves.
         final playing = index;
@@ -953,6 +1007,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
         } else if (currentIndex > playing && newIndex <= playing) {
           index = playing + 1;
         }
+        await _emitQueueEditDiscontinuity(before);
       });
 
   @override
@@ -987,11 +1042,13 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
           insertEntered?.complete();
           await gate.future;
         }
+        final before = playbackEvent;
         batchMutationCount++;
         _sources.insertAll(at, sources);
         if (index != null && at <= index!) index = index! + sources.length;
         _indices.add(index);
         afterInsertSources?.call();
+        await _emitQueueEditDiscontinuity(before);
       });
 
   /// Holds the next batch insert until completed.
@@ -7531,7 +7588,7 @@ void main() {
 
   group('playback anomaly recorder', () {
     Future<(NavisAudioHandler, _ControllableAudioPlayer, List<String>)>
-    anomalyHandler() async {
+    anomalyHandler({int duration = 180}) async {
       final directory = await Directory.systemTemp.createTemp('navis-anomaly-');
       final (handler, player, database) = await createHandler(
         directory,
@@ -7551,6 +7608,13 @@ void main() {
         }
       };
       addTearDown(() => debugPrint = printer);
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'song-1',
+          title: 'Song 1',
+          duration: Value(duration),
+        ),
+      ]);
       // The position stream only reports a moving position.
       player.simulateProgress = true;
       await handler.replaceQueue(
@@ -7574,6 +7638,27 @@ void main() {
 
     List<Object?> anomalies(NavisAudioHandler handler) =>
         handler.collectPlaybackDiagnostics()['anomalies']! as List<Object?>;
+
+    test(
+      'a four-second natural advance survives the desktop index yield',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final (handler, player, warnings) = await anomalyHandler(duration: 4);
+        player.simulatedPosition = const Duration(milliseconds: 3368);
+        await pause(200);
+        final loads = player.sourceLoads;
+
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 4));
+        player.emitPlayerEvent();
+        await pause(600);
+
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(player.sourceLoads, loads);
+        expect(anomalies(handler), isEmpty);
+        expect(warnings, isEmpty);
+      },
+    );
 
     test(
       'a raw player step back is recorded once, with the log line',
@@ -8155,11 +8240,65 @@ void main() {
       },
     );
 
+    for (final reject in [false, true]) {
+      test(
+        'premature transcode EOF recovers a bridge (rejected: $reject)',
+        () async {
+          late _GatedSourceResolver resolver;
+          final (handler, player, _, _) = await bridgeHandler(
+            wrap: (base) => resolver = _GatedSourceResolver(base),
+          );
+          if (reject) {
+            await handler.replaceQueue(
+              ['song-1', 'song-1', 'song-1'],
+              startIndex: 1,
+              expandMatchFlows: false,
+            );
+            await settleQueue(handler);
+          }
+          await seekTo(handler, target);
+          resolver.rejectBridge = reject;
+          final events =
+              (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                  .length;
+          player.simulatedDuration = const Duration(seconds: 110);
+
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 110));
+          for (
+            var i = 0;
+            i < 300 &&
+                (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                        .length ==
+                    events;
+            i++
+          ) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          await settleQueue(handler);
+
+          expect(
+            (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                .length,
+            events + 1,
+          );
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(player.index, 1);
+          expect(player.position.inSeconds, 110);
+          expect(bridging(handler), !reject);
+          expect(
+            current(player).positionOffset,
+            reject ? Duration.zero : const Duration(seconds: 110),
+          );
+          expect(player.playing, isTrue);
+        },
+      );
+    }
+
     test('Repeat One returns to lossless', () async {
       final (handler, player, _, _) = await bridgeHandler();
       await seekTo(handler, target);
       await handler.setRepeatMode(AudioServiceRepeatMode.one);
-      player.finishCurrentTrack();
+      player.finishCurrentTrack(endPosition: const Duration(seconds: 180));
       for (var i = 0; i < 300 && bridging(handler); i++) {
         await Future<void>.delayed(const Duration(milliseconds: 10));
       }
@@ -8446,6 +8585,810 @@ void main() {
       );
       await until(() => !handler.snapshot.isLoading);
     }
+
+    group('premature transcode EOF', () {
+      Future<(NavisAudioHandler, _ControllableAudioPlayer)> setup({
+        bool last = false,
+        bool capable = true,
+        bool original = false,
+        int? duration = 300,
+        ScrobbleService? scrobbleService,
+        void Function(NavisDatabase)? onDatabase,
+        PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
+      }) async {
+        final (handler, player, database) = await offsetHandler(
+          capable: capable,
+          quality: original
+              ? const StreamingQuality(label: 'original')
+              : opus128,
+          wrapResolver: wrap,
+          scrobbleService: scrobbleService,
+          positionStreams: scrobbleService != null,
+        );
+        onDatabase?.call(database);
+        await database.libraryDao.upsertSongs([
+          for (final id in ['song-0', 'song-1', 'song-2'])
+            SongsTableCompanion.insert(
+              id: id,
+              title: id,
+              duration: Value(duration),
+            ),
+        ]);
+        await handler.replaceQueue(
+          ['song-0', 'song-1', if (!last) 'song-2'],
+          startIndex: 1,
+          expandMatchFlows: false,
+        );
+        await settleQueue(handler);
+        await handler.play();
+        // Native duration can shrink to the truncated stream's length.
+        player.simulatedDuration = const Duration(seconds: 47);
+        return (handler, player);
+      }
+
+      Future<void> drain(NavisAudioHandler handler) async {
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+      }
+
+      for (final duplicate in [false, true]) {
+        test(
+          'cut after artwork refresh recovers the occurrence (duplicate: $duplicate)',
+          () async {
+            final directory = await Directory.systemTemp.createTemp(
+              'navis-cut-art-',
+            );
+            const channel = MethodChannel('plugins.flutter.io/path_provider');
+            final messenger = TestDefaultBinaryMessengerBinding
+                .instance
+                .defaultBinaryMessenger;
+            messenger.setMockMethodCallHandler(
+              channel,
+              (_) async => directory.path,
+            );
+            PlaybackArtCache.resetKeyForTesting();
+            addTearDown(() async {
+              messenger.setMockMethodCallHandler(channel, null);
+              PlaybackArtCache.resetKeyForTesting();
+              await directory.delete(recursive: true);
+            });
+            await PlaybackArtCache.initializeKey(supportDirectory: directory);
+            await File(
+              p.join(
+                directory.path,
+                'navis_art_v2_${PlaybackArtCache.fileKey('cut-cover')}.jpg',
+              ),
+            ).writeAsBytes([1, 2, 3]);
+            late NavisDatabase database;
+            final (handler, player) = await setup(
+              onDatabase: (value) => database = value,
+            );
+            await database.libraryDao.upsertSongs([
+              SongsTableCompanion.insert(
+                id: 'song-1',
+                title: 'Song 1',
+                duration: const Value(300),
+                coverArt: const Value('cut-cover'),
+              ),
+            ]);
+            await handler.replaceQueue(
+              [if (duplicate) 'song-1' else 'song-0', 'song-1', 'song-2'],
+              startIndex: 1,
+              expandMatchFlows: false,
+            );
+            await drain(handler);
+            await handler.play();
+            await until(
+              () => handler.currentMediaItem?.extras?['artCacheFile'] != null,
+            );
+            expect(
+              identical(handler.currentMediaItem, handler.queue.value[1]),
+              isFalse,
+            );
+            final loads = player.sourceLoads;
+
+            player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+            await until(() => player.sourceLoads > loads);
+            await drain(handler);
+
+            expect(player.index, 1);
+            expect(handler.snapshot.currentSongId, 'song-1');
+            expect(current(player).positionOffset, const Duration(seconds: 47));
+          },
+        );
+      }
+
+      test(
+        'remove current with a discontinuity after lane release is not a cut',
+        () async {
+          final (handler, player) = await setup();
+          player.simulatedPosition = const Duration(seconds: 47);
+          final before = player.playbackEvent;
+          final loads = player.sourceLoads;
+          await handler.removeAt(1);
+          await drain(handler);
+          expect(handler.debugQueueLaneIdle, isTrue);
+
+          player._discontinuities.add(
+            PositionDiscontinuity(
+              PositionDiscontinuityReason.autoAdvance,
+              before,
+              player.playbackEvent,
+            ),
+          );
+          await drain(handler);
+
+          expect(player.sourceLoads, loads);
+          expect(handler.snapshot.currentSongId, 'song-2');
+          expect(current(player).positionOffset, Duration.zero);
+        },
+      );
+
+      for (final last in [false, true]) {
+        for (final intent in ['none', 'Play', 'Pause']) {
+          test(
+            'native cut reopen failure preserves the queue after $intent (last: $last)',
+            () async {
+              late _GatedSourceResolver resolver;
+              final (handler, player) = await setup(
+                wrap: (base) => resolver = _GatedSourceResolver(base),
+              );
+              final failedIndex = last ? 2 : 1;
+              final failedSong = 'song-$failedIndex';
+              if (last) {
+                await handler.playFromIndex(2);
+                await drain(handler);
+              }
+              resolver
+                ..blockedSongId = failedSong
+                ..entered = Completer<void>()
+                ..release = Completer<void>();
+              addTearDown(() {
+                if (!resolver.release!.isCompleted) {
+                  resolver.release!.complete();
+                }
+              });
+              player.loadErrorAfterApply = StateError('HTTP 500 after apply');
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 47),
+              );
+              await until(() => resolver.entered!.isCompleted);
+              if (intent == 'Play') await handler.play();
+              if (intent == 'Pause') await handler.pause();
+              // Reject only the reopen; the next song remains available.
+              resolver.blockedSongId = null;
+              resolver.release!.complete();
+              await drain(handler);
+
+              expect(lastSeekEvent(handler)['outcome'], 'skipped');
+              expect(handler.snapshot.queueSongIds, [
+                'song-0',
+                'song-1',
+                'song-2',
+              ]);
+              expect(handler.snapshot.currentIndex, 2);
+              expect(handler.snapshot.currentSongId, 'song-2');
+              expect(player.playing, !last && intent != 'Pause');
+              expectNativeMirrorsQueue(handler, player);
+              if (last) {
+                expect(player.position, const Duration(seconds: 47));
+                final loads = player.sourceLoads;
+                await handler.play();
+                await until(() => player.sourceLoads > loads);
+                await drain(handler);
+                expect(handler.snapshot.currentSongId, failedSong);
+                expect(player.audibleSongId, failedSong);
+                expect(current(player).uri.queryParameters['id'], failedSong);
+                expect(
+                  current(player).positionOffset,
+                  const Duration(seconds: 47),
+                );
+                expect(handler.snapshot.currentIndex, failedIndex);
+                expectNativeMirrorsQueue(handler, player);
+              }
+            },
+          );
+        }
+      }
+
+      for (final last in [false, true]) {
+        for (final pauseFirst in [false, true]) {
+          test(
+            'Play during cut resolution only records intent (last: $last, pause first: $pauseFirst)',
+            () async {
+              late _GatedSourceResolver resolver;
+              final (handler, player) = await setup(
+                last: last,
+                wrap: (base) => resolver = _GatedSourceResolver(base),
+              );
+              resolver
+                ..blockedSongId = 'song-1'
+                ..entered = Completer<void>()
+                ..release = Completer<void>();
+              addTearDown(() {
+                if (!resolver.release!.isCompleted) {
+                  resolver.release!.complete();
+                }
+              });
+              final loads = player.sourceLoads;
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 47),
+              );
+              await until(() => resolver.entered!.isCompleted);
+              if (pauseFirst) {
+                await handler.pause();
+              }
+              final plays = player.playedFrom.length;
+
+              await handler.play();
+              expect(player.playedFrom.length, plays);
+              expect(player.audibleSongId, isNull);
+              expect(player.index, last ? 1 : 2);
+              expect(handler.snapshot.currentSongId, 'song-1');
+              resolver
+                ..blockedSongId = null
+                ..release!.complete();
+              await until(() => player.sourceLoads > loads);
+              await drain(handler);
+              await until(() => handler.snapshot.pendingSeekPosition == null);
+
+              expect(player.index, 1);
+              expect(handler.snapshot.currentSongId, 'song-1');
+              expect(
+                current(player).positionOffset,
+                const Duration(seconds: 47),
+              );
+              expect(player.playing, isTrue);
+            },
+          );
+        }
+      }
+
+      for (final last in [false, true]) {
+        for (final play in [true, false]) {
+          test(
+            'failed cut resolution keeps failover after ${play ? 'Play' : 'Pause'} (last: $last)',
+            () async {
+              late _GatedSourceResolver resolver;
+              final (handler, player) = await setup(
+                last: last,
+                wrap: (base) => resolver = _GatedSourceResolver(base),
+              );
+              resolver
+                ..blockedSongId = 'song-1'
+                ..entered = Completer<void>()
+                ..release = Completer<void>()
+                ..failure = StateError('source unavailable');
+              addTearDown(() {
+                if (!resolver.release!.isCompleted) {
+                  resolver.release!.complete();
+                }
+              });
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 47),
+              );
+              await until(() => resolver.entered!.isCompleted);
+
+              if (play) {
+                await handler.play();
+              } else {
+                await handler.pause();
+              }
+              resolver.release!.complete();
+              await drain(handler);
+
+              expect(lastSeekEvent(handler)['outcome'], 'skipped');
+              expect(
+                handler.snapshot.currentSongId,
+                last ? 'song-1' : 'song-2',
+              );
+              expect(player.playing, play && !last);
+              if (last && play) {
+                resolver.blockedSongId = null;
+                await handler.play();
+                await drain(handler);
+                expect(player.playing, isTrue);
+                expect(handler.snapshot.currentSongId, 'song-1');
+              }
+            },
+          );
+
+          test(
+            'unbuilt cut recovery keeps failover after ${play ? 'Play' : 'Pause'} (last: $last)',
+            () async {
+              final (handler, player) = await setup(last: last);
+              final entered = Completer<void>();
+              final release = Completer<void>();
+              player
+                ..pauseGate = release
+                ..pauseEntered = entered;
+              addTearDown(() {
+                if (!release.isCompleted) release.complete();
+              });
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 47),
+              );
+              await until(() => entered.isCompleted);
+              if (play) {
+                await handler.play();
+              } else {
+                await handler.pause();
+              }
+              // Native lost the departed source before the rebuild could find it.
+              player._sources.clear();
+              release.complete();
+              // Final-song failover stops quietly; only Play rebuilds lost sources.
+              await pumpEventQueue(times: 100);
+              if (!last) await settleQueue(handler);
+
+              expect(lastSeekEvent(handler)['outcome'], 'skipped');
+              expect(
+                handler.snapshot.currentSongId,
+                last ? 'song-1' : 'song-2',
+              );
+              expect(player.playing, play && !last);
+              if (last && play) {
+                await handler.play();
+                await drain(handler);
+                expect(player.playing, isTrue);
+                expect(handler.snapshot.currentSongId, 'song-1');
+              }
+            },
+          );
+        }
+      }
+
+      test('audio-focus regain defers Play during cut resolution', () async {
+        late _GatedSourceResolver resolver;
+        final (handler, player) = await setup(
+          wrap: (base) => resolver = _GatedSourceResolver(base),
+        );
+        final session = _TestAudioSession();
+        handler.debugWireAudioSession(session);
+        addTearDown(session.close);
+        session.interruptions.add(
+          AudioInterruptionEvent(true, AudioInterruptionType.pause),
+        );
+        await pumpEventQueue();
+        resolver
+          ..blockedSongId = 'song-1'
+          ..entered = Completer<void>()
+          ..release = Completer<void>();
+        addTearDown(() {
+          if (!resolver.release!.isCompleted) resolver.release!.complete();
+        });
+        final loads = player.sourceLoads;
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => resolver.entered!.isCompleted);
+        final plays = player.playedFrom.length;
+
+        session.interruptions.add(
+          AudioInterruptionEvent(false, AudioInterruptionType.pause),
+        );
+        await pumpEventQueue();
+        expect(player.playedFrom.length, plays);
+        expect(player.audibleSongId, isNull);
+        resolver
+          ..blockedSongId = null
+          ..release!.complete();
+        await until(() => player.sourceLoads > loads);
+        await drain(handler);
+        await until(() => handler.snapshot.pendingSeekPosition == null);
+        expect(player.audibleSongId, 'song-1');
+      });
+
+      test(
+        'Play resumes a reopened source while settlement is pending',
+        () async {
+          final (handler, player) = await setup();
+          final loads = player.sourceLoads;
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => player.sourceLoads > loads && player.playing);
+          expect(handler.snapshot.pendingSeekPosition, isNotNull);
+          await handler.pause();
+          final plays = player.playedFrom.length;
+
+          await handler.play();
+          expect(player.playedFrom.length, plays + 1);
+          expect(player.audibleSongId, 'song-1');
+          await drain(handler);
+          await until(() => handler.snapshot.pendingSeekPosition == null);
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+        },
+      );
+
+      for (final edit in [
+        'remove current',
+        'remove earlier',
+        'insert',
+        'move',
+      ]) {
+        test('queue edit $edit is not a transcode cut', () async {
+          final (handler, player) = await setup();
+          final loads = player.sourceLoads;
+          player
+            ..simulatedPosition = const Duration(seconds: 47)
+            ..emitQueueEditDiscontinuity = true;
+
+          switch (edit) {
+            case 'remove current':
+              await handler.removeAt(1);
+            case 'remove earlier':
+              await handler.removeAt(0);
+            case 'insert':
+              await handler.insertQueueItem(
+                0,
+                const MediaItem(id: 'song-0', title: 'Song 0'),
+              );
+            case 'move':
+              await handler.reorderQueue(0, 3);
+          }
+          await drain(handler);
+
+          expect(player.sourceLoads, loads);
+          expect(
+            handler.snapshot.currentSongId,
+            edit == 'remove current' ? 'song-2' : 'song-1',
+          );
+          expect(current(player).positionOffset, Duration.zero);
+          expect(player.position.inSeconds, edit == 'remove current' ? 0 : 47);
+        });
+      }
+
+      for (final discontinuityFirst in [false, true]) {
+        for (final last in [false, true]) {
+          test(
+            'cut preserves scrobbles and history (last: $last, discontinuity first: $discontinuityFirst)',
+            () async {
+              final scrobbles = _NoopScrobbleService();
+              late NavisDatabase database;
+              final (handler, player) = await setup(
+                last: last,
+                scrobbleService: scrobbles,
+                onDatabase: (value) => database = value,
+              );
+              await drain(handler);
+              expect(scrobbles.nowPlaying, ['song-1']);
+              final session = scrobbles.nowPlayingSessions.single;
+              final completed = <PlaybackSnapshot>[];
+              final subscription = handler.snapshotStream.listen((snapshot) {
+                if (snapshot.processingState ==
+                    AudioProcessingState.completed) {
+                  completed.add(snapshot);
+                }
+              });
+              addTearDown(subscription.cancel);
+              final loads = player.sourceLoads;
+
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 47),
+                discontinuityFirst: discontinuityFirst,
+              );
+              await until(() => player.sourceLoads > loads);
+              await drain(handler);
+              await until(() => handler.snapshot.pendingSeekPosition == null);
+
+              expect(handler.snapshot.currentSongId, 'song-1');
+              expect(
+                current(player).positionOffset,
+                const Duration(seconds: 47),
+              );
+              expect(scrobbles.nowPlaying, ['song-1']);
+              expect(scrobbles.nowPlayingSessions, [session]);
+              expect(scrobbles.submissions, isEmpty);
+              expect(completed, isEmpty);
+              final history = await database.historyDao
+                  .watchPlayHistory()
+                  .first;
+              expect(history.map((entry) => entry.songId), ['song-1']);
+
+              player.simulatedPosition = const Duration(seconds: 180);
+              player.emitPlayerEvent();
+              await drain(handler);
+              expect(scrobbles.submissions, ['song-1']);
+              expect(scrobbles.submissionSessions, [session]);
+            },
+          );
+        }
+      }
+
+      test('cut pauses the successor before source resolution', () async {
+        late _GatedSourceResolver resolver;
+        final (handler, player) = await setup(
+          wrap: (base) => resolver = _GatedSourceResolver(base),
+        );
+        resolver
+          ..blockedSongId = 'song-1'
+          ..entered = Completer<void>()
+          ..release = Completer<void>();
+        addTearDown(() {
+          if (!resolver.release!.isCompleted) resolver.release!.complete();
+        });
+        final loads = player.sourceLoads;
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => resolver.entered!.isCompleted);
+        expect(player.audibleSongId, isNull);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        resolver
+          ..blockedSongId = null
+          ..release!.complete();
+        await until(() => player.sourceLoads > loads);
+        await drain(handler);
+        expect(player.playing, isTrue);
+      });
+
+      test(
+        'a newer Pause preserves recovery during native acknowledgement',
+        () async {
+          final (handler, player) = await setup();
+          final release = Completer<void>();
+          final entered = Completer<void>();
+          player
+            ..pauseGate = release
+            ..pauseEntered = entered;
+          addTearDown(() {
+            if (!release.isCompleted) release.complete();
+          });
+          final loads = player.sourceLoads;
+
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => entered.isCompleted);
+          await handler.pause();
+          release.complete();
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+          await until(() => handler.snapshot.pendingSeekPosition == null);
+
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+          expect(player.playing, isFalse);
+        },
+      );
+
+      for (final last in [false, true]) {
+        test('reopens at 47 of 300 seconds (last: $last)', () async {
+          final (handler, player) = await setup(last: last);
+          final loads = player.sourceLoads;
+          final failures = <PlaybackLoadFailure>[];
+          final notices = handler.loadFailureStream.listen(failures.add);
+          addTearDown(notices.cancel);
+
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(player.index, 1);
+          expect(current(player).uri.queryParameters['timeOffset'], '47');
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+          expect(player.sourceLoads, loads + 1);
+          expect(player.playing, isTrue);
+          expect(handler.playbackState.value.playing, isTrue);
+          expect(failures, isEmpty);
+        });
+
+        test('a second early end does not loop (last: $last)', () async {
+          final (handler, player) = await setup(last: last);
+          final loads = player.sourceLoads;
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+          final retriedLoads = player.sourceLoads;
+
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 50));
+          await drain(handler);
+
+          expect(player.sourceLoads, retriedLoads);
+          expect(handler.snapshot.currentSongId, last ? 'song-1' : 'song-2');
+          expect(
+            player.processingState,
+            last ? ProcessingState.completed : ProcessingState.ready,
+          );
+        });
+      }
+
+      for (final gate in [
+        'near end',
+        'unknown duration',
+        'unsupported',
+        'original',
+        'completed file',
+      ]) {
+        test('$gate keeps normal advance', () async {
+          final (handler, player) = await setup(
+            capable: gate != 'unsupported',
+            original: gate == 'original',
+            duration: gate == 'unknown duration' ? null : 300,
+          );
+          if (gate == 'completed file') {
+            final path =
+                handler.currentMediaItem!.extras!['sidecarCacheFilePath']!
+                    as String;
+            await File(path).writeAsBytes([1, 2, 3]);
+          }
+          final loads = player.sourceLoads;
+          player.finishCurrentTrack(
+            endPosition: Duration(seconds: gate == 'near end' ? 290 : 47),
+          );
+          await drain(handler);
+
+          expect(player.sourceLoads, loads);
+          expect(handler.snapshot.currentSongId, 'song-2');
+        });
+      }
+
+      test(
+        'completion uses the backend position instead of its clock',
+        () async {
+          final (handler, player) = await setup(last: true);
+          final loads = player.sourceLoads;
+          player
+            ..nativePositionFrozen = true
+            ..simulatedPosition = const Duration(seconds: 47)
+            .._positionUpdated = DateTime.now().subtract(
+              const Duration(seconds: 240),
+            )
+            ..state = ProcessingState.completed;
+          expect(player.position, greaterThan(const Duration(seconds: 280)));
+          player._events.add(player.playbackEvent);
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+        },
+      );
+
+      test(
+        'an offset continuation also recovers at its last song position',
+        () async {
+          final (handler, player) = await setup();
+          await seekAndSettle(handler, const Duration(seconds: 30));
+          final loads = player.sourceLoads;
+
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+          expect(handler.snapshot.currentSongId, 'song-1');
+        },
+      );
+
+      test('healthy play does not excuse a truncated transcode', () async {
+        final (handler, player, database) = await offsetHandler(
+          positionStreams: true,
+          timeouts: const NavisPlaybackTimeouts(
+            healthyPlayback: Duration(milliseconds: 600),
+          ),
+        );
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song 1',
+            duration: const Value(300),
+          ),
+        ]);
+        await start(handler);
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+        final loads = player.sourceLoads;
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => player.sourceLoads > loads);
+        await drain(handler);
+
+        expect(current(player).positionOffset, const Duration(seconds: 47));
+      });
+
+      test('a user skip does not reopen the departed song', () async {
+        final (handler, player) = await setup();
+        player.simulatedPosition = const Duration(seconds: 47);
+        final loads = player.sourceLoads;
+
+        await handler.skipToNext();
+        await drain(handler);
+
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(player.sourceLoads, loads);
+      });
+
+      test(
+        'Repeat One resumes the cut rather than restarting at zero',
+        () async {
+          final (handler, player) = await setup();
+          await handler.setRepeatMode(AudioServiceRepeatMode.one);
+          final loads = player.sourceLoads;
+
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+          expect(player.loopMode, LoopMode.one);
+          expect(player.playing, isTrue);
+        },
+      );
+
+      test('recovers the departed duplicate occurrence', () async {
+        final (handler, player) = await setup();
+        await handler.replaceQueue(
+          ['song-1', 'song-1', 'song-2'],
+          startIndex: 1,
+          expandMatchFlows: false,
+        );
+        await settleQueue(handler);
+        await handler.play();
+        final loads = player.sourceLoads;
+
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => player.sourceLoads > loads);
+        await drain(handler);
+
+        expect(player.index, 1);
+        expect(handler.snapshot.queueSongIds, ['song-1', 'song-1', 'song-2']);
+        expect(current(player).positionOffset, const Duration(seconds: 47));
+      });
+
+      for (final command in ['pause', 'seek', 'skip']) {
+        test('a newer $command wins during reopen resolution', () async {
+          late _GatedSourceResolver resolver;
+          final (handler, player) = await setup(
+            wrap: (base) => resolver = _GatedSourceResolver(base),
+          );
+          resolver
+            ..blockedSongId = 'song-1'
+            ..entered = Completer<void>()
+            ..release = Completer<void>();
+          addTearDown(() {
+            if (!resolver.release!.isCompleted) resolver.release!.complete();
+          });
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => resolver.entered!.isCompleted);
+          final newer = switch (command) {
+            'pause' => handler.pause(),
+            'seek' => handler.seek(const Duration(seconds: 130)),
+            _ => handler.skipToNext(),
+          };
+          if (command == 'pause') await newer;
+          resolver
+            ..blockedSongId = null
+            ..release!.complete();
+          await newer;
+          await drain(handler);
+
+          expect(
+            handler.snapshot.currentSongId,
+            command == 'skip' ? 'song-2' : 'song-1',
+          );
+          if (command != 'skip') {
+            expect(
+              current(player).positionOffset,
+              Duration(seconds: command == 'seek' ? 130 : 47),
+            );
+          }
+          expect(player.playing, command != 'pause');
+        });
+      }
+
+      test('a failed reopen uses bounded silent failover', () async {
+        late _GatedSourceResolver resolver;
+        final (handler, player) = await setup(
+          wrap: (base) => resolver = _GatedSourceResolver(base),
+        );
+        resolver
+          ..blockedSongId = 'song-1'
+          ..entered = Completer<void>()
+          ..failure = StateError('source unavailable');
+        final loads = player.sourceLoads;
+
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => resolver.entered!.isCompleted);
+        await drain(handler);
+
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(player.playing, isTrue);
+        expect(player.sourceLoads, lessThanOrEqualTo(loads + 1));
+      });
+    });
 
     for (final playing in [true, false]) {
       test('stall recovery resumes a transcode at song time 70 (playing: '

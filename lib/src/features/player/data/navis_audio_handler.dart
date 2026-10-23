@@ -446,6 +446,17 @@ class NavisAudioHandler extends BaseAudioHandler
   int _transportGeneration = 0;
   bool? _latestExplicitTransportPlaying;
   _PendingSeek? _pendingSeek;
+  ({MediaItem item, IndexedAudioSource source, bool playing, bool sourceReady})?
+  _prematureTranscodeDeparture;
+  ({
+    int index,
+    IndexedAudioSource source,
+    MediaItem item,
+    Duration position,
+    DateTime updateTime,
+  })?
+  _transcodeEndOccurrence;
+  DateTime? _transcodeEndInvalidatedAt;
   DateTime? _lastPositionEmitAt;
   _PendingSeek? _lastSeek;
   int _seekRevision = 0;
@@ -2135,6 +2146,14 @@ class NavisAudioHandler extends BaseAudioHandler
         // Play still requests focus; a stale request only delays it.
       }
       if (!_isCurrentTransportIntent(transportGeneration)) return;
+    }
+
+    if (_prematureTranscodeDeparture?.sourceReady == false) {
+      // The native source is the successor (or completed) until the reopen lands.
+      _broadcastPlaybackState();
+      _emitSnapshot();
+      _scheduleTransportPersistence(context: 'play during transcode recovery');
+      return;
     }
 
     // A failed stream cannot play: re-prepare it once where it stopped.

@@ -6,6 +6,8 @@ extension _NavisNavigation on NavisAudioHandler {
       _seekFailureBlocksRecovery = false;
     }
     if (!preserveSeek) {
+      _invalidateTranscodeEndOccurrence();
+      _prematureTranscodeDeparture = null;
       // Navigation, stop, queue loads and radio all move the position.
       _anomalies.expect('transport');
       _seekLane.cancelCurrent();

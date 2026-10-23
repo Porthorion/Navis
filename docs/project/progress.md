@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-23
+Last updated: 2026-10-24
 
 ---
 
@@ -14,6 +14,123 @@ Last updated: 2026-10-23
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 11a PR C desktop transcode EOF — implementation complete
+  on `fix/transcode-cut-eof`, 2026-10-23; coordinator `./tool/check.sh`,
+  independent reviews and native cut-matrix acceptance remain pending under
+  the build brief. Native auto-advance and final-item completion compare the
+  departed occurrence's backend position with authoritative song duration.
+  Remote transcodes/offset continuations ending more than 10 seconds early
+  reopen at whole-second `timeOffset` through the existing recovery path and
+  shared retry budget. Duplicates, Repeat One, queue completion, bridge failure
+  fallback and newer Pause/seek/skip retain their occurrence and intent.
+  Completed files, unknown durations, originals, unsupported servers and
+  near-end completions keep normal behavior; active crossfades are excluded.
+  Sixteen tests were committed first in `28f880b6` after the expected
+  `00:34 +6 -10: Some tests failed.` Regressions expanded to 21 cases, including
+  backend versus interpolated time, healthy play and bridge rejection with
+  duplicate queue entries. The natural bridge Repeat One fixture now reports
+  the actual 180-second end rather than an early 90-second departure.
+  Final foreground `flutter test --concurrency=4 --timeout 60s --reporter expanded`
+  passed eight files (navigation, handler rules, source resolver, playback lanes,
+  position offset, media-kit seek, deferred seek and mpv errors):
+  `08:03 +907: All tests passed!` `./tool/bootstrap.sh` completed. Scoped
+  `dart analyze` exits 0 with no errors/warnings; all 17 infos map to unchanged
+  lines in `9d5e5a9b`. `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 5.99 seconds.` The formatter has no
+  per-file mode, so its full source set was checked. `git diff --check` passes.
+  Heavy commands used the required 8 GiB cap with zero OOM kills. No apps,
+  emulators or VMs were launched, and no task-owned background jobs remain.
+  Round 2, 2026-10-24: nine additional regressions were committed first in `bcd59762`
+  after `00:03 +21 -9: Some tests failed.` They cover current/earlier removal,
+  insert/move, scrobble/history continuity for middle/last cuts in both native
+  event orders, and silence during gated source resolution. Departure detection
+  now requires the handler's current entry and an idle queue lane. Recovery
+  holds that occurrence's metadata/session, suppresses successor/completion
+  side effects, and invokes a bounded native pause before source resolution.
+  Index events yield to a same-turn discontinuity and cannot cancel the held
+  recovery, independent of queue-lane occupancy. A newer Pause/seek/skip keeps
+  ownership. The session regressions also wait for recovery settlement and
+  verify the resumed submission uses the original session key. A tenth gated
+  regression covers a newer Pause before native pause acknowledgement; recovery
+  installs its seek request before awaiting that acknowledgement. The complete
+  transcode-offset group passes `00:37 +79: All tests passed!` Final foreground
+  rerun of the eight suites above plus `scrobble_service_test.dart` passes
+  `08:05 +939: All tests passed!` The required 8 GiB cap reports exit 0,
+  peak 2288 MiB, swap peak 595 MiB and zero OOM kills. Scoped `dart analyze`
+  exits 0 with no errors/warnings; all 23 infos map to unchanged lines in `03393250`.
+  `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 5.97 seconds.`
+  Round 3, 2026-10-24: eight regressions were committed before their fixes in
+  `29fffb21` and `5dd74355`. The seven review reproductions failed with
+  `00:12 +31 -7: Some tests failed.`; an additional Play-after-reopen boundary
+  regression failed with `00:00 +0 -1: Some tests failed.` Native source identity,
+  source metadata and backend position now identify the departed occurrence
+  across artwork copies and duplicate songs. Queue edits invalidate that capture
+  at both ends; backend timestamps also reject departures recorded before the
+  edit, after its lane releases. Play during source resolution only records
+  intent, including the completed-last-song case and Pause→Play; once the new
+  source is ready, Play resumes it normally while seek settlement is pending.
+  The index listener's one-microtask yield is now desktop-only, and the
+  architecture documents same-turn ordering rather than arbitrary event order.
+  The accepted busy-lane tail release/trim/fill ceiling is recorded at the lane
+  guard. Focused recovery tests pass `00:06 +39: All tests passed!` Scoped
+  `dart analyze` exits 0 with no errors/warnings; all 23 infos map to unchanged
+  lines in `4d5516d3`. `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 7.10 seconds.` The final foreground
+  rerun covers the nine round-2 suites plus `playback_art_cache_test.dart`:
+  `08:07 +959: All tests passed!` All eight new regressions pass. Heavy commands
+  used the required 8 GiB cap; the final suite exits 0 with zero OOM kills.
+  `git diff --check` passes. `./tool/bootstrap.sh` completed. No apps, emulators
+  or VMs were launched, and no task-owned background jobs remain. Runtime and
+  `./tool/check.sh` remain coordinator-owned under the build brief.
+  Round 4, 2026-10-24: nine regressions were committed first in `0423aeda`
+  after `00:00 +0 -9: Some tests failed.` They cover resolver failures and
+  false rebuilds after Play/Pause for middle/final songs, plus audio-focus
+  regain during source resolution. Failover retains the departed seek's
+  ownership across Play/Pause, checks that no newer seek replaced it, and uses
+  the latest explicit play intent. Final-song failover keeps the existing quiet
+  stop contract; a subsequent Play reloads it. The shared native-play path now
+  defers all resume callers while the departure's source is unresolved. The
+  existing rejected-bridge regression exposed a fallback missing its recovery
+  seek; passing that request also lets this fallback mark its source ready and
+  resume. The capture comment and architecture now name the index listener's
+  early-return window during tail fill/release alongside the busy-lane ceiling.
+  Focused recovery tests pass `00:07 +48: All tests passed!` Scoped
+  `dart analyze` exits 0 with no errors/warnings; all 17 infos map to unchanged
+  lines in `3ee045f00`. `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 5.89 seconds.` Bootstrap completed.
+  The final foreground rerun of all ten round-3 suites passes
+  `08:07 +968: All tests passed!` The required 8 GiB cap reports exit 0,
+  peak 3247 MiB, no swap and zero OOM kills. `git diff --check` passes.
+  No apps, emulators or VMs were launched; no task-owned jobs remain.
+  Runtime acceptance and `./tool/check.sh` remain coordinator-owned under
+  the build brief.
+  Round 5, 2026-10-24: nine regressions were committed first in `b263d5ef`
+  after `00:03 +5 -4: Some tests failed.` Native-load rejection after replacing
+  the playlist reproduces the final-song logical/native mismatch with no
+  command, Play and Pause during resolution; middle-song failover is also
+  checked. Recovery now keeps the failed native song materialised and defers
+  its original neighbours, preserving all queue entries and the current logical
+  index. Later Play reloads the failed final song at its departed position
+  (47 seconds in these tests), following the existing stopped-source retry rule.
+  The retained anomaly's exact 3368→0→3489 ms sequence reproduces the false
+  replay without an index change: confirmation previously accepted the
+  corrected position merely because it remained under 10 seconds. Confirmation
+  now also requires a position below the departure position. A real four-second
+  replay is still detected; ordinary four-second advancement with the desktop
+  index yield produces no record. All nine focused tests pass
+  `00:03 +9: All tests passed!` Scoped `dart analyze` exits 0 without errors or
+  warnings; all 29 infos map to unchanged lines in `d9ce781f`. Bootstrap completed.
+  Final foreground rerun covers the ten round-4 suites plus
+  `playback_anomaly_recorder_test.dart`: `08:10 +1025: All tests passed!`
+  The required 8 GiB cap reports exit 0, peak 3268 MiB, swap peak 1558 MiB
+  and zero OOM kills. `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 5.76 seconds.` `git diff --check` passes.
+  No apps, emulators or VMs were launched; no task-owned jobs remain.
+  Native acceptance and `./tool/check.sh` remain coordinator-owned under the
+  build brief.
+  AI implementation and self-review: T3 Code/Codex, gpt-6.1-sol. No native
+  performance or audible-continuity claim is recorded.
 - [ ] Issue #86, item 11a PR A Android seek bandwidth — implementation complete
   on `fix/android-seek-bandwidth`, 2026-10-23; native runtime acceptance,
   independent reviews and `./tool/check.sh` remain coordinator-owned under the
