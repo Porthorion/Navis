@@ -4590,8 +4590,10 @@ sidecar download.
 
 While an Android lock-cached song has a live origin range, playback is requested
 and the native forward buffer is under 30 seconds, the current and next songs'
-whole-file downloads pause. Range activity, native buffer events and the existing
-position ticks recalculate this priority without another timer. Pause, song
+whole-file downloads pause. The next-song lookup requires the logical queue
+index to still name the current song, including during queue transitions.
+Range activity, native buffer events and the existing position ticks recalculate
+this priority without another timer. Pause, song
 change, queue replacement, Stop, disposal and player retirement release it;
 range completion/failure or a full forward buffer resumes the downloads too.
 Pausing preserves the `.part` prefix and suspends the main body's inactivity
@@ -4611,7 +4613,13 @@ retry with direct streaming instead of leaving the native request unanswered.
 Sized ranges and reads from the completed cache file keep their normal responses.
 Unknown-length non-range responses use HTTP chunked framing, including the
 terminal zero-length chunk, so a keep-alive connection cannot hide end-of-stream.
-Empty HTTP 500 responses explicitly send `Content-Length: 0`.
+Empty HTTP 500 responses explicitly send `Content-Length: 0`. The stream proxy
+owns each local socket from acceptance, so a client disconnect cancels its
+origin range even before origin headers arrive or while the body is silent.
+It writes sized/chunked HTTP responses with `Connection: close`, preserves
+header validation and aborts failed bodies without a terminal chunk. Proxy
+shutdown closes its detached sockets. A cancelled range never subscribes to
+its origin body later if its returned stream gains a listener.
 
 Album-style queue replacement is lazy: the active transport queue prepares the
 tapped song first, then fills the remaining sources in phase 2. Phase 1 pauses
@@ -4810,10 +4818,14 @@ loading/buffering: eight seconds without progress ends the extension, with a
 45-second absolute cap. Range bytes are deadline evidence only and never inflate
 the contiguous cached-playable extent. A stuck call retires its player before
 later operations can touch the engine, then reloads the queue using the existing
-load/reset deadlines. A superseding seek cancels the old progress extension,
-including a new target in the same song. Listener callbacks from retired players
-are rejected. Settlement probes are scoped to the
-current request and confirm both forward and backward seeks within two seconds
+load/reset deadlines. A superseding seek cancels the old progress wait and
+releases the queue lane, including for a new target in the same song; it keeps
+the engine and lock cache without bypass, recovery or a reload anomaly. Load
+generation changes still retire the old engine. A genuine timeout cancels the
+retired player's current lock-cache download and ranges before its native Stop
+or the bypass reload, so a hung Stop cannot keep those connections alive.
+Listener callbacks from retired players are rejected. Settlement probes are
+scoped to the current request and confirm both forward and backward seeks within two seconds
 of the target. While a backend waits for data its processing state can flap
 between ready and buffering several times a second, so settlement rests on the
 native position: a playing request is settled once the position advances from

@@ -13502,6 +13502,7 @@ void main() {
           ticker.cancel();
           gate.complete();
           await Future.wait([old, latest]);
+          await pumpEventQueue();
         }
         expect(handler.snapshot.currentSongId, 'song-0');
         expect(handler.snapshot.pendingSeekPosition, isNull);

@@ -49,9 +49,13 @@ extension _NavisCache on NavisAudioHandler {
     final current = _currentMediaItem;
     final ids = _logicalQueueIds;
     final index = _logicalCurrentIndex;
-    final next = index != null && index + 1 < ids.length
-        ? ids[index + 1]
-        : null;
+    final next =
+        index == null ||
+            index < 0 ||
+            index + 1 >= ids.length ||
+            ids[index] != current?.id
+        ? null
+        : ids[index + 1];
     final rangePlaying =
         defaultTargetPlatform == TargetPlatform.android &&
         !_disposeHandlerStarted &&

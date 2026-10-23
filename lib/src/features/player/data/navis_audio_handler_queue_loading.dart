@@ -248,6 +248,15 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _anomalies.event('reload', {'via': 'players'});
     _cancelCrossfade();
     _resumeLockCacheDownloads();
+    // Native stop may hang; cancel this retired source before the bypass reload.
+    final retiredIndex = _player.currentIndex;
+    final retiredSource = retiredIndex == null || retiredIndex < 0
+        ? null
+        : _player.sequence.elementAtOrNull(retiredIndex);
+    // ignore: experimental_member_use, reason: close the retired player's lock-cache transport.
+    if (retiredSource is LockCachingAudioSource) {
+      await retiredSource.cancelDownload();
+    }
     _silenceAbandonedPlayer(_player);
     final inactive = _crossfadePlayer;
     if (inactive != null) _silenceAbandonedPlayer(inactive);
@@ -433,9 +442,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
     while (!done) {
       final now = elapsed.elapsed;
       // A new song must retire this engine before its successor uses the lane.
-      if (!_isActiveLoadGeneration(generation) ||
-          (isCurrent != null && !isCurrent())) {
+      if (!_isActiveLoadGeneration(generation)) {
         throw TimeoutException('Native load superseded');
+      }
+      if (isCurrent != null && !isCurrent()) {
+        throw OperationCancelledException();
       }
       final canExtend =
           _queueLane.pendingCount == 0 ||

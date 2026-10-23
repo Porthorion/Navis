@@ -132,7 +132,9 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Android seeks beyond a partial download give playback bandwidth '
         'priority, close abandoned range requests and keep waiting while data '
-        'arrives. A larger forward buffer helps ride out brief network blips.',
+        'arrives. Changing a seek target keeps the cache, and abandoned ranges '
+        'close even while the server is silent. A larger forward buffer helps '
+        'ride out brief network blips.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

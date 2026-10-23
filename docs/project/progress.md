@@ -17,40 +17,38 @@ Last updated: 2026-10-23
 - [ ] Issue #86, item 11a PR A Android seek bandwidth — implementation complete
   on `fix/android-seek-bandwidth`, 2026-10-23; native runtime acceptance,
   independent reviews and `./tool/check.sh` remain coordinator-owned under the
-  build brief. Beyond-cache ranges now own their client/subscription and close
+  build brief. Beyond-cache ranges own their client/subscription and close
   with their proxy consumer or source removal/disposal. A main-fetch cut leaves
-  independent ranges alive. Idempotent main pause/resume preserves the prefix
-  and suspends body inactivity; Android playback ranges with under 30 seconds
-  buffered ahead pause the current and next whole-file downloads. Existing
-  events/ticks release priority on every exit. Mobile native seek waits count
-  range bytes and buffer growth, retain the idle/hard caps and reject a
-  superseded seek even within the same song. Desktop deadlines stay fixed.
-  Every Android deck receives the 180-second / 32 MiB load reserve with the
-  native 2.5-second start and 5-second rebuffer thresholds unchanged.
-  Evidence: `./tool/bootstrap.sh` completed. The initial test commit reproduced
-  range leaks, cancellation-set iteration failure and the absent pause/progress
-  API/load constant. Additional queue clear/replacement and same-song seek
-  supersession tests failed before their repairs. A broad foreground run of
-  `flutter test --concurrency=4 --timeout 60s --reporter expanded` over handler
-  navigation, handler rules, source resolver, playback lanes, lock-cache proxy,
-  position-offset, media-kit seek and deferred-seek tests passed all 906 cases
-  (`07:39 +906: All tests passed!`). After the review repairs, final focused
-  Android bandwidth coverage passed all 16 cases
-  (`00:06 +16: All tests passed!`); the proxy and its three backend neighbors
-  passed all 65 (`00:08 +65: All tests passed!`), with the final typed proxy-only
-  rerun passing all 31 (`00:08 +31: All tests passed!`). These include 26 new
-  regressions across the two changed test files, including failed-range retry,
-  independent range survival, byte-exact paused downloads, buffer-only progress,
-  pause during seek and stale-seek retirement. `dart analyze` on all 11 changed
-  Dart files exits 0 with no errors/warnings; its 33 infos map to unchanged
-  release/1.5 lines. `./tool/dart_format.sh` reports
-  `Formatted 1113 files (0 changed) in 5.84 seconds.` Heavy commands ran under
-  the required 8 GiB cap, with zero OOM kills; no task-owned background jobs,
-  apps, emulators or VMs remain. The host-platform test seam is explicitly
-  `@visibleForTesting`, since Flutter's target-platform override does not alter
-  `dart:io Platform`. No PR B implementation, dependency or version change:
-  1.5.1 is already pending. AI implementation and self-review: T3 Code/Codex,
-  gpt-6.1-sol; no independent review or native performance claim is recorded.
+  independent ranges alive. Main pause/resume preserves the prefix and suspends
+  body inactivity; Android playback ranges with under 30 seconds buffered ahead
+  pause the current and next whole-file downloads. Mobile native seek waits
+  count range bytes and buffer growth with idle/hard caps; desktop stays fixed.
+  Every Android deck receives the 180-second / 32 MiB reserve with unchanged
+  2.5-second start and 5-second rebuffer thresholds.
+  Review round 2 fixes early-cancel late-listener errors, silent client
+  disconnects before range headers/during stalled bodies, unnecessary engine
+  retirement on seek supersession, retired range lifetime behind a hung native
+  Stop and next-song priority during queue-index mismatch. Superseded seeks
+  release the lane while retaining their engine/cache with no bypass/reload;
+  load-generation changes and real stalls retain engine retirement. The stream
+  proxy owns sockets from acceptance, preserves virtual source overrides and
+  validates and frames sized/chunked responses, including interrupted bodies.
+  Evidence: six regressions failed before repair and were committed first in
+  `7bfe2493`; six additional framing cases cover exact/chunked/short/oversized
+  bodies, absent MIME metadata and header injection. `./tool/bootstrap.sh`
+  completed. `dart analyze` on all six touched Dart files exits 0 without
+  errors/warnings; all 27 infos map to unchanged lines in `27af9a6a`.
+  Final foreground `flutter test --concurrency=4 --timeout 60s --reporter expanded`
+  passed navigation, source resolver, playback lanes, lock-cache, position-offset,
+  media-kit seek and deferred-seek suites (`07:45 +866: All tests passed!`).
+  The remaining handler rules suite plus a final lock-cache rerun passed
+  (`00:08 +95: All tests passed!`). `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 5.80 seconds.` `git diff --check` passes.
+  Heavy commands used the required 8 GiB cap with zero OOM kills; no task-owned
+  background jobs, apps, emulators or VMs remain. No PR B implementation,
+  dependencies or version change: 1.5.1 is already pending. AI implementation
+  and self-review: T3 Code/Codex, gpt-6.1-sol; no independent review or native
+  performance claim is recorded.
 - [ ] Issue #86, item 10 Fast Seeking — implementation on `fix/fast-seeking`:
   Linux/Windows lossless-to-Opus seek bridge, original-only sidecar caching,
   backpressure during bridge buffering, lossless upgrades, settings and schema

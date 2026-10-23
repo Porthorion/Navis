@@ -22,6 +22,7 @@ export 'package:just_audio_platform_interface/just_audio_platform_interface.dart
         EqualizerStateMessage;
 
 const _uuid = Uuid();
+const _proxyRequestCancellation = #proxyRequestCancellation;
 
 JustAudioPlatform? _pluginPlatformCache;
 
@@ -2574,6 +2575,7 @@ class AndroidExtractorOptions {
 class _ProxyHttpServer {
   late HttpServer _server;
   bool _running = false;
+  final _streamSockets = <Socket>{};
 
   /// Maps request keys to [_ProxyHandler]s.
   final Map<String, _ProxyHandler> _handlerMap = {};
@@ -2648,6 +2650,9 @@ class _ProxyHttpServer {
   Future<dynamic> stop() async {
     if (!_running) return;
     _running = false;
+    for (final socket in _streamSockets.toList()) {
+      socket.destroy();
+    }
     return await _server.close();
   }
 }
@@ -3833,7 +3838,7 @@ class LockCachingAudioSource extends StreamAudioSource {
       if (!active) return;
       // Process any requests that start within the cache.
       for (var request in readyRequests) {
-        _requests.remove(request);
+        if (!_requests.remove(request)) continue;
         int? start;
         int? end;
         if (originSupportsRangeRequests) {
@@ -4021,6 +4026,7 @@ class LockCachingAudioSource extends StreamAudioSource {
 
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
+    final cancelled = Zone.current[_proxyRequestCancellation] as Future<void>?;
     final cacheFile = await this.cacheFile;
     if (cacheFile.existsSync()) {
       final sourceLength = cacheFile.lengthSync();
@@ -4034,6 +4040,13 @@ class LockCachingAudioSource extends StreamAudioSource {
       );
     }
     final byteRangeRequest = _StreamingByteRangeRequest(start, end);
+    cancelled?.then((_) async {
+      _requests.remove(byteRangeRequest);
+      byteRangeRequest.fail(StateError('Range request cancelled'));
+      for (final fetch in _rangeFetches.toList()) {
+        if (identical(fetch.request, byteRangeRequest)) await fetch.cancel();
+      }
+    });
     _requests.add(byteRangeRequest);
     final dispatch = _dispatchRequests;
     if (dispatch != null) unawaited(dispatch());
@@ -4076,13 +4089,16 @@ class _LockCacheRangeFetch {
 
   void listenTo(Stream<List<int>> body) {
     controller.onListen = () {
+      if (closed) return;
       subscription = body.listen((bytes) {
+        if (closed) return;
         onBytes(bytes.length);
         controller.add(bytes);
       }, onDone: () {
         unawaited(controller.close());
         unawaited(cancel());
       }, onError: (Object error, StackTrace stack) {
+        if (closed) return;
         controller.addError(error, stack);
         unawaited(controller.close());
         unawaited(cancel());
@@ -4162,79 +4178,128 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
   Future<void> handler(_ProxyHttpServer server, HttpRequest request) async {
     final rangeRequest =
         _HttpRangeRequest.parse(request.headers[HttpHeaders.rangeHeader]);
-
-    request.response.headers.clear();
-
-    StreamAudioResponse sourceResponse;
-    Stream<List<int>> stream;
+    // HttpResponse.done cannot see a silent peer close. Own the read side from
+    // acceptance, including while the origin is still preparing its headers.
+    final Socket socket;
     try {
-      sourceResponse =
-          await source.request(rangeRequest?.start, rangeRequest?.endEx);
-      stream = sourceResponse.stream;
-      // Navis: an open-ended range on a chunked source has no end byte.
-      if (rangeRequest != null &&
-          sourceResponse.offset != null &&
-          sourceResponse.contentLength == null) {
-        await stream.listen((_) {}, onError: (Object _) {}).cancel();
-        throw StateError('Cannot serve a byte range with an unknown length');
-      }
-    } catch (e, st) {
-      // ignore: avoid_print
-      print('Proxy request failed: $e\n$st');
-
-      request.response.headers.clear();
-      request.response.statusCode = HttpStatus.internalServerError;
-      // Navis: frame the empty error body after clearing the default headers.
-      request.response.contentLength = 0;
-      await request.response.close();
+      socket = await request.response.detachSocket(writeHeaders: false);
+    } catch (_) {
       return;
     }
-
-    request.response.headers
-        .set(HttpHeaders.contentTypeHeader, sourceResponse.contentType);
-
-    if (sourceResponse.rangeRequestsSupported) {
-      request.response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
+    if (!server._running) {
+      socket.destroy();
+      return;
     }
-
-    if (rangeRequest != null && sourceResponse.offset != null) {
-      final range = _HttpRangeResponse(
-          sourceResponse.offset!,
-          sourceResponse.offset! + sourceResponse.contentLength! - 1,
-          sourceResponse.sourceLength);
-      request.response.contentLength = range.length ?? -1;
-      request.response.headers
-          .set(HttpHeaders.contentRangeHeader, range.header);
-      request.response.statusCode = 206;
-    } else {
-      request.response.contentLength = sourceResponse.contentLength ?? -1;
-      // Navis: clearing headers removes chunking for unknown-length streams.
-      if (sourceResponse.contentLength == null) {
-        request.response.headers.chunkedTransferEncoding = true;
-      }
-      request.response.statusCode = 200;
-    }
-
-    request.response.bufferOutput = false;
+    server._streamSockets.add(socket);
+    socket.done.ignore();
+    final cancelled = Completer<void>();
     final body = StreamController<List<int>>();
     StreamSubscription<List<int>>? subscription;
-    body.onListen = () {
-      subscription =
-          stream.listen(body.add, onError: body.addError, onDone: body.close);
-    };
-    body.onPause = () => subscription?.pause();
-    body.onResume = () => subscription?.resume();
-    body.onCancel = () => subscription?.cancel();
-    unawaited(request.response.done.then<void>((_) => subscription?.cancel(),
-        onError: (Object _, StackTrace __) => subscription?.cancel()));
+    Stream<List<int>>? sourceStream;
+    void cancel() {
+      if (cancelled.isCompleted) return;
+      cancelled.complete();
+      unawaited(subscription?.cancel());
+      unawaited(body.close());
+      socket.destroy();
+    }
+
+    final peer =
+        socket.listen((_) {}, onDone: cancel, onError: (Object _) => cancel());
+    var headersSent = false;
     try {
-      await request.response.addStream(body.stream);
-      await request.response.close();
-    } catch (_) {
-      // Navis: a terminating chunk would turn a failed download into song EOF.
-      request.response.deadline = Duration.zero;
+      // Scope cancellation to this call while preserving virtual request overrides.
+      final sourceResponse = await runZoned(
+          () => source.request(rangeRequest?.start, rangeRequest?.endEx),
+          zoneValues: {_proxyRequestCancellation: cancelled.future});
+      final stream = sourceStream = sourceResponse.stream;
+      if (cancelled.isCompleted) return;
+      final ranged = rangeRequest != null && sourceResponse.offset != null;
+      if (ranged && sourceResponse.contentLength == null) {
+        throw StateError('Cannot serve a byte range with an unknown length');
+      }
+      final length = sourceResponse.contentLength;
+      final chunked = length == null;
+      final headers = StringBuffer(
+          ranged ? 'HTTP/1.1 206 Partial Content\r\n' : 'HTTP/1.1 200 OK\r\n');
+      final contentType = sourceResponse.contentType;
+      // Preserve HttpHeaders' field-value validation when writing raw headers.
+      if (contentType.codeUnits
+          .any((byte) => byte != 9 && (byte < 32 || byte > 127))) {
+        throw const FormatException('Invalid Content-Type header value');
+      }
+      headers.write('content-type: $contentType\r\n');
+      headers.write('connection: close\r\n');
+      if (sourceResponse.rangeRequestsSupported) {
+        headers.write('accept-ranges: bytes\r\n');
+      }
+      if (ranged) {
+        final range = _HttpRangeResponse(sourceResponse.offset!,
+            sourceResponse.offset! + length! - 1, sourceResponse.sourceLength);
+        headers.write('content-range: ${range.header}\r\n');
+      }
+      headers.write(chunked
+          ? 'transfer-encoding: chunked\r\n\r\n'
+          : 'content-length: $length\r\n\r\n');
+      socket.add(latin1.encode(headers.toString()));
+      headersSent = true;
+      var sent = 0;
+      body.onListen = () {
+        if (cancelled.isCompleted) return;
+        subscription = stream.listen((bytes) {
+          if (cancelled.isCompleted || body.isClosed) return;
+          sent += bytes.length;
+          if (length != null && sent > length) {
+            body.addError(
+                const HttpException('Source exceeded Content-Length'));
+            unawaited(subscription?.cancel());
+            unawaited(body.close());
+            return;
+          }
+          if (bytes.isEmpty) return;
+          if (chunked) {
+            body.add(ascii.encode('${bytes.length.toRadixString(16)}\r\n'));
+          }
+          body.add(bytes);
+          if (chunked) body.add(const [13, 10]);
+        }, onError: (Object error, StackTrace stack) {
+          if (!body.isClosed) body.addError(error, stack);
+        }, onDone: () {
+          if (body.isClosed) return;
+          if (length != null && sent != length) {
+            body.addError(
+                const HttpException('Source ended before Content-Length'));
+          }
+          unawaited(body.close());
+        }, cancelOnError: true);
+      };
+      body.onPause = () => subscription?.pause();
+      body.onResume = () => subscription?.resume();
+      body.onCancel = () => subscription?.cancel();
+      await socket.addStream(body.stream);
+      if (cancelled.isCompleted) return;
+      if (chunked) socket.add(ascii.encode('0\r\n\r\n'));
+      await socket.flush();
+      await socket.close();
+    } catch (e, st) {
+      if (!headersSent && !cancelled.isCompleted) {
+        // ignore: avoid_print
+        print('Proxy request failed: $e\n$st');
+        try {
+          socket.add(ascii.encode('HTTP/1.1 500 Internal Server Error\r\n'
+              'Content-Length: 0\r\nConnection: close\r\n\r\n'));
+          await socket.flush();
+        } catch (_) {}
+      }
+      // A failed body must close without a terminating chunk (never song EOF).
     } finally {
+      cancel();
+      if (subscription == null && sourceStream != null) {
+        await sourceStream.listen((_) {}, onError: (Object _) {}).cancel();
+      }
       await subscription?.cancel();
+      await peer.cancel();
+      server._streamSockets.remove(socket);
     }
   }
 

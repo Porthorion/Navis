@@ -102,6 +102,18 @@ class _ProxyPlayer extends platform.AudioPlayerPlatform {
   ) async => platform.SetShuffleModeResponse();
 }
 
+// ignore: experimental_member_use, reason: exercises the public stream proxy contract.
+class _ResponseSource extends StreamAudioSource {
+  new(this.response);
+
+  // ignore: experimental_member_use, reason: fixtures exercise the intended stream response API.
+  final StreamAudioResponse response;
+
+  @override
+  // ignore: experimental_member_use, reason: fixtures exercise the intended stream response API.
+  Future<StreamAudioResponse> request([int? start, int? end]) async => response;
+}
+
 enum _OriginFailure { disconnect, stall }
 
 /// Serves [body] slowly, optionally interrupting its first response,
@@ -229,6 +241,72 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 5));
     }
     expect(condition(), isTrue);
+  }
+
+  for (final framing in [
+    'exact',
+    'chunked',
+    'short',
+    'long',
+    'mime',
+    'injection',
+  ]) {
+    test('stream proxy preserves $framing framing and validation', () async {
+      final source = _ResponseSource(
+        // ignore: experimental_member_use, reason: exercises HTTP framing of source responses.
+        StreamAudioResponse(
+          sourceLength: null,
+          contentLength: switch (framing) {
+            'chunked' => null,
+            'short' => 4,
+            'long' => 2,
+            _ => 3,
+          },
+          offset: null,
+          stream: Stream.fromIterable([
+            if (framing == 'long')
+              [1, 2, 3]
+            else ...[
+              <int>[],
+              [1, 2],
+              [3],
+            ],
+          ]),
+          contentType: switch (framing) {
+            'mime' =>
+              'null', // An origin without a Content-Type uses this value.
+            'injection' => 'audio/mpeg\r\nx-injected: true',
+            _ => 'audio/mpeg',
+          },
+        ),
+      );
+      final player = AudioPlayer(
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
+      addTearDown(player.dispose);
+      await player.setAudioSource(source);
+      final client = HttpClient();
+      addTearDown(() => client.close(force: true));
+      final request = await client.getUrl(native.player.proxyUri);
+      Future<List<int>> read() async {
+        final response = await request.close();
+        expect(
+          response.statusCode,
+          framing == 'injection'
+              ? HttpStatus.internalServerError
+              : HttpStatus.ok,
+        );
+        expect(response.headers.value('x-injected'), isNull);
+        return await response.expand((bytes) => bytes).toList();
+      }
+
+      if (framing == 'short' || framing == 'long') {
+        await expectLater(read(), throwsA(isA<HttpException>()));
+      } else {
+        expect(await read(), framing == 'injection' ? isEmpty : [1, 2, 3]);
+      }
+    });
   }
 
   for (final end in [
