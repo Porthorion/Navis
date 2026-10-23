@@ -4085,9 +4085,9 @@ or restarting a completed queue; all shared play paths, including audio-focus
 resume, defer native playback until the source is ready. The reopened occurrence
 honours the latest intent. Once its source is ready, Play resumes it normally
 while seek settlement runs.
-A newer seek, skip or Pause retains ownership; if a seek arrives while the
+A newer seek or skip takes over from the reopen; if a seek arrives while the
 departed occurrence is resolving, that occurrence loads before the newer seek
-applies. A failed or unbuilt reopen retains failover ownership after deferred
+applies. A Pause only changes the intent the reopen lands with. A failed or unbuilt reopen retains failover ownership after deferred
 Play/Pause commands, using the latest explicit play intent. It uses the existing
 bounded silent failover; a failed final song stops quietly until Play reloads it.
 Exhausted retries, original streams, unknown durations, ends within 10 seconds
