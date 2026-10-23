@@ -136,6 +136,11 @@ const List<ChangelogVersion> changelogs = [
         'close even while the server is silent. A larger forward buffer helps '
         'ride out brief network blips. Seek recovery clears the retired '
         'download’s caching status.',
+        'Desktop rolling-cache downloads of originals resume after connection '
+        'cuts when the server supports byte ranges, preserving the downloaded '
+        'prefix and keeping Fast Seeking available. Continuations must retain '
+        'the original validator when supplied, and temporary TLS reconnect '
+        'failures use the same bounded retries.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

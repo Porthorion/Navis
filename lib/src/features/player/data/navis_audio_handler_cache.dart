@@ -126,6 +126,7 @@ extension _NavisCache on NavisAudioHandler {
         songId: song.id,
         uri: streamUri,
         cacheFilePath: sidecarPath,
+        isTranscoded: item.extras?['transcodingApplied'] as bool? ?? false,
         onProgress: (progress) {
           _updateRollingCacheActivity(
             sidecarPath,
