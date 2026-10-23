@@ -6084,6 +6084,25 @@ download naming throws when all 100 collision candidates are occupied.
    sidecar download fills the rolling cache: each uncached track is fetched
    twice (a FLAC is typically 25–50 MB, and transcoding runs twice on the
    server). This is a deliberate cost of seekable desktop playback.
+   If a known-length original sidecar with no HTTP compression loses its
+   connection, it keeps the same contiguous part file and requests the rest with
+   `Range` and, when available, a strong ETag or Last-Modified `If-Range`.
+   Only an exact `206 Content-Range` continuation with the original total and
+   compatible encoding is appended. When `If-Range` uses a strong ETag or
+   Last-Modified, the continuation must repeat that exact validator; a missing
+   or changed validator, `200`, `416` and mismatches discard the part.
+   `Accept-Ranges: none` disables resume. Reconnect TLS/handshake failures use
+   the same retry budget. Retries wait 1, 2 and 4 seconds, with the budget renewed
+   after 256 KiB of new data. Backoff and reconnect obey the bridge pause gate
+   and cancellation, and do not count toward the active transfer rate. Progress
+   stays cumulative, publication requires the full length, and termination is
+   reported only at the final end. Repeated native current-index events keep
+   the active download through retries; only after abandonment can they start
+   a fresh full GET. Unknown-length bodies and transcodes do not resume.
+   Exhaustion leaves an active bridge playing without offering a
+   lossless upgrade from an incomplete file. Without an origin validator,
+   matching URI, range and length cannot prove that the representation did not
+   change on the server.
 2. After flushing and publishing the complete file →
    `RollingCacheManager.registerTrack()`. The mobile lock-cache source emits
    100% only after closing its write sink and renaming `.part` into place.
