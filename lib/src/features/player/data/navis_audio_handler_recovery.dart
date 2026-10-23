@@ -1219,7 +1219,25 @@ extension _NavisRecovery on NavisAudioHandler {
           // down to that one song: put it back, so skipping past the song
           // rebuilds the player around the next one.
           _recoveryStage = 'reload failed';
-          _restoreQueueLists(restore);
+          final failedItem = _queueItems.singleOrNull;
+          if (!fastSeekBridge &&
+              failedItem != null &&
+              failedItem.id == currentSongId &&
+              _sequenceMatchesQueue(_player)) {
+            // Native already holds only this song; defer its neighbours so
+            // native index zero cannot select the old queue head.
+            _restoreQueueLists(
+              _pendingQueueRestorePoint(
+                queueSongIds,
+                orderedSongs,
+                failedItem,
+                currentIndex,
+                capture,
+              ),
+            );
+          } else {
+            _restoreQueueLists(restore);
+          }
           if (fastSeekBridge) {
             // Native may already hold the failed bridge's single-item playlist.
             await _reloadQueueAfterTimeout(restore.capture);

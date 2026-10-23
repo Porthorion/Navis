@@ -8744,8 +8744,9 @@ void main() {
                 ..entered = Completer<void>()
                 ..release = Completer<void>();
               addTearDown(() {
-                if (!resolver.release!.isCompleted)
+                if (!resolver.release!.isCompleted) {
                   resolver.release!.complete();
+                }
               });
               player.loadErrorAfterApply = StateError('HTTP 500 after apply');
               player.finishCurrentTrack(

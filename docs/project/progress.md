@@ -105,6 +105,30 @@ Last updated: 2026-10-24
   No apps, emulators or VMs were launched; no task-owned jobs remain.
   Runtime acceptance and `./tool/check.sh` remain coordinator-owned under
   the build brief.
+  Round 5, 2026-10-24: nine regressions were committed first in `b263d5ef`
+  after `00:03 +5 -4: Some tests failed.` Native-load rejection after replacing
+  the playlist reproduces the final-song logical/native mismatch with no
+  command, Play and Pause during resolution; middle-song failover is also
+  checked. Recovery now keeps the failed native song materialised and defers
+  its original neighbours, preserving all queue entries and the current logical
+  index. Later Play reloads the failed final song at its departed position
+  (47 seconds in these tests), following the existing stopped-source retry rule.
+  The retained anomaly's exact 3368→0→3489 ms sequence reproduces the false
+  replay without an index change: confirmation previously accepted the
+  corrected position merely because it remained under 10 seconds. Confirmation
+  now also requires a position below the departure position. A real four-second
+  replay is still detected; ordinary four-second advancement with the desktop
+  index yield produces no record. All nine focused tests pass
+  `00:03 +9: All tests passed!` Scoped `dart analyze` exits 0 without errors or
+  warnings; all 29 infos map to unchanged lines in `d9ce781f`. Bootstrap completed.
+  Final foreground rerun covers the ten round-4 suites plus
+  `playback_anomaly_recorder_test.dart`: `08:10 +1025: All tests passed!`
+  The required 8 GiB cap reports exit 0, peak 3268 MiB, swap peak 1558 MiB
+  and zero OOM kills. `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 5.76 seconds.` `git diff --check` passes.
+  No apps, emulators or VMs were launched; no task-owned jobs remain.
+  Native acceptance and `./tool/check.sh` remain coordinator-owned under the
+  build brief.
   AI implementation and self-review: T3 Code/Codex, gpt-6.1-sol. No native
   performance or audible-continuity claim is recorded.
 - [ ] Issue #86, item 11a PR A Android seek bandwidth — implementation complete

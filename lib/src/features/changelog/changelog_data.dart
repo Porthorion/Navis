@@ -145,8 +145,9 @@ const List<ChangelogVersion> changelogs = [
         'keeps the current listening session and silences the next song while '
         'reopening, including after artwork refreshes, Play commands or audio-focus '
         'resume during recovery. Failed recovery still skips quietly or stops at '
-        'the queue end, honoring the latest Play or Pause; queue edits keep '
-        'their normal playback behavior.',
+        'the queue end, honoring the latest Play or Pause. A failed final-song '
+        'reopen preserves the queue and Play retries that song where it stopped; '
+        'queue edits keep their normal playback behavior.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

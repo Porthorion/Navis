@@ -4090,10 +4090,21 @@ departed occurrence is resolving, that occurrence loads before the newer seek
 applies. A Pause only changes the intent the reopen lands with. A failed or unbuilt reopen retains failover ownership after deferred
 Play/Pause commands, using the latest explicit play intent. It uses the existing
 bounded silent failover; a failed final song stops quietly until Play reloads it.
+If native loading already replaced the playlist with the failed song alone,
+recovery keeps that song materialised and defers its original neighbours.
+The logical order and current index therefore still select the failed occurrence;
+Play reloads it at the departed song position, following the existing stopped
+remote-source retry rule rather than restarting the queue.
 Exhausted retries, original streams, unknown durations, ends within 10 seconds
 of metadata duration and unsupported servers keep normal end behavior.
 Active crossfades are excluded. This metadata heuristic can also retry a real
 transcode end when server metadata overstates its duration by more than 10 seconds.
+
+The silent anomaly recorder confirms a suspected near-end replay only while
+the position remains below its departure position as well as below 10 seconds.
+A transient zero corrected back to the prior timeline before confirmation is
+not a replay, including for songs shorter than 10 seconds. This does not add
+an expectation or grace period around natural advances or recovery.
 
 Verified recovery after an observed outage re-arms the song's reload allowance
 so a later outage does not skip it.

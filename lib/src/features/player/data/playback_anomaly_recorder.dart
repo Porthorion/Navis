@@ -194,9 +194,8 @@ class PlaybackAnomalyRecorder {
       if (at.difference(pending.at) < _confirmAfter) return;
       _candidate = null;
       if (songId == pending.songId &&
-          (pending.kind == 'replayNearEnd'
-              ? position < _nearEnd
-              : position < pending.from)) {
+          position < pending.from &&
+          (pending.kind != 'replayNearEnd' || position < _nearEnd)) {
         _end = null;
         _emit(pending, duration: duration, at: at);
         return;
