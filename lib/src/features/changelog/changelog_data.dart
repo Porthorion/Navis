@@ -139,6 +139,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Desktop playback retries a cut transcode at its last song position '
+        'instead of treating it as the end, including Repeat One and the last '
+        'song in a queue, when the server supports transcode offsets.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Desktop rolling-cache downloads of originals resume after connection '
         'cuts when the server supports byte ranges, preserving the downloaded '
         'prefix and keeping Fast Seeking available. Continuations must retain '

@@ -14,6 +14,34 @@ Last updated: 2026-10-23
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 11a PR C desktop transcode EOF — implementation complete
+  on `fix/transcode-cut-eof`, 2026-10-23; coordinator `./tool/check.sh`,
+  independent reviews and native cut-matrix acceptance remain pending under
+  the build brief. Native auto-advance and final-item completion compare the
+  departed occurrence's backend position with authoritative song duration.
+  Remote transcodes/offset continuations ending more than 10 seconds early
+  reopen at whole-second `timeOffset` through the existing recovery path and
+  shared retry budget. Duplicates, Repeat One, queue completion, bridge failure
+  fallback and newer Pause/seek/skip retain their occurrence and intent.
+  Completed files, unknown durations, originals, unsupported servers and
+  near-end completions keep normal behavior; active crossfades are excluded.
+  Sixteen tests were committed first in `28f880b6` after the expected
+  `00:34 +6 -10: Some tests failed.` Regressions expanded to 21 cases, including
+  backend versus interpolated time, healthy play and bridge rejection with
+  duplicate queue entries. The natural bridge Repeat One fixture now reports
+  the actual 180-second end rather than an early 90-second departure.
+  Final foreground `flutter test --concurrency=4 --timeout 60s --reporter expanded`
+  passed eight files (navigation, handler rules, source resolver, playback lanes,
+  position offset, media-kit seek, deferred seek and mpv errors):
+  `08:03 +907: All tests passed!` `./tool/bootstrap.sh` completed. Scoped
+  `dart analyze` exits 0 with no errors/warnings; all 17 infos map to unchanged
+  lines in `9d5e5a9b`. `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 5.99 seconds.` The formatter has no
+  per-file mode, so its full source set was checked. `git diff --check` passes.
+  Heavy commands used the required 8 GiB cap with zero OOM kills. No apps,
+  emulators or VMs were launched, and no task-owned background jobs remain.
+  AI implementation and self-review: T3 Code/Codex, gpt-6.1-sol. No native
+  performance or audible-continuity claim is recorded.
 - [ ] Issue #86, item 11a PR A Android seek bandwidth — implementation complete
   on `fix/android-seek-bandwidth`, 2026-10-23; native runtime acceptance,
   independent reviews and `./tool/check.sh` remain coordinator-owned under the

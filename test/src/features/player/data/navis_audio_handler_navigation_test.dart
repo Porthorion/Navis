@@ -8156,11 +8156,65 @@ void main() {
       },
     );
 
+    for (final reject in [false, true]) {
+      test(
+        'premature transcode EOF recovers a bridge (rejected: $reject)',
+        () async {
+          late _GatedSourceResolver resolver;
+          final (handler, player, _, _) = await bridgeHandler(
+            wrap: (base) => resolver = _GatedSourceResolver(base),
+          );
+          if (reject) {
+            await handler.replaceQueue(
+              ['song-1', 'song-1', 'song-1'],
+              startIndex: 1,
+              expandMatchFlows: false,
+            );
+            await settleQueue(handler);
+          }
+          await seekTo(handler, target);
+          resolver.rejectBridge = reject;
+          final events =
+              (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                  .length;
+          player.simulatedDuration = const Duration(seconds: 110);
+
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 110));
+          for (
+            var i = 0;
+            i < 300 &&
+                (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                        .length ==
+                    events;
+            i++
+          ) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          await settleQueue(handler);
+
+          expect(
+            (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                .length,
+            events + 1,
+          );
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(player.index, 1);
+          expect(player.position.inSeconds, 110);
+          expect(bridging(handler), !reject);
+          expect(
+            current(player).positionOffset,
+            reject ? Duration.zero : const Duration(seconds: 110),
+          );
+          expect(player.playing, isTrue);
+        },
+      );
+    }
+
     test('Repeat One returns to lossless', () async {
       final (handler, player, _, _) = await bridgeHandler();
       await seekTo(handler, target);
       await handler.setRepeatMode(AudioServiceRepeatMode.one);
-      player.finishCurrentTrack();
+      player.finishCurrentTrack(endPosition: const Duration(seconds: 180));
       for (var i = 0; i < 300 && bridging(handler); i++) {
         await Future<void>.delayed(const Duration(milliseconds: 10));
       }
@@ -8558,6 +8612,67 @@ void main() {
           expect(handler.snapshot.currentSongId, 'song-2');
         });
       }
+
+      test(
+        'completion uses the backend position instead of its clock',
+        () async {
+          final (handler, player) = await setup(last: true);
+          final loads = player.sourceLoads;
+          player
+            ..nativePositionFrozen = true
+            ..simulatedPosition = const Duration(seconds: 47)
+            .._positionUpdated = DateTime.now().subtract(
+              const Duration(seconds: 240),
+            )
+            ..state = ProcessingState.completed;
+          expect(player.position, greaterThan(const Duration(seconds: 280)));
+          player._events.add(player.playbackEvent);
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+        },
+      );
+
+      test(
+        'an offset continuation also recovers at its last song position',
+        () async {
+          final (handler, player) = await setup();
+          await seekAndSettle(handler, const Duration(seconds: 30));
+          final loads = player.sourceLoads;
+
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+          expect(handler.snapshot.currentSongId, 'song-1');
+        },
+      );
+
+      test('healthy play does not excuse a truncated transcode', () async {
+        final (handler, player, database) = await offsetHandler(
+          positionStreams: true,
+          timeouts: const NavisPlaybackTimeouts(
+            healthyPlayback: Duration(milliseconds: 600),
+          ),
+        );
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song 1',
+            duration: const Value(300),
+          ),
+        ]);
+        await start(handler);
+        await Future<void>.delayed(const Duration(milliseconds: 1200));
+        final loads = player.sourceLoads;
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => player.sourceLoads > loads);
+        await drain(handler);
+
+        expect(current(player).positionOffset, const Duration(seconds: 47));
+      });
 
       test('a user skip does not reopen the departed song', () async {
         final (handler, player) = await setup();

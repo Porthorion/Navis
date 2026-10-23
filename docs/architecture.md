@@ -4053,6 +4053,25 @@ the reloaded song. If the reloaded song fails again while the rest of the
 queue is still loading, the Play waits and restarts recovery once that load
 completes; only an error-free event that is not idle clears the failure. Song and station state remain buffering while waiting, preserving OS
 transport controls.
+
+On desktop, a native auto-advance (including Repeat One) or final-item
+completion can hide a cut transcode as a clean EOF. Navis compares the departed
+occurrence's last backend position with its authoritative `MediaItem.duration`.
+A remote transcode or offset continuation ending more than 10 seconds early,
+with known metadata duration, no completed local file and server `transcodeOffset`
+support, consumes the same song/transport-generation retry allowance and reopens
+that occurrence at its whole-second song position. Healthy play before the cut
+does not excuse the premature end; the existing healthy-play renewal still
+applies after recovery. Native duration and the interpolated desktop clock do
+not establish the departure position. Queue completion and deferred continuation
+wait while recovery runs. A newer seek, skip or Pause retains ownership; if a
+seek arrives while the departed occurrence is resolving, that occurrence loads
+before the newer seek applies. Failed reopen uses the existing bounded silent
+failover. Exhausted retries, original streams, unknown durations, ends within
+10 seconds of metadata duration and unsupported servers keep normal end behavior.
+Active crossfades are excluded. This metadata heuristic can also retry a real
+transcode end when server metadata overstates its duration by more than 10 seconds.
+
 Verified recovery after an observed outage re-arms the song's reload allowance
 so a later outage does not skip it.
 Network wait retries back off from 3 to 24 seconds. The audio handler's network

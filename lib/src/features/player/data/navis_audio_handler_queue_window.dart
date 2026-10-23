@@ -125,6 +125,12 @@ extension _NavisQueueWindow on NavisAudioHandler {
         _latestExplicitTransportPlaying == false) {
       return;
     }
+    if (_retryPrematureTranscodeEnd(
+      _player.currentIndex,
+      _seekSettlementPosition,
+    )) {
+      return;
+    }
     final current = _logicalCurrentIndex;
     if (current == null) return;
     final next = current + 1;
