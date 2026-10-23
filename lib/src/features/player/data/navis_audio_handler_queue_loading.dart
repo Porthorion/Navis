@@ -82,6 +82,16 @@ extension _NavisQueueLoading on NavisAudioHandler {
   }
 
   NavisResolvedQueueMetadata _resolveCurrentQueueMetadata() {
+    final departed = _prematureTranscodeDeparture?.item;
+    if (departed != null) {
+      final index = _queueItems.indexWhere((item) => identical(item, departed));
+      if (index >= 0) {
+        return NavisResolvedQueueMetadata(
+          mediaItem: departed,
+          currentIndex: index,
+        );
+      }
+    }
     final restoredIndex = _restoredQueueIndex;
     if (restoredIndex != null && !_isLoading) {
       return NavisResolvedQueueMetadata(

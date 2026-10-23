@@ -444,6 +444,7 @@ class NavisAudioHandler extends BaseAudioHandler
   int _transportGeneration = 0;
   bool? _latestExplicitTransportPlaying;
   _PendingSeek? _pendingSeek;
+  ({MediaItem item, bool playing})? _prematureTranscodeDeparture;
   DateTime? _lastPositionEmitAt;
   _PendingSeek? _lastSeek;
   int _seekRevision = 0;

@@ -4063,9 +4063,17 @@ support, consumes the same song/transport-generation retry allowance and reopens
 that occurrence at its whole-second song position. Healthy play before the cut
 does not excuse the premature end; the existing healthy-play renewal still
 applies after recovery. Native duration and the interpolated desktop clock do
-not establish the departure position. Queue completion and deferred continuation
-wait while recovery runs. A newer seek, skip or Pause retains ownership; if a
-seek arrives while the departed occurrence is resolving, that occurrence loads
+not establish the departure position. Detection requires the departed queue
+entry to remain the handler's current occurrence and the queue lane to be idle;
+remove, insert and move events cannot classify an edited queue entry as a cut.
+On classification the native player pauses before source resolution, and the
+departed occurrence keeps metadata authority and its existing scrobble/history
+session. Successor index events cannot publish a new session, Now Playing or
+history entry; a last-item cut cannot submit a completion scrobble or publish
+completed state. These rules hold whether discontinuity or index arrives first.
+Queue completion and deferred continuation wait while recovery runs. A newer
+seek, skip or Pause retains ownership; if a seek arrives while the departed
+occurrence is resolving, that occurrence loads
 before the newer seek applies. Failed reopen uses the existing bounded silent
 failover. Exhausted retries, original streams, unknown durations, ends within
 10 seconds of metadata duration and unsupported servers keep normal end behavior.

@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-23
+Last updated: 2026-10-24
 
 ---
 
@@ -40,6 +40,26 @@ Last updated: 2026-10-23
   per-file mode, so its full source set was checked. `git diff --check` passes.
   Heavy commands used the required 8 GiB cap with zero OOM kills. No apps,
   emulators or VMs were launched, and no task-owned background jobs remain.
+  Round 2, 2026-10-24: nine additional regressions were committed first in `bcd59762`
+  after `00:03 +21 -9: Some tests failed.` They cover current/earlier removal,
+  insert/move, scrobble/history continuity for middle/last cuts in both native
+  event orders, and silence during gated source resolution. Departure detection
+  now requires the handler's current entry and an idle queue lane. Recovery
+  holds that occurrence's metadata/session, suppresses successor/completion
+  side effects, and invokes a bounded native pause before source resolution.
+  Index events yield to a same-turn discontinuity and cannot cancel the held
+  recovery, independent of queue-lane occupancy. A newer Pause/seek/skip keeps
+  ownership. The session regressions also wait for recovery settlement and
+  verify the resumed submission uses the original session key. A tenth gated
+  regression covers a newer Pause before native pause acknowledgement; recovery
+  installs its seek request before awaiting that acknowledgement. The complete
+  transcode-offset group passes `00:37 +79: All tests passed!` Final foreground
+  rerun of the eight suites above plus `scrobble_service_test.dart` passes
+  `08:05 +939: All tests passed!` The required 8 GiB cap reports exit 0,
+  peak 2288 MiB, swap peak 595 MiB and zero OOM kills. Scoped `dart analyze`
+  exits 0 with no errors/warnings; all 23 infos map to unchanged lines in `03393250`.
+  `./tool/dart_format.sh --check` reports
+  `Formatted 1113 files (0 changed) in 5.97 seconds.`
   AI implementation and self-review: T3 Code/Codex, gpt-6.1-sol. No native
   performance or audible-continuity claim is recorded.
 - [ ] Issue #86, item 11a PR A Android seek bandwidth — implementation complete

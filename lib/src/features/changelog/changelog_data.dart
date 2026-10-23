@@ -141,7 +141,9 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Desktop playback retries a cut transcode at its last song position '
         'instead of treating it as the end, including Repeat One and the last '
-        'song in a queue, when the server supports transcode offsets.',
+        'song in a queue, when the server supports transcode offsets. Recovery '
+        'keeps the current listening session and silences the next song while '
+        'reopening; queue edits keep their normal playback behavior.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

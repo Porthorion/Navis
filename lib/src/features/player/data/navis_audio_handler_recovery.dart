@@ -87,9 +87,12 @@ extension _NavisRecovery on NavisAudioHandler {
       : _isCurrentSeek(request);
 
   bool get _requestedPlaying =>
-      _latestExplicitTransportPlaying ?? _player.playing;
+      _latestExplicitTransportPlaying ??
+      _prematureTranscodeDeparture?.playing ??
+      _player.playing;
 
-  bool get _visiblePlaying => _pendingSeek == null
+  bool get _visiblePlaying =>
+      _pendingSeek == null && _prematureTranscodeDeparture == null
       ? navisVisiblePlaying(
           playerPlaying: _player.playing,
           queueFinished: _queueFinished,
@@ -446,6 +449,7 @@ extension _NavisRecovery on NavisAudioHandler {
     if (!_isDesktopRuntime ||
         _disposeHandlerStarted ||
         _isLoading ||
+        !_queueLane.isIdle ||
         _pendingSeek != null ||
         _remotePlaybackRecoveryInProgress ||
         _isCrossfading ||
@@ -459,7 +463,9 @@ extension _NavisRecovery on NavisAudioHandler {
         index >= _queueItems.length) {
       return false;
     }
-    final item = _queueItems[index];
+    // The index belongs to the departure, not an already-edited queue.
+    final item = _currentMediaItem;
+    if (item == null || !identical(item, _queueItems[index])) return false;
     final kind = item.extras?['sourceKind'];
     final duration = item.duration;
     // ponytail: metadata-only EOF detection; add native cut evidence if server
@@ -478,6 +484,7 @@ extension _NavisRecovery on NavisAudioHandler {
         )) {
       return false;
     }
+    _prematureTranscodeDeparture = (item: item, playing: _requestedPlaying);
     _continuingIntoDeferredTail = true;
     unawaited(
       _retryRemotePlayback(
@@ -488,7 +495,15 @@ extension _NavisRecovery on NavisAudioHandler {
         transportGeneration: _transportGeneration,
         reason: 'premature transcode EOF',
         departedItem: item,
-      ).whenComplete(() => _continuingIntoDeferredTail = false),
+      ).whenComplete(() {
+        if (identical(_prematureTranscodeDeparture?.item, item)) {
+          _prematureTranscodeDeparture = null;
+        }
+        _continuingIntoDeferredTail = false;
+        _handleScrobbleSignals();
+        _broadcastPlaybackState();
+        _emitSnapshot();
+      }),
     );
     return true;
   }
@@ -1716,6 +1731,18 @@ extension _NavisRecovery on NavisAudioHandler {
       outcome: StartupOutcome.changed,
     );
 
+    // Install the seek request before awaiting Pause's native acknowledgement.
+    final pausing = departedItem == null
+        ? null
+        : _runTimedPlayerOperation(
+            generation: _activeLoadGeneration,
+            operation: 'pause premature transcode EOF',
+            action: _player.pause,
+            songId: songId,
+            timeout: _timeouts.control,
+          ).catchError((Object error) {
+            AppLogger.debug('Pause before transcode recovery failed: $error');
+          });
     try {
       if (isRetry) {
         try {
@@ -1733,6 +1760,10 @@ extension _NavisRecovery on NavisAudioHandler {
             );
             _pendingSeek = request;
             try {
+              if (pausing != null) {
+                await pausing;
+              }
+              _checkSeekCurrent(request, recoveryToken);
               final bridging =
                   (departedItem ?? _currentMediaItem)
                       ?.extras?['bridgeFormat'] !=

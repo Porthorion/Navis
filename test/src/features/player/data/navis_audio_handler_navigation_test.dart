@@ -804,6 +804,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     }
   }
 
+  Completer<void>? pauseGate;
+  Completer<void>? pauseEntered;
+
   @override
   Future<void> pause() async {
     simulatedPosition = position;
@@ -811,6 +814,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     emitPlayerEvent();
     _playing?.complete();
     _playing = null;
+    final gate = pauseGate;
+    pauseGate = null;
+    if (gate != null) {
+      pauseEntered?.complete();
+      await gate.future;
+    }
   }
 
   int focusDenials = 0;
@@ -8641,8 +8650,10 @@ void main() {
               final session = scrobbles.nowPlayingSessions.single;
               final completed = <PlaybackSnapshot>[];
               final subscription = handler.snapshotStream.listen((snapshot) {
-                if (snapshot.processingState == AudioProcessingState.completed)
+                if (snapshot.processingState ==
+                    AudioProcessingState.completed) {
                   completed.add(snapshot);
+                }
               });
               addTearDown(subscription.cancel);
               final loads = player.sourceLoads;
@@ -8653,6 +8664,7 @@ void main() {
               );
               await until(() => player.sourceLoads > loads);
               await drain(handler);
+              await until(() => handler.snapshot.pendingSeekPosition == null);
 
               expect(handler.snapshot.currentSongId, 'song-1');
               expect(
@@ -8702,6 +8714,34 @@ void main() {
         await drain(handler);
         expect(player.playing, isTrue);
       });
+
+      test(
+        'a newer Pause preserves recovery during native acknowledgement',
+        () async {
+          final (handler, player) = await setup();
+          final release = Completer<void>();
+          final entered = Completer<void>();
+          player
+            ..pauseGate = release
+            ..pauseEntered = entered;
+          addTearDown(() {
+            if (!release.isCompleted) release.complete();
+          });
+          final loads = player.sourceLoads;
+
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => entered.isCompleted);
+          await handler.pause();
+          release.complete();
+          await until(() => player.sourceLoads > loads);
+          await drain(handler);
+          await until(() => handler.snapshot.pendingSeekPosition == null);
+
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+          expect(player.playing, isFalse);
+        },
+      );
 
       for (final last in [false, true]) {
         test('reopens at 47 of 300 seconds (last: $last)', () async {
