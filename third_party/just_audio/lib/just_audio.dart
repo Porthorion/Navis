@@ -4204,6 +4204,9 @@ _ProxyHandler _proxyHandlerForSource(StreamAudioSource source) {
       socket.destroy();
     }
 
+    // ponytail: a half-closing HTTP client gets no response; this loopback proxy
+    // serves the native player, which does not half-close. To support others,
+    // cancel read EOF only after a write failure or a short grace period.
     final peer =
         socket.listen((_) {}, onDone: cancel, onError: (Object _) => cancel());
     var headersSent = false;

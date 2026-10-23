@@ -134,7 +134,8 @@ const List<ChangelogVersion> changelogs = [
         'priority, close abandoned range requests and keep waiting while data '
         'arrives. Changing a seek target keeps the cache, and abandoned ranges '
         'close even while the server is silent. A larger forward buffer helps '
-        'ride out brief network blips.',
+        'ride out brief network blips. Seek recovery clears the retired '
+        'download’s caching status.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

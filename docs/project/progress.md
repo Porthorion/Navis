@@ -49,6 +49,19 @@ Last updated: 2026-10-23
   dependencies or version change: 1.5.1 is already pending. AI implementation
   and self-review: T3 Code/Codex, gpt-6.1-sol; no independent review or native
   performance claim is recorded.
+  Review round 3 clears a retired current source's progress subscription,
+  tracked source, received bytes and caching activity before native Stop or
+  bypass reload. A test first reproduced the stale 40% activity without a song
+  change (`2c9f279c`), then passed after cleanup. The proxy's read-EOF policy
+  stays unchanged; its `ponytail:` comment records the half-closing-client limit
+  and the write-failure/grace-period upgrade path. Foreground validation:
+  navigation and lock-cache suites: `07:44 +778: All tests passed!`; scoped
+  `dart analyze` exits 0
+  with no errors/warnings and 26 infos verified against unchanged lines.
+  `./tool/dart_format.sh` formatted 1113 files (only the new test changed);
+  `git diff --check` passes. Bootstrap completed; all heavy commands used the
+  8 GiB cap with zero OOM kills. Runtime acceptance and `./tool/check.sh`
+  remain coordinator-owned; no apps, emulators, VMs or background jobs ran.
 - [ ] Issue #86, item 10 Fast Seeking — implementation on `fix/fast-seeking`:
   Linux/Windows lossless-to-Opus seek bridge, original-only sidecar caching,
   backpressure during bridge buffering, lossless upgrades, settings and schema

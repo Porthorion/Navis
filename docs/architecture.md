@@ -4824,6 +4824,8 @@ the engine and lock cache without bypass, recovery or a reload anomaly. Load
 generation changes still retire the old engine. A genuine timeout cancels the
 retired player's current lock-cache download and ranges before its native Stop
 or the bypass reload, so a hung Stop cannot keep those connections alive.
+Retirement also removes that source's progress subscription, cache activity and
+received-byte tracking, so the current song cannot retain a stale caching status.
 Listener callbacks from retired players are rejected. Settlement probes are
 scoped to the current request and confirm both forward and backward seeks within two seconds
 of the target. While a backend waits for data its processing state can flap

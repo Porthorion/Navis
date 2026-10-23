@@ -256,6 +256,12 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // ignore: experimental_member_use, reason: close the retired player's lock-cache transport.
     if (retiredSource is LockCachingAudioSource) {
       await retiredSource.cancelDownload();
+      for (final entry in _lockCacheSources.entries.toList()) {
+        if (!identical(entry.value.source, retiredSource)) continue;
+        _lockCacheSources.remove(entry.key);
+        await _cacheProgressSubscriptions.remove(entry.key)?.cancel();
+        _completeRollingCacheActivity(entry.key);
+      }
     }
     _silenceAbandonedPlayer(_player);
     final inactive = _crossfadePlayer;
