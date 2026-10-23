@@ -123,6 +123,7 @@ class NavisAudioHandler extends BaseAudioHandler
     this._readRadioArtworkAllowed,
     this._createRadioMetadataDio,
     AudioPlayer? player,
+    RollingCacheSidecarDownloader? sidecarDownloader,
     this._adjustmentCapabilities,
     EqCapabilities? equalizerCapabilities,
     this._crossfadePlayerFactory,
@@ -130,7 +131,9 @@ class NavisAudioHandler extends BaseAudioHandler
     this._queueWindow = const NavisQueueWindow(),
     this._timeouts = const NavisPlaybackTimeouts(),
     math.Random? shuffleRandom,
-  }) : _shuffleRandom = shuffleRandom ?? math.Random(),
+  }) : _sidecarDownloader =
+           sidecarDownloader ?? RollingCacheSidecarDownloader(),
+       _shuffleRandom = shuffleRandom ?? math.Random(),
        _injectedEqualizerCapabilities = equalizerCapabilities,
        _userVolume = initialVolume.isFinite
            ? initialVolume.clamp(0.0, 1.0)
@@ -477,8 +480,7 @@ class NavisAudioHandler extends BaseAudioHandler
   static const int _maxSeekDiagnosticsEvents = 32;
   // Observe-only recorder of unexplained position moves (see its docs).
   late final _anomalies = PlaybackAnomalyRecorder(header: _anomalyHeader);
-  final RollingCacheSidecarDownloader _sidecarDownloader =
-      RollingCacheSidecarDownloader();
+  final RollingCacheSidecarDownloader _sidecarDownloader;
   final Map<String, SongsTableData> _sidecarSongsById =
       <String, SongsTableData>{};
 
@@ -2237,6 +2239,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (!_isCurrentTransportIntent(transportGeneration)) return;
     _cancelCrossfade();
     await _player.pause();
+    _syncBridgeDownloadPriority();
     _broadcastPlaybackState();
     _emitSnapshot();
     _scheduleTransportPersistence(context: 'pause');
@@ -2395,6 +2398,7 @@ class NavisAudioHandler extends BaseAudioHandler
               request.queueIndex ?? 0,
             );
             _pendingSeek = null;
+            _syncBridgeDownloadPriority();
             await _skipPastFailedRemoteSong(
               failedIndex,
               autoPlay: _requestedPlaying,
@@ -2425,6 +2429,7 @@ class NavisAudioHandler extends BaseAudioHandler
           _broadcastPlaybackState();
           _emitSnapshot();
         }
+        _syncBridgeDownloadPriority();
       }
     });
   }
@@ -2581,6 +2586,16 @@ class NavisAudioHandler extends BaseAudioHandler
             },
       'partialCacheBytes': partialCacheBytes,
       'sidecarCacheActiveSongId': _sidecarDownloader.activeSongId,
+      'sidecar': <String, Object?>{
+        'paused': _sidecarDownloader.isPaused,
+        'bytesPerSecond': _sidecarDownloader.activeBytesPerSecond,
+      },
+      'fastSeekBridge': _currentMediaItem?.extras?['bridgeFormat'] == null
+          ? null
+          : <String, Object?>{
+              'format': _currentMediaItem!.extras!['bridgeFormat'],
+              'offsetMs': _positionOffsetOf(_currentMediaItem).inMilliseconds,
+            },
       'playerPositionMs': _player.position.inMilliseconds,
       'playerBufferedPositionMs': _player.bufferedPosition.inMilliseconds,
       'drawnBufferedPositionMs': _bufferState.bufferedPosition.inMilliseconds,
@@ -2859,6 +2874,7 @@ class NavisAudioHandler extends BaseAudioHandler
     if (!_isCurrentTransportIntent(transportGeneration)) return;
     _cancelCrossfade();
     await _player.pause();
+    _sidecarDownloader.resume();
     final inactiveDeck = _crossfadePlayer;
     if (inactiveDeck != null) {
       await inactiveDeck.pause();

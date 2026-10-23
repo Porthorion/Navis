@@ -262,7 +262,7 @@ class NavisDatabase extends _$NavisDatabase {
     );
   }
 
-  static const currentSchemaVersion = 105;
+  static const currentSchemaVersion = 106;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -387,9 +387,19 @@ class NavisDatabase extends _$NavisDatabase {
       from102To103,
       from103To104,
       from104To105,
+      from105To106,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
+    }
+  }
+
+  Future<void> from105To106(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'fast_seeking_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.fastSeekingEnabled,
+      );
     }
   }
 

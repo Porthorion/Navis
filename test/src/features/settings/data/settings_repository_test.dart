@@ -29,6 +29,28 @@ void main() {
     });
 
     test(
+      'fast seeking defaults on and roundtrips through repository and DAO',
+      () async {
+        final initial = await repository.getSettings();
+        expect(initial.fastSeekingEnabled, isTrue);
+        await repository.saveSettings(
+          initial.copyWith(fastSeekingEnabled: false),
+        );
+        expect(
+          (await database.appSettingsDao.getSettings())!.fastSeekingEnabled,
+          isFalse,
+        );
+        expect(
+          (await repository.watchSettings().first).fastSeekingEnabled,
+          isFalse,
+        );
+        await repository.saveSettings(initial);
+        expect((await repository.getSettings()).fastSeekingEnabled, isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'playlist destination targeted save survives stale full-row save',
       () async {
         final stale = await repository.getSettings();

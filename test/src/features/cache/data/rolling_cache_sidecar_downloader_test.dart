@@ -32,6 +32,131 @@ void main() {
     }
   });
 
+  for (final pauseBeforeData in [false, true]) {
+    test(
+      'transfer rate excludes response latency, pause before data=$pauseBeforeData',
+      () async {
+        final streaming = await HttpServer.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+        );
+        addTearDown(() => streaming.close(force: true));
+        final responseReady = Completer<HttpResponse>();
+        streaming.listen((request) {
+          request.response.headers.contentLength = 2 * 65536;
+          responseReady.complete(request.response);
+        });
+        final downloader = RollingCacheSidecarDownloader();
+        addTearDown(downloader.dispose);
+        final firstChunk = Completer<void>();
+        final downloading = downloader.start(
+          songId: 'delayed',
+          uri: Uri.parse('http://127.0.0.1:${streaming.port}/audio'),
+          cacheFilePath: p.join(tempDir.path, 'delayed.flac'),
+          onProgress: (_) {
+            if ((downloader.activeReceivedBytes ?? 0) >= 65536 &&
+                !firstChunk.isCompleted) {
+              firstChunk.complete();
+            }
+          },
+          onTerminated: () {},
+          onComplete: (_) async {},
+        );
+        final response = await responseReady.future;
+        if (pauseBeforeData) {
+          downloader.pause();
+          downloader.resume();
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        response.add(List<int>.filled(65536, 1));
+        await response.flush();
+        await firstChunk.future;
+        downloader.pause();
+        final rate = downloader.activeBytesPerSecond;
+        downloader.resume();
+        response.add(List<int>.filled(65536, 2));
+        await response.close();
+        await downloading;
+        expect(rate, greaterThan(65536 / .25));
+      },
+    );
+  }
+
+  for (final cancel in [false, true]) {
+    test(
+      'paused sidecar ${cancel ? 'cancels without hanging' : 'resumes the same GET and excludes paused time'}',
+      () async {
+        final streaming = await HttpServer.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+        );
+        addTearDown(() => streaming.close(force: true));
+        final responseReady = Completer<HttpResponse>();
+        var gets = 0;
+        streaming.listen((request) {
+          gets++;
+          request.response.headers.contentLength = 3 * 65536;
+          responseReady.complete(request.response);
+        });
+        final downloader = RollingCacheSidecarDownloader();
+        addTearDown(downloader.dispose);
+        final file = File(p.join(tempDir.path, 'paused.flac'));
+        var completed = false;
+        final downloading = downloader.start(
+          songId: 'paused',
+          uri: Uri.parse('http://127.0.0.1:${streaming.port}/audio'),
+          cacheFilePath: file.path,
+          onProgress: (_) {},
+          onTerminated: () {},
+          onComplete: (_) async => completed = true,
+        );
+        final response = await responseReady.future;
+        expect(downloader.activeBytesPerSecond, isNull);
+        response.add(List<int>.filled(65536, 1));
+        await response.flush();
+        for (
+          var i = 0;
+          i < 200 && (downloader.activeReceivedBytes ?? 0) < 65536;
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(downloader.activeReceivedBytes, 65536);
+        downloader.pause();
+        final rate = downloader.activeBytesPerSecond!;
+        expect(downloader.isPaused, isTrue);
+        response.add(List<int>.filled(65536, 2));
+        await response.flush();
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        expect(downloader.activeReceivedBytes, 65536);
+        expect(downloader.activeBytesPerSecond, closeTo(rate, rate * .01));
+        if (cancel) {
+          await downloader.cancel();
+          await downloading.timeout(const Duration(seconds: 2));
+          expect(completed, isFalse);
+          expect(downloader.isPaused, isFalse);
+          return;
+        }
+        await downloader.start(
+          songId: 'paused',
+          uri: Uri.parse('http://127.0.0.1:${streaming.port}/audio'),
+          cacheFilePath: file.path,
+          onProgress: (_) {},
+          onTerminated: () {},
+          onComplete: (_) async {},
+        );
+        downloader.resume();
+        response.add(List<int>.filled(65536, 3));
+        await response.close();
+        await downloading;
+        expect(gets, 1);
+        expect(completed, isTrue);
+        expect(file.lengthSync(), 3 * 65536);
+        expect(file.readAsBytesSync()[65536], 2);
+      },
+    );
+  }
+
   test(
     'downloads into the rolling cache file and reports completion',
     () async {

@@ -36,6 +36,11 @@ Navis connects straight to **your own music server**. There's no Navis account, 
 ### 🎧 Playback done right
 Gapless playback and crossfade, an **equalizer** (simple, 10-band or fully parametric) with AutoEQ headphone profiles, speed and pitch controls, ReplayGain, and synced lyrics.
 
+On Linux and Windows, Fast Seeking can play an Opus 256 kbps stream when you
+seek beyond a lossless download on a server with offset support. The original
+keeps downloading for the cache; seek back into the downloaded part or replay
+the song to return to lossless.
+
 ### 📥 Offline first
 Permanent downloads, a smart rolling cache and an offline mode. Your library stays browsable with no connection at all.
 

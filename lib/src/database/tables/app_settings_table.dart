@@ -26,6 +26,9 @@ class AppSettingsTable extends Table {
   BoolColumn get scrobbleEnabled =>
       boolean().withDefault(const Constant(true))();
 
+  BoolColumn get fastSeekingEnabled =>
+      boolean().withDefault(const Constant(true))();
+
   BoolColumn get gaplessEnabled =>
       boolean().withDefault(const Constant(true))();
 

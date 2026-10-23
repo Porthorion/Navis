@@ -94,6 +94,7 @@ class NavisPlaybackTimeouts {
     this.control = const Duration(seconds: 4),
     this.seekProgress = const Duration(seconds: 45),
     this.desktopSeekSettle = const Duration(seconds: 25),
+    this.fastSeekGuard = const Duration(seconds: 3),
     this.progressIdle = const Duration(seconds: 8),
     this.remoteLoad = const Duration(seconds: 45),
     this.focusRetry = const Duration(minutes: 2),
@@ -121,6 +122,8 @@ class NavisPlaybackTimeouts {
 
   /// Fixed settlement budget for each desktop seek probe, including recovery.
   final Duration desktopSeekSettle;
+
+  final Duration fastSeekGuard;
 
   // Eight seconds tolerates slow range/index probes; the 45 s seekProgress
   // cap prevents a trickling download from holding a load or seek forever.

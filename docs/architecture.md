@@ -4440,6 +4440,30 @@ asks for no lock caching (seek recovery, crossfade decks, songs whose
 lock-cached start failed); otherwise a recovery reload cancelled the download
 already running for the song.
 
+On Linux and Windows, **Fast Seeking** (on by default) can bridge a remote
+lossless original with an Opus 256 kbps stream opened at the requested
+`timeOffset`. It requires server offset support and is disabled for radio,
+external catalog songs, existing transcodes and lossy originals. A seek more
+than two seconds beyond the known cached extent (or an unknown extent) bridges
+immediately when the sidecar's active download rate is less than twice the
+original bitrate; fast or unknown rates try a native seek first. The average
+rate starts at the first received chunk, excludes paused time and is unavailable
+until two seconds or 64 KiB.
+The original sidecar keeps its song/path identity, full-stream URI and metadata:
+bridge reloads never restart it, and only the complete original is registered
+in the cache. If no sidecar is running, the bridge starts one for the original.
+The existing playback-event listener pauses the sidecar's read loop while the
+bridge loads or buffers with playback requested, applying stream backpressure,
+and resumes on ready, Pause, lossless upgrade, song change or Stop. Seek
+completion, cancellation and explicit Pause also recalculate that priority,
+even while a queue edit suppresses player events. Cancellation and disposal
+release the pause gate. Diagnostics expose `fastSeekBridge` (`format`,
+`offsetMs`) and `sidecar` (`paused`, `bytesPerSecond`) without stream URLs.
+If a remote recovery bridge reopen fails, recovery checks again for a completed
+original before rebuilding the lossless stream at the song position without an
+offset or bridge metadata. Only a failed original recovery proceeds to the
+existing silent song failover.
+
 libmpv therefore opens the credential-bearing `stream.view` URL (and radio
 stream URLs) itself. Its built-in ytdl hook would retry any http(s) URL that
 fails to open, such as a 404 stream, through a yt-dlp or youtube-dl found on
@@ -4778,6 +4802,14 @@ near-target, advancing/paused settlement, missed-target, no-progress and
 cache-complete rules can still end a probe earlier. Two stuck buffering probes
 therefore consume about 50 seconds of settlement time, plus the existing bounded
 native control/source reload work, instead of 45 + 45 seconds.
+
+Fast Seeking uses the same settlement probe with a three-second
+`NavisPlaybackTimeouts.fastSeekGuard` deadline for its first native attempt.
+The guarded native probe returns immediately on a completed sidecar so recovery
+can use the local original. Settlement of an active bridge keeps that bridge
+until the next explicit seek or play. Bridge failures fall through to ordinary seek recovery
+silently. The existing seek token, queue lane, requested play/pause state and
+seek/anomaly trace remain authoritative.
 
 Native song loads and mobile seek probes reuse `_PlaybackProgressDeadline`.
 Android/iOS retain native `bufferedPosition` growth and received lock-cache
@@ -5134,6 +5166,24 @@ finished single-song queue) and a native loop (repeat one, or repeat all over on
 song) that restarts the stream at its offset reload the song from zero without one.
 A seek lands up to one second before the target because `timeOffset` is whole
 seconds and the stream is linear.
+
+Fast-seek bridges reuse this offset transport and queue repair. Their
+`bridgeFormat`/`bridgeBitRate` extras describe the heard Opus stream, while
+`resolvedFormat`, `resolvedBitRate`, `resolvedSampleRate` and
+`transcodingApplied` continue to describe the original for cache registration.
+Now Playing prefers the bridge quality, shows the transcode icon and omits the
+original sample rate. A bridge stays active when the original finishes
+caching; the next seek uses the local file. A seek into the downloaded extent,
+a new play/queue entry or a Repeat One loop removes bridge extras and returns
+to lossless. Stream-error and stall recovery prefer a completed local original;
+otherwise they reopen the bridge at the whole-second song offset without a
+subsecond native seek into the linear stream. A rejected native guard seek still
+attempts the bridge. If the bridge fails, recovery reloads the original without
+an offset and reconciles the native playlist before ordinary seek recovery.
+The Playback switch is available on Linux and Windows only. Its
+`fastSeekingEnabled` value follows the existing settings/DAO/runtime-settings
+layers, with a guarded `from105To106` migration adding
+`app_settings.fast_seeking_enabled` with default true; schema 105 is unchanged.
 
 Lock-cache seek recovery otherwise uses the same two-phase
 queue model: load the active song as a direct stream at

@@ -504,7 +504,8 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
   PlaybackAdjustments? adjustments,
 }) {
   final transcodingApplied =
-      (currentMediaItem?.extras?['transcodingApplied'] as bool?) ?? false;
+      currentMediaItem?.extras?['bridgeFormat'] != null ||
+      currentMediaItem?.extras?['transcodingApplied'] == true;
   return <_NowPlayingInfoPage>[
     _NowPlayingInfoPage(
       icon: Icons.info_outline,
@@ -769,13 +770,21 @@ String _formatAudioQuality({
   required MediaItem? mediaItem,
 }) {
   final extras = mediaItem?.extras;
-  final resolvedFormat = (extras?['resolvedFormat'] as String?)?.trim();
+  final bridging = extras?['bridgeFormat'] != null;
+  final resolvedFormat =
+      ((extras?['bridgeFormat'] ?? extras?['resolvedFormat']) as String?)
+          ?.trim();
   final formatLabel =
       _formatAudioFormatLabel(resolvedFormat) ??
       song?.suffix?.trim().toUpperCase() ??
       _inferAudioFormat(song?.contentType);
-  final bitRate = (extras?['resolvedBitRate'] as int?) ?? song?.bitRate;
-  final sampleRate = _readSampleRateFromExtras(extras) ?? song?.sampleRate;
+  final bitRate =
+      (extras?['bridgeBitRate'] as int?) ??
+      (extras?['resolvedBitRate'] as int?) ??
+      song?.bitRate;
+  final sampleRate = bridging
+      ? null
+      : _readSampleRateFromExtras(extras) ?? song?.sampleRate;
 
   final parts = <String>[
     if (formatLabel != null && formatLabel.isNotEmpty) formatLabel,

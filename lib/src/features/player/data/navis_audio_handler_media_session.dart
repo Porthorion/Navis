@@ -252,6 +252,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           !_sequenceMatchesQueue(_player)) {
         return;
       }
+      _syncBridgeDownloadPriority();
       final processing = _player.processingState;
       final index = _player.currentIndex;
       if (processing == ProcessingState.completed) {

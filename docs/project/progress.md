@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-22
+Last updated: 2026-10-23
 
 ---
 
@@ -14,6 +14,55 @@ Last updated: 2026-10-22
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 10 Fast Seeking — implementation on `fix/fast-seeking`:
+  Linux/Windows lossless-to-Opus seek bridge, original-only sidecar caching,
+  backpressure during bridge buffering, lossless upgrades, settings and schema
+  105→106. Test-first regressions cover sidecar lifecycle/rate, resolver gates,
+  handler settlement/recovery/queue transitions, settings migration/persistence
+  and Now Playing quality. Runtime evidence and the round-2 `./tool/check.sh`
+  remain with the batch coordinator under the worktree's memory restrictions;
+  no app, emulator, VM or application build was launched here. Evidence: bootstrap,
+  build_runner and gen-l10n completed; downloader (6), resolver (45), settings
+  repository (24), migrations (104), settings screen (17), Now Playing (39)
+  and unchanged desktop preview golden (2) tests pass using
+  `flutter test --concurrency=4 --timeout 60s` with specific files. All 22 new
+  bridge handler cases pass. `dart analyze` on changed Dart files exits 0
+  with no errors or warnings; its 30 infos point to unchanged lines. The full
+  `navis_audio_handler_navigation_test.dart` run passes all 710 tests, for 947
+  passing tests across the eight validated files.
+  Round-2 review repairs reproduce all seven findings before their fixes:
+  bridge load failure desynchronizes the native playlist, paused buffering
+  leaves the original paused, native guard exceptions skip bridging, completed
+  originals are bypassed during bridge recovery, fractional initial positions
+  seek the linear bridge, `.aif` is rejected, and response latency depresses the
+  sidecar transfer rate. Recovery now reloads the original and native playlist
+  before fallback, recalculates sidecar priority at every seek exit and yields
+  only for requested playback, tries the bridge after guard errors, prefers a
+  completed original on remote recovery, and opens bridges at whole seconds.
+  Lossless suffixes use `aif` instead of the unreachable `alac`; transfer timing
+  starts with the first body chunk, including after a pre-data pause/resume.
+  Evidence: `flutter test --concurrency=4 --timeout 60s` with the specific
+  downloader (8), resolver (46) and full handler navigation (716) test files
+  passes all 770 tests. The handler regressions first failed with the expected
+  six failures; the suffix and response-latency regressions also failed before
+  repair. `dart analyze` on all nine changed Dart files exits 0 with no errors
+  or warnings; its 26 infos point to unchanged lines. No app, emulator, VM,
+  build or full quality gate was run in this round, per the coordinator's
+  workspace restrictions; native runtime acceptance remains coordinator-owned.
+  Round-3 review repairs recheck the completed original after a bridge reopen
+  fails, then use the existing lossless stream recovery at the song position
+  before allowing failover. Explicit Pause recalculates sidecar priority even
+  when a queue edit suppresses player events. Both gated-reopen cases skipped
+  the song before repair; the queue-edit Pause regression left the original
+  download paused before its fix. Evidence:
+  `flutter test --concurrency=4 --timeout 60s test/src/features/player/data/navis_audio_handler_navigation_test.dart`
+  passes all 719 tests (`07:36 +719: All tests passed!`), including all three
+  new regressions. The pre-fix runs ended with 716 passes / 3 failures (including
+  a corrected initial test-setup assertion) and 718 passes / 1 expected failure.
+  `dart analyze` on the four changed Dart files exits 0 with no errors or
+  warnings; all 20 infos map to unchanged lines. Runtime validation, app builds
+  and `./tool/check.sh` remain coordinator-owned under the explicit round-3
+  workspace restrictions.
 - [ ] Issue #86, item 9 silent playback anomaly recorder — partial: 2026-10-22
   (`fix/anomaly-recorder`, remaining: independent review and the Android and
   Linux runtime pass against a release/1.5 baseline). Observe-only: a

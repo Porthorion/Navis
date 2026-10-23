@@ -665,6 +665,8 @@ Map<String, Object?> navisResolvedPlaybackExtras({
     'sidecarCacheFilePath': source?.sidecarCacheFilePath,
     // How far into the song the stream starts (a `timeOffset` transcode).
     'positionOffsetMs': source?.positionOffset.inMilliseconds,
+    if (source?.bridgeFormat != null) 'bridgeFormat': source!.bridgeFormat,
+    if (source?.bridgeBitRate != null) 'bridgeBitRate': source!.bridgeBitRate,
     // Never the stream URL: audio_service publishes every String extra to
     // the platform media session, and the URL carries the account token.
     'resolvedFormat': source?.metadata.format,

@@ -18,6 +18,49 @@ import '../../../helpers/test_database.dart';
 
 void main() {
   test(
+    '105 to 106 adds fast seeking with default true and preserves settings',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('navis_v106_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.appSettingsDao.updateSetupListeningPreferences(
+        gaplessEnabled: const Value(false),
+      );
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        if (raw
+            .select('PRAGMA table_info(app_settings)')
+            .any((row) => row['name'] == 'fast_seeking_enabled')) {
+          raw.execute(
+            'ALTER TABLE app_settings DROP COLUMN fast_seeking_enabled',
+          );
+        }
+        raw.execute('PRAGMA user_version = 105');
+      } finally {
+        raw.close();
+      }
+      final upgraded = createTestDatabase(file: file);
+      addTearDown(upgraded.close);
+      final settings = (await upgraded.appSettingsDao.getSettings())!;
+      expect(settings.fastSeekingEnabled, isTrue);
+      expect(settings.gaplessEnabled, isFalse);
+      expect(
+        (await upgraded.customSelect('PRAGMA user_version').getSingle())
+            .read<int>('user_version'),
+        106,
+      );
+      await upgraded.from105To106(Migrator(upgraded));
+      expect(
+        (await upgraded.appSettingsDao.getSettings())!.fastSeekingEnabled,
+        isTrue,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     '104 to 105 preserves lyrics and misses and defaults instrumental false',
     () async {
       final directory = await Directory.systemTemp.createTemp('navis_v105_');
@@ -70,7 +113,7 @@ void main() {
       expect(
         (await upgraded.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        105,
+        NavisDatabase.currentSchemaVersion,
       );
     },
   );

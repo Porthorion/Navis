@@ -405,6 +405,51 @@ void main() {
   );
 
   testWidgets(
+    'full player shows bridge quality without the original sample rate',
+    (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      final container = _createContainer(
+        overrides: <Override>[
+          currentMediaItemProvider.overrideWithValue(
+            const AsyncData(
+              MediaItem(
+                id: 'song-1',
+                title: 'Track',
+                extras: <String, dynamic>{
+                  'resolvedFormat': 'flac',
+                  'bridgeFormat': 'opus',
+                  'bridgeBitRate': 256,
+                  'resolvedSampleRate': 96000,
+                  'resolvedBitRate': 320,
+                  'transcodingApplied': false,
+                },
+              ),
+            ),
+          ),
+        ],
+      );
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
+
+      await _pumpNowPlaying(tester, container);
+
+      expect(find.byIcon(Icons.transform), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == 'Transcoded Playback',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('OPUS • 256 Kb/s'), findsOneWidget);
+      expect(find.text('Transcoded'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  testWidgets(
     'full player marks transcoded output with an accessible transform icon',
     (tester) async {
       setAdaptiveTestViewport(tester, const Size(390, 844));
