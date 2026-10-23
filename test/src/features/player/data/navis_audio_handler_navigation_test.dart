@@ -339,6 +339,7 @@ class _BridgeSidecar extends RollingCacheSidecarDownloader {
     required void Function(double) onProgress,
     required Future<void> Function(File) onComplete,
     required void Function() onTerminated,
+    bool isTranscoded = false,
   }) async {
     if (song == songId && path == cacheFilePath) return;
     starts++;
@@ -5172,7 +5173,7 @@ void main() {
 
   for (final fail in [false, true]) {
     test(
-      'desktop cache activity clears after ${fail ? 'failure' : 'cancellation'}',
+      'desktop cache activity clears after ${fail ? 'retry exhaustion' : 'cancellation'}',
       () async {
         final previousHttp = HttpOverrides.current;
         HttpOverrides.global = null;
@@ -5246,7 +5247,16 @@ void main() {
         );
         if (fail) {
           release.complete();
-          for (var attempt = 0; attempt < 400; attempt++) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          expect(
+            handler.collectPlaybackDiagnostics()['sidecarCacheActiveSongId'],
+            'song-0',
+          );
+          expect(
+            handler.collectPlaybackDiagnostics()['cacheActivity'],
+            isNotNull,
+          );
+          for (var attempt = 0; attempt < 2000; attempt++) {
             if (handler
                     .collectPlaybackDiagnostics()['sidecarCacheActiveSongId'] ==
                 null) {
@@ -5263,6 +5273,128 @@ void main() {
           isNull,
         );
         expect(handler.collectPlaybackDiagnostics()['cacheActivity'], isNull);
+      },
+    );
+  }
+
+  for (final abandon in [false, true]) {
+    test(
+      'desktop current-index events ${abandon ? 'restart a full GET only after resume is abandoned' : 'retain the sidecar through Range resume'}',
+      () async {
+        final previousHttp = HttpOverrides.current;
+        HttpOverrides.global = null;
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final releaseCut = Completer<void>();
+        final continuation = Completer<HttpResponse>();
+        final ranges = <String?>[];
+        final bytes = List<int>.generate(100 * 1024, (i) => i % 251);
+        const prefix = 40 * 1024;
+        server.listen((request) async {
+          ranges.add(request.headers.value(HttpHeaders.rangeHeader));
+          if (ranges.length == 1) {
+            request.response
+              ..contentLength = bytes.length
+              ..add(bytes.sublist(0, prefix));
+            await request.response.flush();
+            await releaseCut.future;
+            request.response.deadline = Duration.zero;
+          } else if (ranges.length == 2) {
+            continuation.complete(request.response);
+          } else {
+            request.response
+              ..contentLength = bytes.length
+              ..add(bytes);
+            await request.response.close();
+          }
+        });
+        final api = SubsonicApiClient(
+          baseUrl: 'http://127.0.0.1:${server.port}',
+          authConfig: const SubsonicAuthConfig(
+            username: 'fixture',
+            password: 'synthetic',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        );
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-sidecar-restart-',
+        );
+        final downloader = RollingCacheSidecarDownloader();
+        final (handler, player, database) = await createHandler(
+          directory,
+          1,
+          sidecarStreams: true,
+          sidecarDownloader: downloader,
+          readApiClient: () => api,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          if (!releaseCut.isCompleted) releaseCut.complete();
+          await database.close();
+          await server.close(force: true);
+          await directory.delete(recursive: true);
+          HttpOverrides.global = previousHttp;
+        });
+        Future<void> until(bool Function() condition) async {
+          for (var i = 0; i < 600 && !condition(); i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 5));
+          }
+          expect(condition(), isTrue);
+        }
+
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        await until(() => downloader.activeReceivedBytes == prefix);
+        final partPath = downloader.activePartFilePath!;
+        final cacheFile = File(
+          handler.mediaItem.value!.extras!['sidecarCacheFilePath']! as String,
+        );
+        releaseCut.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        player.moveTo(player.currentIndex!);
+        await pumpEventQueue();
+        expect(ranges, [null]);
+        expect(downloader.activePartFilePath, partPath);
+        expect(downloader.activeReceivedBytes, prefix);
+        expect(
+          handler.collectPlaybackDiagnostics()['cacheActivity'],
+          isNotNull,
+        );
+
+        final response = await continuation.future.timeout(
+          const Duration(seconds: 3),
+        );
+        expect(ranges, [null, 'bytes=$prefix-']);
+        player.moveTo(player.currentIndex!);
+        await pumpEventQueue();
+        expect(ranges.length, 2);
+        expect(File(partPath).readAsBytesSync(), bytes.sublist(0, prefix));
+        response.statusCode = abandon
+            ? HttpStatus.ok
+            : HttpStatus.partialContent;
+        response.contentLength = abandon ? bytes.length : bytes.length - prefix;
+        if (!abandon) {
+          response.headers.set(
+            HttpHeaders.contentRangeHeader,
+            'bytes $prefix-${bytes.length - 1}/${bytes.length}',
+          );
+        }
+        response.add(abandon ? bytes : bytes.sublist(prefix));
+        await response.close();
+        await until(() => downloader.activeSongId == null);
+        expect(handler.collectPlaybackDiagnostics()['cacheActivity'], isNull);
+        expect(File(partPath).existsSync(), isFalse);
+        expect(cacheFile.existsSync(), !abandon);
+        expect(player.playing, isTrue);
+        expect(handler.snapshot.currentSongId, 'song-0');
+
+        // Native position events re-emit the current index after termination.
+        player.moveTo(player.currentIndex!);
+        if (abandon) await until(() => ranges.length == 3);
+        await until(
+          () => cacheFile.existsSync() && downloader.activeSongId == null,
+        );
+        expect(ranges, [null, 'bytes=$prefix-', if (abandon) null]);
+        expect(cacheFile.readAsBytesSync(), bytes);
       },
     );
   }
@@ -7684,6 +7816,22 @@ void main() {
       expect(bridging(handler), isFalse);
       expect(handler.mediaItem.value!.extras, isNot(contains('bridgeBitRate')));
     });
+
+    test(
+      'bridge keeps playing when the original sidecar ends without a file',
+      () async {
+        final (handler, player, db, downloader) = await bridgeHandler();
+        await seekTo(handler, target);
+        final source = current(player);
+        await downloader.cancel();
+        expect(bridging(handler), isTrue);
+        expect(player.playing, isTrue);
+        expect(current(player), same(source));
+        expect(handler.collectPlaybackDiagnostics()['cacheActivity'], isNull);
+        expect(await db.cacheDao.getCachedTrack('song-1'), isNull);
+        expect(File(downloader.path!).existsSync(), isFalse);
+      },
+    );
 
     test(
       'bridge started without an active sidecar downloads the original',
@@ -14747,19 +14895,23 @@ void main() {
       expect(line(handler), handler.snapshot.duration);
     });
 
-    test('a failed download does not draw the full duration', () async {
-      final (handler, player) = await serve(fail: true);
-      await startSong(handler);
-      player.emitBuffered(const Duration(seconds: 5));
-      await until(() => line(handler) >= fraction(handler, 0.4));
-      release.complete();
-      await until(
-        () => handler.collectPlaybackDiagnostics()['cacheActivity'] == null,
-      );
-      player.emitBuffered(const Duration(seconds: 6));
-      await pumpEventQueue();
-      expect(line(handler), const Duration(seconds: 6));
-    });
+    test(
+      'an exhausted sidecar download does not draw the full duration',
+      () async {
+        final (handler, player) = await serve(fail: true);
+        await startSong(handler);
+        player.emitBuffered(const Duration(seconds: 5));
+        await until(() => line(handler) >= fraction(handler, 0.4));
+        release.complete();
+        await Future.doWhile(() async {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+          return handler.collectPlaybackDiagnostics()['cacheActivity'] != null;
+        }).timeout(const Duration(seconds: 10));
+        player.emitBuffered(const Duration(seconds: 6));
+        await pumpEventQueue();
+        expect(line(handler), const Duration(seconds: 6));
+      },
+    );
 
     test('the previous song cache does not reach the next song', () async {
       final (handler, player) = await serve();
