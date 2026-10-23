@@ -106,6 +106,7 @@ Future<(HttpServer, List<int>)> _serve(
   required bool ranges,
   _OriginFailure? firstFailure,
   bool knownLength = false,
+  List<int>? closedRanges,
 }) async {
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   final downloads = <int>[];
@@ -114,15 +115,28 @@ Future<(HttpServer, List<int>)> _serve(
     final response = request.response
       ..statusCode = HttpStatus.ok
       ..headers.contentType = ContentType('audio', 'mpeg');
+    final range = request.headers.value(HttpHeaders.rangeHeader);
+    final start = range == null
+        ? 0
+        : int.parse(range.split('=')[1].split('-')[0]);
+    final endText = range?.split('-')[1];
+    final end = endText == null || endText.isEmpty
+        ? body.length
+        : int.parse(endText) + 1;
+    if (range != null) {
+      response.statusCode = HttpStatus.partialContent;
+      response.headers.set(
+        HttpHeaders.contentRangeHeader,
+        'bytes $start-${end - 1}/${body.length}',
+      );
+    }
     final failure = downloads.length == 1 ? firstFailure : null;
-    if (failure == null || knownLength) response.contentLength = body.length;
+    if (failure == null || knownLength) response.contentLength = end - start;
     response.bufferOutput = false;
     if (ranges) response.headers.set(HttpHeaders.acceptRangesHeader, 'bytes');
     try {
-      for (var offset = 0; offset < body.length; offset += 1024) {
-        response.add(
-          body.sublist(offset, (offset + 1024).clamp(0, body.length)),
-        );
+      for (var offset = start; offset < end; offset += 1024) {
+        response.add(body.sublist(offset, (offset + 1024).clamp(0, end)));
         await response.flush();
         await Future<void>.delayed(const Duration(milliseconds: 20));
         if (failure != null) {
@@ -135,6 +149,7 @@ Future<(HttpServer, List<int>)> _serve(
       }
       await response.close();
     } on Object {
+      if (range != null) closedRanges?.add(start);
       // The client went away.
     }
   });
@@ -151,6 +166,154 @@ void main() {
     directory = await Directory.systemTemp.createTemp('navis-lock-cache-');
   });
   tearDown(() => directory.delete(recursive: true));
+
+  Future<void> until(bool Function() condition) async {
+    for (var i = 0; i < 400 && !condition(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    expect(condition(), isTrue);
+  }
+
+  for (final end in ['client', 'two probes', 'cancel', 'dispose']) {
+    test('range lifetime follows $end', () async {
+      final closed = <int>[];
+      final (server, _) = await _serve(
+        List<int>.filled(256 * 1024, 7),
+        ranges: true,
+        closedRanges: closed,
+      );
+      addTearDown(() => server.close(force: true));
+      // ignore: experimental_member_use, reason: real proxy range lifecycle.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/song'),
+        cacheFile: File(p.join(directory.path, 'ranges.mp3')),
+      );
+      final player = AudioPlayer(
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
+      addTearDown(player.dispose);
+      addTearDown(source.cancelDownload);
+      await player.setAudioSource(source);
+      Future<HttpClient> probe(int start) async {
+        final client = HttpClient();
+        addTearDown(() => client.close(force: true));
+        final request = await client.getUrl(native.player.proxyUri);
+        request.headers.set(HttpHeaders.rangeHeader, 'bytes=$start-');
+        final response = await request.close();
+        final received = Completer<void>();
+        response.listen((_) {
+          if (!received.isCompleted) received.complete();
+        }, onError: (Object _) {});
+        await received.future;
+        return client;
+      }
+
+      final first = await probe(65536);
+      final second = await probe(131072);
+      if (end == 'cancel') {
+        await source.cancelDownload();
+      } else if (end == 'dispose') {
+        await player.dispose();
+      } else {
+        first.close(force: true);
+      }
+      await until(() => closed.contains(65536));
+      if (end == 'cancel' || end == 'dispose') {
+        await until(() => closed.contains(131072));
+      } else {
+        expect(closed, isNot(contains(131072)));
+        second.close(force: true);
+        await until(() => closed.contains(131072));
+      }
+    });
+  }
+
+  test('range subscription cancellation closes its origin', () async {
+    final closed = <int>[];
+    final (server, _) = await _serve(
+      List<int>.filled(256 * 1024, 7),
+      ranges: true,
+      closedRanges: closed,
+    );
+    addTearDown(() => server.close(force: true));
+    // ignore: experimental_member_use, reason: range subscription cancellation.
+    final source = LockCachingAudioSource(
+      Uri.parse('http://127.0.0.1:${server.port}/song'),
+      cacheFile: File(p.join(directory.path, 'direct.mp3')),
+    );
+    addTearDown(source.cancelDownload);
+    final response = await source.request(65536);
+    await response.stream.take(1).drain<void>();
+    await until(() => closed.contains(65536));
+  });
+
+  test('paused main reads and inactivity deadline resume byte-exact', () async {
+    final body = List<int>.generate(64 * 1024, (i) => i % 251);
+    final (server, _) = await _serve(body, ranges: true);
+    addTearDown(() => server.close(force: true));
+    final file = File(p.join(directory.path, 'paused.mp3'));
+    // ignore: experimental_member_use, reason: cache download pause contract.
+    final source = LockCachingAudioSource(
+      Uri.parse('http://127.0.0.1:${server.port}/song'),
+      cacheFile: file,
+      bodyProgressTimeout: const Duration(milliseconds: 100),
+    );
+    addTearDown(source.cancelDownload);
+    final response = await source.request();
+    final drained = response.stream.drain<void>();
+    final dynamic controls = source;
+    controls.pauseDownload();
+    controls.pauseDownload();
+    final before = source.downloadedBytes;
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    expect(source.downloadedBytes, before);
+    expect(File('${file.path}.part').existsSync(), isTrue);
+    // New probes must dispatch even though the main no longer emits chunks.
+    final range = await source
+        .request(32768, 34816)
+        .timeout(const Duration(seconds: 1));
+    expect(
+      await range.stream.expand((b) => b).toList(),
+      body.sublist(32768, 34816),
+    );
+    controls.resumeDownload();
+    controls.resumeDownload();
+    await drained;
+    await source.downloadProgressStream
+        .firstWhere((p) => p == 1)
+        .timeout(const Duration(seconds: 2));
+    expect(await file.readAsBytes(), body);
+  });
+
+  test(
+    'main cut leaves independent range byte-exact and reports range bytes',
+    () async {
+      final body = List<int>.generate(16 * 1024, (i) => i % 251);
+      final (server, _) = await _serve(
+        body,
+        ranges: true,
+        firstFailure: _OriginFailure.disconnect,
+        knownLength: true,
+      );
+      addTearDown(() => server.close(force: true));
+      // ignore: experimental_member_use, reason: independent origin range ownership.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/song'),
+        cacheFile: File(p.join(directory.path, 'cut.mp3')),
+      );
+      addTearDown(source.cancelDownload);
+      final response = await source.request(8192);
+      final dynamic controls = source;
+      expect(controls.hasActiveRangeFetch, isTrue);
+      expect(
+        await response.stream.expand((b) => b).toList(),
+        body.sublist(8192),
+      );
+      expect(controls.rangeFetchBytes, 8192);
+      expect(controls.hasActiveRangeFetch, isFalse);
+    },
+  );
 
   for (final knownLength in [true, false]) {
     test('body bytes emit progress before a whole percent '
