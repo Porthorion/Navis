@@ -691,6 +691,22 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> shuffle() async {}
 
+  bool emitQueueEditDiscontinuity = false;
+
+  Future<void> _emitQueueEditDiscontinuity(PlaybackEvent before) async {
+    if (!emitQueueEditDiscontinuity) return;
+    _discontinuities.add(
+      PositionDiscontinuity(
+        PositionDiscontinuityReason.autoAdvance,
+        before,
+        playbackEvent,
+      ),
+    );
+    _indices.add(index);
+    _events.add(playbackEvent);
+    await pumpEventQueue(times: 5);
+  }
+
   int rangeRemovals = 0;
   Completer<void>? removeGate;
   Completer<void>? removeEntered;
@@ -704,8 +720,13 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       removeEntered?.complete();
       await gate.future;
     }
+    final before = playbackEvent;
     _sources.removeAt(index);
     if (this.index != null && index < this.index!) this.index = this.index! - 1;
+    if (emitQueueEditDiscontinuity && before.currentIndex == index) {
+      simulatedPosition = Duration.zero;
+    }
+    await _emitQueueEditDiscontinuity(before);
   });
 
   @override
@@ -736,7 +757,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   }
 
   /// A native end-of-track transition, including the player's loop policy.
-  void finishCurrentTrack({Duration? endPosition}) {
+  void finishCurrentTrack({
+    Duration? endPosition,
+    bool discontinuityFirst = false,
+  }) {
     if (endPosition != null) simulatedPosition = endPosition;
     final before = playbackEvent;
     final next = index! + 1;
@@ -748,7 +772,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
           ? current.positionOffset
           : Duration.zero;
     } else if (next < _sources.length || appliedLoopMode == LoopMode.all) {
-      moveTo(next % _sources.length);
+      if (discontinuityFirst) {
+        index = next % _sources.length;
+      } else {
+        moveTo(next % _sources.length);
+      }
       simulatedPosition = Duration.zero;
     } else {
       simulatedPosition = endPosition ?? simulatedDuration;
@@ -767,6 +795,13 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       );
     }
     _events.add(playbackEvent);
+    if (discontinuityFirst) {
+      scheduleMicrotask(() {
+        scheduleMicrotask(() {
+          scheduleMicrotask(() => _indices.add(index));
+        });
+      });
+    }
   }
 
   @override
@@ -943,6 +978,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> moveAudioSource(int currentIndex, int newIndex) =>
       _mutate(() async {
+        final before = playbackEvent;
         _sources.insert(newIndex, _sources.removeAt(currentIndex));
         // Like just_audio: the playing item keeps playing wherever it moves.
         final playing = index;
@@ -954,6 +990,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
         } else if (currentIndex > playing && newIndex <= playing) {
           index = playing + 1;
         }
+        await _emitQueueEditDiscontinuity(before);
       });
 
   @override
@@ -988,11 +1025,13 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
           insertEntered?.complete();
           await gate.future;
         }
+        final before = playbackEvent;
         batchMutationCount++;
         _sources.insertAll(at, sources);
         if (index != null && at <= index!) index = index! + sources.length;
         _indices.add(index);
         afterInsertSources?.call();
+        await _emitQueueEditDiscontinuity(before);
       });
 
   /// Holds the next batch insert until completed.
@@ -8508,6 +8547,8 @@ void main() {
         bool capable = true,
         bool original = false,
         int? duration = 300,
+        ScrobbleService? scrobbleService,
+        void Function(NavisDatabase)? onDatabase,
         PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
       }) async {
         final (handler, player, database) = await offsetHandler(
@@ -8516,13 +8557,17 @@ void main() {
               ? const StreamingQuality(label: 'original')
               : opus128,
           wrapResolver: wrap,
+          scrobbleService: scrobbleService,
+          positionStreams: scrobbleService != null,
         );
+        onDatabase?.call(database);
         await database.libraryDao.upsertSongs([
-          SongsTableCompanion.insert(
-            id: 'song-1',
-            title: 'Song 1',
-            duration: Value(duration),
-          ),
+          for (final id in ['song-0', 'song-1', 'song-2'])
+            SongsTableCompanion.insert(
+              id: id,
+              title: id,
+              duration: Value(duration),
+            ),
         ]);
         await handler.replaceQueue(
           ['song-0', 'song-1', if (!last) 'song-2'],
@@ -8540,6 +8585,123 @@ void main() {
         await pumpEventQueue(times: 100);
         await settleQueue(handler);
       }
+
+      for (final edit in [
+        'remove current',
+        'remove earlier',
+        'insert',
+        'move',
+      ]) {
+        test('queue edit $edit is not a transcode cut', () async {
+          final (handler, player) = await setup();
+          final loads = player.sourceLoads;
+          player
+            ..simulatedPosition = const Duration(seconds: 47)
+            ..emitQueueEditDiscontinuity = true;
+
+          switch (edit) {
+            case 'remove current':
+              await handler.removeAt(1);
+            case 'remove earlier':
+              await handler.removeAt(0);
+            case 'insert':
+              await handler.insertQueueItem(
+                0,
+                const MediaItem(id: 'song-0', title: 'Song 0'),
+              );
+            case 'move':
+              await handler.reorderQueue(0, 3);
+          }
+          await drain(handler);
+
+          expect(player.sourceLoads, loads);
+          expect(
+            handler.snapshot.currentSongId,
+            edit == 'remove current' ? 'song-2' : 'song-1',
+          );
+          expect(current(player).positionOffset, Duration.zero);
+          expect(player.position.inSeconds, edit == 'remove current' ? 0 : 47);
+        });
+      }
+
+      for (final discontinuityFirst in [false, true]) {
+        for (final last in [false, true]) {
+          test(
+            'cut preserves scrobbles and history (last: $last, discontinuity first: $discontinuityFirst)',
+            () async {
+              final scrobbles = _NoopScrobbleService();
+              late NavisDatabase database;
+              final (handler, player) = await setup(
+                last: last,
+                scrobbleService: scrobbles,
+                onDatabase: (value) => database = value,
+              );
+              await drain(handler);
+              expect(scrobbles.nowPlaying, ['song-1']);
+              final session = scrobbles.nowPlayingSessions.single;
+              final completed = <PlaybackSnapshot>[];
+              final subscription = handler.snapshotStream.listen((snapshot) {
+                if (snapshot.processingState == AudioProcessingState.completed)
+                  completed.add(snapshot);
+              });
+              addTearDown(subscription.cancel);
+              final loads = player.sourceLoads;
+
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 47),
+                discontinuityFirst: discontinuityFirst,
+              );
+              await until(() => player.sourceLoads > loads);
+              await drain(handler);
+
+              expect(handler.snapshot.currentSongId, 'song-1');
+              expect(
+                current(player).positionOffset,
+                const Duration(seconds: 47),
+              );
+              expect(scrobbles.nowPlaying, ['song-1']);
+              expect(scrobbles.nowPlayingSessions, [session]);
+              expect(scrobbles.submissions, isEmpty);
+              expect(completed, isEmpty);
+              final history = await database.historyDao
+                  .watchPlayHistory()
+                  .first;
+              expect(history.map((entry) => entry.songId), ['song-1']);
+
+              player.simulatedPosition = const Duration(seconds: 180);
+              player.emitPlayerEvent();
+              await drain(handler);
+              expect(scrobbles.submissions, ['song-1']);
+              expect(scrobbles.submissionSessions, [session]);
+            },
+          );
+        }
+      }
+
+      test('cut pauses the successor before source resolution', () async {
+        late _GatedSourceResolver resolver;
+        final (handler, player) = await setup(
+          wrap: (base) => resolver = _GatedSourceResolver(base),
+        );
+        resolver
+          ..blockedSongId = 'song-1'
+          ..entered = Completer<void>()
+          ..release = Completer<void>();
+        addTearDown(() {
+          if (!resolver.release!.isCompleted) resolver.release!.complete();
+        });
+        final loads = player.sourceLoads;
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => resolver.entered!.isCompleted);
+        expect(player.audibleSongId, isNull);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        resolver
+          ..blockedSongId = null
+          ..release!.complete();
+        await until(() => player.sourceLoads > loads);
+        await drain(handler);
+        expect(player.playing, isTrue);
+      });
 
       for (final last in [false, true]) {
         test('reopens at 47 of 300 seconds (last: $last)', () async {
