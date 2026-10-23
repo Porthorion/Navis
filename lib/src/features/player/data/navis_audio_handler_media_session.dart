@@ -34,6 +34,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     }
     _syncSidecarRollingCache(item);
     _cancelStaleLockCacheDownloads(item?.id);
+    _syncLockCacheDownloadPriority();
   }
 
   /// Downloads the cover art for [trigger] to a local file and re-emits the
@@ -440,6 +441,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     ) {
       if (!identical(_player, wiredPlayer)) return;
       _playerBufferedPosition = bufferedPosition;
+      _syncLockCacheDownloadPriority();
       _refreshBufferState(_currentBufferSongId);
     });
 
@@ -450,7 +452,9 @@ extension _NavisMediaSession on NavisAudioHandler {
           maxPeriod: const Duration(milliseconds: 500),
         )
         .listen((position) {
-          if (identical(_player, wiredPlayer)) _checkCrossfadeTrigger(position);
+          if (!identical(_player, wiredPlayer)) return;
+          _syncLockCacheDownloadPriority();
+          _checkCrossfadeTrigger(position);
         });
   }
 

@@ -14,6 +14,43 @@ Last updated: 2026-10-23
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 11a PR A Android seek bandwidth — implementation complete
+  on `fix/android-seek-bandwidth`, 2026-10-23; native runtime acceptance,
+  independent reviews and `./tool/check.sh` remain coordinator-owned under the
+  build brief. Beyond-cache ranges now own their client/subscription and close
+  with their proxy consumer or source removal/disposal. A main-fetch cut leaves
+  independent ranges alive. Idempotent main pause/resume preserves the prefix
+  and suspends body inactivity; Android playback ranges with under 30 seconds
+  buffered ahead pause the current and next whole-file downloads. Existing
+  events/ticks release priority on every exit. Mobile native seek waits count
+  range bytes and buffer growth, retain the idle/hard caps and reject a
+  superseded seek even within the same song. Desktop deadlines stay fixed.
+  Every Android deck receives the 180-second / 32 MiB load reserve with the
+  native 2.5-second start and 5-second rebuffer thresholds unchanged.
+  Evidence: `./tool/bootstrap.sh` completed. The initial test commit reproduced
+  range leaks, cancellation-set iteration failure and the absent pause/progress
+  API/load constant. Additional queue clear/replacement and same-song seek
+  supersession tests failed before their repairs. A broad foreground run of
+  `flutter test --concurrency=4 --timeout 60s --reporter expanded` over handler
+  navigation, handler rules, source resolver, playback lanes, lock-cache proxy,
+  position-offset, media-kit seek and deferred-seek tests passed all 906 cases
+  (`07:39 +906: All tests passed!`). After the review repairs, final focused
+  Android bandwidth coverage passed all 16 cases
+  (`00:06 +16: All tests passed!`); the proxy and its three backend neighbors
+  passed all 65 (`00:08 +65: All tests passed!`), with the final typed proxy-only
+  rerun passing all 31 (`00:08 +31: All tests passed!`). These include 26 new
+  regressions across the two changed test files, including failed-range retry,
+  independent range survival, byte-exact paused downloads, buffer-only progress,
+  pause during seek and stale-seek retirement. `dart analyze` on all 11 changed
+  Dart files exits 0 with no errors/warnings; its 33 infos map to unchanged
+  release/1.5 lines. `./tool/dart_format.sh` reports
+  `Formatted 1113 files (0 changed) in 5.84 seconds.` Heavy commands ran under
+  the required 8 GiB cap, with zero OOM kills; no task-owned background jobs,
+  apps, emulators or VMs remain. The host-platform test seam is explicitly
+  `@visibleForTesting`, since Flutter's target-platform override does not alter
+  `dart:io Platform`. No PR B implementation, dependency or version change:
+  1.5.1 is already pending. AI implementation and self-review: T3 Code/Codex,
+  gpt-6.1-sol; no independent review or native performance claim is recorded.
 - [ ] Issue #86, item 10 Fast Seeking — implementation on `fix/fast-seeking`:
   Linux/Windows lossless-to-Opus seek bridge, original-only sidecar caching,
   backpressure during bridge buffering, lossless upgrades, settings and schema

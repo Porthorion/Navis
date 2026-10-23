@@ -39,7 +39,43 @@ extension _NavisCache on NavisAudioHandler {
     }
   }
 
+  void _resumeLockCacheDownloads() {
+    for (final entry in _lockCacheSources.values) {
+      entry.source.resumeDownload();
+    }
+  }
+
+  void _syncLockCacheDownloadPriority() {
+    final current = _currentMediaItem;
+    final ids = _logicalQueueIds;
+    final index = _logicalCurrentIndex;
+    final next = index != null && index + 1 < ids.length
+        ? ids[index + 1]
+        : null;
+    final rangePlaying =
+        defaultTargetPlatform == TargetPlatform.android &&
+        !_disposeHandlerStarted &&
+        _requestedPlaying &&
+        current?.extras?['sourceKind'] ==
+            PlaybackSourceKind.lockCachedStream.name &&
+        _player.bufferedPosition - _player.position <
+            const Duration(seconds: 30) &&
+        _lockCacheSources.values.any(
+          (entry) =>
+              entry.songId == current?.id && entry.source.hasActiveRangeFetch,
+        );
+    for (final entry in _lockCacheSources.values) {
+      if (rangePlaying &&
+          (entry.songId == current?.id || entry.songId == next)) {
+        entry.source.pauseDownload();
+      } else {
+        entry.source.resumeDownload();
+      }
+    }
+  }
+
   void _syncBridgeDownloadPriority() {
+    _syncLockCacheDownloadPriority();
     final buffering =
         _player.processingState == ProcessingState.loading ||
         _player.processingState == ProcessingState.buffering;
@@ -137,6 +173,7 @@ extension _NavisCache on NavisAudioHandler {
     subscription = source.downloadProgressStream.listen(
       (progress) {
         _cacheReceivedBytes[cacheFilePath] = source.downloadedBytes;
+        _syncLockCacheDownloadPriority();
         if (progress >= 0.999) _completedCacheSongIds.add(song.id);
         _updateRollingCacheActivity(
           cacheFilePath,
@@ -150,7 +187,7 @@ extension _NavisCache on NavisAudioHandler {
           return;
         }
         _cacheProgressSubscriptions.remove(cacheFilePath);
-        _lockCacheSources.remove(cacheFilePath);
+        _lockCacheSources.remove(cacheFilePath)?.source.resumeDownload();
         unawaited(subscription.cancel());
         unawaited(
           _registerRollingCacheTrack(
@@ -166,12 +203,12 @@ extension _NavisCache on NavisAudioHandler {
           '$error\n$stackTrace',
         );
         _cacheProgressSubscriptions.remove(cacheFilePath);
-        _lockCacheSources.remove(cacheFilePath);
+        _lockCacheSources.remove(cacheFilePath)?.source.resumeDownload();
         unawaited(subscription.cancel());
         _completeRollingCacheActivity(cacheFilePath);
       },
       onDone: () {
-        _lockCacheSources.remove(cacheFilePath);
+        _lockCacheSources.remove(cacheFilePath)?.source.resumeDownload();
         if (_cacheProgressSubscriptions.remove(cacheFilePath) != null) {
           _completeRollingCacheActivity(cacheFilePath);
         }
@@ -179,6 +216,7 @@ extension _NavisCache on NavisAudioHandler {
     );
 
     _cacheProgressSubscriptions[cacheFilePath] = subscription;
+    _syncLockCacheDownloadPriority();
   }
 
   void _updateRollingCacheActivity(
@@ -348,14 +386,19 @@ extension _NavisCache on NavisAudioHandler {
   }
 
   // Sidecar bytes prove linear load progress, never desktop seek progress.
-  int? _receivedCacheBytesForSong(String songId) {
+  int? _receivedCacheBytesForSong(String songId, {bool includeRanges = false}) {
     if (_isDesktopRuntime) {
       return _sidecarDownloader.activeSongId == songId
           ? _sidecarDownloader.activeReceivedBytes
           : null;
     }
     for (final entry in _rollingCacheActivities.entries) {
-      if (entry.value.songId == songId) return _cacheReceivedBytes[entry.key];
+      if (entry.value.songId == songId) {
+        final bytes = _cacheReceivedBytes[entry.key];
+        if (!includeRanges) return bytes;
+        final source = _lockCacheSources[entry.key]?.source;
+        return (bytes ?? 0) + (source?.rangeFetchBytes ?? 0);
+      }
     }
     return null;
   }

@@ -247,6 +247,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     );
     _anomalies.event('reload', {'via': 'players'});
     _cancelCrossfade();
+    _resumeLockCacheDownloads();
     _silenceAbandonedPlayer(_player);
     final inactive = _crossfadePlayer;
     if (inactive != null) _silenceAbandonedPlayer(inactive);
@@ -315,6 +316,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     bool reloadQueueOnTimeout = false,
     bool extendWhileDownloading = false,
     bool fixedLoadDeadline = false,
+    bool Function()? isCurrent,
   }) async {
     timeout ??= _playerLoadTimeout;
     _lastFailedSongId = null;
@@ -333,7 +335,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
               hardCap: fixedLoadDeadline || timeout > _timeouts.seekProgress
                   ? timeout
                   : _timeouts.seekProgress,
-              bytes: _receivedCacheBytesForSong(songId),
+              bytes: _receivedCacheBytesForSong(songId, includeRanges: true),
               buffer: _isDesktopRuntime
                   ? Duration.zero
                   : operationPlayer.bufferedPosition,
@@ -366,6 +368,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
               player: operationPlayer,
               songId: songId!,
               generation: generation,
+              isCurrent: isCurrent,
             );
       startupTrace?.mark('player:$operation:complete');
       if (cancelAfterSuccess && !_isActiveLoadGeneration(generation)) {
@@ -420,6 +423,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     required AudioPlayer player,
     required String songId,
     required int generation,
+    bool Function()? isCurrent,
   }) async {
     final elapsed = Stopwatch()..start();
     var done = false;
@@ -429,7 +433,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
     while (!done) {
       final now = elapsed.elapsed;
       // A new song must retire this engine before its successor uses the lane.
-      if (!_isActiveLoadGeneration(generation)) {
+      if (!_isActiveLoadGeneration(generation) ||
+          (isCurrent != null && !isCurrent())) {
         throw TimeoutException('Native load superseded');
       }
       final canExtend =
@@ -438,7 +443,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       if (canExtend) {
         progress.observe(
           now,
-          bytes: _receivedCacheBytesForSong(songId),
+          bytes: _receivedCacheBytesForSong(songId, includeRanges: true),
           buffer: _isDesktopRuntime ? Duration.zero : player.bufferedPosition,
           processing: player.processingState,
         );

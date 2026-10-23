@@ -521,6 +521,8 @@ extension _NavisRecovery on NavisAudioHandler {
       songId: request.songId,
       timeout: _timeouts.control,
       reloadQueueOnTimeout: true,
+      extendWhileDownloading: !_isDesktopRuntime,
+      isCurrent: () => _isCurrentSeek(request),
     );
     _checkSeekCurrent(request, token);
     if (_requestedPlaying && !_player.playing)

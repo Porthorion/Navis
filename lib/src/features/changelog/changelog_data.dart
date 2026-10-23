@@ -130,6 +130,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Android seeks beyond a partial download give playback bandwidth '
+        'priority, close abandoned range requests and keep waiting while data '
+        'arrives. A larger forward buffer helps ride out brief network blips.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Fast Seeking on Linux and Windows plays an Opus 256 kbps stream when '
         'seeking beyond a lossless download on a slow connection. The original '
         'keeps downloading; seek back into the downloaded part or play the '

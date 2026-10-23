@@ -171,31 +171,35 @@ class _GatedSourceResolver extends Fake implements PlaybackSourceResolver {
 
 // ignore: experimental_member_use, reason: exercises the mobile lock-cache owner.
 class _RangeCacheSource extends LockCachingAudioSource {
-  _RangeCacheSource(String id, File file)
+  new(String id, File file)
     : super(Uri.parse('https://fixture.invalid/song?id=$id'), cacheFile: file);
   bool activeRange = false;
   bool paused = false;
   int receivedRangeBytes = 0;
-  int cancellations = 0;
   final progress = BehaviorSubject<double>.seeded(0);
   @override
   Stream<double> get downloadProgressStream => progress.stream;
   @override
   int get downloadedBytes => 0;
+  @override
+  bool get originSupportsRangeRequests => true;
+  @override
   bool get hasActiveRangeFetch => activeRange;
+  @override
   int get rangeFetchBytes => receivedRangeBytes;
+  @override
   void pauseDownload() => paused = true;
+  @override
   void resumeDownload() => paused = false;
   @override
   Future<void> cancelDownload() async {
-    cancellations++;
     activeRange = false;
     resumeDownload();
   }
 }
 
 class _RangeCacheResolver extends _GatedSourceResolver {
-  _RangeCacheResolver(super.delegate, this.sources);
+  new(super.delegate, this.sources);
   final Map<String, _RangeCacheSource> sources;
   @override
   Future<ResolvedPlaybackSource> resolveForSong(
@@ -1201,6 +1205,7 @@ void main() {
     bool matchFlow = false,
     int savedQueueIndex = -1,
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
+    bool? desktopRuntimeOverride,
     NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     List<_ControllableAudioPlayer>? rebuiltPlayers,
     List<_ControllableAudioPlayer>? players,
@@ -1357,6 +1362,7 @@ void main() {
       player: player,
       queueWindow: queueWindow,
       timeouts: timeouts,
+      desktopRuntimeOverride: desktopRuntimeOverride,
       shuffleRandom: Random(7),
       playerFactory: rebuiltPlayers == null && players == null
           ? null
@@ -13296,6 +13302,7 @@ void main() {
         cacheSongs: false,
         positionStreams: true,
         rebuiltPlayers: rebuilt,
+        desktopRuntimeOverride: platform == TargetPlatform.linux,
         timeouts: const NavisPlaybackTimeouts(
           control: Duration(milliseconds: 300),
           progressIdle: Duration(milliseconds: 400),
@@ -13360,7 +13367,7 @@ void main() {
               player.emitBuffered(const Duration(seconds: 60));
             case 'range failed':
               sources['song-0']!.activeRange = false;
-              player.emitBuffered(Duration.zero);
+              sources['song-0']!.progress.add(0);
           }
           await pumpEventQueue();
           expect(sources['song-0']!.paused, isFalse);
@@ -13369,9 +13376,9 @@ void main() {
       );
     }
 
-    for (final progressing in [true, false]) {
+    for (final progress in ['range', 'buffer', 'none']) {
       test(
-        'mobile native seek ${progressing ? 'keeps' : 'retires'} its engine with range progress=$progressing',
+        'mobile native seek ${progress == 'none' ? 'retires' : 'keeps'} its engine with $progress progress',
         () async {
           final rebuilt = <_ControllableAudioPlayer>[];
           final (handler, player, sources) = await rangeHandler(
@@ -13383,16 +13390,31 @@ void main() {
             ..seekGate = gate
             ..seekEntered = entered;
           final seek = handler.seek(const Duration(seconds: 30));
-          await entered.future;
+          await entered.future.timeout(const Duration(seconds: 2));
           player.state = ProcessingState.buffering;
+          sources['song-0']!.activeRange = true;
+          player.emitBuffered(const Duration(seconds: 2));
           final ticker = Timer.periodic(const Duration(milliseconds: 50), (_) {
-            if (progressing) sources['song-0']!.receivedRangeBytes += 1024;
+            if (progress == 'range') {
+              sources['song-0']!.receivedRangeBytes += 1024;
+            }
+            if (progress == 'buffer') {
+              player.emitBuffered(
+                player.bufferedPosition + const Duration(seconds: 1),
+              );
+            }
           });
           try {
             await Future<void>.delayed(const Duration(milliseconds: 900));
-            expect(rebuilt, progressing ? isEmpty : hasLength(1));
+            expect(rebuilt, progress == 'none' ? hasLength(1) : isEmpty);
             gate.complete();
+            if (progress != 'none') player.state = ProcessingState.ready;
             await seek;
+            expect(rebuilt, progress == 'none' ? hasLength(1) : isEmpty);
+            if (progress == 'none') {
+              expect(sources['song-0']!.paused, isFalse);
+              expect(sources['song-1']!.paused, isFalse);
+            }
           } finally {
             ticker.cancel();
             if (!gate.isCompleted) gate.complete();
@@ -13440,6 +13462,50 @@ void main() {
         ticker.cancel();
       }
     });
+
+    test(
+      'new seek retires a progressing superseded native call promptly',
+      () async {
+        final rebuilt = <_ControllableAudioPlayer>[];
+        final (handler, player, sources) = await rangeHandler(rebuilt: rebuilt);
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..seekGate = gate
+          ..seekEntered = entered;
+        final old = handler.seek(const Duration(seconds: 30));
+        await entered.future.timeout(const Duration(seconds: 2));
+        player.state = ProcessingState.buffering;
+        final ticker = Timer.periodic(
+          const Duration(milliseconds: 50),
+          (_) => sources['song-0']!.receivedRangeBytes += 1024,
+        );
+        final latest = handler.seek(const Duration(seconds: 60));
+        try {
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(rebuilt, hasLength(1));
+        } finally {
+          ticker.cancel();
+          gate.complete();
+          await Future.wait([old, latest]);
+        }
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(handler.snapshot.pendingSeekPosition, isNull);
+      },
+    );
+
+    test(
+      'desktop lock-cache probes do not pause whole-file downloads',
+      () async {
+        final (_, player, sources) = await rangeHandler(
+          platform: TargetPlatform.linux,
+        );
+        sources['song-0']!.activeRange = true;
+        player.emitBuffered(const Duration(seconds: 2));
+        await pumpEventQueue();
+        expect(sources.values.every((source) => !source.paused), isTrue);
+      },
+    );
 
     test('Android load reserve keeps native playback thresholds', () {
       final control =
