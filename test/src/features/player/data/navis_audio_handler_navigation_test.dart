@@ -8586,6 +8586,56 @@ void main() {
       await until(() => !handler.snapshot.isLoading);
     }
 
+    group('seek preview', () {
+      for (final delta in [0, 2, 3, -1]) {
+        test('adopts only release 0..2 seconds after preview (delta=$delta)', () async {
+          final origin = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+          var gets = 0;
+          final requests = origin.listen((request) {
+            gets++;
+            request.response.headers.contentType = ContentType('audio', 'ogg');
+            request.response.add([1, 2, 3]);
+            unawaited(request.response.flush());
+          });
+          addTearDown(() async {
+            await origin.close(force: true);
+            await requests.cancel();
+          });
+          final api = SubsonicApiClient(baseUrl: 'http://127.0.0.1:${origin.port}',
+            authConfig: const SubsonicAuthConfig(username: 'fixture', password: 'fixture', apiVersion: '1.16.1'),
+            enableLogging: false);
+          final (handler, player, _) = await offsetHandler(readApiClient: () => api);
+          await start(handler);
+          final before = handler.snapshot;
+          await handler.previewSeek(const Duration(seconds: 90));
+          await until(() => gets == 1);
+          expect(handler.snapshot, before);
+          expect(handler.snapshot.pendingSeekPosition, isNull);
+          await handler.previewSeek(const Duration(seconds: 90));
+          expect(gets, 1);
+          await handler.seek(Duration(seconds: 90 + delta));
+          final source = player.sequence[player.index!];
+          if (delta >= 0 && delta <= 2) {
+            expect(source, isA<StreamAudioSource>());
+            final response = await (source as StreamAudioSource).request();
+            final sub = response.stream.listen((_) {});
+            await pumpEventQueue();
+            expect(gets, 1);
+            await sub.cancel();
+          } else {
+            expect(source, isA<UriAudioSource>());
+          }
+        });
+      }
+
+      test('native and local plans do not open preview requests', () async {
+        final (handler, _, _) = await offsetHandler(capable: false);
+        await start(handler);
+        await handler.previewSeek(const Duration(seconds: 90));
+        expect(handler.collectPlaybackDiagnostics()['seekPreview'], isNull);
+      });
+    });
+
     group('premature transcode EOF', () {
       Future<(NavisAudioHandler, _ControllableAudioPlayer)> setup({
         bool last = false,
