@@ -35,64 +35,84 @@ public final class ProgressiveRepeatTest {
         }
         Object boundaryUid = new Object();
         Object otherUid = new Object();
-        check(ProgressiveRepeat.restartIndex(1, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7) == 2,
+        check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, false) == 2,
                 "inserting before the boundary item restarts at its shifted index");
         for (int index : new int[] {1, 2}) {
-            check(ProgressiveRepeat.restartIndex(1, true, true, boundaryUid, boundaryUid, index, 3, 7, 7) == index,
+            check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, boundaryUid, index, 3, 7, 7, false) == index,
                     "middle and last items restart themselves, never the next item");
-            check(ProgressiveRepeat.restartIndex(1, true, true, boundaryUid, otherUid, index + 1, 3, 7, 7) == -1,
+            check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, otherUid, index + 1, 3, 7, 7, false) == -1,
                     "selecting another song cancels the restart");
         }
-        check(ProgressiveRepeat.restartIndex(1, true, false, boundaryUid, boundaryUid, 1, 3, 7, 7) == -1,
+        check(ProgressiveRepeat.boundaryAction(1, true, false, boundaryUid, boundaryUid, 1, 3, 7, 7, false) == -1,
                 "Pause or Stop cancels playback intent even if native is already paused");
-        check(ProgressiveRepeat.restartIndex(1, true, true, boundaryUid, boundaryUid, 1, 3, 7, 8) == -1,
+        check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, boundaryUid, 1, 3, 7, 8, false) == -1,
                 "a consumed boundary cannot restart twice");
-        check(ProgressiveRepeat.restartIndex(1, true, true, boundaryUid, boundaryUid, 1, 3, 7, 9) == -1,
+        check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, boundaryUid, 1, 3, 7, 9, false) == -1,
                 "Pause then Play or replacing sources invalidates the old boundary");
-        check(ProgressiveRepeat.restartIndex(1, false, true, boundaryUid, boundaryUid, 1, 3, 7, 7) == -1,
+        check(ProgressiveRepeat.boundaryAction(1, false, true, boundaryUid, boundaryUid, 1, 3, 7, 7, false) == -1,
                 "toggling out of repeat one cancels the boundary");
-        check(ProgressiveRepeat.restartIndex(1, true, true, boundaryUid, boundaryUid, 1, 3, 7, 8) == -1,
+        check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, boundaryUid, 1, 3, 7, 8, false) == -1,
                 "toggling off then on cannot revive the old boundary");
-        check(ProgressiveRepeat.restartIndex(1, true, true, boundaryUid, boundaryUid, 1, 3, 8, 8) == 1,
+        check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, boundaryUid, 1, 3, 8, 8, false) == 1,
                 "explicit Play after Pause can create a fresh same-item boundary");
-        check(ProgressiveRepeat.restartIndex(1, true, true, boundaryUid, null, -1, 0, 7, 7) == -1,
+        check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, null, -1, 0, 7, 7, false) == -1,
                 "empty playlists cannot repeat");
-        check(ProgressiveRepeat.restartIndex(1, true, true, boundaryUid, boundaryUid, 1, 3, 7, 7) == 1,
+        check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, boundaryUid, 1, 3, 7, 7, false) == 1,
                 "appending preserves the boundary item and its restart");
-        check(ProgressiveRepeat.restartIndex(1, true, true, boundaryUid, otherUid, 1, 3, 7, 7) == -1,
+        check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, otherUid, 1, 3, 7, 7, false) == -1,
                 "removing the boundary item cannot restart its replacement at the same index");
-        check(ProgressiveRepeat.restartIndex(1, true, true, boundaryUid, new Object(), 1, 3, 7, 7) == -1,
+        check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, new Object(), 1, 3, 7, 7, false) == -1,
                 "replacing the boundary occurrence cannot restart even at the same index");
-        check(ProgressiveRepeat.restartIndex(1, true, true, null, boundaryUid, 1, 3, 7, 7) == -1,
+        check(ProgressiveRepeat.boundaryAction(1, true, true, null, boundaryUid, 1, 3, 7, 7, false) == -1,
                 "a missing boundary cannot restart the current item");
-        check(ProgressiveRepeat.restartIndex(2, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7) == 0,
+        check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, false) == 0,
                 "ALL wraps the last item to the first");
-        check(ProgressiveRepeat.restartIndex(2, true, true, boundaryUid, boundaryUid, 0, 1, 7, 7) == 0,
+        check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 0, 1, 7, 7, false) == 0,
                 "single-item ALL restarts itself");
-        check(ProgressiveRepeat.restartIndex(2, true, true, boundaryUid, boundaryUid, 1, 3, 7, 7) == -1,
-                "ALL lets middle items auto-advance");
-        check(ProgressiveRepeat.restartIndex(2, true, true, boundaryUid, boundaryUid, 2, 4, 7, 7) == -1,
-                "an append makes the old last item auto-advance");
-        check(ProgressiveRepeat.restartIndex(2, true, true, boundaryUid, boundaryUid, 1, 2, 7, 7) == 0,
+        check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 1, 3, 7, 7, false) == ProgressiveRepeat.RESUME,
+                "ALL resumes a paused boundary moved to a middle item");
+        check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 2, 4, 7, 7, false) == ProgressiveRepeat.RESUME,
+                "an append resumes the old last item after the native boundary pause");
+        check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 1, 2, 7, 7, false) == 0,
                 "a removal makes the current item wrap when it becomes last");
         for (int mode : new int[] {1, 2}) {
-            check(ProgressiveRepeat.restartIndex(mode, true, false, boundaryUid, boundaryUid, 2, 3, 7, 7) == -1,
+            check(ProgressiveRepeat.boundaryAction(mode, true, false, boundaryUid, boundaryUid, 2, 3, 7, 7, false) == -1,
                     "Pause cancels a pending restart for ONE and ALL");
-            check(ProgressiveRepeat.restartIndex(mode, true, true, boundaryUid, otherUid, 2, 3, 7, 7) == -1,
+            check(ProgressiveRepeat.boundaryAction(mode, true, true, boundaryUid, otherUid, 2, 3, 7, 7, false) == -1,
                     "a different occurrence cannot consume the boundary for ONE or ALL");
-            check(ProgressiveRepeat.restartIndex(mode, true, true, boundaryUid, boundaryUid, 2, 3, 7, 8) == -1,
+            check(ProgressiveRepeat.boundaryAction(mode, true, true, boundaryUid, boundaryUid, 2, 3, 7, 8, false) == -1,
                     "a stale revision cannot restart ONE or ALL");
-            check(ProgressiveRepeat.restartIndex(mode, false, true, boundaryUid, boundaryUid, 2, 3, 7, 7) == -1,
+            check(ProgressiveRepeat.boundaryAction(mode, false, true, boundaryUid, boundaryUid, 2, 3, 7, 7, false) == -1,
                     "an ineligible item retains native ONE or ALL");
-            check(ProgressiveRepeat.restartIndex(mode, true, true, null, boundaryUid, 2, 3, 7, 7) == -1,
+            check(ProgressiveRepeat.boundaryAction(mode, true, true, null, boundaryUid, 2, 3, 7, 7, false) == -1,
                     "ONE and ALL require a boundary UID");
-            check(ProgressiveRepeat.restartIndex(mode, true, true, boundaryUid, boundaryUid, -1, 0, 7, 7) == -1,
+            check(ProgressiveRepeat.boundaryAction(mode, true, true, boundaryUid, boundaryUid, -1, 0, 7, 7, false) == -1,
                     "ONE and ALL reject an empty queue");
-            check(ProgressiveRepeat.restartIndex(mode, true, true, boundaryUid, boundaryUid, 3, 3, 7, 7) == -1,
+            check(ProgressiveRepeat.boundaryAction(mode, true, true, boundaryUid, boundaryUid, 3, 3, 7, 7, false) == -1,
                     "ONE and ALL reject an index outside the queue");
         }
-        check(ProgressiveRepeat.restartIndex(0, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7) == -1,
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, false) == -1,
                 "OFF cannot restart even if ownership is stale");
+        for (boolean seeking : new boolean[] {false, true}) {
+            check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 1, 3, 7, 7, seeking)
+                    == ProgressiveRepeat.RESUME, "a formerly owned non-last boundary resumes");
+            check(ProgressiveRepeat.boundaryAction(2, true, false, boundaryUid, boundaryUid, 1, 3, 7, 7, seeking)
+                    == -1, "a paused append or seek must not resume");
+            check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, otherUid, 1, 3, 7, 7, seeking)
+                    == -1, "a replaced occurrence must not resume");
+            check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 1, 3, 7, 8, seeking)
+                    == -1, "a canceled boundary must not resume");
+        }
+        for (int mode : new int[] {1, 2}) {
+            check(ProgressiveRepeat.boundaryAction(mode, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, true)
+                    == ProgressiveRepeat.RESUME, "a seek during a pending ONE or ALL boundary resumes without wrapping");
+            check(ProgressiveRepeat.boundaryAction(mode, false, true, boundaryUid, boundaryUid, 2, 3, 7, 7, true)
+                    == -1, "a seek without a pending boundary cannot resume");
+            check(ProgressiveRepeat.boundaryAction(mode, true, false, boundaryUid, boundaryUid, 2, 3, 7, 7, true)
+                    == -1, "a seek after Pause must stay paused");
+        }
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, true)
+                == -1, "OFF cannot resume a canceled repeat boundary");
         System.out.println("ProgressiveRepeatTest: " + fixtures + " fixtures passed");
     }
 }
