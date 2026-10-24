@@ -4579,10 +4579,14 @@ Radio initial loads and reconnects explicitly set
 `ProgressiveAudioSourceOptions.androidUseDefaultLoadErrorHandling`, preserving
 Media3's live-stream retry behavior.
 
-Android Repeat One and Repeat All on a progressive HTTP item (including the
-mobile loopback cache proxy and direct `timeOffset` streams) keep the requested
-Dart loop mode, but use native `REPEAT_MODE_OFF`. Media3's 180-second lookahead
-must not wrap the queue and prepare another occurrence of a source while its
+Android Repeat One on a progressive HTTP item (including the mobile loopback
+cache proxy and direct `timeOffset` streams), and Repeat All on any playlist
+containing such an item, keep the requested Dart loop mode but use native
+`REPEAT_MODE_OFF`. Repeat All ownership covers cached-file items too: enabling
+native ALL on a file can preload a second occurrence of a future stream before
+that stream starts. Eligibility is checked across the current timeline, not
+previously decoded sources that have left the playlist. Media3's 180-second
+lookahead must not wrap the queue and prepare another occurrence of a source while its
 unknown-length, unseekable period is playing. A future occurrence can read the
 completed cache with a known length and publish a different, exact duration on
 the shared source. Media3 then repairs the incompatible queued period by seeking
@@ -4591,8 +4595,8 @@ to zero without a discontinuity. Repeat All can therefore restart a song before
 its end in a single-song queue or a queue short enough for lookahead to wrap.
 
 `setPauseAtEndOfMediaItems` is enabled for every eligible Repeat One item and
-only the last eligible Repeat All item. Other Repeat All items auto-advance
-normally. The end-of-item PlayWhenReady reason schedules a seek to native zero:
+only the last item of an owned Repeat All playlist. Other Repeat All items
+auto-advance normally. The end-of-item PlayWhenReady reason schedules a seek to native zero:
 the current index for Repeat One, or index zero at the last item for Repeat All.
 `STATE_ENDED` is an idempotent fallback and does not publish `completed` during
 an owned repeat. A command revision consumes each boundary once and invalidates
@@ -4603,8 +4607,13 @@ appends, inserts and moves preserve it while that occurrence remains current.
 Repeat One restarts at its current index; Repeat All checks again that it is
 still last before wrapping. If an append or move makes the paused boundary
 non-last before the posted callback runs, the same guarded decision resumes
-native playback without seeking so Media3 advances into the next item. Boundary
-ownership is captured when scheduling, allowing that pause to be released even
+native playback without seeking so Media3 advances into the next item. The
+end-pause may also arrive after the append timeline: scheduling accepts that
+now non-last boundary rather than rejecting it on the new last-item policy.
+If native playback has already reached `STATE_ENDED`, the guarded action seeks
+to the newly appended next item before resuming; setting PlayWhenReady alone
+cannot leave ENDED. Timeline changes and the ENDED callback share this recovery.
+Boundary ownership is captured when scheduling, allowing that pause to be released even
 if timeline updates change current eligibility. A seek during a pending boundary
 consumes the old restart and resumes at the requested position for both modes,
 only while Play remains requested. Removing or replacing that occurrence cancels
@@ -4617,9 +4626,9 @@ The native tail event followed by zero preserves just_audio's existing
 same-index `autoAdvance` event. Its pairwise detector checks a backwards jump
 for both plain and offset unknown-duration items. The existing handler then
 reloads an offset source from song zero exactly once; no second Dart repeat
-controller is added. Local/asset items, radio's default-retry opt-out, HLS/DASH
-and Repeat Off retain native behavior. A cached-file last item keeps native
-Repeat All until the next stream transition: its current period is seekable.
+controller is added. Playlists containing only local/asset items, radio's
+default-retry opt-out, HLS/DASH, and Repeat Off retain native behavior. Repeat
+One on an ineligible current item also retains native behavior.
 Shuffled and deferred queues retain their existing Dart-owned wrap policy.
 Progressive HTTP Repeat One loses gapless restart, and Repeat All loses the
 gapless join at the queue wrap; ordinary in-queue auto-advance is unchanged.

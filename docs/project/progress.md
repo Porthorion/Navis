@@ -14,32 +14,17 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
-- [x] Android progressive Repeat All near-end replay — 2026-10-24.
-  `ProgressiveRepeat` and `AudioPlayer` keep native repeat off for eligible
-  streams and wrap only the last Repeat All item. The guarded boundary decision
-  now resumes without seeking when an append or move makes the paused item
-  non-last; a seek during a pending boundary restores requested playback for
-  Repeat One and Repeat All. Captured boundary ownership, occurrence UID,
-  revision and Play intent prevent stale callbacks from restarting playback.
-  Test-first commits: `7ff2384e` for the original replay and `1df211f1` for the
-  boundary races. The latter follows the observed
-  `AssertionError: an append makes the old last item auto-advance`.
-  `./tool/equalizer_native_test.sh`: `ProgressiveRepeatTest: 74 fixtures passed`,
-  plus 13 retry fixtures and the equalizer checks. Architecture and the 1.5.1
-  changelog record the repair and loss of a gapless progressive queue-wrap join.
-  The separate Android runtime verification of `0a1558e3` observed original
-  replay base 3/3 → fix 0/3, exactly one paced 120-second end wrap, two ordered
-  real-length queue wraps, crossfade/skip/Repeat One/Off regressions and seven
-  admitted appends, with zero anomalies in 18 valid rows. It did not force the
-  post-pause/pre-callback interleaving; the r2 JVM fixtures cover that decision
-  deterministically. No r2 emulator run is claimed (excluded by the task).
-  The r2 capped `flutter build apk --debug --flavor sideload` passed with zero
-  OOM kills; Gradle/Kotlin daemons were stopped by PID.
-  The r2 foreground capped `./tool/check.sh` passed:
-  `09:29 +9384 ~1: All tests passed!` (one skipped), followed by
-  `[check] All checks passed.` The cap reports exit 0 and zero OOM kills.
-  Formatting, generation, analysis, dead-code, migration and critical reliability
-  gates passed; generation produced no tracked changes.
+- [ ] Android progressive Repeat All near-end replay — r3, 2026-10-24.
+  The r2 runtime rerun found two admitted append stalls and duplicate stream
+  periods in mixed queues. Repeat All now owns any playlist containing an
+  eligible HTTP item, including while files play; Repeat One remains scoped
+  to the current item. Boundary scheduling accepts END_OF_MEDIA_ITEM after an
+  append has made the item non-last, and ENDED recovery explicitly advances
+  to the next item before resuming. Occurrence/revision/Play guards remain.
+  Test-first commit `a2496cbb` adds mixed-policy and ENDED-append fixtures;
+  signature-adapted old decisions fail both new assertions. Focused validation:
+  `./tool/equalizer_native_test.sh`, 88 repeat fixtures, 13 retry fixtures and
+  equalizer checks passed. Full gate and emulator r3 evidence pending.
 - [ ] Issue #86, item 11a PR C desktop transcode EOF — implementation complete
   on `fix/transcode-cut-eof`, 2026-10-23; coordinator `./tool/check.sh`,
   independent reviews and native cut-matrix acceptance remain pending under

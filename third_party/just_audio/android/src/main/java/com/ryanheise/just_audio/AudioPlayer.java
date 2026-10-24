@@ -316,11 +316,18 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     }
 
     private boolean ownsProgressiveRepeat() {
-        MediaItem item = player.getCurrentMediaItem();
-        boolean eligible = item != null && item.localConfiguration != null
-                && progressiveHttpSources.contains(item.localConfiguration.tag);
-        return requestedLoopMode != Player.REPEAT_MODE_OFF
-                && ProgressiveRepeat.nativeMode(requestedLoopMode, eligible) == Player.REPEAT_MODE_OFF;
+        if (requestedLoopMode == Player.REPEAT_MODE_OFF) return false;
+        boolean currentEligible = false;
+        boolean playlistEligible = false;
+        for (int index = 0; index < player.getMediaItemCount(); index++) {
+            MediaItem item = player.getMediaItemAt(index);
+            boolean eligible = item.localConfiguration != null
+                    && progressiveHttpSources.contains(item.localConfiguration.tag);
+            playlistEligible |= eligible;
+            if (index == player.getCurrentMediaItemIndex()) currentEligible = eligible;
+        }
+        return ProgressiveRepeat.nativeMode(requestedLoopMode, currentEligible, playlistEligible)
+                == Player.REPEAT_MODE_OFF;
     }
 
     private void updateLoopPolicy() {
@@ -351,8 +358,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
 
     private boolean scheduleProgressiveRepeat() {
         final boolean owned = ownsProgressiveRepeat();
-        if (!ProgressiveRepeat.pauseAtEnd(requestedLoopMode, owned,
-                player.getCurrentMediaItemIndex() == player.getMediaItemCount() - 1)) return false;
+        // The end-pause can arrive after an append has already made this item non-last.
+        if (!owned) return false;
         repeatAtEndUid = currentItemUid();
         if (!playRequested) return false;
         if (repeatPending) return true;
@@ -366,7 +373,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             if (player == null) return;
             int action = ProgressiveRepeat.boundaryAction(requestedLoopMode, owned,
                     playRequested, boundaryUid, currentItemUid(), player.getCurrentMediaItemIndex(),
-                    player.getMediaItemCount(), revision, repeatRevision, false);
+                    player.getMediaItemCount(), revision, repeatRevision, false,
+                    player.getPlaybackState() == Player.STATE_ENDED);
             if (action == -1) return;
             cancelPendingRepeat(); // Consume before seek callbacks or the ENDED fallback can re-enter.
             repeatAtEndUid = null;
@@ -414,7 +422,9 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         if (updateCurrentIndex()) {
             broadcastImmediatePlaybackEvent();
         }
-        if (!ownsProgressiveRepeat() && player.getPlaybackState() == Player.STATE_ENDED) {
+        if (ownsProgressiveRepeat() && player.getPlaybackState() == Player.STATE_ENDED) {
+            scheduleProgressiveRepeat();
+        } else if (player.getPlaybackState() == Player.STATE_ENDED) {
             try {
                 if (player.getPlayWhenReady()) {
                     if (lastPlaylistLength == 0 && player.getMediaItemCount() > 0) {
@@ -1228,7 +1238,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     public void seek(final long position, final Integer index, final Result result) {
         boolean resumeBoundary = ProgressiveRepeat.boundaryAction(requestedLoopMode, repeatPending,
                 playRequested, repeatAtEndUid, currentItemUid(), player.getCurrentMediaItemIndex(),
-                player.getMediaItemCount(), repeatRevision, repeatRevision, true) == ProgressiveRepeat.RESUME;
+                player.getMediaItemCount(), repeatRevision, repeatRevision, true,
+                player.getPlaybackState() == Player.STATE_ENDED) == ProgressiveRepeat.RESUME;
         repeatAtEndUid = null;
         cancelPendingRepeat();
         if (processingState == ProcessingState.idle || processingState == ProcessingState.loading) {

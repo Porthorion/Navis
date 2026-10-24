@@ -131,7 +131,9 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       ChangelogEntry(
         'Android: with Repeat All, a song no longer restarts just before its end. '
-        'Queue edits and seeks at a repeat boundary keep playback running.',
+        'Mixed downloaded and streamed queues stay protected too. Queue edits and '
+        'seeks at a repeat boundary keep playback running, including an append '
+        'that arrives before the native end pause.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
