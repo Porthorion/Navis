@@ -116,9 +116,12 @@ void main() {
       (tester) async {
         final root = Directory.systemTemp.createTempSync('navis-script-drag-');
         addTearDown(() => root.deleteSync(recursive: true));
+        var frameWaits = 0;
         final controller = DiagnosticsPresentationController(
           artifactRoot: root,
-          frameWaiter: () async {},
+          frameWaiter: () async {
+            frameWaits++;
+          },
         );
         var starts = 0;
         final changes = <double>[];
@@ -158,6 +161,7 @@ void main() {
           if (i == 10) expect(releases, 0);
         }
         final releasedAt = await drag;
+        expect(frameWaits, 0);
         expect(releasesBeforeCapture, 0);
         expect(starts, 1);
         expect(releases, 1);

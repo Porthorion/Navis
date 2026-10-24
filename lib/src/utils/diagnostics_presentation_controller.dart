@@ -1054,7 +1054,9 @@ class DiagnosticsPresentationController {
     );
     late DateTime releasedAt;
     try {
-      await waitForFrame();
+      if (steps == null && flickMs == null) {
+        await waitForFrame();
+      }
       for (final step in script) {
         final start = current;
         final end = point(step.fraction);
@@ -1088,7 +1090,9 @@ class DiagnosticsPresentationController {
         PointerUpEvent(pointer: pointer, position: current, viewId: viewId),
       );
     }
-    await waitForFrame();
+    if (steps == null && flickMs == null) {
+      await waitForFrame();
+    }
     return releasedAt;
   }
 
