@@ -46,7 +46,10 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 
 PROJECT = Path(__file__).resolve().parents[1]
-BASE = PROJECT / 'build' / 'live-seek'
+# The harness (tool/playback_harness.py) moves the data root and app-id suffix out of the
+# worktree so a cached bundle runs from any checkout.
+BASE = Path(os.environ.get('NAVIS_LIVE_SEEK_BASE', PROJECT / 'build' / 'live-seek'))
+SUFFIX = os.environ.get('NAVIS_LIVE_SEEK_SUFFIX', '.liveseek')
 ROOT = BASE / 'root'
 USED = BASE / 'used-songs.json'
 REMOTE_QUERIES = [
@@ -258,6 +261,35 @@ class ThrottledProxy:
         except OSError:
             pass
 
+    def _open(self, handler, upstream, payload, headers):
+        """Waits for the upstream answer but notices a client that hangs up meanwhile (so a preview
+        request the app already closed ends now, not when the transcode finally answers)."""
+        import select
+        result = {}
+
+        def ask():
+            try:
+                time.sleep(self.latency)
+                upstream.request(handler.command, handler.path, body=payload, headers=headers)
+                result['response'] = upstream.getresponse()
+            except Exception as error:
+                result['error'] = error
+
+        asker = threading.Thread(target=ask, daemon=True)
+        asker.start()
+        while asker.is_alive():
+            asker.join(0.01)
+            conn = handler.connection
+            try:
+                if select.select([conn], [], [], 0)[0] and conn.recv(1, 2) == b'':  # 2 = MSG_PEEK
+                    upstream.close()
+                    raise BrokenPipeError('client closed before the answer')
+            except (OSError, ValueError):
+                raise BrokenPipeError('client closed before the answer')
+        if 'error' in result:
+            raise result['error']
+        return result['response']
+
     def forward(self, handler, body: bool):
         self.requests += 1
         connection_type = (http.client.HTTPSConnection if self.secure
@@ -286,10 +318,7 @@ class ThrottledProxy:
         sent_headers = False
         started = time.monotonic()
         try:
-            time.sleep(self.latency)
-            upstream.request(handler.command, handler.path, body=payload,
-                             headers=headers)
-            response = upstream.getresponse()
+            response = self._open(handler, upstream, payload, headers)
             entry['ttfbS'] = round(time.monotonic() - started, 2)
             entry['status'] = response.status
             entry['contentLength'] = response.getheader('Content-Length')
@@ -436,7 +465,7 @@ class App:
             self.log.close()
 
 
-ANDROID_PACKAGE = 'com.navis.app.navis.liveseek'
+ANDROID_PACKAGE = 'com.navis.app.navis' + SUFFIX
 ANDROID_ROOT = f'/data/user/0/{ANDROID_PACKAGE}/files/liveseek'
 ANDROID_HANDSHAKE = (f'/sdcard/Android/data/{ANDROID_PACKAGE}/files/'
                      'navis-diagnostics/handshake.json')
@@ -515,7 +544,8 @@ class AndroidApp(App):
         subprocess.run(self.adb + ['logcat', '-c'], capture_output=True)
         self.shell('rm', '-f', ANDROID_HANDSHAKE, check=False)
         self.shell('am', 'start', '-n',
-                   f'{ANDROID_PACKAGE}/com.navis.app.navis.MainActivity')
+                   f'{ANDROID_PACKAGE}/com.navis.app.navis.MainActivity',
+                   *(['--ez', 'enable-dart-profiling', 'true'] if os.environ.get('NAVIS_LIVE_SEEK_VM') == '1' else []))
 
         def handshake():
             text = self.shell('cat', ANDROID_HANDSHAKE, check=False)
@@ -567,7 +597,7 @@ class AndroidApp(App):
 def build_android():
     defines = {
         'NAVIS_UPDATE_CHANNEL': 'dev',
-        'NAVIS_APP_ID_SUFFIX': '.liveseek',
+        'NAVIS_APP_ID_SUFFIX': SUFFIX,
         'NAVIS_APP_NAME': 'Navis Live Seek',
         'NAVIS_SYNC_DIAGNOSTICS': 'true',
         'NAVIS_SYNC_DIAGNOSTICS_MUTED': 'true',
@@ -583,7 +613,7 @@ def build_android():
              '--target-platform', 'android-x64',
              *[f'--dart-define={k}={v}' for k, v in defines.items()]],
             cwd=PROJECT, stdout=log, stderr=subprocess.STDOUT, check=True,
-            env={**os.environ, 'NAVIS_APP_ID_SUFFIX': '.liveseek',
+            env={**os.environ, 'NAVIS_APP_ID_SUFFIX': SUFFIX,
                  'NAVIS_APP_NAME': 'Navis Live Seek'})
     shutil.copyfile(
         PROJECT / 'build/app/outputs/flutter-apk/app-sideload-profile.apk',
@@ -609,7 +639,7 @@ def build(credentials: dict):
     os.chmod(password, 0o600)
     defines = {
         'NAVIS_UPDATE_CHANNEL': 'dev',
-        'NAVIS_APP_ID_SUFFIX': '.liveseek',
+        'NAVIS_APP_ID_SUFFIX': SUFFIX,
         'NAVIS_APP_NAME': 'Navis Live Seek',
         'NAVIS_SYNC_DIAGNOSTICS': 'true',
         'NAVIS_SYNC_DIAGNOSTICS_MUTED': 'true',
@@ -624,7 +654,7 @@ def build(credentials: dict):
             ['flutter', 'build', 'linux', '--profile',
              *[f'--dart-define={k}={v}' for k, v in defines.items()]],
             cwd=PROJECT, stdout=log, stderr=subprocess.STDOUT, check=True,
-            env={**os.environ, 'NAVIS_APP_ID_SUFFIX': '.liveseek',
+            env={**os.environ, 'NAVIS_APP_ID_SUFFIX': SUFFIX,
                  'NAVIS_APP_NAME': 'Navis Live Seek'})
     shutil.rmtree(ROOT / 'bundle', ignore_errors=True)
     shutil.copytree(PROJECT / 'build/linux/x64/profile/bundle', ROOT / 'bundle')
@@ -1624,6 +1654,7 @@ class FixtureBackend:
         self.credentials = {**self.credentials, 'url': upstream_url}
         self.used: set[str] = set()
         self.rng = random.Random(86)
+        self.server = type('Catalog', (), {'call': lambda _, method, **params: {'song': library.songs[params['id']]}})()  # getSong only
 
     def _take(self, songs):
         self.used.update(s['id'] for s in songs)
@@ -1638,7 +1669,9 @@ class FixtureBackend:
         return self._take(self.rng.sample(pool, n))
 
     def fresh_album(self, short=False):
+        # A normal album starts with a long song: the 3-8 s first tracks are too short for cases that seek 6-16 s from the end.
         albums = [a for a, d in self.library.albums.items() if self._is_short(d['artistId']) == short
+                  and (short or self.library.songs[self.library.album_songs[a][0]]['duration'] >= 100)
                   and not any(i in self.used for i in self.library.album_songs[a])]
         ids = list(self.library.album_songs[self.rng.choice(albums)])
         self.used.update(ids)
@@ -2652,11 +2685,11 @@ def case_chain_end(run: Run, env):
         run.observe(3.0)
         dur = run.last()['dur'] or 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-            seek = issue_seek(run, pool, max(0, dur - 6000))
+            seek = issue_seek(run, pool, max(0, dur - getattr(run, 'chain_lead', 6000)))
             landed(run, seek)
             finish_futures(run)
         landed_t = run.now()
-        moved = run.until(lambda s, n=n: s['songId'] == ids[n + 1], 6 + run.deadlines['advance'] + 20)
+        moved = run.until(lambda s, n=n: s['songId'] == ids[n + 1], getattr(run, 'chain_lead', 6000) / 1000 + run.deadlines['advance'] + 20)
         if moved is None:
             run.violations.append(violation('chainNoHandover', run.now(), f'song {n + 1} never handed over', run))
             raise CaseAbort('no handover')
@@ -3976,6 +4009,8 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
             point_profile_at(app_url)
         app.launch()
         sign_in(app, backend.credentials, 'wifi', app_url)
+        if args.seed_only:
+            return 0  # the synced catalog in ROOT/navis.sqlite is all the harness wants (it seeds Android with it)
         if CROSSFADE_S and not args.android:
             # A fresh profile has no database before the first launch, so point_profile_at wrote nothing:
             # set cross-fade and gapless now and relaunch on the kept profile.
@@ -4116,6 +4151,8 @@ def main() -> int:
                              'transcode (and never on original), land within 3 s, and send timeOffset')
     parser.add_argument('--truth', action='store_true',
                         help='item 8: i87_natural/seekpast/seekdl also compare the drawn cached time with the partial cache file (ffprobe)')
+    parser.add_argument('--seed-only', action='store_true',
+                        help='sign the fixture profile in and stop (leaves the synced catalog in the data root)')
     parser.add_argument('--no-transcode-offset', action='store_true',
                         help='fixture does not advertise/honour transcodeOffset')
     args = parser.parse_args()
@@ -4132,7 +4169,7 @@ def main() -> int:
         credentials = load_credentials(args.credentials)
     if args.build_only:
         BASE.mkdir(parents=True, exist_ok=True)
-        build(credentials)
+        build_android() if args.android else build(credentials)
         return 0
     BASE.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
