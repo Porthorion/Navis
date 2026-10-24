@@ -61,9 +61,11 @@ class _ProxyPlayer extends platform.AudioPlayerPlatform {
     loadedPosition = request.initialPosition;
     final playlist =
         request.audioSourceMessage as platform.ConcatenatingAudioSourceMessage;
-    proxyUri = Uri.parse(
-      (playlist.children.single as platform.ProgressiveAudioSourceMessage).uri,
-    );
+    platform.AudioSourceMessage first = playlist;
+    while (first is platform.ConcatenatingAudioSourceMessage) {
+      first = first.children.first;
+    }
+    proxyUri = Uri.parse((first as platform.ProgressiveAudioSourceMessage).uri);
     events.add(
       platform.PlaybackEventMessage(
         processingState: platform.ProcessingStateMessage.ready,
@@ -245,6 +247,73 @@ void main() {
     }
     expect(condition(), isTrue);
   }
+
+  test(
+    'replaced adopted previews leave no registry entries or owners',
+    () async {
+      final player = AudioPlayer(
+        handleAudioSessionActivation: false,
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
+      addTearDown(player.dispose);
+      for (var i = 0; i < 20; i++) {
+        final client = _StalledConnection();
+        final source = SeekPreviewRequest(
+          Uri.parse('http://fixture.invalid/offset'),
+          client: client,
+        ).asAudioSource();
+        await player.setAudioSource(source);
+        final removedUri = native.player.proxyUri;
+        expect(player.debugStreamRegistryCounts, (sources: 1, handlers: 1));
+        await player.setAudioSource(
+          AudioSource.uri(Uri.parse('https://fixture.invalid/replaced')),
+        );
+        expect(client.closed, isTrue);
+        expect(SeekPreviewRequest.hasOwner(source), isFalse);
+        expect(player.debugStreamRegistryCounts, (sources: 0, handlers: 0));
+        final http = HttpClient();
+        try {
+          final response = await (await http.getUrl(removedUri)).close();
+          expect(response.statusCode, HttpStatus.notFound);
+          await response.drain<void>();
+        } finally {
+          http.close(force: true);
+        }
+      }
+    },
+  );
+
+  test(
+    'nested removal preserves a source referenced by another playlist',
+    () async {
+      final client = _StalledConnection();
+      final source = SeekPreviewRequest(
+        Uri.parse('http://fixture.invalid/shared'),
+        client: client,
+      ).asAudioSource();
+      final left = ConcatenatingAudioSource(children: [source]);
+      final right = ConcatenatingAudioSource(children: [source]);
+      final player = AudioPlayer(
+        handleAudioSessionActivation: false,
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
+      addTearDown(player.dispose);
+      await player.setAudioSources([left, right]);
+      await player.setShuffleModeEnabled(true);
+      await left.clear();
+      expect(client.closed, isFalse);
+      expect(SeekPreviewRequest.hasOwner(source), isTrue);
+      expect(player.sequence, [source]);
+      expect(player.shuffleIndices, [0]);
+      expect(player.debugStreamRegistryCounts, (sources: 1, handlers: 1));
+      await right.clear();
+      expect(client.closed, isTrue);
+      expect(SeekPreviewRequest.hasOwner(source), isFalse);
+      expect(player.debugStreamRegistryCounts, (sources: 0, handlers: 0));
+    },
+  );
 
   for (final end in ['disconnect', 'dispose', 'clear', 'replace']) {
     test(

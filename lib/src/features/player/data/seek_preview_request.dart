@@ -20,6 +20,11 @@ class SeekPreviewRequest {
   static int retryCount(StreamAudioSource source) =>
       (source as _SeekPreviewAudioSource)._retries.length;
 
+  @visibleForTesting
+  // ignore: experimental_member_use, reason: Verify retained source shells release their request owner.
+  static bool hasOwner(StreamAudioSource source) =>
+      (source as _SeekPreviewAudioSource).owner != null;
+
   static const _limit = 512 * 1024;
   final Uri _uri;
   final String? _userAgent;
@@ -177,7 +182,7 @@ class SeekPreviewRequest {
 // ignore: experimental_member_use, reason: The existing proxy owns stream consumption after adoption.
 class _SeekPreviewAudioSource extends StreamAudioSource {
   new(this.owner, {super.tag, super.positionOffset});
-  final SeekPreviewRequest owner;
+  SeekPreviewRequest? owner;
   final _retries = <SeekPreviewRequest>{};
   bool _requested = false;
   bool _disposed = false;
@@ -185,7 +190,8 @@ class _SeekPreviewAudioSource extends StreamAudioSource {
   @override
   void dispose() {
     _disposed = true;
-    owner.cancel();
+    owner?.cancel();
+    owner = null;
     for (final retry in _retries) {
       retry.cancel();
     }
@@ -198,6 +204,7 @@ class _SeekPreviewAudioSource extends StreamAudioSource {
     if (_disposed) {
       return Future.error(StateError('Seek preview source disposed'));
     }
+    final owner = this.owner!;
     if (!_requested) {
       _requested = true;
       return owner._request();

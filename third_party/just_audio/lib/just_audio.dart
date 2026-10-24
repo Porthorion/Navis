@@ -1005,6 +1005,13 @@ class AudioPlayer {
     await currentIndexStream.firstWhere((i) => i == sequenceState.currentIndex);
   }
 
+  /// Registry sizes for stream-source lifecycle regression tests.
+  @visibleForTesting
+  ({int sources, int handlers}) get debugStreamRegistryCounts => (
+        sources: _audioSources.values.whereType<StreamAudioSource>().length,
+        handlers: _proxy._handlerMap.length,
+      );
+
   void _registerAudioSource(AudioSource source) {
     _audioSources[source._id] = source;
   }
@@ -2633,7 +2640,12 @@ class _ProxyHttpServer {
     _server.listen((request) async {
       if (request.method == 'GET') {
         final uriPath = _requestKey(request.uri);
-        final handler = _handlerMap[uriPath]!;
+        final handler = _handlerMap[uriPath];
+        if (handler == null) {
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
+          return;
+        }
         handler(this, request);
       }
     }, onDone: () {
@@ -3352,10 +3364,23 @@ class ConcatenatingAudioSource extends AudioSource {
   // Removed sources retain whole-file caching, but cannot retain player probes.
   Future<void> _cancelRemovedStreamRequests(
       Iterable<AudioSource> removed) async {
-    final retained = sequence.toSet();
+    final retained = {
+      ...sequence,
+      ...?_player?._playlist.sequence,
+    };
     for (final source in removed.expand((source) => source.sequence)) {
       if (retained.contains(source)) continue;
-      if (source is StreamAudioSource) source.dispose();
+      if (source is StreamAudioSource) {
+        source.dispose();
+        final player = source._player;
+        if (player != null) {
+          player._audioSources.remove(source._id);
+          final uri = source._uri;
+          if (uri != null) {
+            player._proxy._handlerMap.remove(player._proxy._requestKey(uri));
+          }
+        }
+      }
       if (source is LockCachingAudioSource) {
         source.resumeDownload();
         await source._cancelRangeFetches();

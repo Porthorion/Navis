@@ -131,7 +131,8 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       ChangelogEntry(
         'Keep drag-seek streams reconnectable after native probes and network cuts, '
-        'and preserve preview adoption during queue navigation.',
+        'preserve preview adoption during queue navigation, and release removed '
+        'preview streams from memory.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

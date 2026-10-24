@@ -14,6 +14,24 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Seek-drag registry retention repair (round 4) — 2026-10-24.
+  Tests-first owner release fails before the fix; both focused suites pass
+  (53 tests), including 20 adopt/replace cycles, empty removed-stream registries,
+  released owners, removed proxy HTTP 404 responses, and nested shared-source
+  preservation with shuffle enabled. Foreground 8 GiB-capped `./tool/check.sh`
+  passes: `09:33 +9432 ~1: All tests passed!`, `[check] All checks passed.`,
+  exit 0, peak 4892 MiB, swap peak 1792 MiB, no OOM kills. Generated sources
+  remain unchanged. Crossfade uses cloned sources on each deck.
+- [x] Seek-drag round 4 memory re-soak — 2026-10-24: all 20 scripted releases
+  adopt; after idle and forced GC, each registry has zero disposed previews,
+  retained owners/retries are 1/0 (current source permitted), active owners/
+  retries and origin sockets are 0/0/0. Nineteen disposed shells remain through
+  sequence subscriptions with null owners, outside the registries. PSS slope
+  -12.1935 MiB/drag is below r3's 2.3454; swapping confounds performance
+  attribution, so this is no proof of a lower unswapped memory slope. App-owned
+  screenshots and 400/409 endpoint checks pass. PID 1925413 stopped, fixture
+  thread joined, download hashes unchanged. Full evidence and limits:
+  item (12) `rt-soak/summary-r4.md`. Base and Android were not rerun.
 - [x] Seek-drag review round 3 P3 fixes — 2026-10-24: tests-first regressions
   cover failed Futures after source disposal, completed retry removal, explicit
   diagnostics HTTP 400 validation and HTTP 409 overlap rejection, including
@@ -21,21 +39,6 @@ Last updated: 2026-10-24
   Foreground 8 GiB-capped `./tool/check.sh` passes:
   `09:30 +9430 ~1: All tests passed!`, `[check] All checks passed.`, exit 0,
   peak 6138 MiB, no swap/OOM kills. Generated sources remain unchanged.
-- [ ] Seek-drag memory acceptance — partial: 2026-10-24. Matched Linux profile
-  runs complete 50 scripted 20-rest gestures, ten seconds playback after each,
-  then two minutes idle playing. PSS slopes are base 2.6842 and fix 2.3454
-  MiB/drag; fixed-minus-base offsets are +29.80 MiB at drag 1 and +10.76 MiB
-  at drag 50. Memory acceptance FAILS: post-GC snapshots retain 49 disposed
-  adopted sources plus one queue-history source and all 50 cancelled owners
-  through the vendored player source catalog and proxy handler map. Together
-  the sources retain about 0.53 MiB. Active owners/retries and origin sockets
-  are zero, but cancelled objects remain GC-live. The initial PSS offset is
-  mostly shared-library accounting (+26.17 MiB PSS with +0.43 MiB RSS and no
-  extra private dirty bytes). Full per-drag heap/RSS/PSS readings, class-count
-  and retained-size tables, registry paths and probe differences are retained
-  in item (12) `rt-soak/summary.md`. App-owned screenshots and live 400/409
-  checks pass; owned apps stop and all five download hashes remain unchanged.
-  Remaining: remove stale adopted-source registry roots and repeat acceptance.
 - [x] Seek-drag review round 2 — 2026-10-24: tests-first regressions cover native
   reopens after EOF/socket cuts, request identity, desired occurrence adoption
   and stream offsets with cleared queue metadata. Six regressions fail before

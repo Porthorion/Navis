@@ -5317,10 +5317,14 @@ with the original metadata and song-time offset. `IndexedAudioSource` carries
 that offset for URI and stream sources alike. Proxy cancellation/source disposal
 closes that request's adopted response too. A native probe or retry opens a fresh
 GET of the same offset URI; finished retries leave the ownership set immediately,
-and source disposal closes every active request. Requests after disposal return
-a failed Future. The Linux 50-drag soak still finds disposed adopted sources and
-cancelled owners retained by the vendored player's source catalog and proxy
-handler map; reclaiming those registry entries remains an open memory issue.
+and source disposal closes every active request and drops its owner reference.
+Requests after disposal return a failed Future. Removing a stream source also
+releases its player catalog and proxy handler entries once neither the edited
+sequence nor the player's full playlist references it. Nested playlists and
+shuffle references keep live sources registered; late requests for removed
+proxy routes receive HTTP 404. Lock-cache whole-file downloads remain independent
+of playlist removal. Existing sequence subscriptions can still retain disposed
+preview shells, but their owner and buffered body references are released.
 Desktop preview and native playback share the existing desktop User-Agent;
 mobile uses `AppConstants.userAgent` explicitly for both instead of platform
 defaults.

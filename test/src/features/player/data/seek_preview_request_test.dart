@@ -71,6 +71,7 @@ void main() {
     final client = _Client();
     final source = open(client).asAudioSource();
     source.dispose();
+    expect(SeekPreviewRequest.hasOwner(source), isFalse);
     final result = source.request();
     await expectLater(result, throwsStateError);
     client.headersReady.complete(_Response(client.body.stream));
