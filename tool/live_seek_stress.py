@@ -3706,6 +3706,269 @@ def i10_case(mode):
     return case
 
 
+# ---------------------------------------------------------------------------
+# Playback harness cases (tool/playback_harness.py): seek-drag stress, memory
+# soak, cross-fade hand-off and local-file seeks. Their per-case numbers go to
+# run.metrics; the harness compares them between a base and a fix build.
+
+DRAG_RNG = random.Random(12012)
+DRAG_STEPS = [{'fraction': [.1, .8, .2, .9][i % 4], 'moveMs': 200 if i else 0, 'holdMs': DRAG_RNG.randint(300, 700)}
+              for i in range(20)]
+VM_SERVICE = os.environ.get('NAVIS_LIVE_SEEK_VM') == '1'  # the soak reads the Dart heap through the VM service
+
+
+def max_frozen_s(run: Run) -> float:
+    """Longest time the position stood still (within 200 ms) while playback was wanted, from the first audio on."""
+    first_audio = next((s['t'] for s in run.samples if s['pos'] and s['playing']), None)
+    anchor, longest = None, 0.0
+    for s in run.samples:
+        finished = s['proc'] == 'completed' and s['idx'] is not None and s['qlen'] and s['idx'] >= s['qlen'] - 1 and not s['deferred']
+        if first_audio is None or s['t'] < first_audio or s['pos'] is None or finished or not wanted_at(run, s['t']):
+            anchor = None
+            continue
+        if anchor is None or abs(s['pos'] - anchor['pos']) > 200 or s['songId'] != anchor['songId']:
+            anchor = s
+            continue
+        longest = max(longest, s['t'] - anchor['t'])
+    return round(longest, 2)
+
+
+def oracle_crossfade(run: Run) -> list[dict]:
+    """Cross-fade hand-offs: the outgoing and incoming song never swap back and forth (two current songs), and
+    the position never jumps by more than a second between samples without a seek or navigation."""
+    out, samples = [], run.samples
+    if samples and not any((s['cf'] or {}).get('enabled') for s in samples):
+        out.append(violation('crossfadeOff', samples[0]['t'], 'cross-fade was not enabled in the profile', run))
+    for i in range(2, len(samples)):
+        a, b, c = samples[i - 2], samples[i - 1], samples[i]
+        if a['songId'] and a['songId'] == c['songId'] and b['songId'] not in (None, a['songId']) \
+                and not _requested_at(run, b['t']):
+            out.append(violation('doubleCurrent', b['t'], f"current song {a['songId']} -> {b['songId']} -> {c['songId']}", run))
+    for a, b in zip(samples, samples[1:]):
+        if a['songId'] and a['songId'] == b['songId'] and a['idx'] == b['idx'] and a['pos'] is not None and b['pos'] is not None \
+                and a['proc'] == b['proc'] == 'ready' and a['playing'] and b['playing'] and abs(b['pos'] - a['pos']) > 1000 and not _requested_at(run, b['t']):
+            out.append(violation('crossfadeProgressJump', b['t'], f"position {a['pos']} -> {b['pos']} on {b['songId']}", run))
+            break
+    return out
+
+
+def case_crossfade_end(run: Run, env):
+    """Cross-fade on a short album (1-8 s songs): every song ends by itself and the next must take over and play."""
+    ids = [i for i in env.backend.fresh_album(short=True) if i not in env.backend.library.duplicates][:5]
+    run.songs = [{'id': i} for i in ids]
+    rec = start_queue(run, ids)
+    await_audio(run, rec, ids[0])
+    for n in range(len(ids) - 1):
+        moved = run.until(lambda s, n=n: s['songId'] == ids[n + 1], 40)
+        if moved is None:
+            run.violations.append(violation('chainNoHandover', run.now(), f'song {n + 1} never followed song {n}', run))
+            raise CaseAbort('no handover')
+    ok = run.until(lambda s: s['songId'] == ids[-1] and s['playing'] and s['proc'] == 'ready', 20)
+    if ok is None:
+        run.violations.append(violation('pausedAtSongEnd', run.now(), 'the last song is not playing', run))
+    run.checks.append(lambda: oracle_sequence(run, ids, minimum=len(ids)))
+
+
+def start_player_overlay(run: Run):
+    run.app.api('/v1/presentation/player-overlay', {'surface': 'nowPlaying', 'visible': True, 'settle': False})
+    run.app.api('/v1/presentation/dismiss-popup', {})
+    time.sleep(0.6)
+
+
+def preview_sockets(rows: list[dict], released_w: float) -> dict:
+    """Preview (timeOffset) GETs the gesture opened before its release: how many, the most open at once, and
+    whether each closed before the next opened."""
+    opened = sorted((r for r in rows if r.get('timeOffset') and r['w'] < released_w), key=lambda r: r['w'])
+    ends = [r.get('endW') or float('inf') for r in opened]
+    peak = max([sum(1 for e, o in zip(ends, opened) if o['w'] <= r['w'] < e - 0.05) for r in opened] or [0])
+    ordered = all(ends[i] <= opened[i + 1]['w'] + 0.05 for i in range(len(opened) - 1))
+    return {'previewGETs': len(opened), 'previewSocketMax': peak, 'closedBeforeSuccessor': ordered}
+
+
+def case_stress_drag(run: Run, env):
+    """One held pointer: 20 slider rests (seed 12012), then a single release. Records the heartbeat summaries the
+    release returns, the origin sockets the previews opened, and release -> target + 1 s."""
+    song = env.backend.fresh_songs(1)[0]
+    start_single(run, song)
+    run.observe(2.0)
+    start_player_overlay(run)
+    run.app.api('/v1/diagnostics/heartbeat', {'enabled': True})
+    run.app.api('/v1/diagnostics/metrics/reset', {})
+    mark = len(env.proxy.log)
+    result = run.app.api('/v1/presentation/seek-drag', {'steps': DRAG_STEPS, 'release': True}, timeout=180)
+    released_w, released_t = time.time(), run.now()
+    run.act('seek', target=None, kind2='drag')
+    target = (run.app.api('/v1/playback/status').get('seek') or {}).get('requestedPositionMs')
+    if target is None:
+        raise Failure('the release left no production seek target')
+    settled = run.until(lambda s: s['t'] >= released_t and (s['pos'] or 0) >= target + 1000 and s['proc'] == 'ready'
+                        and not s['seekPending'], 60)
+    run.observe(3.0)
+    run.app.api('/v1/diagnostics/heartbeat', {'enabled': False})
+    run.metrics['drag'] = {
+        **preview_sockets(env.proxy.log[mark:], released_w),
+        'heartbeat': result['heartbeat'],
+        'releaseToTargetPlus1S': None if settled is None else round(settled['t'] - released_t, 3)}
+    if settled is None:
+        run.violations.append(violation('dragNoSettle', released_t, f'no playback at {target}+1 s within 60 s', run))
+
+
+def case_stress_flick(run: Run, env):
+    """A continuous five-second flick opens no preview request."""
+    song = env.backend.fresh_songs(1)[0]
+    start_single(run, song)
+    run.observe(2.0)
+    start_player_overlay(run)
+    run.app.api('/v1/diagnostics/heartbeat', {'enabled': True})
+    mark = len(env.proxy.log)
+    result = run.app.api('/v1/presentation/seek-drag', {'fraction': .1, 'flickMs': 5000}, timeout=90)
+    released_w = time.time()
+    run.act('seek', target=None, kind2='flick')
+    run.observe(3.0)
+    run.app.api('/v1/diagnostics/heartbeat', {'enabled': False})
+    run.metrics['flick'] = {**preview_sockets(env.proxy.log[mark:], released_w), 'heartbeat': result['heartbeat']}
+
+
+def app_pid(app) -> int:
+    if isinstance(app, AndroidApp):
+        return int(app.shell('pidof', ANDROID_PACKAGE).strip().split()[0])
+    return app.proc.pid
+
+
+def pss_kib(app) -> int:
+    pid = app_pid(app)
+    if isinstance(app, AndroidApp):
+        meminfo = app.shell('dumpsys', 'meminfo', str(pid))
+        match = re.search(r'TOTAL PSS:\s+(\d+)', meminfo) or re.search(r'TOTAL\s+(\d+)', meminfo)
+        return int(match[1])
+    return int(re.search(r'Pss:\s+(\d+)', Path(f'/proc/{pid}/smaps_rollup').read_text())[1])
+
+
+def vm_url(app) -> str:
+    """The Dart VM service of a profile build started with NAVIS_LIVE_SEEK_VM=1."""
+    text = (subprocess.run(app.adb + ['logcat', '-d', '-s', 'flutter:*'], capture_output=True, text=True).stdout
+            if isinstance(app, AndroidApp) else (app.run / 'app.log').read_text(errors='replace'))
+    found = re.findall(r'Dart VM [Ss]ervice[^\n]*?(http://127\.0\.0\.1:(\d+)/[^\s]+/)', text)
+    if not found:
+        raise Failure('no Dart VM service URL in the app log (NAVIS_LIVE_SEEK_VM=1?)')
+    url, port = found[-1]
+    if isinstance(app, AndroidApp):
+        forwarded = subprocess.run(app.adb + ['forward', 'tcp:0', f'tcp:{port}'], check=True,
+                                   capture_output=True, text=True).stdout.strip()
+        url = url.replace(f':{port}/', f':{forwarded}/')
+    return url
+
+
+def vm_call(url: str, method: str, **params):
+    with urlopen(url + method + '?' + urlencode(params), timeout=60) as response:
+        body = json.load(response)
+    if 'error' in body:
+        raise Failure(f'VM {method}: {body["error"]}')
+    return body['result']
+
+
+def dart_heap(url: str, isolate: str, gc=False) -> int:
+    if gc:
+        vm_call(url, 'getAllocationProfile', isolateId=isolate, gc='true')
+    return vm_call(url, 'getMemoryUsage', isolateId=isolate)['heapUsage']
+
+
+def case_mem_soak(run: Run, env, drags=20, idle_s=120):
+    """20 held drags on fresh songs, 10 s of playback after each, then 120 s of idle playback and a forced GC.
+    Records PSS (KiB) after every drag and the Dart heap, for the harness to fit a slope."""
+    if not VM_SERVICE:
+        raise Failure('memory-soak needs NAVIS_LIVE_SEEK_VM=1 (the harness sets it)')
+    url = vm_url(run.app)
+    isolate = next(i['id'] for i in vm_call(url, 'getVM')['isolates'] if i.get('name') == 'main')
+    rows = []
+    for drag in range(1, drags + 1):
+        start_single(run, env.backend.fresh_songs(1)[0])
+        run.observe(1.0)
+        start_player_overlay(run)
+        run.app.api('/v1/presentation/seek-drag', {'steps': DRAG_STEPS, 'release': True}, timeout=180)
+        released_t = run.now()
+        run.act('seek', target=None, kind2='drag')
+        target = (run.app.api('/v1/playback/status').get('seek') or {}).get('requestedPositionMs') or 0
+        run.until(lambda s: s['t'] >= released_t and (s['pos'] or 0) >= target + 1000 and s['proc'] == 'ready', 60)
+        run.observe(10.0)
+        rows.append({'drag': drag, 'pssKiB': pss_kib(run.app), 'heapB': dart_heap(url, isolate)})
+    start_single(run, env.backend.fresh_songs(1)[0])
+    run.observe(idle_s)
+    before = {'pssKiB': pss_kib(run.app), 'heapB': dart_heap(url, isolate)}
+    after = {'heapB': dart_heap(url, isolate, gc=True)}
+    after['pssKiB'] = pss_kib(run.app)
+    run.metrics['soak'] = {'drags': rows, 'beforeGc': before, 'afterGc': after}
+
+
+def case_local_seek(run: Run, env):
+    """A permanently downloaded song: seeks to 5 s, the middle and 5 s again land within 500 ms of the target,
+    and the player reads the local file."""
+    song = env.backend.fresh_songs(1)[0]
+    fmt, kbps = QUALITIES[run.quality]
+    run.app.api('/v1/downloads/enqueue', {'songIds': [song['id']], **({'quality': kbps, 'format': fmt} if fmt else {})}, timeout=60)
+    deadline = time.monotonic() + 240
+    while time.monotonic() < deadline:
+        status = run.app.api('/v1/downloads/status', timeout=30)
+        if any(e.get('songId') == song['id'] for e in status.get('permanentDownloads') or []):
+            break
+        time.sleep(1.0)
+    else:
+        raise CaseAbort('download did not complete')
+    start_single(run, song)
+    run.observe(2.0)
+    recs, errors = [], []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        for target in (5000, int(song['duration']) * 500, 5000):
+            rec = issue_seek(run, pool, target)
+            hit = landed(run, rec)
+            finish_futures(run)
+            recs.append(rec)
+            if hit is not None:
+                errors.append(abs(hit['pos'] - target))
+            run.observe(2.0)
+    run.metrics['localSeek'] = {'errorsMs': errors, 'src': run.last()['src']}
+    run.checks.append(lambda: [v for r in recs for v in oracle_seek(run, r)])
+    run.latency_from = recs
+    if not errors or max(errors) >= 500:
+        run.violations.append(violation('localLandingError', run.now(), f'landing errors {errors} ms (limit 500)', run))
+
+
+# Repeat All edge from the q7 investigation: an append 200 ms before / 5 ms after the end of the queue's last
+# song must continue into the appended song, playing. (A seek 150 ms before the end races the sampler: not ported.)
+
+def q7_last_song(run: Run, env):
+    """Repeat All on a short album sorted so its longest song is last; returns (ids, the last song's sample) at 3 s in."""
+    ids = sorted(sh_short_ids(env), key=lambda x: env.backend.library.songs[x]['duration'])
+    run.songs = [{'id': i} for i in ids]
+    run.app.api('/v1/playback/repeat', {'mode': 'all'})
+    sh_play(run, ids, start=len(ids) - 1)
+    tail = run.until(lambda s: s['idx'] == len(ids) - 1 and s['proc'] == 'ready' and (s['pos'] or 0) > 3000, 25)
+    if tail is None:
+        raise CaseAbort('the last song did not play')
+    return ids, tail
+
+
+def sleep_until_remaining(run: Run, tail: dict, remaining_ms: int):
+    time.sleep(max(0.0, run.t0 + tail['t'] + (tail['dur'] - tail['pos'] - remaining_ms) / 1000 - time.monotonic()))
+
+
+def q7_append_case(remaining_ms: int):
+    def case(run: Run, env):
+        added = sh_short_ids(env)[-1]
+        sh_play(run, [added, added])  # the queue call stores a fixture song the library lacks; queue-edit only resolves stored ones
+        settle_between_runs(run.app)
+        ids, tail = q7_last_song(run, env)
+        sleep_until_remaining(run, tail, remaining_ms)
+        run.act('queueEdit', op='add', song=added)
+        response = run.app.api('/v1/playback/queue-edit', {'op': 'add', 'songIds': [added]}, timeout=60)
+        if response.get('queueLength') != len(ids) + 1:
+            raise Failure('the appended fixture song was not admitted')
+        got = run.until(lambda s: s['songId'] == added and s['playing'] and s['proc'] == 'ready' and (s['pos'] or 0) > 0, 35)
+        sh_step(run, 'appendContinues', got is not None, remainingMs=remaining_ms, sample=got)
+        run.observe(2.0)
+    return case
+
+
 CASE_FUNCS = {
     **{f"i10_{m}": i10_case(m) for m in ("seek", "continuity", "back", "replay", "repeat", "off", "quality")},
     'seek_early': seek_case([0.3], play_s=0),
@@ -3757,6 +4020,9 @@ CASE_FUNCS = {
     'shuffle_toggle': case_shuffle_toggle,
     'queue_playnext_add': queue_case(edit_play_next_add),
     'queue_reorder': queue_case(edit_reorder),
+    'crossfade_end': case_crossfade_end, 'stress_drag': case_stress_drag, 'stress_flick': case_stress_flick,
+    'mem_soak': case_mem_soak, 'local_seek': case_local_seek,
+    'q7_append_200': q7_append_case(200), 'q7_append_after5': q7_append_case(-5),
 }
 PROFILES = {
     'smoke': {'cases': ['seek_far', 'seek_back', 'skip_next', 'skip_rapid10', 'shuffle_album', 'shuffle_artist',
@@ -3883,6 +4149,10 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
     run.violations += oracle_unexpected_change(run) + oracle_stall(run) + oracle_replay(run)
     if VERIFY_OFFSET:
         run.violations += oracle_progress_loss(run)
+    if CROSSFADE_S:
+        run.violations += oracle_crossfade(run)
+        run.metrics['crossfadePhases'] = run.samples[-1]['cf']['phases'] if run.samples else None
+    run.metrics['maxFrozenS'] = max_frozen_s(run)
     logged = anomaly_log_lines(app)
     run.metrics['anomalyLines'] = logged[anomaly_mark if anomaly_mark <= len(logged) else 0:]
     try:
