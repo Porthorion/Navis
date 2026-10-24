@@ -14,6 +14,40 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Android progressive Repeat All near-end replay — r3, 2026-10-24.
+  Test-first fixtures `a2496cbb` and fix `860384a8` repair both r2 failures.
+  Logging-only native proof reproduces an append timeline at count 6 before
+  END_OF_MEDIA_ITEM: the old last-item scheduling guard rejects that pause,
+  leaving READY/PWR false with Play requested and no ENDED fallback. Scheduling
+  now accepts the non-last boundary; the guarded action resumes READY or seeks
+  to the appended next item from ENDED. The emulator observes three RESUME
+  recoveries and one ENDED-next recovery, followed by playing index 5.
+  Mixed-source proof confirms native ALL on files and 13 S2 periods before its
+  first departure. Repeat All now owns any current playlist with an eligible
+  HTTP item, including while files play; Repeat One stays current-item scoped.
+  Occurrence UID, revision, Play intent, retry eligibility and source priority
+  remain unchanged. Architecture and the 1.5.1 changelog describe the behavior.
+  Focused native checks pass: 88 repeat fixtures, 13 retry fixtures and equalizer
+  checks. Foreground capped `./tool/check.sh` passes:
+  `09:23 +9384 ~1: All tests passed!`, `[check] All checks passed.`, exit 0,
+  peak 5954 MiB and zero OOM kills; generation leaves no tracked changes.
+  Local verification APK `9660633d` contains the fix and the unchanged q7
+  harness, with logging-only conflict adaptations. New-head emulator acceptance
+  passes all 29 rows and eleven independent checks: 19/19 admitted appends
+  (seven timings twice plus 10, 3, 1, 0 and -1 ms; 15 sample the old last item),
+  tail seek, two Repeat One loops, Repeat Off stop, both boundary skips, three
+  mixed runs with two ordered wraps each, and original q7 0/3 resets. All 15
+  observed playing-stream intervals have exactly one period; post-policy and
+  transition logs retain native repeat OFF. No recorder anomalies, sample
+  errors or native load errors. Evidence: `q7/rt-fix3/summary.md`, `cause.md`,
+  native interleaving files, `mixed-native.json`, `validation-results.json`
+  and all run logs/traces. Profile APK build and full gate report zero OOM
+  kills; owned emulators and runtime jobs are stopped, known Gradle/Kotlin
+  daemons stopped by PID, proxy port released, and five download hashes match.
+  This Android round does not rerun physical listening, other-platform runtime,
+  the paced 120-second proof or long/crossfade/wrap-gap benchmarks. Independent
+  review remains with the coordinator. AI implementation/verification: Codex
+  gpt-6.1-sol; no push, PR or Fable model use.
 - [ ] Issue #86, item 11a PR C desktop transcode EOF — implementation complete
   on `fix/transcode-cut-eof`, 2026-10-23; coordinator `./tool/check.sh`,
   independent reviews and native cut-matrix acceptance remain pending under

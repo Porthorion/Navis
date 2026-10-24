@@ -4579,39 +4579,66 @@ Radio initial loads and reconnects explicitly set
 `ProgressiveAudioSourceOptions.androidUseDefaultLoadErrorHandling`, preserving
 Media3's live-stream retry behavior.
 
-Android repeat-one on a progressive HTTP item (including the mobile loopback
-cache proxy and direct `timeOffset` streams) keeps the requested Dart
-`LoopMode.one`, but uses native `REPEAT_MODE_OFF` and
-`setPauseAtEndOfMediaItems(true)`. Media3 must not prepare a repetition of that
-same source while its first unknown-length period is playing: a later sized
-source-info refresh can otherwise silently clamp the current position to zero.
-The end-of-item PlayWhenReady reason schedules a same-item seek to native zero;
+Android Repeat One on a progressive HTTP item (including the mobile loopback
+cache proxy and direct `timeOffset` streams), and Repeat All on any playlist
+containing such an item, keep the requested Dart loop mode but use native
+`REPEAT_MODE_OFF`. Repeat All ownership covers cached-file items too: enabling
+native ALL on a file can preload a second occurrence of a future stream before
+that stream starts. Eligibility is checked across the current timeline, not
+previously decoded sources that have left the playlist. Media3's 180-second
+lookahead must not wrap the queue and prepare another occurrence of a source while its
+unknown-length, unseekable period is playing. A future occurrence can read the
+completed cache with a known length and publish a different, exact duration on
+the shared source. Media3 then repairs the incompatible queued period by seeking
+the playing period to its current position; its unseekable map clamps that seek
+to zero without a discontinuity. Repeat All can therefore restart a song before
+its end in a single-song queue or a queue short enough for lookahead to wrap.
+
+`setPauseAtEndOfMediaItems` is enabled for every eligible Repeat One item and
+only the last item of an owned Repeat All playlist. Other Repeat All items
+auto-advance normally. The end-of-item PlayWhenReady reason schedules a seek to native zero:
+the current index for Repeat One, or index zero at the last item for Repeat All.
 `STATE_ENDED` is an idempotent fallback and does not publish `completed` during
 an owned repeat. A command revision consumes each boundary once and invalidates
 pending work on Pause (even if native playback already paused at the boundary),
 Stop/disposal, seek/selection, playlist replacement, item transition or loop
 mode change. The boundary tracks the timeline window UID of the queue occurrence:
-appends, inserts and moves preserve it while that occurrence remains current,
-and the restart uses its current index. Removing or replacing that occurrence
-cancels both the pending restart and the paused boundary retained for explicit
-Play. Playback resumes only while Play is still requested. The native policy is
-re-evaluated on item/timeline changes and source replacement.
+appends, inserts and moves preserve it while that occurrence remains current.
+Repeat One restarts at its current index; Repeat All checks again that it is
+still last before wrapping. If an append or move makes the paused boundary
+non-last before the posted callback runs, the same guarded decision resumes
+native playback without seeking so Media3 advances into the next item. The
+end-pause may also arrive after the append timeline: scheduling accepts that
+now non-last boundary rather than rejecting it on the new last-item policy.
+If native playback has already reached `STATE_ENDED`, the guarded action seeks
+to the newly appended next item before resuming; setting PlayWhenReady alone
+cannot leave ENDED. Timeline changes and the ENDED callback share this recovery.
+Boundary ownership is captured when scheduling, allowing that pause to be released even
+if timeline updates change current eligibility. A seek during a pending boundary
+consumes the old restart and resumes at the requested position for both modes,
+only while Play remains requested. Removing or replacing that occurrence cancels
+both the pending restart and the paused boundary retained for explicit Play. Playback
+resumes only while Play is still requested. Item/timeline changes and source
+replacement re-evaluate eligibility and the last-item pause policy, so an append
+while playing enables auto-advance and a removal can make the current item last.
 
 The native tail event followed by zero preserves just_audio's existing
 same-index `autoAdvance` event. Its pairwise detector checks a backwards jump
 for both plain and offset unknown-duration items. The existing handler then
 reloads an offset source from song zero exactly once; no second Dart repeat
-controller is added. Local/asset items, radio's default-retry opt-out, HLS/DASH,
-repeat-off and repeat-all retain native behavior. Single-song repeat-all is
-also unchanged: the reported reproduction establishes repeat-one and
-multi-song repeat-all behavior, not the single-song repeat-all case; that needs
-a device probe before expanding the workaround. Progressive HTTP repeat-one
-therefore loses gapless restart. Normal repeat-one crossfade continues to
-prepare and promote the same queue occurrence on its second deck using
-`_desiredLoopMode`; each deck retains Dart `LoopMode.one`. A successful handoff
-pauses the outgoing deck, cancelling its pending native restart. If native EOF
-wins before the fade starts, the existing position-wrap checks retry the fade
-on the next cycle. Smart repeat-one continues to skip crossfading.
+controller is added. Playlists containing only local/asset items, radio's
+default-retry opt-out, HLS/DASH, and Repeat Off retain native behavior. Repeat
+One on an ineligible current item also retains native behavior.
+Shuffled and deferred queues retain their existing Dart-owned wrap policy.
+Progressive HTTP Repeat One loses gapless restart, and Repeat All loses the
+gapless join at the queue wrap; ordinary in-queue auto-advance is unchanged.
+Normal repeat-one crossfade continues to prepare and promote the same queue
+occurrence on its second deck using `_desiredLoopMode`; each deck retains Dart
+`LoopMode.one`. Repeat All crossfade still resolves the first item from Dart's
+requested `LoopMode.all`. A successful handoff pauses the outgoing deck,
+cancelling its pending native restart. If native EOF wins before a repeat-one
+fade starts, the existing position-wrap checks retry the fade on the next cycle.
+Smart repeat-one continues to skip crossfading. Desktop and iOS are unchanged.
 
 Seek recovery also detects a remote
 seek that landed correctly but remains buffering. Background phase-2 queue
