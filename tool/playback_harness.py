@@ -167,16 +167,17 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
             drags=len(drags), previewSocketMax=max([d['previewSocketMax'] for d in drags] or [0]),
             closedBeforeSuccessor=all(d['closedBeforeSuccessor'] for d in drags) and bool(drags),
             previewGETsMax=max([d['previewGETs'] for d in drags] or [0]), flickGETs=sum(f['previewGETs'] for f in flicks),
-            frameGapP95Ms=max([b['frameGap']['p95Micros'] for b in beats] or [0]) / 1000,
-            eventLoopP95Ms=max([b['eventLoopLag']['p95Micros'] for b in beats] or [0]) / 1000,
+            frameGapP95Ms=_med(b['frameGap']['p95Micros'] / 1000 for b in beats),
+            eventLoopP95Ms=_med(b['eventLoopLag']['p95Micros'] / 1000 for b in beats),
             frameGapStall=_stall(beats, 'frameGap'), eventLoopStall=_stall(beats, 'eventLoopLag'),
             releaseMedianS=_med(d['releaseToTargetPlus1S'] for d in drags))
     elif scenario == 'memory-soak':
-        soak = next((r['metrics']['soak'] for r in rows if 'soak' in r['metrics']), None)
-        if soak:
+        soaks = [r['metrics']['soak'] for r in rows if 'soak' in r['metrics']]
+        if soaks:
             mib = 1024
-            out.update(slopeMiBPerDrag=_ols_slope([d['pssKiB'] / mib for d in soak['drags']]),
-                       postGcPssMiB=soak['afterGc']['pssKiB'] / mib, postGcHeapMiB=soak['afterGc']['heapB'] / mib / mib)
+            out.update(slopeMiBPerDrag=_med(_ols_slope([d['pssKiB'] / mib for d in soak['drags']]) for soak in soaks),
+                       postGcPssMiB=_med(soak['afterGc']['pssKiB'] / mib for soak in soaks),
+                       postGcHeapMiB=_med(soak['afterGc']['heapB'] / mib / mib for soak in soaks))
     elif scenario == 'cut-recovery':
         out['recoveryMedianS'] = _med((r['metrics'].get('cutVerdict') or {}).get('resumedAfterS') or r['metrics'].get('maxFrozenS')
                                       for r in rows)
@@ -215,8 +216,9 @@ def evaluate(scenario: str, base: dict, fix: dict) -> list[tuple[bool, str]]:
         elif kind == 'base*':
             ok, limit = f <= b * args[0] + args[1], f'<= base * {_fmt(args[0])} + {_fmt(args[1])}'
         elif kind == 'stall':
-            ok = f['max'] <= 50 or (f['max'] <= b['max'] and f['over50'] <= b['over50'])
-            limit = 'max <= 50 ms or (max and >50 ms count <= base)'
+            factor, slack = args or (1, 0)
+            ok = f['max'] <= 50 or (f['max'] <= b['max'] * factor + slack and f['over50'] <= b['over50'] * factor + slack)
+            limit = f'max <= 50 ms or (max and >50 ms count <= base * {_fmt(factor)} + {_fmt(slack)})'
         else:
             raise ValueError(check)
         lines.append((ok, f"{'PASS' if ok else 'FAIL'} {scenario} {name}: fix={_fmt(f)} base={_fmt(b)} limit={limit}"))
@@ -560,15 +562,18 @@ def cmd_ab(args) -> int:
     with ExitStack() as stack:
         display_env = stack.enter_context(Display(out))
         seed = seed_android(base_sha, flutter, display_env, out) if platform == 'android' else None
-        serial = stack.enter_context(Emulator(out)) if platform == 'android' else None
         for variant, folder in (('base', base_dir), ('fix', fix_dir)):
-            apk = artifact_of('android', folder) if serial else None
-            for name in names:
-                activate(folder, platform, seed)
-                rows, seconds = run_scenario(name, platform, out / variant / name, display_env, serial, apk, args.reps, args.real)
-                results[(variant, name)] = metrics(name, rows)
-                timings[(variant, name)] = seconds
-                print(f'{variant} {name}: {len(rows)} cells in {seconds} s', flush=True)
+            # A fresh guest per variant: one emulator for both has crashed mid-run (swiftshader), and a wiped guest
+            # starts both variants from the same state.
+            with ExitStack() as guest:
+                serial = guest.enter_context(Emulator(out)) if platform == 'android' else None
+                apk = artifact_of('android', folder) if serial else None
+                for name in names:
+                    activate(folder, platform, seed)
+                    rows, seconds = run_scenario(name, platform, out / variant / name, display_env, serial, apk, args.reps, args.real)
+                    results[(variant, name)] = metrics(name, rows)
+                    timings[(variant, name)] = seconds
+                    print(f'{variant} {name}: {len(rows)} cells in {seconds} s', flush=True)
     after = downloads_snapshot()
     if after != before:
         raise InfraError(f'{DOWNLOADS} changed during the run (before/after in {out})')

@@ -588,7 +588,7 @@ class AndroidApp(App):
                 subprocess.run(self.adb + ['logcat', '-d', '-s', 'flutter:*',
                                            'ExoPlayerImplInternal:*',
                                            'AudioPlayer:*', '*:E'],
-                               stdout=log, stderr=subprocess.STDOUT)
+                               stdout=log, stderr=subprocess.STDOUT, timeout=60)
         except Exception:
             pass
         self.shell('am', 'force-stop', ANDROID_PACKAGE, check=False)
