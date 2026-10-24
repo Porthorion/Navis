@@ -1451,6 +1451,21 @@ void main() {
     },
   );
 
+  test('heartbeat reports ordered p95 event-loop samples', () async {
+    final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+    addTearDown(fixture.close);
+    await fixture.post('/v1/diagnostics/heartbeat', {'enabled': true});
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    final report = await fixture.get('/v1/diagnostics/report');
+    final lag = report.body['eventLoopLag'] as Map<String, dynamic>;
+    expect(lag['samples'], greaterThan(0));
+    expect(
+      lag['p95Micros'],
+      inInclusiveRange(lag['p50Micros'] as num, lag['p99Micros'] as num),
+    );
+    await fixture.post('/v1/diagnostics/heartbeat', {'enabled': false});
+  });
+
   test(
     'frame evidence separates build, raster and span with bounded reset',
     () async {

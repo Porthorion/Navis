@@ -5193,6 +5193,7 @@ class SyncDiagnosticsServer {
     return <String, Object?>{
       'samples': sorted.length,
       'p50Micros': percentile(0.5),
+      'p95Micros': percentile(0.95),
       'p99Micros': percentile(0.99),
       'maxMicros': sorted.last,
       'over50ms': sorted.where((value) => value > 50000).length,

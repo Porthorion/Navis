@@ -643,7 +643,7 @@ The report fields it relies on are part of the authenticated diagnostics API:
 (live provider counts and the largest provider families, without family
 arguments). `POST /v1/diagnostics/heartbeat {"enabled": true}` requests every
 frame and records the wall-clock gap between frames (`frameGap`) and event
-loop lag (`eventLoopLag`); a blocked UI or merged platform thread produces no
+loop lag (`eventLoopLag`), including p50, p95, p99 and maximum; a blocked UI or merged platform thread produces no
 frames, so frame timings alone cannot show a freeze. The report also counts
 `playbackCounters` (snapshot broadcasts, queue emissions and their items,
 native player operations) and `tableUpdates` (Drift change notifications per
