@@ -14,10 +14,46 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
-- [ ] Seek-drag review round 2 — 2026-10-24: tests-first regressions cover native
+- [x] Seek-drag review round 2 — 2026-10-24: tests-first regressions cover native
   reopens after EOF/socket cuts, request identity, desired occurrence adoption
-  and stream offsets with cleared queue metadata. Full gate and stress evidence
-  pending; see local implementation evidence for commit and runtime provenance.
+  and stream offsets with cleared queue metadata. Six regressions fail before
+  the fix; 27 focused player tests pass afterward. Scripted diagnostics retain
+  one held pointer, bounded smooth moves/rests, continuous flicks and the legacy
+  body; pointer/auth/validation tests pass. Heartbeat p95 and capture immediately
+  before release make the held-input window inspectable; scripted gestures skip
+  animation settling so rests retain their specified timing.
+  Final foreground 8 GiB-capped `./tool/check.sh` passes:
+  `09:28 +9428 ~1: All tests passed!`, `[check] All checks passed.`, exit 0,
+  peak 5814 MiB, zero swap/OOM kills. Generated sources remain unchanged.
+  The local diagnostics-only baseline is `verify/i12-base` at `d78b44333`
+  on `31f21caea`; both fixed profile artifacts come from `ab927cb8e`.
+  Five 20-rest gestures per build/platform pass all stress criteria. Linux
+  release-to-native-target+1 s median is 3.281 → 2.758 s; Android is
+  4.527 → 3.997 s. Android uses the same 3072 MiB guest for both builds,
+  superseding the earlier unequal-RAM comparison. Frame-gap p95 is
+  18.288 → 17.925 ms on Linux and 44.141 → 40.037 ms on Android.
+  Android has baseline/fix frame gaps above 50 ms (25/3 samples); fixed
+  maximum and count remain below baseline. Fixed preview socket maximum is
+  one, superseded sockets close before successors, and GET counts per 20 rests
+  are 11–12 on Linux and 10–11 on Android. Every fixed release adopts;
+  both five-second flick controls issue zero preview GETs on each platform.
+  Owner-authorized fresh-login real-server Linux medians (five per target/build,
+  Opus 128, one-second rest) are 3.161 → 1.686 s at midpoint and
+  3.610 → 2.056 s near the end. All use the offset path; two extra fixed slow
+  drags stay below 20 ms maximum frame gap. CPU profiles, resource samples,
+  origin timestamps, app-owned screenshots and clean restarts are retained in
+  coordinator item-12 `rt-stress/summary.md` and raw evidence.
+  Two 2048 MiB Android preparations fail before measurement; one records guest
+  `reason=3 (LOW_MEMORY)`. An earlier Linux 317.239 ms sample included profiler
+  setup in its heartbeat window; its cause remains unresolved and its CPU
+  profile is retained. Final matched windows exclude profiler setup. Higher
+  fixed memory readings and five trials do not establish long-soak stability.
+  Five real download hashes are unchanged; credentials stay in script memory.
+  Owned app/emulator/Gradle/Kotlin PIDs are stopped and temporary AVD/test roots
+  deleted. Device-panel attachment lacks Java; SDK/app diagnostics provide the
+  emulator evidence. No physical listening/device, Windows or Apple runtime
+  proof. AI implementation/verification: Codex gpt-6.1-sol; local commits only,
+  no push, PR or Fable model. Independent review remains with the coordinator.
 - [x] Issue #86, item 12 seek while dragging — 2026-10-24,
   `feat/seek-while-dragging`.
   Failing-test-first commit `6d916998` specifies all four bars, bounded HTTP
