@@ -264,7 +264,7 @@ class ThrottledProxy:
                            else http.client.HTTPConnection)
         upstream = connection_type(self.host, self.upstream_port, timeout=120)
         headers = {k: v for k, v in handler.headers.items()
-                   if k.lower() in ('range', 'user-agent', 'accept',
+                   if k.lower() in ('range', 'if-range', 'user-agent', 'accept',
                                     'content-type', 'icy-metadata')}
         length = int(handler.headers.get('Content-Length') or 0)
         payload = handler.rfile.read(length) if length else None
@@ -277,6 +277,7 @@ class ThrottledProxy:
                  'maxBitRate': params.get('maxBitRate'),
                  'timeOffset': params.get('timeOffset'),
                  'range': handler.headers.get('Range'),
+                 'ifRange': handler.headers.get('If-Range'),
                  'ua': (handler.headers.get('User-Agent') or '')[:40], 'bytes': 0}
         is_media = entry['endpoint'] in ('stream', 'download')
         if is_media:
@@ -295,10 +296,11 @@ class ThrottledProxy:
             entry['upstreamEncoding'] = response.getheader('Transfer-Encoding')
             entry['acceptRanges'] = response.getheader('Accept-Ranges')
             entry['contentRange'] = response.getheader('Content-Range')
+            entry['etag'] = response.getheader('ETag')
             frame = self.chunked and body and entry['contentLength'] is None
             handler.send_response(response.status)
             for key in ('Content-Type', 'Content-Length', 'Content-Range',
-                        'Accept-Ranges', 'Content-Disposition'):
+                        'Accept-Ranges', 'Content-Disposition', 'ETag', 'Last-Modified'):
                 value = response.getheader(key)
                 if value:
                     handler.send_header(key, value)
