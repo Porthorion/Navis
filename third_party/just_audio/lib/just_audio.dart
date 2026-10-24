@@ -915,16 +915,22 @@ class AudioPlayer {
       initialPosition: initialPosition,
       shuffleOrder: shuffleOrder ?? DefaultShuffleOrder(),
     );
-    await _playlist._init(audioSources, loadRequest.shuffleOrder);
-    loadRequest.checkInterruption();
-    Duration? duration;
-    if (preload || playing) {
-      duration = await load();
-    } else {
-      await _setPlatformActive(false)?.catchError((dynamic e) async => null);
+    final removed =
+        await _playlist._init(audioSources, loadRequest.shuffleOrder);
+    try {
+      loadRequest.checkInterruption();
+      Duration? duration;
+      if (preload || playing) {
+        duration = await load();
+      } else {
+        await _setPlatformActive(false)?.catchError((dynamic e) async => null);
+      }
+      loadRequest.checkInterruption();
+      return duration;
+    } finally {
+      // Navis: native keeps the old playlist until the load replaces it.
+      _playlist._unregisterRemovedStreams(removed);
     }
-    loadRequest.checkInterruption();
-    return duration;
   }
 
   /// Starts loading the playlist and returns the audio duration of the initial
@@ -1744,6 +1750,10 @@ class AudioPlayer {
           if (oldPlatform != null && oldPlatform is! _IdleAudioPlayer) {
             await _disposePlatform(oldPlatform);
           }
+        }
+        // Navis: a replaced idle shell would keep listening to the sequence.
+        if (oldPlatform is _IdleAudioPlayer) {
+          await _disposePlatform(oldPlatform);
         }
         // During initialisation, we must only use this platform reference in case
         // _platform is updated again during initialisation.
@@ -3278,7 +3288,10 @@ class ConcatenatingAudioSource extends AudioSource {
                   shuffleOrder: List.of(_shuffleOrder.indices)));
         } finally {
           player._sequenceEditsInFlight--;
+          _unregisterRemovedStreams([removed]);
         }
+      } else {
+        _unregisterRemovedStreams([removed]);
       }
     });
   }
@@ -3306,7 +3319,10 @@ class ConcatenatingAudioSource extends AudioSource {
                   shuffleOrder: List.of(_shuffleOrder.indices)));
         } finally {
           player._sequenceEditsInFlight--;
+          _unregisterRemovedStreams(removed);
         }
+      } else {
+        _unregisterRemovedStreams(removed);
       }
     });
   }
@@ -3360,31 +3376,26 @@ class ConcatenatingAudioSource extends AudioSource {
                   shuffleOrder: List.of(_shuffleOrder.indices)));
         } finally {
           player._sequenceEditsInFlight--;
+          _unregisterRemovedStreams(removed);
         }
+      } else {
+        _unregisterRemovedStreams(removed);
       }
     });
   }
 
+  Set<IndexedAudioSource> get _retainedSources => {
+        ...sequence,
+        ...?_player?._playlist.sequence,
+      };
+
   // Removed sources retain whole-file caching, but cannot retain player probes.
   Future<void> _cancelRemovedStreamRequests(
       Iterable<AudioSource> removed) async {
-    final retained = {
-      ...sequence,
-      ...?_player?._playlist.sequence,
-    };
+    final retained = _retainedSources;
     for (final source in removed.expand((source) => source.sequence)) {
       if (retained.contains(source)) continue;
-      if (source is StreamAudioSource) {
-        source.dispose();
-        final player = source._player;
-        if (player != null) {
-          player._audioSources.remove(source._id);
-          final uri = source._uri;
-          if (uri != null) {
-            player._proxy._handlerMap.remove(player._proxy._requestKey(uri));
-          }
-        }
-      }
+      if (source is StreamAudioSource) source.dispose();
       if (source is LockCachingAudioSource) {
         source.resumeDownload();
         await source._cancelRangeFetches();
@@ -3392,8 +3403,25 @@ class ConcatenatingAudioSource extends AudioSource {
     }
   }
 
+  // Navis: the proxy keeps serving a removed source until the platform has
+  // applied the edit, since native may still request it meanwhile.
+  void _unregisterRemovedStreams(Iterable<AudioSource> removed) {
+    final retained = _retainedSources;
+    for (final source in removed.expand((source) => source.sequence)) {
+      if (retained.contains(source) || source is! StreamAudioSource) continue;
+      final player = source._player;
+      if (player == null) continue;
+      player._audioSources.remove(source._id);
+      final uri = source._uri;
+      if (uri != null) {
+        player._proxy._handlerMap.remove(player._proxy._requestKey(uri));
+      }
+    }
+  }
+
   /// Initialise without communicating with platform.
-  Future<void> _init(List<AudioSource> children, ShuffleOrder shuffleOrder) {
+  Future<List<AudioSource>> _init(
+      List<AudioSource> children, ShuffleOrder shuffleOrder) {
     return _lock.synchronized(() async {
       final removed = this.children.toList();
       this.children.replaceRange(0, this.children.length, children);
@@ -3413,6 +3441,7 @@ class ConcatenatingAudioSource extends AudioSource {
           }
         }
       }
+      return removed;
     });
   }
 
