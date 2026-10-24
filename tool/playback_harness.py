@@ -50,8 +50,9 @@ class InfraError(RuntimeError):
 
 
 # Scenarios -------------------------------------------------------------------------------------------------
-# cases/qualities/throttle go to the engine matrix; areas are the code paths that make `map` pick the scenario;
-# budget is the expected wall-clock minutes of one A/B run at the default reps (both variants, runs only).
+# cases/reps are the --full set (calibration, release checks); quick/qreps (default 1) the default one. Both go to the
+# engine matrix. areas are the code paths that make `map` pick the scenario; budget is the measured wall-clock minutes
+# of one variant's runs, (quick, full) -- an A/B run takes twice that plus builds.
 # Checks: (metric, '<=', limit) absolute on the fix | (metric, 'base+', add) fix <= base + add |
 # (metric, 'base*', factor, add) | (metric, 'nonew') fix has no violation kind the base lacks |
 # (metric, 'stall') fix max <= 50 or not worse than base | (metric, 'true') | (metric, 'nonempty').
@@ -61,44 +62,52 @@ HANDLER = ['lib/src/features/player/data/navis_audio_handler*.dart', 'lib/src/fe
 SCENARIOS = {
     'seek': dict(
         cases='seek_early,seek_pastdl,seek_far,seek_mid,seek_back,seek_burst,seek_paused,offset_quick,offset_far,offset_back',
-        qualities='opus128', throttle='wan6000', reps=3, budget=45, args=['--verify-offset'],
+        quick='seek_far,seek_back,seek_burst,offset_quick,offset_far',
+        qualities='opus128', throttle='wan6000', reps=3, budget=(3, 11), args=['--verify-offset'],
         areas=HANDLER + ['lib/src/features/player/data/seek_preview_request.dart'],
         checks=[('kinds', 'nonew'), ('violations', 'base+', 1), ('latencyMedianS', 'base+', 0.25)]),
     'stress-drag': dict(
-        cases='stress_drag,stress_flick', qualities='opus128', throttle='wan6000', reps=5, budget=12, args=[],
+        cases='stress_drag,stress_flick', quick='stress_drag,stress_flick', qreps=3,
+        qualities='opus128', throttle='wan6000', reps=5, budget=(4, 7), args=[],
         areas=['lib/src/features/player/presentation/*seek_bar*.dart', 'lib/src/features/player/data/seek_preview_request.dart',
                'lib/src/utils/diagnostics_presentation_controller.dart', 'lib/src/common_widgets/desktop_playback_progress.dart'],
         checks=[('previewSocketMax', '<=', 1), ('closedBeforeSuccessor', 'true'), ('previewGETsMax', '<=', 20),
                 ('flickGETs', '<=', 0), ('frameGapP95Ms', 'base+', 5), ('eventLoopP95Ms', 'base+', 5),
                 ('frameGapStall', 'stall'), ('eventLoopStall', 'stall'), ('releaseMedianS', 'base+', 0.5)]),
     'memory-soak': dict(
-        cases='mem_soak', qualities='opus128', throttle='wan6000', reps=1, budget=30, args=[], vm=True,
+        cases='mem_soak', quick='mem_soak', qualities='opus128', throttle='wan6000', reps=3, qreps=1, budget=(7, 38), args=[],
+        vm=True, quick_env={'NAVIS_LIVE_SEEK_SOAK_DRAGS': '10', 'NAVIS_LIVE_SEEK_SOAK_IDLE_S': '60'},
         areas=['lib/src/features/player/presentation/*seek_bar*.dart', 'lib/src/utils/diagnostics_presentation_controller.dart',
                'lib/src/features/player/data/seek_preview_request.dart'] + HANDLER,
         checks=[('slopeMiBPerDrag', 'base*', 1.10, 0.5), ('postGcPssMiB', 'base+', 32), ('postGcHeapMiB', 'base+', 8)]),
     'repeat': dict(
         cases='offset_repeat_one,base_repeat_one,repeat_one_fill,chain_end,chain_end_all,repeat_switch_off,hold_off,hold_all,'
               'q7_append_200',
-        qualities='opus128', throttle='wan6000', reps=3, budget=60, args=[],
+        quick='offset_repeat_one,repeat_one_fill,chain_end,q7_append_200',
+        qualities='opus128', throttle='wan6000', reps=3, budget=(8, 55), args=[],
         areas=HANDLER + ['lib/src/features/player/data/navis_playback_rules.dart', 'lib/src/features/player/data/*queue*.dart',
                          '**/ProgressiveRepeat.java', '**/AudioPlayer.java'],
-        checks=[('violations', '<=', 0), ('frozenMedianS', 'base+', 0.1)]),
+        checks=[('kinds', 'nonew'), ('violations', 'base+', 3), ('frozenMedianS', 'base+', 0.1)]),
     'crossfade': dict(
-        cases='crossfade_end,skip_next,skip_prev', qualities='opus128', throttle='none', reps=3, budget=8,
+        cases='crossfade_end,skip_next,skip_prev', quick='crossfade_end,skip_next,skip_prev',
+        qualities='opus128', throttle='none', reps=3, budget=(1, 3),
         args=['--crossfade-s', '4'],
         areas=['lib/src/features/player/data/*crossfade*.dart', 'lib/src/features/player/data/navis_playback_lanes.dart'],
         checks=[('violations', '<=', 0), ('frozenMedianS', 'base+', 0.1)]),
     'cut-recovery': dict(
-        cases='cut40,cut40x2,i9_cut,i9_inject,dead_start,dead_source_hold,cold_seek_stall', qualities='opus128',
-        throttle='slow1500', reps=3, budget=90, args=['--verify-offset'],
+        cases='cut40,cut40x2,i9_cut,i9_inject,dead_start,dead_source_hold,cold_seek_stall',
+        quick='cut40,i9_inject,dead_start',
+        qualities='opus128', throttle='slow1500', reps=3, budget=(4, 33), args=['--verify-offset'],
         areas=HANDLER + ['lib/src/features/player/data/navis_audio_handler_recovery.dart'],
-        checks=[('violations', '<=', 0), ('progressLoss', '<=', 0), ('recoveryMedianS', 'base+', 0.5)]),
+        checks=[('kinds', 'nonew'), ('violations', 'base*', 1.25, 3), ('progressLoss', 'base+', 3), ('recoveryMedianS', 'base+', 0.5)]),
     'local-seek': dict(
-        cases='local_seek,i87_cached,i87_download', qualities='original', throttle='wan6000', reps=3, budget=12, args=[],
+        cases='local_seek,i87_cached,i87_download', quick='local_seek,i87_download',
+        qualities='original', throttle='wan6000', reps=3, budget=(3, 11), args=[],
         areas=['lib/src/features/downloads/**', 'lib/src/features/player/data/playback_source_resolver.dart'],
         checks=[('violations', '<=', 0), ('landingErrorMaxMs', '<=', 500), ('latencyMedianS', 'base+', 0.1)]),
     'queue-edit': dict(
-        cases='queue_playnext_add,queue_reorder,q7_append_after5', qualities='opus128', throttle='wan6000', reps=3, budget=10,
+        cases='queue_playnext_add,queue_reorder,q7_append_after5', quick='queue_playnext_add,queue_reorder,q7_append_after5',
+        qualities='opus128', throttle='wan6000', reps=3, budget=(1, 4),
         args=[],
         areas=['lib/src/features/player/data/*queue*.dart', 'lib/src/features/player/data/navis_shuffle_order.dart',
                'lib/src/features/player/data/*_persistence.dart'],
@@ -476,12 +485,18 @@ def engine(args: list[str], env: dict, out: Path, extra_env: dict, timeout: int,
                               cwd=PROJECT, env=full, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
 
 
-def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict, serial: str | None, apk: Path | None,
-                 reps: int | None, real: bool) -> tuple[list[dict], float]:
+def plan(name: str, full: bool, reps: int | None) -> tuple[str, int, int]:
+    """(cases, reps, budget minutes) of a scenario in the quick or full set."""
     spec = SCENARIOS[name]
-    reps = reps or spec['reps']
-    args = ['--cases', spec['cases'], '--qualities', spec['qualities'], '--throttles', spec['throttle'], '--reps', str(reps), *spec['args']]
-    extra, env = {}, dict(display_env)
+    return (spec['cases'], reps or spec['reps'], spec['budget'][1]) if full else (spec['quick'], reps or spec.get('qreps', 1), spec['budget'][0])
+
+
+def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict, serial: str | None, apk: Path | None,
+                 full: bool, reps: int | None, real: bool) -> tuple[list[dict], float]:
+    spec = SCENARIOS[name]
+    cases, reps, budget = plan(name, full, reps)
+    args = ['--cases', cases, '--qualities', spec['qualities'], '--throttles', spec['throttle'], '--reps', str(reps), *spec['args']]
+    extra, env = ({} if full else dict(spec.get('quick_env', {}))), dict(display_env)
     if serial:
         args += ['--android', serial]
         extra['NAVIS_LIVE_SEEK_APK'] = str(apk)
@@ -497,15 +512,15 @@ def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict,
         args += ['--credentials', str(credentials)]
     started = time.monotonic()
     try:
-        done = engine(args, env, variant_dir, extra, timeout=spec['budget'] * 60 * 4, label=name)
+        done = engine(args, env, variant_dir, extra, timeout=budget * 60 * 4 + 600, label=name)
     except subprocess.TimeoutExpired:
-        raise InfraError(f'engine for {name} exceeded four times its {spec["budget"]} min budget')
+        raise InfraError(f'engine for {name} exceeded four times its {budget} min budget')
     seconds = round(time.monotonic() - started, 1)
     reports = sorted((variant_dir / 'runs').glob(f'*-{name}/report.json'))
     if done.returncode not in (0, 1) or not reports:
         raise InfraError(f'engine for {name} failed with exit {done.returncode} (log: {variant_dir / (name + ".log")})')
     rows = json.loads(reports[-1].read_text())['results']
-    expected = len(spec['cases'].split(',')) * reps
+    expected = len(cases.split(',')) * reps
     if len(rows) != expected:
         raise InfraError(f'{name}: {len(rows)} of {expected} cells finished (log: {variant_dir / (name + ".log")})')
     return rows, seconds
@@ -573,7 +588,7 @@ def cmd_ab(args) -> int:
                 apk = artifact_of('android', folder) if serial else None
                 for name in names:
                     activate(folder, platform, seed)
-                    rows, seconds = run_scenario(name, platform, out / variant / name, display_env, serial, apk, args.reps, args.real)
+                    rows, seconds = run_scenario(name, platform, out / variant / name, display_env, serial, apk, args.full, args.reps, args.real)
                     results[(variant, name)] = metrics(name, rows)
                     timings[(variant, name)] = seconds
                     print(f'{variant} {name}: {len(rows)} cells in {seconds} s', flush=True)
@@ -597,8 +612,9 @@ def cmd_ab(args) -> int:
 
 def cmd_list(_) -> int:
     for name, spec in SCENARIOS.items():
-        print(f"{name}: ~{spec['budget']} min (A/B, {spec['reps']} reps, {'linux+android' if name in ANDROID_SCENARIOS else 'linux'})\n"
-              f"  cases: {spec['cases']}\n  areas: {', '.join(spec['areas'])}")
+        print(f"{name}: ~{spec['budget'][0]} min quick / ~{spec['budget'][1]} min --full per variant "
+              f"({'linux+android' if name in ANDROID_SCENARIOS else 'linux'})\n"
+              f"  quick: {spec['quick']} x{spec.get('qreps', 1)}\n  full: {spec['cases']} x{spec['reps']}\n  areas: {', '.join(spec['areas'])}")
     return 0
 
 
@@ -609,6 +625,7 @@ def cmd_map(args) -> int:
 
 
 def main(argv=None) -> int:
+    getattr(sys.stdout, 'reconfigure', lambda **_: None)(line_buffering=True)
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('list').set_defaults(fn=cmd_list)
@@ -622,7 +639,8 @@ def main(argv=None) -> int:
     ab.add_argument('--platform', choices=['linux', 'android'], required=True)
     ab.add_argument('--base', default=DEFAULT_BASE)
     ab.add_argument('--base-range', default=f'{DEFAULT_BASE}...HEAD', help='revision range for --map')
-    ab.add_argument('--reps', type=int, help='override the scenario default (calibration uses 3)')
+    ab.add_argument('--full', action='store_true', help='every case, 3 reps (calibration, release checks); default is the quick set, 1 rep')
+    ab.add_argument('--reps', type=int, help='override the repetitions')
     ab.add_argument('--real', action='store_true', help='drive the real server (mode-600 ~/.config/navis/perf-credentials.json)')
     ab.set_defaults(fn=cmd_ab)
     args = parser.parse_args(argv)

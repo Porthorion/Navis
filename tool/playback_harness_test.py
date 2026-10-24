@@ -12,6 +12,7 @@ from pathlib import Path
 os.environ['NAVIS_HARNESS_CAPPED'] = '1'
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import playback_harness as h  # noqa: E402
+import live_seek_stress as engine  # noqa: E402
 
 
 def drag_metrics(p95=17.0, max_ms=40.0, over50=0, release=2.4, sockets=1, gets=16, flick=0):
@@ -64,6 +65,22 @@ class Thresholds(unittest.TestCase):
         self.assertEqual((m['violations'], m['kinds'], m['drags'], m['frameGapP95Ms']), (1, ['stall'], 1, 18.0))
         self.assertEqual(m['eventLoopStall'], {'max': 16.0, 'over50': 1})
         self.assertAlmostEqual(h._ols_slope([1.0, 3.0, 5.0, 7.0]), 2.0)
+
+
+class PositionBlip(unittest.TestCase):
+    @staticmethod
+    def samples(positions):
+        return [{'t': i * 0.1, 'songId': 's', 'idx': 0, 'pos': p, 'proc': 'ready', 'playing': True, 'dur': 300000}
+                for i, p in enumerate(positions)]
+
+    def test_one_sample_reset_is_not_a_violation(self):
+        run = type('R', (), {'samples': self.samples([100000, 100100, 0, 100300, 100400]), 'actions': []})()
+        self.assertEqual(engine.oracle_unexpected_change(run), [])
+
+    def test_real_reset_still_is(self):
+        run = type('R', (), {'samples': self.samples([100000, 100100, 0, 100, 200, 300, 400]), 'actions': [], 'metrics': {},
+                             'trace': []})()
+        self.assertEqual([v['oracle'] for v in engine.oracle_unexpected_change(run)], ['unrequestedReset'])
 
 
 class CodeAreaMap(unittest.TestCase):

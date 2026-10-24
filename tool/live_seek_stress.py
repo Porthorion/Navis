@@ -1385,6 +1385,20 @@ def oracle_progress_loss(run: Run, drop_ms=2000) -> list[dict]:
     return out
 
 
+def is_position_blip(samples, i) -> bool:
+    """Samples [i-1, i] are a reset to near 0 that comes back within 3 samples, or the jump back after one."""
+    a, b = samples[i - 1], samples[i]
+    if a['pos'] is None or b['pos'] is None:
+        return False
+    if a['pos'] - b['pos'] > 5000 and b['pos'] < 3000:  # reset: does the old position return soon?
+        return any(n['pos'] is not None and abs(n['pos'] - a['pos']) < 3000 and n['songId'] == b['songId']
+                   for n in samples[i + 1:i + 4])
+    if b['pos'] - a['pos'] > 8000 and a['pos'] < 3000:  # jump: was the sample before [i-1] already there?
+        return any(n['pos'] is not None and abs(n['pos'] - b['pos']) < 3000 and n['songId'] == b['songId']
+                   for n in samples[max(0, i - 4):i - 1])
+    return False
+
+
 def oracle_unexpected_change(run: Run) -> list[dict]:
     """Song or index changes nobody asked for (and that are not a song ending)."""
     out, licenses = [], license_pool(run)
@@ -1411,6 +1425,8 @@ def oracle_unexpected_change(run: Run) -> list[dict]:
             kind = 'sameSongTwice' if a['songId'] == b['songId'] and a['idx'] != b['idx'] else 'unexpectedChange'
             out.append(violation(kind, b['t'], f"idx {a['idx']}->{b['idx']} song {a['songId']}->{b['songId']} "
                                  f"pos {a['pos']}->{b['pos']} with no user action", run))
+        elif is_position_blip(samples, i):
+            continue  # one status read caught the player between items: the position is back at the next sample
         elif (a['pos'] is not None and b['pos'] is not None and a['pos'] - b['pos'] > 5000 and b['pos'] < 3000
               and not requested(b['t']) and not song_end_near(samples, i)):
             out.append(violation('unrequestedReset', b['t'], f"position {a['pos']}->{b['pos']} on {b['songId']} "
@@ -3873,7 +3889,8 @@ def dart_heap(url: str, isolate: str, gc=False) -> int:
     return vm_call(url, 'getMemoryUsage', isolateId=isolate)['heapUsage']
 
 
-def case_mem_soak(run: Run, env, drags=20, idle_s=120):
+def case_mem_soak(run: Run, env, drags=int(os.environ.get('NAVIS_LIVE_SEEK_SOAK_DRAGS', 20)),
+                  idle_s=int(os.environ.get('NAVIS_LIVE_SEEK_SOAK_IDLE_S', 120))):
     """20 held drags on fresh songs, 10 s of playback after each, then 120 s of idle playback and a forced GC.
     Records PSS (KiB) after every drag and the Dart heap, for the harness to fit a slope."""
     if not VM_SERVICE:
