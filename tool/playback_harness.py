@@ -320,6 +320,9 @@ def base_build(sha: str, platform: str, flutter: str, out: Path) -> tuple[Path, 
         if done.returncode:
             raise InfraError(f'bootstrap of the base worktree failed: {done.stderr.strip()[-400:]}')
         seconds = build(tree, platform, folder, out / f'base-build-{platform}.log')
+    except BaseException:
+        shutil.rmtree(folder, ignore_errors=True)  # never leave a half-built entry that could pass for a cache hit
+        raise
     finally:
         run(['git', 'worktree', 'remove', '--force', str(tree)], cwd=PROJECT)
     record.write_text(json.dumps(provenance(sha, platform, folder, key, seconds), indent=1))
@@ -627,6 +630,7 @@ def main(argv=None) -> int:
         # One memory-capped scope for every child (builds, emulator, app): a runaway job dies inside it, not the host.
         os.execvp('systemd-run', ['systemd-run', '--user', '--scope', '-q', '-p', f'MemoryMax={MEMORY_MAX}', '-p', 'MemorySwapMax=3G',
                                   '--setenv=NAVIS_HARNESS_CAPPED=1', sys.executable, *sys.argv])
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # unwind: stop the emulator, KWin and the temporary worktree
     try:
         return args.fn(args)
     except InfraError as error:
