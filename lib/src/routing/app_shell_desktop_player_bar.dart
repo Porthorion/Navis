@@ -35,6 +35,23 @@ class _DesktopPlayerBar extends ConsumerStatefulWidget {
 
 class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
   double? _dragSliderValue;
+  late final _seekDrag = SeekDragPreview(() => ref.read(audioHandlerProvider));
+
+  @override
+  void dispose() {
+    _seekDrag.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(_DesktopPlayerBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.playback.currentSongId != oldWidget.playback.currentSongId ||
+        widget.playback.currentIndex != oldWidget.playback.currentIndex) {
+      _seekDrag.cancel();
+      _dragSliderValue = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -625,11 +642,13 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                     });
                                                   },
                                                   onChanged: (value) {
+                                                    _seekDrag.changed(value);
                                                     setState(() {
                                                       _dragSliderValue = value;
                                                     });
                                                   },
                                                   onChangeEnd: (value) {
+                                                    _seekDrag.finish();
                                                     setState(() {
                                                       _dragSliderValue = null;
                                                     });

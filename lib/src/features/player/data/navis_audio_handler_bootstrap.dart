@@ -440,6 +440,13 @@ abstract class _DelegatingNavisPlaybackHandler
   Future<void> seek(Duration position) => _delegate.seek(position);
 
   @override
+  Future<void> previewSeek(Duration position) =>
+      _delegate.previewSeek(position);
+
+  @override
+  void cancelSeekPreview() => _delegate.cancelSeekPreview();
+
+  @override
   Map<String, Object?> collectPlaybackDiagnostics() =>
       _delegate.collectPlaybackDiagnostics();
 

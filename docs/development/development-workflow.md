@@ -273,6 +273,29 @@ proven not to affect runtime behavior are exempt.
    concurrently. Confirm desired and final indexes, pending state, timeout
    count, at most one pending queue mutation, and an advancing position after
    the last input.
+   For drag-seek pre-open diagnostics, `POST /v1/playback/previewSeek`
+   accepts `{"positionMs": 90000}` without changing transport state;
+   `POST /v1/playback/cancelSeekPreview {}` abandons it. A later ordinary
+   `/v1/playback/seek` reports `previewAdopted` in its seek event. Compare native
+   advancement and fixture GET/socket logs; a preview response alone does not
+   prove adoption or improved playback latency. To exercise the visible desktop
+   seek slider (or open Now Playing with `/v1/presentation/player-overlay`), call
+   `POST /v1/presentation/seek-drag {"fraction": 0.5}`. This sends real Flutter
+   pointer events, holds for three seconds and releases; capture an app-owned
+   screenshot concurrently to inspect the held thumb. The same endpoint accepts
+   `{"steps":[{"fraction":0.1,"moveMs":200,"holdMs":450},
+   {"fraction":0.8,"moveMs":200,"holdMs":450}],"release":true}` for one held
+   pointer: down at the first fraction, frame-rate moves and timed holds, then
+   up. `{"fraction":0.1,"flickMs":5000}` moves continuously with no rests.
+   The response includes UTC `releasedAt`, captured immediately before pointer
+   up, and `heartbeat` statistics captured while the pointer is still held. Omitted `release` defaults to true; false is rejected so a request cannot
+   leave a held pointer behind. Scripts allow 1–100 steps, at most 10 seconds
+   per move/hold and 120 seconds total; flick duration is 1–120000 ms. The old
+   single-fraction body keeps its three-second rest. Scripted/flick modes do not
+   wait for UI animations while holding the pointer or after release, so animation
+   settlement cannot extend a rest or delay native-position polling. All forms
+   remain clone-only. Overlapping gestures return HTTP 409 while the first
+   request runs; invalid scripts return HTTP 400 with an explicit error.
 6. For a visible Flutter change, call `POST /v1/presentation/screenshot`, open
    the resulting PNG with image-viewing capability, inspect the affected
    region, and record the result. Merely creating a PNG is not confirmation.
@@ -624,7 +647,7 @@ The report fields it relies on are part of the authenticated diagnostics API:
 (live provider counts and the largest provider families, without family
 arguments). `POST /v1/diagnostics/heartbeat {"enabled": true}` requests every
 frame and records the wall-clock gap between frames (`frameGap`) and event
-loop lag (`eventLoopLag`); a blocked UI or merged platform thread produces no
+loop lag (`eventLoopLag`), including p50, p95, p99 and maximum; a blocked UI or merged platform thread produces no
 frames, so frame timings alone cannot show a freeze. The report also counts
 `playbackCounters` (snapshot broadcasts, queue emissions and their items,
 native player operations) and `tableUpdates` (Drift change notifications per

@@ -186,9 +186,7 @@ class AudioPlayer {
         if (loopMode == LoopMode.off) return;
         // Navis: an offset stream loops back to its own start, so judge it in
         // platform time (without the offset).
-        final offset = currSource is UriAudioSource
-            ? currSource.positionOffset
-            : Duration.zero;
+        final offset = currSource.positionOffset;
         final prevPos = _getPositionFor(prevEvent) - offset;
         final currPos = _getPositionFor(currEvent) - offset;
         // if (loopMode != LoopMode.one) return;
@@ -694,7 +692,7 @@ class AudioPlayer {
       return Duration.zero;
     }
     final source = sequence[index];
-    return source is UriAudioSource ? source.positionOffset : Duration.zero;
+    return source.positionOffset;
   }
 
   Duration _getPositionFor(PlaybackEvent playbackEvent) {
@@ -1006,6 +1004,10 @@ class AudioPlayer {
     // Allow this event to propagate to derived streams.
     await currentIndexStream.firstWhere((i) => i == sequenceState.currentIndex);
   }
+
+  /// Whether anything still listens to the sequence, for idle-shell leak tests.
+  @visibleForTesting
+  bool get debugHasSequenceListeners => _sequenceSubject.hasListener;
 
   void _registerAudioSource(AudioSource source) {
     _audioSources[source._id] = source;
@@ -1657,8 +1659,7 @@ class AudioPlayer {
         }
         _lastEventSource = source;
         _lastEventIndex = index;
-        final positionOffset =
-            source is UriAudioSource ? source.positionOffset : Duration.zero;
+        final positionOffset = source?.positionOffset ?? Duration.zero;
         if (source != null) {
           if (duration == null) {
             duration = source.duration;
@@ -1736,6 +1737,10 @@ class AudioPlayer {
           if (oldPlatform != null && oldPlatform is! _IdleAudioPlayer) {
             await _disposePlatform(oldPlatform);
           }
+        }
+        // Navis: a replaced idle shell would keep listening to the sequence.
+        if (oldPlatform is _IdleAudioPlayer) {
+          await _disposePlatform(oldPlatform);
         }
         // During initialisation, we must only use this platform reference in case
         // _platform is updated again during initialisation.
@@ -2636,7 +2641,12 @@ class _ProxyHttpServer {
     _server.listen((request) async {
       if (request.method == 'GET') {
         final uriPath = _requestKey(request.uri);
-        final handler = _handlerMap[uriPath]!;
+        final handler = _handlerMap[uriPath];
+        if (handler == null) {
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
+          return;
+        }
         handler(this, request);
       }
     }, onDone: () {
@@ -2831,7 +2841,11 @@ abstract class AudioSource {
 
 /// An [AudioSource] that can appear in a sequence.
 abstract class IndexedAudioSource extends AudioSource {
-  IndexedAudioSource({this.tag, this.duration});
+  IndexedAudioSource(
+      {this.tag, this.duration, this.positionOffset = Duration.zero});
+
+  /// How far into the song this stream starts; see [AudioSource.uri].
+  final Duration positionOffset;
   final dynamic tag;
   Duration? duration;
 
@@ -2848,16 +2862,10 @@ abstract class IndexedAudioSource extends AudioSource {
 /// An abstract class representing audio sources that are loaded from a URI.
 abstract class UriAudioSource extends IndexedAudioSource {
   UriAudioSource(this.uri,
-      {this.headers,
-      dynamic tag,
-      Duration? duration,
-      this.positionOffset = Duration.zero})
-      : super(tag: tag, duration: duration);
+      {this.headers, super.tag, super.duration, super.positionOffset});
   final Uri uri;
   final Map<String, String>? headers;
 
-  /// How far into the song this stream starts; see [AudioSource.uri].
-  final Duration positionOffset;
   Uri? _overrideUri;
 
   /// If [uri] points to an asset, this gives us [_overrideUri] which is the URI
@@ -3250,7 +3258,7 @@ class ConcatenatingAudioSource extends AudioSource {
   Future<void> removeAt(int index) {
     return _lock.synchronized(() async {
       final removed = children.removeAt(index);
-      await _cancelRemovedRangeFetches([removed]);
+      await _cancelRemovedStreamRequests([removed]);
       _shuffleOrder.removeRange(index, index + 1);
       final player = _player;
       if (player != null) {
@@ -3278,7 +3286,7 @@ class ConcatenatingAudioSource extends AudioSource {
     return _lock.synchronized(() async {
       final removed = children.sublist(start, end);
       children.removeRange(start, end);
-      await _cancelRemovedRangeFetches(removed);
+      await _cancelRemovedStreamRequests(removed);
       _shuffleOrder.removeRange(start, end);
       final player = _player;
       if (player != null) {
@@ -3332,7 +3340,7 @@ class ConcatenatingAudioSource extends AudioSource {
       final end = children.length;
       final removed = children.toList();
       children.clear();
-      await _cancelRemovedRangeFetches(removed);
+      await _cancelRemovedStreamRequests(removed);
       _shuffleOrder.clear();
       final player = _player;
       if (player != null) {
@@ -3354,11 +3362,24 @@ class ConcatenatingAudioSource extends AudioSource {
     });
   }
 
+  // Navis: a source still referenced by another playlist must not be disposed.
+  Set<IndexedAudioSource> get _retainedSources => {
+        ...sequence,
+        ...?_player?._playlist.sequence,
+      };
+
   // Removed sources retain whole-file caching, but cannot retain player probes.
-  Future<void> _cancelRemovedRangeFetches(Iterable<AudioSource> removed) async {
-    final retained = sequence.toSet();
+  Future<void> _cancelRemovedStreamRequests(
+      Iterable<AudioSource> removed) async {
+    final retained = _retainedSources;
     for (final source in removed.expand((source) => source.sequence)) {
-      if (source is LockCachingAudioSource && !retained.contains(source)) {
+      if (retained.contains(source)) continue;
+      // ponytail: registry entries of removed sources persist until player
+      // disposal (upstream behavior); preview shells release their owner on
+      // dispose, so each costs only a small object. Upgrade path: registry
+      // removal after native release.
+      if (source is StreamAudioSource) source.dispose();
+      if (source is LockCachingAudioSource) {
         source.resumeDownload();
         await source._cancelRangeFetches();
       }
@@ -3370,7 +3391,7 @@ class ConcatenatingAudioSource extends AudioSource {
     return _lock.synchronized(() async {
       final removed = this.children.toList();
       this.children.replaceRange(0, this.children.length, children);
-      await _cancelRemovedRangeFetches(removed);
+      await _cancelRemovedStreamRequests(removed);
       _shuffleOrder = shuffleOrder;
       _shuffleOrder.clear();
       _shuffleOrder.insert(0, children.length);
@@ -3506,8 +3527,22 @@ Uri _encodeDataUrl(String base64Data, String mimeType) =>
 /// [request] to provide the encoded audio data. This API is experimental.
 @experimental
 abstract class StreamAudioSource extends IndexedAudioSource {
-  StreamAudioSource({dynamic tag}) : super(tag: tag);
+  StreamAudioSource({super.tag, super.positionOffset});
   Uri? _uri;
+
+  /// Completes when the native proxy consumer disconnects, even before headers.
+  /// Available only while [request] runs through the local proxy.
+  static Future<void>? get requestCancellation =>
+      Zone.current[_proxyRequestCancellation] as Future<void>?;
+
+  /// Releases resources held before the proxy starts consuming this source.
+  void dispose() {}
+
+  @override
+  void _dispose() {
+    dispose();
+    super._dispose();
+  }
 
   @override
   Future<void> _onLoad() async {
@@ -4026,7 +4061,7 @@ class LockCachingAudioSource extends StreamAudioSource {
 
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
-    final cancelled = Zone.current[_proxyRequestCancellation] as Future<void>?;
+    final cancelled = StreamAudioSource.requestCancellation;
     final cacheFile = await this.cacheFile;
     if (cacheFile.existsSync()) {
       final sourceLength = cacheFile.lengthSync();

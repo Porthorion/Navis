@@ -28,6 +28,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
 import 'package:dio/dio.dart';
@@ -141,6 +142,11 @@ class _GatedSourceResolver extends Fake implements PlaybackSourceResolver {
 
   @override
   bool get supportsTranscodeOffset => delegate.supportsTranscodeOffset;
+  @override
+  Object get seekPreviewRepresentation =>
+      previewRepresentation ?? delegate.seekPreviewRepresentation;
+
+  Object? previewRepresentation;
 
   @override
   bool get supportsFastSeeking => delegate.supportsFastSeeking;
@@ -271,6 +277,57 @@ class _TeardownArtworkService extends Fake implements CoverArtHttpFileService {
   void close({bool force = false}) {
     closed = true;
   }
+}
+
+class _SeekPreviewHttpClient extends Fake implements HttpClient {
+  final body = StreamController<List<int>>();
+  final headers = Completer<HttpClientResponse>();
+  bool closed = false;
+  int gets = 0;
+  @override
+  String? userAgent;
+  @override
+  Future<HttpClientRequest> getUrl(Uri uri) async {
+    gets++;
+    return _SeekPreviewHttpRequest(headers.future);
+  }
+
+  void respond() {
+    if (!headers.isCompleted) {
+      headers.complete(_SeekPreviewHttpResponse(body.stream));
+    }
+  }
+
+  @override
+  void close({bool force = false}) {
+    closed = force;
+  }
+}
+
+class _SeekPreviewHttpRequest extends Fake implements HttpClientRequest {
+  new(this.response);
+  final Future<HttpClientResponse> response;
+  @override
+  Future<HttpClientResponse> close() => response;
+}
+
+class _SeekPreviewHttpResponse extends Fake implements HttpClientResponse {
+  new(this.body);
+  final Stream<List<int>> body;
+  @override
+  int get statusCode => 200;
+  @override
+  int get contentLength => -1;
+  @override
+  HttpHeaders get headers => _SeekPreviewHttpHeaders();
+  @override
+  Stream<E> asyncExpand<E>(Stream<E>? Function(List<int>) convert) =>
+      body.asyncExpand(convert);
+}
+
+class _SeekPreviewHttpHeaders extends Fake implements HttpHeaders {
+  @override
+  ContentType? get contentType => ContentType('audio', 'ogg');
 }
 
 class _TeardownHttpClient extends Fake implements HttpClient {
@@ -771,7 +828,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       // A looped offset stream restarts at its own start, which is song time
       // equal to its offset.
       final current = _sources[index!];
-      simulatedPosition = current is UriAudioSource
+      simulatedPosition = current is IndexedAudioSource
           ? current.positionOffset
           : Duration.zero;
     } else if (next < _sources.length || appliedLoopMode == LoopMode.all) {
@@ -7934,6 +7991,33 @@ void main() {
     bool bridging(NavisAudioHandler handler) =>
         handler.mediaItem.value?.extras?['bridgeFormat'] == 'opus';
 
+    for (final slow in [false, true]) {
+      test(
+        'seek preview opens only the immediate bridge plan (slow=$slow)',
+        () async {
+          final (handler, player, _, _) = await bridgeHandler(slow: slow);
+          final client = _SeekPreviewHttpClient()..respond();
+          await HttpOverrides.runZoned(
+            () => handler.previewSeek(target),
+            createHttpClient: (_) => client,
+          );
+          await pumpEventQueue();
+          expect(client.gets, slow ? 1 : 0);
+          if (slow) {
+            await handler.seek(target);
+            // ignore: experimental_member_use, reason: Verify bridge preview adoption through the proxy.
+            final source = player.sequence[player.index!] as StreamAudioSource;
+            final response = await source.request();
+            final sub = response.stream.listen((_) {});
+            await sub.cancel();
+            expect(client.gets, 1);
+          }
+          handler.cancelSeekPreview();
+          unawaited(client.body.close());
+        },
+      );
+    }
+
     test('slow link bridges immediately without restarting or caching the transcode', () async {
       final (handler, player, db, downloader) = await bridgeHandler();
       final starts = downloader.starts;
@@ -8503,6 +8587,7 @@ void main() {
     Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
     offsetHandler({
       bool capable = true,
+      bool? desktopRuntimeOverride,
       StreamingQuality quality = opus128,
       int count = 3,
       SubsonicApiClient? Function()? readApiClient,
@@ -8519,6 +8604,7 @@ void main() {
         sidecarStreams: true,
         streamingQuality: quality,
         supportsTranscodeOffset: capable,
+        desktopRuntimeOverride: desktopRuntimeOverride,
         readApiClient: readApiClient,
         scrobbleService: scrobbleService,
         positionStreams: positionStreams,
@@ -8585,6 +8671,403 @@ void main() {
       );
       await until(() => !handler.snapshot.isLoading);
     }
+
+    group('seek preview', () {
+      for (final platform in [TargetPlatform.linux, TargetPlatform.android]) {
+        test('seek preview sends the native User-Agent ($platform)', () async {
+          debugDefaultTargetPlatformOverride = platform;
+          final (handler, _, _) = await offsetHandler(
+            desktopRuntimeOverride: platform == TargetPlatform.linux,
+          );
+          await start(handler);
+          if (platform == TargetPlatform.android) {
+            handler.queue.value[1].extras!['positionOffsetMs'] = 40000;
+          }
+          final client = _SeekPreviewHttpClient()..respond();
+          addTearDown(() {
+            unawaited(client.body.close());
+          });
+          await HttpOverrides.runZoned(
+            () => handler.previewSeek(const Duration(seconds: 90)),
+            createHttpClient: (_) => client,
+          );
+          expect(
+            client.userAgent,
+            platform == TargetPlatform.linux
+                ? 'Navis Desktop'
+                : AppConstants.userAgent,
+          );
+          handler.cancelSeekPreview();
+          debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+        });
+      }
+
+      test(
+        'seek preview adopts the desired occurrence while native index lags',
+        () async {
+          late _GatedSourceResolver resolver;
+          final (handler, player, _) = await offsetHandler(
+            wrapResolver: (delegate) =>
+                resolver = _GatedSourceResolver(delegate),
+          );
+          await start(handler);
+          final client = _SeekPreviewHttpClient()..respond();
+          addTearDown(() {
+            unawaited(client.body.close());
+          });
+          await HttpOverrides.runZoned(
+            () => handler.previewSeek(const Duration(seconds: 90)),
+            createHttpClient: (_) => client,
+          );
+          resolver
+            ..blockedSongId = 'song-1'
+            ..entered = Completer<void>()
+            ..release = Completer<void>();
+          final seek = handler.seek(const Duration(seconds: 90));
+          await resolver.entered!.future;
+          player.index = 0;
+          resolver.release!.complete();
+          await seek;
+          expect(lastSeekEvent(handler)['previewAdopted'], isTrue);
+        },
+      );
+
+      for (final action in ['loop', 'depart']) {
+        test(
+          'seek preview stream offset survives cleared entry metadata ($action)',
+          () async {
+            final (handler, player, _) = await offsetHandler();
+            await start(handler);
+            final client = _SeekPreviewHttpClient()..respond();
+            addTearDown(() {
+              unawaited(client.body.close());
+            });
+            await HttpOverrides.runZoned(
+              () => handler.previewSeek(const Duration(seconds: 90)),
+              createHttpClient: (_) => client,
+            );
+            await handler.seek(const Duration(seconds: 90));
+            expect(
+              player.sequence[1].positionOffset,
+              const Duration(seconds: 90),
+            );
+            handler.queue.value[1].extras!['positionOffsetMs'] = 0;
+            final seekCalls = player.seekCalls;
+            if (action == 'loop') {
+              await handler.setRepeatMode(AudioServiceRepeatMode.one);
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 180),
+              );
+            } else {
+              await handler.skipToNext();
+            }
+            if (action == 'loop') {
+              await until(
+                () => lastSeekEvent(handler)['requestedPositionMs'] == 0,
+              );
+              expect(player.seekCalls, greaterThan(seekCalls));
+            } else {
+              await until(
+                () => player.sequence[1].positionOffset == Duration.zero,
+              );
+            }
+          },
+        );
+      }
+
+      for (final delta in [0, 2, 3, -1]) {
+        test(
+          'adopts only release 0..2 seconds after preview (delta=$delta)',
+          () async {
+            final client = _SeekPreviewHttpClient()..respond();
+            addTearDown(() {
+              client.close(force: true);
+              unawaited(client.body.close());
+            });
+            final (handler, player, _) = await offsetHandler();
+            await start(handler);
+            final before = handler.snapshot;
+            await HttpOverrides.runZoned(
+              () => handler.previewSeek(const Duration(seconds: 90)),
+              createHttpClient: (_) => client,
+            );
+            await until(() => client.gets == 1);
+            expect(handler.snapshot, before);
+            expect(handler.snapshot.pendingSeekPosition, isNull);
+            await handler.previewSeek(const Duration(seconds: 90));
+            expect(client.gets, 1);
+            await handler.seek(Duration(seconds: 90 + delta));
+            final source = player.sequence[player.index!];
+            if (delta >= 0 && delta <= 2) {
+              // ignore: experimental_member_use, reason: Verify the adopted proxy source.
+              expect(source, isA<StreamAudioSource>());
+              // ignore: experimental_member_use, reason: Consume the adopted proxy response.
+              final response = await (source as StreamAudioSource).request();
+              final sub = response.stream.listen((_) {});
+              await pumpEventQueue();
+              expect(client.gets, 1);
+              await sub.cancel();
+            } else {
+              expect(source, isA<UriAudioSource>());
+            }
+          },
+        );
+      }
+
+      test('50 alternating handler previews cancel before opening, final release adopts', () async {
+        final (handler, player, _) = await offsetHandler();
+        await start(handler);
+        final clients = <_SeekPreviewHttpClient>[];
+        for (var i = 0; i < 50; i++) {
+          final client = _SeekPreviewHttpClient();
+          clients.add(client);
+          await HttpOverrides.runZoned(
+            () => handler.previewSeek(Duration(seconds: i.isEven ? 40 : 140)),
+            createHttpClient: (_) {
+              expect(
+                clients.take(clients.length - 1).every((c) => c.closed),
+                isTrue,
+              );
+              return client;
+            },
+          );
+          if (i != 0) clients[i - 1].respond();
+          await pumpEventQueue();
+          expect(clients.where((c) => !c.closed).length, 1);
+          expect(
+            clients.where((c) => c.body.hasListener).length,
+            lessThanOrEqualTo(1),
+          );
+        }
+        clients.last.respond();
+        clients.last.body.add([1, 2, 3]);
+        await pumpEventQueue();
+        await handler.seek(const Duration(seconds: 140));
+        // ignore: experimental_member_use, reason: Verify final release consumes the last request.
+        final source = player.sequence[player.index!] as StreamAudioSource;
+        final response = await source.request();
+        final result = response.stream.expand((b) => b).toList();
+        await clients.last.body.close();
+        expect(await result, [1, 2, 3]);
+        for (final client in clients) {
+          expect(client.closed, isTrue);
+          expect(client.gets, 1);
+          expect(client.body.hasListener, isFalse);
+          if (!client.body.isClosed) unawaited(client.body.close());
+        }
+      });
+
+      for (final intent in [
+        'cancel',
+        'pause',
+        'play',
+        'next',
+        'stop',
+        'repeat',
+      ]) {
+        test('$intent closes a pending preview socket', () async {
+          final (handler, _, _) = await offsetHandler();
+          await start(handler);
+          final client = _SeekPreviewHttpClient();
+          await HttpOverrides.runZoned(
+            () => handler.previewSeek(const Duration(seconds: 90)),
+            createHttpClient: (_) => client,
+          );
+          switch (intent) {
+            case 'cancel':
+              handler.cancelSeekPreview();
+            case 'pause':
+              await handler.pause();
+            case 'play':
+              await handler.play();
+            case 'next':
+              await handler.skipToNext();
+            case 'stop':
+              await handler.stop();
+            case 'repeat':
+              await handler.setRepeatMode(AudioServiceRepeatMode.one);
+          }
+          expect(client.closed, isTrue);
+          client.respond();
+          await pumpEventQueue();
+          expect(client.body.hasListener, isFalse);
+          unawaited(client.body.close());
+        });
+      }
+
+      test(
+        'superseding an adopted preview closes it while native load waits',
+        () async {
+          final (handler, player, _) = await offsetHandler();
+          await start(handler);
+          final client = _SeekPreviewHttpClient();
+          await HttpOverrides.runZoned(
+            () => handler.previewSeek(const Duration(seconds: 90)),
+            createHttpClient: (_) => client,
+          );
+          player.loadEntered = Completer<void>();
+          final loadGate = Completer<void>();
+          player.loadGate = loadGate;
+          final seek = handler.seek(const Duration(seconds: 90));
+          await player.loadEntered!.future;
+          final next = handler.skipToNext();
+          expect(client.closed, isTrue);
+          loadGate.complete();
+          await seek;
+          await next;
+          client.respond();
+          await pumpEventQueue();
+          expect(client.body.hasListener, isFalse);
+          unawaited(client.body.close());
+        },
+      );
+
+      test('unused preview expires after ten seconds', () async {
+        final (handler, _, _) = await offsetHandler();
+        await start(handler);
+        final client = _SeekPreviewHttpClient();
+        fakeAsync((clock) {
+          HttpOverrides.runZoned(() {
+            unawaited(handler.previewSeek(const Duration(seconds: 90)));
+          }, createHttpClient: (_) => client);
+          clock.flushMicrotasks();
+          expect(client.closed, isFalse);
+          clock.elapse(const Duration(seconds: 10));
+          expect(client.closed, isTrue);
+          client.respond();
+          clock.flushMicrotasks();
+        });
+        unawaited(client.body.close());
+      });
+
+      test('representation mismatch discards and keeps the ordinary release offset', () async {
+        late _GatedSourceResolver resolver;
+        final (handler, player, _) = await offsetHandler(
+          wrapResolver: (delegate) => resolver = _GatedSourceResolver(delegate),
+        );
+        await start(handler);
+        final client = _SeekPreviewHttpClient()..respond();
+        await HttpOverrides.runZoned(
+          () => handler.previewSeek(const Duration(seconds: 90)),
+          createHttpClient: (_) => client,
+        );
+        resolver.previewRepresentation = Object();
+        await handler.seek(const Duration(seconds: 92));
+        expect(client.closed, isTrue);
+        expect(current(player).positionOffset, const Duration(seconds: 92));
+        expect(current(player).uri.queryParameters['timeOffset'], '92');
+        expect(client.gets, 1);
+        unawaited(client.body.close());
+      });
+
+      test(
+        'discarding a preview after cache completion keeps the release target',
+        () async {
+          late _GatedSourceResolver resolver;
+          final (handler, player, database) = await offsetHandler(
+            wrapResolver: (delegate) =>
+                resolver = _GatedSourceResolver(delegate),
+          );
+          await start(handler);
+          final client = _SeekPreviewHttpClient()..respond();
+          await HttpOverrides.runZoned(
+            () => handler.previewSeek(const Duration(seconds: 90)),
+            createHttpClient: (_) => client,
+          );
+          resolver.blockedSongId = 'song-1';
+          resolver.entered = Completer<void>();
+          resolver.release = Completer<void>();
+          addTearDown(() {
+            if (!resolver.release!.isCompleted) resolver.release!.complete();
+          });
+          final seek = handler.seek(const Duration(seconds: 92));
+          await resolver.entered!.future;
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-preview-completed-',
+          );
+          addTearDown(() => directory.delete(recursive: true));
+          final file = File(p.join(directory.path, 'completed.opus'));
+          await file.writeAsBytes([1, 2, 3]);
+          await database.cacheDao.upsertCachedTrack(
+            CachedTracksTableCompanion.insert(
+              songId: 'song-1',
+              filePath: file.path,
+              fileSize: 3,
+              cacheType: CacheType.rolling,
+              downloadStatus: DownloadStatus.complete,
+              format: 'opus',
+              lastAccessedAt: DateTime(2026),
+              bitRate: const Value(128),
+            ),
+          );
+          resolver.release!.complete();
+          await seek;
+          expect(client.closed, isTrue);
+          expect(current(player).uri.scheme, 'file');
+          expect(player.playedFrom.last, const Duration(seconds: 92));
+          expect(client.gets, 1);
+          unawaited(client.body.close());
+        },
+      );
+
+      test('adoption retains metadata updated during the drag', () async {
+        final (handler, _, database) = await offsetHandler();
+        await start(handler);
+        final client = _SeekPreviewHttpClient()..respond();
+        await HttpOverrides.runZoned(
+          () => handler.previewSeek(const Duration(seconds: 90)),
+          createHttpClient: (_) => client,
+        );
+        await database.libraryDao.upsertSongs([
+          const SongsTableCompanion(
+            id: Value('song-1'),
+            title: Value('Updated title'),
+          ),
+        ]);
+        await handler.seek(const Duration(seconds: 90));
+        expect(handler.currentMediaItem!.title, 'Updated title');
+        expect(client.gets, 1);
+        client.close(force: true);
+        unawaited(client.body.close());
+      });
+
+      test('completed local source opens no preview request', () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-preview-local-',
+        );
+        final (handler, _, database) = await createHandler(
+          directory,
+          1,
+          supportsTranscodeOffset: true,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        await handler.replaceQueue(
+          ['song-0'],
+          autoPlay: false,
+          expandMatchFlows: false,
+        );
+        await settleQueue(handler);
+        final client = _SeekPreviewHttpClient();
+        await HttpOverrides.runZoned(
+          () => handler.previewSeek(const Duration(seconds: 90)),
+          createHttpClient: (_) => client,
+        );
+        expect(client.gets, 0);
+        expect(handler.collectPlaybackDiagnostics()['seekPreview'], isNull);
+        unawaited(client.body.close());
+      });
+
+      test('native and local plans do not open preview requests', () async {
+        final (handler, _, _) = await offsetHandler(capable: false);
+        await start(handler);
+        await handler.previewSeek(const Duration(seconds: 90));
+        expect(handler.collectPlaybackDiagnostics()['seekPreview'], isNull);
+      });
+    });
 
     group('premature transcode EOF', () {
       Future<(NavisAudioHandler, _ControllableAudioPlayer)> setup({

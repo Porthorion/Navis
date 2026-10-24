@@ -557,8 +557,7 @@ extension _NavisQueueEditing on NavisAudioHandler {
 
   bool _entryHasOffset(int index) {
     final source = _player.sequence.elementAtOrNull(index);
-    return (source is UriAudioSource &&
-            source.positionOffset > Duration.zero) ||
+    return (source != null && source.positionOffset > Duration.zero) ||
         _positionOffsetOf(_queueItems.elementAtOrNull(index)) > Duration.zero;
   }
 

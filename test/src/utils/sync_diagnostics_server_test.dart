@@ -211,6 +211,115 @@ void main() {
     },
   );
 
+  test('seek drag rejects overlap and releases guard after failure', () async {
+    final presentation = _MockPresentationController();
+    var entered = Completer<void>();
+    var release = Completer<DateTime>();
+    when(
+      () => presentation.dragSeek(
+        any(),
+        steps: any(named: 'steps'),
+        flickMs: any(named: 'flickMs'),
+        beforeRelease: any(named: 'beforeRelease'),
+      ),
+    ).thenAnswer((_) {
+      entered.complete();
+      return release.future;
+    });
+    final clone = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      presentationController: presentation,
+    );
+    addTearDown(clone.close);
+    for (final fail in [false, true, false]) {
+      entered = Completer<void>();
+      release = Completer<DateTime>();
+      final first = clone.post('/v1/presentation/seek-drag', {'fraction': .5});
+      await entered.future;
+      final overlap = await clone.post('/v1/presentation/seek-drag', {
+        'fraction': .5,
+      });
+      expect(overlap.statusCode, HttpStatus.conflict);
+      if (fail) {
+        release.completeError(const DiagnosticsPresentationUnavailable());
+      } else {
+        release.complete(DateTime.utc(2026));
+      }
+      expect(
+        (await first).statusCode,
+        fail ? HttpStatus.serviceUnavailable : HttpStatus.ok,
+      );
+    }
+  });
+
+  test(
+    'seek drag scripts retain clone auth and validate bounded input',
+    () async {
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      expect(
+        (await primary.post('/v1/presentation/seek-drag', {
+          'flickMs': 5000,
+        })).statusCode,
+        HttpStatus.forbidden,
+      );
+      await primary.close();
+      final clone = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(clone.close);
+      for (final body in <Map<String, Object?>>[
+        {'fraction': -1},
+        {'steps': []},
+        {
+          'steps': [1],
+        },
+        {
+          'steps': [
+            {'fraction': .2, 'moveMs': -1},
+          ],
+        },
+        {
+          'steps': [
+            {'fraction': .2, 'holdMs': 10001},
+          ],
+        },
+        {
+          'steps': [
+            {'fraction': 1.1},
+          ],
+        },
+        {'flickMs': 0},
+        {'flickMs': 120001},
+        {'release': false},
+        {
+          'steps': [
+            {'fraction': .2},
+          ],
+          'flickMs': 1000,
+        },
+      ]) {
+        final invalid = await clone.post('/v1/presentation/seek-drag', body);
+        expect(invalid.statusCode, HttpStatus.badRequest, reason: '$body');
+        expect(invalid.body, containsPair('error', 'invalid seek drag script'));
+      }
+      for (final body in <Map<String, Object?>>[
+        {'fraction': .5},
+        {'flickMs': 5000},
+        {
+          'steps': [
+            {'fraction': .2, 'moveMs': 200, 'holdMs': 450},
+          ],
+          'release': true,
+        },
+      ]) {
+        expect(
+          (await clone.post('/v1/presentation/seek-drag', body)).statusCode,
+          HttpStatus.serviceUnavailable,
+        );
+      }
+    },
+  );
+
   test('track presentation actions reject primary mutation and invalid clone input', () async {
     final primary = await _startFixture(
       SyncDiagnosticsMode.primaryCertification,
@@ -1380,6 +1489,21 @@ void main() {
       expect(nextCalls, 1);
     },
   );
+
+  test('heartbeat reports ordered p95 event-loop samples', () async {
+    final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+    addTearDown(fixture.close);
+    await fixture.post('/v1/diagnostics/heartbeat', {'enabled': true});
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    final report = await fixture.get('/v1/diagnostics/report');
+    final lag = report.body['eventLoopLag'] as Map<String, dynamic>;
+    expect(lag['samples'], greaterThan(0));
+    expect(
+      lag['p95Micros'],
+      inInclusiveRange(lag['p50Micros'] as num, lag['p99Micros'] as num),
+    );
+    await fixture.post('/v1/diagnostics/heartbeat', {'enabled': false});
+  });
 
   test(
     'frame evidence separates build, raster and span with bounded reset',

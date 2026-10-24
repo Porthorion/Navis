@@ -24,6 +24,8 @@ import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:path/path.dart' as p;
 
+typedef DiagnosticsSeekDragStep = ({double fraction, int moveMs, int holdMs});
+
 class DiagnosticsPresentationUnavailable implements Exception {
   const new();
 }
@@ -956,6 +958,142 @@ class DiagnosticsPresentationController {
     );
     await delivered.future;
     await waitForFrame();
+  }
+
+  /// Drives one held seek gesture; without a script it rests for three seconds.
+  Future<DateTime> dragSeek(
+    double fraction, {
+    List<DiagnosticsSeekDragStep>? steps,
+    int? flickMs,
+    VoidCallback? beforeRelease,
+  }) async {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final binding = GestureBinding.instance;
+    final viewId = View.of(root).viewId;
+    Element? target;
+    void collect(Element candidate) {
+      final widget = candidate.widget;
+      if ((widget is Offstage && widget.offstage) ||
+          (widget is TickerMode && !widget.enabled)) {
+        return;
+      }
+      if (widget is Slider &&
+          widget.onChanged != null &&
+          widget.max > widget.min &&
+          const [
+            ValueKey('nowPlayingSeekSlider'),
+            ValueKey('desktopPlayerSeekSlider'),
+            ValueKey('desktopMiniPlayerSeekSlider'),
+          ].contains(widget.key)) {
+        final box = candidate.findRenderObject();
+        if (box is RenderBox && box.attached && box.hasSize) {
+          final hit = HitTestResult();
+          binding.hitTestInView(
+            hit,
+            box.localToGlobal(box.size.center(Offset.zero)),
+            viewId,
+          );
+          if (hit.path.any((entry) => entry.target == box)) target = candidate;
+        }
+      }
+      candidate.visitChildElements(collect);
+    }
+
+    collect(root);
+    final element = target;
+    final box = element?.findRenderObject();
+    if (element == null || box is! RenderBox) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
+    final slider = element.widget as Slider;
+    final inherited = SliderTheme.of(element);
+    final theme = inherited.copyWith(
+      trackHeight: inherited.trackHeight ?? 4,
+      thumbShape: inherited.thumbShape ?? const RoundSliderThumbShape(),
+      overlayShape: inherited.overlayShape ?? const RoundSliderOverlayShape(),
+    );
+    final track = (theme.trackShape ?? const RoundedRectSliderTrackShape())
+        .getPreferredRect(
+          parentBox: box,
+          sliderTheme: theme,
+          isEnabled: true,
+          isDiscrete: false,
+        );
+    Offset point(double value) => box.localToGlobal(
+      Offset(
+        Directionality.of(element) == TextDirection.ltr
+            ? track.left + track.width * value
+            : track.right - track.width * value,
+        track.center.dy,
+      ),
+    );
+    final script =
+        steps ??
+        <DiagnosticsSeekDragStep>[
+          if (flickMs == null)
+            (fraction: fraction, moveMs: 0, holdMs: 3000)
+          else
+            for (var elapsed = 0; elapsed < flickMs; elapsed += 200)
+              (
+                fraction: (elapsed ~/ 200).isEven ? .9 : .1,
+                moveMs: (flickMs - elapsed).clamp(0, 200),
+                holdMs: 0,
+              ),
+        ];
+    var current = point(
+      steps == null
+          ? (flickMs == null
+                ? (slider.value - slider.min) / (slider.max - slider.min)
+                : fraction)
+          : script.first.fraction,
+    );
+    const pointer = 9283;
+    binding.handlePointerEvent(
+      PointerDownEvent(pointer: pointer, position: current, viewId: viewId),
+    );
+    late DateTime releasedAt;
+    try {
+      if (steps == null && flickMs == null) {
+        await waitForFrame();
+      }
+      for (final step in script) {
+        final start = current;
+        final end = point(step.fraction);
+        final frames = (step.moveMs / 16).ceil().clamp(1, 625);
+        for (var frame = 1; frame <= frames; frame++) {
+          if (step.moveMs > 0) {
+            await Future<void>.delayed(
+              Duration(microseconds: step.moveMs * 1000 ~/ frames),
+            );
+          }
+          final next = Offset.lerp(start, end, frame / frames)!;
+          binding.handlePointerEvent(
+            PointerMoveEvent(
+              pointer: pointer,
+              position: next,
+              delta: next - current,
+              buttons: kPrimaryButton,
+              viewId: viewId,
+            ),
+          );
+          current = next;
+        }
+        if (step.holdMs > 0) {
+          await Future<void>.delayed(Duration(milliseconds: step.holdMs));
+        }
+      }
+      beforeRelease?.call();
+    } finally {
+      releasedAt = DateTime.now().toUtc();
+      binding.handlePointerEvent(
+        PointerUpEvent(pointer: pointer, position: current, viewId: viewId),
+      );
+    }
+    if (steps == null && flickMs == null) {
+      await waitForFrame();
+    }
+    return releasedAt;
   }
 
   /// Taps the visible shell destination at [index] with a real pointer, on

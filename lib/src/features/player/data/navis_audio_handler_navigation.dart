@@ -2,6 +2,7 @@ part of 'navis_audio_handler.dart';
 
 extension _NavisNavigation on NavisAudioHandler {
   int _supersedeTransportIntent({bool? shouldPlay, bool preserveSeek = false}) {
+    if (!preserveSeek || shouldPlay != null) cancelSeekPreview();
     if (!preserveSeek || (shouldPlay != null && _pendingSeek == null)) {
       _seekFailureBlocksRecovery = false;
     }
@@ -33,6 +34,7 @@ extension _NavisNavigation on NavisAudioHandler {
       generation == _transportGeneration;
 
   Future<void> _navigateRelative({required bool forward}) {
+    cancelSeekPreview();
     _resetFailoverAccounting();
     final logicalIds = _logicalQueueIds;
     final confirmedIndex = _logicalIndexOf(

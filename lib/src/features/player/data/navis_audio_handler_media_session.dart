@@ -1002,6 +1002,10 @@ extension _NavisMediaSession on NavisAudioHandler {
       _snapshot,
       nextSnapshot,
     );
+    if (nextSnapshot.currentSongId != _snapshot.currentSongId ||
+        nextSnapshot.currentIndex != _snapshot.currentIndex) {
+      cancelSeekPreview();
+    }
     _snapshot = nextSnapshot;
     final startupTrace = _activeStartupTrace;
     if (startupTrace != null &&

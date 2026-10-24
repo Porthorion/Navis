@@ -63,6 +63,115 @@ void main() {
     },
   );
 
+  testWidgets('seek drag uses pointer input and waits before release', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync('navis-seek-drag-');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () async {},
+    );
+    var changes = 0;
+    var releases = 0;
+    await tester.pumpWidget(
+      controller.wrap(
+        MaterialApp(
+          home: Scaffold(
+            body: Stack(
+              children: [
+                Offstage(
+                  child: Slider(
+                    key: const ValueKey('nowPlayingSeekSlider'),
+                    value: .1,
+                    onChanged: (_) => fail('Hidden slider received the drag'),
+                  ),
+                ),
+                Slider(
+                  key: const ValueKey('nowPlayingSeekSlider'),
+                  value: .1,
+                  onChanged: (_) => changes++,
+                  onChangeEnd: (_) => releases++,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final drag = controller.dragSeek(.7);
+    await tester.pump();
+    expect(changes, greaterThan(0));
+    expect(releases, 0);
+    await tester.pump(const Duration(milliseconds: 2999));
+    expect(releases, 0);
+    await tester.pump(const Duration(milliseconds: 1));
+    await drag;
+    expect(releases, 1);
+  });
+
+  for (final flick in [false, true]) {
+    testWidgets(
+      'scripted seek drag keeps one pointer and ${flick ? "flicks" : "rests"}',
+      (tester) async {
+        final root = Directory.systemTemp.createTempSync('navis-script-drag-');
+        addTearDown(() => root.deleteSync(recursive: true));
+        var frameWaits = 0;
+        final controller = DiagnosticsPresentationController(
+          artifactRoot: root,
+          frameWaiter: () async {
+            frameWaits++;
+          },
+        );
+        var starts = 0;
+        final changes = <double>[];
+        var releases = 0;
+        int? releasesBeforeCapture;
+        await tester.pumpWidget(
+          controller.wrap(
+            MaterialApp(
+              home: Scaffold(
+                body: Slider(
+                  key: const ValueKey('nowPlayingSeekSlider'),
+                  value: .5,
+                  onChangeStart: (_) => starts++,
+                  onChanged: changes.add,
+                  onChangeEnd: (_) => releases++,
+                ),
+              ),
+            ),
+          ),
+        );
+        final drag = controller.dragSeek(
+          .1,
+          steps: flick
+              ? null
+              : [
+                  (fraction: .1, moveMs: 0, holdMs: 300),
+                  (fraction: .8, moveMs: 200, holdMs: 450),
+                  (fraction: .2, moveMs: 200, holdMs: 300),
+                ],
+          flickMs: flick ? 1000 : null,
+          beforeRelease: () {
+            releasesBeforeCapture = releases;
+          },
+        );
+        for (var i = 0; i < 80; i++) {
+          await tester.pump(const Duration(milliseconds: 20));
+          if (i == 10) expect(releases, 0);
+        }
+        final releasedAt = await drag;
+        expect(frameWaits, 0);
+        expect(releasesBeforeCapture, 0);
+        expect(starts, 1);
+        expect(releases, 1);
+        expect(changes.length, greaterThan(20));
+        expect(changes.any((value) => value > .7), isTrue);
+        expect(releasedAt, isA<DateTime>());
+      },
+    );
+  }
+
   testWidgets('player quick controls are observed and opened by the button', (
     tester,
   ) async {

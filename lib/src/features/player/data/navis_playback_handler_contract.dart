@@ -117,6 +117,12 @@ abstract class NavisPlaybackHandler {
   Future<void> stop();
   Future<void> seek(Duration position);
 
+  /// Pre-opens an eligible offset stream without changing playback state.
+  Future<void> previewSeek(Duration position);
+
+  /// Immediately abandons any uncommitted seek preview.
+  void cancelSeekPreview();
+
   /// Structured playback state for the Linux sync-diagnostics API.
   Map<String, Object?> collectPlaybackDiagnostics();
 

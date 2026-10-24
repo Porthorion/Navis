@@ -172,8 +172,28 @@ class _RailMiniPlayer extends ConsumerStatefulWidget {
 
 class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
   double? _dragSliderValue;
+  late final _seekDrag = SeekDragPreview(() => ref.read(audioHandlerProvider));
+
+  @override
+  void dispose() {
+    _seekDrag.cancel();
+    super.dispose();
+  }
+
   double _lastSeekPreviewMs = 0;
   bool _isSeeking = false;
+
+  @override
+  void didUpdateWidget(_RailMiniPlayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.playback.currentSongId != oldWidget.playback.currentSongId ||
+        widget.playback.currentIndex != oldWidget.playback.currentIndex) {
+      _seekDrag.cancel();
+      _dragSliderValue = null;
+      _isSeeking = false;
+      _lastSeekPreviewMs = 0;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -581,12 +601,14 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                             });
                           },
                           onChanged: (value) {
+                            _seekDrag.changed(value);
                             setState(() {
                               _dragSliderValue = value;
                               _lastSeekPreviewMs = value;
                             });
                           },
                           onChangeEnd: (value) {
+                            _seekDrag.finish();
                             setState(() {
                               _isSeeking = false;
                               _dragSliderValue = null;
