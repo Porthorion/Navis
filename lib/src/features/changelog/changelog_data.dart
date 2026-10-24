@@ -130,7 +130,8 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
-        'Android: with Repeat All, a song no longer restarts just before its end.',
+        'Android: with Repeat All, a song no longer restarts just before its end. '
+        'Queue edits and seeks at a repeat boundary keep playback running.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

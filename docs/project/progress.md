@@ -14,31 +14,32 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
-- [ ] Android progressive Repeat All near-end replay — implementation and JVM
-  fixtures complete, 2026-10-24; emulator runtime acceptance belongs to the
-  separate verification task. Extended the existing `ProgressiveRepeat` and
-  `AudioPlayer` boundary restart rather than adding another loop controller.
-  Eligible streams keep native repeat off; only the last Repeat All item
-  pauses and wraps to index zero. Repeat One and boundary UID/revision/Play
-  guards remain covered. Test-first commit `7ff2384e` follows the observed
-  `AssertionError: progressive ALL must disable native lookahead wrapping`;
-  the complete fixtures then failed to compile against the old helper API.
-  `./tool/equalizer_native_test.sh` now reports
-  `ProgressiveRepeatTest: 59 fixtures passed` (plus 13 retry fixtures and the
-  equalizer checks). Dart playback code, desktop and iOS are unchanged.
-  Architecture and the 1.5.1 changelog record the fix and loss of a gapless
-  queue-wrap join on Android progressive streams.
-  `flutter build apk --debug --flavor sideload` passed under the 8 GiB cap
-  with zero OOM kills. Foreground `./tool/check.sh` passed under the same cap:
-  `09:23 +9384 ~1: All tests passed!` (one skipped), followed by
-  `[check] All checks passed.` Analysis reports 222 infos and no errors or
-  warnings; generation produces no tracked changes. The gate reports zero
-  OOM kills. No runtime pass is claimed. An additional source-review question
-  remains: an append after the native boundary pause can make the posted wrap
-  invalid without explicitly resuming playback (`AudioPlayer.java` restart
-  rejection and timeline callback). Verify and resolve that narrow race
-  before release; appends while the last item is still playing use the tested
-  non-last pause policy.
+- [x] Android progressive Repeat All near-end replay — 2026-10-24.
+  `ProgressiveRepeat` and `AudioPlayer` keep native repeat off for eligible
+  streams and wrap only the last Repeat All item. The guarded boundary decision
+  now resumes without seeking when an append or move makes the paused item
+  non-last; a seek during a pending boundary restores requested playback for
+  Repeat One and Repeat All. Captured boundary ownership, occurrence UID,
+  revision and Play intent prevent stale callbacks from restarting playback.
+  Test-first commits: `7ff2384e` for the original replay and `1df211f1` for the
+  boundary races. The latter follows the observed
+  `AssertionError: an append makes the old last item auto-advance`.
+  `./tool/equalizer_native_test.sh`: `ProgressiveRepeatTest: 74 fixtures passed`,
+  plus 13 retry fixtures and the equalizer checks. Architecture and the 1.5.1
+  changelog record the repair and loss of a gapless progressive queue-wrap join.
+  The separate Android runtime verification of `0a1558e3` observed original
+  replay base 3/3 → fix 0/3, exactly one paced 120-second end wrap, two ordered
+  real-length queue wraps, crossfade/skip/Repeat One/Off regressions and seven
+  admitted appends, with zero anomalies in 18 valid rows. It did not force the
+  post-pause/pre-callback interleaving; the r2 JVM fixtures cover that decision
+  deterministically. No r2 emulator run is claimed (excluded by the task).
+  The r2 capped `flutter build apk --debug --flavor sideload` passed with zero
+  OOM kills; Gradle/Kotlin daemons were stopped by PID.
+  The r2 foreground capped `./tool/check.sh` passed:
+  `09:29 +9384 ~1: All tests passed!` (one skipped), followed by
+  `[check] All checks passed.` The cap reports exit 0 and zero OOM kills.
+  Formatting, generation, analysis, dead-code, migration and critical reliability
+  gates passed; generation produced no tracked changes.
 - [ ] Issue #86, item 11a PR C desktop transcode EOF — implementation complete
   on `fix/transcode-cut-eof`, 2026-10-23; coordinator `./tool/check.sh`,
   independent reviews and native cut-matrix acceptance remain pending under

@@ -4601,8 +4601,14 @@ Stop/disposal, seek/selection, playlist replacement, item transition or loop
 mode change. The boundary tracks the timeline window UID of the queue occurrence:
 appends, inserts and moves preserve it while that occurrence remains current.
 Repeat One restarts at its current index; Repeat All checks again that it is
-still last before wrapping. Removing or replacing that occurrence cancels both
-the pending restart and the paused boundary retained for explicit Play. Playback
+still last before wrapping. If an append or move makes the paused boundary
+non-last before the posted callback runs, the same guarded decision resumes
+native playback without seeking so Media3 advances into the next item. Boundary
+ownership is captured when scheduling, allowing that pause to be released even
+if timeline updates change current eligibility. A seek during a pending boundary
+consumes the old restart and resumes at the requested position for both modes,
+only while Play remains requested. Removing or replacing that occurrence cancels
+both the pending restart and the paused boundary retained for explicit Play. Playback
 resumes only while Play is still requested. Item/timeline changes and source
 replacement re-evaluate eligibility and the last-item pause policy, so an append
 while playing enables auto-advance and a removal can make the current item last.
