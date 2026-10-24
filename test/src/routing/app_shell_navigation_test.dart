@@ -4313,6 +4313,46 @@ void main() {
     expect(selected('Playlists'), isFalse);
   });
 
+  for (final width in <double>[1280, 500]) {
+    testWidgets('desktop quick-search keeps all filter chips on one line '
+        'at ${width.toInt()} px', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 800);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: [
+          ..._authenticatedShellOverrides(
+            reachability: ServerReachabilityStatus.offline,
+            desktopRuntime: true,
+          ),
+          radioStationsProvider.overrideWith((ref) async => []),
+        ],
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      await tester.pumpAndSettle();
+
+      final chips = find.byType(FilterChip);
+      expect(chips, findsNWidgets(6));
+      final tops = <double>{
+        for (var i = 0; i < 6; i++) tester.getTopLeft(chips.at(i)).dy,
+      };
+      expect(tops, hasLength(1), reason: 'chips wrapped onto several lines');
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('queue dismissal restores focus to desktop queue toggle button', (
     tester,
   ) async {
