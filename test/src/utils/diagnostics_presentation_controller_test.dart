@@ -123,6 +123,7 @@ void main() {
         var starts = 0;
         final changes = <double>[];
         var releases = 0;
+        int? releasesBeforeCapture;
         await tester.pumpWidget(
           controller.wrap(
             MaterialApp(
@@ -148,12 +149,16 @@ void main() {
                   (fraction: .2, moveMs: 200, holdMs: 300),
                 ],
           flickMs: flick ? 1000 : null,
+          beforeRelease: () {
+            releasesBeforeCapture = releases;
+          },
         );
         for (var i = 0; i < 80; i++) {
           await tester.pump(const Duration(milliseconds: 20));
           if (i == 10) expect(releases, 0);
         }
         final releasedAt = await drag;
+        expect(releasesBeforeCapture, 0);
         expect(starts, 1);
         expect(releases, 1);
         expect(changes.length, greaterThan(20));

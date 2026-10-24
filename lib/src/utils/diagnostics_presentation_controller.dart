@@ -965,6 +965,7 @@ class DiagnosticsPresentationController {
     double fraction, {
     List<DiagnosticsSeekDragStep>? steps,
     int? flickMs,
+    VoidCallback? beforeRelease,
   }) async {
     final root = _boundaryKey.currentContext;
     if (root is! Element) throw const DiagnosticsPresentationUnavailable();
@@ -1080,6 +1081,7 @@ class DiagnosticsPresentationController {
           await Future<void>.delayed(Duration(milliseconds: step.holdMs));
         }
       }
+      beforeRelease?.call();
     } finally {
       releasedAt = DateTime.now().toUtc();
       binding.handlePointerEvent(

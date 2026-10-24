@@ -3333,14 +3333,22 @@ class SyncDiagnosticsServer {
           return;
         }
         try {
+          Map<String, Object?>? heartbeat;
           final releasedAt = await presentation.dragSeek(
             fraction.toDouble(),
             steps: rawSteps == null ? null : steps,
             flickMs: flickMs as int?,
+            beforeRelease: () {
+              heartbeat = {
+                'frameGap': _gapSummary(_heartbeatGapMicros),
+                'eventLoopLag': _gapSummary(_eventLoopLagMicros),
+              };
+            },
           );
           await _respond(request, HttpStatus.ok, {
             'status': 'released',
             'releasedAt': releasedAt.toIso8601String(),
+            'heartbeat': heartbeat,
           });
         } on DiagnosticsPresentationUnavailable {
           await _presentationUnavailable(request);
