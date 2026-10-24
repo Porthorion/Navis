@@ -174,6 +174,7 @@ class DiagnosticsPresentationController {
   /// Playback settings switches the diagnostics API may flip, by widget key.
   static const playbackSettingToggles = <String, String>{
     'scrobble': 'playbackSettingsScrobbleToggle',
+    'fastSeeking': 'playbackSettingsFastSeekingToggle',
   };
 
   Future<void> activateArtistControl({required String action}) async {
@@ -854,8 +855,13 @@ class DiagnosticsPresentationController {
         _findElement(
               root,
               (element) =>
-                  element.widget.key == ValueKey<String>(key) &&
-                  element.widget is SwitchListTile,
+                  element.widget is SwitchListTile &&
+                  (element.widget.key == ValueKey<String>(key) ||
+                      (setting == 'fastSeeking' &&
+                          (element.widget as SwitchListTile).title is Text &&
+                          ((element.widget as SwitchListTile).title! as Text)
+                                  .data ==
+                              'Fast Seeking')),
             )?.widget
             as SwitchListTile?;
     final onChanged = tile?.onChanged;
