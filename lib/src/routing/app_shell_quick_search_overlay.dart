@@ -101,7 +101,7 @@ class _DesktopQuickSearchOverlayState
               onTap: widget.onDismiss,
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 620),
+                  constraints: const BoxConstraints(maxWidth: 720),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: GestureDetector(
@@ -183,22 +183,32 @@ class _DesktopQuickSearchOverlayState
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: <Widget>[
-                                  for (int i = 0; i < filterLabels.length; i++)
-                                    FilterChip(
-                                      label: Text(filterLabels[i]),
-                                      selected: _selectedIndex == i,
-                                      onSelected: (_) => setState(() {
-                                        _selectedIndex = i;
-                                        _explicitFilter = true;
-                                      }),
-                                      visualDensity: VisualDensity.compact,
-                                      showCheckmark: false,
-                                    ),
-                                ],
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  children: <Widget>[
+                                    for (
+                                      int i = 0;
+                                      i < filterLabels.length;
+                                      i++
+                                    )
+                                      Padding(
+                                        padding: EdgeInsets.only(
+                                          left: i == 0 ? 0 : 8,
+                                        ),
+                                        child: FilterChip(
+                                          label: Text(filterLabels[i]),
+                                          selected: _selectedIndex == i,
+                                          onSelected: (_) => setState(() {
+                                            _selectedIndex = i;
+                                            _explicitFilter = true;
+                                          }),
+                                          visualDensity: VisualDensity.compact,
+                                          showCheckmark: false,
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
