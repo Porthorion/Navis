@@ -356,6 +356,7 @@ void main() {
     }
   }
 
+  // ignore: experimental_member_use, reason: tests the Navis additions to the vendored source.
   Future<(AudioPlayer, List<LockCachingAudioSource>)> loadedPair() async {
     final body = List<int>.filled(2048, 5);
     final (server, _) = await _serve(body, ranges: false);
