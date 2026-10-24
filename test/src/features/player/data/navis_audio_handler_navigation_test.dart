@@ -284,6 +284,8 @@ class _SeekPreviewHttpClient extends Fake implements HttpClient {
   bool closed = false;
   int gets = 0;
   @override
+  String? userAgent;
+  @override
   Future<HttpClientRequest> getUrl(Uri uri) async {
     gets++;
     return _SeekPreviewHttpRequest(headers.future);
@@ -8668,6 +8670,84 @@ void main() {
     }
 
     group('seek preview', () {
+      test('seek preview sends the native desktop User-Agent', () async {
+        final (handler, _, _) = await offsetHandler();
+        await start(handler);
+        final client = _SeekPreviewHttpClient()..respond();
+        addTearDown(() {
+          unawaited(client.body.close());
+        });
+        await HttpOverrides.runZoned(
+          () => handler.previewSeek(const Duration(seconds: 90)),
+          createHttpClient: (_) => client,
+        );
+        expect(client.userAgent, 'Navis Desktop');
+        handler.cancelSeekPreview();
+      });
+
+      test(
+        'seek preview adopts the desired occurrence while native index lags',
+        () async {
+          late _GatedSourceResolver resolver;
+          final (handler, player, _) = await offsetHandler(
+            wrapResolver: (delegate) =>
+                resolver = _GatedSourceResolver(delegate),
+          );
+          await start(handler);
+          final client = _SeekPreviewHttpClient()..respond();
+          addTearDown(() {
+            unawaited(client.body.close());
+          });
+          await HttpOverrides.runZoned(
+            () => handler.previewSeek(const Duration(seconds: 90)),
+            createHttpClient: (_) => client,
+          );
+          resolver
+            ..blockedSongId = 'song-1'
+            ..entered = Completer<void>()
+            ..release = Completer<void>();
+          final seek = handler.seek(const Duration(seconds: 90));
+          await resolver.entered!.future;
+          player.index = 0;
+          resolver.release!.complete();
+          await seek;
+          expect(lastSeekEvent(handler)['previewAdopted'], isTrue);
+        },
+      );
+
+      for (final action in ['loop', 'depart']) {
+        test(
+          'seek preview stream offset survives cleared entry metadata ($action)',
+          () async {
+            final (handler, player, _) = await offsetHandler();
+            await start(handler);
+            final client = _SeekPreviewHttpClient()..respond();
+            addTearDown(() {
+              unawaited(client.body.close());
+            });
+            await HttpOverrides.runZoned(
+              () => handler.previewSeek(const Duration(seconds: 90)),
+              createHttpClient: (_) => client,
+            );
+            await handler.seek(const Duration(seconds: 90));
+            expect(
+              player.sequence[1].positionOffset,
+              const Duration(seconds: 90),
+            );
+            handler.queue.value[1].extras!['positionOffsetMs'] = 0;
+            if (action == 'loop') {
+              await handler.setRepeatMode(AudioServiceRepeatMode.one);
+              player.finishCurrentTrack();
+            } else {
+              await handler.skipToNext();
+            }
+            await until(
+              () => player.sequence[1].positionOffset == Duration.zero,
+            );
+          },
+        );
+      }
+
       for (final delta in [0, 2, 3, -1]) {
         test(
           'adopts only release 0..2 seconds after preview (delta=$delta)',

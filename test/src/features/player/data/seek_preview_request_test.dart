@@ -67,6 +67,56 @@ void main() {
     client: client,
   );
 
+  for (final cut in [false, true]) {
+    test(
+      'adopted source reopens offset body after ${cut ? "socket cut" : "EOF"}',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        final payload = List.generate(16000, (i) => i % 251);
+        final requests = <Uri>[];
+        server.listen((request) async {
+          requests.add(request.uri);
+          request.response.contentLength = payload.length;
+          if (cut && requests.length == 1) {
+            final socket = await request.response.detachSocket(
+              writeHeaders: false,
+            );
+            socket.add(
+              'HTTP/1.1 200 OK\r\nContent-Length: ${payload.length}\r\n\r\n'
+                  .codeUnits,
+            );
+            socket.add(payload.take(4000).toList());
+            await socket.flush();
+            socket.destroy();
+          } else {
+            request.response.add(payload);
+            await request.response.close();
+          }
+        });
+        final uri = Uri.parse(
+          'http://127.0.0.1:${server.port}/stream?timeOffset=90',
+        );
+        final preview = SeekPreviewRequest(uri);
+        final source = preview.asAudioSource();
+        addTearDown(source.dispose);
+        final first = await source.request();
+        final initial = first.stream.expand((b) => b).toList();
+        if (cut) {
+          await expectLater(initial, throwsA(isA<HttpException>()));
+        } else {
+          expect(await initial, payload);
+        }
+        final second = await source.request();
+        expect(await second.stream.expand((b) => b).toList(), payload);
+        expect(requests.map((r) => r.toString()), [
+          '/stream?timeOffset=90',
+          '/stream?timeOffset=90',
+        ]);
+      },
+    );
+  }
+
   test('cancel closes synchronously while headers are still opening', () async {
     final client = _Client();
     final preview = open(client);
