@@ -77,6 +77,10 @@ void main() {
         final requests = <Uri>[];
         server.listen((request) async {
           requests.add(request.uri);
+          expect(
+            request.headers.value(HttpHeaders.userAgentHeader),
+            'Navis Desktop',
+          );
           request.response.contentLength = payload.length;
           if (cut && requests.length == 1) {
             final socket = await request.response.detachSocket(
@@ -97,7 +101,7 @@ void main() {
         final uri = Uri.parse(
           'http://127.0.0.1:${server.port}/stream?timeOffset=90',
         );
-        final preview = SeekPreviewRequest(uri);
+        final preview = SeekPreviewRequest(uri, userAgent: 'Navis Desktop');
         final source = preview.asAudioSource();
         addTearDown(source.dispose);
         final first = await source.request();

@@ -28,6 +28,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
 import 'package:dio/dio.dart';
@@ -827,7 +828,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       // A looped offset stream restarts at its own start, which is song time
       // equal to its offset.
       final current = _sources[index!];
-      simulatedPosition = current is UriAudioSource
+      simulatedPosition = current is IndexedAudioSource
           ? current.positionOffset
           : Duration.zero;
     } else if (next < _sources.length || appliedLoopMode == LoopMode.all) {
@@ -8586,6 +8587,7 @@ void main() {
     Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
     offsetHandler({
       bool capable = true,
+      bool? desktopRuntimeOverride,
       StreamingQuality quality = opus128,
       int count = 3,
       SubsonicApiClient? Function()? readApiClient,
@@ -8602,6 +8604,7 @@ void main() {
         sidecarStreams: true,
         streamingQuality: quality,
         supportsTranscodeOffset: capable,
+        desktopRuntimeOverride: desktopRuntimeOverride,
         readApiClient: readApiClient,
         scrobbleService: scrobbleService,
         positionStreams: positionStreams,
@@ -8670,20 +8673,34 @@ void main() {
     }
 
     group('seek preview', () {
-      test('seek preview sends the native desktop User-Agent', () async {
-        final (handler, _, _) = await offsetHandler();
-        await start(handler);
-        final client = _SeekPreviewHttpClient()..respond();
-        addTearDown(() {
-          unawaited(client.body.close());
+      for (final platform in [TargetPlatform.linux, TargetPlatform.android]) {
+        test('seek preview sends the native User-Agent ($platform)', () async {
+          debugDefaultTargetPlatformOverride = platform;
+          final (handler, _, _) = await offsetHandler(
+            desktopRuntimeOverride: platform == TargetPlatform.linux,
+          );
+          await start(handler);
+          if (platform == TargetPlatform.android) {
+            handler.queue.value[1].extras!['positionOffsetMs'] = 40000;
+          }
+          final client = _SeekPreviewHttpClient()..respond();
+          addTearDown(() {
+            unawaited(client.body.close());
+          });
+          await HttpOverrides.runZoned(
+            () => handler.previewSeek(const Duration(seconds: 90)),
+            createHttpClient: (_) => client,
+          );
+          expect(
+            client.userAgent,
+            platform == TargetPlatform.linux
+                ? 'Navis Desktop'
+                : AppConstants.userAgent,
+          );
+          handler.cancelSeekPreview();
+          debugDefaultTargetPlatformOverride = TargetPlatform.linux;
         });
-        await HttpOverrides.runZoned(
-          () => handler.previewSeek(const Duration(seconds: 90)),
-          createHttpClient: (_) => client,
-        );
-        expect(client.userAgent, 'Navis Desktop');
-        handler.cancelSeekPreview();
-      });
+      }
 
       test(
         'seek preview adopts the desired occurrence while native index lags',
@@ -8735,15 +8752,25 @@ void main() {
               const Duration(seconds: 90),
             );
             handler.queue.value[1].extras!['positionOffsetMs'] = 0;
+            final seekCalls = player.seekCalls;
             if (action == 'loop') {
               await handler.setRepeatMode(AudioServiceRepeatMode.one);
-              player.finishCurrentTrack();
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 180),
+              );
             } else {
               await handler.skipToNext();
             }
-            await until(
-              () => player.sequence[1].positionOffset == Duration.zero,
-            );
+            if (action == 'loop') {
+              await until(
+                () => lastSeekEvent(handler)['requestedPositionMs'] == 0,
+              );
+              expect(player.seekCalls, greaterThan(seekCalls));
+            } else {
+              await until(
+                () => player.sequence[1].positionOffset == Duration.zero,
+              );
+            }
           },
         );
       }

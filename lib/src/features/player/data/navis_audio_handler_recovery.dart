@@ -432,7 +432,7 @@ extension _NavisRecovery on NavisAudioHandler {
     final source = sequence[index];
     // A deck handover rebuilds the sources but not the queue entries, so the
     // entry's offset can outlive the stream's: reopening clears it too.
-    if ((source is UriAudioSource && source.positionOffset > Duration.zero) ||
+    if ((source.positionOffset > Duration.zero) ||
         _positionOffsetOf(_queueItems.elementAtOrNull(index)) > Duration.zero) {
       unawaited(seek(Duration.zero));
     }

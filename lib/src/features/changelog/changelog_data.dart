@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Keep drag-seek streams reconnectable after native probes and network cuts, '
+        'and preserve preview adoption during queue navigation.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Seeking starts sooner when you pause the thumb while dragging: '
         'eligible transcoded and Fast Seeking streams open before release. '
         'Playback keeps its place until you let go.',

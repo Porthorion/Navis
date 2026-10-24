@@ -14,6 +14,10 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Seek-drag review round 2 — 2026-10-24: tests-first regressions cover native
+  reopens after EOF/socket cuts, request identity, desired occurrence adoption
+  and stream offsets with cleared queue metadata. Full gate and stress evidence
+  pending; see local implementation evidence for commit and runtime provenance.
 - [x] Issue #86, item 12 seek while dragging — 2026-10-24,
   `feat/seek-while-dragging`.
   Failing-test-first commit `6d916998` specifies all four bars, bounded HTTP

@@ -148,7 +148,10 @@ extension _NavisSeekPreview on NavisAudioHandler {
         return;
       }
       preview.source = source;
-      preview.request = SeekPreviewRequest(source.uri!);
+      preview.request = SeekPreviewRequest(
+        source.uri!,
+        userAgent: _playbackUserAgent,
+      );
     } on Object catch (error) {
       if (identical(_seekPreview, preview)) cancelSeekPreview();
       AppLogger.debug('Seek preview unavailable: ${error.runtimeType}');
@@ -186,7 +189,8 @@ extension _NavisSeekPreview on NavisAudioHandler {
         prepared != null &&
         preview.request?.usable == true &&
         preview.key.songId == song.id &&
-        preview.key.queueIndex == _logicalCurrentIndex &&
+        preview.key.queueIndex ==
+            (_navigationIntent.desiredIndex ?? _logicalCurrentIndex) &&
         preview.key.representation ==
             _sourceResolver.seekPreviewRepresentation &&
         prepared.kind == source.kind &&

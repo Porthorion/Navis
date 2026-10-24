@@ -31,6 +31,7 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/auto/data/android_auto_browse_notifier.dart';
 import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
@@ -814,6 +815,9 @@ class NavisAudioHandler extends BaseAudioHandler
     ),
   );
 
+  String get _playbackUserAgent =>
+      _isDesktopRuntime ? 'Navis Desktop' : AppConstants.userAgent;
+
   AudioPlayer _buildBaseAudioPlayer({AudioPipeline? audioPipeline}) {
     // Pass URLs directly to libmpv so lavf's cache:// protocol gets the
     // original HTTPS stream rather than a local proxy, eliminating the
@@ -826,7 +830,7 @@ class NavisAudioHandler extends BaseAudioHandler
       equalizerConfiguration: _equalizerPipelineEnabled
           ? _equalizerMessage(_desiredEqualizer)
           : null,
-      userAgent: _isDesktopRuntime ? 'Navis Desktop' : null,
+      userAgent: _playbackUserAgent,
       useProxyForRequestHeaders: !_isDesktopRuntime,
     );
   }

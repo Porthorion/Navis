@@ -7,12 +7,17 @@ import 'package:just_audio/just_audio.dart';
 
 /// Owns one speculative GET, including the time before response headers arrive.
 class SeekPreviewRequest {
-  new(Uri uri, {HttpClient? client}) : _client = client ?? HttpClient() {
+  new(this._uri, {HttpClient? client, String? userAgent})
+    : _client = client ?? HttpClient(),
+      _userAgent = userAgent {
+    if (userAgent != null) _client.userAgent = userAgent;
     _ready.future.ignore();
-    unawaited(_open(uri));
+    unawaited(_open(_uri));
   }
 
   static const _limit = 512 * 1024;
+  final Uri _uri;
+  final String? _userAgent;
   final HttpClient _client;
   final _ready = Completer<HttpClientResponse>();
   final _buffer = <List<int>>[];
@@ -164,12 +169,32 @@ class SeekPreviewRequest {
 class _SeekPreviewAudioSource extends StreamAudioSource {
   new(this.owner, {super.tag, super.positionOffset});
   final SeekPreviewRequest owner;
+  final _retries = <SeekPreviewRequest>{};
+  bool _requested = false;
+  bool _disposed = false;
 
   @override
-  void dispose() => owner.cancel();
+  void dispose() {
+    _disposed = true;
+    owner.cancel();
+    for (final retry in _retries) {
+      retry.cancel();
+    }
+    _retries.clear();
+  }
 
   @override
   // ignore: experimental_member_use, reason: Implement the existing proxy response contract.
-  Future<StreamAudioResponse> request([int? start, int? end]) =>
-      owner._request();
+  Future<StreamAudioResponse> request([int? start, int? end]) {
+    if (_disposed) throw StateError('Seek preview source disposed');
+    if (!_requested) {
+      _requested = true;
+      return owner._request();
+    }
+    // Native probes and reconnects reopen the same linear offset stream.
+    _retries.removeWhere((request) => request._cancelled);
+    final retry = SeekPreviewRequest(owner._uri, userAgent: owner._userAgent);
+    _retries.add(retry);
+    return retry._request();
+  }
 }
