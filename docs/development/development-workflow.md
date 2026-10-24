@@ -291,7 +291,10 @@ proven not to affect runtime behavior are exempt.
    up, and `heartbeat` statistics captured while the pointer is still held. Omitted `release` defaults to true; false is rejected so a request cannot
    leave a held pointer behind. Scripts allow 1–100 steps, at most 10 seconds
    per move/hold and 120 seconds total; flick duration is 1–120000 ms. The old
-   single-fraction body keeps its three-second rest. All forms remain clone-only.
+   single-fraction body keeps its three-second rest. Scripted/flick modes do not
+   wait for UI animations while holding the pointer or after release, so animation
+   settlement cannot extend a rest or delay native-position polling. All forms
+   remain clone-only.
 6. For a visible Flutter change, call `POST /v1/presentation/screenshot`, open
    the resulting PNG with image-viewing capability, inspect the affected
    region, and record the result. Merely creating a PNG is not confirmation.
