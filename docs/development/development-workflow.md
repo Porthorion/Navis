@@ -288,7 +288,7 @@ proven not to affect runtime behavior are exempt.
    pointer: down at the first fraction, frame-rate moves and timed holds, then
    up. `{"fraction":0.1,"flickMs":5000}` moves continuously with no rests.
    The response includes UTC `releasedAt`, captured immediately before pointer
-   up. Omitted `release` defaults to true; false is rejected so a request cannot
+   up, and `heartbeat` statistics captured while the pointer is still held. Omitted `release` defaults to true; false is rejected so a request cannot
    leave a held pointer behind. Scripts allow 1–100 steps, at most 10 seconds
    per move/hold and 120 seconds total; flick duration is 1–120000 ms. The old
    single-fraction body keeps its three-second rest. All forms remain clone-only.
