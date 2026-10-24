@@ -14,6 +14,14 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Seek-drag review round 3 — 2026-10-24: tests-first regressions reproduce
+  synchronous disposed-source errors, retained finished retries, overlapping
+  pointer scripts, and generic validation responses. The existing owner now
+  releases finished retries; diagnostics return explicit 400/409 responses.
+  Both focused suites pass (84 tests). Foreground 8 GiB-capped `./tool/check.sh`
+  passes: `09:30 +9430 ~1: All tests passed!`, `[check] All checks passed.`,
+  exit 0, peak 6138 MiB, no swap/OOM kills. Matched Linux 50-drag memory soak
+  pending; retained evidence lives in the item (12) run directory.
 - [x] Seek-drag review round 2 — 2026-10-24: tests-first regressions cover native
   reopens after EOF/socket cuts, request identity, desired occurrence adoption
   and stream offsets with cleared queue metadata. Six regressions fail before

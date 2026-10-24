@@ -5316,8 +5316,10 @@ buffered prefix and the same remaining body through just_audio's existing proxy,
 with the original metadata and song-time offset. `IndexedAudioSource` carries
 that offset for URI and stream sources alike. Proxy cancellation/source disposal
 closes that request's adopted response too. A native probe or retry opens a fresh
-GET of the same offset URI; source disposal closes every active request. Desktop
-preview and native playback share the existing desktop User-Agent; mobile uses
+GET of the same offset URI; finished retries leave the ownership set immediately,
+and source disposal closes every active request. Requests after disposal return
+a failed Future. Desktop preview and native playback share the existing desktop
+User-Agent; mobile uses
 `AppConstants.userAgent` explicitly for both instead of platform defaults.
 Preview admission and adoption use the same desired queue occurrence. Mid-body
 errors and EOF retain the normal

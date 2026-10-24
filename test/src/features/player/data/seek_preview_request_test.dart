@@ -67,6 +67,17 @@ void main() {
     client: client,
   );
 
+  test('disposed adopted source returns a failed Future', () async {
+    final client = _Client();
+    final source = open(client).asAudioSource();
+    source.dispose();
+    final result = source.request();
+    await expectLater(result, throwsStateError);
+    client.headersReady.complete(_Response(client.body.stream));
+    await flush();
+    unawaited(client.body.close());
+  });
+
   for (final cut in [false, true]) {
     test(
       'adopted source reopens offset body after ${cut ? "socket cut" : "EOF"}',
@@ -113,6 +124,8 @@ void main() {
         }
         final second = await source.request();
         expect(await second.stream.expand((b) => b).toList(), payload);
+        await flush();
+        expect(SeekPreviewRequest.retryCount(source), 0);
         expect(requests.map((r) => r.toString()), [
           '/stream?timeOffset=90',
           '/stream?timeOffset=90',

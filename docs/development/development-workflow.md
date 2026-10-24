@@ -294,7 +294,8 @@ proven not to affect runtime behavior are exempt.
    single-fraction body keeps its three-second rest. Scripted/flick modes do not
    wait for UI animations while holding the pointer or after release, so animation
    settlement cannot extend a rest or delay native-position polling. All forms
-   remain clone-only.
+   remain clone-only. Overlapping gestures return HTTP 409 while the first
+   request runs; invalid scripts return HTTP 400 with an explicit error.
 6. For a visible Flutter change, call `POST /v1/presentation/screenshot`, open
    the resulting PNG with image-viewing capability, inspect the affected
    region, and record the result. Merely creating a PNG is not confirmation.

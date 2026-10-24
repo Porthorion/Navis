@@ -15,11 +15,17 @@ class SeekPreviewRequest {
     unawaited(_open(_uri));
   }
 
+  @visibleForTesting
+  // ignore: experimental_member_use, reason: Inspect the adopted source's retry ownership in regression tests.
+  static int retryCount(StreamAudioSource source) =>
+      (source as _SeekPreviewAudioSource)._retries.length;
+
   static const _limit = 512 * 1024;
   final Uri _uri;
   final String? _userAgent;
   final HttpClient _client;
   final _ready = Completer<HttpClientResponse>();
+  final _finished = Completer<void>();
   final _buffer = <List<int>>[];
   StreamSubscription<List<int>>? _subscription;
   StreamController<List<int>>? _output;
@@ -76,8 +82,7 @@ class SeekPreviewRequest {
               final failure = _withoutCredentials(error);
               _error = failure;
               _stack = stack;
-              _done = true;
-              _client.close(force: true);
+              _finish();
               final output = _output;
               if (output != null) {
                 output.addError(failure, stack);
@@ -85,8 +90,7 @@ class SeekPreviewRequest {
               }
             },
             onDone: () {
-              _done = true;
-              _client.close(force: true);
+              _finish();
               if (_output case final output?) unawaited(output.close());
             },
             cancelOnError: true,
@@ -96,10 +100,15 @@ class SeekPreviewRequest {
       final failure = _withoutCredentials(error);
       _error = failure;
       _stack = stack;
-      _done = true;
-      _client.close(force: true);
+      _finish();
       if (!_ready.isCompleted) _ready.completeError(failure, stack);
     }
+  }
+
+  void _finish() {
+    _done = true;
+    _client.close(force: true);
+    if (!_finished.isCompleted) _finished.complete();
   }
 
   // HttpException.uri can contain salted Subsonic authentication parameters.
@@ -110,7 +119,7 @@ class SeekPreviewRequest {
   void cancel() {
     if (_cancelled) return;
     _cancelled = true;
-    _client.close(force: true);
+    _finish();
     unawaited(_subscription?.cancel());
     _subscription = null;
     _buffer.clear();
@@ -186,15 +195,17 @@ class _SeekPreviewAudioSource extends StreamAudioSource {
   @override
   // ignore: experimental_member_use, reason: Implement the existing proxy response contract.
   Future<StreamAudioResponse> request([int? start, int? end]) {
-    if (_disposed) throw StateError('Seek preview source disposed');
+    if (_disposed) {
+      return Future.error(StateError('Seek preview source disposed'));
+    }
     if (!_requested) {
       _requested = true;
       return owner._request();
     }
     // Native probes and reconnects reopen the same linear offset stream.
-    _retries.removeWhere((request) => request._cancelled);
     final retry = SeekPreviewRequest(owner._uri, userAgent: owner._userAgent);
     _retries.add(retry);
+    unawaited(retry._finished.future.then((_) => _retries.remove(retry)));
     return retry._request();
   }
 }

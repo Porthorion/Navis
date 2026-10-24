@@ -211,6 +211,47 @@ void main() {
     },
   );
 
+  test('seek drag rejects overlap and releases guard after failure', () async {
+    final presentation = _MockPresentationController();
+    var entered = Completer<void>();
+    var release = Completer<DateTime>();
+    when(
+      () => presentation.dragSeek(
+        any(),
+        steps: any(named: 'steps'),
+        flickMs: any(named: 'flickMs'),
+        beforeRelease: any(named: 'beforeRelease'),
+      ),
+    ).thenAnswer((_) {
+      entered.complete();
+      return release.future;
+    });
+    final clone = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      presentationController: presentation,
+    );
+    addTearDown(clone.close);
+    for (final fail in [false, true, false]) {
+      entered = Completer<void>();
+      release = Completer<DateTime>();
+      final first = clone.post('/v1/presentation/seek-drag', {'fraction': .5});
+      await entered.future;
+      final overlap = await clone.post('/v1/presentation/seek-drag', {
+        'fraction': .5,
+      });
+      expect(overlap.statusCode, HttpStatus.conflict);
+      if (fail) {
+        release.completeError(const DiagnosticsPresentationUnavailable());
+      } else {
+        release.complete(DateTime.utc(2026));
+      }
+      expect(
+        (await first).statusCode,
+        fail ? HttpStatus.serviceUnavailable : HttpStatus.ok,
+      );
+    }
+  });
+
   test(
     'seek drag scripts retain clone auth and validate bounded input',
     () async {
@@ -257,11 +298,9 @@ void main() {
           'flickMs': 1000,
         },
       ]) {
-        expect(
-          (await clone.post('/v1/presentation/seek-drag', body)).statusCode,
-          HttpStatus.badRequest,
-          reason: '$body',
-        );
+        final invalid = await clone.post('/v1/presentation/seek-drag', body);
+        expect(invalid.statusCode, HttpStatus.badRequest, reason: '$body');
+        expect(invalid.body, containsPair('error', 'invalid seek drag script'));
       }
       for (final body in <Map<String, Object?>>[
         {'fraction': .5},
