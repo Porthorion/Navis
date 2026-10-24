@@ -3268,6 +3268,64 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'POST' && path == '/v1/presentation/seek-drag') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final body = await _readJson(request);
+        final fraction = body['fraction'];
+        if (fraction is! num ||
+            !fraction.isFinite ||
+            fraction < 0 ||
+            fraction > 1) {
+          await _respond(request, HttpStatus.badRequest, {
+            'error': 'fraction must be from 0 through 1',
+          });
+          return;
+        }
+        final presentation = presentationController;
+        if (presentation == null) {
+          await _presentationUnavailable(request);
+          return;
+        }
+        try {
+          await presentation.dragSeek(fraction.toDouble());
+          await _respond(request, HttpStatus.ok, {'status': 'released'});
+        } on DiagnosticsPresentationUnavailable {
+          await _presentationUnavailable(request);
+        }
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/playback/previewSeek') {
+        final handler = await _waitForPlaybackHandler();
+        final body = await _readJson(request);
+        final positionMs = body['positionMs'];
+        if (positionMs is! num || !positionMs.isFinite) {
+          await _respond(request, HttpStatus.badRequest, <String, Object?>{
+            'error': 'positionMs is required',
+          });
+          return;
+        }
+        await handler.previewSeek(Duration(milliseconds: positionMs.round()));
+        await _respond(
+          request,
+          HttpStatus.ok,
+          handler.collectPlaybackDiagnostics(),
+        );
+        return;
+      }
+      if (request.method == 'POST' &&
+          path == '/v1/playback/cancelSeekPreview') {
+        final handler = await _waitForPlaybackHandler();
+        handler.cancelSeekPreview();
+        await _respond(
+          request,
+          HttpStatus.ok,
+          handler.collectPlaybackDiagnostics(),
+        );
+        return;
+      }
       if (request.method == 'POST' && path == '/v1/playback/seek') {
         final handler = await _waitForPlaybackHandler();
         await handler.waitUntilReady();

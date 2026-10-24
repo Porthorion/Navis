@@ -239,12 +239,20 @@ class _DesktopMiniPlayerTightPlayback extends ConsumerStatefulWidget {
 class _DesktopMiniPlayerTightPlaybackState
     extends ConsumerState<_DesktopMiniPlayerTightPlayback> {
   double? _dragSeekValue;
+  late final _seekDrag = SeekDragPreview(() => ref.read(audioHandlerProvider));
+
+  @override
+  void dispose() {
+    _seekDrag.cancel();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(_DesktopMiniPlayerTightPlayback oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.playback.currentSongId != oldWidget.playback.currentSongId ||
         widget.playback.currentIndex != oldWidget.playback.currentIndex) {
+      _seekDrag.cancel();
       _dragSeekValue = null;
     }
   }
@@ -486,11 +494,14 @@ class _DesktopMiniPlayerTightPlaybackState
                                   : 0.0,
                               max: canSeek ? durationMs.toDouble() : 1,
                               onChanged: canSeek
-                                  ? (value) =>
-                                        setState(() => _dragSeekValue = value)
+                                  ? (value) {
+                                      _seekDrag.changed(value);
+                                      setState(() => _dragSeekValue = value);
+                                    }
                                   : null,
                               onChangeEnd: canSeek
                                   ? (value) {
+                                      _seekDrag.finish();
                                       setState(() => _dragSeekValue = null);
                                       unawaited(
                                         ref

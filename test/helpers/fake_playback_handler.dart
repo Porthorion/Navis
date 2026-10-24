@@ -112,6 +112,12 @@ class InertPlaybackHandler implements NavisPlaybackHandler {
   @override
   Future<void> stop() async {}
   @override
+  Future<void> previewSeek(Duration position) async {}
+
+  @override
+  void cancelSeekPreview() {}
+
+  @override
   Future<void> seek(Duration position) async {}
   @override
   Future<void> skipToNext() async {}

@@ -14,6 +14,35 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #86, item 12 seek while dragging — 2026-10-24,
+  `feat/seek-while-dragging`.
+  Failing-test-first commit `6d916998` specifies all four bars, bounded HTTP
+  ownership and adoption. The shared plan reuses offset/bridge predicates and
+  rounding; one HTTP owner follows lock-cache cancellation, and adopted streams
+  reuse just_audio's proxy and song-time translation. A 250 ms rest pre-opens
+  without changing transport state; release adopts within the approved 0–2 s
+  tolerance. Supersession closes before another owner opens; buffering pauses
+  at 512 KiB and unused requests expire after 10 s. Cache/representation changes
+  preserve the ordinary release target and fresh metadata.
+  Final focused tests: `00:04 +33: All tests passed!`, including 50 replacements
+  while headers are pending, zero subscriptions, proxy disconnect/disposal,
+  exact buffer cap, byte/error propagation and all four seek bars. Foreground
+  capped `./tool/check.sh` passes: `09:24 +9417 ~1: All tests passed!`,
+  `[check] All checks passed.`, exit 0, peak 5507 MiB, zero OOM kills; generated
+  source is unchanged and analysis has no new findings.
+  Pinned-base versus fix fixture medians (release to native target+1 s): Linux
+  offset 3.305 → 2.254 s, desktop bridge 3.476 → 2.416 s, Android offset
+  3.856 → 2.775 s (Android baseline/fix guest RAM: 2048/1536 MiB).
+  Every adopted trial uses one GET; fifty abandoned requests
+  close on each platform. Real-pointer app-owned screenshots show the held
+  thumb at 1:30 while native playback remains near the start. Adopted EOF
+  recovery, Repeat One/All, Linux crossfade and native/local controls, and clean
+  restarts pass. The owned Android emulator and temporary AVD are deleted.
+  Evidence: coordinator item-12 `implementation-evidence.md`, runtime JSON/PNG
+  artifacts and logs. Real-server proof is excluded by the binding fixture-only
+  preamble; no listening, physical-device, Windows or Apple runtime proof.
+  AI implementation/verification: Codex gpt-6.1-sol; local commits only, no push,
+  PR or Fable model use. Independent review remains with the coordinator.
 - [x] Android progressive Repeat All near-end replay — r3, 2026-10-24.
   Test-first fixtures `a2496cbb` and fix `860384a8` repair both r2 failures.
   Logging-only native proof reproduces an append timeline at count 6 before

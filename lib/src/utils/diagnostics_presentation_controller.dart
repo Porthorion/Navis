@@ -958,6 +958,97 @@ class DiagnosticsPresentationController {
     await waitForFrame();
   }
 
+  /// Drags a visible seek slider, resting long enough for an app screenshot.
+  Future<void> dragSeek(double fraction) async {
+    final root = _boundaryKey.currentContext;
+    if (root is! Element) throw const DiagnosticsPresentationUnavailable();
+    final binding = GestureBinding.instance;
+    final viewId = View.of(root).viewId;
+    Element? target;
+    void collect(Element candidate) {
+      final widget = candidate.widget;
+      if ((widget is Offstage && widget.offstage) ||
+          (widget is TickerMode && !widget.enabled)) {
+        return;
+      }
+      if (widget is Slider &&
+          widget.onChanged != null &&
+          widget.max > widget.min &&
+          const [
+            ValueKey('nowPlayingSeekSlider'),
+            ValueKey('desktopPlayerSeekSlider'),
+            ValueKey('desktopMiniPlayerSeekSlider'),
+          ].contains(widget.key)) {
+        final box = candidate.findRenderObject();
+        if (box is RenderBox && box.attached && box.hasSize) {
+          final hit = HitTestResult();
+          binding.hitTestInView(
+            hit,
+            box.localToGlobal(box.size.center(Offset.zero)),
+            viewId,
+          );
+          if (hit.path.any((entry) => entry.target == box)) target = candidate;
+        }
+      }
+      candidate.visitChildElements(collect);
+    }
+
+    collect(root);
+    final element = target;
+    final box = element?.findRenderObject();
+    if (element == null || box is! RenderBox) {
+      throw const DiagnosticsPresentationUnavailable();
+    }
+    final slider = element.widget as Slider;
+    final inherited = SliderTheme.of(element);
+    final theme = inherited.copyWith(
+      trackHeight: inherited.trackHeight ?? 4,
+      thumbShape: inherited.thumbShape ?? const RoundSliderThumbShape(),
+      overlayShape: inherited.overlayShape ?? const RoundSliderOverlayShape(),
+    );
+    final track = (theme.trackShape ?? const RoundedRectSliderTrackShape())
+        .getPreferredRect(
+          parentBox: box,
+          sliderTheme: theme,
+          isEnabled: true,
+          isDiscrete: false,
+        );
+    Offset point(double value) => box.localToGlobal(
+      Offset(
+        Directionality.of(element) == TextDirection.ltr
+            ? track.left + track.width * value
+            : track.right - track.width * value,
+        track.center.dy,
+      ),
+    );
+    final start = point(
+      (slider.value - slider.min) / (slider.max - slider.min),
+    );
+    final end = point(fraction);
+    const pointer = 9283;
+    binding.handlePointerEvent(
+      PointerDownEvent(pointer: pointer, position: start, viewId: viewId),
+    );
+    try {
+      await waitForFrame();
+      binding.handlePointerEvent(
+        PointerMoveEvent(
+          pointer: pointer,
+          position: end,
+          delta: end - start,
+          buttons: kPrimaryButton,
+          viewId: viewId,
+        ),
+      );
+      await Future<void>.delayed(const Duration(seconds: 3));
+    } finally {
+      binding.handlePointerEvent(
+        PointerUpEvent(pointer: pointer, position: end, viewId: viewId),
+      );
+    }
+    await waitForFrame();
+  }
+
   /// Taps the visible shell destination at [index] with a real pointer, on
   /// whichever navigation the current layout shows (bottom bar, rail or
   /// compact rail).

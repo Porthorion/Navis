@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -198,4 +201,37 @@ Duration watchDisplayedPlaybackPosition(
     playerStateProvider.select((snapshot) => snapshot.pendingSeekPosition),
   );
   return pendingSeek ?? streamed ?? playback.position;
+}
+
+/// Debounces drag rests without publishing preview state to the widget tree.
+class SeekDragPreview {
+  new(this._readHandler);
+  final NavisPlaybackHandler? Function() _readHandler;
+  Timer? _timer;
+  NavisPlaybackHandler? _handler;
+
+  void changed(double milliseconds) {
+    _timer?.cancel();
+    _timer = Timer(const Duration(milliseconds: 250), () {
+      final handler = _readHandler();
+      _handler = handler;
+      unawaited(
+        handler?.previewSeek(Duration(milliseconds: milliseconds.round())),
+      );
+    });
+  }
+
+  /// Leaves the pre-open with the handler for the committed seek to adopt.
+  void finish() {
+    _timer?.cancel();
+    _timer = null;
+    _handler = null;
+  }
+
+  void cancel() {
+    _timer?.cancel();
+    _timer = null;
+    _handler?.cancelSeekPreview();
+    _handler = null;
+  }
 }

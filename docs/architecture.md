@@ -5267,8 +5267,9 @@ fails, the cache-wait and completed-file path above applies as before. The seek
 trace records `path: transcodeOffset` and diagnostics expose `positionOffsetMs`.
 
 The offset stream reports time from zero. There is one translation layer, in
-the vendored just_audio `AudioPlayer`: `UriAudioSource.positionOffset` (also
-`AudioSource.uri(positionOffset:)`, carried by `ResolvedPlaybackSource.positionOffset`
+the vendored just_audio `AudioPlayer`: `IndexedAudioSource.positionOffset`
+(including URI and adopted stream sources; also `AudioSource.uri(positionOffset:)`,
+carried by `ResolvedPlaybackSource.positionOffset`
 and both `asAudioSource` variants) is added to `updatePosition`,
 `bufferedPosition` and a non-null `duration` where a platform event becomes a
 `PlaybackEvent`, and subtracted from `seek` positions and the load's initial
@@ -5287,6 +5288,37 @@ finished single-song queue) and a native loop (repeat one, or repeat all over on
 song) that restarts the stream at its offset reload the song from zero without one.
 A seek lands up to one second before the target because `timeOffset` is whole
 seconds and the stream is linear.
+
+**Seek while dragging.** The four position sliders share `SeekDragPreview`.
+Movement restarts a 250 ms timer; a rest calls `previewSeek` without awaiting it
+or publishing preview state. Release still commits exactly one ordinary seek.
+Disposal and song/queue-occurrence changes clear both the timer and the preview.
+Keyboard, accessibility, lyrics and OS seek commands retain their existing path.
+
+`_seekPlan` and `_seekOffset` share the offset eligibility, Fast Seeking guard,
+slow-link decision and whole-second clamping between preview and commit. Only
+an immediate offset or bridge plan pre-opens; native, cached, offline and
+complete-local plans open nothing. `PlaybackSourceResolver.resolveForSong`
+continues to enforce streaming permission (cellular included) and source priority.
+One `SeekPreviewRequest` owns one GET, including pending response headers. A new
+key force-closes the old client, cancels its subscription and releases its buffer
+before resolving/opening its successor; previews take no transport or queue lane.
+The body buffers at most 512 KiB, then pauses with backpressure. Unused previews
+expire after 10 seconds and other transport intents cancel them immediately.
+
+The key contains song ID, logical queue occurrence, session/representation
+(format, bitrate and bridge) and offset second. Release can adopt a matching
+preview when its target lies from zero through two seconds after that offset.
+Resolution rechecks local availability and representation before adoption;
+otherwise the normal seek path runs. Authentication salts vary per URI, so they
+are not representation identity. The adopted `StreamAudioSource` serves the
+buffered prefix and the same remaining body through just_audio's existing proxy,
+with the original metadata and song-time offset. `IndexedAudioSource` carries
+that offset for URI and stream sources alike. Proxy cancellation/source disposal
+closes the adopted response too. Mid-body errors and EOF retain the normal
+proxy/source failure path, including premature-transcode-end recovery.
+Authenticated clone diagnostics expose `previewSeek` and `cancelSeekPreview`;
+seek events record `previewAdopted` without publishing speculative position.
 
 Fast-seek bridges reuse this offset transport and queue repair. Their
 `bridgeFormat`/`bridgeBitRate` extras describe the heard Opus stream, while

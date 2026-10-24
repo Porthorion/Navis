@@ -273,6 +273,16 @@ proven not to affect runtime behavior are exempt.
    concurrently. Confirm desired and final indexes, pending state, timeout
    count, at most one pending queue mutation, and an advancing position after
    the last input.
+   For drag-seek pre-open diagnostics, `POST /v1/playback/previewSeek`
+   accepts `{"positionMs": 90000}` without changing transport state;
+   `POST /v1/playback/cancelSeekPreview {}` abandons it. A later ordinary
+   `/v1/playback/seek` reports `previewAdopted` in its seek event. Compare native
+   advancement and fixture GET/socket logs; a preview response alone does not
+   prove adoption or improved playback latency. To exercise the visible desktop
+   seek slider (or open Now Playing with `/v1/presentation/player-overlay`), call
+   `POST /v1/presentation/seek-drag {"fraction": 0.5}`. This sends real Flutter
+   pointer events, holds for three seconds and releases; capture an app-owned
+   screenshot concurrently to inspect the held thumb.
 6. For a visible Flutter change, call `POST /v1/presentation/screenshot`, open
    the resulting PNG with image-viewing capability, inspect the affected
    region, and record the result. Merely creating a PNG is not confirmation.

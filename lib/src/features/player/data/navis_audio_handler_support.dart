@@ -188,6 +188,8 @@ class _PendingSeek {
 
   /// Set when the seek was served by reopening the transcode at an offset.
   String? path;
+  Duration? previewOffset;
+  SeekPreviewRequest? previewRequest;
 
   /// Why each settlement probe that did not confirm the seek gave up, for
   /// diagnostics: the rule that ended it and the state it saw.

@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:navis/src/features/player/data/seek_preview_request.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart'
     as platform;
 import 'package:path/path.dart' as p;
@@ -49,6 +50,7 @@ class _ProxyPlayer extends platform.AudioPlayerPlatform {
 
   final events = StreamController<platform.PlaybackEventMessage>.broadcast();
   late Uri proxyUri;
+  Duration? loadedPosition;
 
   @override
   Stream<platform.PlaybackEventMessage> get playbackEventMessageStream =>
@@ -56,6 +58,7 @@ class _ProxyPlayer extends platform.AudioPlayerPlatform {
 
   @override
   Future<platform.LoadResponse> load(platform.LoadRequest request) async {
+    loadedPosition = request.initialPosition;
     final playlist =
         request.audioSourceMessage as platform.ConcatenatingAudioSourceMessage;
     proxyUri = Uri.parse(
@@ -241,6 +244,74 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 5));
     }
     expect(condition(), isTrue);
+  }
+
+  for (final end in ['disconnect', 'dispose', 'clear', 'replace']) {
+    test(
+      'adopted preview $end closes origin before response headers',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final accepted = Completer<Socket>();
+        final serverSubscription = server.listen((request) async {
+          accepted.complete(
+            await request.response.detachSocket(writeHeaders: false),
+          );
+        });
+        addTearDown(() async {
+          await server.close(force: true);
+          await serverSubscription.cancel();
+        });
+        final preview = SeekPreviewRequest(
+          Uri.parse('http://127.0.0.1:${server.port}/offset'),
+        );
+        addTearDown(preview.cancel);
+        final socket = await accepted.future;
+        final closed = Completer<void>();
+        final peer = socket.listen(
+          (_) {},
+          onDone: closed.complete,
+          onError: (Object _) {
+            if (!closed.isCompleted) closed.complete();
+          },
+        );
+        addTearDown(() async {
+          socket.destroy();
+          await peer.cancel();
+        });
+        final player = AudioPlayer(
+          handleAudioSessionActivation: false,
+          handleInterruptions: false,
+          androidApplyAudioAttributes: false,
+        );
+        addTearDown(player.dispose);
+        await player.setAudioSource(
+          preview.asAudioSource(positionOffset: const Duration(seconds: 90)),
+          initialPosition: const Duration(seconds: 90),
+        );
+        expect(
+          player.playbackEvent.updatePosition,
+          const Duration(seconds: 90),
+        );
+        expect(native.player.loadedPosition, Duration.zero);
+        if (end == 'disconnect') {
+          final client = HttpClient();
+          final request = await client.getUrl(native.player.proxyUri);
+          request.close().ignore();
+          await pumpEventQueue(times: 30);
+          client.close(force: true);
+        } else if (end == 'dispose') {
+          await player.dispose();
+        } else if (end == 'clear') {
+          await player.clearAudioSources();
+        } else {
+          await player.setAudioSource(
+            AudioSource.uri(Uri.parse('https://fixture.invalid/replaced')),
+          );
+        }
+        await closed.future.timeout(const Duration(seconds: 2));
+        expect(preview.usable, isFalse);
+      },
+    );
   }
 
   for (final framing in [

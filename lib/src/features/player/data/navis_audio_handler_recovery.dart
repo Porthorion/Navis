@@ -66,6 +66,7 @@ extension _NavisRecovery on NavisAudioHandler {
   void _cancelPendingSeek() {
     final request = _pendingSeek;
     if (request != null) {
+      request.previewRequest?.cancel();
       request.outcome = 'superseded';
       request.stage = 'done';
       _pendingSeek = null;
@@ -189,15 +190,12 @@ extension _NavisRecovery on NavisAudioHandler {
       _checkSeekCurrent(seekRequest, token);
       seekRequest.path = null;
     }
-    if (_shouldFastSeek(position, seekRequest)) {
+    final plan = _seekPlan(position, seekRequest.songId);
+    if (plan == _SeekPlan.bridge ||
+        plan == _SeekPlan.bridgeAfterGuard ||
+        plan == _SeekPlan.cachedBridge) {
       try {
-        final item = _currentMediaItem!;
-        final bridging = item.extras?['bridgeFormat'] != null;
-        final cached = _cachedPlayablePosition(
-          item.id,
-          _effectivePlaybackDuration(item),
-        );
-        if (bridging && cached != null && position <= cached) {
+        if (plan == _SeekPlan.cachedBridge) {
           final rebuilt = await _rebuildQueueForSeekRecovery(
             position,
             autoPlay: _requestedPlaying,
@@ -209,7 +207,7 @@ extension _NavisRecovery on NavisAudioHandler {
             return;
           }
         } else {
-          if (!bridging && !_fastSeekLinkIsSlow(item)) {
+          if (plan == _SeekPlan.bridgeAfterGuard) {
             nativeSeekTried = true;
             try {
               await _runNativeSeek(
@@ -353,7 +351,7 @@ extension _NavisRecovery on NavisAudioHandler {
     throw StateError('Seek failed after source recovery.');
   }
 
-  bool _shouldFastSeek(Duration target, _PendingSeek request) {
+  bool _shouldFastSeek(Duration target, String songId) {
     final item = _currentMediaItem;
     if (kIsWeb ||
         (defaultTargetPlatform != TargetPlatform.linux &&
@@ -361,7 +359,7 @@ extension _NavisRecovery on NavisAudioHandler {
         !_readRuntimeSettings().fastSeekingEnabled ||
         !_sourceResolver.supportsFastSeeking ||
         item == null ||
-        item.id != request.songId ||
+        item.id != songId ||
         _radioStation != null ||
         isExternalCatalogSource(id: item.id) ||
         (_sidecarSongsById[item.id] ?? _remoteRows[item.id])?.isExternal ==
@@ -581,28 +579,13 @@ extension _NavisRecovery on NavisAudioHandler {
     _PendingSeek request,
     OperationToken token,
   ) async {
-    final item = _currentMediaItem;
-    if (item == null ||
-        item.id != request.songId ||
-        _radioStation != null ||
-        isExternalCatalogSource(id: item.id)) {
-      return false;
+    final plan = _seekPlan(target, request.songId);
+    if (plan == _SeekPlan.offsetPendingRanges) {
+      final ranges = await _lockCacheServesRanges(request, token);
+      return _seekPlan(target, request.songId, originSupportsRanges: ranges) ==
+          _SeekPlan.offset;
     }
-    final extras = item.extras ?? const <String, Object?>{};
-    final kind = extras['sourceKind'];
-    if ((kind != PlaybackSourceKind.lockCachedStream.name &&
-            kind != PlaybackSourceKind.directStream.name) ||
-        extras['transcodingApplied'] != true ||
-        !_sourceResolver.supportsTranscodeOffset ||
-        _completedCacheFileFor(item) != null) {
-      return false;
-    }
-    // Every seek on an offset stream reopens it: it is linear too.
-    if (_positionOffsetOf(item) > Duration.zero) return true;
-    if (target < const Duration(seconds: 1)) return false;
-    return kind == PlaybackSourceKind.lockCachedStream.name
-        ? !await _lockCacheServesRanges(request, token)
-        : _isDesktopRuntime;
+    return plan == _SeekPlan.offset;
   }
 
   /// Reloads the current song with its transcode opened at [position]
@@ -618,32 +601,60 @@ extension _NavisRecovery on NavisAudioHandler {
     bool fastSeekBridge = false,
     MediaItem? departedItem,
   }) async {
-    final duration = _effectivePlaybackDuration(
-      departedItem ?? _currentMediaItem,
-    );
-    var seconds = position.inSeconds;
-    if (duration > const Duration(seconds: 1)) {
-      seconds = math.min(
-        seconds,
-        (duration - const Duration(seconds: 1)).inSeconds,
-      );
-    }
-    final offset = seconds < 1 ? null : Duration(seconds: seconds);
+    var offset = _seekOffset(position, departedItem ?? _currentMediaItem);
+    _PreparedQueueItem? preparedStart;
+    var landed = false;
     seekRequest
       ..path = fastSeekBridge ? 'fastSeekBridge' : 'transcodeOffset'
       ..stage = 'recovering';
-    final rebuilt = await _rebuildQueueForSeekRecovery(
-      offset ?? Duration.zero,
-      autoPlay: _requestedPlaying,
-      token: token,
-      transportGeneration: transportGeneration,
-      seekRequest: seekRequest,
-      transcodeOffset: offset,
-      fastSeekBridge: fastSeekBridge,
-      departedItem: departedItem,
-    );
-    _checkSeekCurrent(seekRequest, token);
-    return rebuilt && await _waitForSeekSettlement(seekRequest, token);
+    try {
+      if (departedItem == null &&
+          _previewMatchesRelease(position, bridge: fastSeekBridge)) {
+        final preview = _seekPreview!;
+        final rows = await _libraryDao.getSongsByIds([seekRequest.songId]);
+        _checkSeekCurrent(seekRequest, token);
+        final song =
+            rows.firstOrNull ??
+            _remoteRows[seekRequest.songId] ??
+            _sidecarSongsById[seekRequest.songId];
+        if (song != null) {
+          final prepared = await _prepareSingleItem(
+            song,
+            preferLockCaching: false,
+            transcodeOffset: preview.key.offset,
+            fastSeekBridge: fastSeekBridge,
+            seekPreviewRequest: seekRequest,
+          );
+          _checkSeekCurrent(seekRequest, token);
+          if (seekRequest.previewRequest != null) {
+            preparedStart = prepared;
+            offset = prepared.source.positionOffset;
+          }
+        }
+      } else {
+        cancelSeekPreview();
+      }
+      final rebuilt = await _rebuildQueueForSeekRecovery(
+        offset ?? Duration.zero,
+        autoPlay: _requestedPlaying,
+        token: token,
+        transportGeneration: transportGeneration,
+        seekRequest: seekRequest,
+        preparedStart: preparedStart,
+        transcodeOffset: offset,
+        fastSeekBridge: fastSeekBridge,
+        departedItem: departedItem,
+      );
+      _checkSeekCurrent(seekRequest, token);
+      return landed =
+          rebuilt && await _waitForSeekSettlement(seekRequest, token);
+    } finally {
+      if (!landed) {
+        seekRequest.previewRequest?.cancel();
+        seekRequest.previewRequest = null;
+        seekRequest.previewOffset = null;
+      }
+    }
   }
 
   Future<void> _runNativeSeek(
@@ -722,7 +733,8 @@ extension _NavisRecovery on NavisAudioHandler {
           processing == ProcessingState.loading ||
           processing == ProcessingState.buffering;
       final near =
-          (position - request.position).abs() < const Duration(seconds: 2);
+          (position - (request.previewOffset ?? request.position)).abs() <
+          const Duration(seconds: 2);
       final atEnd =
           processing == ProcessingState.completed &&
           _player.duration != null &&

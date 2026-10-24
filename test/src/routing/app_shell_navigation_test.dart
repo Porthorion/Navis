@@ -438,60 +438,85 @@ void main() {
   );
 
   for (final bar in ['desktop', 'compact', 'rail', 'nowPlaying']) {
-    testWidgets('$bar seek drag rests, moves, releases and cancels occurrences', (tester) async {
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = bar == 'compact'
-          ? const Size(560, 360) : const Size(800, 900);
-      addTearDown(tester.view.reset);
-      final handler = _RecordingLikePlaybackHandler();
-      final window = DesktopWindowController.fallback(desktopRuntime: true);
-      if (bar == 'compact') await window.setMiniPlayerMode(true);
-      final container = _createContainerWithDatabase(overrides: [
-        ..._authenticatedShellOverrides(desktopRuntime: bar == 'desktop' || bar == 'compact'),
-        audioHandlerProvider.overrideWithValue(handler),
-        playerStateProvider.overrideWith((ref) => ref.watch(_mutablePlaybackProvider)),
-        desktopWindowControllerProvider.overrideWith((ref) => window),
-      ]);
-      await tester.pumpWidget(UncontrolledProviderScope(container: container, child: testNavisApp));
-      await tester.pumpAndSettle();
-      if (bar == 'nowPlaying') {
-        container.read(playerOverlayStackProvider.notifier).expand();
+    testWidgets(
+      '$bar seek drag rests, moves, releases and cancels occurrences',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = bar == 'compact'
+            ? const Size(560, 360)
+            : bar == 'rail'
+            ? const Size(1440, 900)
+            : const Size(800, 900);
+        addTearDown(tester.view.reset);
+        final handler = _RecordingLikePlaybackHandler();
+        final window = DesktopWindowController.fallback(desktopRuntime: true);
+        if (bar == 'compact') await window.setMiniPlayerMode(true);
+        final container = _createContainerWithDatabase(
+          overrides: [
+            ..._authenticatedShellOverrides(
+              desktopRuntime: bar == 'desktop' || bar == 'compact',
+            ),
+            audioHandlerProvider.overrideWithValue(handler),
+            playerStateProvider.overrideWith(
+              (ref) => ref.watch(_mutablePlaybackProvider),
+            ),
+            desktopWindowControllerProvider.overrideWith((ref) => window),
+          ],
+        );
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: container, child: testNavisApp),
+        );
         await tester.pumpAndSettle();
-      }
-      final slider = switch (bar) {
-        'desktop' => find.byKey(const ValueKey('desktopPlayerSeekSlider')),
-        'compact' => find.byKey(const ValueKey('desktopMiniPlayerSeekSlider')),
-        'rail' => find.descendant(of: find.byKey(const ValueKey('railMiniPlayer')), matching: find.byType(Slider)),
-        _ => find.byKey(const ValueKey('nowPlayingSeekSlider')),
-      };
-      expect(slider, findsOneWidget);
-      for (var i = 0; i < 10; i++) {
-        tester.widget<Slider>(slider).onChanged!(60000 + i * 1000);
-        await tester.pump(const Duration(milliseconds: 100));
-      }
-      expect(handler.previews, isEmpty);
-      await tester.pump(const Duration(milliseconds: 149));
-      expect(handler.previews, isEmpty);
-      await tester.pump(const Duration(milliseconds: 1));
-      expect(handler.previews, [const Duration(seconds: 69)]);
-      expect(handler.seekCalls, 0);
-      tester.widget<Slider>(slider).onChangeEnd!(70000);
-      await tester.pump();
-      expect(handler.seekCalls, 1);
-      expect(handler.sought, const Duration(seconds: 70));
-      for (final changed in [
-        _activePlayback.copyWith(currentIndex: 1),
-        _activePlayback.copyWith(currentSongId: 'song-2', currentIndex: 1),
-      ]) {
-        tester.widget<Slider>(slider).onChanged!(80000);
-        await tester.pump(const Duration(milliseconds: 250));
-        final before = handler.previewCancels;
-        container.read(_mutablePlaybackProvider.notifier).snapshot = changed;
+        if (bar == 'nowPlaying') {
+          container.read(playerOverlayStackProvider.notifier).expand();
+          await tester.pumpAndSettle();
+        }
+        final slider = switch (bar) {
+          'desktop' => find.byKey(const ValueKey('desktopPlayerSeekSlider')),
+          'compact' => find.byKey(
+            const ValueKey('desktopMiniPlayerSeekSlider'),
+          ),
+          'rail' => find.descendant(
+            of: find.byKey(const ValueKey('railMiniPlayer')),
+            matching: find.byType(Slider),
+          ),
+          _ => find.byKey(const ValueKey('nowPlayingSeekSlider')),
+        };
+        expect(slider, findsOneWidget);
+        for (var i = 0; i < 10; i++) {
+          tester.widget<Slider>(slider).onChanged!(60000 + i * 1000);
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        expect(handler.previews, isEmpty);
+        await tester.pump(const Duration(milliseconds: 149));
+        expect(handler.previews, isEmpty);
+        await tester.pump(const Duration(milliseconds: 1));
+        expect(handler.previews, [const Duration(seconds: 69)]);
+        expect(handler.seekCalls, 0);
+        tester.widget<Slider>(slider).onChangeEnd!(70000);
         await tester.pump();
-        expect(handler.previewCancels, greaterThan(before));
-      }
-      await tester.pumpWidget(const SizedBox.shrink());
-    });
+        expect(handler.seekCalls, 1);
+        expect(handler.sought, const Duration(seconds: 70));
+        for (final changed in [
+          _activePlayback.copyWith(currentIndex: 1),
+          _activePlayback.copyWith(currentSongId: 'song-2', currentIndex: 1),
+        ]) {
+          tester.widget<Slider>(slider).onChanged!(80000);
+          await tester.pump(const Duration(milliseconds: 250));
+          final before = handler.previewCancels;
+          container.read(_mutablePlaybackProvider.notifier).snapshot = changed;
+          await tester.pump();
+          expect(handler.previewCancels, greaterThan(before));
+        }
+        final beforeKeyboard = handler.previews.length;
+        tester.widget<Slider>(slider).onChanged!(90000);
+        tester.widget<Slider>(slider).onChangeEnd!(90000);
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(handler.previews.length, beforeKeyboard);
+        expect(handler.seekCalls, 2);
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
   }
 
   // A seek past the download: the cached range 0:20 and the player's own

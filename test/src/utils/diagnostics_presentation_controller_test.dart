@@ -63,6 +63,53 @@ void main() {
     },
   );
 
+  testWidgets('seek drag uses pointer input and waits before release', (
+    tester,
+  ) async {
+    final root = Directory.systemTemp.createTempSync('navis-seek-drag-');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final controller = DiagnosticsPresentationController(
+      artifactRoot: root,
+      frameWaiter: () async {},
+    );
+    var changes = 0;
+    var releases = 0;
+    await tester.pumpWidget(
+      controller.wrap(
+        MaterialApp(
+          home: Scaffold(
+            body: Stack(
+              children: [
+                Offstage(
+                  child: Slider(
+                    key: const ValueKey('nowPlayingSeekSlider'),
+                    value: .1,
+                    onChanged: (_) => fail('Hidden slider received the drag'),
+                  ),
+                ),
+                Slider(
+                  key: const ValueKey('nowPlayingSeekSlider'),
+                  value: .1,
+                  onChanged: (_) => changes++,
+                  onChangeEnd: (_) => releases++,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final drag = controller.dragSeek(.7);
+    await tester.pump();
+    expect(changes, greaterThan(0));
+    expect(releases, 0);
+    await tester.pump(const Duration(milliseconds: 2999));
+    expect(releases, 0);
+    await tester.pump(const Duration(milliseconds: 1));
+    await drag;
+    expect(releases, 1);
+  });
+
   testWidgets('player quick controls are observed and opened by the button', (
     tester,
   ) async {

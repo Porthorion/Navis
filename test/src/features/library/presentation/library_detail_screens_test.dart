@@ -173,6 +173,12 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> stop() async {}
 
   @override
+  Future<void> previewSeek(Duration position) async {}
+
+  @override
+  void cancelSeekPreview() {}
+
+  @override
   Future<void> seek(Duration position) async {}
 
   @override
