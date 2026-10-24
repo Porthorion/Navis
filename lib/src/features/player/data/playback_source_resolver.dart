@@ -198,6 +198,12 @@ class PlaybackSourceResolver {
 
   bool get supportsFastSeeking => _readUsesSidecarRollingCache();
 
+  /// Representation and session identity used to invalidate a seek preview.
+  Object get seekPreviewRepresentation {
+    final quality = _readStreamingQuality();
+    return (quality.format, quality.maxBitRate, _readApiClient());
+  }
+
   Future<ResolvedPlaybackSource> resolveForSong(
     SongsTableData song, {
     bool preferLockCaching = true,

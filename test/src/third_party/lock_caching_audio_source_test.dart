@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:navis/src/features/player/data/seek_preview_request.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart'
     as platform;
 import 'package:path/path.dart' as p;
@@ -49,6 +50,11 @@ class _ProxyPlayer extends platform.AudioPlayerPlatform {
 
   final events = StreamController<platform.PlaybackEventMessage>.broadcast();
   late Uri proxyUri;
+  List<Uri> childUris = [];
+  Duration? loadedPosition;
+
+  /// While set, [concatenatingRemoveRange] waits for it to complete.
+  Completer<void>? removeGate;
 
   @override
   Stream<platform.PlaybackEventMessage> get playbackEventMessageStream =>
@@ -56,11 +62,26 @@ class _ProxyPlayer extends platform.AudioPlayerPlatform {
 
   @override
   Future<platform.LoadResponse> load(platform.LoadRequest request) async {
+    loadedPosition = request.initialPosition;
     final playlist =
         request.audioSourceMessage as platform.ConcatenatingAudioSourceMessage;
-    proxyUri = Uri.parse(
-      (playlist.children.single as platform.ProgressiveAudioSourceMessage).uri,
-    );
+    platform.AudioSourceMessage first = playlist;
+    while (first is platform.ConcatenatingAudioSourceMessage) {
+      first = first.children.first;
+    }
+    proxyUri = Uri.parse((first as platform.ProgressiveAudioSourceMessage).uri);
+    childUris = [];
+    void collect(platform.AudioSourceMessage m) {
+      if (m is platform.ConcatenatingAudioSourceMessage) {
+        m.children.forEach(collect);
+      } else {
+        childUris.add(
+          Uri.parse((m as platform.ProgressiveAudioSourceMessage).uri),
+        );
+      }
+    }
+
+    collect(playlist);
     events.add(
       platform.PlaybackEventMessage(
         processingState: platform.ProcessingStateMessage.ready,
@@ -77,9 +98,23 @@ class _ProxyPlayer extends platform.AudioPlayerPlatform {
   }
 
   @override
+  Future<platform.ConcatenatingInsertAllResponse> concatenatingInsertAll(
+    platform.ConcatenatingInsertAllRequest request,
+  ) async {
+    childUris.addAll([
+      for (final child in request.children)
+        Uri.parse((child as platform.ProgressiveAudioSourceMessage).uri),
+    ]);
+    return platform.ConcatenatingInsertAllResponse();
+  }
+
+  @override
   Future<platform.ConcatenatingRemoveRangeResponse> concatenatingRemoveRange(
     platform.ConcatenatingRemoveRangeRequest request,
-  ) async => platform.ConcatenatingRemoveRangeResponse();
+  ) async {
+    await removeGate?.future;
+    return platform.ConcatenatingRemoveRangeResponse();
+  }
 
   @override
   Future<platform.SetVolumeResponse> setVolume(
@@ -241,6 +276,204 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 5));
     }
     expect(condition(), isTrue);
+  }
+
+  test('replaced adopted previews release their owners', () async {
+    final player = AudioPlayer(
+      handleAudioSessionActivation: false,
+      handleInterruptions: false,
+      androidApplyAudioAttributes: false,
+    );
+    addTearDown(player.dispose);
+    for (var i = 0; i < 20; i++) {
+      final client = _StalledConnection();
+      final source = SeekPreviewRequest(
+        Uri.parse('http://fixture.invalid/offset'),
+        client: client,
+      ).asAudioSource();
+      await player.setAudioSource(source);
+      await player.setAudioSource(
+        AudioSource.uri(Uri.parse('https://fixture.invalid/replaced')),
+      );
+      expect(client.closed, isTrue);
+      expect(SeekPreviewRequest.hasOwner(source), isFalse);
+      expect(SeekPreviewRequest.retryCount(source), 0);
+    }
+  });
+
+  test(
+    'nested removal preserves a source referenced by another playlist',
+    () async {
+      final client = _StalledConnection();
+      final source = SeekPreviewRequest(
+        Uri.parse('http://fixture.invalid/shared'),
+        client: client,
+      ).asAudioSource();
+      final left = ConcatenatingAudioSource(children: [source]);
+      final right = ConcatenatingAudioSource(children: [source]);
+      final player = AudioPlayer(
+        handleAudioSessionActivation: false,
+        handleInterruptions: false,
+        androidApplyAudioAttributes: false,
+      );
+      addTearDown(player.dispose);
+      await player.setAudioSources([left, right]);
+      await player.setShuffleModeEnabled(true);
+      await left.clear();
+      expect(client.closed, isFalse);
+      expect(SeekPreviewRequest.hasOwner(source), isTrue);
+      expect(player.sequence, [source]);
+      expect(player.shuffleIndices, [0]);
+      await right.clear();
+      expect(client.closed, isTrue);
+      expect(SeekPreviewRequest.hasOwner(source), isFalse);
+    },
+  );
+
+  Future<int> statusOf(Uri uri) async {
+    final http = HttpClient();
+    try {
+      final response = await (await http.getUrl(uri)).close();
+      await response.drain<void>();
+      return response.statusCode;
+    } finally {
+      http.close(force: true);
+    }
+  }
+
+  // ignore: experimental_member_use, reason: tests the Navis additions to the vendored source.
+  Future<(AudioPlayer, List<LockCachingAudioSource>)> loadedPair() async {
+    final body = List<int>.filled(2048, 5);
+    final (server, _) = await _serve(body, ranges: false);
+    addTearDown(() => server.close(force: true));
+    final sources = [
+      for (final name in ['a', 'b'])
+        // ignore: experimental_member_use, reason: tests the Navis additions to the vendored source.
+        LockCachingAudioSource(
+          Uri.parse('http://127.0.0.1:${server.port}/$name'),
+          cacheFile: File('${directory.path}/$name.mp3'),
+        ),
+    ];
+    final player = AudioPlayer(
+      handleAudioSessionActivation: false,
+      handleInterruptions: false,
+      androidApplyAudioAttributes: false,
+    );
+    addTearDown(player.dispose);
+    await player.setAudioSources(sources);
+    return (player, sources);
+  }
+
+  test(
+    'a removed source is served until the platform edit completes',
+    () async {
+      final (player, [a, b]) = await loadedPair();
+      final removedUri = native.player.childUris[0];
+      expect(await statusOf(removedUri), HttpStatus.ok);
+      final gate = native.player.removeGate = Completer<void>();
+      final removal = player.removeAudioSourceAt(0);
+      await until(() => player.sequence.length == 1);
+      expect(await statusOf(removedUri), HttpStatus.ok);
+      gate.complete();
+      await removal;
+      native.player.removeGate = null;
+    },
+  );
+
+  test('a removed source re-added to the playlist is served again', () async {
+    final (player, [a, b]) = await loadedPair();
+    await player.removeAudioSourceAt(0);
+    await player.addAudioSource(a);
+    expect(player.sequence, [b, a]);
+    expect(await statusOf(native.player.childUris.last), HttpStatus.ok);
+  });
+
+  test(
+    'removing the item loaded natively keeps the next item served',
+    () async {
+      final (player, [a, b]) = await loadedPair();
+      final nextUri = native.player.childUris[1];
+      await player.removeAudioSourceAt(0);
+      expect(player.sequence, [b]);
+      expect(await statusOf(nextUri), HttpStatus.ok);
+    },
+  );
+
+  test('replaced idle platforms stop listening to the sequence', () async {
+    final (player, [a, b]) = await loadedPair();
+    for (var i = 0; i < 3; i++) {
+      await player.setAudioSource(a, preload: false);
+      await player.load();
+    }
+    expect(player.debugHasSequenceListeners, isFalse);
+  });
+
+  for (final end in ['disconnect', 'dispose', 'clear', 'replace']) {
+    test(
+      'adopted preview $end closes origin before response headers',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        final accepted = Completer<Socket>();
+        final serverSubscription = server.listen((request) async {
+          accepted.complete(
+            await request.response.detachSocket(writeHeaders: false),
+          );
+        });
+        addTearDown(() async {
+          await server.close(force: true);
+          await serverSubscription.cancel();
+        });
+        final preview = SeekPreviewRequest(
+          Uri.parse('http://127.0.0.1:${server.port}/offset'),
+        );
+        addTearDown(preview.cancel);
+        final socket = await accepted.future;
+        final closed = Completer<void>();
+        final peer = socket.listen(
+          (_) {},
+          onDone: closed.complete,
+          onError: (Object _) {
+            if (!closed.isCompleted) closed.complete();
+          },
+        );
+        addTearDown(() async {
+          socket.destroy();
+          await peer.cancel();
+        });
+        final player = AudioPlayer(
+          handleAudioSessionActivation: false,
+          handleInterruptions: false,
+          androidApplyAudioAttributes: false,
+        );
+        addTearDown(player.dispose);
+        await player.setAudioSource(
+          preview.asAudioSource(positionOffset: const Duration(seconds: 90)),
+          initialPosition: const Duration(seconds: 90),
+        );
+        expect(
+          player.playbackEvent.updatePosition,
+          const Duration(seconds: 90),
+        );
+        expect(native.player.loadedPosition, Duration.zero);
+        if (end == 'disconnect') {
+          final client = HttpClient();
+          final request = await client.getUrl(native.player.proxyUri);
+          request.close().ignore();
+          await pumpEventQueue(times: 30);
+          client.close(force: true);
+        } else if (end == 'dispose') {
+          await player.dispose();
+        } else if (end == 'clear') {
+          await player.clearAudioSources();
+        } else {
+          await player.setAudioSource(
+            AudioSource.uri(Uri.parse('https://fixture.invalid/replaced')),
+          );
+        }
+        await closed.future.timeout(const Duration(seconds: 2));
+        expect(preview.usable, isFalse);
+      },
+    );
   }
 
   for (final framing in [

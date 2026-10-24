@@ -31,6 +31,7 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/auto/data/android_auto_browse_notifier.dart';
 import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';
 import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
+import 'package:navis/src/utils/constants.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
@@ -45,6 +46,7 @@ import 'package:navis/src/features/player/data/playback_navigation_intent.dart';
 import 'package:navis/src/features/player/data/playback_startup_trace.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
+import 'package:navis/src/features/player/data/seek_preview_request.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/data/linux_mpris_bridge.dart';
@@ -69,6 +71,7 @@ part 'navis_audio_handler_diagnostics.dart';
 part 'navis_audio_handler_radio.dart';
 part 'navis_audio_handler_cache.dart';
 part 'navis_audio_handler_recovery.dart';
+part 'navis_audio_handler_seek_preview.dart';
 part 'navis_audio_handler_navigation.dart';
 part 'navis_audio_handler_queue_editing.dart';
 part 'navis_audio_handler_queue_loading.dart';
@@ -381,6 +384,9 @@ class NavisAudioHandler extends BaseAudioHandler
   List<SongsTableData>? _pendingLogicalQueueSongs;
   MediaItem? _currentMediaItem;
   NavisQueueReplacementMetadataAnchor? _queueReplacementMetadataAnchor;
+
+  _SeekPreview? _seekPreview;
+  Timer? _seekPreviewExpiry;
 
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
   PlaybackBufferState _bufferState = const PlaybackBufferState.idle();
@@ -809,6 +815,9 @@ class NavisAudioHandler extends BaseAudioHandler
     ),
   );
 
+  String get _playbackUserAgent =>
+      _isDesktopRuntime ? 'Navis Desktop' : AppConstants.userAgent;
+
   AudioPlayer _buildBaseAudioPlayer({AudioPipeline? audioPipeline}) {
     // Pass URLs directly to libmpv so lavf's cache:// protocol gets the
     // original HTTPS stream rather than a local proxy, eliminating the
@@ -821,7 +830,7 @@ class NavisAudioHandler extends BaseAudioHandler
       equalizerConfiguration: _equalizerPipelineEnabled
           ? _equalizerMessage(_desiredEqualizer)
           : null,
-      userAgent: _isDesktopRuntime ? 'Navis Desktop' : null,
+      userAgent: _playbackUserAgent,
       useProxyForRequestHeaders: !_isDesktopRuntime,
     );
   }
@@ -1989,6 +1998,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> removeAt(int index) {
+    cancelSeekPreview();
     return _enqueueQueueEdit((_) async {
       final head = _deferredHead.length;
       if (index >= 0 &&
@@ -2005,6 +2015,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> reorderQueue(int oldIndex, int newIndex) {
+    cancelSeekPreview();
     return _enqueueQueueEdit((token) async {
       final head = _deferredHead.length;
       final total = head + _queueItems.length + _deferredTail.length;
@@ -2304,6 +2315,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> applyRuntimeSettings() async {
+    cancelSeekPreview();
     final runtime = _readRuntimeSettings();
     final wasCrossfadeEnabled = _crossfadeEnabled;
     _gaplessEnabled = navisEffectiveGaplessEnabled(
@@ -2352,6 +2364,18 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
+  Future<void> previewSeek(Duration position) => _previewSeek(position);
+
+  @override
+  void cancelSeekPreview() {
+    final preview = _seekPreview;
+    _seekPreview = null;
+    _seekPreviewExpiry?.cancel();
+    _seekPreviewExpiry = null;
+    preview?.request?.cancel();
+  }
+
+  @override
   Future<void> seek(Duration position) {
     if (_radioStation != null) return Future<void>.value();
     final songId =
@@ -2374,6 +2398,11 @@ class NavisAudioHandler extends BaseAudioHandler
       return Future<void>.value();
     }
     _queueFinished = false;
+    final plan = _seekPlan(position, songId);
+    if ((plan != _SeekPlan.offset && plan != _SeekPlan.bridge) ||
+        !_previewMatchesRelease(position, bridge: plan == _SeekPlan.bridge)) {
+      cancelSeekPreview();
+    }
     final generation = _supersedeTransportIntent(preserveSeek: true);
     _cancelPendingSeek();
     final request = _PendingSeek(
@@ -2440,6 +2469,8 @@ class NavisAudioHandler extends BaseAudioHandler
           }
         }
       } finally {
+        if (request.outcome != 'completed') request.previewRequest?.cancel();
+        request.previewRequest = null;
         _anomalies.event('seekDone', {'outcome': request.outcome});
         _recordSeekDiagnosticsEvent(<String, Object?>{
           'at': DateTime.now().toUtc().toIso8601String(),
@@ -2448,6 +2479,7 @@ class NavisAudioHandler extends BaseAudioHandler
               request.path ??
               (request.recoveryAttempts == 0 ? 'direct' : 'recovery'),
           'requestedPositionMs': request.position.inMilliseconds,
+          'previewAdopted': request.previewOffset != null,
           'beforePositionMs': beforePosition.inMilliseconds,
           'beforeBufferedMs': beforeBuffered.inMilliseconds,
           'beforeSourceKind': beforeSourceKind,
@@ -2459,6 +2491,7 @@ class NavisAudioHandler extends BaseAudioHandler
           if (request.unsettled.isNotEmpty) 'unsettled': request.unsettled,
         });
         if (identical(_pendingSeek, request)) {
+          cancelSeekPreview();
           _pendingSeek = null;
           _broadcastPlaybackState();
           _emitSnapshot();
@@ -2651,6 +2684,13 @@ class NavisAudioHandler extends BaseAudioHandler
       'crossfadePitchFactor': playbackAdjustmentCapabilities.pitchSupported
           ? _crossfadePlayer?.pitch
           : null,
+      'seekPreview': _seekPreview == null
+          ? null
+          : <String, Object?>{
+              'offsetMs': _seekPreview!.key.offset.inMilliseconds,
+              'bridge': _seekPreview!.key.bridge,
+              'opened': _seekPreview!.request != null,
+            },
       'seekEvents': List<Map<String, Object?>>.from(_seekDiagnosticsEvents),
       'anomalies': _anomalies.recent,
       'positionStreamLastEmitAgoMs': _lastPositionEmitAt == null
@@ -2710,6 +2750,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
+    cancelSeekPreview();
     await _ready;
     final enabled = shuffleMode == AudioServiceShuffleMode.all;
     await _enqueueQueueEdit((token) async {
@@ -2769,6 +2810,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    cancelSeekPreview();
     await _ready;
     final loopMode = switch (repeatMode) {
       AudioServiceRepeatMode.one => LoopMode.one,
@@ -2852,6 +2894,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> setPlaybackAdjustments(PlaybackAdjustments values) async {
+    cancelSeekPreview();
     await _ready;
     await _setPlaybackAdjustments(values);
   }
@@ -2861,6 +2904,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> setPlaybackSpeed(double speed) async {
+    cancelSeekPreview();
     await _ready;
     await _setPlaybackAdjustments(_appliedAdjustments, speed: speed);
   }
@@ -3108,6 +3152,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   Future<void> _disposeHandler() async {
     _disposeHandlerStarted = true;
+    cancelSeekPreview();
     _resumeLockCacheDownloads();
     _focusRetryTimer?.cancel();
     _networkRetryTimer?.cancel();

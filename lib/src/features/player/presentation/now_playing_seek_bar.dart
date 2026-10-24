@@ -13,6 +13,23 @@ class _SeekBar extends ConsumerStatefulWidget {
 
 class _SeekBarState extends ConsumerState<_SeekBar> {
   double? _draggingValue;
+  late final _seekDrag = SeekDragPreview(() => ref.read(audioHandlerProvider));
+
+  @override
+  void dispose() {
+    _seekDrag.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(_SeekBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.playback.currentSongId != oldWidget.playback.currentSongId ||
+        widget.playback.currentIndex != oldWidget.playback.currentIndex) {
+      _seekDrag.cancel();
+      _draggingValue = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +96,7 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
                 0,
                 durationMs,
               );
+              _seekDrag.cancel();
               setState(() => _draggingValue = null);
               unawaited(handler.seek(Duration(milliseconds: targetMs)));
             },
@@ -92,11 +110,13 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
                 0,
                 durationMs,
               );
+              _seekDrag.cancel();
               setState(() => _draggingValue = null);
               unawaited(handler.seek(Duration(milliseconds: targetMs)));
             },
             child: ExcludeSemantics(
               child: Slider(
+                key: const ValueKey('nowPlayingSeekSlider'),
                 value: sliderValue.clamp(0, sliderMax),
                 secondaryTrackValue: bufferedValue,
                 secondaryActiveColor: resolveBufferedSeekColor(context),
@@ -106,9 +126,11 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
                   return '${formatDuration(pos)} of ${formatDuration(widget.playback.duration)}';
                 },
                 onChanged: (value) {
+                  _seekDrag.changed(value);
                   setState(() => _draggingValue = value);
                 },
                 onChangeEnd: (value) {
+                  _seekDrag.finish();
                   setState(() => _draggingValue = null);
                   final handler = ref.read(audioHandlerProvider);
                   unawaited(

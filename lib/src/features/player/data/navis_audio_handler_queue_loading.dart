@@ -784,6 +784,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     required bool preferLockCaching,
     Duration? transcodeOffset,
     bool fastSeekBridge = false,
+    _PendingSeek? seekPreviewRequest,
   }) async {
     await (_cacheMaintenance ??= _maintainCacheBeforePlayback());
     final startupTrace = _activeStartupTrace;
@@ -819,6 +820,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
         fastSeekBridge: fastSeekBridge,
       );
     }
+    final preview = seekPreviewRequest == null
+        ? null
+        : _takeSeekPreview(song, source, seekPreviewRequest);
     final item = _mediaItemForSong(song, source: source);
     if (startupTrace?.songId == song.id) {
       startupTrace?.sourceKind = source.kind.name;
@@ -836,7 +840,12 @@ extension _NavisQueueLoading on NavisAudioHandler {
       song: song,
       source: source,
       mediaItem: item,
-      audioSource: source.asAudioSource(tag: item),
+      audioSource:
+          preview?.request?.asAudioSource(
+            tag: item,
+            positionOffset: source.positionOffset,
+          ) ??
+          source.asAudioSource(tag: item),
     );
   }
 
@@ -958,6 +967,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // Pause independently of stop so a hung native stop cannot stay audible.
     _checkQueueWorkCurrent(token, generation);
     if (isStillWanted != null && !isStillWanted()) {
+      // ignore: experimental_member_use, reason: Drop an adopted response before native attachment.
+      if (startItem.audioSource case final StreamAudioSource source) {
+        source.dispose();
+      }
       throw OperationCancelledException();
     }
     _cancelCrossfade();

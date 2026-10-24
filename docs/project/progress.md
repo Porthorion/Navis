@@ -14,6 +14,87 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Seek-drag round 6 — 2026-10-24: dropped the generic just_audio registry
+  removal of rounds 4/5 (each round exposed a new edge). Disposed preview
+  sources release their owner and retries, so a registry entry that persists
+  until player disposal (upstream behavior) holds no body bytes. Kept: idle
+  platform disposal on replacement and HTTP 404 for a missing proxy handler.
+- [x] Seek-drag review round 3 P3 fixes — 2026-10-24: tests-first regressions
+  cover failed Futures after source disposal, completed retry removal, explicit
+  diagnostics HTTP 400 validation and HTTP 409 overlap rejection, including
+  guard release after failure. Both focused suites pass (84 tests).
+  Foreground 8 GiB-capped `./tool/check.sh` passes:
+  `09:30 +9430 ~1: All tests passed!`, `[check] All checks passed.`, exit 0,
+  peak 6138 MiB, no swap/OOM kills. Generated sources remain unchanged.
+- [x] Seek-drag review round 2 — 2026-10-24: tests-first regressions cover native
+  reopens after EOF/socket cuts, request identity, desired occurrence adoption
+  and stream offsets with cleared queue metadata. Six regressions fail before
+  the fix; 27 focused player tests pass afterward. Scripted diagnostics retain
+  one held pointer, bounded smooth moves/rests, continuous flicks and the legacy
+  body; pointer/auth/validation tests pass. Heartbeat p95 and capture immediately
+  before release make the held-input window inspectable; scripted gestures skip
+  animation settling so rests retain their specified timing.
+  Final foreground 8 GiB-capped `./tool/check.sh` passes:
+  `09:28 +9428 ~1: All tests passed!`, `[check] All checks passed.`, exit 0,
+  peak 5814 MiB, zero swap/OOM kills. Generated sources remain unchanged.
+  The local diagnostics-only baseline is `verify/i12-base` at `d78b44333`
+  on `31f21caea`; both fixed profile artifacts come from `ab927cb8e`.
+  Five 20-rest gestures per build/platform pass all stress criteria. Linux
+  release-to-native-target+1 s median is 3.281 → 2.758 s; Android is
+  4.527 → 3.997 s. Android uses the same 3072 MiB guest for both builds,
+  superseding the earlier unequal-RAM comparison. Frame-gap p95 is
+  18.288 → 17.925 ms on Linux and 44.141 → 40.037 ms on Android.
+  Android has baseline/fix frame gaps above 50 ms (25/3 samples); fixed
+  maximum and count remain below baseline. Fixed preview socket maximum is
+  one, superseded sockets close before successors, and GET counts per 20 rests
+  are 11–12 on Linux and 10–11 on Android. Every fixed release adopts;
+  both five-second flick controls issue zero preview GETs on each platform.
+  Owner-authorized fresh-login real-server Linux medians (five per target/build,
+  Opus 128, one-second rest) are 3.161 → 1.686 s at midpoint and
+  3.610 → 2.056 s near the end. All use the offset path; two extra fixed slow
+  drags stay below 20 ms maximum frame gap. CPU profiles, resource samples,
+  origin timestamps, app-owned screenshots and clean restarts are retained in
+  coordinator item-12 `rt-stress/summary.md` and raw evidence.
+  Two 2048 MiB Android preparations fail before measurement; one records guest
+  `reason=3 (LOW_MEMORY)`. An earlier Linux 317.239 ms sample included profiler
+  setup in its heartbeat window; its cause remains unresolved and its CPU
+  profile is retained. Final matched windows exclude profiler setup. Higher
+  fixed memory readings and five trials do not establish long-soak stability.
+  Five real download hashes are unchanged; credentials stay in script memory.
+  Owned app/emulator/Gradle/Kotlin PIDs are stopped and temporary AVD/test roots
+  deleted. Device-panel attachment lacks Java; SDK/app diagnostics provide the
+  emulator evidence. No physical listening/device, Windows or Apple runtime
+  proof. AI implementation/verification: Codex gpt-6.1-sol; local commits only,
+  no push, PR or Fable model. Independent review remains with the coordinator.
+- [x] Issue #86, item 12 seek while dragging — 2026-10-24,
+  `feat/seek-while-dragging`.
+  Failing-test-first commit `6d916998` specifies all four bars, bounded HTTP
+  ownership and adoption. The shared plan reuses offset/bridge predicates and
+  rounding; one HTTP owner follows lock-cache cancellation, and adopted streams
+  reuse just_audio's proxy and song-time translation. A 250 ms rest pre-opens
+  without changing transport state; release adopts within the approved 0–2 s
+  tolerance. Supersession closes before another owner opens; buffering pauses
+  at 512 KiB and unused requests expire after 10 s. Cache/representation changes
+  preserve the ordinary release target and fresh metadata.
+  Final focused tests: `00:04 +33: All tests passed!`, including 50 replacements
+  while headers are pending, zero subscriptions, proxy disconnect/disposal,
+  exact buffer cap, byte/error propagation and all four seek bars. Foreground
+  capped `./tool/check.sh` passes: `09:24 +9417 ~1: All tests passed!`,
+  `[check] All checks passed.`, exit 0, peak 5507 MiB, zero OOM kills; generated
+  source is unchanged and analysis has no new findings.
+  Pinned-base versus fix fixture medians (release to native target+1 s): Linux
+  offset 3.305 → 2.254 s, desktop bridge 3.476 → 2.416 s, Android offset
+  3.856 → 2.775 s (Android baseline/fix guest RAM: 2048/1536 MiB).
+  Every adopted trial uses one GET; fifty abandoned requests
+  close on each platform. Real-pointer app-owned screenshots show the held
+  thumb at 1:30 while native playback remains near the start. Adopted EOF
+  recovery, Repeat One/All, Linux crossfade and native/local controls, and clean
+  restarts pass. The owned Android emulator and temporary AVD are deleted.
+  Evidence: coordinator item-12 `implementation-evidence.md`, runtime JSON/PNG
+  artifacts and logs. Real-server proof is excluded by the binding fixture-only
+  preamble; no listening, physical-device, Windows or Apple runtime proof.
+  AI implementation/verification: Codex gpt-6.1-sol; local commits only, no push,
+  PR or Fable model use. Independent review remains with the coordinator.
 - [x] Android progressive Repeat All near-end replay — r3, 2026-10-24.
   Test-first fixtures `a2496cbb` and fix `860384a8` repair both r2 failures.
   Logging-only native proof reproduces an append timeline at count 6 before

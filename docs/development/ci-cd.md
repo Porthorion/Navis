@@ -985,3 +985,7 @@ publication. Run it after changing just_audio too. Follow with the profile-clone
 recovery fixtures in
 [development-workflow.md](development-workflow.md); JVM reflection checks alone
 do not prove media-session commands or engine survival.
+
+Seek-drag diagnostics contract coverage in `sync_diagnostics_server_test.dart`
+checks clone-only authorization and bounded scripted/flick inputs; presentation
+controller tests verify one held pointer, intermediate moves and one release.
