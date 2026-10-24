@@ -14,14 +14,28 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
-- [ ] Seek-drag review round 3 — 2026-10-24: tests-first regressions reproduce
-  synchronous disposed-source errors, retained finished retries, overlapping
-  pointer scripts, and generic validation responses. The existing owner now
-  releases finished retries; diagnostics return explicit 400/409 responses.
-  Both focused suites pass (84 tests). Foreground 8 GiB-capped `./tool/check.sh`
-  passes: `09:30 +9430 ~1: All tests passed!`, `[check] All checks passed.`,
-  exit 0, peak 6138 MiB, no swap/OOM kills. Matched Linux 50-drag memory soak
-  pending; retained evidence lives in the item (12) run directory.
+- [x] Seek-drag review round 3 P3 fixes — 2026-10-24: tests-first regressions
+  cover failed Futures after source disposal, completed retry removal, explicit
+  diagnostics HTTP 400 validation and HTTP 409 overlap rejection, including
+  guard release after failure. Both focused suites pass (84 tests).
+  Foreground 8 GiB-capped `./tool/check.sh` passes:
+  `09:30 +9430 ~1: All tests passed!`, `[check] All checks passed.`, exit 0,
+  peak 6138 MiB, no swap/OOM kills. Generated sources remain unchanged.
+- [ ] Seek-drag memory acceptance — partial: 2026-10-24. Matched Linux profile
+  runs complete 50 scripted 20-rest gestures, ten seconds playback after each,
+  then two minutes idle playing. PSS slopes are base 2.6842 and fix 2.3454
+  MiB/drag; fixed-minus-base offsets are +29.80 MiB at drag 1 and +10.76 MiB
+  at drag 50. Memory acceptance FAILS: post-GC snapshots retain 49 disposed
+  adopted sources plus one queue-history source and all 50 cancelled owners
+  through the vendored player source catalog and proxy handler map. Together
+  the sources retain about 0.53 MiB. Active owners/retries and origin sockets
+  are zero, but cancelled objects remain GC-live. The initial PSS offset is
+  mostly shared-library accounting (+26.17 MiB PSS with +0.43 MiB RSS and no
+  extra private dirty bytes). Full per-drag heap/RSS/PSS readings, class-count
+  and retained-size tables, registry paths and probe differences are retained
+  in item (12) `rt-soak/summary.md`. App-owned screenshots and live 400/409
+  checks pass; owned apps stop and all five download hashes remain unchanged.
+  Remaining: remove stale adopted-source registry roots and repeat acceptance.
 - [x] Seek-drag review round 2 — 2026-10-24: tests-first regressions cover native
   reopens after EOF/socket cuts, request identity, desired occurrence adoption
   and stream offsets with cleared queue metadata. Six regressions fail before

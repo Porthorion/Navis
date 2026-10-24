@@ -5318,9 +5318,12 @@ that offset for URI and stream sources alike. Proxy cancellation/source disposal
 closes that request's adopted response too. A native probe or retry opens a fresh
 GET of the same offset URI; finished retries leave the ownership set immediately,
 and source disposal closes every active request. Requests after disposal return
-a failed Future. Desktop preview and native playback share the existing desktop
-User-Agent; mobile uses
-`AppConstants.userAgent` explicitly for both instead of platform defaults.
+a failed Future. The Linux 50-drag soak still finds disposed adopted sources and
+cancelled owners retained by the vendored player's source catalog and proxy
+handler map; reclaiming those registry entries remains an open memory issue.
+Desktop preview and native playback share the existing desktop User-Agent;
+mobile uses `AppConstants.userAgent` explicitly for both instead of platform
+defaults.
 Preview admission and adoption use the same desired queue occurrence. Mid-body
 errors and EOF retain the normal
 proxy/source failure path, including premature-transcode-end recovery.
