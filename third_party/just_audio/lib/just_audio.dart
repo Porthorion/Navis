@@ -915,22 +915,16 @@ class AudioPlayer {
       initialPosition: initialPosition,
       shuffleOrder: shuffleOrder ?? DefaultShuffleOrder(),
     );
-    final removed =
-        await _playlist._init(audioSources, loadRequest.shuffleOrder);
-    try {
-      loadRequest.checkInterruption();
-      Duration? duration;
-      if (preload || playing) {
-        duration = await load();
-      } else {
-        await _setPlatformActive(false)?.catchError((dynamic e) async => null);
-      }
-      loadRequest.checkInterruption();
-      return duration;
-    } finally {
-      // Navis: native keeps the old playlist until the load replaces it.
-      _playlist._unregisterRemovedStreams(removed);
+    await _playlist._init(audioSources, loadRequest.shuffleOrder);
+    loadRequest.checkInterruption();
+    Duration? duration;
+    if (preload || playing) {
+      duration = await load();
+    } else {
+      await _setPlatformActive(false)?.catchError((dynamic e) async => null);
     }
+    loadRequest.checkInterruption();
+    return duration;
   }
 
   /// Starts loading the playlist and returns the audio duration of the initial
@@ -1010,13 +1004,6 @@ class AudioPlayer {
     // Allow this event to propagate to derived streams.
     await currentIndexStream.firstWhere((i) => i == sequenceState.currentIndex);
   }
-
-  /// Registry sizes for stream-source lifecycle regression tests.
-  @visibleForTesting
-  ({int sources, int handlers}) get debugStreamRegistryCounts => (
-        sources: _audioSources.values.whereType<StreamAudioSource>().length,
-        handlers: _proxy._handlerMap.length,
-      );
 
   /// Whether anything still listens to the sequence, for idle-shell leak tests.
   @visibleForTesting
@@ -3288,10 +3275,7 @@ class ConcatenatingAudioSource extends AudioSource {
                   shuffleOrder: List.of(_shuffleOrder.indices)));
         } finally {
           player._sequenceEditsInFlight--;
-          _unregisterRemovedStreams([removed]);
         }
-      } else {
-        _unregisterRemovedStreams([removed]);
       }
     });
   }
@@ -3319,10 +3303,7 @@ class ConcatenatingAudioSource extends AudioSource {
                   shuffleOrder: List.of(_shuffleOrder.indices)));
         } finally {
           player._sequenceEditsInFlight--;
-          _unregisterRemovedStreams(removed);
         }
-      } else {
-        _unregisterRemovedStreams(removed);
       }
     });
   }
@@ -3376,14 +3357,12 @@ class ConcatenatingAudioSource extends AudioSource {
                   shuffleOrder: List.of(_shuffleOrder.indices)));
         } finally {
           player._sequenceEditsInFlight--;
-          _unregisterRemovedStreams(removed);
         }
-      } else {
-        _unregisterRemovedStreams(removed);
       }
     });
   }
 
+  // Navis: a source still referenced by another playlist must not be disposed.
   Set<IndexedAudioSource> get _retainedSources => {
         ...sequence,
         ...?_player?._playlist.sequence,
@@ -3395,6 +3374,10 @@ class ConcatenatingAudioSource extends AudioSource {
     final retained = _retainedSources;
     for (final source in removed.expand((source) => source.sequence)) {
       if (retained.contains(source)) continue;
+      // ponytail: registry entries of removed sources persist until player
+      // disposal (upstream behavior); preview shells release their owner on
+      // dispose, so each costs only a small object. Upgrade path: registry
+      // removal after native release.
       if (source is StreamAudioSource) source.dispose();
       if (source is LockCachingAudioSource) {
         source.resumeDownload();
@@ -3403,25 +3386,8 @@ class ConcatenatingAudioSource extends AudioSource {
     }
   }
 
-  // Navis: the proxy keeps serving a removed source until the platform has
-  // applied the edit, since native may still request it meanwhile.
-  void _unregisterRemovedStreams(Iterable<AudioSource> removed) {
-    final retained = _retainedSources;
-    for (final source in removed.expand((source) => source.sequence)) {
-      if (retained.contains(source) || source is! StreamAudioSource) continue;
-      final player = source._player;
-      if (player == null) continue;
-      player._audioSources.remove(source._id);
-      final uri = source._uri;
-      if (uri != null) {
-        player._proxy._handlerMap.remove(player._proxy._requestKey(uri));
-      }
-    }
-  }
-
   /// Initialise without communicating with platform.
-  Future<List<AudioSource>> _init(
-      List<AudioSource> children, ShuffleOrder shuffleOrder) {
+  Future<void> _init(List<AudioSource> children, ShuffleOrder shuffleOrder) {
     return _lock.synchronized(() async {
       final removed = this.children.toList();
       this.children.replaceRange(0, this.children.length, children);
@@ -3441,7 +3407,6 @@ class ConcatenatingAudioSource extends AudioSource {
           }
         }
       }
-      return removed;
     });
   }
 

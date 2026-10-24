@@ -278,41 +278,28 @@ void main() {
     expect(condition(), isTrue);
   }
 
-  test(
-    'replaced adopted previews leave no registry entries or owners',
-    () async {
-      final player = AudioPlayer(
-        handleAudioSessionActivation: false,
-        handleInterruptions: false,
-        androidApplyAudioAttributes: false,
+  test('replaced adopted previews release their owners', () async {
+    final player = AudioPlayer(
+      handleAudioSessionActivation: false,
+      handleInterruptions: false,
+      androidApplyAudioAttributes: false,
+    );
+    addTearDown(player.dispose);
+    for (var i = 0; i < 20; i++) {
+      final client = _StalledConnection();
+      final source = SeekPreviewRequest(
+        Uri.parse('http://fixture.invalid/offset'),
+        client: client,
+      ).asAudioSource();
+      await player.setAudioSource(source);
+      await player.setAudioSource(
+        AudioSource.uri(Uri.parse('https://fixture.invalid/replaced')),
       );
-      addTearDown(player.dispose);
-      for (var i = 0; i < 20; i++) {
-        final client = _StalledConnection();
-        final source = SeekPreviewRequest(
-          Uri.parse('http://fixture.invalid/offset'),
-          client: client,
-        ).asAudioSource();
-        await player.setAudioSource(source);
-        final removedUri = native.player.proxyUri;
-        expect(player.debugStreamRegistryCounts, (sources: 1, handlers: 1));
-        await player.setAudioSource(
-          AudioSource.uri(Uri.parse('https://fixture.invalid/replaced')),
-        );
-        expect(client.closed, isTrue);
-        expect(SeekPreviewRequest.hasOwner(source), isFalse);
-        expect(player.debugStreamRegistryCounts, (sources: 0, handlers: 0));
-        final http = HttpClient();
-        try {
-          final response = await (await http.getUrl(removedUri)).close();
-          expect(response.statusCode, HttpStatus.notFound);
-          await response.drain<void>();
-        } finally {
-          http.close(force: true);
-        }
-      }
-    },
-  );
+      expect(client.closed, isTrue);
+      expect(SeekPreviewRequest.hasOwner(source), isFalse);
+      expect(SeekPreviewRequest.retryCount(source), 0);
+    }
+  });
 
   test(
     'nested removal preserves a source referenced by another playlist',
@@ -337,11 +324,9 @@ void main() {
       expect(SeekPreviewRequest.hasOwner(source), isTrue);
       expect(player.sequence, [source]);
       expect(player.shuffleIndices, [0]);
-      expect(player.debugStreamRegistryCounts, (sources: 1, handlers: 1));
       await right.clear();
       expect(client.closed, isTrue);
       expect(SeekPreviewRequest.hasOwner(source), isFalse);
-      expect(player.debugStreamRegistryCounts, (sources: 0, handlers: 0));
     },
   );
 
@@ -391,8 +376,6 @@ void main() {
       expect(await statusOf(removedUri), HttpStatus.ok);
       gate.complete();
       await removal;
-      expect(await statusOf(removedUri), HttpStatus.notFound);
-      expect(player.debugStreamRegistryCounts, (sources: 1, handlers: 1));
       native.player.removeGate = null;
     },
   );
@@ -401,7 +384,6 @@ void main() {
     final (player, [a, b]) = await loadedPair();
     await player.removeAudioSourceAt(0);
     await player.addAudioSource(a);
-    expect(player.debugStreamRegistryCounts, (sources: 2, handlers: 2));
     expect(player.sequence, [b, a]);
     expect(await statusOf(native.player.childUris.last), HttpStatus.ok);
   });

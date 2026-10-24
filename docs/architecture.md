@@ -5318,13 +5318,11 @@ that offset for URI and stream sources alike. Proxy cancellation/source disposal
 closes that request's adopted response too. A native probe or retry opens a fresh
 GET of the same offset URI; finished retries leave the ownership set immediately,
 and source disposal closes every active request and drops its owner reference.
-Requests after disposal return a failed Future. Removing a stream source also
-releases its player catalog and proxy handler entries once neither the edited
-sequence nor the player's full playlist references it. Nested playlists and
-shuffle references keep live sources registered; late requests for removed
-proxy routes receive HTTP 404. Lock-cache whole-file downloads remain independent
-of playlist removal. Existing sequence subscriptions can still retain disposed
-preview shells, but their owner and buffered body references are released.
+Requests after disposal return a failed Future. The vendored player keeps
+registry entries of removed stream sources until player disposal (upstream
+behavior); a disposed preview shell holds no owner or body bytes, so each costs
+only a small object. The proxy answers HTTP 404 for a route it no longer has,
+and replaced idle platforms stop listening to the sequence.
 Desktop preview and native playback share the existing desktop User-Agent;
 mobile uses `AppConstants.userAgent` explicitly for both instead of platform
 defaults.

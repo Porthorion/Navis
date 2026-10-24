@@ -14,24 +14,11 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
-- [x] Seek-drag registry retention repair (round 4) — 2026-10-24.
-  Tests-first owner release fails before the fix; both focused suites pass
-  (53 tests), including 20 adopt/replace cycles, empty removed-stream registries,
-  released owners, removed proxy HTTP 404 responses, and nested shared-source
-  preservation with shuffle enabled. Foreground 8 GiB-capped `./tool/check.sh`
-  passes: `09:33 +9432 ~1: All tests passed!`, `[check] All checks passed.`,
-  exit 0, peak 4892 MiB, swap peak 1792 MiB, no OOM kills. Generated sources
-  remain unchanged. Crossfade uses cloned sources on each deck.
-- [x] Seek-drag round 4 memory re-soak — 2026-10-24: all 20 scripted releases
-  adopt; after idle and forced GC, each registry has zero disposed previews,
-  retained owners/retries are 1/0 (current source permitted), active owners/
-  retries and origin sockets are 0/0/0. Nineteen disposed shells remain through
-  sequence subscriptions with null owners, outside the registries. PSS slope
-  -12.1935 MiB/drag is below r3's 2.3454; swapping confounds performance
-  attribution, so this is no proof of a lower unswapped memory slope. App-owned
-  screenshots and 400/409 endpoint checks pass. PID 1925413 stopped, fixture
-  thread joined, download hashes unchanged. Full evidence and limits:
-  item (12) `rt-soak/summary-r4.md`. Base and Android were not rerun.
+- [x] Seek-drag round 6 — 2026-10-24: dropped the generic just_audio registry
+  removal of rounds 4/5 (each round exposed a new edge). Disposed preview
+  sources release their owner and retries, so a registry entry that persists
+  until player disposal (upstream behavior) holds no body bytes. Kept: idle
+  platform disposal on replacement and HTTP 404 for a missing proxy handler.
 - [x] Seek-drag review round 3 P3 fixes — 2026-10-24: tests-first regressions
   cover failed Futures after source disposal, completed retry removal, explicit
   diagnostics HTTP 400 validation and HTTP 409 overlap rejection, including
