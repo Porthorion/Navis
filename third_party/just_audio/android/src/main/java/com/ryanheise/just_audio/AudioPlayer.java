@@ -319,14 +319,15 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         MediaItem item = player.getCurrentMediaItem();
         boolean eligible = item != null && item.localConfiguration != null
                 && progressiveHttpSources.contains(item.localConfiguration.tag);
-        return requestedLoopMode == Player.REPEAT_MODE_ONE
+        return requestedLoopMode != Player.REPEAT_MODE_OFF
                 && ProgressiveRepeat.nativeMode(requestedLoopMode, eligible) == Player.REPEAT_MODE_OFF;
     }
 
     private void updateLoopPolicy() {
         boolean owned = ownsProgressiveRepeat();
         player.setRepeatMode(owned ? Player.REPEAT_MODE_OFF : requestedLoopMode);
-        player.setPauseAtEndOfMediaItems(owned);
+        player.setPauseAtEndOfMediaItems(ProgressiveRepeat.pauseAtEnd(requestedLoopMode, owned,
+                player.getCurrentMediaItemIndex() == player.getMediaItemCount() - 1));
     }
 
     private void cancelPendingRepeat() {
@@ -349,7 +350,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     }
 
     private boolean scheduleProgressiveRepeat() {
-        if (!ownsProgressiveRepeat()) return false;
+        if (!ProgressiveRepeat.pauseAtEnd(requestedLoopMode, ownsProgressiveRepeat(),
+                player.getCurrentMediaItemIndex() == player.getMediaItemCount() - 1)) return false;
         repeatAtEndUid = currentItemUid();
         if (!playRequested) return false;
         if (repeatPending) return true;
@@ -361,9 +363,9 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         broadcastImmediatePlaybackEvent();
         handler.post(() -> {
             if (player == null) return;
-            int restartIndex = ProgressiveRepeat.restartIndex(ownsProgressiveRepeat(),
+            int restartIndex = ProgressiveRepeat.restartIndex(requestedLoopMode, ownsProgressiveRepeat(),
                     playRequested, boundaryUid, currentItemUid(), player.getCurrentMediaItemIndex(),
-                    revision, repeatRevision);
+                    player.getMediaItemCount(), revision, repeatRevision);
             if (restartIndex < 0) return;
             cancelPendingRepeat(); // Consume before seek callbacks or the ENDED fallback can re-enter.
             repeatAtEndUid = null;
@@ -1163,7 +1165,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             playResult.success(new HashMap<String, Object>());
         }
         playResult = result;
-        // Play after a boundary Pause must still restart this item, never advance.
+        // Play after a boundary Pause still follows the requested repeat mode.
         if (repeatAtEndUid != null && scheduleProgressiveRepeat()) return;
         player.setPlayWhenReady(true);
         updatePosition();

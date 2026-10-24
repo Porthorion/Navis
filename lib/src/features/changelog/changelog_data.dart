@@ -130,6 +130,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Android: with Repeat All, a song no longer restarts just before its end.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Android seeks beyond a partial download give playback bandwidth '
         'priority, close abandoned range requests and keep waiting while data '
         'arrives. Changing a seek target keeps the cache, and abandoned ranges '

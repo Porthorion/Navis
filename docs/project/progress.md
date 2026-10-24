@@ -14,6 +14,31 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Android progressive Repeat All near-end replay — implementation and JVM
+  fixtures complete, 2026-10-24; emulator runtime acceptance belongs to the
+  separate verification task. Extended the existing `ProgressiveRepeat` and
+  `AudioPlayer` boundary restart rather than adding another loop controller.
+  Eligible streams keep native repeat off; only the last Repeat All item
+  pauses and wraps to index zero. Repeat One and boundary UID/revision/Play
+  guards remain covered. Test-first commit `7ff2384e` follows the observed
+  `AssertionError: progressive ALL must disable native lookahead wrapping`;
+  the complete fixtures then failed to compile against the old helper API.
+  `./tool/equalizer_native_test.sh` now reports
+  `ProgressiveRepeatTest: 59 fixtures passed` (plus 13 retry fixtures and the
+  equalizer checks). Dart playback code, desktop and iOS are unchanged.
+  Architecture and the 1.5.1 changelog record the fix and loss of a gapless
+  queue-wrap join on Android progressive streams.
+  `flutter build apk --debug --flavor sideload` passed under the 8 GiB cap
+  with zero OOM kills. Foreground `./tool/check.sh` passed under the same cap:
+  `09:23 +9384 ~1: All tests passed!` (one skipped), followed by
+  `[check] All checks passed.` Analysis reports 222 infos and no errors or
+  warnings; generation produces no tracked changes. The gate reports zero
+  OOM kills. No runtime pass is claimed. An additional source-review question
+  remains: an append after the native boundary pause can make the posted wrap
+  invalid without explicitly resuming playback (`AudioPlayer.java` restart
+  rejection and timeline callback). Verify and resolve that narrow race
+  before release; appends while the last item is still playing use the tested
+  non-last pause policy.
 - [ ] Issue #86, item 11a PR C desktop transcode EOF — implementation complete
   on `fix/transcode-cut-eof`, 2026-10-23; coordinator `./tool/check.sh`,
   independent reviews and native cut-matrix acceptance remain pending under
