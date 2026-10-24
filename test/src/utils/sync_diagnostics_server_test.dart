@@ -211,6 +211,76 @@ void main() {
     },
   );
 
+  test(
+    'seek drag scripts retain clone auth and validate bounded input',
+    () async {
+      final primary = await _startFixture(
+        SyncDiagnosticsMode.primaryCertification,
+      );
+      expect(
+        (await primary.post('/v1/presentation/seek-drag', {
+          'flickMs': 5000,
+        })).statusCode,
+        HttpStatus.forbidden,
+      );
+      await primary.close();
+      final clone = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(clone.close);
+      for (final body in <Map<String, Object?>>[
+        {'fraction': -1},
+        {'steps': []},
+        {
+          'steps': [1],
+        },
+        {
+          'steps': [
+            {'fraction': .2, 'moveMs': -1},
+          ],
+        },
+        {
+          'steps': [
+            {'fraction': .2, 'holdMs': 10001},
+          ],
+        },
+        {
+          'steps': [
+            {'fraction': 1.1},
+          ],
+        },
+        {'flickMs': 0},
+        {'flickMs': 120001},
+        {'release': false},
+        {
+          'steps': [
+            {'fraction': .2},
+          ],
+          'flickMs': 1000,
+        },
+      ]) {
+        expect(
+          (await clone.post('/v1/presentation/seek-drag', body)).statusCode,
+          HttpStatus.badRequest,
+          reason: '$body',
+        );
+      }
+      for (final body in <Map<String, Object?>>[
+        {'fraction': .5},
+        {'flickMs': 5000},
+        {
+          'steps': [
+            {'fraction': .2, 'moveMs': 200, 'holdMs': 450},
+          ],
+          'release': true,
+        },
+      ]) {
+        expect(
+          (await clone.post('/v1/presentation/seek-drag', body)).statusCode,
+          HttpStatus.serviceUnavailable,
+        );
+      }
+    },
+  );
+
   test('track presentation actions reject primary mutation and invalid clone input', () async {
     final primary = await _startFixture(
       SyncDiagnosticsMode.primaryCertification,

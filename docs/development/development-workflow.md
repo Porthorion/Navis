@@ -282,7 +282,16 @@ proven not to affect runtime behavior are exempt.
    seek slider (or open Now Playing with `/v1/presentation/player-overlay`), call
    `POST /v1/presentation/seek-drag {"fraction": 0.5}`. This sends real Flutter
    pointer events, holds for three seconds and releases; capture an app-owned
-   screenshot concurrently to inspect the held thumb.
+   screenshot concurrently to inspect the held thumb. The same endpoint accepts
+   `{"steps":[{"fraction":0.1,"moveMs":200,"holdMs":450},
+   {"fraction":0.8,"moveMs":200,"holdMs":450}],"release":true}` for one held
+   pointer: down at the first fraction, frame-rate moves and timed holds, then
+   up. `{"fraction":0.1,"flickMs":5000}` moves continuously with no rests.
+   The response includes UTC `releasedAt`, captured immediately before pointer
+   up. Omitted `release` defaults to true; false is rejected so a request cannot
+   leave a held pointer behind. Scripts allow 1–100 steps, at most 10 seconds
+   per move/hold and 120 seconds total; flick duration is 1–120000 ms. The old
+   single-fraction body keeps its three-second rest. All forms remain clone-only.
 6. For a visible Flutter change, call `POST /v1/presentation/screenshot`, open
    the resulting PNG with image-viewing capability, inspect the affected
    region, and record the result. Merely creating a PNG is not confirmation.

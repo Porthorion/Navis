@@ -3274,15 +3274,58 @@ class SyncDiagnosticsServer {
           return;
         }
         final body = await _readJson(request);
-        final fraction = body['fraction'];
+        final rawSteps = body['steps'];
+        final steps = <DiagnosticsSeekDragStep>[];
+        if (rawSteps != null) {
+          if (rawSteps is! List || rawSteps.isEmpty || rawSteps.length > 100) {
+            throw const FormatException();
+          }
+          for (final raw in rawSteps) {
+            if (raw is! Map) throw const FormatException();
+            final fraction = raw['fraction'];
+            final moveMs = raw['moveMs'] ?? 0;
+            final holdMs = raw['holdMs'] ?? 0;
+            if (fraction is! num ||
+                !fraction.isFinite ||
+                fraction < 0 ||
+                fraction > 1 ||
+                moveMs is! int ||
+                moveMs < 0 ||
+                moveMs > 10000 ||
+                holdMs is! int ||
+                holdMs < 0 ||
+                holdMs > 10000) {
+              throw const FormatException();
+            }
+            steps.add((
+              fraction: fraction.toDouble(),
+              moveMs: moveMs,
+              holdMs: holdMs,
+            ));
+          }
+          if (steps.fold<int>(
+                0,
+                (sum, step) => sum + step.moveMs + step.holdMs,
+              ) >
+              120000) {
+            throw const FormatException();
+          }
+        }
+        final fraction =
+            body['fraction'] ?? (steps.isEmpty ? .1 : steps.first.fraction);
+        final flickMs = body['flickMs'];
+        final release = body['release'] ?? true;
         if (fraction is! num ||
             !fraction.isFinite ||
             fraction < 0 ||
-            fraction > 1) {
-          await _respond(request, HttpStatus.badRequest, {
-            'error': 'fraction must be from 0 through 1',
-          });
-          return;
+            fraction > 1 ||
+            release != true ||
+            (flickMs != null &&
+                (flickMs is! int ||
+                    flickMs < 1 ||
+                    flickMs > 120000 ||
+                    rawSteps != null))) {
+          throw const FormatException();
         }
         final presentation = presentationController;
         if (presentation == null) {
@@ -3290,8 +3333,15 @@ class SyncDiagnosticsServer {
           return;
         }
         try {
-          await presentation.dragSeek(fraction.toDouble());
-          await _respond(request, HttpStatus.ok, {'status': 'released'});
+          final releasedAt = await presentation.dragSeek(
+            fraction.toDouble(),
+            steps: rawSteps == null ? null : steps,
+            flickMs: flickMs as int?,
+          );
+          await _respond(request, HttpStatus.ok, {
+            'status': 'released',
+            'releasedAt': releasedAt.toIso8601String(),
+          });
         } on DiagnosticsPresentationUnavailable {
           await _presentationUnavailable(request);
         }

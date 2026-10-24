@@ -24,6 +24,8 @@ import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/features/downloads/presentation/downloads_screen.dart';
 import 'package:path/path.dart' as p;
 
+typedef DiagnosticsSeekDragStep = ({double fraction, int moveMs, int holdMs});
+
 class DiagnosticsPresentationUnavailable implements Exception {
   const new();
 }
@@ -958,8 +960,12 @@ class DiagnosticsPresentationController {
     await waitForFrame();
   }
 
-  /// Drags a visible seek slider, resting long enough for an app screenshot.
-  Future<void> dragSeek(double fraction) async {
+  /// Drives one held seek gesture; without a script it rests for three seconds.
+  Future<DateTime> dragSeek(
+    double fraction, {
+    List<DiagnosticsSeekDragStep>? steps,
+    int? flickMs,
+  }) async {
     final root = _boundaryKey.currentContext;
     if (root is! Element) throw const DiagnosticsPresentationUnavailable();
     final binding = GestureBinding.instance;
@@ -1021,32 +1027,67 @@ class DiagnosticsPresentationController {
         track.center.dy,
       ),
     );
-    final start = point(
-      (slider.value - slider.min) / (slider.max - slider.min),
+    final script =
+        steps ??
+        <DiagnosticsSeekDragStep>[
+          if (flickMs == null)
+            (fraction: fraction, moveMs: 0, holdMs: 3000)
+          else
+            for (var elapsed = 0; elapsed < flickMs; elapsed += 200)
+              (
+                fraction: (elapsed ~/ 200).isEven ? .9 : .1,
+                moveMs: (flickMs - elapsed).clamp(0, 200),
+                holdMs: 0,
+              ),
+        ];
+    var current = point(
+      steps == null
+          ? (flickMs == null
+                ? (slider.value - slider.min) / (slider.max - slider.min)
+                : fraction)
+          : script.first.fraction,
     );
-    final end = point(fraction);
     const pointer = 9283;
     binding.handlePointerEvent(
-      PointerDownEvent(pointer: pointer, position: start, viewId: viewId),
+      PointerDownEvent(pointer: pointer, position: current, viewId: viewId),
     );
+    late DateTime releasedAt;
     try {
       await waitForFrame();
-      binding.handlePointerEvent(
-        PointerMoveEvent(
-          pointer: pointer,
-          position: end,
-          delta: end - start,
-          buttons: kPrimaryButton,
-          viewId: viewId,
-        ),
-      );
-      await Future<void>.delayed(const Duration(seconds: 3));
+      for (final step in script) {
+        final start = current;
+        final end = point(step.fraction);
+        final frames = (step.moveMs / 16).ceil().clamp(1, 625);
+        for (var frame = 1; frame <= frames; frame++) {
+          if (step.moveMs > 0) {
+            await Future<void>.delayed(
+              Duration(microseconds: step.moveMs * 1000 ~/ frames),
+            );
+          }
+          final next = Offset.lerp(start, end, frame / frames)!;
+          binding.handlePointerEvent(
+            PointerMoveEvent(
+              pointer: pointer,
+              position: next,
+              delta: next - current,
+              buttons: kPrimaryButton,
+              viewId: viewId,
+            ),
+          );
+          current = next;
+        }
+        if (step.holdMs > 0) {
+          await Future<void>.delayed(Duration(milliseconds: step.holdMs));
+        }
+      }
     } finally {
+      releasedAt = DateTime.now().toUtc();
       binding.handlePointerEvent(
-        PointerUpEvent(pointer: pointer, position: end, viewId: viewId),
+        PointerUpEvent(pointer: pointer, position: current, viewId: viewId),
       );
     }
     await waitForFrame();
+    return releasedAt;
   }
 
   /// Taps the visible shell destination at [index] with a real pointer, on
