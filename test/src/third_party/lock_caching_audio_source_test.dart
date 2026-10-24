@@ -50,7 +50,11 @@ class _ProxyPlayer extends platform.AudioPlayerPlatform {
 
   final events = StreamController<platform.PlaybackEventMessage>.broadcast();
   late Uri proxyUri;
+  List<Uri> childUris = [];
   Duration? loadedPosition;
+
+  /// While set, [concatenatingRemoveRange] waits for it to complete.
+  Completer<void>? removeGate;
 
   @override
   Stream<platform.PlaybackEventMessage> get playbackEventMessageStream =>
@@ -66,6 +70,18 @@ class _ProxyPlayer extends platform.AudioPlayerPlatform {
       first = first.children.first;
     }
     proxyUri = Uri.parse((first as platform.ProgressiveAudioSourceMessage).uri);
+    childUris = [];
+    void collect(platform.AudioSourceMessage m) {
+      if (m is platform.ConcatenatingAudioSourceMessage) {
+        m.children.forEach(collect);
+      } else {
+        childUris.add(
+          Uri.parse((m as platform.ProgressiveAudioSourceMessage).uri),
+        );
+      }
+    }
+
+    collect(playlist);
     events.add(
       platform.PlaybackEventMessage(
         processingState: platform.ProcessingStateMessage.ready,
@@ -82,9 +98,23 @@ class _ProxyPlayer extends platform.AudioPlayerPlatform {
   }
 
   @override
+  Future<platform.ConcatenatingInsertAllResponse> concatenatingInsertAll(
+    platform.ConcatenatingInsertAllRequest request,
+  ) async {
+    childUris.addAll([
+      for (final child in request.children)
+        Uri.parse((child as platform.ProgressiveAudioSourceMessage).uri),
+    ]);
+    return platform.ConcatenatingInsertAllResponse();
+  }
+
+  @override
   Future<platform.ConcatenatingRemoveRangeResponse> concatenatingRemoveRange(
     platform.ConcatenatingRemoveRangeRequest request,
-  ) async => platform.ConcatenatingRemoveRangeResponse();
+  ) async {
+    await removeGate?.future;
+    return platform.ConcatenatingRemoveRangeResponse();
+  }
 
   @override
   Future<platform.SetVolumeResponse> setVolume(
@@ -314,6 +344,86 @@ void main() {
       expect(player.debugStreamRegistryCounts, (sources: 0, handlers: 0));
     },
   );
+
+  Future<int> statusOf(Uri uri) async {
+    final http = HttpClient();
+    try {
+      final response = await (await http.getUrl(uri)).close();
+      await response.drain<void>();
+      return response.statusCode;
+    } finally {
+      http.close(force: true);
+    }
+  }
+
+  Future<(AudioPlayer, List<LockCachingAudioSource>)> loadedPair() async {
+    final body = List<int>.filled(2048, 5);
+    final (server, _) = await _serve(body, ranges: false);
+    addTearDown(() => server.close(force: true));
+    final sources = [
+      for (final name in ['a', 'b'])
+        // ignore: experimental_member_use, reason: tests the Navis additions to the vendored source.
+        LockCachingAudioSource(
+          Uri.parse('http://127.0.0.1:${server.port}/$name'),
+          cacheFile: File('${directory.path}/$name.mp3'),
+        ),
+    ];
+    final player = AudioPlayer(
+      handleAudioSessionActivation: false,
+      handleInterruptions: false,
+      androidApplyAudioAttributes: false,
+    );
+    addTearDown(player.dispose);
+    await player.setAudioSources(sources);
+    return (player, sources);
+  }
+
+  test(
+    'a removed source is served until the platform edit completes',
+    () async {
+      final (player, [a, b]) = await loadedPair();
+      final removedUri = native.player.childUris[0];
+      expect(await statusOf(removedUri), HttpStatus.ok);
+      final gate = native.player.removeGate = Completer<void>();
+      final removal = player.removeAudioSourceAt(0);
+      await until(() => player.sequence.length == 1);
+      expect(await statusOf(removedUri), HttpStatus.ok);
+      gate.complete();
+      await removal;
+      expect(await statusOf(removedUri), HttpStatus.notFound);
+      expect(player.debugStreamRegistryCounts, (sources: 1, handlers: 1));
+      native.player.removeGate = null;
+    },
+  );
+
+  test('a removed source re-added to the playlist is served again', () async {
+    final (player, [a, b]) = await loadedPair();
+    await player.removeAudioSourceAt(0);
+    await player.addAudioSource(a);
+    expect(player.debugStreamRegistryCounts, (sources: 2, handlers: 2));
+    expect(player.sequence, [b, a]);
+    expect(await statusOf(native.player.childUris.last), HttpStatus.ok);
+  });
+
+  test(
+    'removing the item loaded natively keeps the next item served',
+    () async {
+      final (player, [a, b]) = await loadedPair();
+      final nextUri = native.player.childUris[1];
+      await player.removeAudioSourceAt(0);
+      expect(player.sequence, [b]);
+      expect(await statusOf(nextUri), HttpStatus.ok);
+    },
+  );
+
+  test('replaced idle platforms stop listening to the sequence', () async {
+    final (player, [a, b]) = await loadedPair();
+    for (var i = 0; i < 3; i++) {
+      await player.setAudioSource(a, preload: false);
+      await player.load();
+    }
+    expect(player.debugHasSequenceListeners, isFalse);
+  });
 
   for (final end in ['disconnect', 'dispose', 'clear', 'replace']) {
     test(

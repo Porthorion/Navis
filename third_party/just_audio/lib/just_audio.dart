@@ -1012,6 +1012,10 @@ class AudioPlayer {
         handlers: _proxy._handlerMap.length,
       );
 
+  /// Whether anything still listens to the sequence, for idle-shell leak tests.
+  @visibleForTesting
+  bool get debugHasSequenceListeners => _sequenceSubject.hasListener;
+
   void _registerAudioSource(AudioSource source) {
     _audioSources[source._id] = source;
   }
