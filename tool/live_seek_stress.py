@@ -2708,7 +2708,8 @@ def next_song_readiness(log: list, song_id: str, handover_w: float) -> tuple:
         return None, 0
     got = 0
     for r in gets:
-        end = r.get('endW') or handover_w
+        # In-flight counters are observed now, possibly seconds after handover.
+        end = r.get('endW') or time.time()
         if r['w'] >= handover_w:
             continue
         share = 1.0 if end <= handover_w else (handover_w - r['w']) / max(end - r['w'], 0.001)
@@ -2855,7 +2856,9 @@ def case_repeat_one_fill(run: Run, env):
     def check():
         out = []
         same = [x for x in run.samples if x['t'] >= seek['t'] and x['pos'] is not None]
-        wraps = [(a, b) for a, b in zip(same, same[1:]) if a['songId'] == b['songId'] == first['songId'] and a['idx'] == b['idx']
+        # A local-file reload briefly publishes a loading cursor at the old offset.
+        ready = [x for x in same if x['proc'] == 'ready']
+        wraps = [(a, b) for a, b in zip(ready, ready[1:]) if a['songId'] == b['songId'] == first['songId'] and a['idx'] == b['idx']
                  and a['pos'] > dur - 4000 and b['pos'] < 3000]
         run.metrics['wraps'] = [{'t': round(b['t'], 1), 'from': a['pos'], 'to': b['pos'], 'mat': b['mat'], 'deferred': b['deferred'],
                                  'qlen': b['qlen']} for a, b in wraps]

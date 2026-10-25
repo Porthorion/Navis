@@ -1445,7 +1445,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   | `seek` | seek landing, offset path, cache integrity |
   | `stress-drag` | held slider drag: preview sockets, GETs, heartbeat, release latency |
   | `memory-soak` | PSS slope, post-GC PSS and Dart heap over 20 drags and an idle window |
-  | `repeat` | Repeat One/All wraps, append at the queue end, next-song readiness at hand-over (`chain_end`: the case selects five tracks at least 100 s long, uses 30× fixture transcoding so both downloads can finish, and waits up to 25 s for the next file (bounded by remaining play time minus 10 s), then `nextRequestLeadS` (worst boundary at least 3 s, missing counts as cold) and `nextBytesAtHandover` (at least 256 KiB) come from the proxy log by the app's Dart user agent, and a seek 2 s into the next song is `nextSeekLocal` only if the final cache file matches the completed full-song GET and nothing was requested after the seek; this proves a network-free seek with a complete cache, not which bytes the decoder read; gated on Linux, informational on Android) |
+  | `repeat` | Repeat One/All wraps, append at the queue end, next-song readiness and network-free seeks at handover (`chain_end`; Linux gates, informational on Android) |
   | `crossfade` | hand-off under a 4 s cross-fade, skips |
   | `cut-recovery` | origin cuts, dead sources, cold seeks |
   | `local-seek` | seeks in a downloaded or fully cached file |
@@ -1460,6 +1460,23 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   counts are relative to the base for `seek`, `repeat` and `cut-recovery`
   because some cases are red on release/1.5 (see the PR); a new violation kind
   is always a FAIL.
+  For `repeat/chain_end`, five tracks at least 100 s long and 30× fixture
+  transcoding let the current and next download finish within the 25 s wait.
+  The wait is also bounded by remaining playback time minus 10 s. It waits
+  for the complete next file, rather than its first GET. `nextRequestLeadS`
+  and `nextBytesAtHandover` come from full-song Dart requests in the proxy log;
+  missing requests count as cold. `nextSeekLocal` requires the final cache
+  file to match a completed full-song GET before the 2 s seek and no new media
+  request for that song after the seek. This proves a network-free seek with
+  a complete cache, without distinguishing decoder-buffer hits from disk reads.
+  Linux gates are worst-boundary lead ≥6 s, worst-boundary bytes ≥1 MiB
+  (1,048,576), and network-free seek rate ≥0.75. Calibration on 2026-10-25
+  measured base/fix lead 0.02/14.62 s, bytes ≤540,672/3,454,317, and seek
+  rate 0/1; these gates leave over 8 s and 2 MiB below the warm result.
+  In-flight byte counters are prorated from their observation time back to
+  handover, so the subsequent readiness wait cannot inflate the estimate.
+  Repeat-wrap counting compares ready samples across a transient loading
+  cursor when the handler replaces an offset stream with its completed file.
 - **Exit codes.** 0 pass (or `RESULT NONE` when `--map` finds no playback code changed), 1 at least one threshold failed, 2 infrastructure
   error (build or emulator failure, missing base or AVD, a base that predates
   the harness, `~/Downloads/Navis_Downloads` changed, another heavy job holds

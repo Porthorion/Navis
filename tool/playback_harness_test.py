@@ -158,9 +158,10 @@ class NextSongReadiness(unittest.TestCase):
         empty = h.metrics('repeat', [{'violations': [], 'latencyS': None, 'metrics': {}}])
         self.assertEqual((empty['nextRequestLeadMinS'], empty['nextSeekLocalRate']), (None, None))
         base = {'caseErrors': 0, 'violations': 0, 'kinds': [], 'frozenMedianS': 0.1}
-        good = {**base, 'nextRequestLeadMinS': 6.0, 'nextBytesAtHandoverMin': 800000, 'nextSeekLocalRate': 1.0}
+        good = {**base, 'nextRequestLeadMinS': 6.0, 'nextBytesAtHandoverMin': 2000000, 'nextSeekLocalRate': 1.0}
         self.assertTrue(all(verdicts('repeat', base, good).values()))
-        for name, bad in (('nextRequestLeadMinS', 0.2), ('nextBytesAtHandoverMin', 0), ('nextSeekLocalRate', 0.5),
+        for name, bad in (('nextRequestLeadMinS', 0.2), ('nextRequestLeadMinS', 5.9),
+                          ('nextBytesAtHandoverMin', 0), ('nextBytesAtHandoverMin', 1048575), ('nextSeekLocalRate', 0.5),
                           ('nextRequestLeadMinS', None), ('nextSeekLocalRate', None)):
             self.assertFalse(verdicts('repeat', base, {**good, name: bad})[name + ':'], (name, bad))
         android = h.evaluate('repeat', base, {**good, 'nextRequestLeadMinS': -1.0}, 'android')
@@ -202,7 +203,13 @@ class RepeatFillOracle(unittest.TestCase):
             stack.enter_context(patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}))
             engine.case_repeat_one_fill(run, env)
             self.assertEqual(run.checks[0](), [])
-        self.assertEqual(len(run.metrics['wraps']), 1)
+            self.assertEqual(len(run.metrics['wraps']), 1)
+            # Missing and duplicate restarts must still fail.
+            for variant, count in ((samples[2:], 0),
+                                   (samples + [{**s, 't': s['t'] + 20} for s in samples], 2)):
+                run.samples = variant
+                self.assertEqual(run.checks[0](), [{'oracle': 'repeatOneRestartCount'}])
+                self.assertEqual(len(run.metrics['wraps']), count)
 
 
 class CodeAreaMap(unittest.TestCase):

@@ -91,7 +91,9 @@ SCENARIOS = {
                                              '**/ProgressiveRepeat.java', '**/AudioPlayer.java',
                                              'lib/src/features/cache/data/**'],
         checks=[('kinds', 'nonew'), ('violations', 'base+', 3), ('frozenMedianS', 'base+', 0.1),
-                ('nextRequestLeadMinS', '>=', 3.0), ('nextBytesAtHandoverMin', '>=', 262144),
+                # Linux cold: 0.02 s / <=540672 B / 0; warm: 14.62 s / 3454317 B / 1.
+                # Keep margin below the warm result and well above a handover GET.
+                ('nextRequestLeadMinS', '>=', 6.0), ('nextBytesAtHandoverMin', '>=', 1048576),
                 ('nextSeekLocalRate', '>=', 0.75)]),
     'crossfade': dict(
         cases='crossfade_end,skip_next,skip_prev', quick='crossfade_end,skip_next,skip_prev',

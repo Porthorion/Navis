@@ -4501,7 +4501,7 @@ already running for the song.
 **Next-song warm (desktop).** Once the current song is on disk (its sidecar
 completed, or it plays from a permanent or rolling file), `_syncSidecarChain`
 starts the same single sidecar downloader for the song that plays next, so the
-song change and the first seeks in it are served locally. `_rollingCacheNextSongId`
+completed file is available to normal cache-first resolution and seek recovery. `_rollingCacheNextSongId`
 defines "next" for this and for the Android stale-download and priority logic:
 the logical (shuffled) play order, the current song under Repeat One (nothing
 to warm), and the first song when Repeat All wraps. The warm runs at most once

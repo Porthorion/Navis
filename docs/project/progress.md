@@ -20,9 +20,15 @@ Last updated: 2026-10-25
   current and next song, "Prefetch the next song on mobile data" setting (on by
   default, confirmation when turned off, schema 106→107), and `repeat/chain_end`
   harness metrics. Round 3: pair-scoped retries, missing-file refill and saved-queue
-  startup eviction protection; 15 focused handler tests pass, including three
+  startup eviction protection; 17 focused handler tests pass, including three
   failures before these fixes and a tick-only retry that fails on round-1 code.
-  Remaining: calibrated Linux repeat A/B and final gate; Android evidence.
+  Linux isolated-fixture calibration (`build/harness/20261025T065152Z`) proves
+  next-song warming: base/fix minimum lead 0.02/14.62 s, bytes
+  ≤540,672/3,454,317, seek rate 0/1; no recovery or anomaly entries in
+  `chain_end`. The calibration exposed a healthy wrap hidden by a loading
+  cursor; a self-check reproduces it and the oracle now compares ready samples.
+  Gates: 6 s / 1 MiB / 0.75. Remaining: final gate and committed repeat A/B;
+  Android evidence and the setting dialog screenshots remain with the coordinator.
 - [x] Playback runtime harness — 2026-10-25: `tool/playback_harness.py` (list, map, ab)
   on the `tool/live_seek_stress.py` engine; diagnostics `queue-edit`, `quality`,
   `queue {shuffle,startIndex}`, `rawSeekBack` and a no-op-unless-diagnostics
