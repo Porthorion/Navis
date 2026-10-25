@@ -8147,6 +8147,8 @@ void main() {
         sidecarStreams: true,
         cacheSongs: false,
         sidecarDownloader: downloader,
+        // These cases watch the current song's single download.
+        nextSongPrefetchAllowed: false,
         supportsTranscodeOffset: capable,
         fastSeeking: enabled,
         wrapResolver: wrap,
