@@ -768,6 +768,19 @@ extension _NavisQueueLoading on NavisAudioHandler {
     return prepared;
   }
 
+  /// The lock-cache source already downloading [source]'s cache file (the
+  /// current song, or a next-song warm), if any. A rebuilt queue (shuffle,
+  /// reload) must keep playing from it: a second source on the same `.part`
+  /// would start a second overlapping origin download.
+  IndexedAudioSource? _runningLockCacheSource(ResolvedPlaybackSource source) {
+    final path = source.cachedFilePath;
+    if (source.kind != PlaybackSourceKind.lockCachedStream || path == null) {
+      return null;
+    }
+    final live = _lockCacheSources[path]?.source;
+    return live != null && live.isDownloading ? live : null;
+  }
+
   MediaItem _mediaItemForSong(
     SongsTableData song, {
     ResolvedPlaybackSource? source,
@@ -856,6 +869,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
             tag: item,
             positionOffset: source.positionOffset,
           ) ??
+          _runningLockCacheSource(source) ??
           source.asAudioSource(tag: item),
     );
   }

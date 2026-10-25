@@ -5957,6 +5957,24 @@ void main() {
       await until(() => !warm.isDownloading);
     });
 
+    test(
+      'a shuffle that keeps the warmed song next reuses its source',
+      () async {
+        final s = await serveQueue(2, hold: {'song-1'});
+        final warm = sourceAt(s.player, 1);
+        await playCurrent(s.player);
+        await until(() => s.requests.contains('song-1') && warm.isDownloading);
+        await s.handler.setShuffleMode(AudioServiceShuffleMode.all);
+        await settleQueue(s.handler);
+        expect(identical(sourceAt(s.player, 1), warm), isTrue);
+        final asked = sourceAt(s.player, 1).request();
+        s.release.complete();
+        await (await asked).stream.drain<void>();
+        await settle();
+        expect(s.requests.where((id) => id == 'song-1'), hasLength(1));
+      },
+    );
+
     test('disposing the handler cancels a running warm', () async {
       final s = await serveQueue(3, hold: {'song-1'});
       final part = await partOf(s.player, 1);
