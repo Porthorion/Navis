@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 from pathlib import Path
 
 os.environ['NAVIS_HARNESS_CAPPED'] = '1'
@@ -120,6 +121,25 @@ class NextSongReadiness(unittest.TestCase):
         self.assertEqual(engine.chain_warm_wait_s({'dur': 300000, 'pos': 30000}), 25)
         self.assertEqual(engine.chain_warm_wait_s({'dur': 20000, 'pos': 8000}), 2)
         self.assertEqual(engine.chain_warm_wait_s({'dur': 8000, 'pos': 5000}), 0)
+
+    def test_chain_selects_five_long_tracks(self):
+        backend = Mock()
+        backend.fresh_songs.return_value = [{'id': str(i)} for i in range(5)]
+        run, env = Mock(chain_repeat='none'), Mock(backend=backend)
+        with patch.object(engine, 'start_queue', side_effect=RuntimeError('selected')):
+            with self.assertRaisesRegex(RuntimeError, 'selected'):
+                engine.case_chain_end(run, env)
+        backend.fresh_songs.assert_called_once_with(5, min_s=100)
+
+    def test_cache_completion_requires_the_final_file_and_matching_bytes(self):
+        run = Mock()
+        run.proxy_mark, run.quality = 0, 'opus128'
+        run.env.proxy.log = [self.get('b', 90.0, 95.0, end='complete')]
+        run.env.backend.server.call.return_value = {'song': {'suffix': 'flac'}}
+        run.app.run = Path('/unused')
+        for size, expected in ((None, False), (0, False), (999, False), (1000, True)):
+            with patch.object(engine, 'rolling_fetch', return_value=size):
+                self.assertEqual(engine.next_cache_complete(run, 'b'), expected)
 
     def test_repeat_fixture_can_finish_both_downloads_before_the_wait_expires(self):
         # The old 3x fixture took ~75 s per 300 s song: 25 s could never warm its successor.

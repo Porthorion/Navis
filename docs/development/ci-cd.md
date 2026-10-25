@@ -989,3 +989,8 @@ do not prove media-session commands or engine survival.
 Seek-drag diagnostics contract coverage in `sync_diagnostics_server_test.dart`
 checks clone-only authorization and bounded scripted/flick inputs; presentation
 controller tests verify one held pointer, intermediate moves and one release.
+
+Playback prefetch checks use the `repeat/chain_end` fixture and gates documented
+in [Playback runtime harness](development-workflow.md#playback-runtime-harness).
+The repeat fixture uses 30× transcodes to finish current and next files within
+its bounded wait; network-free seek classification also verifies the final file.

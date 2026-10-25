@@ -2692,11 +2692,10 @@ def dart_gets(log: list, song_id: str) -> list:
             and not r.get('timeOffset')]
 
 
-def seek_was_local(log: list, song_id: str, seek_w: float) -> bool:
-    """A seek at wall time [seek_w] was served from disk: the app's own download of the song had finished before it
-    and nothing was requested for the song afterwards."""
+def seek_was_local(log: list, song_id: str, seek_w: float, *, cache_complete: bool) -> bool:
+    """Network-free seek with a complete cache file; this does not prove a disk read over an in-buffer seek."""
     done = any(r.get('end') == 'complete' and (r.get('endW') or 1e12) <= seek_w for r in dart_gets(log, song_id))
-    return done and not any(r['id'] == song_id and r['endpoint'] in ('stream', 'download') and r['w'] >= seek_w for r in log)
+    return cache_complete and done and not any(r['id'] == song_id and r['endpoint'] in ('stream', 'download') and r['w'] >= seek_w for r in log)
 
 
 def next_song_readiness(log: list, song_id: str, handover_w: float) -> tuple:
@@ -2717,10 +2716,28 @@ def next_song_readiness(log: list, song_id: str, handover_w: float) -> tuple:
     return round(handover_w - min(r['w'] for r in gets), 2), got
 
 
+def chain_warm_wait_s(sample: dict) -> float:
+    # Leave 10 s for the near-end seek even on short tracks.
+    return min(25, max(0, ((sample.get('dur') or 0) - (sample.get('pos') or 0)) / 1000 - 10))
+
+
+def next_cache_complete(run: Run, song_id: str) -> bool:
+    gets = [r for r in dart_gets(run.env.proxy.log[run.proxy_mark:], song_id) if r.get('end') == 'complete']
+    if not gets:
+        return False
+    song = run.env.backend.server.call('getSong', id=song_id)['song']
+    fmt, kbps = QUALITIES[run.quality]
+    suffix = song.get('suffix') or 'flac'
+    digest = hashlib.sha1(f'{song_id}::{kbps}::{fmt}::{suffix}'.encode()).hexdigest()
+    name = f'{digest}.{fmt or suffix}'
+    size = rolling_fetch(run, name, run.app.run / 'next-cache-probe.bin')
+    return size is not None and size > 0 and any(size == r['bytes'] for r in gets)
+
+
 def case_chain_end(run: Run, env):
-    """Repeat off, album: four songs each seeked to 6 s before their end; every boundary must hand over
+    """Repeat off, long queue: four songs each seeked to 6 s before their end; every boundary must hand over
     to the next song without a pause (setPauseAtEndOfMediaItems must not leak into normal playback)."""
-    ids = env.backend.fresh_album()
+    ids = [song['id'] for song in env.backend.fresh_songs(5, min_s=100)]
     run.songs = [{'id': i} for i in ids]
     if getattr(run, 'chain_repeat', 'none') != 'none':
         run.app.api('/v1/playback/repeat', {'mode': run.chain_repeat})
@@ -2731,9 +2748,9 @@ def case_chain_end(run: Run, env):
         cur = run.until(lambda s: s['songId'] == ids[n] and s['proc'] == 'ready' and s['playing'] and (s['pos'] or 0) > 500, 60) \
             or run.last()
         run.observe(3.0)
-        # Give a next-song warm time to start (up to 25 s); a build without one just waits it out.
-        warm_deadline = time.monotonic() + 25
-        while time.monotonic() < warm_deadline and not dart_gets(run.env.proxy.log[run.proxy_mark:], ids[n + 1]):
+        # Wait for the complete next file, not merely its first GET.
+        warm_deadline = time.monotonic() + chain_warm_wait_s(run.last())
+        while time.monotonic() < warm_deadline and not next_cache_complete(run, ids[n + 1]):
             run.observe(0.5)
         dur = run.last()['dur'] or 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
@@ -2758,13 +2775,14 @@ def case_chain_end(run: Run, env):
         lead, got = next_song_readiness(run.env.proxy.log[run.proxy_mark:], ids[n + 1], handover_w)
         leads.append(lead)
         fetched.append(got)
-        # Seek 2 s into the song that just took over: served from disk if the warm finished, otherwise from the network.
+        # Classify after settlement: complete file before the seek, no media request after it.
+        cache_complete = next_cache_complete(run, ids[n + 1])
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             seek = issue_seek(run, pool, 2000)
             landed(run, seek)
             finish_futures(run)
         run.observe(1.0)
-        local.append(seek_was_local(run.env.proxy.log[run.proxy_mark:], ids[n + 1], seek['w']))
+        local.append(seek_was_local(run.env.proxy.log[run.proxy_mark:], ids[n + 1], seek['w'], cache_complete=cache_complete))
     run.metrics['handoverGapsS'] = gaps
     run.metrics.update(nextRequestLeadS=leads, nextBytesAtHandover=fetched, nextSeekLocal=local)
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=4))

@@ -5654,7 +5654,7 @@ void main() {
           createPlayQueueDao: (db) => _GatedQueueEntriesDao(db, restore.future),
           seed: (database) async {
             for (var i = 0; i < 3; i++) {
-              final path = '${directory.path}/song-$i.mp3';
+              final path = p.join(directory.path, 'song-$i.mp3');
               paths.add(path);
               await File(path).writeAsBytes([1, 2, 3]);
               await database.cacheDao.upsertCachedTrack(

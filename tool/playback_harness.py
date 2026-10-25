@@ -85,7 +85,8 @@ SCENARIOS = {
         cases='offset_repeat_one,base_repeat_one,repeat_one_fill,chain_end,chain_end_all,repeat_switch_off,hold_off,hold_all,'
               'q7_append_200',
         quick='offset_repeat_one,repeat_one_fill,chain_end,q7_append_200',
-        qualities='opus128', throttle='wan6000', reps=3, budget=(8, 60), args=[],
+        # 30x transcodes let current + next complete within chain_end's 25 s window.
+        qualities='opus128', throttle='wan6000', reps=3, budget=(8, 60), args=['--transcode-speed', '30'],
         areas=HANDLER + CROSSFADE + QUEUE + ['lib/src/features/player/data/navis_playback_rules.dart',
                                              '**/ProgressiveRepeat.java', '**/AudioPlayer.java',
                                              'lib/src/features/cache/data/**'],
