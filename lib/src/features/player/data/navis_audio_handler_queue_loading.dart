@@ -268,13 +268,20 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // ignore: experimental_member_use, reason: close the retired player's lock-cache transport.
     if (retiredSource is LockCachingAudioSource) {
       await retiredSource.cancelDownload();
-      for (final entry in _lockCacheSources.entries.toList()) {
-        if (!identical(entry.value.source, retiredSource)) continue;
-        _lockCacheSources.remove(entry.key);
-        await _cacheProgressSubscriptions.remove(entry.key)?.cancel();
-        _completeRollingCacheActivity(entry.key);
-      }
     }
+    // The abandoned player disposes every source it held, which detaches a
+    // reused one from the new player: the reload builds fresh sources.
+    for (final entry in _lockCacheSources.entries.toList()) {
+      if (!identical(entry.value.source, retiredSource)) {
+        await entry.value.source.cancelDownload();
+      }
+      _lockCacheSources.remove(entry.key);
+      await _cacheProgressSubscriptions.remove(entry.key)?.cancel();
+      _completeRollingCacheActivity(entry.key);
+    }
+    _lockCacheWarmSongId = null;
+    _sidecarChainKey = null;
+    _preparedLockCacheSources.clear();
     _silenceAbandonedPlayer(_player);
     final inactive = _crossfadePlayer;
     if (inactive != null) _silenceAbandonedPlayer(inactive);
@@ -780,7 +787,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
       return null;
     }
     final live = _lockCacheSources[path]?.source;
-    return live;
+    if (live != null) return live;
+    final own = source.lockCachingAudioSource!;
+    return _preparedLockCacheSources.putIfAbsent(path, () => own);
   }
 
   MediaItem _mediaItemForSong(

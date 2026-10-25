@@ -508,6 +508,14 @@ class NavisAudioHandler extends BaseAudioHandler
   _lockCacheSources =
       // ignore: experimental_member_use, reason: as above.
       <String, ({String songId, LockCachingAudioSource source})>{};
+
+  /// Sources built by a queue prepare that no registry entry owns yet, so a
+  /// second occurrence of the same song prepared in the same batch shares the
+  /// first one's instance (one origin download per cache file).
+  // ignore: experimental_member_use, reason: as above.
+  final Map<String, LockCachingAudioSource> _preparedLockCacheSources =
+      // ignore: experimental_member_use, reason: as above.
+      <String, LockCachingAudioSource>{};
   final Set<String> _lockCachingBypassedSongIds = <String>{};
   final List<Map<String, Object?>> _seekDiagnosticsEvents =
       <Map<String, Object?>>[];
