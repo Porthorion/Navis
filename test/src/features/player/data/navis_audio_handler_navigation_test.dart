@@ -1313,6 +1313,7 @@ void main() {
     bool fastSeeking = true,
     RollingCacheSidecarDownloader? sidecarDownloader,
     bool crossfadeAllowStreaming = true,
+    bool nextSongPrefetchAllowed = true,
     PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     bool positionStreams = false,
     String crossfadeType = 'normal',
@@ -1455,7 +1456,7 @@ void main() {
       readRuntimeSettings: () => PlaybackRuntimeSettings(
         gaplessEnabled: true,
         fastSeekingEnabled: fastSeeking,
-
+        nextSongPrefetchAllowed: nextSongPrefetchAllowed,
         crossfadeEnabled: crossfade,
         crossfadeAllowStreaming: crossfadeAllowStreaming,
         crossfadeDurationSeconds: 5,
@@ -5351,6 +5352,204 @@ void main() {
       expect(diagnostics['partialCacheBytes'], 40 * 1024);
     },
   );
+
+  group('desktop next-song prefetch', () {
+    const size = 8 * 1024;
+    Future<
+      ({
+        NavisAudioHandler handler,
+        _ControllableAudioPlayer player,
+        RollingCacheSidecarDownloader downloader,
+        List<String> requests,
+        Completer<void> release,
+      })
+    >
+    serveQueue(
+      int count, {
+      bool allowed = true,
+      Set<String> hold = const <String>{},
+      Future<void> Function(NavisDatabase)? seed,
+      int startIndex = 0,
+      Future<void> Function(NavisAudioHandler)? beforePlay,
+    }) async {
+      final previousHttp = HttpOverrides.current;
+      HttpOverrides.global = null;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final release = Completer<void>();
+      final requests = <String>[];
+      server.listen((request) async {
+        final id = request.uri.queryParameters['id']!;
+        requests.add(id);
+        try {
+          request.response
+            ..bufferOutput = false
+            ..headers.contentType = ContentType('audio', 'mpeg')
+            ..contentLength = size;
+          if (hold.contains(id)) {
+            request.response.add(List<int>.filled(size ~/ 2, 1));
+            await request.response.flush();
+            await release.future;
+            request.response.add(List<int>.filled(size ~/ 2, 1));
+          } else {
+            request.response.add(List<int>.filled(size, 1));
+          }
+          await request.response.close();
+        } on Object {
+          // The handler cancels unfinished transfers at teardown.
+        }
+      });
+      final api = SubsonicApiClient(
+        baseUrl: 'http://127.0.0.1:${server.port}',
+        authConfig: const SubsonicAuthConfig(
+          username: 'fixture',
+          password: 'synthetic',
+          apiVersion: '1.16.1',
+        ),
+        enableLogging: false,
+      );
+      final directory = await Directory.systemTemp.createTemp('navis-prefetch-');
+      final downloader = RollingCacheSidecarDownloader();
+      final (handler, player, database) = await createHandler(
+        directory,
+        count,
+        sidecarStreams: true,
+        sidecarDownloader: downloader,
+        readApiClient: () => api,
+        nextSongPrefetchAllowed: allowed,
+        seed: seed,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        if (!release.isCompleted) release.complete();
+        await database.close();
+        await server.close(force: true);
+        await directory.delete(recursive: true);
+        HttpOverrides.global = previousHttp;
+      });
+      await beforePlay?.call(handler);
+      await handler.replaceQueue([
+        for (var i = 0; i < count; i++) 'song-$i',
+      ], startIndex: startIndex, expandMatchFlows: false);
+      return (
+        handler: handler,
+        player: player,
+        downloader: downloader,
+        requests: requests,
+        release: release,
+      );
+    }
+
+    Future<void> until(bool Function() condition) async {
+      for (var i = 0; i < 600 && !condition(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(condition(), isTrue);
+    }
+
+    Future<void> settle() => Future<void>.delayed(
+      const Duration(milliseconds: 400),
+    );
+
+    test('the next song downloads once the current one completes', () async {
+      final s = await serveQueue(3);
+      await until(() => s.requests.contains('song-1'));
+      await settle();
+      expect(s.requests, ['song-0', 'song-1']);
+      final next = s.handler.queue.value[1].extras!['sidecarCacheFilePath'];
+      expect(File(next as String).existsSync(), isTrue);
+    });
+
+    test('no next-song download when prefetch is not allowed', () async {
+      final s = await serveQueue(3, allowed: false);
+      final first = s.handler.queue.value[0].extras!['sidecarCacheFilePath'];
+      await until(() => File(first as String).existsSync());
+      await settle();
+      expect(s.requests, ['song-0']);
+    });
+
+    test('a next song that is already downloaded is not fetched', () async {
+      final s = await serveQueue(
+        3,
+        seed: (database) async {
+          final dir = await Directory.systemTemp.createTemp('navis-warm-');
+          final file = File('${dir.path}/song-1.mp3')
+            ..writeAsBytesSync(<int>[1, 2, 3]);
+          await database.cacheDao.upsertCachedTrack(
+            CachedTracksTableCompanion.insert(
+              songId: 'song-1',
+              filePath: file.path,
+              fileSize: 3,
+              format: 'mp3',
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+              lastAccessedAt: DateTime.now(),
+            ),
+          );
+        },
+      );
+      final first = s.handler.queue.value[0].extras!['sidecarCacheFilePath'];
+      await until(() => File(first as String).existsSync());
+      await settle();
+      expect(s.requests, ['song-0']);
+    });
+
+    test('Repeat One warms nothing', () async {
+      final s = await serveQueue(
+        3,
+        beforePlay: (handler) =>
+            handler.setRepeatMode(AudioServiceRepeatMode.one),
+      );
+      final first = s.handler.queue.value[0].extras!['sidecarCacheFilePath'];
+      await until(() => File(first as String).existsSync());
+      await settle();
+      expect(s.requests, ['song-0']);
+    });
+
+    test('Repeat All at the last song warms the first song', () async {
+      final s = await serveQueue(
+        2,
+        startIndex: 1,
+        beforePlay: (handler) =>
+            handler.setRepeatMode(AudioServiceRepeatMode.all),
+      );
+      await until(() => s.requests.contains('song-0'));
+      expect(s.requests, ['song-1', 'song-0']);
+    });
+
+    test('shuffle warms the next song in play order', () async {
+      final s = await serveQueue(
+        6,
+        beforePlay: (handler) =>
+            handler.setShuffleMode(AudioServiceShuffleMode.all),
+      );
+      final queue = s.handler.queue.value;
+      await until(() => s.requests.length >= 2);
+      final current = s.handler.mediaItem.value!.id;
+      final at = queue.indexWhere((item) => item.id == current);
+      expect(s.requests, [current, queue[at + 1].id]);
+    });
+
+    test('the chained download continues when its song becomes current', () async {
+      final s = await serveQueue(3, hold: {'song-1'});
+      await until(() => s.downloader.activeSongId == 'song-1');
+      await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
+      s.player.moveTo(1);
+      await pumpEventQueue();
+      expect(s.downloader.activeSongId, 'song-1');
+      expect(s.downloader.activeReceivedBytes, size ~/ 2);
+      s.release.complete();
+      await settle();
+      expect(s.requests.where((id) => id == 'song-1'), hasLength(1));
+    });
+
+    test('a queue edit cancels a chain that is no longer next', () async {
+      final s = await serveQueue(3, hold: {'song-1'});
+      await until(() => s.downloader.activeSongId == 'song-1');
+      await s.handler.removeQueueItemAt(1);
+      await until(() => s.downloader.activeSongId != 'song-1');
+      await until(() => s.requests.contains('song-2'));
+    });
+  });
 
   for (final fail in [false, true]) {
     test(
