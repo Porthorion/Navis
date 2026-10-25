@@ -141,6 +141,9 @@ extension _NavisCache on NavisAudioHandler {
     if (!_completedCacheSongIds.contains(item.id) ||
         !File(sidecarPath).existsSync()) {
       _completedCacheSongIds.remove(item.id);
+      // Refilling the current song cancels its warm without a failure backoff.
+      _sidecarChainKey = null;
+      _sidecarChainRetry = null;
       _startSidecarDownload(item, song, streamUri, sidecarPath);
     }
     _syncBridgeDownloadPriority();

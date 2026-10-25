@@ -4508,7 +4508,9 @@ the logical (shuffled) play order, the current song under Repeat One (nothing
 to warm), and the first song when Repeat All wraps. The warm runs at most once
 per current-to-next pair (a warm that ended without a file is retried after
 `sidecarChainRetryDelay` for that pair only), is never restarted by re-publishing
-the finished current song while its file still exists, and is cancelled when a
+the finished current song while its file still exists. Refilling a deleted
+current file clears the pair and retry state before cancelling its warm, so
+the warm restarts immediately after the refill. A warm is cancelled when a
 skip, queue edit or shuffle makes it
 neither current nor next or when the gate closes (setting turned off, link
 cellular or metered, offline); when the warmed song becomes current

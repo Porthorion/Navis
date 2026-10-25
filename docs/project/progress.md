@@ -33,6 +33,15 @@ Last updated: 2026-10-25
   against clean Linux fixture profiles; both `chain_end` reports have no
   recovery or anomaly entries. Audio was muted; no new visible UI was changed.
   Android evidence and the setting dialog screenshots remain with the coordinator.
+  Round 4: clear the warm pair and retry state before refilling a deleted
+  current sidecar. With prefetch enabled and a warm held in flight, the regression
+  fails on `c69a81bf5` (missing the second song-1 request) and verifies immediate
+  re-arming after refill. All 17 focused prefetch tests pass. Round-4 gates:
+  `11:29 +9472 ~1: All tests passed!`, `[check] All checks passed.` (one run);
+  `python3 tool/playback_harness_test.py`: 30 tests, OK.
+  Runtime A/B belongs to the separate runner; not run
+  in this implementation round. Legacy shuffle null-rank startup protection
+  (P3) is deferred because maintenance reads song-only rows, not saved ranks.
 - [x] Playback runtime harness — 2026-10-25: `tool/playback_harness.py` (list, map, ab)
   on the `tool/live_seek_stress.py` engine; diagnostics `queue-edit`, `quality`,
   `queue {shuffle,startIndex}`, `rawSeekBack` and a no-op-unless-diagnostics

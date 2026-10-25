@@ -5624,17 +5624,27 @@ void main() {
       await until(() => s.requests.contains('song-3'));
     });
 
-    test('republishing refills a deleted completed current file', () async {
-      final s = await serveQueue(3, allowed: false);
-      final path =
-          s.handler.queue.value[0].extras!['sidecarCacheFilePath']! as String;
-      await until(() => File(path).existsSync());
-      await settle();
-      await File(path).delete();
-      await s.handler.removeQueueItemAt(2);
-      await until(() => s.requests.where((id) => id == 'song-0').length == 2);
-      await until(() => File(path).existsSync());
-    });
+    test(
+      'refilling a deleted current file immediately re-arms the warm',
+      () async {
+        final s = await serveQueue(3, hold: {'song-1'});
+        await until(() => s.downloader.activeSongId == 'song-1');
+        await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
+        final path =
+            s.handler.queue.value[0].extras!['sidecarCacheFilePath']! as String;
+        await until(() => File(path).existsSync());
+        await settle();
+        await File(path).delete();
+        await s.handler.removeQueueItemAt(2);
+        await until(() => s.requests.where((id) => id == 'song-0').length == 2);
+        await until(() => File(path).existsSync());
+        await settle();
+        expect(s.requests, ['song-0', 'song-1', 'song-0', 'song-1']);
+        expect(s.downloader.activeSongId, 'song-1');
+        await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
+        s.release.complete();
+      },
+    );
 
     for (final (repeat, index, kept) in [
       (RepeatMode.off, 1, {1, 2}),
