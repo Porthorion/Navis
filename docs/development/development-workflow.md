@@ -1477,8 +1477,9 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   post-GC heap gate remains `base + 8 MiB`. Same-code A/A (3 reps, 2026-10-25):
   post-GC totals base 436.8/471.0/527.4, fix 544.2/580.8/595.7 MiB (medians
   471.0 vs 580.8, worst pairing 158.9 MiB, drifting upward over the run order);
-  slope medians 4.867 vs 1.864 MiB/drag. Stress-drag stall rules passed
-  unchanged in that A/A.
+  slope medians 4.867 vs 1.864 MiB/drag. On Linux the stress-drag stall rule compares only the
+  count of frames over 50 ms (`base + 3`), not the maximum: same-code A/As
+  showed single outliers of 204 and 354 ms with base maxima of 21 and 94 ms.
   The slope comparison clamps a negative base to zero before its multiplier;
   an identical negative slope must pass. Run a same-code A/A before changing
   a budget.

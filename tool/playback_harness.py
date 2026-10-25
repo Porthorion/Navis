@@ -55,7 +55,7 @@ class InfraError(RuntimeError):
 # (medians 471.0 vs 580.8; worst pairing 158.9), so the total gets base + 192; slope medians 4.867 vs 1.864 pass max(base, 0) * 1.25 + 1.5.
 # Checks: (metric, '<=', limit) absolute on the fix | (metric, 'base+', add) fix <= base + add |
 # (metric, 'base*', factor, add) | (metric, 'base-positive*', factor, add) clamps the base at zero | (metric, 'nonew') fix has no violation kind the base lacks |
-# (metric, 'stall') fix max <= 50 or not worse than base | (metric, 'true') | (metric, 'nonempty').
+# (metric, 'stall') fix max <= 50 or not worse than base (Linux: >50 ms count <= base + 3) | (metric, 'true') | (metric, 'nonempty').
 
 HANDLER = ['lib/src/features/player/data/navis_audio_handler*.dart', 'lib/src/features/player/data/playback_source_resolver.dart',
            'lib/src/features/cache/data/rolling_cache_sidecar_downloader.dart', 'third_party/just_audio*/**']
@@ -237,6 +237,10 @@ def _fmt(value) -> str:
 
 # A software-rendered guest janks in bursts (A/A: >50 ms counts of 1 vs 46, maxima 149 vs 188 ms), so Android's stall rule is wide.
 ANDROID_STALL = (3, 100)
+# Linux: same-code A/As (2026-10-25) failed the old max-vs-base rule in 3 of 5 runs: fix max/over50 204.0/1 vs base 20.6/0,
+# 353.8/2 vs 93.9/2, base 83.0/12 vs fix 50.9/2, and 50.2/1 vs 33.7/0 on the release comparison. Single-frame outliers
+# swing the max by 100s of ms, so only the >50 ms count is compared (worst same-code gap +1) with slack 3; p95 stays gated.
+LINUX_STALL_COUNT_SLACK = 3
 
 
 def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> list[tuple[bool, str]]:
@@ -271,9 +275,13 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
         elif kind == 'base*':
             ok, limit = f <= b * args[0] + args[1], f'<= base * {_fmt(args[0])} + {_fmt(args[1])}'
         elif kind == 'stall':
-            factor, slack = ANDROID_STALL if platform == 'android' else (1, 0)
-            ok = f['max'] <= 50 or (f['max'] <= b['max'] * factor + slack and f['over50'] <= b['over50'] * factor + slack)
-            limit = f'max <= 50 ms or (max and >50 ms count <= base * {_fmt(factor)} + {_fmt(slack)})'
+            if platform == 'android':
+                factor, slack = ANDROID_STALL
+                ok = f['max'] <= 50 or (f['max'] <= b['max'] * factor + slack and f['over50'] <= b['over50'] * factor + slack)
+                limit = f'max <= 50 ms or (max and >50 ms count <= base * {_fmt(factor)} + {_fmt(slack)})'
+            else:
+                ok = f['max'] <= 50 or f['over50'] <= b['over50'] + LINUX_STALL_COUNT_SLACK
+                limit = f'max <= 50 ms or >50 ms count <= base + {LINUX_STALL_COUNT_SLACK} (max not compared)'
         else:
             raise ValueError(check)
         lines.append((ok, f"{'PASS' if ok else 'FAIL'} {scenario} {name}: fix={_fmt(f)} base={_fmt(b)} limit={limit}"))

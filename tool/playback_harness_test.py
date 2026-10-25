@@ -33,8 +33,14 @@ class Thresholds(unittest.TestCase):
         for name, fix in {'frameGapP95Ms': drag_metrics(p95=22.1), 'previewSocketMax': drag_metrics(sockets=2),
                           'previewGETsMax': drag_metrics(gets=21), 'flickGETs': drag_metrics(flick=1),
                           'releaseMedianS': drag_metrics(release=3.0),
-                          'frameGapStall': drag_metrics(max_ms=60.0, over50=1)}.items():
+                          'frameGapStall': drag_metrics(max_ms=60.0, over50=4)}.items():
             self.assertFalse(verdicts('stress-drag', base, fix)[name + ':'], name)
+
+    def test_linux_stall_rule_ignores_single_outlier_max(self):
+        # same-code A/A pairs: 204 ms x1 vs 20.6 ms x0, and 353.8 ms x2 vs 93.9 ms x2
+        for base, fix in ((drag_metrics(max_ms=20.6, over50=0), drag_metrics(max_ms=204.0, over50=1)),
+                          (drag_metrics(max_ms=93.9, over50=2), drag_metrics(max_ms=353.8, over50=2))):
+            self.assertTrue(verdicts('stress-drag', base, fix)['frameGapStall:'])
 
     def test_stall_rule_allows_what_the_base_also_does(self):
         slow = drag_metrics(max_ms=80.0, over50=2)
