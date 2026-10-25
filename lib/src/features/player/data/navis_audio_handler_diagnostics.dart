@@ -135,6 +135,30 @@ extension _NavisDiagnostics on NavisAudioHandler {
     return true;
   }
 
+  void _traceSourceResolved(
+    SongsTableData song,
+    ResolvedPlaybackSource source,
+  ) {
+    _transportTrace.record('sourceResolved', () {
+      final query =
+          (source.uri ?? source.lockCachingStreamUri)?.queryParameters ??
+          const <String, String>{};
+      final cachedPath = source.cachedFilePath;
+      return <String, Object?>{
+        'songId': song.id,
+        'sourceKind': source.kind.name,
+        // Never the URL: it carries credentials.
+        'format': query['format'],
+        'maxBitRate': query['maxBitRate'],
+        'timeOffset': query['timeOffset'],
+        'sidecar': source.sidecarCacheFilePath != null,
+        if (source.isLocal)
+          'localFolder': source.uri!.pathSegments.reversed.skip(1).firstOrNull,
+        if (cachedPath != null) 'cacheFile': true,
+      };
+    });
+  }
+
   int? _partialCacheBytesForSong(String? songId) {
     if (songId == null) {
       return null;

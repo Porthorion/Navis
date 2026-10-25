@@ -173,6 +173,7 @@ class _PendingSeek {
     required this.queueIndex,
     required this.position,
     this.isRemoteRecovery = false,
+    this.onStage,
   });
 
   final int generation;
@@ -182,7 +183,17 @@ class _PendingSeek {
 
   /// Automatic recovery permits Play to rearm a failed source while it waits.
   final bool isRemoteRecovery;
-  String stage = 'waiting for source';
+
+  /// Reports each stage change (diagnostics transport trace).
+  final void Function(String stage)? onStage;
+  String _stage = 'waiting for source';
+  String get stage => _stage;
+  set stage(String value) {
+    if (value == _stage) return;
+    _stage = value;
+    onStage?.call(value);
+  }
+
   String? outcome;
   int recoveryAttempts = 0;
 
