@@ -581,17 +581,31 @@ def cmd_ab(args) -> int:
         display_env = stack.enter_context(Display(out))
         seed = seed_android(base_sha, flutter, display_env, out) if platform == 'android' else None
         for variant, folder in (('base', base_dir), ('fix', fix_dir)):
-            # A fresh guest per variant: one emulator for both has crashed mid-run (swiftshader), and a wiped guest
-            # starts both variants from the same state.
-            with ExitStack() as guest:
-                serial = guest.enter_context(Emulator(out)) if platform == 'android' else None
-                apk = artifact_of('android', folder) if serial else None
-                for name in names:
-                    activate(folder, platform, seed)
-                    rows, seconds = run_scenario(name, platform, out / variant / name, display_env, serial, apk, args.full, args.reps, args.real)
-                    results[(variant, name)] = metrics(name, rows)
-                    timings[(variant, name)] = seconds
-                    print(f'{variant} {name}: {len(rows)} cells in {seconds} s', flush=True)
+            for name in names:
+                for attempt in (1, 2):
+                    # A fresh guest per scenario: the emulator's GPU translator has crashed (qemu core dump) minutes into
+                    # a session, and a wiped guest starts both variants from the same state. A run that lost its guest
+                    # is repeated once.
+                    retry = False
+                    with ExitStack() as guest:
+                        emulator = Emulator(out) if platform == 'android' else None
+                        serial = guest.enter_context(emulator) if emulator else None
+                        apk = artifact_of('android', folder) if serial else None
+                        activate(folder, platform, seed)
+                        try:
+                            rows, seconds = run_scenario(name, platform, out / variant / name, display_env, serial, apk,
+                                                         args.full, args.reps, args.real)
+                        except InfraError:
+                            retry = emulator is not None and attempt == 1 and emulator.proc.poll() is not None
+                            if not retry:
+                                raise
+                    if retry:
+                        print(f'{variant} {name}: the emulator died, repeating once', flush=True)
+                        continue
+                    break
+                results[(variant, name)] = metrics(name, rows)
+                timings[(variant, name)] = seconds
+                print(f'{variant} {name}: {len(rows)} cells in {seconds} s', flush=True)
     after = downloads_snapshot()
     if after != before:
         raise InfraError(f'{DOWNLOADS} changed during the run (before/after in {out})')
