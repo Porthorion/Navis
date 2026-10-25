@@ -106,11 +106,25 @@ class NextSongReadiness(unittest.TestCase):
 
     def test_seek_is_local_only_after_a_finished_download_and_no_new_request(self):
         done = self.get('b', 90.0, 95.0, end='complete')
-        self.assertTrue(engine.seek_was_local([done], 'b', 100.0))
-        self.assertFalse(engine.seek_was_local([self.get('b', 90.0, 95.0, end='cut')], 'b', 100.0))
-        self.assertFalse(engine.seek_was_local([self.get('b', 99.0, 130.0, end='complete')], 'b', 100.0))
-        self.assertFalse(engine.seek_was_local([done, self.get('b', 100.5, 101.0, ua='Navis Desktop')], 'b', 100.0))
-        self.assertFalse(engine.seek_was_local([], 'b', 100.0))
+        self.assertTrue(engine.seek_was_local([done], 'b', 100.0, cache_complete=True))
+        self.assertFalse(engine.seek_was_local([self.get('b', 90.0, 95.0, end='cut')], 'b', 100.0, cache_complete=True))
+        self.assertFalse(engine.seek_was_local([self.get('b', 99.0, 130.0, end='complete')], 'b', 100.0, cache_complete=True))
+        self.assertFalse(engine.seek_was_local([done, self.get('b', 100.5, 101.0, ua='Navis Desktop')], 'b', 100.0, cache_complete=True))
+        self.assertFalse(engine.seek_was_local([], 'b', 100.0, cache_complete=True))
+
+    def test_seek_requires_the_complete_cache_file(self):
+        done = self.get('b', 90.0, 95.0, end='complete')
+        self.assertFalse(engine.seek_was_local([done], 'b', 100.0, cache_complete=False))
+
+    def test_chain_wait_leaves_time_for_the_end_seek(self):
+        self.assertEqual(engine.chain_warm_wait_s({'dur': 300000, 'pos': 30000}), 25)
+        self.assertEqual(engine.chain_warm_wait_s({'dur': 20000, 'pos': 8000}), 2)
+        self.assertEqual(engine.chain_warm_wait_s({'dur': 8000, 'pos': 5000}), 0)
+
+    def test_repeat_fixture_can_finish_both_downloads_before_the_wait_expires(self):
+        # The old 3x fixture took ~75 s per 300 s song: 25 s could never warm its successor.
+        args = h.SCENARIOS['repeat']['args']
+        self.assertGreaterEqual(float(args[args.index('--transcode-speed') + 1]), 30)
 
     def test_repeat_metrics_and_thresholds(self):
         cell = {'nextRequestLeadS': [8.0, None, 6.0], 'nextBytesAtHandover': [900000, 0, 800000], 'nextSeekLocal': [True, False, True]}

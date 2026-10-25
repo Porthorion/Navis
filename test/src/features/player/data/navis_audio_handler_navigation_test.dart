@@ -128,6 +128,18 @@ class _GatedPlayQueueDao extends PlayQueueDao {
   }
 }
 
+class _GatedQueueEntriesDao extends PlayQueueDao {
+  new(super.attachedDatabase, this.release);
+  final Future<void> release;
+
+  @override
+  Future<List<({SongsTableData song, int? originalOrder})>>
+  getQueueEntries() async {
+    await release;
+    return super.getQueueEntries();
+  }
+}
+
 class _GatedSourceResolver extends Fake implements PlaybackSourceResolver {
   new(this.delegate);
   final PlaybackSourceResolver delegate;
@@ -1317,6 +1329,7 @@ void main() {
     bool Function()? readNextSongPrefetchAllowed,
     PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     bool positionStreams = false,
+    int rollingCacheBudgetBytes = 1024 * 1024,
     String crossfadeType = 'normal',
     String Function()? readCrossfadeType,
     bool matchFlow = false,
@@ -1445,7 +1458,7 @@ void main() {
       sourceResolver: resolver,
       readApiClient: readApiClient ?? () => apiClient,
       rollingCacheManager: cache,
-      readRollingCacheBudgetBytes: () => 1024 * 1024,
+      readRollingCacheBudgetBytes: () => rollingCacheBudgetBytes,
       scrobbleService: scrobbleService ?? _NoopScrobbleService(),
       listenBrainzFeedbackService: ListenBrainzFeedbackService(
         dao: database.listenBrainzFeedbackDao,
@@ -5426,6 +5439,7 @@ void main() {
         directory,
         count,
         sidecarStreams: true,
+        positionStreams: true,
         sidecarDownloader: downloader,
         readApiClient: () => api,
         nextSongPrefetchAllowed: allowed,
@@ -5594,11 +5608,84 @@ void main() {
       sidecarChainRetryDelay = const Duration(milliseconds: 150);
       addTearDown(() => sidecarChainRetryDelay = const Duration(seconds: 30));
       final s = await serveQueue(3, failFirst: {'song-1'});
+      s.player.simulateProgress = true;
+      s.player.emitPlayerEvent();
       await until(() => s.requests.contains('song-1'));
       await settle();
-      await s.handler.removeQueueItemAt(2);
+      // Position ticks must retry without a queue edit clearing the pair key.
       await until(() => s.requests.where((id) => id == 'song-1').length == 2);
     });
+
+    test('a failed pair does not block the next pair', () async {
+      final s = await serveQueue(4, failFirst: {'song-1'});
+      await until(() => s.requests.contains('song-1'));
+      await settle();
+      s.player.moveTo(2);
+      await until(() => s.requests.contains('song-3'));
+    });
+
+    test('republishing refills a deleted completed current file', () async {
+      final s = await serveQueue(3, allowed: false);
+      final path =
+          s.handler.queue.value[0].extras!['sidecarCacheFilePath']! as String;
+      await until(() => File(path).existsSync());
+      await settle();
+      await File(path).delete();
+      await s.handler.removeQueueItemAt(2);
+      await until(() => s.requests.where((id) => id == 'song-0').length == 2);
+      await until(() => File(path).existsSync());
+    });
+
+    test(
+      'startup eviction protects the saved current and next files',
+      () async {
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-startup-keep-',
+        );
+        final paths = <String>[];
+        final restore = Completer<void>();
+        final (handler, _, database) = await createHandler(
+          directory,
+          3,
+          cacheSongs: false,
+          savedQueueIndex: 1,
+          rollingCacheBudgetBytes: 1,
+          waitForReady: false,
+          createPlayQueueDao: (db) => _GatedQueueEntriesDao(db, restore.future),
+          seed: (database) async {
+            for (var i = 0; i < 3; i++) {
+              final path = '${directory.path}/song-$i.mp3';
+              paths.add(path);
+              await File(path).writeAsBytes([1, 2, 3]);
+              await database.cacheDao.upsertCachedTrack(
+                CachedTracksTableCompanion.insert(
+                  songId: 'song-$i',
+                  filePath: path,
+                  fileSize: 3,
+                  format: 'mp3',
+                  cacheType: CacheType.rolling,
+                  downloadStatus: DownloadStatus.complete,
+                  lastAccessedAt: DateTime.now(),
+                ),
+              );
+            }
+          },
+        );
+        addTearDown(() async {
+          if (!restore.isCompleted) restore.complete();
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        // Startup maintenance is concurrent with metadata restoration.
+        await until(() => !File(paths[0]).existsSync());
+        await settle();
+        expect(File(paths[1]).existsSync(), isTrue);
+        expect(File(paths[2]).existsSync(), isTrue);
+        restore.complete();
+        await handler.debugWaitForStartupQueueRestore();
+      },
+    );
 
     test(
       'the handler reports the current and next song as protected',
