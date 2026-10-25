@@ -3648,6 +3648,9 @@ class LockCachingAudioSource extends StreamAudioSource {
   final _rangeFetches = <_LockCacheRangeFetch>{};
   int _rangeFetchBytes = 0;
 
+  /// Navis: whether the whole-file download is running (headers pending or body streaming).
+  bool get isDownloading => _downloading;
+
   /// Navis: whether a beyond-cache origin request is still live.
   bool get hasActiveRangeFetch => _rangeFetches.isNotEmpty;
 
@@ -4085,7 +4088,20 @@ class LockCachingAudioSource extends StreamAudioSource {
     _requests.add(byteRangeRequest);
     final dispatch = _dispatchRequests;
     if (dispatch != null) unawaited(dispatch());
-    _response ??=
+    _startFetch();
+    return byteRangeRequest.future;
+  }
+
+  /// Navis: starts (or joins) the whole-file download without a response, so
+  /// no replay buffer holds the body. A later [request] shares the download.
+  /// Throws if the download fails; a finished file is a no-op.
+  Future<void> prefetch() async {
+    if ((await cacheFile).existsSync()) return;
+    await _startFetch();
+  }
+
+  Future<HttpClientResponse> _startFetch() {
+    final response = _response ??=
         _fetch().catchError((dynamic error, StackTrace? stackTrace) async {
       // So that we can restart later
       _response = null;
@@ -4098,8 +4114,8 @@ class LockCachingAudioSource extends StreamAudioSource {
       return Future<HttpClientResponse>.error(error as Object, stackTrace);
     });
     // Errors reach every request; the retained fetch future has no direct caller.
-    _response!.ignore();
-    return byteRangeRequest.future;
+    response.ignore();
+    return response;
   }
 }
 
