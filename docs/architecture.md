@@ -4500,9 +4500,13 @@ asks for no lock caching (seek recovery, crossfade decks, songs whose
 lock-cached start failed); otherwise a recovery reload cancelled the download
 already running for the song.
 
-**Next-song warm (desktop).** Once the current song is on disk (its sidecar
-completed, or it plays from a permanent or rolling file), `_syncSidecarChain`
-starts the same single sidecar downloader for the song that plays next. Its
+**Next-song warm.** Once the current song is on disk (its sidecar or lock-cache
+download completed, or it plays from a permanent or rolling file),
+`_syncSidecarChain` starts the song that plays next: on desktop with the single
+sidecar downloader, on Android with `request()` on the next song's existing
+`LockCachingAudioSource` (drained; ExoPlayer's later request joins the running
+download, `_lockCacheWarmSongId`; no source, such as a downloaded, fully cached or
+deferred-tail song, is no warm). Its
 completed file is available to normal cache-first resolution and seek recovery.
 `_rollingCacheNextSongId`
 defines "next" for this and for the Android stale-download and priority logic:
@@ -4527,9 +4531,6 @@ is unaffected. `RollingCacheManager.enforceBudget(keepSongIds:)` never evicts
 the current or next song, including when the budget is lowered in Cache &
 Storage (`rollingCacheProtectedSongIds`). Startup maintenance reads the saved
 queue in play order to protect its current and next song before restoration.
-On Android, ExoPlayer's lock-cache proxy still starts
-the next song's download when it first asks for it; only the next-song
-calculation and the gate apply there until the harness shows a cold hand-over.
 
 On Linux and Windows, **Fast Seeking** (on by default) can bridge a remote
 lossless original with an Opus 256 kbps stream opened at the requested
