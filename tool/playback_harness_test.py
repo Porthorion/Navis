@@ -105,6 +105,11 @@ class NextSongReadiness(unittest.TestCase):
         # The sidecar GET that starts at the hand-over is the song's own, not a warm: the lead stays below the gate.
         self.assertLess(engine.next_song_readiness([self.get('b', 99.9, 106.0)], 'b', 100.0)[0], 3.0)
 
+    def test_inflight_bytes_are_prorated_to_handover_not_the_later_observation(self):
+        # 1000 bytes observed at t=110 cannot all have arrived at the t=100 boundary.
+        with patch.object(engine.time, 'time', return_value=110.0):
+            self.assertEqual(engine.next_song_readiness([self.get('b', 90.0, None)], 'b', 100.0), (10.0, 500))
+
     def test_seek_is_local_only_after_a_finished_download_and_no_new_request(self):
         done = self.get('b', 90.0, 95.0, end='complete')
         self.assertTrue(engine.seek_was_local([done], 'b', 100.0, cache_complete=True))

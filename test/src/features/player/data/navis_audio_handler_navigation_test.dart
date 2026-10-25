@@ -5636,56 +5636,75 @@ void main() {
       await until(() => File(path).existsSync());
     });
 
-    test(
-      'startup eviction protects the saved current and next files',
-      () async {
-        final directory = await Directory.systemTemp.createTemp(
-          'navis-startup-keep-',
-        );
-        final paths = <String>[];
-        final restore = Completer<void>();
-        final (handler, _, database) = await createHandler(
-          directory,
-          3,
-          cacheSongs: false,
-          savedQueueIndex: 1,
-          rollingCacheBudgetBytes: 1,
-          waitForReady: false,
-          createPlayQueueDao: (db) => _GatedQueueEntriesDao(db, restore.future),
-          seed: (database) async {
-            for (var i = 0; i < 3; i++) {
-              final path = p.join(directory.path, 'song-$i.mp3');
-              paths.add(path);
-              await File(path).writeAsBytes([1, 2, 3]);
-              await database.cacheDao.upsertCachedTrack(
-                CachedTracksTableCompanion.insert(
-                  songId: 'song-$i',
-                  filePath: path,
-                  fileSize: 3,
-                  format: 'mp3',
-                  cacheType: CacheType.rolling,
-                  downloadStatus: DownloadStatus.complete,
-                  lastAccessedAt: DateTime.now(),
-                ),
+    for (final (repeat, index, kept) in [
+      (RepeatMode.off, 1, {1, 2}),
+      (RepeatMode.one, 1, {1}),
+      (RepeatMode.all, 2, {2, 0}),
+    ]) {
+      test(
+        'startup eviction protects saved shuffled files with ${repeat.name}',
+        () async {
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-startup-keep-',
+          );
+          final paths = <String>[];
+          final restore = Completer<void>();
+          final (handler, _, database) = await createHandler(
+            directory,
+            3,
+            cacheSongs: false,
+            savedQueueIndex: index,
+            rollingCacheBudgetBytes: 1,
+            waitForReady: false,
+            createPlayQueueDao: (db) =>
+                _GatedQueueEntriesDao(db, restore.future),
+            seed: (database) async {
+              await database.playQueueDao.saveQueue(
+                songIds: ['song-0', 'song-1', 'song-2'],
+                currentIndex: index,
+                repeatMode: repeat,
+                shuffleMode: ShuffleMode.all,
+                originalOrder: [2, 0, 1],
               );
-            }
-          },
-        );
-        addTearDown(() async {
-          if (!restore.isCompleted) restore.complete();
-          await handler.disposeHandler();
-          await database.close();
-          await directory.delete(recursive: true);
-        });
-        // Startup maintenance is concurrent with metadata restoration.
-        await until(() => !File(paths[0]).existsSync());
-        await settle();
-        expect(File(paths[1]).existsSync(), isTrue);
-        expect(File(paths[2]).existsSync(), isTrue);
-        restore.complete();
-        await handler.debugWaitForStartupQueueRestore();
-      },
-    );
+              for (var i = 0; i < 3; i++) {
+                final path = p.join(directory.path, 'song-$i.mp3');
+                paths.add(path);
+                await File(path).writeAsBytes([1, 2, 3]);
+                await database.cacheDao.upsertCachedTrack(
+                  CachedTracksTableCompanion.insert(
+                    songId: 'song-$i',
+                    filePath: path,
+                    fileSize: 3,
+                    format: 'mp3',
+                    cacheType: CacheType.rolling,
+                    downloadStatus: DownloadStatus.complete,
+                    lastAccessedAt: DateTime.now(),
+                  ),
+                );
+              }
+            },
+          );
+          addTearDown(() async {
+            if (!restore.isCompleted) restore.complete();
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+          // Startup maintenance is concurrent with metadata restoration.
+          final evicted = List.generate(
+            3,
+            (i) => i,
+          ).firstWhere((i) => !kept.contains(i));
+          await until(() => !File(paths[evicted]).existsSync());
+          await settle();
+          for (var i = 0; i < paths.length; i++) {
+            expect(File(paths[i]).existsSync(), kept.contains(i));
+          }
+          restore.complete();
+          await handler.debugWaitForStartupQueueRestore();
+        },
+      );
+    }
 
     test(
       'the handler reports the current and next song as protected',
