@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/models/playlist.dart';
+import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/playlists/data/playlist_actions.dart';
@@ -185,20 +186,83 @@ void main() {
     verify(() => api.deletePlaylist('p')).called(1);
   });
 
-  test(
-    'add refreshes headers and detail and reports no skipped server songs',
-    () async {
-      when(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['a', 'a']))
-          .thenAnswer((_) async => _response);
-      await flush();
-      expect(await actions.addSongs(_playlist, ['a', 'a']), 0);
-      await flush();
-      expect(headerSyncs, 2);
-      expect(detailSyncs, 2);
-      verify(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['a', 'a']))
-          .called(1);
-    },
-  );
+  /// Stateful server: [maxAdd] caps how many `songIdsToAdd` one call honours
+  /// (Navidrome 0.64 ignores 2+ ids).
+  List<String> stubServer(List<String> songs, {required int maxAdd}) {
+    when(
+      () => api.updatePlaylist(
+        id: 'p',
+        songIdsToAdd: any(named: 'songIdsToAdd'),
+      ),
+    ).thenAnswer((i) async {
+      final ids = i.namedArguments[#songIdsToAdd] as List<String>;
+      if (ids.length <= maxAdd) songs.addAll(ids);
+      return _response;
+    });
+    when(() => api.getPlaylist('p')).thenAnswer(
+      (_) async => Playlist(
+        id: 'p',
+        name: 'Mix',
+        entries: [for (final id in songs) Song(id: id, title: id)],
+      ),
+    );
+    return songs;
+  }
+
+  test('album add falls back to one id per request', () async {
+    final server = stubServer(['x'], maxAdd: 1);
+    await flush();
+    expect(await actions.addSongs(_playlist, ['a', 'b', 'a']), 0);
+    await flush();
+    expect(server, ['x', 'a', 'b', 'a']);
+    expect(headerSyncs, 2);
+    expect(detailSyncs, 2);
+  });
+
+  test('add stays one update when the server honours multi-id', () async {
+    final server = stubServer(['x'], maxAdd: 99);
+    await flush();
+    expect(await actions.addSongs(_playlist, ['a', 'b']), 0);
+    expect(server, ['x', 'a', 'b']);
+    verify(
+      () => api.updatePlaylist(id: 'p', songIdsToAdd: ['a', 'b']),
+    ).called(1);
+    verifyNever(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['a']));
+    // One read before (baseline) and one after.
+    verify(() => api.getPlaylist('p')).called(2);
+  });
+
+  test('add never reports success when the server drops every add', () async {
+    final server = stubServer(['x'], maxAdd: 0);
+    await flush();
+    expect(await actions.addSongs(_playlist, ['a', 'b']), 2);
+    expect(server, ['x']);
+  });
+
+  test('add reports the songs the server still lacks', () async {
+    var calls = 0;
+    final server = ['x'];
+    when(
+      () => api.updatePlaylist(
+        id: 'p',
+        songIdsToAdd: any(named: 'songIdsToAdd'),
+      ),
+    ).thenAnswer((i) async {
+      final ids = i.namedArguments[#songIdsToAdd] as List<String>;
+      if (ids.length == 1 && ++calls == 1) server.addAll(ids);
+      return _response;
+    });
+    when(() => api.getPlaylist('p')).thenAnswer(
+      (_) async => Playlist(
+        id: 'p',
+        name: 'Mix',
+        entries: [for (final id in server) Song(id: id, title: id)],
+      ),
+    );
+    await flush();
+    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), 2);
+    expect(server, ['x', 'a']);
+  });
 
   test('remove uses the occurrence index and refreshes detail', () async {
     when(() => api.updatePlaylist(id: 'p', songIndexesToRemove: [1]))
@@ -256,6 +320,7 @@ void main() {
           songIndexesToRemove: any(named: 'songIndexesToRemove'),
         ),
       ).thenThrow(error);
+      when(() => api.getPlaylist(any())).thenThrow(error);
       when(() => api.deletePlaylist(any())).thenThrow(error);
       when(
         () => api.replacePlaylistSongs(
@@ -266,8 +331,9 @@ void main() {
       await flush();
       await expectLater(operation(actions, _playlist), throwsA(same(error)));
       await flush();
-      expect(headerSyncs, 1);
-      expect(detailSyncs, label == 'reorder' ? 2 : 1);
+      // A failed add may have added some songs, so it refreshes too.
+      expect(headerSyncs, label == 'add' ? 2 : 1);
+      expect(detailSyncs, label == 'reorder' || label == 'add' ? 2 : 1);
     });
 
     test('$label fails visibly when offline', () async {
