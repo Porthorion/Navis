@@ -1379,6 +1379,8 @@ def oracle_progress_loss(run: Run, drop_ms=2000) -> list[dict]:
             continue
         if a['pos'] - b['pos'] <= drop_ms or a['proc'] != 'ready':  # a loading item still reports the previous song's position
             continue
+        if is_position_blip(samples, i):
+            continue
         asked = ('seek', 'prev', 'jump', 'next')  # a 'start' has no end time: its window would hide a rewind seconds in
         if _requested_at(run, b['t'], asked) or _requested_at(run, b['t'] - 1.0, asked) or song_end_near(samples, i):
             continue
@@ -1388,15 +1390,20 @@ def oracle_progress_loss(run: Run, drop_ms=2000) -> list[dict]:
 
 
 def is_position_blip(samples, i) -> bool:
-    """Samples [i-1, i] are a reset to near 0 that comes back within 3 samples, or the jump back after one."""
+    """A native clock reset returning within 3 samples and 500 ms, or its return to the same timeline."""
     a, b = samples[i - 1], samples[i]
-    if a['pos'] is None or b['pos'] is None:
+    if (a['pos'] is None or b['pos'] is None or a['songId'] != b['songId'] or a['idx'] != b['idx']
+            or (a.get('off') or 0) != (b.get('off') or 0)):
         return False
-    if a['pos'] - b['pos'] > 5000 and b['pos'] < 3000:  # reset: does the old position return soon?
-        return any(n['pos'] is not None and abs(n['pos'] - a['pos']) < 3000 and n['songId'] == b['songId']
+    if a['pos'] - b['pos'] > 2000 and 0 <= b['pos'] - (b.get('off') or 0) < 3000:
+        return any(n['pos'] is not None and abs(n['pos'] - a['pos']) < 500
+                   and n['songId'] == b['songId'] and n['idx'] == b['idx']
+                   and (n.get('off') or 0) == (b.get('off') or 0) and n['t'] - a['t'] <= 0.5
                    for n in samples[i + 1:i + 4])
-    if b['pos'] - a['pos'] > 8000 and a['pos'] < 3000:  # jump: was the sample before [i-1] already there?
-        return any(n['pos'] is not None and abs(n['pos'] - b['pos']) < 3000 and n['songId'] == b['songId']
+    if b['pos'] - a['pos'] > 2000 and 0 <= a['pos'] - (a.get('off') or 0) < 3000:
+        return any(n['pos'] is not None and abs(n['pos'] - b['pos']) < 500
+                   and n['songId'] == b['songId'] and n['idx'] == b['idx']
+                   and (n.get('off') or 0) == (b.get('off') or 0) and b['t'] - n['t'] <= 0.5
                    for n in samples[max(0, i - 4):i - 1])
     return False
 
@@ -2439,6 +2446,22 @@ def case_offset_natural(run: Run, env):
     run.latency_from = [seek]
 
 
+def wait_for_repeat_start(run: Run, song_id: str, after: float, timeout: float, max_position: float):
+    """Confirms a repeat start without mistaking a brief native clock reset for a loop."""
+    deadline = time.monotonic() + timeout
+    while (remaining := deadline - time.monotonic()) > 0:
+        sample = run.until(lambda s: s['t'] > after and s['songId'] == song_id and s['pos'] is not None
+                           and s['pos'] < max_position and s['proc'] == 'ready', remaining)
+        if sample is None:
+            return None
+        run.observe(0.5)
+        index = run.samples.index(sample)
+        if index == 0 or not is_position_blip(run.samples, index):
+            return sample
+        after = sample['t']
+    return None
+
+
 def case_offset_repeat_one(run: Run, env):
     """Repeat-one with an offset seek: the loop restarts at 0:00, never at the sought position."""
     offset_case_prologue(run)
@@ -2454,15 +2477,15 @@ def case_offset_repeat_one(run: Run, env):
         finish_futures(run)
     t_seek = seek['t']
     fade_ms = CROSSFADE_S * 1000  # a cross-faded loop hands over when the new copy is already fade_ms in
-    wrapped = run.until(lambda s: s['t'] > t_seek and s['songId'] == song['id'] and s['pos'] is not None
-                        and s['pos'] < 4000 + fade_ms and s['proc'] == 'ready', duration_ms * 0.2 / 1000 + 60 + run.deadlines['advance'])
+    wrapped = wait_for_repeat_start(run, song['id'], t_seek,
+                                    duration_ms * 0.2 / 1000 + 60 + run.deadlines['advance'], 4000 + fade_ms)
     run.metrics['loopWrappedAt'] = wrapped and wrapped['t']
     if wrapped is None:
         run.violations.append(violation('repeatOneNoLoop', run.now(), 'position never wrapped to the start', run))
         raise CaseAbort('no loop')
     run.observe(8.0)
-    wrapped2 = run.until(lambda s: s['t'] > wrapped['t'] + 30 and s['songId'] == song['id'] and s['pos'] is not None
-                         and s['pos'] < 4000 and s['proc'] == 'ready', duration_ms / 1000 + 2 * run.deadlines['advance'])
+    wrapped2 = wait_for_repeat_start(run, song['id'], wrapped['t'] + 30,
+                                     duration_ms / 1000 + 2 * run.deadlines['advance'], 4000)
     run.metrics['loop2WrappedAt'] = wrapped2 and wrapped2['t']
     if wrapped2 is None:
         run.violations.append(violation('repeatOneNoSecondLoop', run.now(), 'position never wrapped a second time', run))
@@ -2602,8 +2625,8 @@ def case_base_repeat_one(run: Run, env):
     start_single(run, song)
     first = run.until(lambda s: s['songId'] == song['id'] and (s['pos'] or 0) > duration_ms - 6000, duration_ms / 1000 + 60)
     for n in (1, 2):
-        wrapped = run.until(lambda s: s['t'] > (run.metrics.get(f'wrap{n - 1}') or 0) + 20 and s['songId'] == song['id']
-                            and s['pos'] is not None and s['pos'] < 4000 and s['proc'] == 'ready', duration_ms / 1000 + 60)
+        wrapped = wait_for_repeat_start(run, song['id'], (run.metrics.get(f'wrap{n - 1}') or 0) + 20,
+                                        duration_ms / 1000 + 60, 4000)
         run.metrics[f'wrap{n}'] = wrapped and wrapped['t']
         if wrapped is None:
             run.violations.append(violation('baselineNoLoop', run.now(), f'loop {n} never happened', run))
@@ -2687,20 +2710,72 @@ def case_natural_play3(run: Run, env, songs=3):
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=songs + 1))
 
 
+def dart_gets(log: list, song_id: str) -> list:
+    return [r for r in log if r['id'] == song_id and r['endpoint'] in ('stream', 'download') and r['ua'].startswith('Dart')
+            and not r.get('timeOffset')]
+
+
+def seek_was_local(log: list, song_id: str, seek_w: float, *, cache_complete: bool) -> bool:
+    """Network-free seek with a complete cache file; this does not prove a disk read over an in-buffer seek."""
+    done = any(r.get('end') == 'complete' and (r.get('endW') or 1e12) <= seek_w for r in dart_gets(log, song_id))
+    return cache_complete and done and not any(r['id'] == song_id and r['endpoint'] in ('stream', 'download') and r['w'] >= seek_w for r in log)
+
+
+def next_song_readiness(log: list, song_id: str, handover_w: float) -> tuple:
+    """(lead, bytes) of the full-song GETs the app's own downloader (Dart user agent: the desktop sidecar, the Android
+    lock-cache proxy) made for [song_id] before it took over at wall time [handover_w]. lead: seconds between the first
+    GET and the handover (negative: it started after, None: it never did). bytes: received by the handover (a GET still
+    running then is prorated over its duration)."""
+    gets = dart_gets(log, song_id)
+    if not gets:
+        return None, 0
+    got = 0
+    for r in gets:
+        # In-flight counters are observed now, possibly seconds after handover.
+        end = r.get('endW') or time.time()
+        if r['w'] >= handover_w:
+            continue
+        share = 1.0 if end <= handover_w else (handover_w - r['w']) / max(end - r['w'], 0.001)
+        got += int((r.get('bytes') or 0) * share)
+    return round(handover_w - min(r['w'] for r in gets), 2), got
+
+
+def chain_warm_wait_s(sample: dict) -> float:
+    # Leave 10 s for the near-end seek even on short tracks.
+    return min(25, max(0, ((sample.get('dur') or 0) - (sample.get('pos') or 0)) / 1000 - 10))
+
+
+def next_cache_complete(run: Run, song_id: str) -> bool:
+    gets = [r for r in dart_gets(run.env.proxy.log[run.proxy_mark:], song_id) if r.get('end') == 'complete']
+    if not gets:
+        return False
+    song = run.env.backend.server.call('getSong', id=song_id)['song']
+    fmt, kbps = QUALITIES[run.quality]
+    suffix = song.get('suffix') or 'flac'
+    digest = hashlib.sha1(f'{song_id}::{kbps}::{fmt}::{suffix}'.encode()).hexdigest()
+    name = f'{digest}.{fmt or suffix}'
+    size = rolling_fetch(run, name, run.app.run / 'next-cache-probe.bin')
+    return size is not None and size > 0 and any(size == r['bytes'] for r in gets)
+
+
 def case_chain_end(run: Run, env):
-    """Repeat off, album: four songs each seeked to 6 s before their end; every boundary must hand over
+    """Repeat off, long queue: four songs each seeked to 6 s before their end; every boundary must hand over
     to the next song without a pause (setPauseAtEndOfMediaItems must not leak into normal playback)."""
-    ids = env.backend.fresh_album()
+    ids = [song['id'] for song in env.backend.fresh_songs(5, min_s=100)]
     run.songs = [{'id': i} for i in ids]
     if getattr(run, 'chain_repeat', 'none') != 'none':
         run.app.api('/v1/playback/repeat', {'mode': run.chain_repeat})
     rec = start_queue(run, ids)
     await_audio(run, rec, ids[0])
-    gaps = []
+    gaps, leads, fetched, local = [], [], [], []
     for n in range(4):
         cur = run.until(lambda s: s['songId'] == ids[n] and s['proc'] == 'ready' and s['playing'] and (s['pos'] or 0) > 500, 60) \
             or run.last()
         run.observe(3.0)
+        # Wait for the complete next file, not merely its first GET.
+        warm_deadline = time.monotonic() + chain_warm_wait_s(run.last())
+        while time.monotonic() < warm_deadline and not next_cache_complete(run, ids[n + 1]):
+            run.observe(0.5)
         dur = run.last()['dur'] or 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             seek = issue_seek(run, pool, max(0, dur - getattr(run, 'chain_lead', 6000)))
@@ -2720,7 +2795,20 @@ def case_chain_end(run: Run, env):
         spans = paused_spans(run, landed_t, ok['t'] + 1)
         if spans:
             run.violations.append(violation('pausedAtSongEnd', spans[0][0], f'ready but not playing {spans}', run))
+        handover_w = time.time() - (run.now() - moved['t'])
+        lead, got = next_song_readiness(run.env.proxy.log[run.proxy_mark:], ids[n + 1], handover_w)
+        leads.append(lead)
+        fetched.append(got)
+        # Classify after settlement: complete file before the seek, no media request after it.
+        cache_complete = next_cache_complete(run, ids[n + 1])
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            seek = issue_seek(run, pool, 2000)
+            landed(run, seek)
+            finish_futures(run)
+        run.observe(1.0)
+        local.append(seek_was_local(run.env.proxy.log[run.proxy_mark:], ids[n + 1], seek['w'], cache_complete=cache_complete))
     run.metrics['handoverGapsS'] = gaps
+    run.metrics.update(nextRequestLeadS=leads, nextBytesAtHandover=fetched, nextSeekLocal=local)
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=4))
 
     def no_false_recovery():
@@ -2791,8 +2879,11 @@ def case_repeat_one_fill(run: Run, env):
     def check():
         out = []
         same = [x for x in run.samples if x['t'] >= seek['t'] and x['pos'] is not None]
-        wraps = [(a, b) for a, b in zip(same, same[1:]) if a['songId'] == b['songId'] == first['songId'] and a['idx'] == b['idx']
-                 and a['pos'] > dur - 4000 and b['pos'] < 3000]
+        # A local-file reload briefly publishes a loading cursor at the old offset.
+        ready = [x for x in same if x['proc'] == 'ready']
+        wraps = [(a, b) for i, (a, b) in enumerate(zip(ready, ready[1:]), 1)
+                 if a['songId'] == b['songId'] == first['songId'] and a['idx'] == b['idx']
+                 and a['pos'] > dur - 4000 and b['pos'] < 3000 and not is_position_blip(ready, i)]
         run.metrics['wraps'] = [{'t': round(b['t'], 1), 'from': a['pos'], 'to': b['pos'], 'mat': b['mat'], 'deferred': b['deferred'],
                                  'qlen': b['qlen']} for a, b in wraps]
         if len(wraps) != 1:
@@ -3853,13 +3944,14 @@ def app_pid(app) -> int:
     return app.proc.pid
 
 
-def pss_kib(app) -> int:
+def memory_kib(app) -> dict:
     pid = app_pid(app)
-    if isinstance(app, AndroidApp):
-        meminfo = app.shell('dumpsys', 'meminfo', str(pid))
-        match = re.search(r'TOTAL PSS:\s+(\d+)', meminfo) or re.search(r'TOTAL\s+(\d+)', meminfo)
-        return int(match[1])
-    return int(re.search(r'Pss:\s+(\d+)', Path(f'/proc/{pid}/smaps_rollup').read_text())[1])
+    path = f'/proc/{pid}/smaps_rollup'
+    text = app.shell('run-as', ANDROID_PACKAGE, 'cat', path) if isinstance(app, AndroidApp) else Path(path).read_text()
+    fields = dict(re.findall(r'^(Pss|SwapPss):\s+(\d+) kB$', text, re.MULTILINE))
+    if not {'Pss', 'SwapPss'} <= fields.keys():
+        raise Failure('memory-soak needs Pss and SwapPss in smaps_rollup')
+    return {'pssKiB': int(fields['Pss']), 'swapPssKiB': int(fields['SwapPss'])}
 
 
 def vm_url(app) -> str:
@@ -3894,7 +3986,7 @@ def dart_heap(url: str, isolate: str, gc=False) -> int:
 def case_mem_soak(run: Run, env, drags=int(os.environ.get('NAVIS_LIVE_SEEK_SOAK_DRAGS', 20)),
                   idle_s=int(os.environ.get('NAVIS_LIVE_SEEK_SOAK_IDLE_S', 120))):
     """20 held drags on fresh songs, 10 s of playback after each, then 120 s of idle playback and a forced GC.
-    Records PSS (KiB) after every drag and the Dart heap, for the harness to fit a slope."""
+    Records resident PSS and SwapPss (KiB) after every drag and the Dart heap for the harness slope."""
     if not VM_SERVICE:
         raise Failure('memory-soak needs NAVIS_LIVE_SEEK_VM=1 (the harness sets it)')
     url = vm_url(run.app)
@@ -3910,12 +4002,12 @@ def case_mem_soak(run: Run, env, drags=int(os.environ.get('NAVIS_LIVE_SEEK_SOAK_
         target = (run.app.api('/v1/playback/status').get('seek') or {}).get('requestedPositionMs') or 0
         run.until(lambda s: s['t'] >= released_t and (s['pos'] or 0) >= target + 1000 and s['proc'] == 'ready', 60)
         run.observe(10.0)
-        rows.append({'drag': drag, 'pssKiB': pss_kib(run.app), 'heapB': dart_heap(url, isolate)})
+        rows.append({'drag': drag, **memory_kib(run.app), 'heapB': dart_heap(url, isolate)})
     start_single(run, env.backend.fresh_songs(1)[0])
     run.observe(idle_s)
-    before = {'pssKiB': pss_kib(run.app), 'heapB': dart_heap(url, isolate)}
+    before = {**memory_kib(run.app), 'heapB': dart_heap(url, isolate)}
     after = {'heapB': dart_heap(url, isolate, gc=True)}
-    after['pssKiB'] = pss_kib(run.app)
+    after.update(memory_kib(run.app))
     run.metrics['soak'] = {'drags': rows, 'beforeGc': before, 'afterGc': after}
 
 

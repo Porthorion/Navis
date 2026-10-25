@@ -128,6 +128,18 @@ class _GatedPlayQueueDao extends PlayQueueDao {
   }
 }
 
+class _GatedQueueEntriesDao extends PlayQueueDao {
+  new(super.attachedDatabase, this.release);
+  final Future<void> release;
+
+  @override
+  Future<List<({SongsTableData song, int? originalOrder})>>
+  getQueueEntries() async {
+    await release;
+    return super.getQueueEntries();
+  }
+}
+
 class _GatedSourceResolver extends Fake implements PlaybackSourceResolver {
   new(this.delegate);
   final PlaybackSourceResolver delegate;
@@ -1313,8 +1325,11 @@ void main() {
     bool fastSeeking = true,
     RollingCacheSidecarDownloader? sidecarDownloader,
     bool crossfadeAllowStreaming = true,
+    bool nextSongPrefetchAllowed = true,
+    bool Function()? readNextSongPrefetchAllowed,
     PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     bool positionStreams = false,
+    int rollingCacheBudgetBytes = 1024 * 1024,
     String crossfadeType = 'normal',
     String Function()? readCrossfadeType,
     bool matchFlow = false,
@@ -1443,7 +1458,7 @@ void main() {
       sourceResolver: resolver,
       readApiClient: readApiClient ?? () => apiClient,
       rollingCacheManager: cache,
-      readRollingCacheBudgetBytes: () => 1024 * 1024,
+      readRollingCacheBudgetBytes: () => rollingCacheBudgetBytes,
       scrobbleService: scrobbleService ?? _NoopScrobbleService(),
       listenBrainzFeedbackService: ListenBrainzFeedbackService(
         dao: database.listenBrainzFeedbackDao,
@@ -1455,7 +1470,8 @@ void main() {
       readRuntimeSettings: () => PlaybackRuntimeSettings(
         gaplessEnabled: true,
         fastSeekingEnabled: fastSeeking,
-
+        nextSongPrefetchAllowed:
+            readNextSongPrefetchAllowed?.call() ?? nextSongPrefetchAllowed,
         crossfadeEnabled: crossfade,
         crossfadeAllowStreaming: crossfadeAllowStreaming,
         crossfadeDurationSeconds: 5,
@@ -5352,6 +5368,372 @@ void main() {
     },
   );
 
+  group('desktop next-song prefetch', () {
+    const size = 8 * 1024;
+    Future<
+      ({
+        NavisAudioHandler handler,
+        _ControllableAudioPlayer player,
+        RollingCacheSidecarDownloader downloader,
+        List<String> requests,
+        Completer<void> release,
+        List<bool> gate,
+      })
+    >
+    serveQueue(
+      int count, {
+      bool allowed = true,
+      Set<String> hold = const <String>{},
+      Set<String> failFirst = const <String>{},
+      Future<void> Function(NavisDatabase)? seed,
+      int startIndex = 0,
+      Future<void> Function(NavisAudioHandler)? beforePlay,
+    }) async {
+      final previousHttp = HttpOverrides.current;
+      HttpOverrides.global = null;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final release = Completer<void>();
+      final requests = <String>[];
+      final gate = <bool>[allowed];
+      server.listen((request) async {
+        final id = request.uri.queryParameters['id']!;
+        requests.add(id);
+        if (failFirst.contains(id) &&
+            requests.where((r) => r == id).length == 1) {
+          request.response.statusCode = HttpStatus.internalServerError;
+          await request.response.close();
+          return;
+        }
+        try {
+          request.response
+            ..bufferOutput = false
+            ..headers.contentType = ContentType('audio', 'mpeg')
+            ..contentLength = size;
+          if (hold.contains(id)) {
+            request.response.add(List<int>.filled(size ~/ 2, 1));
+            await request.response.flush();
+            await release.future;
+            request.response.add(List<int>.filled(size ~/ 2, 1));
+          } else {
+            request.response.add(List<int>.filled(size, 1));
+          }
+          await request.response.close();
+        } on Object {
+          // The handler cancels unfinished transfers at teardown.
+        }
+      });
+      final api = SubsonicApiClient(
+        baseUrl: 'http://127.0.0.1:${server.port}',
+        authConfig: const SubsonicAuthConfig(
+          username: 'fixture',
+          password: 'synthetic',
+          apiVersion: '1.16.1',
+        ),
+        enableLogging: false,
+      );
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-prefetch-',
+      );
+      final downloader = RollingCacheSidecarDownloader();
+      final (handler, player, database) = await createHandler(
+        directory,
+        count,
+        sidecarStreams: true,
+        positionStreams: true,
+        sidecarDownloader: downloader,
+        readApiClient: () => api,
+        nextSongPrefetchAllowed: allowed,
+        readNextSongPrefetchAllowed: () => gate.first,
+        seed: seed,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        if (!release.isCompleted) release.complete();
+        await database.close();
+        await server.close(force: true);
+        await directory.delete(recursive: true);
+        HttpOverrides.global = previousHttp;
+      });
+      await beforePlay?.call(handler);
+      await handler.replaceQueue(
+        [for (var i = 0; i < count; i++) 'song-$i'],
+        startIndex: startIndex,
+        expandMatchFlows: false,
+      );
+      return (
+        handler: handler,
+        player: player,
+        downloader: downloader,
+        requests: requests,
+        release: release,
+        gate: gate,
+      );
+    }
+
+    Future<void> until(bool Function() condition) async {
+      for (var i = 0; i < 600 && !condition(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(condition(), isTrue);
+    }
+
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 400));
+
+    test('the next song downloads once the current one completes', () async {
+      final s = await serveQueue(3);
+      await until(() => s.requests.contains('song-1'));
+      await settle();
+      expect(s.requests, ['song-0', 'song-1']);
+      final next = s.handler.queue.value[1].extras!['sidecarCacheFilePath'];
+      expect(File(next as String).existsSync(), isTrue);
+    });
+
+    test('no next-song download when prefetch is not allowed', () async {
+      final s = await serveQueue(3, allowed: false);
+      final first = s.handler.queue.value[0].extras!['sidecarCacheFilePath'];
+      await until(() => File(first as String).existsSync());
+      await settle();
+      expect(s.requests, ['song-0']);
+    });
+
+    test('a next song that is already downloaded is not fetched', () async {
+      final s = await serveQueue(
+        3,
+        seed: (database) async {
+          final dir = await Directory.systemTemp.createTemp('navis-warm-');
+          final file = File('${dir.path}/song-1.mp3')
+            ..writeAsBytesSync(<int>[1, 2, 3]);
+          await database.cacheDao.upsertCachedTrack(
+            CachedTracksTableCompanion.insert(
+              songId: 'song-1',
+              filePath: file.path,
+              fileSize: 3,
+              format: 'mp3',
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+              lastAccessedAt: DateTime.now(),
+            ),
+          );
+        },
+      );
+      final first = s.handler.queue.value[0].extras!['sidecarCacheFilePath'];
+      await until(() => File(first as String).existsSync());
+      await settle();
+      expect(s.requests, ['song-0']);
+    });
+
+    test('Repeat One warms nothing', () async {
+      final s = await serveQueue(
+        3,
+        beforePlay: (handler) =>
+            handler.setRepeatMode(AudioServiceRepeatMode.one),
+      );
+      final first = s.handler.queue.value[0].extras!['sidecarCacheFilePath'];
+      await until(() => File(first as String).existsSync());
+      await settle();
+      expect(s.requests, ['song-0']);
+    });
+
+    test('Repeat All at the last song warms the first song', () async {
+      final s = await serveQueue(
+        2,
+        startIndex: 1,
+        beforePlay: (handler) =>
+            handler.setRepeatMode(AudioServiceRepeatMode.all),
+      );
+      await until(() => s.requests.contains('song-0'));
+      expect(s.requests, ['song-1', 'song-0']);
+    });
+
+    test('shuffle warms the next song in play order', () async {
+      final s = await serveQueue(
+        6,
+        beforePlay: (handler) =>
+            handler.setShuffleMode(AudioServiceShuffleMode.all),
+      );
+      final queue = s.handler.queue.value;
+      await until(() => s.requests.length >= 2);
+      final current = s.handler.mediaItem.value!.id;
+      final at = queue.indexWhere((item) => item.id == current);
+      expect(s.requests, [current, queue[at + 1].id]);
+    });
+
+    test(
+      'the chained download continues when its song becomes current',
+      () async {
+        final s = await serveQueue(3, hold: {'song-1'});
+        await until(() => s.downloader.activeSongId == 'song-1');
+        await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
+        s.player.moveTo(1);
+        await pumpEventQueue();
+        expect(s.downloader.activeSongId, 'song-1');
+        expect(s.downloader.activeReceivedBytes, size ~/ 2);
+        s.release.complete();
+        await settle();
+        expect(s.requests.where((id) => id == 'song-1'), hasLength(1));
+      },
+    );
+
+    test(
+      're-publishing the finished current song keeps the warm running',
+      () async {
+        final s = await serveQueue(3, hold: {'song-1'});
+        await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
+        final part = s.downloader.activePartFilePath;
+        // Dropping the last song keeps next = song-1 and re-publishes song-0.
+        await s.handler.removeQueueItemAt(2);
+        await pumpEventQueue();
+        expect(s.downloader.activeSongId, 'song-1');
+        expect(s.downloader.activePartFilePath, part);
+        expect(s.downloader.activeReceivedBytes, size ~/ 2);
+        s.release.complete();
+        await settle();
+        expect(s.requests, ['song-0', 'song-1']);
+      },
+    );
+
+    test('turning the gate off cancels an in-flight warm', () async {
+      final s = await serveQueue(3, hold: {'song-1'});
+      await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
+      s.gate[0] = false;
+      await s.handler.removeQueueItemAt(2);
+      await until(() => s.downloader.activeSongId == null);
+      s.release.complete();
+      await settle();
+      expect(s.requests, ['song-0', 'song-1']);
+    });
+
+    test('a warm that failed is retried after the retry delay', () async {
+      sidecarChainRetryDelay = const Duration(milliseconds: 150);
+      addTearDown(() => sidecarChainRetryDelay = const Duration(seconds: 30));
+      final s = await serveQueue(3, failFirst: {'song-1'});
+      s.player.simulateProgress = true;
+      s.player.emitPlayerEvent();
+      await until(() => s.requests.contains('song-1'));
+      await settle();
+      // Position ticks must retry without a queue edit clearing the pair key.
+      await until(() => s.requests.where((id) => id == 'song-1').length == 2);
+    });
+
+    test('a failed pair does not block the next pair', () async {
+      final s = await serveQueue(4, failFirst: {'song-1'});
+      await until(() => s.requests.contains('song-1'));
+      await settle();
+      s.player.moveTo(2);
+      await until(() => s.requests.contains('song-3'));
+    });
+
+    test(
+      'refilling a deleted current file immediately re-arms the warm',
+      () async {
+        final s = await serveQueue(3, hold: {'song-1'});
+        await until(() => s.downloader.activeSongId == 'song-1');
+        await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
+        final path =
+            s.handler.queue.value[0].extras!['sidecarCacheFilePath']! as String;
+        await until(() => File(path).existsSync());
+        await settle();
+        await File(path).delete();
+        await s.handler.removeQueueItemAt(2);
+        await until(() => s.requests.where((id) => id == 'song-0').length == 2);
+        await until(() => File(path).existsSync());
+        await settle();
+        expect(s.requests, ['song-0', 'song-1', 'song-0', 'song-1']);
+        expect(s.downloader.activeSongId, 'song-1');
+        await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
+        s.release.complete();
+      },
+    );
+
+    for (final (repeat, index, kept) in [
+      (RepeatMode.off, 1, {1, 2}),
+      (RepeatMode.one, 1, {1}),
+      (RepeatMode.all, 2, {2, 0}),
+    ]) {
+      test(
+        'startup eviction protects saved shuffled files with ${repeat.name}',
+        () async {
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-startup-keep-',
+          );
+          final paths = <String>[];
+          final restore = Completer<void>();
+          final (handler, _, database) = await createHandler(
+            directory,
+            3,
+            cacheSongs: false,
+            savedQueueIndex: index,
+            rollingCacheBudgetBytes: 1,
+            waitForReady: false,
+            createPlayQueueDao: (db) =>
+                _GatedQueueEntriesDao(db, restore.future),
+            seed: (database) async {
+              await database.playQueueDao.saveQueue(
+                songIds: ['song-0', 'song-1', 'song-2'],
+                currentIndex: index,
+                repeatMode: repeat,
+                shuffleMode: ShuffleMode.all,
+                originalOrder: [2, 0, 1],
+              );
+              for (var i = 0; i < 3; i++) {
+                final path = p.join(directory.path, 'song-$i.mp3');
+                paths.add(path);
+                await File(path).writeAsBytes([1, 2, 3]);
+                await database.cacheDao.upsertCachedTrack(
+                  CachedTracksTableCompanion.insert(
+                    songId: 'song-$i',
+                    filePath: path,
+                    fileSize: 3,
+                    format: 'mp3',
+                    cacheType: CacheType.rolling,
+                    downloadStatus: DownloadStatus.complete,
+                    lastAccessedAt: DateTime.now(),
+                  ),
+                );
+              }
+            },
+          );
+          addTearDown(() async {
+            if (!restore.isCompleted) restore.complete();
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+          // Startup maintenance is concurrent with metadata restoration.
+          final evicted = List.generate(
+            3,
+            (i) => i,
+          ).firstWhere((i) => !kept.contains(i));
+          await until(() => !File(paths[evicted]).existsSync());
+          await settle();
+          for (var i = 0; i < paths.length; i++) {
+            expect(File(paths[i]).existsSync(), kept.contains(i));
+          }
+          restore.complete();
+          await handler.debugWaitForStartupQueueRestore();
+        },
+      );
+    }
+
+    test(
+      'the handler reports the current and next song as protected',
+      () async {
+        final s = await serveQueue(3);
+        await until(() => s.requests.contains('song-1'));
+        expect(s.handler.rollingCacheProtectedSongIds, {'song-0', 'song-1'});
+      },
+    );
+
+    test('a queue edit cancels a chain that is no longer next', () async {
+      final s = await serveQueue(3, hold: {'song-1'});
+      await until(() => s.downloader.activeSongId == 'song-1');
+      await s.handler.removeQueueItemAt(1);
+      await until(() => s.downloader.activeSongId != 'song-1');
+      await until(() => s.requests.contains('song-2'));
+    });
+  });
+
   for (final fail in [false, true]) {
     test(
       'desktop cache activity clears after ${fail ? 'retry exhaustion' : 'cancellation'}',
@@ -7942,6 +8324,8 @@ void main() {
         sidecarStreams: true,
         cacheSongs: false,
         sidecarDownloader: downloader,
+        // These cases watch the current song's single download.
+        nextSongPrefetchAllowed: false,
         supportsTranscodeOffset: capable,
         fastSeeking: enabled,
         wrapResolver: wrap,

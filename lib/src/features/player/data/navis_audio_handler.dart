@@ -524,6 +524,12 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Kept here, not in [MediaItem.extras], which audio_service publishes to
   /// the platform media session.
   final Map<String, Uri> _sidecarStreamUris = <String, Uri>{};
+
+  /// The current-to-next song pair whose next-song warm was last attempted.
+  String? _sidecarChainKey;
+
+  /// Only the failed pair waits before retrying; a skip can warm a new pair.
+  (String, DateTime)? _sidecarChainRetry;
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
   String? _remotePlaybackStallSongId;
@@ -714,6 +720,9 @@ class NavisAudioHandler extends BaseAudioHandler
   MediaItem? get currentMediaItem => _currentMediaItem;
 
   @override
+  Set<String> get rollingCacheProtectedSongIds => _rollingCacheKeepSongIds();
+
+  @override
   Stream<MediaItem?> get mediaItemStream => mediaItem;
 
   @override
@@ -899,8 +908,24 @@ class NavisAudioHandler extends BaseAudioHandler
       await _rollingCacheManager.pruneMissingFiles();
       await _rollingCacheManager.pruneMissingPermanentFiles();
       await _rollingCacheManager.cleanupOrphanedRollingFiles();
+      // Maintenance runs before restoration; saved rows are already in play order.
+      final saved = await _playQueueDao.getQueueItems();
+      final state = await _playQueueDao.getQueueState();
+      final keep = _rollingCacheKeepSongIds();
+      if (saved.isNotEmpty) {
+        final index = (state?.currentIndex ?? 0).clamp(0, saved.length - 1);
+        keep.add(_canonicalSongId(saved[index].id));
+        if (state?.repeatMode != schema.RepeatMode.one) {
+          if (index + 1 < saved.length) {
+            keep.add(_canonicalSongId(saved[index + 1].id));
+          } else if (state?.repeatMode == schema.RepeatMode.all) {
+            keep.add(_canonicalSongId(saved.first.id));
+          }
+        }
+      }
       await _rollingCacheManager.enforceBudget(
         maxBytes: _readRollingCacheBudgetBytes(),
+        keepSongIds: keep,
       );
     } on Object catch (error, stackTrace) {
       AppLogger.warning(

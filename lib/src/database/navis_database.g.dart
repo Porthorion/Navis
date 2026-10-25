@@ -694,6 +694,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _prefetchNextOnMobileDataMeta =
+      const VerificationMeta('prefetchNextOnMobileData');
+  @override
+  late final GeneratedColumn<bool> prefetchNextOnMobileData =
+      GeneratedColumn<bool>(
+        'prefetch_next_on_mobile_data',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("prefetch_next_on_mobile_data" IN (0, 1))',
+        ),
+        defaultValue: const Constant(true),
+      );
   static const VerificationMeta _gaplessEnabledMeta = const VerificationMeta(
     'gaplessEnabled',
   );
@@ -2005,6 +2020,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     cachedPlaybackFirst,
     scrobbleEnabled,
     fastSeekingEnabled,
+    prefetchNextOnMobileData,
     gaplessEnabled,
     skipSilenceEnabled,
     showAlbumsPage,
@@ -2188,6 +2204,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         fastSeekingEnabled.isAcceptableOrUnknown(
           data['fast_seeking_enabled']!,
           _fastSeekingEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('prefetch_next_on_mobile_data')) {
+      context.handle(
+        _prefetchNextOnMobileDataMeta,
+        prefetchNextOnMobileData.isAcceptableOrUnknown(
+          data['prefetch_next_on_mobile_data']!,
+          _prefetchNextOnMobileDataMeta,
         ),
       );
     }
@@ -3129,6 +3154,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}fast_seeking_enabled'],
       )!,
+      prefetchNextOnMobileData: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}prefetch_next_on_mobile_data'],
+      )!,
       gaplessEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}gapless_enabled'],
@@ -3559,6 +3588,7 @@ class AppSettingsTableData extends DataClass
   final bool cachedPlaybackFirst;
   final bool scrobbleEnabled;
   final bool fastSeekingEnabled;
+  final bool prefetchNextOnMobileData;
   final bool gaplessEnabled;
   final bool skipSilenceEnabled;
   final bool showAlbumsPage;
@@ -3853,6 +3883,7 @@ class AppSettingsTableData extends DataClass
     required this.cachedPlaybackFirst,
     required this.scrobbleEnabled,
     required this.fastSeekingEnabled,
+    required this.prefetchNextOnMobileData,
     required this.gaplessEnabled,
     required this.skipSilenceEnabled,
     required this.showAlbumsPage,
@@ -3975,6 +4006,9 @@ class AppSettingsTableData extends DataClass
     map['cached_playback_first'] = Variable<bool>(cachedPlaybackFirst);
     map['scrobble_enabled'] = Variable<bool>(scrobbleEnabled);
     map['fast_seeking_enabled'] = Variable<bool>(fastSeekingEnabled);
+    map['prefetch_next_on_mobile_data'] = Variable<bool>(
+      prefetchNextOnMobileData,
+    );
     map['gapless_enabled'] = Variable<bool>(gaplessEnabled);
     map['skip_silence_enabled'] = Variable<bool>(skipSilenceEnabled);
     map['show_albums_page'] = Variable<bool>(showAlbumsPage);
@@ -4172,6 +4206,7 @@ class AppSettingsTableData extends DataClass
       cachedPlaybackFirst: Value(cachedPlaybackFirst),
       scrobbleEnabled: Value(scrobbleEnabled),
       fastSeekingEnabled: Value(fastSeekingEnabled),
+      prefetchNextOnMobileData: Value(prefetchNextOnMobileData),
       gaplessEnabled: Value(gaplessEnabled),
       skipSilenceEnabled: Value(skipSilenceEnabled),
       showAlbumsPage: Value(showAlbumsPage),
@@ -4333,6 +4368,9 @@ class AppSettingsTableData extends DataClass
       ),
       scrobbleEnabled: serializer.fromJson<bool>(json['scrobbleEnabled']),
       fastSeekingEnabled: serializer.fromJson<bool>(json['fastSeekingEnabled']),
+      prefetchNextOnMobileData: serializer.fromJson<bool>(
+        json['prefetchNextOnMobileData'],
+      ),
       gaplessEnabled: serializer.fromJson<bool>(json['gaplessEnabled']),
       skipSilenceEnabled: serializer.fromJson<bool>(json['skipSilenceEnabled']),
       showAlbumsPage: serializer.fromJson<bool>(json['showAlbumsPage']),
@@ -4547,6 +4585,9 @@ class AppSettingsTableData extends DataClass
       'cachedPlaybackFirst': serializer.toJson<bool>(cachedPlaybackFirst),
       'scrobbleEnabled': serializer.toJson<bool>(scrobbleEnabled),
       'fastSeekingEnabled': serializer.toJson<bool>(fastSeekingEnabled),
+      'prefetchNextOnMobileData': serializer.toJson<bool>(
+        prefetchNextOnMobileData,
+      ),
       'gaplessEnabled': serializer.toJson<bool>(gaplessEnabled),
       'skipSilenceEnabled': serializer.toJson<bool>(skipSilenceEnabled),
       'showAlbumsPage': serializer.toJson<bool>(showAlbumsPage),
@@ -4711,6 +4752,7 @@ class AppSettingsTableData extends DataClass
     bool? cachedPlaybackFirst,
     bool? scrobbleEnabled,
     bool? fastSeekingEnabled,
+    bool? prefetchNextOnMobileData,
     bool? gaplessEnabled,
     bool? skipSilenceEnabled,
     bool? showAlbumsPage,
@@ -4828,6 +4870,8 @@ class AppSettingsTableData extends DataClass
     cachedPlaybackFirst: cachedPlaybackFirst ?? this.cachedPlaybackFirst,
     scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
     fastSeekingEnabled: fastSeekingEnabled ?? this.fastSeekingEnabled,
+    prefetchNextOnMobileData:
+        prefetchNextOnMobileData ?? this.prefetchNextOnMobileData,
     gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
     skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
     showAlbumsPage: showAlbumsPage ?? this.showAlbumsPage,
@@ -5015,6 +5059,9 @@ class AppSettingsTableData extends DataClass
       fastSeekingEnabled: data.fastSeekingEnabled.present
           ? data.fastSeekingEnabled.value
           : this.fastSeekingEnabled,
+      prefetchNextOnMobileData: data.prefetchNextOnMobileData.present
+          ? data.prefetchNextOnMobileData.value
+          : this.prefetchNextOnMobileData,
       gaplessEnabled: data.gaplessEnabled.present
           ? data.gaplessEnabled.value
           : this.gaplessEnabled,
@@ -5325,6 +5372,7 @@ class AppSettingsTableData extends DataClass
           ..write('cachedPlaybackFirst: $cachedPlaybackFirst, ')
           ..write('scrobbleEnabled: $scrobbleEnabled, ')
           ..write('fastSeekingEnabled: $fastSeekingEnabled, ')
+          ..write('prefetchNextOnMobileData: $prefetchNextOnMobileData, ')
           ..write('gaplessEnabled: $gaplessEnabled, ')
           ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
           ..write('showAlbumsPage: $showAlbumsPage, ')
@@ -5449,6 +5497,7 @@ class AppSettingsTableData extends DataClass
     cachedPlaybackFirst,
     scrobbleEnabled,
     fastSeekingEnabled,
+    prefetchNextOnMobileData,
     gaplessEnabled,
     skipSilenceEnabled,
     showAlbumsPage,
@@ -5564,6 +5613,7 @@ class AppSettingsTableData extends DataClass
           other.cachedPlaybackFirst == this.cachedPlaybackFirst &&
           other.scrobbleEnabled == this.scrobbleEnabled &&
           other.fastSeekingEnabled == this.fastSeekingEnabled &&
+          other.prefetchNextOnMobileData == this.prefetchNextOnMobileData &&
           other.gaplessEnabled == this.gaplessEnabled &&
           other.skipSilenceEnabled == this.skipSilenceEnabled &&
           other.showAlbumsPage == this.showAlbumsPage &&
@@ -5685,6 +5735,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> cachedPlaybackFirst;
   final Value<bool> scrobbleEnabled;
   final Value<bool> fastSeekingEnabled;
+  final Value<bool> prefetchNextOnMobileData;
   final Value<bool> gaplessEnabled;
   final Value<bool> skipSilenceEnabled;
   final Value<bool> showAlbumsPage;
@@ -5796,6 +5847,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.cachedPlaybackFirst = const Value.absent(),
     this.scrobbleEnabled = const Value.absent(),
     this.fastSeekingEnabled = const Value.absent(),
+    this.prefetchNextOnMobileData = const Value.absent(),
     this.gaplessEnabled = const Value.absent(),
     this.skipSilenceEnabled = const Value.absent(),
     this.showAlbumsPage = const Value.absent(),
@@ -5908,6 +5960,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.cachedPlaybackFirst = const Value.absent(),
     this.scrobbleEnabled = const Value.absent(),
     this.fastSeekingEnabled = const Value.absent(),
+    this.prefetchNextOnMobileData = const Value.absent(),
     this.gaplessEnabled = const Value.absent(),
     this.skipSilenceEnabled = const Value.absent(),
     this.showAlbumsPage = const Value.absent(),
@@ -6020,6 +6073,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? cachedPlaybackFirst,
     Expression<bool>? scrobbleEnabled,
     Expression<bool>? fastSeekingEnabled,
+    Expression<bool>? prefetchNextOnMobileData,
     Expression<bool>? gaplessEnabled,
     Expression<bool>? skipSilenceEnabled,
     Expression<bool>? showAlbumsPage,
@@ -6135,6 +6189,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       if (scrobbleEnabled != null) 'scrobble_enabled': scrobbleEnabled,
       if (fastSeekingEnabled != null)
         'fast_seeking_enabled': fastSeekingEnabled,
+      if (prefetchNextOnMobileData != null)
+        'prefetch_next_on_mobile_data': prefetchNextOnMobileData,
       if (gaplessEnabled != null) 'gapless_enabled': gaplessEnabled,
       if (skipSilenceEnabled != null)
         'skip_silence_enabled': skipSilenceEnabled,
@@ -6301,6 +6357,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? cachedPlaybackFirst,
     Value<bool>? scrobbleEnabled,
     Value<bool>? fastSeekingEnabled,
+    Value<bool>? prefetchNextOnMobileData,
     Value<bool>? gaplessEnabled,
     Value<bool>? skipSilenceEnabled,
     Value<bool>? showAlbumsPage,
@@ -6413,6 +6470,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
       cachedPlaybackFirst: cachedPlaybackFirst ?? this.cachedPlaybackFirst,
       scrobbleEnabled: scrobbleEnabled ?? this.scrobbleEnabled,
       fastSeekingEnabled: fastSeekingEnabled ?? this.fastSeekingEnabled,
+      prefetchNextOnMobileData:
+          prefetchNextOnMobileData ?? this.prefetchNextOnMobileData,
       gaplessEnabled: gaplessEnabled ?? this.gaplessEnabled,
       skipSilenceEnabled: skipSilenceEnabled ?? this.skipSilenceEnabled,
       showAlbumsPage: showAlbumsPage ?? this.showAlbumsPage,
@@ -6578,6 +6637,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (fastSeekingEnabled.present) {
       map['fast_seeking_enabled'] = Variable<bool>(fastSeekingEnabled.value);
+    }
+    if (prefetchNextOnMobileData.present) {
+      map['prefetch_next_on_mobile_data'] = Variable<bool>(
+        prefetchNextOnMobileData.value,
+      );
     }
     if (gaplessEnabled.present) {
       map['gapless_enabled'] = Variable<bool>(gaplessEnabled.value);
@@ -6981,6 +7045,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('cachedPlaybackFirst: $cachedPlaybackFirst, ')
           ..write('scrobbleEnabled: $scrobbleEnabled, ')
           ..write('fastSeekingEnabled: $fastSeekingEnabled, ')
+          ..write('prefetchNextOnMobileData: $prefetchNextOnMobileData, ')
           ..write('gaplessEnabled: $gaplessEnabled, ')
           ..write('skipSilenceEnabled: $skipSilenceEnabled, ')
           ..write('showAlbumsPage: $showAlbumsPage, ')
@@ -35752,6 +35817,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> cachedPlaybackFirst,
       Value<bool> scrobbleEnabled,
       Value<bool> fastSeekingEnabled,
+      Value<bool> prefetchNextOnMobileData,
       Value<bool> gaplessEnabled,
       Value<bool> skipSilenceEnabled,
       Value<bool> showAlbumsPage,
@@ -35865,6 +35931,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> cachedPlaybackFirst,
       Value<bool> scrobbleEnabled,
       Value<bool> fastSeekingEnabled,
+      Value<bool> prefetchNextOnMobileData,
       Value<bool> gaplessEnabled,
       Value<bool> skipSilenceEnabled,
       Value<bool> showAlbumsPage,
@@ -36019,6 +36086,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get fastSeekingEnabled => $composableBuilder(
     column: $table.fastSeekingEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get prefetchNextOnMobileData => $composableBuilder(
+    column: $table.prefetchNextOnMobileData,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36583,6 +36655,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get prefetchNextOnMobileData => $composableBuilder(
+    column: $table.prefetchNextOnMobileData,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get gaplessEnabled => $composableBuilder(
     column: $table.gaplessEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -37143,6 +37220,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get prefetchNextOnMobileData => $composableBuilder(
+    column: $table.prefetchNextOnMobileData,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get gaplessEnabled => $composableBuilder(
     column: $table.gaplessEnabled,
     builder: (column) => column,
@@ -37687,6 +37769,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> cachedPlaybackFirst = const Value.absent(),
                 Value<bool> scrobbleEnabled = const Value.absent(),
                 Value<bool> fastSeekingEnabled = const Value.absent(),
+                Value<bool> prefetchNextOnMobileData = const Value.absent(),
                 Value<bool> gaplessEnabled = const Value.absent(),
                 Value<bool> skipSilenceEnabled = const Value.absent(),
                 Value<bool> showAlbumsPage = const Value.absent(),
@@ -37803,6 +37886,7 @@ class $$AppSettingsTableTableTableManager
                 cachedPlaybackFirst: cachedPlaybackFirst,
                 scrobbleEnabled: scrobbleEnabled,
                 fastSeekingEnabled: fastSeekingEnabled,
+                prefetchNextOnMobileData: prefetchNextOnMobileData,
                 gaplessEnabled: gaplessEnabled,
                 skipSilenceEnabled: skipSilenceEnabled,
                 showAlbumsPage: showAlbumsPage,
@@ -37917,6 +38001,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> cachedPlaybackFirst = const Value.absent(),
                 Value<bool> scrobbleEnabled = const Value.absent(),
                 Value<bool> fastSeekingEnabled = const Value.absent(),
+                Value<bool> prefetchNextOnMobileData = const Value.absent(),
                 Value<bool> gaplessEnabled = const Value.absent(),
                 Value<bool> skipSilenceEnabled = const Value.absent(),
                 Value<bool> showAlbumsPage = const Value.absent(),
@@ -38033,6 +38118,7 @@ class $$AppSettingsTableTableTableManager
                 cachedPlaybackFirst: cachedPlaybackFirst,
                 scrobbleEnabled: scrobbleEnabled,
                 fastSeekingEnabled: fastSeekingEnabled,
+                prefetchNextOnMobileData: prefetchNextOnMobileData,
                 gaplessEnabled: gaplessEnabled,
                 skipSilenceEnabled: skipSilenceEnabled,
                 showAlbumsPage: showAlbumsPage,

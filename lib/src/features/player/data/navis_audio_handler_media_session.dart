@@ -513,6 +513,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         .listen((position) {
           if (!identical(_player, wiredPlayer)) return;
           _syncLockCacheDownloadPriority();
+          _syncSidecarChain();
           _checkCrossfadeTrigger(position);
         });
   }

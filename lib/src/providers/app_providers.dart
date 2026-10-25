@@ -1512,6 +1512,11 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
               hydratedEq,
           gaplessEnabled: settings.gaplessEnabled && !onCellular,
           fastSeekingEnabled: settings.fastSeekingEnabled,
+          nextSongPrefetchAllowed: nextSongPrefetchAllowed(
+            setting: settings.prefetchNextOnMobileData,
+            networkType: ref.read(networkTypeProvider),
+            nativeMetered: ref.read(nativeNetworkMeteredProvider).asData?.value,
+          ),
           crossfadeEnabled: settings.crossfadeEnabled,
           crossfadeAllowStreaming: !onCellular,
           crossfadeDurationSeconds: settings.crossfadeDurationSeconds,
