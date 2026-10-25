@@ -14,6 +14,14 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Playback runtime harness — 2026-10-25: `tool/playback_harness.py` (list, map, ab)
+  on the `tool/live_seek_stress.py` engine; diagnostics `queue-edit`, `quality`,
+  `queue {shuffle,startIndex}`, `rawSeekBack` and a no-op-unless-diagnostics
+  `transportTrace`. Linux A/A (8 scenarios, quick and `--full`) and Android A/A
+  (stress-drag, memory-soak, repeat, queue-edit) pass on identical code; a 1 s
+  seek-lane delay fails `seek latencyMedianS` with exit 1; a missing AVD exits 2;
+  downloads sha256 unchanged. Gaps: Windows, real phone, real server (`--real`
+  untested). Evidence under `~/.cache/claude-navis-logs/playback-151/harness/acceptance/`.
 - [x] Seek-drag round 6 — 2026-10-24: dropped the generic just_audio registry
   removal of rounds 4/5 (each round exposed a new edge). Disposed preview
   sources release their owner and retries, so a registry entry that persists

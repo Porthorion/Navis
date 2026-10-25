@@ -115,6 +115,17 @@ extension _NavisNavigation on NavisAudioHandler {
         : Duration.zero;
     final requestedIndex = decision.index!;
     final targetId = logicalIds[requestedIndex];
+    _transportTrace.record(
+      'navigate',
+      () => <String, Object?>{
+        'context': context,
+        'outcome': decision.outcome.name,
+        'requestedIndex': requestedIndex,
+        'fromIndex': _player.currentIndex,
+        'targetSongId': targetId,
+        'positionMs': _player.position.inMilliseconds,
+      },
+    );
     if (_navigationInFlightRevision != null) {
       _navigationSupersededCount++;
     }

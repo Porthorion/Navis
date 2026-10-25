@@ -1678,6 +1678,16 @@ extension _NavisRecovery on NavisAudioHandler {
     _remotePlaybackStallBufferedPosition = bufferedPosition;
     _remotePlaybackStallTimer = Timer(_remotePlaybackStallTimeout, () {
       _anomalies.event('stall');
+      _transportTrace.record(
+        'recovery',
+        () => <String, Object?>{
+          'decision': 'stallWatchdogFired',
+          'songId': currentSongId,
+          'positionMs': _player.position.inMilliseconds,
+          'bufferedMs': _player.bufferedPosition.inMilliseconds,
+          'timeoutMs': _remotePlaybackStallTimeout.inMilliseconds,
+        },
+      );
       unawaited(
         _recoverCurrentSongFromRemotePlaybackFailure(
           reason: 'remote playback stalled',
@@ -1720,6 +1730,15 @@ extension _NavisRecovery on NavisAudioHandler {
     _remotePlaybackRecoveryInProgress = true;
     _cancelRemotePlaybackStallWatchdog();
     final songId = _queueItems[currentIndex].id;
+    _transportTrace.record(
+      'recovery',
+      () => <String, Object?>{
+        'decision': 'recoverRemoteSong',
+        'reason': reason,
+        'songId': songId,
+        'positionMs': _player.position.inMilliseconds,
+      },
+    );
     // The pending request is the one record of what to restore: Play and
     // seek may update it while the network check below is awaited.
     if (!_ownsRemoteRecovery(songId)) {
@@ -2024,6 +2043,14 @@ extension _NavisRecovery on NavisAudioHandler {
     required bool autoPlay,
   }) async {
     // The next song may still be deferred; playFromIndex releases it.
+    _transportTrace.record(
+      'recovery',
+      () => <String, Object?>{
+        'decision': 'skipPastFailedSong',
+        'failedIndex': failedIndex,
+        'queueLength': _logicalQueueIds.length,
+      },
+    );
     final nextIndex = failedIndex < 0
         ? null
         : _nextPlayableIndexAfterFailure(failedIndex, _logicalQueueIds.length);

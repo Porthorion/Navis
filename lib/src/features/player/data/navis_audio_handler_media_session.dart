@@ -227,6 +227,27 @@ extension _NavisMediaSession on NavisAudioHandler {
       if (!identical(_player, wiredPlayer)) return;
       _captureTranscodeEndOccurrence();
       _recordAnomalyPlaybackEvent(event);
+      if (_transportTrace.enabled) {
+        final traced = (
+          state: _player.processingState,
+          playing: _player.playing,
+          index: _player.currentIndex,
+        );
+        if (traced != _tracedPlayerState || event.errorCode != null) {
+          _tracedPlayerState = traced;
+          _transportTrace.record(
+            'playerState',
+            () => <String, Object?>{
+              'processingState': traced.state.name,
+              'playing': traced.playing,
+              'index': traced.index,
+              'positionMs': _player.position.inMilliseconds,
+              'bufferedMs': _player.bufferedPosition.inMilliseconds,
+              if (event.errorCode != null) 'errorCode': event.errorCode,
+            },
+          );
+        }
+      }
       if (_player.playing) _onPlayerPlaying();
       // just_audio 0.10 reports native failures as event data. Repeated idle
       // events carry the same error; admit that failure only once.
@@ -314,6 +335,24 @@ extension _NavisMediaSession on NavisAudioHandler {
         return;
       }
       _anomalies.index(index);
+      if (_transportTrace.enabled) {
+        final nativeSongId = index == null || index >= _player.sequence.length
+            ? null
+            : navisNativeSourceSongId(_player.sequence[index]);
+        if (_tracedNativeIndex != (index, nativeSongId)) {
+          _tracedNativeIndex = (index, nativeSongId);
+          _transportTrace.record(
+            'nativeIndex',
+            () => <String, Object?>{
+              'index': index,
+              'songId': nativeSongId,
+              'loading': _isLoading,
+              'positionMs': _player.position.inMilliseconds,
+            },
+          );
+        }
+      }
+
       // Stop may deliver old playlist indices during remote warm-up. Native
       // edits also emit indices before their materialised mirror commits.
       final pendingAnchor = _queueReplacementMetadataAnchor;
@@ -355,6 +394,18 @@ extension _NavisMediaSession on NavisAudioHandler {
         _loadingSongId = item?.id;
       }
       if (item != null) {
+        if (_transportTrace.enabled &&
+            _tracedCurrentSong != (item.id, resolved.currentIndex)) {
+          _tracedCurrentSong = (item.id, resolved.currentIndex);
+          _transportTrace.record(
+            'songCurrent',
+            () => <String, Object?>{
+              'songId': item.id,
+              'index': resolved.currentIndex,
+              'positionMs': _player.position.inMilliseconds,
+            },
+          );
+        }
         _setCurrentMediaItem(item);
       } else if (_queueItems.isEmpty ||
           _player.processingState == ProcessingState.idle) {

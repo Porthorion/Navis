@@ -602,3 +602,15 @@ class LinuxNavisPlaybackHandler extends _DelegatingNavisPlaybackHandler {
 /// Lightweight cancellation flag threaded through long-running queue
 /// operations.  Call [checkCancelled] at async checkpoints to bail out
 /// early when a newer command has superseded this one.
+
+/// Harness only (clone-mode diagnostics): see `navisDiagnosticsRawSeekBack`.
+Future<bool> navisDiagnosticsRawSeekBack(NavisPlaybackHandler handler) async {
+  final inner = handler is NavisAudioHandler
+      ? handler
+      : handler is _DelegatingNavisPlaybackHandler
+      ? handler._delegate
+      : null;
+  if (inner == null) return false;
+  await inner.customAction('navisDiagnosticsRawSeekBack');
+  return true;
+}

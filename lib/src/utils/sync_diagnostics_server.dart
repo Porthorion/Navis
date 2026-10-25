@@ -3051,12 +3051,104 @@ class SyncDiagnosticsServer {
           }
           songs.add(song);
         }
+        // `shuffle: true` is the album Shuffle button: the UI shuffles in
+        // Dart and passes the album order as originalOrder.
+        final shuffle = body['shuffle'] == true;
+        final ordered = List<SongsTableData>.of(songs);
+        if (shuffle) {
+          ordered.shuffle(Random());
+        }
+        // A song tap inside a list starts at that song; playback clamps the
+        // index the same way, so the reported song is the one that plays.
+        final startIndex =
+            (body['startIndex'] is int ? body['startIndex'] as int : 0).clamp(
+              0,
+              ordered.length - 1,
+            );
         await _container
             .read(queueProvider.notifier)
-            .replaceWithTableData(songs);
+            .replaceWithTableData(
+              ordered,
+              startIndex: startIndex,
+              originalOrder: shuffle
+                  ? songs.map((song) => song.id).toList()
+                  : null,
+            );
         await _respond(request, HttpStatus.accepted, <String, Object?>{
           'status': 'starting',
           'songIds': songIds,
+          'startedSongId': ordered[startIndex].id,
+        });
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/playback/queue-edit') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final handler = await _waitForPlaybackHandler();
+        await handler.waitUntilReady();
+        final body = await _readJson(request);
+        final songIds = (body['songIds'] as List?)
+            ?.whereType<String>()
+            .toList();
+        switch (body['op']) {
+          case 'add' when songIds != null && songIds.isNotEmpty:
+            await handler.addToQueue(songIds);
+          case 'playNext' when songIds != null && songIds.isNotEmpty:
+            await handler.playNext(songIds);
+          case 'remove' when body['index'] is int:
+            await handler.removeAt(body['index'] as int);
+          case 'move' when body['from'] is int && body['to'] is int:
+            await handler.reorderQueue(body['from'] as int, body['to'] as int);
+          default:
+            await _respond(request, HttpStatus.badRequest, <String, Object?>{
+              'error': 'op must be add, playNext (songIds) or move (from, to)',
+            });
+            return;
+        }
+        await _respond(
+          request,
+          HttpStatus.ok,
+          handler.collectPlaybackDiagnostics(),
+        );
+        return;
+      }
+      if (request.method == 'POST' && path == '/v1/playback/quality') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        // The Wi-Fi and cellular streaming quality of Settings > Playback.
+        final body = await _readJson(request);
+        final repository = _container.read(settingsRepositoryProvider);
+        final current = await repository.getSettings();
+        Object? field(String network, String key) =>
+            (body[network] as Map?)?[key];
+        final wifiFormat = field('wifi', 'format') as String?;
+        final cellularFormat = field('cellular', 'format') as String?;
+        await repository.saveSettings(
+          current.copyWith(
+            wifiMaxBitRate: field('wifi', 'maxBitRate') as int?,
+            clearWifiBitRate: field('wifi', 'maxBitRate') == null,
+            wifiFormat: wifiFormat,
+            clearWifiFormat: wifiFormat == null,
+            cellularMaxBitRate: field('cellular', 'maxBitRate') as int?,
+            clearCellularBitRate: field('cellular', 'maxBitRate') == null,
+            cellularFormat: cellularFormat,
+            clearCellularFormat: cellularFormat == null,
+          ),
+        );
+        await (await _waitForPlaybackHandler()).applyRuntimeSettings();
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'wifi': {
+            'maxBitRate': field('wifi', 'maxBitRate'),
+            'format': wifiFormat,
+          },
+          'cellular': {
+            'maxBitRate': field('cellular', 'maxBitRate'),
+            'format': cellularFormat,
+          },
         });
         return;
       }
@@ -3150,24 +3242,35 @@ class SyncDiagnosticsServer {
         }
         final body = await _readJson(request);
         final action = body['action'];
-        if (action != 'denyFocus' && action != 'recreateService') {
+        if (action != 'denyFocus' &&
+            action != 'recreateService' &&
+            action != 'rawSeekBack') {
           await _respond(request, HttpStatus.badRequest, {
             'error': 'invalid playback recovery fixture',
           });
           return;
         }
         final handler = await _waitForPlaybackHandler();
+        if (action == 'rawSeekBack') {
+          if (!await navisDiagnosticsRawSeekBack(handler)) {
+            await _respond(request, HttpStatus.serviceUnavailable, {
+              'error': 'native handler unavailable',
+            });
+            return;
+          }
+          await _respond(request, HttpStatus.ok, {'action': action});
+          return;
+        }
         if (handler is! NavisAudioHandler) {
           await _respond(request, HttpStatus.serviceUnavailable, {
             'error': 'native handler unavailable',
           });
           return;
         }
-        await handler.customAction(
-          action == 'denyFocus'
-              ? 'navisDiagnosticsDenyFocus'
-              : 'navisDiagnosticsRecreateService',
-        );
+        await handler.customAction(switch (action) {
+          'denyFocus' => 'navisDiagnosticsDenyFocus',
+          _ => 'navisDiagnosticsRecreateService',
+        });
         await _respond(request, HttpStatus.ok, {'action': action});
         return;
       }
@@ -3238,6 +3341,8 @@ class SyncDiagnosticsServer {
         final status = handler.collectPlaybackDiagnostics();
         final uiSnapshot = _container.read(playerStateProvider);
         status['uiPlayback'] = <String, Object?>{
+          'shuffleMode': uiSnapshot.shuffleMode.name,
+          'queueSongIds': uiSnapshot.queueSongIds,
           'pendingSeekMs': uiSnapshot.pendingSeekPosition?.inMilliseconds,
           'snapshotPositionMs': uiSnapshot.position.inMilliseconds,
           'playing': uiSnapshot.playing,

@@ -1490,6 +1490,130 @@ void main() {
     },
   );
 
+  test('playback queue reports the song at the clamped start index', () async {
+    final handler = _MockPlaybackHandler();
+    when(() => handler.loadFailureStream)
+        .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
+    when(handler.waitUntilReady).thenAnswer((_) async {});
+    when(
+      () => handler.replaceQueueWithData(
+        any(),
+        startIndex: any(named: 'startIndex'),
+        autoPlay: any(named: 'autoPlay'),
+        expandMatchFlows: any(named: 'expandMatchFlows'),
+      ),
+    ).thenAnswer((_) async {});
+    final clone = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      handler: handler,
+    );
+    addTearDown(clone.close);
+    final database = clone.database as NavisDatabase;
+    await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+      for (final id in ['a', 'b', 'c'])
+        SongsTableCompanion.insert(id: id, title: 'Song $id'),
+    ]);
+    final ids = <String>['a', 'b', 'c'];
+
+    Future<Object?> started(Object? startIndex) async =>
+        (await clone.post('/v1/playback/queue', <String, Object?>{
+          'songIds': ids,
+          if (startIndex != null) 'startIndex': startIndex,
+        })).body['startedSongId'];
+
+    expect(await started(null), 'a');
+    expect(await started(1), 'b');
+    expect(await started(99), 'c');
+    expect(await started(-4), 'a');
+  });
+
+  test('queue-edit drives the handler and stays clone-only', () async {
+    final handler = _MockPlaybackHandler();
+    final calls = <String>[];
+    when(() => handler.loadFailureStream)
+        .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
+    when(handler.waitUntilReady).thenAnswer((_) async {});
+    when(() => handler.addToQueue(any())).thenAnswer((i) async {
+      calls.add('add ${i.positionalArguments.first}');
+    });
+    when(() => handler.playNext(any())).thenAnswer((i) async {
+      calls.add('playNext ${i.positionalArguments.first}');
+    });
+    when(() => handler.removeAt(any())).thenAnswer((i) async {
+      calls.add('remove ${i.positionalArguments.first}');
+    });
+    when(() => handler.reorderQueue(any(), any())).thenAnswer((i) async {
+      calls.add('move ${i.positionalArguments}');
+    });
+    when(handler.collectPlaybackDiagnostics)
+        .thenReturn(<String, Object?>{'ok': true});
+    final clone = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      handler: handler,
+    );
+    addTearDown(clone.close);
+
+    for (final body in <Map<String, Object?>>[
+      {
+        'op': 'add',
+        'songIds': ['a'],
+      },
+      {
+        'op': 'playNext',
+        'songIds': ['b'],
+      },
+      {'op': 'remove', 'index': 2},
+      {'op': 'move', 'from': 1, 'to': 3},
+    ]) {
+      final response = await clone.post('/v1/playback/queue-edit', body);
+      expect(response.statusCode, HttpStatus.ok);
+      expect(response.body['ok'], isTrue);
+    }
+    expect(calls, <String>[
+      'add [a]',
+      'playNext [b]',
+      'remove 2',
+      'move [1, 3]',
+    ]);
+    final bad = await clone.post('/v1/playback/queue-edit', {'op': 'nope'});
+    expect(bad.statusCode, HttpStatus.badRequest);
+    await clone.close();
+
+    final primary = await _startFixture(
+      SyncDiagnosticsMode.primaryCertification,
+      handler: handler,
+    );
+    addTearDown(primary.close);
+    final forbidden = await primary.post('/v1/playback/queue-edit', {
+      'op': 'remove',
+      'index': 0,
+    });
+    expect(forbidden.statusCode, HttpStatus.forbidden);
+    expect(calls, hasLength(4));
+  });
+
+  test('quality saves the streaming settings and applies them', () async {
+    final handler = _MockPlaybackHandler();
+    var applied = 0;
+    when(() => handler.loadFailureStream)
+        .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
+    when(handler.waitUntilReady).thenAnswer((_) async {});
+    when(handler.applyRuntimeSettings).thenAnswer((_) async => applied++);
+    final clone = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      handler: handler,
+    );
+    addTearDown(clone.close);
+
+    final response = await clone.post('/v1/playback/quality', {
+      'wifi': {'maxBitRate': 64, 'format': 'opus'},
+      'cellular': {'maxBitRate': 32, 'format': 'opus'},
+    });
+    expect(response.statusCode, HttpStatus.ok);
+    expect(response.body['wifi'], {'maxBitRate': 64, 'format': 'opus'});
+    expect(applied, 1);
+  });
+
   test('heartbeat reports ordered p95 event-loop samples', () async {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);

@@ -26,6 +26,272 @@ import auth_lifecycle_fixture_server as fixture
 PROJECT = Path(__file__).resolve().parents[1]
 
 
+# --- Navidrome-like transcoding fixture ------------------------------------
+#
+# Shared with tool/live_seek_stress.py (--server fixture). stream.view behaves
+# like Navidrome 0.64 as probed against the live server: original quality is a
+# plain file with Range support; any format/maxBitRate request is an ffmpeg
+# transcode answered HTTP 200, chunked (no Content-Length), `Accept-Ranges:
+# none`, Range ignored. `timeOffset` is honoured while the OpenSubsonic
+# `transcodeOffset` extension is advertised.
+TRANSCODES = {
+    'opus': ('libopus', 'ogg', 'audio/ogg'),
+    'mp3': ('libmp3lame', 'mp3', 'audio/mpeg'),
+    'aac': ('aac', 'adts', 'audio/aac'),
+}
+
+
+class TranscodeLibrary:
+    """Artists x albums x tracks with mixed lengths: every album's first track
+    is 3-8 s on half of the albums, and every fourth artist has one recording
+    under two song ids (same title and MusicBrainz id, different albums). The
+    last `short_artists` artists have only 1-8 s tracks (`self.short`), so a
+    shuffle of one reaches natural song ends within seconds."""
+
+    def __init__(self, cache_dir: Path, artists: int = 40, albums: int = 3, tracks: int = 5,
+                 short_artists: int = 0):
+        self.cache_dir = cache_dir
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        self.artists: dict[str, dict] = {}
+        self.albums: dict[str, dict] = {}
+        self.songs: dict[str, dict] = {}
+        self.media_seconds: dict[str, int] = {}
+        self.album_songs: dict[str, list[str]] = {}
+        self.duplicates: dict[str, str] = {}
+        self.short = {f'ar{a}' for a in range(artists - short_artists, artists)}
+        for a in range(artists):
+            artist_id = f'ar{a}'
+            self.artists[artist_id] = {'id': artist_id, 'name': f'Stress Artist {a:02d}', 'coverArt': 'fixture-cover'}
+            for b in range(albums):
+                album_id = f'al{a}-{b}'
+                ids = []
+                for t in range(1, tracks + 1):
+                    if artist_id in self.short:
+                        seconds = (1, 2, 3, 5, 8)[(t + a + b) % 5]
+                    elif t == 1:
+                        seconds = (3, 4, 5, 6, 7, 8)[((a + b) // 2) % 6] if (a + b) % 2 == 0 else 120
+                    else:
+                        seconds = 300  # Item 10: seek beyond a partial download in a >=4-minute FLAC.
+                    song_id = f's{a}-{b}-{t}'
+                    ids.append(song_id)
+                    self._add_song(song_id, f'Stress {a:02d}-{b}-{t}', artist_id, album_id, t, seconds, f'mbid-{song_id}')
+                if b == 2 and a % 4 == 0:
+                    original = self.songs[f's{a}-0-2']
+                    dup_id = f'd{a}'
+                    ids.append(dup_id)
+                    self._add_song(dup_id, original['title'], artist_id, album_id, tracks + 1, original['duration'], original['musicBrainzId'])
+                    self.duplicates[dup_id] = original['id']
+                self.album_songs[album_id] = ids
+                self.albums[album_id] = {
+                    'id': album_id, 'name': f'Stress Album {a:02d}-{b}', 'artist': self.artists[artist_id]['name'],
+                    'artistId': artist_id, 'songCount': len(ids), 'year': 2000 + b,
+                    'duration': sum(self.songs[i]['duration'] for i in ids), 'coverArt': 'fixture-cover',
+                    'created': f'2026-0{1 + b}-{1 + a % 27:02d}T00:00:00Z',
+                }
+            self.artists[artist_id]['albumCount'] = albums
+        for artist in self.artists.values():
+            artist['songCount'] = sum(len(self.album_songs[i]) for i, album in self.albums.items() if album['artistId'] == artist['id'])
+
+    def _add_song(self, song_id, title, artist_id, album_id, track, seconds, mbid):
+        path = self.media_path(seconds)
+        size = path.stat().st_size
+        self.media_seconds[song_id] = seconds
+        self.songs[song_id] = {
+            'id': song_id, 'title': title, 'album': 'Stress Album ' + '-'.join(f'{int(n):02d}' if i == 0 else n for i, n in enumerate(album_id[2:].split('-'))),
+            'albumId': album_id, 'artist': self.artists[artist_id]['name'], 'artistId': artist_id,
+            'track': track, 'duration': seconds, 'bitRate': round(size * 8 / seconds / 1000),
+            'contentType': 'audio/flac', 'suffix': 'flac', 'size': size, 'coverArt': 'fixture-cover',
+            'created': '2026-01-01T00:00:00Z', 'musicBrainzId': mbid, 'isDir': False, 'type': 'music',
+        }
+
+    def media_path(self, seconds: int) -> Path:
+        path = self.cache_dir / f'src-{seconds}.flac'
+        if not path.exists():
+            # Noise keeps FLAC near a realistic 600-900 kbps.
+            temporary = path.with_suffix('.tmp.flac')
+            subprocess.run([
+                'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error',
+                '-f', 'lavfi', '-i', f'anoisesrc=d={seconds}:c=pink:r=44100:a=0.2',
+                '-f', 'lavfi', '-i', f'sine=f=440:d={seconds}',
+                '-filter_complex', '[0][1]amix=inputs=2:duration=first,aformat=channel_layouts=stereo',
+                '-c:a', 'flac', str(temporary)], check=True)
+            temporary.rename(path)
+        return path
+
+    def sorted_songs(self) -> list[dict]:
+        return sorted(self.songs.values(), key=lambda s: s['id'])
+
+
+def make_transcoding_handler(library: TranscodeLibrary, speed: float = 30.0, advertise_offset: bool = True,
+                             first_byte_delay: float = 1.5, static: bool = False):
+    """A request handler class; the log of stream requests is on `.requests`.
+    `static` answers a transcode like a server that has it cached: complete
+    in memory, Content-Length and byte ranges (Navidrome does this for a
+    transcode it has already produced)."""
+    requests: list[dict] = []
+
+    class TranscodingHandler(fixture.Handler):
+        protocol_version = 'HTTP/1.1'
+        server_version = 'NavisTranscodeFixture/1.0'
+
+        def _ok(self, **content):
+            self._json({'subsonic-response': {
+                'status': 'ok', 'version': '1.16.1', 'type': 'navis-fixture', 'serverVersion': '1.0.0',
+                'openSubsonic': True, **content}})
+
+        def _album_json(self, album_id, with_songs=False):
+            album = dict(library.albums[album_id])
+            if with_songs:
+                album['song'] = [library.songs[i] for i in library.album_songs[album_id]]
+            return album
+
+        def do_GET(self):
+            parsed = urlparse(self.path)
+            endpoint = os.path.basename(parsed.path).removesuffix('.view')
+            query = {k: v[0] for k, v in parse_qs(parsed.query).items()}
+            if endpoint == 'getOpenSubsonicExtensions':
+                extensions = [{'name': 'transcodeOffset', 'versions': [1]}] if advertise_offset else []
+                return self._ok(openSubsonicExtensions=extensions)
+            if endpoint == 'ping':
+                return self._ok()
+            if endpoint in ('getArtists', 'getIndexes'):
+                index = [{'name': 'S', 'artist': list(library.artists.values())}]
+                if endpoint == 'getIndexes':
+                    return self._ok(indexes={'lastModified': fixture.INDEX_LAST_MODIFIED, 'index': index})
+                return self._ok(artists={'index': index})
+            if endpoint == 'getArtist':
+                artist = library.artists.get(query.get('id', ''))
+                if artist is None:
+                    return self._ok(status='failed', error={'code': 70, 'message': 'Artist not found'})
+                albums = [self._album_json(i) for i, a in library.albums.items() if a['artistId'] == artist['id']]
+                return self._ok(artist={**artist, 'album': albums})
+            if endpoint == 'getAlbumList2':
+                albums = sorted(library.albums, key=lambda i: library.albums[i]['created'], reverse=True)
+                offset, size = int(query.get('offset', 0)), int(query.get('size', 500))
+                return self._ok(albumList2={'album': [self._album_json(i) for i in albums[offset:offset + size]]})
+            if endpoint == 'getAlbum':
+                if query.get('id') not in library.albums:
+                    return self._ok(status='failed', error={'code': 70, 'message': 'Album not found'})
+                return self._ok(album=self._album_json(query['id'], True))
+            if endpoint == 'getSong':
+                song = library.songs.get(query.get('id', ''))
+                if song is None:
+                    return self._ok(status='failed', error={'code': 70, 'message': 'Song not found'})
+                return self._ok(song=song)
+            if endpoint == 'getRandomSongs':
+                import random
+                songs = random.sample(library.sorted_songs(), min(int(query.get('size', 10)), len(library.songs)))
+                return self._ok(randomSongs={'song': songs})
+            if endpoint == 'getSimilarSongs2':
+                # Fixed order so a mix's queue can be checked: the 12 songs after the seed.
+                ordered = library.sorted_songs()
+                at = next((i for i, s in enumerate(ordered) if s['id'] == query.get('id')), 0)
+                similar = [s for s in ordered[at + 1:at + 40] if s['duration'] >= 30][:12]
+                return self._ok(similarSongs2={'song': similar})
+            if endpoint == 'search3':
+                songs = library.sorted_songs()
+                text = query.get('query', '').strip('"').lower()
+                if text:
+                    songs = [s for s in songs if text in s['title'].lower()]
+                start, count = int(query.get('songOffset', 0)), int(query.get('songCount', 20))
+                return self._ok(searchResult3={'song': songs[start:start + count]})
+            if endpoint == 'stream':
+                return self._stream(query)
+            if endpoint == 'download':
+                return self._stream({'id': query.get('id', '')})
+            return super().do_GET()
+
+        def _stream(self, query):
+            song_id = query.get('id', '')
+            song = library.songs.get(song_id)
+            if song is None:
+                return self._ok(status='failed', error={'code': 70, 'message': 'Song not found'})
+            data_path = library.media_path(library.media_seconds[song_id])
+            entry = {'at': round(time.time(), 3), 'songId': song_id, 'format': query.get('format'),
+                     'maxBitRate': query.get('maxBitRate'), 'timeOffset': query.get('timeOffset'),
+                     'range': self.headers.get('Range'), 'bytes': 0, 'aborted': False}
+            requests.append(entry)
+            fmt = query.get('format') or ('mp3' if query.get('maxBitRate') else None)
+            if fmt in (None, 'flac', 'raw'):
+                entry['mode'] = 'original'
+                data = data_path.read_bytes()
+                try:
+                    self._bytes(data, 'audio/flac')
+                    entry['bytes'] = len(data)
+                except (BrokenPipeError, ConnectionResetError):
+                    entry['aborted'] = True
+                return
+            if fmt not in TRANSCODES:
+                return self._ok(status='failed', error={'code': 0, 'message': 'Unsupported format'})
+            codec, container, content_type = TRANSCODES[fmt]
+            kbps = int(query.get('maxBitRate') or 128) or 128
+            offset = float(query['timeOffset']) if advertise_offset and query.get('timeOffset') else 0.0
+            entry.update(mode='transcode', kbps=kbps, offsetS=offset)
+            command = ['ffmpeg', '-hide_banner', '-loglevel', 'error', '-nostdin']
+            if offset > 0:
+                command += ['-ss', f'{offset}']
+            command += ['-i', str(data_path), '-vn', '-c:a', codec, '-b:a', f'{kbps}k', '-f', container, '-']
+            if static:
+                entry['mode'] = 'transcodeStatic'
+                data = subprocess.run(command, capture_output=True).stdout
+                time.sleep(first_byte_delay)
+                try:
+                    self._bytes(data, content_type)
+                    entry['bytes'] = len(data)
+                except (BrokenPipeError, ConnectionResetError):
+                    entry['aborted'] = True
+                return
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            # Navidrome 0.64 answers a transcode after 1-3.5 s (measured).
+            time.sleep(first_byte_delay)
+            self.send_response(200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Transfer-Encoding', 'chunked')
+            self.send_header('Accept-Ranges', 'none')
+            self.end_headers()
+            rate = kbps * 125 * speed
+            started = time.monotonic()
+            try:
+                while True:
+                    chunk = proc.stdout.read1(16384)
+                    if not chunk:
+                        break
+                    self.wfile.write(f'{len(chunk):x}\r\n'.encode() + chunk + b'\r\n')
+                    self.wfile.flush()
+                    entry['bytes'] += len(chunk)
+                    ahead = entry['bytes'] / rate - (time.monotonic() - started)
+                    if ahead > 0:
+                        time.sleep(ahead)
+                self.wfile.write(b'0\r\n\r\n')
+            except (BrokenPipeError, ConnectionResetError):
+                entry['aborted'] = True
+            finally:
+                proc.kill()
+                proc.wait()
+                entry['durationS'] = round(time.monotonic() - started, 3)
+                self.close_connection = True
+
+    TranscodingHandler.requests = requests
+    return TranscodingHandler
+
+
+class QuietServer(ThreadingHTTPServer):
+    """A player that cancels a transfer resets the connection; not an error."""
+
+    daemon_threads = True
+
+    def handle_error(self, request, client_address):
+        pass
+
+
+def start_transcoding_server(library: TranscodeLibrary, **options):
+    handler = make_transcoding_handler(library, **options)
+    server = QuietServer(('127.0.0.1', 0), handler)
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, handler
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--platform', choices=['linux', 'android'], default='linux')

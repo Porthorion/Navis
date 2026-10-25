@@ -23,6 +23,7 @@ class RollingCacheSidecarDownloader {
   String? _activeCacheFilePath;
   int? _activeReceivedBytes;
   String? _activePartFilePath;
+  int? _activeTotalBytes;
   void Function()? _activeOnTerminated;
 
   bool get isPaused => _pauseGate != null;
@@ -55,6 +56,9 @@ class RollingCacheSidecarDownloader {
 
   /// The file the running download writes: contiguous from the first byte.
   String? get activePartFilePath => _activePartFilePath;
+
+  /// The response's Content-Length; null for a linear (transcoded) response.
+  int? get activeTotalBytes => _activeTotalBytes;
 
   Future<void> start({
     required String songId,
@@ -147,6 +151,7 @@ class RollingCacheSidecarDownloader {
               'none' &&
           response.compressionState ==
               HttpClientResponseCompressionState.notCompressed;
+      _activeTotalBytes = contentLength > 0 ? contentLength : null;
       final sink = partFile.openWrite();
       var received = 0;
       var retries = 0;
@@ -345,6 +350,7 @@ class RollingCacheSidecarDownloader {
     _activeCacheFilePath = null;
     _activeReceivedBytes = null;
     _activePartFilePath = null;
+    _activeTotalBytes = null;
     final onTerminated = _activeOnTerminated;
     _activeOnTerminated = null;
     onTerminated?.call();
