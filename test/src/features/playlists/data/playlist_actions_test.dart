@@ -186,9 +186,22 @@ void main() {
     verify(() => api.deletePlaylist('p')).called(1);
   });
 
+  var inFlight = 0;
+  var maxInFlight = 0;
+
   /// Stateful server: [maxAdd] caps how many `songIdsToAdd` one call honours
-  /// (Navidrome 0.64 ignores 2+ ids).
-  List<String> stubServer(List<String> songs, {required int maxAdd}) {
+  /// (Navidrome 0.64 ignores 2+ ids). [multiKeep] picks what a refused multi
+  /// call stores anyway, [rejected] ids are never stored, [failing] ids throw
+  /// and [onUpdate] runs on every update (another client writing).
+  List<String> stubServer(
+    List<String> songs, {
+    required int maxAdd,
+    Iterable<String> Function(List<String>)? multiKeep,
+    Set<String> rejected = const {},
+    Set<String> failing = const {},
+    void Function()? onUpdate,
+  }) {
+    inFlight = maxInFlight = 0;
     when(
       () => api.updatePlaylist(
         id: 'p',
@@ -196,18 +209,92 @@ void main() {
       ),
     ).thenAnswer((i) async {
       final ids = i.namedArguments[#songIdsToAdd] as List<String>;
-      if (ids.length <= maxAdd) songs.addAll(ids);
+      maxInFlight = ++inFlight > maxInFlight ? inFlight : maxInFlight;
+      await Future<void>.delayed(Duration.zero);
+      inFlight--;
+      onUpdate?.call();
+      if (ids.any(failing.contains)) throw StateError('add failed');
+      final kept = ids.length <= maxAdd ? ids : multiKeep?.call(ids) ?? [];
+      songs.addAll(kept.where((id) => !rejected.contains(id)));
       return _response;
     });
     when(() => api.getPlaylist('p')).thenAnswer(
       (_) async => Playlist(
         id: 'p',
         name: 'Mix',
+        songCount: songs.length,
         entries: [for (final id in songs) Song(id: id, title: id)],
       ),
     );
     return songs;
   }
+
+  test('another client writing mid-add does not hide missing songs', () async {
+    final server = ['x'];
+    var wrote = false;
+    stubServer(
+      server,
+      maxAdd: 1,
+      onUpdate: () {
+        if (!wrote) server.add('z');
+        wrote = true;
+      },
+    );
+    await flush();
+    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), 0);
+    expect(server.toSet(), {'x', 'z', 'a', 'b', 'c'});
+    expect(server.length, 5);
+  });
+
+  test('a server keeping a non-prefix subset is not resent that id', () async {
+    final server = stubServer(['x'], maxAdd: 1, multiKeep: (ids) => [ids.last]);
+    await flush();
+    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), 0);
+    expect(server, ['x', 'c', 'a', 'b']);
+  });
+
+  test('an id the server rejects is reported as missing', () async {
+    final server = stubServer(['x'], maxAdd: 1, rejected: {'bad'});
+    await flush();
+    expect(await actions.addSongs(_playlist, ['bad', 'b', 'c']), 1);
+    expect(server, ['x', 'b', 'c']);
+  });
+
+  test('one failing id does not abort the rest', () async {
+    final server = stubServer(['x'], maxAdd: 1, failing: {'b'});
+    await flush();
+    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), 1);
+    expect(server, ['x', 'a', 'c']);
+  });
+
+  test('a truncated read-back is inconclusive and mutates nothing', () async {
+    when(() => api.getPlaylist('p')).thenAnswer(
+      (_) async => const Playlist(id: 'p', name: 'Mix', songCount: 5),
+    );
+    when(
+      () => api.updatePlaylist(
+        id: 'p',
+        songIdsToAdd: any(named: 'songIdsToAdd'),
+      ),
+    ).thenAnswer((_) async => _response);
+    await flush();
+    await expectLater(
+      actions.addSongs(_playlist, ['a', 'b']),
+      throwsStateError,
+    );
+    verifyNever(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['a']));
+  });
+
+  test('adds to one playlist never overlap', () async {
+    final server = stubServer(['x'], maxAdd: 1);
+    await flush();
+    await Future.wait([
+      actions.addSongs(_playlist, ['a', 'b']),
+      actions.addSongs(_playlist, ['c', 'd']),
+    ]);
+    expect(maxInFlight, 1);
+    expect(server.length, 5);
+  });
 
   test('album add falls back to one id per request', () async {
     final server = stubServer(['x'], maxAdd: 1);
