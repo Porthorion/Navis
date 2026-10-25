@@ -224,9 +224,8 @@ void main() {
     await flush();
     expect(await actions.addSongs(_playlist, ['a', 'b']), 0);
     expect(server, ['x', 'a', 'b']);
-    verify(
-      () => api.updatePlaylist(id: 'p', songIdsToAdd: ['a', 'b']),
-    ).called(1);
+    verify(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['a', 'b']))
+        .called(1);
     verifyNever(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['a']));
     // One read before (baseline) and one after.
     verify(() => api.getPlaylist('p')).called(2);
