@@ -466,6 +466,7 @@ class App:
 
 
 ANDROID_PACKAGE = 'com.navis.app.navis' + SUFFIX
+RELAY_PID = '/data/local/tmp/navis-relay.pid'
 ANDROID_ROOT = f'/data/user/0/{ANDROID_PACKAGE}/files/liveseek'
 ANDROID_HANDSHAKE = (f'/sdcard/Android/data/{ANDROID_PACKAGE}/files/'
                      'navis-diagnostics/handshake.json')
@@ -573,8 +574,9 @@ class AndroidApp(App):
                        f"'rm -rf {ANDROID_ROOT}/cache/audio/rolling/*'", check=False)
 
     def start_relay(self, port: int):
+        # exec keeps the shell's PID, recorded so stop() kills exactly this relay.
         self.relay = subprocess.Popen(
-            self.adb + ['shell', f'nc -s 127.0.0.1 -p {port} -L nc 10.0.2.2 {port}'],
+            self.adb + ['shell', f'echo $$ > {RELAY_PID}; exec nc -s 127.0.0.1 -p {port} -L nc 10.0.2.2 {port}'],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(1.0)
 
@@ -582,7 +584,7 @@ class AndroidApp(App):
         relay = getattr(self, 'relay', None)
         if relay is not None:
             relay.terminate()
-            self.shell('pkill', 'nc', check=False)
+            self.shell(f'kill $(cat {RELAY_PID}); rm -f {RELAY_PID}', check=False)
         try:
             with (self.run / 'app.log').open('w') as log:
                 subprocess.run(self.adb + ['logcat', '-d', '-s', 'flutter:*',

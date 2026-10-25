@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import fcntl
-import fnmatch
 import hashlib
 import json
 import os
@@ -41,7 +40,6 @@ SOURCE_AVD = os.environ.get('NAVIS_HARNESS_AVD', 'Pixel_9_Pro_XL')
 ANDROID_HOME = Path(os.environ.get('ANDROID_HOME', Path.home() / 'Android' / 'Sdk'))
 GUEST_MIB = 3072
 DEFAULT_BASE = 'github/release/1.5'
-WAYLAND_SOCKET = 'navisharness'
 MEMORY_MAX = '8G'
 
 
@@ -59,23 +57,26 @@ class InfraError(RuntimeError):
 
 HANDLER = ['lib/src/features/player/data/navis_audio_handler*.dart', 'lib/src/features/player/data/playback_source_resolver.dart',
            'lib/src/features/cache/data/rolling_cache_sidecar_downloader.dart', 'third_party/just_audio*/**']
+CROSSFADE = ['lib/src/features/player/data/*crossfade*.dart', 'lib/src/features/player/data/navis_playback_lanes.dart']
+QUEUE = ['lib/src/features/player/data/*queue*.dart', 'lib/src/features/player/data/navis_shuffle_order.dart',
+         'lib/src/features/player/data/*_persistence.dart']
 SCENARIOS = {
     'seek': dict(
         cases='seek_early,seek_pastdl,seek_far,seek_mid,seek_back,seek_burst,seek_paused,offset_quick,offset_far,offset_back',
         quick='seek_far,seek_back,seek_burst,offset_quick,offset_far',
-        qualities='opus128', throttle='wan6000', reps=3, budget=(3, 11), args=['--verify-offset'],
+        qualities='opus128', throttle='wan6000', reps=3, budget=(2, 11), args=['--verify-offset'],
         areas=HANDLER + ['lib/src/features/player/data/seek_preview_request.dart'],
         checks=[('kinds', 'nonew'), ('violations', 'base+', 1), ('latencyMedianS', 'base+', 0.25)]),
     'stress-drag': dict(
         cases='stress_drag,stress_flick', quick='stress_drag,stress_flick', qreps=3,
-        qualities='opus128', throttle='wan6000', reps=5, budget=(4, 7), args=[],
+        qualities='opus128', throttle='wan6000', reps=5, budget=(2, 4), args=[],
         areas=['lib/src/features/player/presentation/*seek_bar*.dart', 'lib/src/features/player/data/seek_preview_request.dart',
                'lib/src/utils/diagnostics_presentation_controller.dart', 'lib/src/common_widgets/desktop_playback_progress.dart'],
         checks=[('previewSocketMax', '<=', 1), ('closedBeforeSuccessor', 'true'), ('previewGETsMax', '<=', 20),
-                ('flickGETs', '<=', 0), ('frameGapP95Ms', 'base+', 5), ('eventLoopP95Ms', 'base+', 5),
+                ('drags', '>=', 1), ('flickCells', '>=', 1), ('flickGETs', '<=', 0), ('frameGapP95Ms', 'base+', 5), ('eventLoopP95Ms', 'base+', 5),
                 ('frameGapStall', 'stall'), ('eventLoopStall', 'stall'), ('releaseMedianS', 'base+', 0.5)]),
     'memory-soak': dict(
-        cases='mem_soak', quick='mem_soak', qualities='opus128', throttle='wan6000', reps=3, qreps=1, budget=(7, 38), args=[],
+        cases='mem_soak', quick='mem_soak', qualities='opus128', throttle='wan6000', reps=3, qreps=1, budget=(7, 37), args=[],
         vm=True, quick_env={'NAVIS_LIVE_SEEK_SOAK_DRAGS': '10', 'NAVIS_LIVE_SEEK_SOAK_IDLE_S': '60'},
         areas=['lib/src/features/player/presentation/*seek_bar*.dart', 'lib/src/utils/diagnostics_presentation_controller.dart',
                'lib/src/features/player/data/seek_preview_request.dart'] + HANDLER,
@@ -85,32 +86,31 @@ SCENARIOS = {
               'q7_append_200',
         quick='offset_repeat_one,repeat_one_fill,chain_end,q7_append_200',
         qualities='opus128', throttle='wan6000', reps=3, budget=(8, 60), args=[],
-        areas=HANDLER + ['lib/src/features/player/data/navis_playback_rules.dart', 'lib/src/features/player/data/*queue*.dart',
-                         '**/ProgressiveRepeat.java', '**/AudioPlayer.java'],
+        areas=HANDLER + CROSSFADE + QUEUE + ['lib/src/features/player/data/navis_playback_rules.dart',
+                                             '**/ProgressiveRepeat.java', '**/AudioPlayer.java'],
         checks=[('kinds', 'nonew'), ('violations', 'base+', 3), ('frozenMedianS', 'base+', 0.1)]),
     'crossfade': dict(
         cases='crossfade_end,skip_next,skip_prev', quick='crossfade_end,skip_next,skip_prev',
         qualities='opus128', throttle='none', reps=3, budget=(1, 3),
         args=['--crossfade-s', '4'],
-        areas=['lib/src/features/player/data/*crossfade*.dart', 'lib/src/features/player/data/navis_playback_lanes.dart'],
+        areas=CROSSFADE,
         checks=[('violations', '<=', 0), ('frozenMedianS', 'base+', 0.1)]),
     'cut-recovery': dict(
         cases='cut40,cut40x2,i9_cut,i9_inject,dead_start,dead_source_hold,cold_seek_stall',
         quick='cut40,i9_inject,dead_start',
-        qualities='opus128', throttle='slow1500', reps=3, budget=(4, 33), args=['--verify-offset'],
+        qualities='opus128', throttle='slow1500', reps=3, budget=(3, 33), args=['--verify-offset'],
         areas=HANDLER + ['lib/src/features/player/data/navis_audio_handler_recovery.dart'],
         checks=[('kinds', 'nonew'), ('violations', 'base*', 1.25, 3), ('progressLoss', 'base+', 3), ('recoveryMedianS', 'base+', 0.5)]),
     'local-seek': dict(
         cases='local_seek,i87_cached,i87_download', quick='local_seek,i87_download',
-        qualities='original', throttle='wan6000', reps=3, budget=(3, 11), args=[],
+        qualities='original', throttle='wan6000', reps=3, budget=(2, 11), args=[],
         areas=['lib/src/features/downloads/**', 'lib/src/features/player/data/playback_source_resolver.dart'],
         checks=[('violations', '<=', 0), ('landingErrorMaxMs', '<=', 500), ('latencyMedianS', 'base+', 0.1)]),
     'queue-edit': dict(
         cases='queue_playnext_add,queue_reorder,q7_append_after5', quick='queue_playnext_add,queue_reorder,q7_append_after5',
-        qualities='opus128', throttle='wan6000', reps=3, budget=(1, 4),
+        qualities='opus128', throttle='wan6000', reps=3, budget=(1, 3),
         args=[],
-        areas=['lib/src/features/player/data/*queue*.dart', 'lib/src/features/player/data/navis_shuffle_order.dart',
-               'lib/src/features/player/data/*_persistence.dart'],
+        areas=QUEUE,
         checks=[('violations', '<=', 0)]),
 }
 ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'queue-edit')
@@ -166,6 +166,7 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
     """Comparable numbers of one variant's engine rows."""
     hard = [v['oracle'] for r in rows for v in r['violations']]
     out = {'cells': len(rows), 'violations': len(hard), 'kinds': sorted(set(hard)),
+           'caseErrors': sum(hard.count(kind) for kind in ('caseError', 'oracleError', 'appExited')),
            'latencyMedianS': _med(r['latencyS'] for r in rows),
            'frozenMedianS': _med(r['metrics'].get('maxFrozenS') for r in rows)}
     if scenario == 'stress-drag':
@@ -173,7 +174,7 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
         flicks = [r['metrics']['flick'] for r in rows if 'flick' in r['metrics']]
         beats = [d['heartbeat'] for d in drags]
         out.update(
-            drags=len(drags), previewSocketMax=max([d['previewSocketMax'] for d in drags] or [0]),
+            drags=len(drags), flickCells=len(flicks), previewSocketMax=max([d['previewSocketMax'] for d in drags] or [0]),
             closedBeforeSuccessor=all(d['closedBeforeSuccessor'] for d in drags) and bool(drags),
             previewGETsMax=max([d['previewGETs'] for d in drags] or [0]), flickGETs=sum(f['previewGETs'] for f in flicks),
             frameGapP95Ms=_med(b['frameGap']['p95Micros'] / 1000 for b in beats),
@@ -210,10 +211,12 @@ ANDROID_STALL = (3, 100)
 def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> list[tuple[bool, str]]:
     """PASS/FAIL lines of one scenario from the metrics of its base and fix variants."""
     lines = []
-    for check in SCENARIOS[scenario]['checks']:
+    for check in [('caseErrors', 'clean')] + SCENARIOS[scenario]['checks']:
         name, kind, *args = check
         f, b = fix.get(name), base.get(name)
-        if kind == 'nonew':
+        if kind == 'clean':  # a harness or app error in a cell is never a zero
+            ok, limit = f == 0 and b == 0, 'no case/oracle error or app exit in either run'
+        elif kind == 'nonew':
             new = sorted(set(f or []) - set(b or []))
             ok, limit = not new, 'no kind the base lacks' + (f' (new: {new})' if new else '')
         elif f is None:
@@ -222,6 +225,8 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
             ok, limit = f is True, 'true'
         elif kind == '<=':
             ok, limit = f <= args[0], f'<= {_fmt(args[0])}'
+        elif kind == '>=':
+            ok, limit = f >= args[0], f'>= {_fmt(args[0])}'
         elif b is None:
             ok, limit = False, 'metric missing in the base run'
         elif kind == 'base+':
@@ -353,23 +358,26 @@ class Display:
 
     def __init__(self, out: Path):
         self.out, self.proc = out, None
+        self.socket = f'navisharness{os.getpid()}'  # unique: never adopt a session this run did not start
 
     def __enter__(self):
         runtime = os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}')
+        if (Path(runtime) / self.socket).exists():
+            raise InfraError(f'Wayland socket {self.socket} already exists (stale session?)')
         env = {k: v for k, v in os.environ.items() if k != 'DISPLAY'}
         env.update(KWIN_COMPOSE='QPainter', QT_QPA_PLATFORM='offscreen', XDG_RUNTIME_DIR=runtime)
         self.proc = subprocess.Popen(
-            ['dbus-run-session', '--', 'kwin_wayland', '--virtual', '--socket', WAYLAND_SOCKET, '--width', '1280', '--height', '800',
+            ['dbus-run-session', '--', 'kwin_wayland', '--virtual', '--socket', self.socket, '--width', '1280', '--height', '800',
              '--no-lockscreen', '--no-global-shortcuts', '--no-kactivities', '--inputmethod', '/bin/true'],
             env=env, stdout=(self.out / 'kwin.log').open('w'), stderr=subprocess.STDOUT, start_new_session=True)
-        socket_path = Path(runtime) / WAYLAND_SOCKET
+        socket_path = Path(runtime) / self.socket
         for _ in range(100):
             if socket_path.exists():
                 break
             time.sleep(0.1)
         else:
             raise InfraError('headless kwin_wayland did not create its socket')
-        return {'WAYLAND_DISPLAY': WAYLAND_SOCKET, 'GDK_BACKEND': 'wayland', 'XDG_RUNTIME_DIR': runtime}
+        return {'WAYLAND_DISPLAY': self.socket, 'GDK_BACKEND': 'wayland', 'XDG_RUNTIME_DIR': runtime}
 
     def __exit__(self, *_):
         stop_group(self.proc)
@@ -446,11 +454,16 @@ class Emulator:
                 return False
 
     def __exit__(self, *_):
-        if self.proc is not None:
-            run(self.adb + ['emu', 'kill'], timeout=30)
-            stop_group(self.proc)
-        shutil.rmtree(self.home / f'{self.name}.avd', ignore_errors=True)
-        (self.home / f'{self.name}.ini').unlink(missing_ok=True)
+        try:
+            if self.proc is not None:
+                try:
+                    run(self.adb + ['emu', 'kill'], timeout=30)
+                except subprocess.TimeoutExpired:
+                    pass  # a hung adb must not keep the guest or its AVD alive
+                stop_group(self.proc)
+        finally:
+            shutil.rmtree(self.home / f'{self.name}.avd', ignore_errors=True)
+            (self.home / f'{self.name}.ini').unlink(missing_ok=True)
 
 
 # A/B runner ------------------------------------------------------------------------------------------------
@@ -531,6 +544,8 @@ def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict,
 
 
 def pick_scenarios(args) -> list[str]:
+    if not (args.all or args.map or args.scenarios):
+        raise InfraError('usage: name scenarios, or pass --map or --all (see `list`)')
     if args.all:
         return list(SCENARIOS)
     if args.map:
@@ -546,14 +561,21 @@ def pick_scenarios(args) -> list[str]:
 def cmd_ab(args) -> int:
     names = pick_scenarios(args)
     platform = args.platform
+    if args.map and not names:
+        print('RESULT NONE: no playback code changed')
+        return 0
     if platform == 'android':
         skipped = [n for n in names if n not in ANDROID_SCENARIOS]
         if skipped and not (args.map or args.all):
             raise InfraError(f'not available on Android: {skipped} (Android runs {list(ANDROID_SCENARIOS)})')
-        names = [n for n in names if n in ANDROID_SCENARIOS]
+        kept = [n for n in names if n in ANDROID_SCENARIOS]
+        if not kept and args.map:
+            # Only Linux-only scenarios were mapped: player code changed, so run every Android scenario.
+            print(f'map: {names} are Linux-only; running all Android scenarios')
+            kept = list(ANDROID_SCENARIOS)
+        names = kept
     if not names:
-        print('RESULT PASS (no scenario selected)')
-        return 0
+        raise InfraError('no scenario left to run on this platform')
     CACHE.mkdir(parents=True, exist_ok=True)
     lock = (CACHE / 'lock').open('w')
     try:

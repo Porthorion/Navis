@@ -1416,7 +1416,7 @@ real phone and the real server are not covered.
 
 ```bash
 tool/playback_harness.py list                       # scenarios, cases, budgets, code areas
-tool/playback_harness.py map [<rev-range>]          # changed files -> scenarios (default release/1.5...HEAD)
+tool/playback_harness.py map [<rev-range>]          # changed files -> scenarios (default github/release/1.5...HEAD)
 tool/playback_harness.py ab seek repeat --platform linux
 tool/playback_harness.py ab --map --platform linux  # the scenarios `map` selects
 tool/playback_harness.py ab --all --platform android --full   # calibration / release check
@@ -1436,19 +1436,20 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
 - **Quick and full sets.** The default is the quick set: 1 repetition (3 trials
   for stress-drag) of a few cases per scenario. `--full` runs every case at 3
   repetitions (5 trials for stress-drag) and is for calibration and release
-  checks; `--reps N` overrides. Measured wall time of one variant on the
+  checks; `--reps N` overrides. `tool/playback_harness.py list` prints each
+  scenario's quick and `--full` set and its measured wall time per variant on the
   development host (an A/B run is twice that plus 1-2 minutes of builds):
 
-  | scenario | quick | `--full` | what it proves |
-  |---|---|---|---|
-  | `seek` | 2 min | 11 min | seek landing, offset path, cache integrity |
-  | `stress-drag` | 2 min | 3.5 min | held slider drag: preview sockets, GETs, heartbeat, release latency |
-  | `memory-soak` | 6.5 min (10 drags, 60 s idle) | ~38 min (3 x 20 drags, 120 s idle, forced GC) | PSS slope, post-GC PSS and Dart heap |
-  | `repeat` | 8 min | ~60 min | Repeat One/All wraps, append at the queue end |
-  | `crossfade` | 1 min | 3 min | hand-off under a 4 s cross-fade, skips |
-  | `cut-recovery` | 3 min | ~33 min | origin cuts, dead sources, cold seeks |
-  | `local-seek` | 2 min | 11 min | seeks in a downloaded or fully cached file |
-  | `queue-edit` | 1 min | 3 min | queue edits during a fill |
+  | scenario | what it proves |
+  |---|---|
+  | `seek` | seek landing, offset path, cache integrity |
+  | `stress-drag` | held slider drag: preview sockets, GETs, heartbeat, release latency |
+  | `memory-soak` | PSS slope, post-GC PSS and Dart heap over 20 drags and an idle window |
+  | `repeat` | Repeat One/All wraps, append at the queue end |
+  | `crossfade` | hand-off under a 4 s cross-fade, skips |
+  | `cut-recovery` | origin cuts, dead sources, cold seeks |
+  | `local-seek` | seeks in a downloaded or fully cached file |
+  | `queue-edit` | queue edits during a fill |
 
 - **Thresholds.** Absolute invariants hold for the fix alone (preview sockets
   at most 1 and closed before the successor opens, at most 20 preview GETs per
@@ -1459,7 +1460,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   counts are relative to the base for `seek`, `repeat` and `cut-recovery`
   because some cases are red on release/1.5 (see the PR); a new violation kind
   is always a FAIL.
-- **Exit codes.** 0 pass, 1 at least one threshold failed, 2 infrastructure
+- **Exit codes.** 0 pass (or `RESULT NONE` when `--map` finds no playback code changed), 1 at least one threshold failed, 2 infrastructure
   error (build or emulator failure, missing base or AVD, a base that predates
   the harness, `~/Downloads/Navis_Downloads` changed, another heavy job holds
   the lock). An infrastructure error is never reported as a FAIL.
@@ -1467,7 +1468,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   (MemoryMax 8G), takes `~/.cache/navis-harness/lock`, snapshots the sha256 of
   the downloads folder before and after, starts a headless `kwin_wayland
   --virtual` (Linux) or a disposable 3072 MiB, 2-core AVD cloned from
-  `NAVIS_HARNESS_AVD` (default `Pixel_9_Pro_XL`; a fresh guest per variant), and
+  `NAVIS_HARNESS_AVD` (default `Pixel_9_Pro_XL`; a fresh guest per scenario and variant), and
   stops only the processes it started. Android runs `stress-drag`,
   `memory-soak`, `repeat` and `queue-edit`; its heartbeat numbers come from a
   software-rendered guest and are noisier, hence the wider Android tolerances
@@ -1483,15 +1484,21 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
 
 Paste this to a Haiku agent; it reports lines, it does not judge them.
 
-> Run in `/path/to/worktree` (commit is checked out; nothing else heavy is
-> running). Execute exactly one command in the foreground and wait for it:
-> `tool/playback_harness.py ab --map --platform linux 2>&1 | tail -60`
+> Run in `/path/to/worktree` (the commit is checked out; nothing else heavy is
+> running). Run these two commands in the foreground, one after the other, and
+> wait for each (plain POSIX syntax; the Bash tool shell is zsh):
+>
+> ```
+> tool/playback_harness.py ab --map --platform linux > /tmp/harness.log 2>&1; rc=$?
+> echo "exit=$rc"; grep -E '^(PASS|FAIL|RESULT|ERROR|summary:)' /tmp/harness.log
+> ```
+>
 > (use the scenarios the orchestrator names instead of `--map` when given).
-> Report: the exit code; every line starting with `PASS`, `FAIL` or `RESULT`
-> quoted exactly; the line `summary: <path>`; and, on exit code 2, the
-> `ERROR` line. Do not edit files, retry, loosen anything or explain causes.
-> Never run a second heavy job meanwhile and never end your turn with a
-> background job pending.
+> Report the `exit=` line and every `PASS`, `FAIL`, `RESULT`, `ERROR` and
+> `summary:` line quoted exactly. Exit 0 is pass, 1 a threshold failed, 2 an
+> infrastructure error (never a FAIL). Do not edit files, retry, loosen anything
+> or explain causes. Never run a second heavy job meanwhile and never end your
+> turn with a background job pending.
 
 Sonnet reads only the FAIL lines and the `summary.md` they point to; the
 orchestrator reads the summary.

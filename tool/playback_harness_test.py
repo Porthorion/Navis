@@ -17,7 +17,7 @@ import live_seek_stress as engine  # noqa: E402
 
 def drag_metrics(p95=17.0, max_ms=40.0, over50=0, release=2.4, sockets=1, gets=16, flick=0):
     stall = {'max': max_ms, 'over50': over50}
-    return {'previewSocketMax': sockets, 'closedBeforeSuccessor': True, 'previewGETsMax': gets, 'flickGETs': flick,
+    return {'caseErrors': 0, 'drags': 5, 'flickCells': 1, 'previewSocketMax': sockets, 'closedBeforeSuccessor': True, 'previewGETsMax': gets, 'flickGETs': flick,
             'frameGapP95Ms': p95, 'eventLoopP95Ms': p95, 'frameGapStall': stall, 'eventLoopStall': stall, 'releaseMedianS': release}
 
 
@@ -39,6 +39,22 @@ class Thresholds(unittest.TestCase):
         slow = drag_metrics(max_ms=80.0, over50=2)
         self.assertTrue(verdicts('stress-drag', slow, slow)['frameGapStall:'])
 
+    def test_case_error_row_fails_even_with_no_other_metric(self):
+        # a stress-drag row that died with caseError carries neither 'drag' nor 'flick'
+        rows = [{'violations': [{'oracle': 'caseError'}], 'latencyS': None, 'metrics': {}}]
+        broken = h.metrics('stress-drag', rows)
+        clean = drag_metrics()
+        results = verdicts('stress-drag', clean, {**broken})
+        self.assertFalse(results['caseErrors:'])
+        self.assertFalse(results['drags:'])
+        self.assertFalse(results['flickCells:'])
+        self.assertFalse(all(ok for ok, _ in h.evaluate('stress-drag', clean, broken)))
+
+    def test_clean_run_needs_clean_base_too(self):
+        good = drag_metrics()
+        self.assertTrue(all(ok for ok, _ in h.evaluate('stress-drag', good, good)))
+        self.assertFalse(verdicts('stress-drag', {**good, 'caseErrors': 1}, good)['caseErrors:'])
+
     def test_android_stall_rule_is_wider(self):
         base, fix = drag_metrics(max_ms=149.0, over50=1), drag_metrics(max_ms=188.0, over50=46)
         self.assertFalse(verdicts('stress-drag', base, fix)['frameGapStall:'])
@@ -46,7 +62,7 @@ class Thresholds(unittest.TestCase):
         self.assertTrue(android['frameGapStall:'])
 
     def test_line_format(self):
-        ok, line = h.evaluate('queue-edit', {'violations': 0}, {'violations': 2})[0]
+        ok, line = h.evaluate('queue-edit', {'caseErrors': 0, 'violations': 0}, {'caseErrors': 0, 'violations': 2})[1]
         self.assertFalse(ok)
         self.assertEqual(line, 'FAIL queue-edit violations: fix=2 base=0 limit=<= 0')
 
@@ -56,7 +72,7 @@ class Thresholds(unittest.TestCase):
         self.assertFalse(verdicts('local-seek', {'violations': 0}, {'violations': 0})['landingErrorMaxMs:'])
 
     def test_soak_slope_limit(self):
-        base = {'slopeMiBPerDrag': 6.0, 'postGcPssMiB': 500.0, 'postGcHeapMiB': 47.0}
+        base = {'caseErrors': 0, 'slopeMiBPerDrag': 6.0, 'postGcPssMiB': 500.0, 'postGcHeapMiB': 47.0}
         self.assertTrue(all(verdicts('memory-soak', base, {**base, 'slopeMiBPerDrag': 8.9}).values()))
         self.assertFalse(verdicts('memory-soak', base, {**base, 'slopeMiBPerDrag': 9.1})['slopeMiBPerDrag:'])
         self.assertFalse(verdicts('memory-soak', base, {**base, 'postGcHeapMiB': 55.5})['postGcHeapMiB:'])
@@ -100,6 +116,10 @@ class CodeAreaMap(unittest.TestCase):
         self.assertIn('repeat', names('third_party/just_audio/android/src/main/java/com/ryanheise/just_audio/ProgressiveRepeat.java'))
         self.assertEqual(set(names('lib/src/features/player/presentation/some_other_widget.dart')), set(h.SCENARIOS))
         self.assertEqual(names('lib/src/features/settings/foo.dart'), [])
+        for path in ('lib/src/features/player/data/navis_playback_lanes.dart',):
+            self.assertTrue({'crossfade', 'repeat'} <= set(names(path)), path)
+        for path in ('lib/src/features/player/data/navis_shuffle_order.dart', 'lib/src/features/player/data/foo_persistence.dart'):
+            self.assertTrue({'queue-edit', 'repeat'} <= set(names(path)), path)
 
 
 class CacheKey(unittest.TestCase):
@@ -144,6 +164,16 @@ class InfraErrors(unittest.TestCase):
         code, err = self.ab('queue-edit', '--platform', 'linux', '--base', root)
         self.assertEqual(code, 2)
         self.assertIn('predates this harness', err)
+
+    def test_no_selection_is_exit_2(self):
+        code, err = self.ab('--platform', 'linux')
+        self.assertEqual(code, 2)
+        self.assertIn('usage', err)
+
+    def test_android_with_only_linux_scenarios_is_exit_2(self):
+        code, err = self.ab('seek', '--platform', 'android', '--base', 'HEAD')
+        self.assertEqual(code, 2)
+        self.assertIn('not available on Android', err)
 
     def test_unknown_scenario_is_exit_2(self):
         code, _ = self.ab('nonsense', '--platform', 'linux')
