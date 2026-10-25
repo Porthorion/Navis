@@ -130,6 +130,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'On desktop the next song now downloads as soon as the current one is '
+        'saved, so song changes and the first seeks after them start without '
+        'waiting on the network. Playback settings has a new "Prefetch the '
+        'next song on mobile data" switch (on by default).',
+      ),
+      ChangelogEntry(
         'Desktop quick search keeps all its filter chips on one line.',
         type: ChangelogEntryType.fix,
       ),

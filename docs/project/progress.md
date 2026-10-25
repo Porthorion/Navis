@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-24
+Last updated: 2026-10-25
 
 ---
 
@@ -14,6 +14,12 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 13 prefetch check and tune — `fix/prefetch-13`: desktop
+  next-song warm chained on the sidecar downloader, shared next-song helper
+  (Repeat One/All, shuffle) for the Android stale/priority logic, eviction keeps
+  current and next song, "Prefetch the next song on mobile data" setting (on by
+  default, confirmation when turned off, schema 106→107), and `repeat/chain_end`
+  harness metrics. Remaining: harness `ab --map` on Linux and Android.
 - [x] Playback runtime harness — 2026-10-25: `tool/playback_harness.py` (list, map, ab)
   on the `tool/live_seek_stress.py` engine; diagnostics `queue-edit`, `quality`,
   `queue {shuffle,startIndex}`, `rawSeekBack` and a no-op-unless-diagnostics

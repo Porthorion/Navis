@@ -1445,7 +1445,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   | `seek` | seek landing, offset path, cache integrity |
   | `stress-drag` | held slider drag: preview sockets, GETs, heartbeat, release latency |
   | `memory-soak` | PSS slope, post-GC PSS and Dart heap over 20 drags and an idle window |
-  | `repeat` | Repeat One/All wraps, append at the queue end |
+  | `repeat` | Repeat One/All wraps, append at the queue end, next-song readiness at hand-over (`chain_end`: `nextRequestLeadS`, `nextBytesAtHandover` from the proxy log by the app's Dart user agent, and a seek 2 s into the next song, `nextSeekLocal`; gated on Linux, informational on Android) |
   | `crossfade` | hand-off under a 4 s cross-fade, skips |
   | `cut-recovery` | origin cuts, dead sources, cold seeks |
   | `local-seek` | seeks in a downloaded or fully cached file |
