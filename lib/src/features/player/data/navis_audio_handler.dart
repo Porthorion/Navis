@@ -219,6 +219,10 @@ class NavisAudioHandler extends BaseAudioHandler
   final bool? desktopRuntimeOverride;
   bool get _isDesktopRuntime => desktopRuntimeOverride ?? _isDesktopPlatform;
 
+  /// Whether the latest seek request carries a trace callback (tests).
+  @visibleForTesting
+  bool get debugSeekTraceInstalled => _lastSeek?.onStage != null;
+
   final Future<NetworkReconciliation> Function()? reconcileNetwork;
 
   /// Device connectivity alone, for third-party hosts that never need the
@@ -2465,13 +2469,16 @@ class NavisAudioHandler extends BaseAudioHandler
       songId: songId,
       queueIndex: _navigationIntent.desiredIndex ?? _logicalCurrentIndex,
       position: navisSanitizeSeekPosition(position),
-      onStage: (stage) => _transportTrace.record(
-        'seekStage',
-        () => <String, Object?>{
-          'generation': _lastSeek?.generation,
-          'stage': stage,
-        },
-      ),
+      // Diagnostics builds only: other builds install and retain no callback.
+      onStage: _transportTrace.enabled
+          ? (stage) => _transportTrace.record(
+              'seekStage',
+              () => <String, Object?>{
+                'generation': _lastSeek?.generation,
+                'stage': stage,
+              },
+            )
+          : null,
     );
     _seekFailureBlocksRecovery = false;
     _pendingSeek = _lastSeek = request;

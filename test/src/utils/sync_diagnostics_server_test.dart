@@ -1490,6 +1490,43 @@ void main() {
     },
   );
 
+  test('playback queue reports the song at the clamped start index', () async {
+    final handler = _MockPlaybackHandler();
+    when(() => handler.loadFailureStream)
+        .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
+    when(handler.waitUntilReady).thenAnswer((_) async {});
+    when(
+      () => handler.replaceQueueWithData(
+        any(),
+        startIndex: any(named: 'startIndex'),
+        autoPlay: any(named: 'autoPlay'),
+        expandMatchFlows: any(named: 'expandMatchFlows'),
+      ),
+    ).thenAnswer((_) async {});
+    final clone = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      handler: handler,
+    );
+    addTearDown(clone.close);
+    final database = clone.database as NavisDatabase;
+    await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+      for (final id in ['a', 'b', 'c'])
+        SongsTableCompanion.insert(id: id, title: 'Song $id'),
+    ]);
+    final ids = <String>['a', 'b', 'c'];
+
+    Future<Object?> started(Object? startIndex) async =>
+        (await clone.post('/v1/playback/queue', <String, Object?>{
+          'songIds': ids,
+          if (startIndex != null) 'startIndex': startIndex,
+        })).body['startedSongId'];
+
+    expect(await started(null), 'a');
+    expect(await started(1), 'b');
+    expect(await started(99), 'c');
+    expect(await started(-4), 'a');
+  });
+
   test('queue-edit drives the handler and stays clone-only', () async {
     final handler = _MockPlaybackHandler();
     final calls = <String>[];

@@ -3058,14 +3058,18 @@ class SyncDiagnosticsServer {
         if (shuffle) {
           ordered.shuffle(Random());
         }
+        // A song tap inside a list starts at that song; playback clamps the
+        // index the same way, so the reported song is the one that plays.
+        final startIndex =
+            (body['startIndex'] is int ? body['startIndex'] as int : 0).clamp(
+              0,
+              ordered.length - 1,
+            );
         await _container
             .read(queueProvider.notifier)
             .replaceWithTableData(
               ordered,
-              // A song tap inside a list starts at that song.
-              startIndex: body['startIndex'] is int
-                  ? body['startIndex'] as int
-                  : 0,
+              startIndex: startIndex,
               originalOrder: shuffle
                   ? songs.map((song) => song.id).toList()
                   : null,
@@ -3073,7 +3077,7 @@ class SyncDiagnosticsServer {
         await _respond(request, HttpStatus.accepted, <String, Object?>{
           'status': 'starting',
           'songIds': songIds,
-          'startedSongId': ordered.first.id,
+          'startedSongId': ordered[startIndex].id,
         });
         return;
       }

@@ -1997,6 +1997,13 @@ void main() {
       },
     );
 
+    test('a normal build installs no seek trace callback', () async {
+      final (handler, _, _) = await setup();
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      await handler.seek(const Duration(seconds: 30));
+      expect(handler.debugSeekTraceInstalled, isFalse);
+    });
+
     test('a seek in the offline hold moves the recovery target', () async {
       var online = false;
       final recovered = StreamController<void>.broadcast();
