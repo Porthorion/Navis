@@ -246,9 +246,7 @@ extension _NavisCache on NavisAudioHandler {
     if (current == null ||
         nextId == null ||
         nextId == current.id ||
-        (desktop
-            ? _sidecarDownloader.activeSongId
-            : _lockCacheWarmSongId) ==
+        (desktop ? _sidecarDownloader.activeSongId : _lockCacheWarmSongId) ==
             nextId) {
       return;
     }

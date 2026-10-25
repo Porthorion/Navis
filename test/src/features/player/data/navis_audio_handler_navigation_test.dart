@@ -5823,10 +5823,9 @@ void main() {
         await directory.delete(recursive: true);
         HttpOverrides.global = previousHttp;
       });
-      await handler.replaceQueue(
-        [for (var i = 0; i < count; i++) 'song-$i'],
-        expandMatchFlows: false,
-      );
+      await handler.replaceQueue([
+        for (var i = 0; i < count; i++) 'song-$i',
+      ], expandMatchFlows: false);
       await settleQueue(handler);
       return (
         handler: handler,
