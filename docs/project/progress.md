@@ -19,7 +19,10 @@ Last updated: 2026-10-25
   (Repeat One/All, shuffle) for the Android stale/priority logic, eviction keeps
   current and next song, "Prefetch the next song on mobile data" setting (on by
   default, confirmation when turned off, schema 106→107), and `repeat/chain_end`
-  harness metrics. Remaining: harness `ab --map` on Linux and Android.
+  harness metrics. Round 3: pair-scoped retries, missing-file refill and saved-queue
+  startup eviction protection; 15 focused handler tests pass, including three
+  failures before these fixes and a tick-only retry that fails on round-1 code.
+  Remaining: calibrated Linux repeat A/B and final gate; Android evidence.
 - [x] Playback runtime harness — 2026-10-25: `tool/playback_harness.py` (list, map, ab)
   on the `tool/live_seek_stress.py` engine; diagnostics `queue-edit`, `quality`,
   `queue {shuffle,startIndex}`, `rawSeekBack` and a no-op-unless-diagnostics

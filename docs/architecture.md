@@ -4506,8 +4506,8 @@ defines "next" for this and for the Android stale-download and priority logic:
 the logical (shuffled) play order, the current song under Repeat One (nothing
 to warm), and the first song when Repeat All wraps. The warm runs at most once
 per current-to-next pair (a warm that ended without a file is retried after
-`sidecarChainRetryDelay`), is never restarted by re-publishing the finished
-current song, and is cancelled when a skip, queue edit or shuffle makes it
+`sidecarChainRetryDelay` for that pair only), is never restarted by re-publishing
+the finished current song while its file still exists, and is cancelled when a skip, queue edit or shuffle makes it
 neither current nor next or when the gate closes (setting turned off, link
 cellular or metered, offline); when the warmed song becomes current
 `start` sees the same song and path and continues the download. A next song
@@ -4519,7 +4519,8 @@ schema 107) allows it on cellular or metered connections (`networkTypeProvider`,
 native metered signal); turning it off asks for confirmation. The current song
 is unaffected. `RollingCacheManager.enforceBudget(keepSongIds:)` never evicts
 the current or next song, including when the budget is lowered in Cache &
-Storage and at startup maintenance (`rollingCacheProtectedSongIds`). On Android, ExoPlayer's lock-cache proxy still starts
+Storage (`rollingCacheProtectedSongIds`). Startup maintenance reads the saved
+queue in play order to protect its current and next song before restoration. On Android, ExoPlayer's lock-cache proxy still starts
 the next song's download when it first asks for it; only the next-song
 calculation and the gate apply there until the harness shows a cold hand-over.
 

@@ -131,11 +131,16 @@ extension _NavisCache on NavisAudioHandler {
         sidecarPath.isEmpty ||
         song == null ||
         streamUri == null) {
-      if (!warmsNext) unawaited(_sidecarDownloader.cancel());
+      if (!warmsNext) {
+        _sidecarChainKey = null;
+        unawaited(_sidecarDownloader.cancel());
+      }
       _syncSidecarChain();
       return;
     }
-    if (!_completedCacheSongIds.contains(item.id)) {
+    if (!_completedCacheSongIds.contains(item.id) ||
+        !File(sidecarPath).existsSync()) {
+      _completedCacheSongIds.remove(item.id);
       _startSidecarDownload(item, song, streamUri, sidecarPath);
     }
     _syncBridgeDownloadPriority();
@@ -193,7 +198,10 @@ extension _NavisCache on NavisAudioHandler {
               !File(sidecarPath).existsSync()) {
             _sidecarChainKey = null;
             if (key.startsWith('${_currentMediaItem?.id}>')) {
-              _sidecarChainRetryAt = DateTime.now().add(sidecarChainRetryDelay);
+              _sidecarChainRetry = (
+                key,
+                DateTime.now().add(sidecarChainRetryDelay),
+              );
             }
           }
         },
@@ -228,8 +236,10 @@ extension _NavisCache on NavisAudioHandler {
     }
     final key = '${current.id}>$nextId';
     if (_sidecarChainKey == key) return;
-    final retryAt = _sidecarChainRetryAt;
-    if (retryAt != null && DateTime.now().isBefore(retryAt)) return;
+    final retry = _sidecarChainRetry;
+    if (retry != null && retry.$1 == key && DateTime.now().isBefore(retry.$2)) {
+      return;
+    }
     final warm =
         current.extras?['sourceKind'] == PlaybackSourceKind.file.name ||
         _completedCacheSongIds.contains(current.id);
