@@ -2687,6 +2687,25 @@ def case_natural_play3(run: Run, env, songs=3):
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=songs + 1))
 
 
+def next_song_readiness(log: list, song_id: str, handover_w: float) -> tuple:
+    """(lead, bytes) of the full-song GETs the app's own downloader (Dart user agent: the desktop sidecar, the Android
+    lock-cache proxy) made for [song_id] before it took over at wall time [handover_w]. lead: seconds between the first
+    GET and the handover (negative: it started after, None: it never did). bytes: received by the handover (a GET still
+    running then is prorated over its duration)."""
+    gets = [r for r in log if r['id'] == song_id and r['endpoint'] in ('stream', 'download') and r['ua'].startswith('Dart')
+            and not r.get('timeOffset')]
+    if not gets:
+        return None, 0
+    got = 0
+    for r in gets:
+        end = r.get('endW') or handover_w
+        if r['w'] >= handover_w:
+            continue
+        share = 1.0 if end <= handover_w else (handover_w - r['w']) / max(end - r['w'], 0.001)
+        got += int((r.get('bytes') or 0) * share)
+    return round(handover_w - min(r['w'] for r in gets), 2), got
+
+
 def case_chain_end(run: Run, env):
     """Repeat off, album: four songs each seeked to 6 s before their end; every boundary must hand over
     to the next song without a pause (setPauseAtEndOfMediaItems must not leak into normal playback)."""
@@ -2696,7 +2715,7 @@ def case_chain_end(run: Run, env):
         run.app.api('/v1/playback/repeat', {'mode': run.chain_repeat})
     rec = start_queue(run, ids)
     await_audio(run, rec, ids[0])
-    gaps = []
+    gaps, leads, fetched, local = [], [], [], []
     for n in range(4):
         cur = run.until(lambda s: s['songId'] == ids[n] and s['proc'] == 'ready' and s['playing'] and (s['pos'] or 0) > 500, 60) \
             or run.last()
@@ -2720,7 +2739,19 @@ def case_chain_end(run: Run, env):
         spans = paused_spans(run, landed_t, ok['t'] + 1)
         if spans:
             run.violations.append(violation('pausedAtSongEnd', spans[0][0], f'ready but not playing {spans}', run))
+        handover_w = time.time() - (run.now() - moved['t'])
+        lead, got = next_song_readiness(run.env.proxy.log[run.proxy_mark:], ids[n + 1], handover_w)
+        leads.append(lead)
+        fetched.append(got)
+        # Seek 2 s into the song that just took over: served from disk if the warm finished, otherwise from the network.
+        before = run.last()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            seek = issue_seek(run, pool, 2000)
+            landed(run, seek)
+            finish_futures(run)
+        local.append((before['cplay'] or 0) >= 2500 or before['cpsrc'] == 'full')
     run.metrics['handoverGapsS'] = gaps
+    run.metrics.update(nextRequestLeadS=leads, nextBytesAtHandover=fetched, nextSeekLocal=local)
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=4))
 
     def no_false_recovery():

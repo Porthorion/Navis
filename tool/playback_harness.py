@@ -87,8 +87,10 @@ SCENARIOS = {
         quick='offset_repeat_one,repeat_one_fill,chain_end,q7_append_200',
         qualities='opus128', throttle='wan6000', reps=3, budget=(8, 60), args=[],
         areas=HANDLER + CROSSFADE + QUEUE + ['lib/src/features/player/data/navis_playback_rules.dart',
-                                             '**/ProgressiveRepeat.java', '**/AudioPlayer.java'],
-        checks=[('kinds', 'nonew'), ('violations', 'base+', 3), ('frozenMedianS', 'base+', 0.1)]),
+                                             '**/ProgressiveRepeat.java', '**/AudioPlayer.java',
+                                             'lib/src/features/cache/data/**'],
+        checks=[('kinds', 'nonew'), ('violations', 'base+', 3), ('frozenMedianS', 'base+', 0.1),
+                ('nextRequestLeadMedianS', '>=', 0), ('nextSeekLocalRate', '>=', 0.75)]),
     'crossfade': dict(
         cases='crossfade_end,skip_next,skip_prev', quick='crossfade_end,skip_next,skip_prev',
         qualities='opus128', throttle='none', reps=3, budget=(1, 3),
@@ -113,6 +115,7 @@ SCENARIOS = {
         areas=QUEUE,
         checks=[('violations', '<=', 0)]),
 }
+INFORMATIONAL_ON_ANDROID = ('nextRequestLeadMedianS', 'nextSeekLocalRate')
 ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'queue-edit')
 PLAYER_FALLBACK = 'lib/src/features/player/**'
 
@@ -188,6 +191,13 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
             out.update(slopeMiBPerDrag=_med(_ols_slope([d['pssKiB'] / mib for d in soak['drags']]) for soak in soaks),
                        postGcPssMiB=_med(soak['afterGc']['pssKiB'] / mib for soak in soaks),
                        postGcHeapMiB=_med(soak['afterGc']['heapB'] / mib / mib for soak in soaks))
+    elif scenario == 'repeat':
+        cells = [r['metrics'] for r in rows if 'nextRequestLeadS' in r['metrics']]
+        # A boundary whose next song was never fetched counts as cold (-1 s).
+        leads = [-1.0 if v is None else v for m in cells for v in m['nextRequestLeadS']]
+        local = [v for m in cells for v in m['nextSeekLocal']]
+        out.update(nextRequestLeadMedianS=_med(leads), nextBytesAtHandoverMedian=_med(v for m in cells for v in m['nextBytesAtHandover']),
+                   nextSeekLocalRate=round(sum(local) / len(local), 2) if local else None)
     elif scenario == 'cut-recovery':
         out['recoveryMedianS'] = _med((r['metrics'].get('cutVerdict') or {}).get('resumedAfterS') or r['metrics'].get('maxFrozenS')
                                       for r in rows)
@@ -220,6 +230,10 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
     for check in [('caseErrors', 'clean')] + SCENARIOS[scenario]['checks']:
         name, kind, *args = check
         f, b = fix.get(name), base.get(name)
+        if platform == 'android' and name in INFORMATIONAL_ON_ANDROID:
+            # Item 13 measures what ExoPlayer's own preload does before deciding on an Android warm: report, do not gate.
+            lines.append((True, f'INFO {scenario} {name}: fix={_fmt(f)} base={_fmt(b)} (not gated on Android)'))
+            continue
         if kind == 'clean':  # a harness or app error in a cell is never a zero
             ok, limit = f == 0, 'no case/oracle error or app exit'
         elif kind == 'nonew':

@@ -90,6 +90,32 @@ class Thresholds(unittest.TestCase):
         self.assertAlmostEqual(h._ols_slope([1.0, 3.0, 5.0, 7.0]), 2.0)
 
 
+class NextSongReadiness(unittest.TestCase):
+    def test_lead_bytes_and_cold_boundary(self):
+        log = [{'id': 'b', 'endpoint': 'stream', 'ua': 'Dart/3.5', 'w': 90.0, 'endW': 95.0, 'bytes': 1000},
+               {'id': 'b', 'endpoint': 'stream', 'ua': 'Navis Desktop', 'w': 99.0, 'endW': 120.0, 'bytes': 500}]
+        self.assertEqual(engine.next_song_readiness(log, 'b', 100.0), (10.0, 1000))
+        self.assertEqual(engine.next_song_readiness(log, 'c', 100.0), (None, 0))
+        late = [{'id': 'b', 'endpoint': 'stream', 'ua': 'Dart/3.5', 'w': 101.0, 'endW': 105.0, 'bytes': 1000}]
+        self.assertEqual(engine.next_song_readiness(late, 'b', 100.0), (-1.0, 0))
+        running = [{'id': 'b', 'endpoint': 'stream', 'ua': 'Dart/3.5', 'w': 90.0, 'endW': 110.0, 'bytes': 1000}]
+        self.assertEqual(engine.next_song_readiness(running, 'b', 100.0), (10.0, 500))
+
+    def test_repeat_metrics_and_thresholds(self):
+        cell = {'nextRequestLeadS': [8.0, None, 6.0], 'nextBytesAtHandover': [900, 0, 800], 'nextSeekLocal': [True, False, True]}
+        m = h.metrics('repeat', [{'violations': [], 'latencyS': None, 'metrics': cell}])
+        self.assertEqual((m['nextRequestLeadMedianS'], m['nextBytesAtHandoverMedian'], m['nextSeekLocalRate']), (6.0, 800, 0.67))
+        base = {'caseErrors': 0, 'violations': 0, 'kinds': [], 'frozenMedianS': 0.1}
+        good = {**base, 'nextRequestLeadMedianS': 5.0, 'nextSeekLocalRate': 1.0}
+        self.assertTrue(all(verdicts('repeat', base, good).values()))
+        cold = {**good, 'nextRequestLeadMedianS': -1.0, 'nextSeekLocalRate': 0.0}
+        self.assertEqual({k: v for k, v in verdicts('repeat', base, cold).items() if not v},
+                         {'nextRequestLeadMedianS:': False, 'nextSeekLocalRate:': False})
+        android = h.evaluate('repeat', base, cold, 'android')
+        self.assertTrue(all(ok for ok, _ in android))
+        self.assertTrue(any(line.startswith('INFO') for _, line in android))
+
+
 class PositionBlip(unittest.TestCase):
     @staticmethod
     def samples(positions):
@@ -117,6 +143,7 @@ class CodeAreaMap(unittest.TestCase):
         self.assertIn('repeat', names('third_party/just_audio/android/src/main/java/com/ryanheise/just_audio/ProgressiveRepeat.java'))
         self.assertEqual(set(names('lib/src/features/player/presentation/some_other_widget.dart')), set(h.SCENARIOS))
         self.assertEqual(names('lib/src/features/settings/foo.dart'), [])
+        self.assertIn('repeat', names('lib/src/features/cache/data/rolling_cache_manager.dart'))
         for path in ('lib/src/features/player/data/navis_playback_lanes.dart',):
             self.assertTrue({'crossfade', 'repeat'} <= set(names(path)), path)
         for path in ('lib/src/features/player/data/navis_shuffle_order.dart', 'lib/src/features/player/data/foo_persistence.dart'):
