@@ -26,6 +26,7 @@ class PlaylistActions {
   final Ref _ref;
 
   final _uploads = <String, Future<PlaylistUploadResult>>{};
+  final _adds = <String, Future<int>>{};
   final _createRecovery = ServerCreateRecovery<_UploadSnapshot>();
   final _keptUploads = <String>{};
 
@@ -214,25 +215,84 @@ class PlaylistActions {
       });
     }
     final api = _serverApi();
+    // One add per playlist at a time: a second waits for the first.
+    final previous = _adds[playlist.id];
+    final run =
+        (previous?.then<void>((_) {}, onError: (_) {}) ?? Future<void>.value())
+            .then((_) => _addToServer(api, playlist.id, songIds));
+    _adds[playlist.id] = run;
     try {
-      final before = (await api.getPlaylist(playlist.id)).entries.length;
-      await api.updatePlaylist(id: playlist.id, songIdsToAdd: songIds);
-      var added = (await api.getPlaylist(playlist.id)).entries.length - before;
-      if (added < songIds.length) {
-        // Navidrome 0.64 answers ok to a multi-id add but adds nothing, so
-        // re-add what is missing one id per request. Adds append in order.
-        for (final id in songIds.skip(added.clamp(0, songIds.length))) {
-          await api.updatePlaylist(id: playlist.id, songIdsToAdd: [id]);
-        }
-        added = (await api.getPlaylist(playlist.id)).entries.length - before;
-      }
-      return (songIds.length - added).clamp(0, songIds.length);
+      return await run;
     } finally {
+      if (identical(_adds[playlist.id], run)) _adds.remove(playlist.id);
       if (_ref.mounted) {
         _ref.invalidate(playlistDetailSyncProvider(playlist.id));
         _ref.invalidate(playlistSyncProvider);
       }
     }
+  }
+
+  Future<int> _addToServer(
+    SubsonicApiClient api,
+    String id,
+    List<String> songIds,
+  ) async {
+    final before = await _entryIds(api, id);
+    // Navidrome 0.64 answers ok to a multi-id add but adds nothing, so the
+    // result is verified and what is missing is re-added one id per request.
+    // A failed request leaves its ids missing; the read-backs decide.
+    try {
+      await api.updatePlaylist(id: id, songIdsToAdd: songIds);
+    } on Object {
+      // Counted as missing below.
+    }
+    var missing = _missing(songIds, before, await _entryIds(api, id));
+    if (missing.isEmpty) return 0;
+    for (final song in missing) {
+      try {
+        await api.updatePlaylist(id: id, songIdsToAdd: [song]);
+      } on Object {
+        // Counted as missing below.
+      }
+    }
+    missing = _missing(songIds, before, await _entryIds(api, id));
+    return missing.length;
+  }
+
+  /// The playlist's song ids on the server; throws when the read is
+  /// inconclusive (the entry list does not match the reported song count).
+  Future<List<String>> _entryIds(SubsonicApiClient api, String id) async {
+    final playlist = await api.getPlaylist(id);
+    final count = playlist.songCount;
+    if (count != null && count != playlist.entries.length) {
+      throw StateError('Playlist read-back is incomplete');
+    }
+    return [for (final song in playlist.entries) song.id];
+  }
+
+  /// [wanted] minus the ids that [after] gained over [before], as a multiset.
+  List<String> _missing(
+    List<String> wanted,
+    List<String> before,
+    List<String> after,
+  ) {
+    final gained = <String, int>{};
+    for (final id in after) {
+      gained[id] = (gained[id] ?? 0) + 1;
+    }
+    for (final id in before) {
+      gained[id] = (gained[id] ?? 0) - 1;
+    }
+    final missing = <String>[];
+    for (final id in wanted) {
+      final left = gained[id] ?? 0;
+      if (left > 0) {
+        gained[id] = left - 1;
+      } else {
+        missing.add(id);
+      }
+    }
+    return missing;
   }
 
   Future<void> removeAt(
