@@ -56,6 +56,7 @@ class RollingCacheSidecarDownloader {
 
   /// The file the running download writes: contiguous from the first byte.
   String? get activePartFilePath => _activePartFilePath;
+
   /// The response's Content-Length; null for a linear (transcoded) response.
   int? get activeTotalBytes => _activeTotalBytes;
 

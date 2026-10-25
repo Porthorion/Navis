@@ -2711,8 +2711,8 @@ class NavisAudioHandler extends BaseAudioHandler
       'shuffleMode': snapshot.shuffleMode.name,
       // What audio_service pushes to the platform media session (the OS does
       // not print its shuffle mode); null without the mobile service path.
-      'systemShuffleMode': _systemProjection?.playbackState.valueOrNull
-          ?.shuffleMode.name,
+      'systemShuffleMode':
+          _systemProjection?.playbackState.valueOrNull?.shuffleMode.name,
       'repeatMode': snapshot.repeatMode.name,
       'sourceKind': _currentSourceKind,
       'positionOffsetMs': _positionOffsetOf(_currentMediaItem).inMilliseconds,

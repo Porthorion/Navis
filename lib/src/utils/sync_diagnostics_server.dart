@@ -3263,12 +3263,10 @@ class SyncDiagnosticsServer {
           });
           return;
         }
-        await handler.customAction(
-          switch (action) {
-            'denyFocus' => 'navisDiagnosticsDenyFocus',
-            _ => 'navisDiagnosticsRecreateService',
-          },
-        );
+        await handler.customAction(switch (action) {
+          'denyFocus' => 'navisDiagnosticsDenyFocus',
+          _ => 'navisDiagnosticsRecreateService',
+        });
         await _respond(request, HttpStatus.ok, {'action': action});
         return;
       }
