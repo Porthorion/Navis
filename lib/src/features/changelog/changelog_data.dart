@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Android: album art shows again on Bluetooth and car displays, which '
+        'had shown only the title and artist since 1.4.0.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Desktop quick search keeps all its filter chips on one line.',
         type: ChangelogEntryType.fix,
       ),
