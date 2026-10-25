@@ -989,3 +989,17 @@ do not prove media-session commands or engine survival.
 Seek-drag diagnostics contract coverage in `sync_diagnostics_server_test.dart`
 checks clone-only authorization and bounded scripted/flick inputs; presentation
 controller tests verify one held pointer, intermediate moves and one release.
+
+Playback prefetch checks use the `repeat/chain_end` fixture and gates documented
+in [Playback runtime harness](development-workflow.md#playback-runtime-harness).
+The repeat fixture uses 30× transcodes to finish current and next files within
+its bounded wait; network-free seek classification also verifies the final file.
+Seek-oracle self-checks cover raw and offset native clock blips, persistent
+rewinds, slow returns and queue/source identity changes.
+Repeat-driver checks reject clock blips before real wraps and still reject
+missing or duplicate loops.
+
+Memory-soak self-checks cover swap-out with a flat `Pss + SwapPss` total,
+identical negative slopes, real growth and missing kernel fields in either
+variant, including a single incomplete repetition. The harness gates the total
+from `smaps_rollup`; resident PSS is informational and Dart heap stays gated.

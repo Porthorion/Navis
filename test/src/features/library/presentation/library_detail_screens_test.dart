@@ -86,6 +86,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   MediaItem? get currentMediaItem => null;
 
   @override
+  Set<String> get rollingCacheProtectedSongIds => const <String>{};
+
+  @override
   Stream<MediaItem?> get mediaItemStream => const Stream<MediaItem?>.empty();
 
   @override

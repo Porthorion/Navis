@@ -169,6 +169,86 @@ void main() {
       }, variant: TargetPlatformVariant({platform}));
     }
 
+    group('prefetch next song on mobile data', () {
+      const title = 'Prefetch the next song on mobile data';
+      AppSettingsModel? saved;
+
+      Future<Finder> pumpToggle(
+        WidgetTester tester, {
+        required bool enabled,
+      }) async {
+        setAdaptiveTestViewport(tester, const Size(1280, 1000));
+        saved = null;
+        when(() => repository.saveSettings(any()))
+            .thenAnswer((invocation) async {
+              saved = invocation.positionalArguments.first as AppSettingsModel;
+            });
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              settingsRepositoryProvider.overrideWithValue(repository),
+              appSettingsProvider.overrideWithValue(
+                AsyncData(
+                  initialSettings.copyWith(prefetchNextOnMobileData: enabled),
+                ),
+              ),
+            ],
+            child: _buildTestApp(desktopMode: true),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final toggle = find.widgetWithText(SwitchListTile, title);
+        await tester.ensureVisible(toggle);
+        return toggle;
+      }
+
+      testWidgets('is on by default', (tester) async {
+        final toggle = await pumpToggle(tester, enabled: true);
+        expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+        expect(
+          const AppSettingsModel.defaults().prefetchNextOnMobileData,
+          isTrue,
+        );
+      });
+
+      testWidgets('turning it off asks first', (tester) async {
+        final toggle = await pumpToggle(tester, enabled: true);
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+        expect(find.text('Turn off prefetching?'), findsOneWidget);
+        expect(find.text('Turn off'), findsOneWidget);
+      });
+
+      testWidgets('Cancel keeps it on', (tester) async {
+        final toggle = await pumpToggle(tester, enabled: true);
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle(const Duration(milliseconds: 500));
+        expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+        expect(saved, isNull);
+      });
+
+      testWidgets('confirming turns it off', (tester) async {
+        final toggle = await pumpToggle(tester, enabled: true);
+        await tester.tap(toggle);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Turn off'));
+        await tester.pumpAndSettle(const Duration(milliseconds: 500));
+        expect(tester.widget<SwitchListTile>(toggle).value, isFalse);
+        expect(saved?.prefetchNextOnMobileData, isFalse);
+      });
+
+      testWidgets('turning it on needs no dialog', (tester) async {
+        final toggle = await pumpToggle(tester, enabled: false);
+        await tester.tap(toggle);
+        await tester.pumpAndSettle(const Duration(milliseconds: 500));
+        expect(find.text('Turn off prefetching?'), findsNothing);
+        expect(tester.widget<SwitchListTile>(toggle).value, isTrue);
+        expect(saved?.prefetchNextOnMobileData, isTrue);
+      });
+    });
+
     testWidgets('desktop playback settings keep a Settings return path', (
       tester,
     ) async {

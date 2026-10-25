@@ -10,6 +10,7 @@ import 'package:navis/src/features/player/presentation/playback_adjustment_contr
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
 import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
@@ -57,6 +58,7 @@ class _PlaybackSettingsScreenState
   bool _scrobbleEnabled = true;
   bool _gaplessEnabled = true;
   bool _fastSeekingEnabled = true;
+  bool _prefetchNextOnMobileData = true;
   bool _fullscreenModeLyrics = false;
   bool _albumQueueEnabled = false;
   bool _likedQueueEnabled = false;
@@ -272,6 +274,13 @@ class _PlaybackSettingsScreenState
                       title: Text(l10n.playbackSettingsFastSeekingTitle),
                       subtitle: Text(l10n.playbackSettingsFastSeekingSubtitle),
                     ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: _prefetchNextOnMobileData,
+                    onChanged: _isSaving ? null : _setPrefetchNextOnMobileData,
+                    title: Text(l10n.playbackSettingsPrefetchNextTitle),
+                    subtitle: Text(l10n.playbackSettingsPrefetchNextSubtitle),
+                  ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _gaplessEnabled,
@@ -603,6 +612,7 @@ class _PlaybackSettingsScreenState
     _scrobbleEnabled = settings.scrobbleEnabled;
     _gaplessEnabled = settings.gaplessEnabled || settings.crossfadeEnabled;
     _fastSeekingEnabled = settings.fastSeekingEnabled;
+    _prefetchNextOnMobileData = settings.prefetchNextOnMobileData;
     _fullscreenModeLyrics = settings.skipSilenceEnabled;
     _albumQueueEnabled = settings.albumQueueEnabled;
     _likedQueueEnabled = settings.likedQueueEnabled;
@@ -641,6 +651,7 @@ class _PlaybackSettingsScreenState
       _scrobbleEnabled,
       _gaplessEnabled,
       _fastSeekingEnabled,
+      _prefetchNextOnMobileData,
       _fullscreenModeLyrics,
 
       _crossfadeEnabled,
@@ -694,6 +705,7 @@ class _PlaybackSettingsScreenState
         scrobbleEnabled: _scrobbleEnabled,
         gaplessEnabled: _gaplessEnabled || _crossfadeEnabled,
         fastSeekingEnabled: _fastSeekingEnabled,
+        prefetchNextOnMobileData: _prefetchNextOnMobileData,
         skipSilenceEnabled: _fullscreenModeLyrics,
         crossfadeEnabled: _crossfadeEnabled,
         crossfadeDurationSeconds: _crossfadeDurationSeconds,
@@ -730,6 +742,20 @@ class _PlaybackSettingsScreenState
         _scheduleAutosave();
       }
     }
+  }
+
+  Future<void> _setPrefetchNextOnMobileData(bool value) async {
+    if (!value) {
+      final l10n = AppLocalizations.of(context)!;
+      final confirmed = await showConfirmDialog(
+        context,
+        title: l10n.playbackSettingsPrefetchNextOffTitle,
+        message: l10n.playbackSettingsPrefetchNextOffMessage,
+        confirmLabel: l10n.playbackSettingsPrefetchNextOffConfirm,
+      );
+      if (!confirmed || !mounted) return;
+    }
+    setState(() => _prefetchNextOnMobileData = value);
   }
 
   void _setGaplessEnabled(bool value) {

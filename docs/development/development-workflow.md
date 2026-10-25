@@ -1444,8 +1444,8 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   |---|---|
   | `seek` | seek landing, offset path, cache integrity |
   | `stress-drag` | held slider drag: preview sockets, GETs, heartbeat, release latency |
-  | `memory-soak` | PSS slope, post-GC PSS and Dart heap over 20 drags and an idle window |
-  | `repeat` | Repeat One/All wraps, append at the queue end |
+  | `memory-soak` | PSS + SwapPss slope and post-GC total, plus Dart heap over 20 drags and an idle window |
+  | `repeat` | Repeat One/All wraps, append at the queue end, next-song readiness and network-free seeks at handover (`chain_end`; Linux gates, informational on Android) |
   | `crossfade` | hand-off under a 4 s cross-fade, skips |
   | `cut-recovery` | origin cuts, dead sources, cold seeks |
   | `local-seek` | seeks in a downloaded or fully cached file |
@@ -1460,6 +1460,51 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   counts are relative to the base for `seek`, `repeat` and `cut-recovery`
   because some cases are red on release/1.5 (see the PR); a new violation kind
   is always a FAIL.
+
+  Both seek oracles recognize a brief native clock reset, including at an
+  offset stream's start, only if the previous position returns within 500 ms
+  (±500 ms of position) and three samples. Queue occurrence and source offset
+  must stay unchanged. Persistent resets and slow returns remain violations.
+  Repeat drivers confirm a candidate start for 500 ms before counting a wrap;
+  repeat-fill counting uses the same blip check. Missing or duplicate real
+  loops remain failures.
+  Memory gates read `Pss + SwapPss` from `/proc/<pid>/smaps_rollup` after
+  each drag and after forced GC, so swapping does not appear as freed memory
+  or growth on swap-in. Resident post-GC PSS is also printed as `INFO`.
+  Both kernel fields are required in every sample and repetition; missing
+  `SwapPss` fails the metric, rather than being treated as zero or omitted
+  from the median. The post-GC total gate is `base + 192 MiB` and the Dart
+  post-GC heap gate remains `base + 8 MiB`. Same-code A/A (3 reps, 2026-10-25):
+  post-GC totals base 436.8/471.0/527.4, fix 544.2/580.8/595.7 MiB (medians
+  471.0 vs 580.8, worst pairing 158.9 MiB, drifting upward over the run order);
+  slope medians 4.867 vs 1.864 MiB/drag. On Linux the stress-drag stall rule passes
+  when the count of frames over 50 ms is at most `base + 1` and the maximum is
+  at most `max(base max, 50) + 320 ms`: same-code A/As showed single outliers
+  of 204 and 354 ms with base maxima of 21 and 94 ms, while a multi-second
+  freeze must still fail.
+  The slope comparison clamps a negative base to zero before its multiplier;
+  an identical negative slope must pass. Run a same-code A/A before changing
+  a budget.
+
+  For `repeat/chain_end`, five tracks at least 100 s long and 30× fixture
+  transcoding let the current and next download finish within the 25 s wait.
+  The wait is also bounded by remaining playback time minus 10 s. It waits
+  for the complete next file, rather than its first GET. `nextRequestLeadS`
+  and `nextBytesAtHandover` come from full-song Dart requests in the proxy log;
+  missing requests count as cold. `nextSeekLocal` requires the final cache
+  file to match a completed full-song GET before the 2 s seek and no new media
+  request for that song after the seek. This proves a network-free seek with
+  a complete cache, without distinguishing decoder-buffer hits from disk reads.
+
+  Linux gates are worst-boundary lead ≥6 s, worst-boundary bytes ≥1 MiB
+  (1,048,576), and network-free seek rate ≥0.75. Calibration on 2026-10-25
+  measured base/fix lead 0.02/14.62 s, bytes ≤540,672/3,454,317, and seek
+  rate 0/1; these gates leave over 8 s and 2 MiB below the warm result.
+  In-flight byte counters are prorated from their observation time back to
+  handover, so the subsequent readiness wait cannot inflate the estimate.
+  Repeat-wrap counting compares ready samples across a transient loading
+  cursor when the handler replaces an offset stream with its completed file.
+
 - **Exit codes.** 0 pass (or `RESULT NONE` when `--map` finds no playback code changed), 1 at least one threshold failed, 2 infrastructure
   error (build or emulator failure, missing base or AVD, a base that predates
   the harness, `~/Downloads/Navis_Downloads` changed, another heavy job holds

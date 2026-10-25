@@ -136,6 +136,15 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'On desktop the next song now downloads as soon as the current one is '
+        'saved, so song changes and the first seeks after them start without '
+        'waiting on the network. Playback settings has a new "Prefetch the '
+        'next song on mobile data" switch (on by default). Failed warms no longer '
+        'delay unrelated songs, and refilling a deleted current file immediately '
+        're-arms the next download; startup keeps the saved current and next cache files. '
+        'Background downloads keep memory bounded on slow storage.',
+      ),
+      ChangelogEntry(
         'Desktop quick search keeps all its filter chips on one line.',
         type: ChangelogEntryType.fix,
       ),

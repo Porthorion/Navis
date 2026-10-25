@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-24
+Last updated: 2026-10-25
 
 ---
 
@@ -14,6 +14,56 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 13 prefetch check and tune — `fix/prefetch-13`: desktop
+  next-song warm chained on the sidecar downloader, shared next-song helper
+  (Repeat One/All, shuffle) for the Android stale/priority logic, eviction keeps
+  current and next song, "Prefetch the next song on mobile data" setting (on by
+  default, confirmation when turned off, schema 106→107), and `repeat/chain_end`
+  harness metrics. Round 3: pair-scoped retries, missing-file refill and saved-queue
+  startup eviction protection; 17 focused handler tests pass, including three
+  failures before these fixes and a tick-only retry that fails on round-1 code.
+  Linux isolated-fixture calibration (`build/harness/20261025T065152Z`) proves
+  next-song warming: base/fix minimum lead 0.02/14.62 s, bytes
+  ≤540,672/3,454,317, seek rate 0/1; no recovery or anomaly entries in
+  `chain_end`. The calibration exposed a healthy wrap hidden by a loading
+  cursor; a self-check reproduces it and the oracle now compares ready samples.
+  Gates: 6 s / 1 MiB / 0.75. Final `./tool/check.sh` passed (9,472 tests,
+  one skipped); `python3 tool/playback_harness_test.py` passed 30 tests.
+  Runtime control used the authenticated queue, repeat, seek and status APIs
+  against clean Linux fixture profiles; both `chain_end` reports have no
+  recovery or anomaly entries. Audio was muted; no new visible UI was changed.
+  Android evidence and the setting dialog screenshots remain with the coordinator.
+  Round 4: clear the warm pair and retry state before refilling a deleted
+  current sidecar. With prefetch enabled and a warm held in flight, the regression
+  fails on `c69a81bf5` (missing the second song-1 request) and verifies immediate
+  re-arming after refill. All 17 focused prefetch tests pass. Round-4 gates:
+  `11:29 +9472 ~1: All tests passed!`, `[check] All checks passed.` (one run);
+  `python3 tool/playback_harness_test.py`: 30 tests, OK.
+  Runtime A/B belongs to the separate runner; not run
+  in this implementation round. Legacy shuffle null-rank startup protection
+  (P3) is deferred because maintenance reads song-only rows, not saved ranks.
+  Round 5: apply file backpressure to the sidecar; the new regression first
+  measured 4,194,304 queued bytes against a 65,536-byte chunk budget. The
+  37-test downloader suite passes. Seek oracles now share a bounded,
+  occurrence/offset-aware native clock-blip check; persistent and slow resets
+  remain failures. R4 seek_back/seek_burst trace replay reproduced the false
+  kinds before the repair. Unchanged-code A/A (`build/harness/20261025T103346Z`)
+  passes seek, crossfade (1.70/1.69 s frozen median) and stress-drag
+  (50.878/83.012 ms max frame gap). Its memory slope fails at 16.569/-1.868
+  MiB/drag while post-GC resident PSS improves to 340.435/438.669 MiB:
+  captured swap/file-backed residency establishes measurement noise, not
+  next-song traffic in the single-song soak. Performance budgets stay unchanged.
+  Final quality gate (one run): `10:20 +9472 ~1 -1`; the sidecar-disabled
+  300-song paused-next unshuffle invariant fails, then passes in isolation.
+  All earlier check stages pass; the full-suite gate remains failed.
+  `python3 tool/playback_harness_test.py`: 34 tests, OK. The 17 focused
+  prefetch handler tests also pass. Independent review remains with the coordinator.
+  The first committed five-scenario run (`build/harness/20261025T111609Z`)
+  passes seek and all prefetch-readiness gates (14.89 s / 3,454,317 bytes / 1).
+  A native zero-clock blip at 294.4 s also fools the offset-repeat driver
+  into marking an early wrap. Three more failing-first assertions cover
+  offset/plain repeat drivers and repeat-fill counting; wrap candidates now
+  use the shared blip confirmation. All 37 harness self-checks pass.
 - [x] Playback runtime harness — 2026-10-25: `tool/playback_harness.py` (list, map, ab)
   on the `tool/live_seek_stress.py` engine; diagnostics `queue-edit`, `quality`,
   `queue {shuffle,startIndex}`, `rawSeekBack` and a no-op-unless-diagnostics

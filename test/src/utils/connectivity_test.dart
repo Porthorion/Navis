@@ -111,4 +111,18 @@ void main() {
       expect(policy.allowsInteractiveHydration, isFalse);
     });
   });
+
+  test('next-song prefetch is allowed by the setting or an unmetered link, never offline', () {
+    bool allowed(NetworkType type, {required bool setting, bool? metered}) =>
+        nextSongPrefetchAllowed(
+          setting: setting,
+          networkType: type,
+          nativeMetered: metered,
+        );
+    expect(allowed(NetworkType.cellular, setting: true), isTrue);
+    expect(allowed(NetworkType.cellular, setting: false), isFalse);
+    expect(allowed(NetworkType.wifi, setting: false, metered: true), isFalse);
+    expect(allowed(NetworkType.wifi, setting: false), isTrue);
+    expect(allowed(NetworkType.offline, setting: true), isFalse);
+  });
 }
