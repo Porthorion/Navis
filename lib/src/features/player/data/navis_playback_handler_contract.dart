@@ -246,6 +246,7 @@ class PlaybackRuntimeSettings {
   const new({
     required this.gaplessEnabled,
     this.fastSeekingEnabled = true,
+    this.nextSongPrefetchAllowed = true,
     this.equalizer,
     required this.crossfadeEnabled,
     this.crossfadeAllowStreaming = true,
@@ -263,6 +264,7 @@ class PlaybackRuntimeSettings {
   const new defaults()
     : gaplessEnabled = true,
       fastSeekingEnabled = true,
+      nextSongPrefetchAllowed = true,
       equalizer = null,
       crossfadeEnabled = false,
       crossfadeAllowStreaming = true,
@@ -278,6 +280,10 @@ class PlaybackRuntimeSettings {
 
   final bool gaplessEnabled;
   final bool fastSeekingEnabled;
+
+  /// Whether the next song may be warmed now: the user allows it on mobile
+  /// data, or the connection is neither cellular nor metered.
+  final bool nextSongPrefetchAllowed;
   final EqConfiguration? equalizer;
   final bool crossfadeEnabled;
 
