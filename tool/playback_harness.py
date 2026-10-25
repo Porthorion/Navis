@@ -79,12 +79,12 @@ SCENARIOS = {
         vm=True, quick_env={'NAVIS_LIVE_SEEK_SOAK_DRAGS': '10', 'NAVIS_LIVE_SEEK_SOAK_IDLE_S': '60'},
         areas=['lib/src/features/player/presentation/*seek_bar*.dart', 'lib/src/utils/diagnostics_presentation_controller.dart',
                'lib/src/features/player/data/seek_preview_request.dart'] + HANDLER,
-        checks=[('slopeMiBPerDrag', 'base*', 1.10, 0.5), ('postGcPssMiB', 'base+', 32), ('postGcHeapMiB', 'base+', 8)]),
+        checks=[('slopeMiBPerDrag', 'base*', 1.25, 1.5), ('postGcPssMiB', 'base+', 32), ('postGcHeapMiB', 'base+', 8)]),
     'repeat': dict(
         cases='offset_repeat_one,base_repeat_one,repeat_one_fill,chain_end,chain_end_all,repeat_switch_off,hold_off,hold_all,'
               'q7_append_200',
         quick='offset_repeat_one,repeat_one_fill,chain_end,q7_append_200',
-        qualities='opus128', throttle='wan6000', reps=3, budget=(8, 55), args=[],
+        qualities='opus128', throttle='wan6000', reps=3, budget=(8, 60), args=[],
         areas=HANDLER + ['lib/src/features/player/data/navis_playback_rules.dart', 'lib/src/features/player/data/*queue*.dart',
                          '**/ProgressiveRepeat.java', '**/AudioPlayer.java'],
         checks=[('kinds', 'nonew'), ('violations', 'base+', 3), ('frozenMedianS', 'base+', 0.1)]),

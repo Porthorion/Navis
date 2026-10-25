@@ -246,6 +246,11 @@ through an app-owned control surface, inspect the result, fix any gap, and
 repeat from a clean restart. Documentation-only changes and metadata changes
 proven not to affect runtime behavior are exempt.
 
+For playback changes (seeking, repeat, cross-fade, recovery, queue edits, seek
+slider, memory) also run the [Playback runtime harness](#playback-runtime-harness):
+`tool/playback_harness.py ab --map --platform linux` compares the working tree
+with its base and prints PASS/FAIL lines.
+
 ### Validation loop
 
 1. Write the acceptance scenario and the closest regression scenario before
@@ -888,6 +893,20 @@ the tree remains otherwise usable.
   stored and queued, with the copy's metadata but not its library album and
   artist ids. An id the server does not know returns 404 with that
   `songId`.
+  The same endpoint takes `startIndex` and `shuffle: true` (the album Shuffle
+  button's order) for the playback harness. Clone-only
+  `POST /v1/playback/queue-edit` runs one queue edit (`{"op":"add"|"playNext",
+  "songIds":[...]}`, `{"op":"remove","index":n}` or
+  `{"op":"move","from":a,"to":b}`) and returns the playback diagnostics;
+  `POST /v1/playback/quality` sets the Wi-Fi and cellular streaming format and
+  bit rate (`{"wifi":{"format":"opus","maxBitRate":128},"cellular":{...}}`) and
+  applies them to the handler; `POST /v1/playback/recovery-fixture` also accepts
+  `action: rawSeekBack` (a raw player seek about 6 s back that bypasses the
+  handler). In a diagnostics build `GET /v1/playback/status` adds
+  `transportTrace`, a 200-entry ring of timestamped native-transport events
+  (player state and index changes, source loads, recovery decisions, queue-fill
+  phases); it records nothing, and evaluates no event data, when diagnostics are
+  not compiled in.
   Clone-only `POST /v1/playback/queue-index` accepts a bounded zero-based
   index to advance the production handler and exercise recommendation refills.
 
@@ -1383,6 +1402,99 @@ confirm it. Remote cases make the server fetch those songs.
 
 After `./tool/check.sh` passes, set `NAVIS_QUALITY_GATE_RESULT=passed` on the
 final invocation so the sanitized runtime-validation record captures the gate.
+
+### Playback runtime harness
+
+`tool/playback_harness.py` is the one command for playback runtime checks. It
+builds a base commit (cached) and the working tree, runs the same fixture
+scenarios on both with identical configuration, and prints one
+`PASS|FAIL <scenario> <metric>: fix=<v> base=<v> limit=<expr>` line per
+threshold, then `RESULT PASS|FAIL`. The engine is `tool/live_seek_stress.py`
+(Navidrome-like fixture server, throttling proxy, drivers, oracles); the harness
+holds the scenarios, the cache, the runner and the thresholds. Windows, a
+real phone and the real server are not covered.
+
+```bash
+tool/playback_harness.py list                       # scenarios, cases, budgets, code areas
+tool/playback_harness.py map [<rev-range>]          # changed files -> scenarios (default release/1.5...HEAD)
+tool/playback_harness.py ab seek repeat --platform linux
+tool/playback_harness.py ab --map --platform linux  # the scenarios `map` selects
+tool/playback_harness.py ab --all --platform android --full   # calibration / release check
+```
+
+- **Base.** `--base <ref>` (default `github/release/1.5`) must contain the
+  harness (a commit at or after its merge), or the tool exits 2. The fix is the
+  current worktree; commit first for a clean A/A. Both are built with the same
+  dart-defines and app-id suffix `.harness` and run serially: base, then fix,
+  with the data root wiped in between and a muted profile.
+- **Base cache.** `~/.cache/navis-harness/base/<sha>-<platform>-<keyhash>/`
+  (`bundle/` or `app.apk`, `provenance.json`). The key hash covers the Flutter
+  version, the baked defines and the `tool/libmpv` tree; the artifact sha256 is
+  verified before each reuse and a mismatch rebuilds. The first run prints
+  `cache miss ... built in N s`, later ones `cache hit`. The fix is never
+  cached. No LRU: `rm -rf ~/.cache/navis-harness/base/<key>`.
+- **Quick and full sets.** The default is the quick set: 1 repetition (3 trials
+  for stress-drag) of a few cases per scenario. `--full` runs every case at 3
+  repetitions (5 trials for stress-drag) and is for calibration and release
+  checks; `--reps N` overrides. Measured wall time of one variant on the
+  development host (an A/B run is twice that plus 1-2 minutes of builds):
+
+  | scenario | quick | `--full` | what it proves |
+  |---|---|---|---|
+  | `seek` | 2 min | 11 min | seek landing, offset path, cache integrity |
+  | `stress-drag` | 2 min | 3.5 min | held slider drag: preview sockets, GETs, heartbeat, release latency |
+  | `memory-soak` | 6.5 min (10 drags, 60 s idle) | ~38 min (3 x 20 drags, 120 s idle, forced GC) | PSS slope, post-GC PSS and Dart heap |
+  | `repeat` | 8 min | ~60 min | Repeat One/All wraps, append at the queue end |
+  | `crossfade` | 1 min | 3 min | hand-off under a 4 s cross-fade, skips |
+  | `cut-recovery` | 3 min | ~33 min | origin cuts, dead sources, cold seeks |
+  | `local-seek` | 2 min | 11 min | seeks in a downloaded or fully cached file |
+  | `queue-edit` | 1 min | 3 min | queue edits during a fill |
+
+- **Thresholds.** Absolute invariants hold for the fix alone (preview sockets
+  at most 1 and closed before the successor opens, at most 20 preview GETs per
+  drag, none for a flick, local landing error under 500 ms). Performance
+  metrics compare the fix with the base over the same window, with a tolerance
+  taken from same-code (A/A) noise: `base + X` or `base * f + X`; the exact
+  expression is in every output line and in `SCENARIOS` in the tool. Violation
+  counts are relative to the base for `seek`, `repeat` and `cut-recovery`
+  because some cases are red on release/1.5 (see the PR); a new violation kind
+  is always a FAIL.
+- **Exit codes.** 0 pass, 1 at least one threshold failed, 2 infrastructure
+  error (build or emulator failure, missing base or AVD, a base that predates
+  the harness, `~/Downloads/Navis_Downloads` changed, another heavy job holds
+  the lock). An infrastructure error is never reported as a FAIL.
+- **Safety.** The tool re-runs itself in a `systemd-run --user --scope`
+  (MemoryMax 8G), takes `~/.cache/navis-harness/lock`, snapshots the sha256 of
+  the downloads folder before and after, starts a headless `kwin_wayland
+  --virtual` (Linux) or a disposable 3072 MiB, 2-core AVD cloned from
+  `NAVIS_HARNESS_AVD` (default `Pixel_9_Pro_XL`; a fresh guest per variant), and
+  stops only the processes it started. Android runs `stress-drag`,
+  `memory-soak`, `repeat` and `queue-edit`; its heartbeat numbers come from a
+  software-rendered guest and are noisier, hence the wider Android tolerances
+  recorded in the PR. Outputs: `build/harness/<stamp>/{base,fix}/<scenario>/`
+  (engine `report.json`, traces, app logs), `comparison.json`, `summary.md`.
+- **Self-check.** `python3 tool/playback_harness_test.py` covers the threshold
+  evaluation, the code-area map, the cache key and the exit-2 paths without
+  building anything. Production hooks (the `transportTrace` ring and the
+  queue-edit/quality/rawSeekBack endpoints) do nothing unless the build has
+  `NAVIS_SYNC_DIAGNOSTICS`; `playback_transport_trace_test.dart` pins that.
+
+#### Haiku runner brief
+
+Paste this to a Haiku agent; it reports lines, it does not judge them.
+
+> Run in `/path/to/worktree` (commit is checked out; nothing else heavy is
+> running). Execute exactly one command in the foreground and wait for it:
+> `tool/playback_harness.py ab --map --platform linux 2>&1 | tail -60`
+> (use the scenarios the orchestrator names instead of `--map` when given).
+> Report: the exit code; every line starting with `PASS`, `FAIL` or `RESULT`
+> quoted exactly; the line `summary: <path>`; and, on exit code 2, the
+> `ERROR` line. Do not edit files, retry, loosen anything or explain causes.
+> Never run a second heavy job meanwhile and never end your turn with a
+> background job pending.
+
+Sonnet reads only the FAIL lines and the `summary.md` they point to; the
+orchestrator reads the summary.
 
 ### App API extension and safety contract
 

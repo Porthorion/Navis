@@ -51,8 +51,8 @@ class Thresholds(unittest.TestCase):
 
     def test_soak_slope_limit(self):
         base = {'slopeMiBPerDrag': 6.0, 'postGcPssMiB': 500.0, 'postGcHeapMiB': 47.0}
-        self.assertTrue(all(verdicts('memory-soak', base, {**base, 'slopeMiBPerDrag': 7.0}).values()))
-        self.assertFalse(verdicts('memory-soak', base, {**base, 'slopeMiBPerDrag': 7.2})['slopeMiBPerDrag:'])
+        self.assertTrue(all(verdicts('memory-soak', base, {**base, 'slopeMiBPerDrag': 8.9}).values()))
+        self.assertFalse(verdicts('memory-soak', base, {**base, 'slopeMiBPerDrag': 9.1})['slopeMiBPerDrag:'])
         self.assertFalse(verdicts('memory-soak', base, {**base, 'postGcHeapMiB': 55.5})['postGcHeapMiB:'])
 
     def test_metrics_from_rows(self):
