@@ -2711,8 +2711,11 @@ def case_natural_play3(run: Run, env, songs=3):
 
 
 def dart_gets(log: list, song_id: str) -> list:
-    return [r for r in log if r['id'] == song_id and r['endpoint'] in ('stream', 'download') and r['ua'].startswith('Dart')
-            and not r.get('timeOffset')]
+    """The app's own full-song origin GETs: Dart's user agent (the desktop sidecar) or the player's `Navis/<ver>` one
+    (Android: LockCachingAudioSource._fetch sends a plain GET, no Range). Android's independent range fetches carry a
+    Range and are seeks, so only an absent Range or `bytes=0-` counts there. `Navis Desktop` is mpv and never counts."""
+    return [r for r in log if r['id'] == song_id and r['endpoint'] in ('stream', 'download') and not r.get('timeOffset')
+            and (r['ua'].startswith('Dart') or (r['ua'].startswith('Navis/') and r.get('range') in (None, '', 'bytes=0-')))]
 
 
 def seek_was_local(log: list, song_id: str, seek_w: float, *, cache_complete: bool) -> bool:
@@ -2722,8 +2725,8 @@ def seek_was_local(log: list, song_id: str, seek_w: float, *, cache_complete: bo
 
 
 def next_song_readiness(log: list, song_id: str, handover_w: float) -> tuple:
-    """(lead, bytes) of the full-song GETs the app's own downloader (Dart user agent: the desktop sidecar, the Android
-    lock-cache proxy) made for [song_id] before it took over at wall time [handover_w]. lead: seconds between the first
+    """(lead, bytes) of the full-song GETs the app's own downloader (the desktop sidecar, the Android lock-cache
+    origin fetch; see dart_gets) made for [song_id] before it took over at wall time [handover_w]. lead: seconds between the first
     GET and the handover (negative: it started after, None: it never did). bytes: received by the handover (a GET still
     running then is prorated over its duration)."""
     gets = dart_gets(log, song_id)

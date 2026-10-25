@@ -185,6 +185,16 @@ class NextSongReadiness(unittest.TestCase):
         # The sidecar GET that starts at the hand-over is the song's own, not a warm: the lead stays below the gate.
         self.assertLess(engine.next_song_readiness([self.get('b', 99.9, 106.0)], 'b', 100.0)[0], 3.0)
 
+    def test_android_lock_cache_origin_gets_count_but_seeks_and_mpv_do_not(self):
+        ua = 'Navis/1.5.0 (Android)'
+        for extra in ({}, {'range': 'bytes=0-'}):
+            self.assertEqual(engine.next_song_readiness([self.get('b', 90.0, 95.0, ua=ua, **extra)], 'b', 100.0), (10.0, 1000))
+        for ignored in (self.get('b', 90.0, 95.0, ua=ua, range='bytes=1234-'), self.get('b', 90.0, 95.0, ua=ua, range='bytes=0-99'),
+                        self.get('b', 90.0, 95.0, ua=ua, timeOffset='30'), self.get('b', 90.0, 95.0, ua='Navis Desktop')):
+            self.assertEqual(engine.next_song_readiness([ignored], 'b', 100.0), (None, 0))
+        done = self.get('b', 90.0, 95.0, ua=ua, end='complete')
+        self.assertTrue(engine.seek_was_local([done], 'b', 100.0, cache_complete=True))
+
     def test_inflight_bytes_are_prorated_to_handover_not_the_later_observation(self):
         # 1000 bytes observed at t=110 cannot all have arrived at the t=100 boundary.
         with patch.object(engine.time, 'time', return_value=110.0):

@@ -1490,7 +1490,9 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   transcoding let the current and next download finish within the 25 s wait.
   The wait is also bounded by remaining playback time minus 10 s. It waits
   for the complete next file, rather than its first GET. `nextRequestLeadS`
-  and `nextBytesAtHandover` come from full-song Dart requests in the proxy log;
+  and `nextBytesAtHandover` come from the app's own full-song requests in the proxy log (Dart user
+  agent on desktop; on Android the lock-cache origin GET with the player's
+  `Navis/<ver>` user agent and no Range or `bytes=0-`, never `Navis Desktop`);
   missing requests count as cold. `nextSeekLocal` requires the final cache
   file to match a completed full-song GET before the 2 s seek and no new media
   request for that song after the seek. This proves a network-free seek with
