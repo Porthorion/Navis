@@ -3290,6 +3290,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> _disposeHandler() async {
     _disposeHandlerStarted = true;
     cancelSeekPreview();
+    _cancelLockCacheWarm();
     _resumeLockCacheDownloads();
     _focusRetryTimer?.cancel();
     _networkRetryTimer?.cancel();

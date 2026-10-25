@@ -5740,6 +5740,7 @@ void main() {
       ({
         NavisAudioHandler handler,
         _ControllableAudioPlayer player,
+        int port,
         List<String> requests,
         Completer<void> release,
         List<bool> gate,
@@ -5750,6 +5751,7 @@ void main() {
       bool allowed = true,
       Set<String> hold = const <String>{},
       Set<String> cached = const <String>{},
+      Set<String> silent = const <String>{},
     }) async {
       final previousHttp = HttpOverrides.current;
       HttpOverrides.global = null;
@@ -5765,7 +5767,12 @@ void main() {
             ..bufferOutput = false
             ..headers.contentType = ContentType('audio', 'mpeg')
             ..contentLength = size;
-          if (hold.contains(id)) {
+          if (silent.contains(id)) {
+            // Headers only: the warm has reported no progress yet.
+            await request.response.flush();
+            await release.future;
+            request.response.add(List<int>.filled(size, 1));
+          } else if (hold.contains(id)) {
             request.response.add(List<int>.filled(size ~/ 2, 1));
             await request.response.flush();
             await release.future;
@@ -5830,6 +5837,7 @@ void main() {
       return (
         handler: handler,
         player: player,
+        port: server.port,
         requests: requests,
         release: release,
         gate: gate,
@@ -5903,17 +5911,59 @@ void main() {
       },
     );
 
+    // The partial file of the song at [i], which a cancelled download removes.
+    Future<File> partOf(_ControllableAudioPlayer p, int i) async =>
+        File('${(await sourceAt(p, i).cacheFile).path}.part');
+
     test('a queue edit cancels a warm that is no longer next', () async {
       final s = await serveQueue(3, hold: {'song-1'});
-      final stale = sourceAt(s.player, 1);
+      final part = await partOf(s.player, 1);
       await playCurrent(s.player);
       await until(() => s.requests.contains('song-1'));
-      await until(() => stale.downloadedBytes > 0);
+      await until(() => part.existsSync());
       await s.handler.removeQueueItemAt(1);
       await until(() => s.requests.contains('song-2'));
-      s.release.complete();
-      await settle();
-      expect((await stale.cacheFile).existsSync(), isFalse);
+      await until(() => !part.existsSync());
+    });
+
+    test(
+      'returning to a finished song re-arms the warm of its successor',
+      () async {
+        final s = await serveQueue(3, hold: {'song-1'});
+        final part = await partOf(s.player, 1);
+        await playCurrent(s.player);
+        await until(() => part.existsSync());
+        s.player.moveTo(2);
+        await until(() => !part.existsSync());
+        s.player.moveTo(0);
+        await until(() => s.requests.where((id) => id == 'song-1').length == 2);
+      },
+    );
+
+    test('switching to radio cancels a running warm', () async {
+      final s = await serveQueue(3, silent: {'song-1'});
+      final warm = sourceAt(s.player, 1);
+      await playCurrent(s.player);
+      await until(() => s.requests.contains('song-1') && warm.isDownloading);
+      unawaited(
+        s.handler
+            .playRadioStream(
+              stationId: 'r',
+              stationName: 'R',
+              streamUrl: 'http://127.0.0.1:${s.port}/radio?id=radio',
+            )
+            .catchError((Object _) {}),
+      );
+      await until(() => !warm.isDownloading);
+    });
+
+    test('disposing the handler cancels a running warm', () async {
+      final s = await serveQueue(3, hold: {'song-1'});
+      final part = await partOf(s.player, 1);
+      await playCurrent(s.player);
+      await until(() => part.existsSync());
+      await s.handler.disposeHandler();
+      await until(() => !part.existsSync());
     });
   });
 

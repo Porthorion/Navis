@@ -103,6 +103,7 @@ extension _NavisCache on NavisAudioHandler {
     if (item?.extras?['bridgeFormat'] == null) _sidecarDownloader.resume();
     if (!_isDesktopRuntime || _radioStation != null) {
       unawaited(_sidecarDownloader.cancel());
+      _syncSidecarChain();
       return;
     }
     if (item == null) {
@@ -220,10 +221,14 @@ extension _NavisCache on NavisAudioHandler {
   /// Called on every track change, queue edit, download completion and
   /// position tick; the key makes each current-to-next pair start once.
   void _syncSidecarChain() {
-    if (_radioStation != null) return;
+    if (_radioStation != null) {
+      _cancelLockCacheWarm();
+      return;
+    }
     final desktop = _isDesktopRuntime;
     final current = _currentMediaItem;
     final nextId = _rollingCacheNextSongId(current?.id);
+    if (!desktop) _pruneEndedLockCacheWarm();
     final active = desktop
         ? _sidecarDownloader.activeSongId
         : _lockCacheWarmSongId;
@@ -233,14 +238,11 @@ extension _NavisCache on NavisAudioHandler {
     if (active != null &&
         active != current?.id &&
         (active != nextId || !_readRuntimeSettings().nextSongPrefetchAllowed)) {
-      _sidecarChainKey = null;
       if (desktop) {
+        _sidecarChainKey = null;
         unawaited(_sidecarDownloader.cancel());
       } else {
-        _lockCacheWarmSongId = null;
-        for (final entry in _lockCacheSources.values) {
-          if (entry.songId == active) unawaited(entry.source.cancelDownload());
-        }
+        _cancelLockCacheWarm();
       }
     }
     if (current == null ||
@@ -258,7 +260,8 @@ extension _NavisCache on NavisAudioHandler {
     }
     final warm =
         current.extras?['sourceKind'] == PlaybackSourceKind.file.name ||
-        _completedCacheSongIds.contains(current.id);
+        _completedCacheSongIds.contains(current.id) ||
+        _lockCacheFileComplete(current);
     if (!warm || !_readRuntimeSettings().nextSongPrefetchAllowed) return;
     if (!desktop) {
       _startLockCacheWarm(nextId, key);
@@ -283,11 +286,53 @@ extension _NavisCache on NavisAudioHandler {
     }
   }
 
-  /// Android: requests the next song's existing lock-cache source and drains
-  /// it, so its download runs to a complete file. The player's later request
-  /// for that song shares the running download. Never a second source on the
-  /// same partial file; no source (downloaded, cached, deferred tail) is no
-  /// warm.
+  /// Whether the current lock-cached song's final cache file is on disk (the
+  /// `.part` file is a different path), e.g. after returning to a finished song.
+  bool _lockCacheFileComplete(MediaItem item) {
+    if (item.extras?['sourceKind'] !=
+        PlaybackSourceKind.lockCachedStream.name) {
+      return false;
+    }
+    final path = item.extras?['cachedFilePath'] as String?;
+    return path != null && path.isNotEmpty && File(path).existsSync();
+  }
+
+  /// Android: stops the next-song warm, if any, and forgets its pair.
+  void _cancelLockCacheWarm() {
+    final id = _lockCacheWarmSongId;
+    if (id == null) return;
+    _lockCacheWarmSongId = null;
+    _sidecarChainKey = null;
+    for (final entry in _lockCacheSources.values) {
+      if (entry.songId == id) unawaited(entry.source.cancelDownload());
+    }
+  }
+
+  /// A warm whose download ended without finishing (its source is still
+  /// registered) failed: free the slot and retry the pair after the delay.
+  void _pruneEndedLockCacheWarm() {
+    final id = _lockCacheWarmSongId;
+    if (id == null) return;
+    final source = _lockCacheSources.values
+        .where((entry) => entry.songId == id)
+        .firstOrNull
+        ?.source;
+    if (source != null && source.isDownloading) return;
+    _lockCacheWarmSongId = null;
+    final key = _sidecarChainKey;
+    if (source != null && key != null && key.endsWith('>$id')) {
+      _sidecarChainKey = null;
+      if (key.startsWith('${_currentMediaItem?.id}>')) {
+        _sidecarChainRetry = (key, DateTime.now().add(sidecarChainRetryDelay));
+      }
+    }
+  }
+
+  /// Android: starts the next song's existing lock-cache source downloading,
+  /// without a response (no replay buffer holds the body). The player's later
+  /// request for that song joins the running download. Never a second source
+  /// on the same partial file; no source (downloaded, cached, deferred tail)
+  /// is no warm.
   void _startLockCacheWarm(String nextId, String key) {
     final source = _lockCacheSources.values
         .where((entry) => entry.songId == nextId)
@@ -297,25 +342,12 @@ extension _NavisCache on NavisAudioHandler {
     _sidecarChainKey = key;
     _lockCacheWarmSongId = nextId;
     unawaited(
-      source
-          .request()
-          .then((response) => response.stream.drain<void>())
-          .catchError((Object error) {
-            AppLogger.debug('Next-song warm of $nextId failed: $error');
-            // A failed warm is retried, but not at once.
-            if (_sidecarChainKey == key) {
-              _sidecarChainKey = null;
-              if (key.startsWith('${_currentMediaItem?.id}>')) {
-                _sidecarChainRetry = (
-                  key,
-                  DateTime.now().add(sidecarChainRetryDelay),
-                );
-              }
-            }
-          })
-          .whenComplete(() {
-            if (_lockCacheWarmSongId == nextId) _lockCacheWarmSongId = null;
-          }),
+      source.prefetch().catchError((Object error) {
+        // Our own cancel is not a failure; the chain already forgot the pair.
+        if (_lockCacheWarmSongId != nextId) return;
+        AppLogger.debug('Next-song warm of $nextId failed: $error');
+        _pruneEndedLockCacheWarm();
+      }),
     );
   }
 
