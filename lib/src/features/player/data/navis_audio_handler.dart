@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:io';
+import 'dart:ui' show Size;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:crypto/crypto.dart';

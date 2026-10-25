@@ -74,12 +74,19 @@ class AndroidSystemArt {
       if (prefetch) unawaited(_fetch(coverArtId, artUri!));
       return item.copyWith(artUri: null);
     }
+    // audio_service decodes ALBUM_ART only from `artCacheFile`; with just the
+    // content URI it stores an empty bitmap that Bluetooth never replaces.
+    final file = _cachedPath(coverArtId);
+    final hasFile = item.extras?['artCacheFile'] is String;
     return item.copyWith(
       artUri: Uri(
         scheme: 'content',
         host: authority,
         pathSegments: <String>['cover', PlaybackArtCache.fileKey(coverArtId)],
       ),
+      extras: hasFile || file == null
+          ? item.extras
+          : <String, dynamic>{...?item.extras, 'artCacheFile': file},
     );
   }
 
