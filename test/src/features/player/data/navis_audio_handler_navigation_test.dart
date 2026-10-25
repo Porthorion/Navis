@@ -218,6 +218,24 @@ class _RangeCacheSource extends LockCachingAudioSource {
   }
 }
 
+// ignore: experimental_member_use, reason: a range-fetch stand-in whose warm is observable.
+class _WarmRangeSource extends _RangeCacheSource {
+  new(super.id, super.file);
+  bool warmed = false;
+  @override
+  Future<void> prefetch() async => warmed = true;
+}
+
+class _SlowDisposeDownloader extends RollingCacheSidecarDownloader {
+  _SlowDisposeDownloader(this.gate);
+  final Completer<void> gate;
+  @override
+  Future<void> dispose() async {
+    await gate.future;
+    await super.dispose();
+  }
+}
+
 class _RangeCacheResolver extends _GatedSourceResolver {
   new(super.delegate, this.sources);
   final Map<String, _RangeCacheSource> sources;
@@ -5741,6 +5759,7 @@ void main() {
         NavisAudioHandler handler,
         _ControllableAudioPlayer player,
         int port,
+        Map<String, int> maxActive,
         List<String> requests,
         Completer<void> release,
         List<bool> gate,
@@ -5752,6 +5771,11 @@ void main() {
       Set<String> hold = const <String>{},
       Set<String> cached = const <String>{},
       Set<String> silent = const <String>{},
+      Set<String> failFirst = const <String>{},
+      Set<String> cutFirst = const <String>{},
+      List<String>? ids,
+      int startIndex = 0,
+      RollingCacheSidecarDownloader? downloader,
     }) async {
       final previousHttp = HttpOverrides.current;
       HttpOverrides.global = null;
@@ -5759,14 +5783,32 @@ void main() {
       final release = Completer<void>();
       final requests = <String>[];
       final gate = <bool>[allowed];
+      final active = <String, int>{};
+      final maxActive = <String, int>{};
       server.listen((request) async {
         final id = request.uri.queryParameters['id']!;
         requests.add(id);
+        final nth = requests.where((r) => r == id).length;
+        active[id] = (active[id] ?? 0) + 1;
+        maxActive[id] = max(maxActive[id] ?? 0, active[id]!);
         try {
+          if (failFirst.contains(id) && nth == 1) {
+            request.response.statusCode = HttpStatus.internalServerError;
+            await request.response.close();
+            return;
+          }
           request.response
             ..bufferOutput = false
             ..headers.contentType = ContentType('audio', 'mpeg')
             ..contentLength = size;
+          if (cutFirst.contains(id) && nth == 1) {
+            request.response.add(List<int>.filled(size ~/ 2, 1));
+            await request.response.flush();
+            // Expiry destroys the socket without a terminating chunk.
+            request.response.deadline = Duration.zero;
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+            return;
+          }
           if (silent.contains(id)) {
             // Headers only: the warm has reported no progress yet.
             await request.response.flush();
@@ -5783,6 +5825,8 @@ void main() {
           await request.response.close();
         } on Object {
           // The handler cancels unfinished transfers at teardown.
+        } finally {
+          active[id] = active[id]! - 1;
         }
       });
       final api = SubsonicApiClient(
@@ -5799,6 +5843,7 @@ void main() {
         directory,
         count,
         desktopRuntimeOverride: false,
+        sidecarDownloader: downloader,
         cacheSongs: false,
         positionStreams: true,
         readApiClient: () => api,
@@ -5830,14 +5875,17 @@ void main() {
         await directory.delete(recursive: true);
         HttpOverrides.global = previousHttp;
       });
-      await handler.replaceQueue([
-        for (var i = 0; i < count; i++) 'song-$i',
-      ], expandMatchFlows: false);
+      await handler.replaceQueue(
+        ids ?? [for (var i = 0; i < count; i++) 'song-$i'],
+        startIndex: startIndex,
+        expandMatchFlows: false,
+      );
       await settleQueue(handler);
       return (
         handler: handler,
         player: player,
         port: server.port,
+        maxActive: maxActive,
         requests: requests,
         release: release,
         gate: gate,
@@ -6001,6 +6049,192 @@ void main() {
       await s.handler.disposeHandler();
       await until(() => !part.existsSync());
     });
+
+    int count(List<String> requests, String id) =>
+        requests.where((r) => r == id).length;
+
+    // Position ticks drive the chain between track changes.
+    void ticks(_ControllableAudioPlayer p) {
+      p.simulateProgress = true;
+      p.emitPlayerEvent();
+    }
+
+    test('a failed warm backs off, then retries', () async {
+      sidecarChainRetryDelay = const Duration(milliseconds: 900);
+      addTearDown(() => sidecarChainRetryDelay = const Duration(seconds: 30));
+      final s = await serveQueue(3, failFirst: {'song-1'});
+      ticks(s.player);
+      await playCurrent(s.player);
+      await until(() => s.requests.contains('song-1'));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      expect(count(s.requests, 'song-1'), 1);
+      await until(() => count(s.requests, 'song-1') == 2);
+      await settle();
+    });
+
+    test('a warm cut mid-body is detected and retried', () async {
+      sidecarChainRetryDelay = const Duration(milliseconds: 900);
+      addTearDown(() => sidecarChainRetryDelay = const Duration(seconds: 30));
+      final s = await serveQueue(3, cutFirst: {'song-1'});
+      ticks(s.player);
+      await playCurrent(s.player);
+      await until(() => s.requests.contains('song-1'));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      expect(count(s.requests, 'song-1'), 1);
+      await until(() => count(s.requests, 'song-1') == 2);
+    });
+
+    test(
+      'closing the gate cancels the warm; reopening restarts at once',
+      () async {
+        final s = await serveQueue(3, hold: {'song-1'});
+        ticks(s.player);
+        final warm = sourceAt(s.player, 1);
+        await playCurrent(s.player);
+        await until(() => s.requests.contains('song-1') && warm.isDownloading);
+        s.gate[0] = false;
+        await until(() => !warm.isDownloading);
+        s.gate[0] = true;
+        await until(() => count(s.requests, 'song-1') == 2);
+      },
+    );
+
+    test('the chain continues after the warm becomes current', () async {
+      final s = await serveQueue(3, hold: {'song-1'});
+      ticks(s.player);
+      await playCurrent(s.player);
+      await until(() => s.requests.contains('song-1'));
+      s.player.moveTo(1);
+      await pumpEventQueue();
+      final asked = sourceAt(s.player, 1).request();
+      s.release.complete();
+      await (await asked).stream.drain<void>();
+      await until(() => s.requests.contains('song-2'));
+      expect(s.requests, ['song-0', 'song-1', 'song-2']);
+    });
+
+    test('Repeat All wraps the warm to the first song', () async {
+      final s = await serveQueue(2, startIndex: 1);
+      await s.handler.setRepeatMode(AudioServiceRepeatMode.all);
+      ticks(s.player);
+      await sourceAt(s.player, 1).request().then((r) => r.stream.drain<void>());
+      await until(() => s.requests.contains('song-0'));
+      expect(s.requests, ['song-1', 'song-0']);
+    });
+
+    test('replacing the queue with the warmed song first reuses it', () async {
+      final s = await serveQueue(3, hold: {'song-1'});
+      ticks(s.player);
+      final warm = sourceAt(s.player, 1);
+      await playCurrent(s.player);
+      await until(() => s.requests.contains('song-1') && warm.isDownloading);
+      await s.handler.replaceQueue([
+        'song-1',
+        'song-2',
+        'song-0',
+      ], expandMatchFlows: false);
+      await settleQueue(s.handler);
+      expect(identical(sourceAt(s.player, 0), warm), isTrue);
+      final asked = sourceAt(s.player, 0).request();
+      s.release.complete();
+      await (await asked).stream.drain<void>();
+      await settle();
+      expect(count(s.requests, 'song-1'), 1);
+    });
+
+    test(
+      'a song twice in the queue shares one source and one download',
+      () async {
+        final s = await serveQueue(
+          3,
+          hold: {'song-1'},
+          ids: ['song-0', 'song-1', 'song-1'],
+        );
+        ticks(s.player);
+        expect(identical(sourceAt(s.player, 1), sourceAt(s.player, 2)), isTrue);
+        await playCurrent(s.player);
+        await until(() => s.requests.contains('song-1'));
+        s.player.moveTo(2);
+        await pumpEventQueue();
+        final asked = sourceAt(s.player, 2).request();
+        s.release.complete();
+        await (await asked).stream.drain<void>();
+        await settle();
+        expect(count(s.requests, 'song-1'), 1);
+        expect(s.maxActive['song-1'], 1);
+      },
+    );
+
+    test('a position tick while disposing does not restart the warm', () async {
+      final gate = Completer<void>();
+      final s = await serveQueue(
+        3,
+        hold: {'song-1'},
+        downloader: _SlowDisposeDownloader(gate),
+      );
+      ticks(s.player);
+      final warm = sourceAt(s.player, 1);
+      await playCurrent(s.player);
+      await until(() => s.requests.contains('song-1') && warm.isDownloading);
+      final disposing = s.handler.disposeHandler();
+      await until(() => !warm.isDownloading);
+      await Future<void>.delayed(const Duration(milliseconds: 1200));
+      expect(warm.isDownloading, isFalse);
+      expect(count(s.requests, 'song-1'), 1);
+      gate.complete();
+      await disposing;
+    });
+
+    test(
+      'the warm stays paused while the finished song has a range fetch',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.android;
+        final directory = await Directory.systemTemp.createTemp(
+          'navis-warm-k-',
+        );
+        final sources = {
+          for (var i = 0; i < 3; i++)
+            'song-$i': _WarmRangeSource(
+              'song-$i',
+              File('${directory.path}/$i.mp3'),
+            ),
+        };
+        final (handler, player, database) = await createHandler(
+          directory,
+          3,
+          cacheSongs: false,
+          positionStreams: true,
+          desktopRuntimeOverride: false,
+          wrapResolver: (base) => _RangeCacheResolver(base, sources),
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          for (final source in sources.values) {
+            await source.progress.close();
+          }
+          await database.close();
+          await directory.delete(recursive: true);
+          debugDefaultTargetPlatformOverride = null;
+        });
+        player.simulateProgress = true;
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+          'song-2',
+        ], expandMatchFlows: false);
+        await pumpEventQueue();
+        sources['song-0']!.activeRange = true;
+        player.emitBuffered(const Duration(seconds: 2));
+        await pumpEventQueue();
+        // The main download of song-0 finishes; its range fetch stays open.
+        sources['song-0']!.progress.add(1.0);
+        await pumpEventQueue();
+        player.emitBuffered(const Duration(seconds: 3));
+        await pumpEventQueue();
+        expect(sources['song-1']!.warmed, isTrue);
+        expect(sources['song-1']!.paused, isTrue);
+      },
+    );
   });
 
   for (final fail in [false, true]) {

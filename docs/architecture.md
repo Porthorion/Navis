@@ -4503,9 +4503,12 @@ already running for the song.
 **Next-song warm.** Once the current song is on disk (its sidecar or lock-cache
 download completed, or it plays from a permanent or rolling file),
 `_syncSidecarChain` starts the song that plays next: on desktop with the single
-sidecar downloader, on Android with `request()` on the next song's existing
-`LockCachingAudioSource` (drained; ExoPlayer's later request joins the running
-download, `_lockCacheWarmSongId`; no source, such as a downloaded, fully cached or
+sidecar downloader, on Android with `prefetch()` on the next song's existing
+`LockCachingAudioSource` (no response, so no replay buffer; ExoPlayer's later
+request joins the running download, `_lockCacheWarmSongId`; one source per cache
+file across shuffles, reloads and duplicate queue entries, via
+`_runningLockCacheSource`; the warm pauses while the current song's Fast Seeking
+range fetch is live; no source, such as a downloaded, fully cached or
 deferred-tail song, is no warm). Its
 completed file is available to normal cache-first resolution and seek recovery.
 `_rollingCacheNextSongId`
