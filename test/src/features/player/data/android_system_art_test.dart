@@ -92,6 +92,52 @@ void main() {
     expect(fetches.ids, isEmpty);
   });
 
+  test('a cache hit hands the session the file with the content URI', () {
+    // Without artCacheFile audio_service puts empty ALBUM_ART into the
+    // session for a content URI, and Bluetooth then ignores the real bitmap.
+    final fetches = _Fetches()..cached['c-3'] = '/cache/c-3.jpg';
+    final art = fetches.art();
+
+    final mapped = art.forSystem(
+      MediaItem(id: 's', title: 't', artUri: _cover('c-3')),
+    );
+
+    expect(mapped.artUri?.scheme, 'content');
+    expect(mapped.extras?['artCacheFile'], '/cache/c-3.jpg');
+    // No cache hit: no URI at all.
+    expect(
+      art
+          .forSystem(MediaItem(id: 's', title: 't', artUri: _cover('c-4')))
+          .artUri,
+      isNull,
+    );
+  });
+
+  test(
+    'the projection never publishes a content URI without the file',
+    () async {
+      final fetches = _Fetches()..cached['c-5'] = '/cache/c-5.jpg';
+      final inner = _InnerHandler();
+      final projection = RealTimeProjectionAudioHandler(
+        inner,
+        systemArt: fetches.art(),
+      );
+      inner.mediaItem.add(
+        MediaItem(
+          id: 'song',
+          title: 'Song',
+          artUri: _cover('c-5'),
+          extras: const <String, dynamic>{'coverArtId': 'c-5'},
+        ),
+      );
+      await pumpEventQueue();
+
+      final published = projection.mediaItem.value!;
+      expect(published.artUri?.scheme, 'content');
+      expect(published.extras?['artCacheFile'], '/cache/c-5.jpg');
+    },
+  );
+
   test('passes radio art through and drops unusable cover URLs', () {
     final art = _Fetches().art();
     final radio = Uri.parse('https://radio.test/now.jpg');
