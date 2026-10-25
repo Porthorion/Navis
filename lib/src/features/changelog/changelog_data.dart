@@ -130,6 +130,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Adding an album or several songs to a server playlist now works on '
+        'Navidrome 0.64, which silently ignored multi-song adds. Navis '
+        'verifies the result and reports songs that could not be added.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On desktop the next song now downloads as soon as the current one is '
         'saved, so song changes and the first seeks after them start without '
         'waiting on the network. Playback settings has a new "Prefetch the '
