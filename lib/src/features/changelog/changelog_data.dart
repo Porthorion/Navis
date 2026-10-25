@@ -135,7 +135,8 @@ const List<ChangelogVersion> changelogs = [
         'waiting on the network. Playback settings has a new "Prefetch the '
         'next song on mobile data" switch (on by default). Failed warms no longer '
         'delay unrelated songs, and refilling a deleted current file immediately '
-        're-arms the next download; startup keeps the saved current and next cache files.',
+        're-arms the next download; startup keeps the saved current and next cache files. '
+        'Background downloads keep memory bounded on slow storage.',
       ),
       ChangelogEntry(
         'Desktop quick search keeps all its filter chips on one line.',

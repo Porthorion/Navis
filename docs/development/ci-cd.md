@@ -994,3 +994,5 @@ Playback prefetch checks use the `repeat/chain_end` fixture and gates documented
 in [Playback runtime harness](development-workflow.md#playback-runtime-harness).
 The repeat fixture uses 30× transcodes to finish current and next files within
 its bounded wait; network-free seek classification also verifies the final file.
+Seek-oracle self-checks cover raw and offset native clock blips, persistent
+rewinds, slow returns and queue/source identity changes.

@@ -42,6 +42,22 @@ Last updated: 2026-10-25
   Runtime A/B belongs to the separate runner; not run
   in this implementation round. Legacy shuffle null-rank startup protection
   (P3) is deferred because maintenance reads song-only rows, not saved ranks.
+  Round 5: apply file backpressure to the sidecar; the new regression first
+  measured 4,194,304 queued bytes against a 65,536-byte chunk budget. The
+  37-test downloader suite passes. Seek oracles now share a bounded,
+  occurrence/offset-aware native clock-blip check; persistent and slow resets
+  remain failures. R4 seek_back/seek_burst trace replay reproduced the false
+  kinds before the repair. Unchanged-code A/A (`build/harness/20261025T103346Z`)
+  passes seek, crossfade (1.70/1.69 s frozen median) and stress-drag
+  (50.878/83.012 ms max frame gap). Its memory slope fails at 16.569/-1.868
+  MiB/drag while post-GC resident PSS improves to 340.435/438.669 MiB:
+  captured swap/file-backed residency establishes measurement noise, not
+  next-song traffic in the single-song soak. Performance budgets stay unchanged.
+  Final quality gate (one run): `10:20 +9472 ~1 -1`; the sidecar-disabled
+  300-song paused-next unshuffle invariant fails, then passes in isolation.
+  All earlier check stages pass; the full-suite gate remains failed.
+  `python3 tool/playback_harness_test.py`: 34 tests, OK. The 17 focused
+  prefetch handler tests also pass. Independent review remains with the coordinator.
 - [x] Playback runtime harness — 2026-10-25: `tool/playback_harness.py` (list, map, ab)
   on the `tool/live_seek_stress.py` engine; diagnostics `queue-edit`, `quality`,
   `queue {shuffle,startIndex}`, `rawSeekBack` and a no-op-unless-diagnostics

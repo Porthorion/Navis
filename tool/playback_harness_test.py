@@ -171,18 +171,51 @@ class NextSongReadiness(unittest.TestCase):
 
 class PositionBlip(unittest.TestCase):
     @staticmethod
-    def samples(positions):
-        return [{'t': i * 0.1, 'songId': 's', 'idx': 0, 'pos': p, 'proc': 'ready', 'playing': True, 'dur': 300000}
+    def samples(positions, offset=0):
+        return [{'t': i * 0.1, 'songId': 's', 'idx': 0, 'pos': p, 'off': offset,
+                 'proc': 'ready', 'playing': True, 'dur': 300000}
                 for i, p in enumerate(positions)]
 
     def test_one_sample_reset_is_not_a_violation(self):
-        run = type('R', (), {'samples': self.samples([100000, 100100, 0, 100300, 100400]), 'actions': []})()
+        run = type('R', (), {'samples': self.samples([100000, 100100, 0, 100300, 100400]), 'actions': [], 'trace': []})()
         self.assertEqual(engine.oracle_unexpected_change(run), [])
+        self.assertEqual(engine.oracle_progress_loss(run), [])
+
+    def test_recorded_short_native_clock_resets_with_and_without_offset(self):
+        for positions, offset in [([2530, 0, 2575, 2609], 0),
+                                  ([73023, 45000, 45000, 45000, 73174, 73376], 45000)]:
+            with self.subTest(offset=offset):
+                run = type('R', (), {'samples': self.samples(positions, offset), 'actions': [], 'trace': []})()
+                self.assertEqual(engine.oracle_unexpected_change(run), [])
+                self.assertEqual(engine.oracle_progress_loss(run), [])
 
     def test_real_reset_still_is(self):
         run = type('R', (), {'samples': self.samples([100000, 100100, 0, 100, 200, 300, 400]), 'actions': [], 'metrics': {},
                              'trace': []})()
         self.assertEqual([v['oracle'] for v in engine.oracle_unexpected_change(run)], ['unrequestedReset'])
+        self.assertEqual([v['oracle'] for v in engine.oracle_progress_loss(run)], ['progressLoss'])
+
+    def test_persistent_resets_near_start_and_in_offset_stream_still_lose_progress(self):
+        for positions, offset in [([2530, 0, 100, 200, 300, 400], 0),
+                                  ([73023, 45000, 45100, 45200, 45300, 45400], 45000)]:
+            with self.subTest(offset=offset):
+                run = type('R', (), {'samples': self.samples(positions, offset), 'actions': [], 'trace': []})()
+                self.assertEqual([v['oracle'] for v in engine.oracle_progress_loss(run)], ['progressLoss'])
+
+    def test_slow_samples_cannot_hide_a_long_reset(self):
+        samples = self.samples([100000, 100100, 0, 100300, 100400])
+        for i, sample in enumerate(samples):
+            sample['t'] = i * 0.6
+        run = type('R', (), {'samples': samples, 'actions': [], 'trace': []})()
+        self.assertEqual([v['oracle'] for v in engine.oracle_progress_loss(run)], ['progressLoss'])
+
+    def test_return_on_another_occurrence_or_offset_does_not_restore_progress(self):
+        for field, value in [('idx', 1), ('off', 45000)]:
+            with self.subTest(field=field):
+                samples = self.samples([100000, 0, 100200])
+                samples[-1][field] = value
+                run = type('R', (), {'samples': samples, 'actions': [], 'trace': []})()
+                self.assertEqual([v['oracle'] for v in engine.oracle_progress_loss(run)], ['progressLoss'])
 
 
 class RepeatFillOracle(unittest.TestCase):

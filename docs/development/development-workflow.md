@@ -1461,6 +1461,15 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   because some cases are red on release/1.5 (see the PR); a new violation kind
   is always a FAIL.
 
+  Both seek oracles recognize a brief native clock reset, including at an
+  offset stream's start, only if the previous position returns within 500 ms
+  (±500 ms of position) and three samples. Queue occurrence and source offset
+  must stay unchanged. Persistent resets and slow returns remain violations.
+  Linux memory gates read resident PSS; retain `SwapPss`, `Pss_Anon` and
+  `Pss_File` from `/proc/<pid>/smaps_rollup` when investigating a sudden drop
+  or a reversed slope. Run a clean A/A before attributing residency changes
+  to app code or changing a budget.
+
   For `repeat/chain_end`, five tracks at least 100 s long and 30× fixture
   transcoding let the current and next download finish within the 25 s wait.
   The wait is also bounded by remaining playback time minus 10 s. It waits

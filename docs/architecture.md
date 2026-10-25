@@ -4492,7 +4492,9 @@ Cache & Storage does not look idle before registration. Desktop partial-byte
 diagnostics read the active sidecar attempt's received byte count, including
 its generation-specific partial write. A generation-scoped terminal callback
 clears activity on success, cancellation, or failure; an older attempt finishing
-cleanup cannot clear a newer attempt's activity. Every desktop source is
+cleanup cannot clear a newer attempt's activity. The response waits for the file
+writer between chunks, so slow storage backpressures HTTP instead of queuing
+audio in memory. Every desktop source is
 a direct stream, so the resolver attaches the sidecar path even when a caller
 asks for no lock caching (seek recovery, crossfade decks, songs whose
 lock-cached start failed); otherwise a recovery reload cancelled the download

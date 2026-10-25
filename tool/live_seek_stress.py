@@ -1379,6 +1379,8 @@ def oracle_progress_loss(run: Run, drop_ms=2000) -> list[dict]:
             continue
         if a['pos'] - b['pos'] <= drop_ms or a['proc'] != 'ready':  # a loading item still reports the previous song's position
             continue
+        if is_position_blip(samples, i):
+            continue
         asked = ('seek', 'prev', 'jump', 'next')  # a 'start' has no end time: its window would hide a rewind seconds in
         if _requested_at(run, b['t'], asked) or _requested_at(run, b['t'] - 1.0, asked) or song_end_near(samples, i):
             continue
@@ -1388,15 +1390,20 @@ def oracle_progress_loss(run: Run, drop_ms=2000) -> list[dict]:
 
 
 def is_position_blip(samples, i) -> bool:
-    """Samples [i-1, i] are a reset to near 0 that comes back within 3 samples, or the jump back after one."""
+    """A native clock reset returning within 3 samples and 500 ms, or its return to the same timeline."""
     a, b = samples[i - 1], samples[i]
-    if a['pos'] is None or b['pos'] is None:
+    if (a['pos'] is None or b['pos'] is None or a['songId'] != b['songId'] or a['idx'] != b['idx']
+            or (a.get('off') or 0) != (b.get('off') or 0)):
         return False
-    if a['pos'] - b['pos'] > 5000 and b['pos'] < 3000:  # reset: does the old position return soon?
-        return any(n['pos'] is not None and abs(n['pos'] - a['pos']) < 3000 and n['songId'] == b['songId']
+    if a['pos'] - b['pos'] > 2000 and 0 <= b['pos'] - (b.get('off') or 0) < 3000:
+        return any(n['pos'] is not None and abs(n['pos'] - a['pos']) < 500
+                   and n['songId'] == b['songId'] and n['idx'] == b['idx']
+                   and (n.get('off') or 0) == (b.get('off') or 0) and n['t'] - a['t'] <= 0.5
                    for n in samples[i + 1:i + 4])
-    if b['pos'] - a['pos'] > 8000 and a['pos'] < 3000:  # jump: was the sample before [i-1] already there?
-        return any(n['pos'] is not None and abs(n['pos'] - b['pos']) < 3000 and n['songId'] == b['songId']
+    if b['pos'] - a['pos'] > 2000 and 0 <= a['pos'] - (a.get('off') or 0) < 3000:
+        return any(n['pos'] is not None and abs(n['pos'] - b['pos']) < 500
+                   and n['songId'] == b['songId'] and n['idx'] == b['idx']
+                   and (n.get('off') or 0) == (b.get('off') or 0) and b['t'] - n['t'] <= 0.5
                    for n in samples[max(0, i - 4):i - 1])
     return False
 
