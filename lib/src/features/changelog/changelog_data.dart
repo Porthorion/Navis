@@ -130,6 +130,10 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Desktop quick search keeps all its filter chips on one line.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Keep drag-seek streams reconnectable after native probes and network cuts, '
         'and preserve preview adoption during queue navigation.',
         type: ChangelogEntryType.fix,
