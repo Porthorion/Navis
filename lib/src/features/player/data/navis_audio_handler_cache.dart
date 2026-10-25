@@ -212,16 +212,21 @@ extension _NavisCache on NavisAudioHandler {
     );
   }
 
-  /// Warms the song that plays next with the one sidecar downloader, once the
-  /// current song is on disk (so the two never compete), and cancels a warm
-  /// that is no longer the next song after a skip, queue edit or shuffle.
+  /// Warms the song that plays next once the current song is on disk (so the
+  /// two never compete), and cancels a warm that is no longer the next song
+  /// after a skip, queue edit or shuffle. Desktop uses the one sidecar
+  /// downloader; Android starts the download of the next song's own
+  /// lock-cache source, which ExoPlayer later joins instead of restarting.
   /// Called on every track change, queue edit, download completion and
   /// position tick; the key makes each current-to-next pair start once.
   void _syncSidecarChain() {
-    if (!_isDesktopRuntime || _radioStation != null) return;
+    if (_radioStation != null) return;
+    final desktop = _isDesktopRuntime;
     final current = _currentMediaItem;
     final nextId = _rollingCacheNextSongId(current?.id);
-    final active = _sidecarDownloader.activeSongId;
+    final active = desktop
+        ? _sidecarDownloader.activeSongId
+        : _lockCacheWarmSongId;
     // A next-song warm is running (the current song's own download is not
     // ours to stop). It ends when its song stopped being next or the gate
     // closed (setting turned off, or the link became cellular or metered).
@@ -229,12 +234,22 @@ extension _NavisCache on NavisAudioHandler {
         active != current?.id &&
         (active != nextId || !_readRuntimeSettings().nextSongPrefetchAllowed)) {
       _sidecarChainKey = null;
-      unawaited(_sidecarDownloader.cancel());
+      if (desktop) {
+        unawaited(_sidecarDownloader.cancel());
+      } else {
+        _lockCacheWarmSongId = null;
+        for (final entry in _lockCacheSources.values) {
+          if (entry.songId == active) unawaited(entry.source.cancelDownload());
+        }
+      }
     }
     if (current == null ||
         nextId == null ||
         nextId == current.id ||
-        _sidecarDownloader.activeSongId == nextId) {
+        (desktop
+            ? _sidecarDownloader.activeSongId
+            : _lockCacheWarmSongId) ==
+            nextId) {
       return;
     }
     final key = '${current.id}>$nextId';
@@ -247,6 +262,10 @@ extension _NavisCache on NavisAudioHandler {
         current.extras?['sourceKind'] == PlaybackSourceKind.file.name ||
         _completedCacheSongIds.contains(current.id);
     if (!warm || !_readRuntimeSettings().nextSongPrefetchAllowed) return;
+    if (!desktop) {
+      _startLockCacheWarm(nextId, key);
+      return;
+    }
     final next = _queueItems.where((item) => item.id == nextId).firstOrNull;
     final path = next?.extras?['sidecarCacheFilePath'] as String?;
     final song = _sidecarSongsById[nextId];
@@ -264,6 +283,42 @@ extension _NavisCache on NavisAudioHandler {
     if (_sidecarDownloader.activeSongId == nextId || File(path).existsSync()) {
       _sidecarChainKey = key;
     }
+  }
+
+  /// Android: requests the next song's existing lock-cache source and drains
+  /// it, so its download runs to a complete file. The player's later request
+  /// for that song shares the running download. Never a second source on the
+  /// same partial file; no source (downloaded, cached, deferred tail) is no
+  /// warm.
+  void _startLockCacheWarm(String nextId, String key) {
+    final source = _lockCacheSources.values
+        .where((entry) => entry.songId == nextId)
+        .firstOrNull
+        ?.source;
+    if (source == null) return;
+    _sidecarChainKey = key;
+    _lockCacheWarmSongId = nextId;
+    unawaited(
+      source
+          .request()
+          .then((response) => response.stream.drain<void>())
+          .catchError((Object error) {
+            AppLogger.debug('Next-song warm of $nextId failed: $error');
+            // A failed warm is retried, but not at once.
+            if (_sidecarChainKey == key) {
+              _sidecarChainKey = null;
+              if (key.startsWith('${_currentMediaItem?.id}>')) {
+                _sidecarChainRetry = (
+                  key,
+                  DateTime.now().add(sidecarChainRetryDelay),
+                );
+              }
+            }
+          })
+          .whenComplete(() {
+            if (_lockCacheWarmSongId == nextId) _lockCacheWarmSongId = null;
+          }),
+    );
   }
 
   /// The current and next song ids (canonical) that eviction must keep.
@@ -314,6 +369,7 @@ extension _NavisCache on NavisAudioHandler {
             cacheFilePath: cacheFilePath,
           ).whenComplete(() => _completeRollingCacheActivity(cacheFilePath)),
         );
+        _syncSidecarChain();
       },
       onError: (Object error, StackTrace stackTrace) {
         AppLogger.debug(

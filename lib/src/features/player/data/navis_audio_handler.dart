@@ -528,6 +528,9 @@ class NavisAudioHandler extends BaseAudioHandler
 
   /// Only the failed pair waits before retrying; a skip can warm a new pair.
   (String, DateTime)? _sidecarChainRetry;
+
+  /// The song whose lock-cache download the Android next-song warm started.
+  String? _lockCacheWarmSongId;
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
   String? _remotePlaybackStallSongId;
