@@ -195,7 +195,8 @@ class PlaylistActions {
     if (_ref.mounted) _ref.invalidate(playlistSyncProvider);
   }
 
-  /// Returns the number of skipped songs (zero for server playlists).
+  /// Returns the number of songs not added (local: unknown ids; server: songs
+  /// the server still lacks after a read-back).
   Future<int> addSongs(
     PlaylistsTableData playlist,
     List<String> songIds,
@@ -212,12 +213,26 @@ class PlaylistActions {
         ]);
       });
     }
-    await _serverApi().updatePlaylist(id: playlist.id, songIdsToAdd: songIds);
-    if (_ref.mounted) {
-      _ref.invalidate(playlistDetailSyncProvider(playlist.id));
-      _ref.invalidate(playlistSyncProvider);
+    final api = _serverApi();
+    try {
+      final before = (await api.getPlaylist(playlist.id)).entries.length;
+      await api.updatePlaylist(id: playlist.id, songIdsToAdd: songIds);
+      var added = (await api.getPlaylist(playlist.id)).entries.length - before;
+      if (added < songIds.length) {
+        // Navidrome 0.64 answers ok to a multi-id add but adds nothing, so
+        // re-add what is missing one id per request. Adds append in order.
+        for (final id in songIds.skip(added.clamp(0, songIds.length))) {
+          await api.updatePlaylist(id: playlist.id, songIdsToAdd: [id]);
+        }
+        added = (await api.getPlaylist(playlist.id)).entries.length - before;
+      }
+      return (songIds.length - added).clamp(0, songIds.length);
+    } finally {
+      if (_ref.mounted) {
+        _ref.invalidate(playlistDetailSyncProvider(playlist.id));
+        _ref.invalidate(playlistSyncProvider);
+      }
     }
-    return 0;
   }
 
   Future<void> removeAt(
