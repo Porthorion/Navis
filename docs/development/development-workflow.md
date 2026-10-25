@@ -1460,6 +1460,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   counts are relative to the base for `seek`, `repeat` and `cut-recovery`
   because some cases are red on release/1.5 (see the PR); a new violation kind
   is always a FAIL.
+
   For `repeat/chain_end`, five tracks at least 100 s long and 30× fixture
   transcoding let the current and next download finish within the 25 s wait.
   The wait is also bounded by remaining playback time minus 10 s. It waits
@@ -1469,6 +1470,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   file to match a completed full-song GET before the 2 s seek and no new media
   request for that song after the seek. This proves a network-free seek with
   a complete cache, without distinguishing decoder-buffer hits from disk reads.
+
   Linux gates are worst-boundary lead ≥6 s, worst-boundary bytes ≥1 MiB
   (1,048,576), and network-free seek rate ≥0.75. Calibration on 2026-10-25
   measured base/fix lead 0.02/14.62 s, bytes ≤540,672/3,454,317, and seek
@@ -1477,6 +1479,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   handover, so the subsequent readiness wait cannot inflate the estimate.
   Repeat-wrap counting compares ready samples across a transient loading
   cursor when the handler replaces an offset stream with its completed file.
+
 - **Exit codes.** 0 pass (or `RESULT NONE` when `--map` finds no playback code changed), 1 at least one threshold failed, 2 infrastructure
   error (build or emulator failure, missing base or AVD, a base that predates
   the harness, `~/Downloads/Navis_Downloads` changed, another heavy job holds

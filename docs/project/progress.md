@@ -27,7 +27,11 @@ Last updated: 2026-10-25
   ≤540,672/3,454,317, seek rate 0/1; no recovery or anomaly entries in
   `chain_end`. The calibration exposed a healthy wrap hidden by a loading
   cursor; a self-check reproduces it and the oracle now compares ready samples.
-  Gates: 6 s / 1 MiB / 0.75. Remaining: final gate and committed repeat A/B;
+  Gates: 6 s / 1 MiB / 0.75. Final `./tool/check.sh` passed (9,472 tests,
+  one skipped); `python3 tool/playback_harness_test.py` passed 30 tests.
+  Runtime control used the authenticated queue, repeat, seek and status APIs
+  against clean Linux fixture profiles; both `chain_end` reports have no
+  recovery or anomaly entries. Audio was muted; no new visible UI was changed.
   Android evidence and the setting dialog screenshots remain with the coordinator.
 - [x] Playback runtime harness — 2026-10-25: `tool/playback_harness.py` (list, map, ab)
   on the `tool/live_seek_stress.py` engine; diagnostics `queue-edit`, `quality`,
