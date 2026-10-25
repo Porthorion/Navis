@@ -1465,6 +1465,9 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   offset stream's start, only if the previous position returns within 500 ms
   (±500 ms of position) and three samples. Queue occurrence and source offset
   must stay unchanged. Persistent resets and slow returns remain violations.
+  Repeat drivers confirm a candidate start for 500 ms before counting a wrap;
+  repeat-fill counting uses the same blip check. Missing or duplicate real
+  loops remain failures.
   Linux memory gates read resident PSS; retain `SwapPss`, `Pss_Anon` and
   `Pss_File` from `/proc/<pid>/smaps_rollup` when investigating a sudden drop
   or a reversed slope. Run a clean A/A before attributing residency changes

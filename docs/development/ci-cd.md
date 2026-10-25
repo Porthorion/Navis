@@ -996,3 +996,5 @@ The repeat fixture uses 30× transcodes to finish current and next files within
 its bounded wait; network-free seek classification also verifies the final file.
 Seek-oracle self-checks cover raw and offset native clock blips, persistent
 rewinds, slow returns and queue/source identity changes.
+Repeat-driver checks reject clock blips before real wraps and still reject
+missing or duplicate loops.

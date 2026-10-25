@@ -237,12 +237,61 @@ class RepeatFillOracle(unittest.TestCase):
             engine.case_repeat_one_fill(run, env)
             self.assertEqual(run.checks[0](), [])
             self.assertEqual(len(run.metrics['wraps']), 1)
+            run.samples = [{**samples[0], 't': t, 'pos': position}
+                           for t, position in [(10.5, 299000), (10.6, 0), (10.7, 299200)]] + samples
+            self.assertEqual(run.checks[0](), [])
+            self.assertEqual(len(run.metrics['wraps']), 1)
             # Missing and duplicate restarts must still fail.
             for variant, count in ((samples[2:], 0),
                                    (samples + [{**s, 't': s['t'] + 20} for s in samples], 2)):
                 run.samples = variant
                 self.assertEqual(run.checks[0](), [{'oracle': 'repeatOneRestartCount'}])
                 self.assertEqual(len(run.metrics['wraps']), count)
+
+
+class RepeatClockBlip(unittest.TestCase):
+    def fixture(self):
+        samples = [{'t': t, 'pos': position, 'proc': 'ready', 'songId': 'a', 'idx': 0, 'off': 0}
+                   for t, position in [(39.9, 294430), (40.0, 0), (40.1, 294454),
+                                       (45.9, 299600), (46.0, 0), (46.1, 100),
+                                       (50.0, 4000), (54.0, 8000), (345.9, 299600),
+                                       (346.0, 0), (350.0, 4000)]]
+        env = Mock()
+        env.backend.fresh_songs.return_value = [{'id': 'a', 'duration': 300}]
+        env.proxy.log = []
+        run = Mock(metrics={}, samples=samples, checks=[], violations=[], env=env,
+                   proxy_mark=0, w0=0, quality='opus128', deadlines={'advance': 30})
+        run.until.side_effect = lambda predicate, timeout: next((s for s in run.samples if predicate(s)), None)
+        return run, env
+
+    def test_offset_repeat_waits_for_a_real_wrap(self):
+        run, env = self.fixture()
+        with contextlib.ExitStack() as stack:
+            for name in ['offset_case_prologue', 'start_single', 'landed', 'finish_futures']:
+                stack.enter_context(patch.object(engine, name))
+            stack.enter_context(patch.object(engine, 'issue_seek', return_value={'t': 0}))
+            stack.enter_context(patch.object(engine, 'oracle_seek', return_value=[]))
+            stack.enter_context(patch.object(engine, 'oracle_offset', return_value=[]))
+            stack.enter_context(patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}))
+            engine.case_offset_repeat_one(run, env)
+            self.assertEqual(run.checks[0](), [])
+            self.assertEqual(run.metrics['loopWrappedAt'], 46)
+            self.assertEqual(run.metrics['loop2WrappedAt'], 346)
+
+    def test_plain_repeat_waits_for_a_real_wrap(self):
+        run, env = self.fixture()
+        with patch.object(engine, 'start_single'):
+            engine.case_base_repeat_one(run, env)
+        self.assertEqual(run.metrics['wrap1'], 46)
+        self.assertEqual(run.metrics['wrap2'], 346)
+
+    def test_a_blip_without_a_real_loop_still_fails(self):
+        run, env = self.fixture()
+        run.samples = run.samples[:3]
+        with patch.object(engine, 'start_single'), \
+                patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}):
+            engine.case_base_repeat_one(run, env)
+        self.assertEqual(run.violations, [{'oracle': 'baselineNoLoop'}])
 
 
 class CodeAreaMap(unittest.TestCase):

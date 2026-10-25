@@ -2446,6 +2446,22 @@ def case_offset_natural(run: Run, env):
     run.latency_from = [seek]
 
 
+def wait_for_repeat_start(run: Run, song_id: str, after: float, timeout: float, max_position: float):
+    """Confirms a repeat start without mistaking a brief native clock reset for a loop."""
+    deadline = time.monotonic() + timeout
+    while (remaining := deadline - time.monotonic()) > 0:
+        sample = run.until(lambda s: s['t'] > after and s['songId'] == song_id and s['pos'] is not None
+                           and s['pos'] < max_position and s['proc'] == 'ready', remaining)
+        if sample is None:
+            return None
+        run.observe(0.5)
+        index = run.samples.index(sample)
+        if index == 0 or not is_position_blip(run.samples, index):
+            return sample
+        after = sample['t']
+    return None
+
+
 def case_offset_repeat_one(run: Run, env):
     """Repeat-one with an offset seek: the loop restarts at 0:00, never at the sought position."""
     offset_case_prologue(run)
@@ -2461,15 +2477,15 @@ def case_offset_repeat_one(run: Run, env):
         finish_futures(run)
     t_seek = seek['t']
     fade_ms = CROSSFADE_S * 1000  # a cross-faded loop hands over when the new copy is already fade_ms in
-    wrapped = run.until(lambda s: s['t'] > t_seek and s['songId'] == song['id'] and s['pos'] is not None
-                        and s['pos'] < 4000 + fade_ms and s['proc'] == 'ready', duration_ms * 0.2 / 1000 + 60 + run.deadlines['advance'])
+    wrapped = wait_for_repeat_start(run, song['id'], t_seek,
+                                    duration_ms * 0.2 / 1000 + 60 + run.deadlines['advance'], 4000 + fade_ms)
     run.metrics['loopWrappedAt'] = wrapped and wrapped['t']
     if wrapped is None:
         run.violations.append(violation('repeatOneNoLoop', run.now(), 'position never wrapped to the start', run))
         raise CaseAbort('no loop')
     run.observe(8.0)
-    wrapped2 = run.until(lambda s: s['t'] > wrapped['t'] + 30 and s['songId'] == song['id'] and s['pos'] is not None
-                         and s['pos'] < 4000 and s['proc'] == 'ready', duration_ms / 1000 + 2 * run.deadlines['advance'])
+    wrapped2 = wait_for_repeat_start(run, song['id'], wrapped['t'] + 30,
+                                     duration_ms / 1000 + 2 * run.deadlines['advance'], 4000)
     run.metrics['loop2WrappedAt'] = wrapped2 and wrapped2['t']
     if wrapped2 is None:
         run.violations.append(violation('repeatOneNoSecondLoop', run.now(), 'position never wrapped a second time', run))
@@ -2609,8 +2625,8 @@ def case_base_repeat_one(run: Run, env):
     start_single(run, song)
     first = run.until(lambda s: s['songId'] == song['id'] and (s['pos'] or 0) > duration_ms - 6000, duration_ms / 1000 + 60)
     for n in (1, 2):
-        wrapped = run.until(lambda s: s['t'] > (run.metrics.get(f'wrap{n - 1}') or 0) + 20 and s['songId'] == song['id']
-                            and s['pos'] is not None and s['pos'] < 4000 and s['proc'] == 'ready', duration_ms / 1000 + 60)
+        wrapped = wait_for_repeat_start(run, song['id'], (run.metrics.get(f'wrap{n - 1}') or 0) + 20,
+                                        duration_ms / 1000 + 60, 4000)
         run.metrics[f'wrap{n}'] = wrapped and wrapped['t']
         if wrapped is None:
             run.violations.append(violation('baselineNoLoop', run.now(), f'loop {n} never happened', run))
@@ -2865,8 +2881,9 @@ def case_repeat_one_fill(run: Run, env):
         same = [x for x in run.samples if x['t'] >= seek['t'] and x['pos'] is not None]
         # A local-file reload briefly publishes a loading cursor at the old offset.
         ready = [x for x in same if x['proc'] == 'ready']
-        wraps = [(a, b) for a, b in zip(ready, ready[1:]) if a['songId'] == b['songId'] == first['songId'] and a['idx'] == b['idx']
-                 and a['pos'] > dur - 4000 and b['pos'] < 3000]
+        wraps = [(a, b) for i, (a, b) in enumerate(zip(ready, ready[1:]), 1)
+                 if a['songId'] == b['songId'] == first['songId'] and a['idx'] == b['idx']
+                 and a['pos'] > dur - 4000 and b['pos'] < 3000 and not is_position_blip(ready, i)]
         run.metrics['wraps'] = [{'t': round(b['t'], 1), 'from': a['pos'], 'to': b['pos'], 'mat': b['mat'], 'deferred': b['deferred'],
                                  'qlen': b['qlen']} for a, b in wraps]
         if len(wraps) != 1:

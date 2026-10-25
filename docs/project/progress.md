@@ -58,6 +58,12 @@ Last updated: 2026-10-25
   All earlier check stages pass; the full-suite gate remains failed.
   `python3 tool/playback_harness_test.py`: 34 tests, OK. The 17 focused
   prefetch handler tests also pass. Independent review remains with the coordinator.
+  The first committed five-scenario run (`build/harness/20261025T111609Z`)
+  passes seek and all prefetch-readiness gates (14.89 s / 3,454,317 bytes / 1).
+  A native zero-clock blip at 294.4 s also fools the offset-repeat driver
+  into marking an early wrap. Three more failing-first assertions cover
+  offset/plain repeat drivers and repeat-fill counting; wrap candidates now
+  use the shared blip confirmation. All 37 harness self-checks pass.
 - [x] Playback runtime harness — 2026-10-25: `tool/playback_harness.py` (list, map, ab)
   on the `tool/live_seek_stress.py` engine; diagnostics `queue-edit`, `quality`,
   `queue {shuffle,startIndex}`, `rawSeekBack` and a no-op-unless-diagnostics
