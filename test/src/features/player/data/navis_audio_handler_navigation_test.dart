@@ -1314,6 +1314,7 @@ void main() {
     RollingCacheSidecarDownloader? sidecarDownloader,
     bool crossfadeAllowStreaming = true,
     bool nextSongPrefetchAllowed = true,
+    bool Function()? readNextSongPrefetchAllowed,
     PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
     bool positionStreams = false,
     String crossfadeType = 'normal',
@@ -1456,7 +1457,8 @@ void main() {
       readRuntimeSettings: () => PlaybackRuntimeSettings(
         gaplessEnabled: true,
         fastSeekingEnabled: fastSeeking,
-        nextSongPrefetchAllowed: nextSongPrefetchAllowed,
+        nextSongPrefetchAllowed:
+            readNextSongPrefetchAllowed?.call() ?? nextSongPrefetchAllowed,
         crossfadeEnabled: crossfade,
         crossfadeAllowStreaming: crossfadeAllowStreaming,
         crossfadeDurationSeconds: 5,
@@ -5362,12 +5364,14 @@ void main() {
         RollingCacheSidecarDownloader downloader,
         List<String> requests,
         Completer<void> release,
+        List<bool> gate,
       })
     >
     serveQueue(
       int count, {
       bool allowed = true,
       Set<String> hold = const <String>{},
+      Set<String> failFirst = const <String>{},
       Future<void> Function(NavisDatabase)? seed,
       int startIndex = 0,
       Future<void> Function(NavisAudioHandler)? beforePlay,
@@ -5377,9 +5381,16 @@ void main() {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       final release = Completer<void>();
       final requests = <String>[];
+      final gate = <bool>[allowed];
       server.listen((request) async {
         final id = request.uri.queryParameters['id']!;
         requests.add(id);
+        if (failFirst.contains(id) &&
+            requests.where((r) => r == id).length == 1) {
+          request.response.statusCode = HttpStatus.internalServerError;
+          await request.response.close();
+          return;
+        }
         try {
           request.response
             ..bufferOutput = false
@@ -5418,6 +5429,7 @@ void main() {
         sidecarDownloader: downloader,
         readApiClient: () => api,
         nextSongPrefetchAllowed: allowed,
+        readNextSongPrefetchAllowed: () => gate.first,
         seed: seed,
       );
       addTearDown(() async {
@@ -5440,6 +5452,7 @@ void main() {
         downloader: downloader,
         requests: requests,
         release: release,
+        gate: gate,
       );
     }
 
@@ -5545,6 +5558,54 @@ void main() {
         s.release.complete();
         await settle();
         expect(s.requests.where((id) => id == 'song-1'), hasLength(1));
+      },
+    );
+
+    test(
+      're-publishing the finished current song keeps the warm running',
+      () async {
+        final s = await serveQueue(3, hold: {'song-1'});
+        await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
+        final part = s.downloader.activePartFilePath;
+        // Dropping the last song keeps next = song-1 and re-publishes song-0.
+        await s.handler.removeQueueItemAt(2);
+        await pumpEventQueue();
+        expect(s.downloader.activeSongId, 'song-1');
+        expect(s.downloader.activePartFilePath, part);
+        expect(s.downloader.activeReceivedBytes, size ~/ 2);
+        s.release.complete();
+        await settle();
+        expect(s.requests, ['song-0', 'song-1']);
+      },
+    );
+
+    test('turning the gate off cancels an in-flight warm', () async {
+      final s = await serveQueue(3, hold: {'song-1'});
+      await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
+      s.gate[0] = false;
+      await s.handler.removeQueueItemAt(2);
+      await until(() => s.downloader.activeSongId == null);
+      s.release.complete();
+      await settle();
+      expect(s.requests, ['song-0', 'song-1']);
+    });
+
+    test('a warm that failed is retried after the retry delay', () async {
+      sidecarChainRetryDelay = const Duration(milliseconds: 150);
+      addTearDown(() => sidecarChainRetryDelay = const Duration(seconds: 30));
+      final s = await serveQueue(3, failFirst: {'song-1'});
+      await until(() => s.requests.contains('song-1'));
+      await settle();
+      await s.handler.removeQueueItemAt(2);
+      await until(() => s.requests.where((id) => id == 'song-1').length == 2);
+    });
+
+    test(
+      'the handler reports the current and next song as protected',
+      () async {
+        final s = await serveQueue(3);
+        await until(() => s.requests.contains('song-1'));
+        expect(s.handler.rollingCacheProtectedSongIds, {'song-0', 'song-1'});
       },
     );
 

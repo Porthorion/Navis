@@ -2687,13 +2687,24 @@ def case_natural_play3(run: Run, env, songs=3):
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=songs + 1))
 
 
+def dart_gets(log: list, song_id: str) -> list:
+    return [r for r in log if r['id'] == song_id and r['endpoint'] in ('stream', 'download') and r['ua'].startswith('Dart')
+            and not r.get('timeOffset')]
+
+
+def seek_was_local(log: list, song_id: str, seek_w: float) -> bool:
+    """A seek at wall time [seek_w] was served from disk: the app's own download of the song had finished before it
+    and nothing was requested for the song afterwards."""
+    done = any(r.get('end') == 'complete' and (r.get('endW') or 1e12) <= seek_w for r in dart_gets(log, song_id))
+    return done and not any(r['id'] == song_id and r['endpoint'] in ('stream', 'download') and r['w'] >= seek_w for r in log)
+
+
 def next_song_readiness(log: list, song_id: str, handover_w: float) -> tuple:
     """(lead, bytes) of the full-song GETs the app's own downloader (Dart user agent: the desktop sidecar, the Android
     lock-cache proxy) made for [song_id] before it took over at wall time [handover_w]. lead: seconds between the first
     GET and the handover (negative: it started after, None: it never did). bytes: received by the handover (a GET still
     running then is prorated over its duration)."""
-    gets = [r for r in log if r['id'] == song_id and r['endpoint'] in ('stream', 'download') and r['ua'].startswith('Dart')
-            and not r.get('timeOffset')]
+    gets = dart_gets(log, song_id)
     if not gets:
         return None, 0
     got = 0
@@ -2720,6 +2731,10 @@ def case_chain_end(run: Run, env):
         cur = run.until(lambda s: s['songId'] == ids[n] and s['proc'] == 'ready' and s['playing'] and (s['pos'] or 0) > 500, 60) \
             or run.last()
         run.observe(3.0)
+        # Give a next-song warm time to start (up to 25 s); a build without one just waits it out.
+        warm_deadline = time.monotonic() + 25
+        while time.monotonic() < warm_deadline and not dart_gets(run.env.proxy.log[run.proxy_mark:], ids[n + 1]):
+            run.observe(0.5)
         dur = run.last()['dur'] or 0
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             seek = issue_seek(run, pool, max(0, dur - getattr(run, 'chain_lead', 6000)))
@@ -2744,12 +2759,12 @@ def case_chain_end(run: Run, env):
         leads.append(lead)
         fetched.append(got)
         # Seek 2 s into the song that just took over: served from disk if the warm finished, otherwise from the network.
-        before = run.last()
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             seek = issue_seek(run, pool, 2000)
             landed(run, seek)
             finish_futures(run)
-        local.append((before['cplay'] or 0) >= 2500 or before['cpsrc'] == 'full')
+        run.observe(1.0)
+        local.append(seek_was_local(run.env.proxy.log[run.proxy_mark:], ids[n + 1], seek['w']))
     run.metrics['handoverGapsS'] = gaps
     run.metrics.update(nextRequestLeadS=leads, nextBytesAtHandover=fetched, nextSeekLocal=local)
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=4))

@@ -90,7 +90,8 @@ SCENARIOS = {
                                              '**/ProgressiveRepeat.java', '**/AudioPlayer.java',
                                              'lib/src/features/cache/data/**'],
         checks=[('kinds', 'nonew'), ('violations', 'base+', 3), ('frozenMedianS', 'base+', 0.1),
-                ('nextRequestLeadMedianS', '>=', 0), ('nextSeekLocalRate', '>=', 0.75)]),
+                ('nextRequestLeadMinS', '>=', 3.0), ('nextBytesAtHandoverMin', '>=', 262144),
+                ('nextSeekLocalRate', '>=', 0.75)]),
     'crossfade': dict(
         cases='crossfade_end,skip_next,skip_prev', quick='crossfade_end,skip_next,skip_prev',
         qualities='opus128', throttle='none', reps=3, budget=(1, 3),
@@ -115,7 +116,7 @@ SCENARIOS = {
         areas=QUEUE,
         checks=[('violations', '<=', 0)]),
 }
-INFORMATIONAL_ON_ANDROID = ('nextRequestLeadMedianS', 'nextSeekLocalRate')
+INFORMATIONAL_ON_ANDROID = ('nextRequestLeadMinS', 'nextBytesAtHandoverMin', 'nextSeekLocalRate')
 ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'queue-edit')
 PLAYER_FALLBACK = 'lib/src/features/player/**'
 
@@ -193,10 +194,12 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
                        postGcHeapMiB=_med(soak['afterGc']['heapB'] / mib / mib for soak in soaks))
     elif scenario == 'repeat':
         cells = [r['metrics'] for r in rows if 'nextRequestLeadS' in r['metrics']]
-        # A boundary whose next song was never fetched counts as cold (-1 s).
+        # Worst boundary, not the median: a boundary whose next song was never fetched counts as cold (-1 s), and no
+        # cell at all is missing data (None), never a pass.
         leads = [-1.0 if v is None else v for m in cells for v in m['nextRequestLeadS']]
         local = [v for m in cells for v in m['nextSeekLocal']]
-        out.update(nextRequestLeadMedianS=_med(leads), nextBytesAtHandoverMedian=_med(v for m in cells for v in m['nextBytesAtHandover']),
+        sizes = [v for m in cells for v in m['nextBytesAtHandover']]
+        out.update(nextRequestLeadMinS=min(leads) if leads else None, nextBytesAtHandoverMin=min(sizes) if sizes else None,
                    nextSeekLocalRate=round(sum(local) / len(local), 2) if local else None)
     elif scenario == 'cut-recovery':
         out['recoveryMedianS'] = _med((r['metrics'].get('cutVerdict') or {}).get('resumedAfterS') or r['metrics'].get('maxFrozenS')

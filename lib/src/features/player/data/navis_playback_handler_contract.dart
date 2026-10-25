@@ -59,6 +59,10 @@ abstract class NavisPlaybackHandler {
   PlaybackBufferState get bufferState;
   Stream<PlaybackBufferState> get bufferStateStream;
   MediaItem? get currentMediaItem;
+
+  /// The current and next song ids (canonical) that rolling-cache eviction
+  /// must keep.
+  Set<String> get rollingCacheProtectedSongIds => const <String>{};
   Stream<MediaItem?> get mediaItemStream;
   Stream<PlaybackLoadFailure> get loadFailureStream;
 

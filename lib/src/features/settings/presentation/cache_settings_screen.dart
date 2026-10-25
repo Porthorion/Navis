@@ -95,7 +95,12 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
 
     // If the user lowered the budget, enforce immediately.
     final cacheManager = ref.read(rollingCacheManagerProvider);
-    await cacheManager.enforceBudget(maxBytes: mb * 1024 * 1024);
+    await cacheManager.enforceBudget(
+      maxBytes: mb * 1024 * 1024,
+      keepSongIds:
+          ref.read(audioHandlerProvider)?.rollingCacheProtectedSongIds ??
+          const <String>{},
+    );
 
     if (mounted) {
       final l10n = AppLocalizations.of(context)!;

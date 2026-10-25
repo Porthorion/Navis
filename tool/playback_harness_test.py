@@ -91,27 +91,40 @@ class Thresholds(unittest.TestCase):
 
 
 class NextSongReadiness(unittest.TestCase):
+    @staticmethod
+    def get(song, w, end_w, ua='Dart/3.5', **extra):
+        return {'id': song, 'endpoint': 'stream', 'ua': ua, 'w': w, 'endW': end_w, 'bytes': 1000, **extra}
+
     def test_lead_bytes_and_cold_boundary(self):
-        log = [{'id': 'b', 'endpoint': 'stream', 'ua': 'Dart/3.5', 'w': 90.0, 'endW': 95.0, 'bytes': 1000},
-               {'id': 'b', 'endpoint': 'stream', 'ua': 'Navis Desktop', 'w': 99.0, 'endW': 120.0, 'bytes': 500}]
+        log = [self.get('b', 90.0, 95.0), self.get('b', 99.0, 120.0, ua='Navis Desktop')]
         self.assertEqual(engine.next_song_readiness(log, 'b', 100.0), (10.0, 1000))
         self.assertEqual(engine.next_song_readiness(log, 'c', 100.0), (None, 0))
-        late = [{'id': 'b', 'endpoint': 'stream', 'ua': 'Dart/3.5', 'w': 101.0, 'endW': 105.0, 'bytes': 1000}]
-        self.assertEqual(engine.next_song_readiness(late, 'b', 100.0), (-1.0, 0))
-        running = [{'id': 'b', 'endpoint': 'stream', 'ua': 'Dart/3.5', 'w': 90.0, 'endW': 110.0, 'bytes': 1000}]
-        self.assertEqual(engine.next_song_readiness(running, 'b', 100.0), (10.0, 500))
+        self.assertEqual(engine.next_song_readiness([self.get('b', 101.0, 105.0)], 'b', 100.0), (-1.0, 0))
+        self.assertEqual(engine.next_song_readiness([self.get('b', 90.0, 110.0)], 'b', 100.0), (10.0, 500))
+        # The sidecar GET that starts at the hand-over is the song's own, not a warm: the lead stays below the gate.
+        self.assertLess(engine.next_song_readiness([self.get('b', 99.9, 106.0)], 'b', 100.0)[0], 3.0)
+
+    def test_seek_is_local_only_after_a_finished_download_and_no_new_request(self):
+        done = self.get('b', 90.0, 95.0, end='complete')
+        self.assertTrue(engine.seek_was_local([done], 'b', 100.0))
+        self.assertFalse(engine.seek_was_local([self.get('b', 90.0, 95.0, end='cut')], 'b', 100.0))
+        self.assertFalse(engine.seek_was_local([self.get('b', 99.0, 130.0, end='complete')], 'b', 100.0))
+        self.assertFalse(engine.seek_was_local([done, self.get('b', 100.5, 101.0, ua='Navis Desktop')], 'b', 100.0))
+        self.assertFalse(engine.seek_was_local([], 'b', 100.0))
 
     def test_repeat_metrics_and_thresholds(self):
-        cell = {'nextRequestLeadS': [8.0, None, 6.0], 'nextBytesAtHandover': [900, 0, 800], 'nextSeekLocal': [True, False, True]}
+        cell = {'nextRequestLeadS': [8.0, None, 6.0], 'nextBytesAtHandover': [900000, 0, 800000], 'nextSeekLocal': [True, False, True]}
         m = h.metrics('repeat', [{'violations': [], 'latencyS': None, 'metrics': cell}])
-        self.assertEqual((m['nextRequestLeadMedianS'], m['nextBytesAtHandoverMedian'], m['nextSeekLocalRate']), (6.0, 800, 0.67))
+        self.assertEqual((m['nextRequestLeadMinS'], m['nextBytesAtHandoverMin'], m['nextSeekLocalRate']), (-1.0, 0, 0.67))
+        empty = h.metrics('repeat', [{'violations': [], 'latencyS': None, 'metrics': {}}])
+        self.assertEqual((empty['nextRequestLeadMinS'], empty['nextSeekLocalRate']), (None, None))
         base = {'caseErrors': 0, 'violations': 0, 'kinds': [], 'frozenMedianS': 0.1}
-        good = {**base, 'nextRequestLeadMedianS': 5.0, 'nextSeekLocalRate': 1.0}
+        good = {**base, 'nextRequestLeadMinS': 6.0, 'nextBytesAtHandoverMin': 800000, 'nextSeekLocalRate': 1.0}
         self.assertTrue(all(verdicts('repeat', base, good).values()))
-        cold = {**good, 'nextRequestLeadMedianS': -1.0, 'nextSeekLocalRate': 0.0}
-        self.assertEqual({k: v for k, v in verdicts('repeat', base, cold).items() if not v},
-                         {'nextRequestLeadMedianS:': False, 'nextSeekLocalRate:': False})
-        android = h.evaluate('repeat', base, cold, 'android')
+        for name, bad in (('nextRequestLeadMinS', 0.2), ('nextBytesAtHandoverMin', 0), ('nextSeekLocalRate', 0.5),
+                          ('nextRequestLeadMinS', None), ('nextSeekLocalRate', None)):
+            self.assertFalse(verdicts('repeat', base, {**good, name: bad})[name + ':'], (name, bad))
+        android = h.evaluate('repeat', base, {**good, 'nextRequestLeadMinS': -1.0}, 'android')
         self.assertTrue(all(ok for ok, _ in android))
         self.assertTrue(any(line.startswith('INFO') for _, line in android))
 

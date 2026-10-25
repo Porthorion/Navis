@@ -24,6 +24,17 @@ NetworkType resolveNetworkType(List<ConnectivityResult> results) {
   return NetworkType.other;
 }
 
+/// Whether the next song may be warmed ahead of time: never offline, and on a
+/// cellular or metered link only when the user allows it.
+bool nextSongPrefetchAllowed({
+  required bool setting,
+  required NetworkType networkType,
+  required bool? nativeMetered,
+}) =>
+    networkType != NetworkType.offline &&
+    (setting ||
+        !(networkType == NetworkType.cellular || nativeMetered == true));
+
 /// Cost-aware policy used by library sync scheduling and execution.
 class SyncNetworkPolicy {
   const new({

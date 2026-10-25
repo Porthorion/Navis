@@ -525,6 +525,9 @@ class NavisAudioHandler extends BaseAudioHandler
 
   /// The current-to-next song pair whose next-song warm was last attempted.
   String? _sidecarChainKey;
+
+  /// No next-song warm starts before this time (after one ended without a file).
+  DateTime? _sidecarChainRetryAt;
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
   String? _remotePlaybackStallSongId;
@@ -715,6 +718,9 @@ class NavisAudioHandler extends BaseAudioHandler
   MediaItem? get currentMediaItem => _currentMediaItem;
 
   @override
+  Set<String> get rollingCacheProtectedSongIds => _rollingCacheKeepSongIds();
+
+  @override
   Stream<MediaItem?> get mediaItemStream => mediaItem;
 
   @override
@@ -902,6 +908,7 @@ class NavisAudioHandler extends BaseAudioHandler
       await _rollingCacheManager.cleanupOrphanedRollingFiles();
       await _rollingCacheManager.enforceBudget(
         maxBytes: _readRollingCacheBudgetBytes(),
+        keepSongIds: _rollingCacheKeepSongIds(),
       );
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
