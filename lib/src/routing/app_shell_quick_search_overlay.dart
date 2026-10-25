@@ -32,12 +32,28 @@ class _DesktopQuickSearchOverlayState
 
   int _selectedIndex = 0;
   bool _explicitFilter = false;
+  final _selectedChipKey = GlobalKey();
+
+  /// Scrolls the selected chip into view; focus stays in the text field, so
+  /// the chip row would not follow keyboard selection on its own.
+  void _revealSelectedChip() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final context = _selectedChipKey.currentContext;
+      if (mounted && context != null) {
+        Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 150),
+        );
+      }
+    });
+  }
 
   void _cycleNext() {
     setState(() {
       _selectedIndex = (_selectedIndex + 1) % _filterValues.length;
       _explicitFilter = true;
     });
+    _revealSelectedChip();
   }
 
   void _cyclePrev() {
@@ -46,6 +62,7 @@ class _DesktopQuickSearchOverlayState
           (_selectedIndex - 1 + _filterValues.length) % _filterValues.length;
       _explicitFilter = true;
     });
+    _revealSelectedChip();
   }
 
   void _submit() {
@@ -101,7 +118,7 @@ class _DesktopQuickSearchOverlayState
               onTap: widget.onDismiss,
               child: Center(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 620),
+                  constraints: const BoxConstraints(maxWidth: 720),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: GestureDetector(
@@ -183,22 +200,34 @@ class _DesktopQuickSearchOverlayState
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: <Widget>[
-                                  for (int i = 0; i < filterLabels.length; i++)
-                                    FilterChip(
-                                      label: Text(filterLabels[i]),
-                                      selected: _selectedIndex == i,
-                                      onSelected: (_) => setState(() {
-                                        _selectedIndex = i;
-                                        _explicitFilter = true;
-                                      }),
-                                      visualDensity: VisualDensity.compact,
-                                      showCheckmark: false,
-                                    ),
-                                ],
+                              SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(
+                                  spacing: 8,
+                                  children: <Widget>[
+                                    for (
+                                      int i = 0;
+                                      i < filterLabels.length;
+                                      i++
+                                    )
+                                      FilterChip(
+                                        key: _selectedIndex == i
+                                            ? _selectedChipKey
+                                            : null,
+                                        label: Text(filterLabels[i]),
+                                        selected: _selectedIndex == i,
+                                        onSelected: (_) {
+                                          setState(() {
+                                            _selectedIndex = i;
+                                            _explicitFilter = true;
+                                          });
+                                          _revealSelectedChip();
+                                        },
+                                        visualDensity: VisualDensity.compact,
+                                        showCheckmark: false,
+                                      ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
