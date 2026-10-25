@@ -17,6 +17,37 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
+  test('106 to 107 adds prefetch next on mobile data, default true', () async {
+    final directory = await Directory.systemTemp.createTemp('navis_v107_');
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File(p.join(directory.path, 'fixture.sqlite'));
+    final seed = createTestDatabase(file: file);
+    await seed.appSettingsDao.updateSetupListeningPreferences(
+      gaplessEnabled: const Value(false),
+    );
+    await seed.close();
+    final raw = sqlite3.open(file.path);
+    try {
+      raw.execute(
+        'ALTER TABLE app_settings DROP COLUMN prefetch_next_on_mobile_data',
+      );
+      raw.execute('PRAGMA user_version = 106');
+    } finally {
+      raw.close();
+    }
+    final upgraded = createTestDatabase(file: file);
+    addTearDown(upgraded.close);
+    final settings = (await upgraded.appSettingsDao.getSettings())!;
+    expect(settings.prefetchNextOnMobileData, isTrue);
+    expect(settings.gaplessEnabled, isFalse);
+    expect(
+      (await upgraded.customSelect('PRAGMA user_version').getSingle())
+          .read<int>('user_version'),
+      107,
+    );
+    await upgraded.from106To107(Migrator(upgraded));
+  }, skip: !sqliteAvailable);
+
   test(
     '105 to 106 adds fast seeking with default true and preserves settings',
     () async {
@@ -49,7 +80,7 @@ void main() {
       expect(
         (await upgraded.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        106,
+        NavisDatabase.currentSchemaVersion,
       );
       await upgraded.from105To106(Migrator(upgraded));
       expect(

@@ -5407,7 +5407,9 @@ void main() {
         ),
         enableLogging: false,
       );
-      final directory = await Directory.systemTemp.createTemp('navis-prefetch-');
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-prefetch-',
+      );
       final downloader = RollingCacheSidecarDownloader();
       final (handler, player, database) = await createHandler(
         directory,
@@ -5427,9 +5429,11 @@ void main() {
         HttpOverrides.global = previousHttp;
       });
       await beforePlay?.call(handler);
-      await handler.replaceQueue([
-        for (var i = 0; i < count; i++) 'song-$i',
-      ], startIndex: startIndex, expandMatchFlows: false);
+      await handler.replaceQueue(
+        [for (var i = 0; i < count; i++) 'song-$i'],
+        startIndex: startIndex,
+        expandMatchFlows: false,
+      );
       return (
         handler: handler,
         player: player,
@@ -5446,9 +5450,8 @@ void main() {
       expect(condition(), isTrue);
     }
 
-    Future<void> settle() => Future<void>.delayed(
-      const Duration(milliseconds: 400),
-    );
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 400));
 
     test('the next song downloads once the current one completes', () async {
       final s = await serveQueue(3);
@@ -5529,18 +5532,21 @@ void main() {
       expect(s.requests, [current, queue[at + 1].id]);
     });
 
-    test('the chained download continues when its song becomes current', () async {
-      final s = await serveQueue(3, hold: {'song-1'});
-      await until(() => s.downloader.activeSongId == 'song-1');
-      await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
-      s.player.moveTo(1);
-      await pumpEventQueue();
-      expect(s.downloader.activeSongId, 'song-1');
-      expect(s.downloader.activeReceivedBytes, size ~/ 2);
-      s.release.complete();
-      await settle();
-      expect(s.requests.where((id) => id == 'song-1'), hasLength(1));
-    });
+    test(
+      'the chained download continues when its song becomes current',
+      () async {
+        final s = await serveQueue(3, hold: {'song-1'});
+        await until(() => s.downloader.activeSongId == 'song-1');
+        await until(() => s.downloader.activeReceivedBytes == size ~/ 2);
+        s.player.moveTo(1);
+        await pumpEventQueue();
+        expect(s.downloader.activeSongId, 'song-1');
+        expect(s.downloader.activeReceivedBytes, size ~/ 2);
+        s.release.complete();
+        await settle();
+        expect(s.requests.where((id) => id == 'song-1'), hasLength(1));
+      },
+    );
 
     test('a queue edit cancels a chain that is no longer next', () async {
       final s = await serveQueue(3, hold: {'song-1'});
