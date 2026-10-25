@@ -51,8 +51,10 @@ class InfraError(RuntimeError):
 # cases/reps are the --full set (calibration, release checks); quick/qreps (default 1) the default one. Both go to the
 # engine matrix. areas are the code paths that make `map` pick the scenario; budget is the measured wall-clock minutes
 # of one variant's runs, (quick, full) -- an A/B run takes twice that plus builds.
+# memory-soak calibration (same-code A/A, 3 reps, 2026-10-25, Pss+SwapPss): post-GC total base 436.8/471.0/527.4, fix 544.2/580.8/595.7 MiB
+# (medians 471.0 vs 580.8; worst pairing 158.9), so the total gets base + 192; slope medians 4.867 vs 1.864 pass max(base, 0) * 1.25 + 1.5.
 # Checks: (metric, '<=', limit) absolute on the fix | (metric, 'base+', add) fix <= base + add |
-# (metric, 'base*', factor, add) | (metric, 'nonew') fix has no violation kind the base lacks |
+# (metric, 'base*', factor, add) | (metric, 'base-positive*', factor, add) clamps the base at zero | (metric, 'nonew') fix has no violation kind the base lacks |
 # (metric, 'stall') fix max <= 50 or not worse than base | (metric, 'true') | (metric, 'nonempty').
 
 HANDLER = ['lib/src/features/player/data/navis_audio_handler*.dart', 'lib/src/features/player/data/playback_source_resolver.dart',
@@ -80,7 +82,7 @@ SCENARIOS = {
         vm=True, quick_env={'NAVIS_LIVE_SEEK_SOAK_DRAGS': '10', 'NAVIS_LIVE_SEEK_SOAK_IDLE_S': '60'},
         areas=['lib/src/features/player/presentation/*seek_bar*.dart', 'lib/src/utils/diagnostics_presentation_controller.dart',
                'lib/src/features/player/data/seek_preview_request.dart'] + HANDLER,
-        checks=[('slopeMiBPerDrag', 'base*', 1.25, 1.5), ('postGcPssMiB', 'base+', 32), ('postGcHeapMiB', 'base+', 8)]),
+        checks=[('slopeMiBPerDrag', 'base-positive*', 1.25, 1.5), ('postGcPssSwapMiB', 'base+', 192), ('postGcHeapMiB', 'base+', 8)]),
     'repeat': dict(
         cases='offset_repeat_one,base_repeat_one,repeat_one_fill,chain_end,chain_end_all,repeat_switch_off,hold_off,hold_all,'
               'q7_append_200',
@@ -192,7 +194,14 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
         soaks = [r['metrics']['soak'] for r in rows if 'soak' in r['metrics']]
         if soaks:
             mib = 1024
-            out.update(slopeMiBPerDrag=_med(_ols_slope([d['pssKiB'] / mib for d in soak['drags']]) for soak in soaks),
+            # Missing kernel data in even one repetition must not disappear into a median.
+            drags_valid = all(len(soak['drags']) >= 2 and all(d.get(k) is not None for d in soak['drags']
+                              for k in ('pssKiB', 'swapPssKiB')) for soak in soaks)
+            gc_valid = all(soak['afterGc'].get(k) is not None for soak in soaks for k in ('pssKiB', 'swapPssKiB'))
+            out.update(slopeMiBPerDrag=_med(_ols_slope([(d['pssKiB'] + d['swapPssKiB']) / mib for d in soak['drags']])
+                                           for soak in soaks) if drags_valid else None,
+                       postGcPssSwapMiB=_med((soak['afterGc']['pssKiB'] + soak['afterGc']['swapPssKiB']) / mib
+                                            for soak in soaks) if gc_valid else None,
                        postGcPssMiB=_med(soak['afterGc']['pssKiB'] / mib for soak in soaks),
                        postGcHeapMiB=_med(soak['afterGc']['heapB'] / mib / mib for soak in soaks))
     elif scenario == 'repeat':
@@ -257,6 +266,8 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
             ok, limit = False, 'metric missing in the base run'
         elif kind == 'base+':
             ok, limit = f <= b + args[0], f'<= base + {_fmt(args[0])}'
+        elif kind == 'base-positive*':
+            ok, limit = f <= max(b, 0) * args[0] + args[1], f'<= max(base, 0) * {_fmt(args[0])} + {_fmt(args[1])}'
         elif kind == 'base*':
             ok, limit = f <= b * args[0] + args[1], f'<= base * {_fmt(args[0])} + {_fmt(args[1])}'
         elif kind == 'stall':
@@ -266,6 +277,9 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
         else:
             raise ValueError(check)
         lines.append((ok, f"{'PASS' if ok else 'FAIL'} {scenario} {name}: fix={_fmt(f)} base={_fmt(b)} limit={limit}"))
+    if scenario == 'memory-soak':
+        lines.append((True, f"INFO {scenario} postGcPssMiB: fix={_fmt(fix.get('postGcPssMiB'))} "
+                            f"base={_fmt(base.get('postGcPssMiB'))} (resident only; not gated)"))
     return lines
 
 

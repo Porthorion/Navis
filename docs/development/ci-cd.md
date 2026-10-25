@@ -998,3 +998,8 @@ Seek-oracle self-checks cover raw and offset native clock blips, persistent
 rewinds, slow returns and queue/source identity changes.
 Repeat-driver checks reject clock blips before real wraps and still reject
 missing or duplicate loops.
+
+Memory-soak self-checks cover swap-out with a flat `Pss + SwapPss` total,
+identical negative slopes, real growth and missing kernel fields in either
+variant, including a single incomplete repetition. The harness gates the total
+from `smaps_rollup`; resident PSS is informational and Dart heap stays gated.

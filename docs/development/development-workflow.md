@@ -1444,7 +1444,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   |---|---|
   | `seek` | seek landing, offset path, cache integrity |
   | `stress-drag` | held slider drag: preview sockets, GETs, heartbeat, release latency |
-  | `memory-soak` | PSS slope, post-GC PSS and Dart heap over 20 drags and an idle window |
+  | `memory-soak` | PSS + SwapPss slope and post-GC total, plus Dart heap over 20 drags and an idle window |
   | `repeat` | Repeat One/All wraps, append at the queue end, next-song readiness and network-free seeks at handover (`chain_end`; Linux gates, informational on Android) |
   | `crossfade` | hand-off under a 4 s cross-fade, skips |
   | `cut-recovery` | origin cuts, dead sources, cold seeks |
@@ -1468,10 +1468,20 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   Repeat drivers confirm a candidate start for 500 ms before counting a wrap;
   repeat-fill counting uses the same blip check. Missing or duplicate real
   loops remain failures.
-  Linux memory gates read resident PSS; retain `SwapPss`, `Pss_Anon` and
-  `Pss_File` from `/proc/<pid>/smaps_rollup` when investigating a sudden drop
-  or a reversed slope. Run a clean A/A before attributing residency changes
-  to app code or changing a budget.
+  Memory gates read `Pss + SwapPss` from `/proc/<pid>/smaps_rollup` after
+  each drag and after forced GC, so swapping does not appear as freed memory
+  or growth on swap-in. Resident post-GC PSS is also printed as `INFO`.
+  Both kernel fields are required in every sample and repetition; missing
+  `SwapPss` fails the metric, rather than being treated as zero or omitted
+  from the median. The post-GC total gate is `base + 192 MiB` and the Dart
+  post-GC heap gate remains `base + 8 MiB`. Same-code A/A (3 reps, 2026-10-25):
+  post-GC totals base 436.8/471.0/527.4, fix 544.2/580.8/595.7 MiB (medians
+  471.0 vs 580.8, worst pairing 158.9 MiB, drifting upward over the run order);
+  slope medians 4.867 vs 1.864 MiB/drag. Stress-drag stall rules passed
+  unchanged in that A/A.
+  The slope comparison clamps a negative base to zero before its multiplier;
+  an identical negative slope must pass. Run a same-code A/A before changing
+  a budget.
 
   For `repeat/chain_end`, five tracks at least 100 s long and 30× fixture
   transcoding let the current and next download finish within the 25 s wait.

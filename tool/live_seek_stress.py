@@ -3944,13 +3944,14 @@ def app_pid(app) -> int:
     return app.proc.pid
 
 
-def pss_kib(app) -> int:
+def memory_kib(app) -> dict:
     pid = app_pid(app)
-    if isinstance(app, AndroidApp):
-        meminfo = app.shell('dumpsys', 'meminfo', str(pid))
-        match = re.search(r'TOTAL PSS:\s+(\d+)', meminfo) or re.search(r'TOTAL\s+(\d+)', meminfo)
-        return int(match[1])
-    return int(re.search(r'Pss:\s+(\d+)', Path(f'/proc/{pid}/smaps_rollup').read_text())[1])
+    path = f'/proc/{pid}/smaps_rollup'
+    text = app.shell('run-as', ANDROID_PACKAGE, 'cat', path) if isinstance(app, AndroidApp) else Path(path).read_text()
+    fields = dict(re.findall(r'^(Pss|SwapPss):\s+(\d+) kB$', text, re.MULTILINE))
+    if not {'Pss', 'SwapPss'} <= fields.keys():
+        raise Failure('memory-soak needs Pss and SwapPss in smaps_rollup')
+    return {'pssKiB': int(fields['Pss']), 'swapPssKiB': int(fields['SwapPss'])}
 
 
 def vm_url(app) -> str:
@@ -3985,7 +3986,7 @@ def dart_heap(url: str, isolate: str, gc=False) -> int:
 def case_mem_soak(run: Run, env, drags=int(os.environ.get('NAVIS_LIVE_SEEK_SOAK_DRAGS', 20)),
                   idle_s=int(os.environ.get('NAVIS_LIVE_SEEK_SOAK_IDLE_S', 120))):
     """20 held drags on fresh songs, 10 s of playback after each, then 120 s of idle playback and a forced GC.
-    Records PSS (KiB) after every drag and the Dart heap, for the harness to fit a slope."""
+    Records resident PSS and SwapPss (KiB) after every drag and the Dart heap for the harness slope."""
     if not VM_SERVICE:
         raise Failure('memory-soak needs NAVIS_LIVE_SEEK_VM=1 (the harness sets it)')
     url = vm_url(run.app)
@@ -4001,12 +4002,12 @@ def case_mem_soak(run: Run, env, drags=int(os.environ.get('NAVIS_LIVE_SEEK_SOAK_
         target = (run.app.api('/v1/playback/status').get('seek') or {}).get('requestedPositionMs') or 0
         run.until(lambda s: s['t'] >= released_t and (s['pos'] or 0) >= target + 1000 and s['proc'] == 'ready', 60)
         run.observe(10.0)
-        rows.append({'drag': drag, 'pssKiB': pss_kib(run.app), 'heapB': dart_heap(url, isolate)})
+        rows.append({'drag': drag, **memory_kib(run.app), 'heapB': dart_heap(url, isolate)})
     start_single(run, env.backend.fresh_songs(1)[0])
     run.observe(idle_s)
-    before = {'pssKiB': pss_kib(run.app), 'heapB': dart_heap(url, isolate)}
+    before = {**memory_kib(run.app), 'heapB': dart_heap(url, isolate)}
     after = {'heapB': dart_heap(url, isolate, gc=True)}
-    after['pssKiB'] = pss_kib(run.app)
+    after.update(memory_kib(run.app))
     run.metrics['soak'] = {'drags': rows, 'beforeGc': before, 'afterGc': after}
 
 

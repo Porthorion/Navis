@@ -73,10 +73,16 @@ class Thresholds(unittest.TestCase):
                                                               'latencyMedianS': 1}).get('kinds:'))
         self.assertFalse(verdicts('local-seek', {'violations': 0}, {'violations': 0})['landingErrorMaxMs:'])
 
-    def test_soak_slope_limit(self):
-        base = {'caseErrors': 0, 'slopeMiBPerDrag': 6.0, 'postGcPssMiB': 500.0, 'postGcHeapMiB': 47.0}
-        self.assertTrue(all(verdicts('memory-soak', base, {**base, 'slopeMiBPerDrag': 8.9}).values()))
-        self.assertFalse(verdicts('memory-soak', base, {**base, 'slopeMiBPerDrag': 9.1})['slopeMiBPerDrag:'])
+    def test_soak_identical_runs_pass_including_negative_slope(self):
+        for slope in (6.0, 0.0, -16.597):
+            base = {'caseErrors': 0, 'slopeMiBPerDrag': slope, 'postGcPssMiB': 500.0, 'postGcPssSwapMiB': 500.0, 'postGcHeapMiB': 47.0}
+            with self.subTest(slope=slope):
+                self.assertTrue(all(verdicts('memory-soak', base, base).values()))
+
+    def test_soak_real_growth_fails(self):
+        base = {'caseErrors': 0, 'slopeMiBPerDrag': -2.0, 'postGcPssSwapMiB': 500.0, 'postGcHeapMiB': 47.0}
+        self.assertFalse(verdicts('memory-soak', base, {**base, 'slopeMiBPerDrag': 25.0})['slopeMiBPerDrag:'])
+        self.assertFalse(verdicts('memory-soak', base, {**base, 'postGcPssSwapMiB': 700.0})['postGcPssSwapMiB:'])
         self.assertFalse(verdicts('memory-soak', base, {**base, 'postGcHeapMiB': 55.5})['postGcHeapMiB:'])
 
     def test_metrics_from_rows(self):
@@ -89,6 +95,66 @@ class Thresholds(unittest.TestCase):
         self.assertEqual((m['violations'], m['kinds'], m['drags'], m['frameGapP95Ms']), (1, ['stall'], 1, 18.0))
         self.assertEqual(m['eventLoopStall'], {'max': 16.0, 'over50': 1})
         self.assertAlmostEqual(h._ols_slope([1.0, 3.0, 5.0, 7.0]), 2.0)
+
+
+class SoakMemory(unittest.TestCase):
+    @staticmethod
+    def rows():
+        return [{'violations': [], 'latencyS': None, 'metrics': {'soak': {
+            'drags': [{'pssKiB': 400 * 1024, 'swapPssKiB': 100 * 1024},
+                      {'pssKiB': 300 * 1024, 'swapPssKiB': 200 * 1024},
+                      {'pssKiB': 200 * 1024, 'swapPssKiB': 300 * 1024}],
+            'afterGc': {'pssKiB': 200 * 1024, 'swapPssKiB': 300 * 1024, 'heapB': 47 * 1024 ** 2}}}}]
+
+    def test_swap_out_does_not_change_slope_or_post_gc_total(self):
+        m = h.metrics('memory-soak', self.rows())
+        self.assertEqual(m['slopeMiBPerDrag'], 0.0)
+        self.assertEqual(m['postGcPssSwapMiB'], 500.0)
+        self.assertEqual(m['postGcPssMiB'], 200.0)
+        self.assertEqual(m['postGcHeapMiB'], 47.0)
+        self.assertTrue(all(verdicts('memory-soak', m, m).values()))
+
+    def test_real_total_growth_fails_despite_resident_reclaim(self):
+        rows = self.rows()
+        for i, sample in enumerate(rows[0]['metrics']['soak']['drags']):
+            sample['swapPssKiB'] += i * 25 * 1024
+        base = h.metrics('memory-soak', self.rows())
+        fix = h.metrics('memory-soak', rows)
+        self.assertEqual(fix['slopeMiBPerDrag'], 25.0)
+        self.assertFalse(verdicts('memory-soak', base, fix)['slopeMiBPerDrag:'])
+
+    def test_missing_swap_pss_never_passes_even_in_one_repetition(self):
+        good = h.metrics('memory-soak', self.rows())
+        for section, metric in (('drags', 'slopeMiBPerDrag:'), ('afterGc', 'postGcPssSwapMiB:')):
+            for missing in (None, 'absent'):
+                rows = self.rows()
+                sample = rows[0]['metrics']['soak'][section]
+                sample = sample[1] if isinstance(sample, list) else sample
+                if missing == 'absent':
+                    del sample['swapPssKiB']
+                else:
+                    sample['swapPssKiB'] = missing
+                broken = h.metrics('memory-soak', rows + self.rows())
+                with self.subTest(section=section, missing=missing):
+                    self.assertFalse(verdicts('memory-soak', good, broken)[metric])
+                    self.assertFalse(verdicts('memory-soak', broken, good)[metric])
+
+    def test_sampler_requires_both_kernel_fields(self):
+        app = Mock()
+        app.proc.pid = 123
+        with patch.object(engine.Path, 'read_text', return_value='Pss: 2048 kB\nSwapPss: 1024 kB\n') as read:
+            self.assertEqual(engine.memory_kib(app), {'pssKiB': 2048, 'swapPssKiB': 1024})
+            read.assert_called_once()
+        for text in ('Pss: 2048 kB\n', 'SwapPss: 1024 kB\n'):
+            with patch.object(engine.Path, 'read_text', return_value=text):
+                with self.assertRaises(engine.Failure):
+                    engine.memory_kib(app)
+
+    def test_android_uses_the_same_rollup_fields(self):
+        app = Mock(spec=engine.AndroidApp)
+        app.shell.side_effect = ['123', 'Pss: 2048 kB\nSwapPss: 1024 kB\n']
+        self.assertEqual(engine.memory_kib(app), {'pssKiB': 2048, 'swapPssKiB': 1024})
+        app.shell.assert_called_with('run-as', engine.ANDROID_PACKAGE, 'cat', '/proc/123/smaps_rollup')
 
 
 class NextSongReadiness(unittest.TestCase):
