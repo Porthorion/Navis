@@ -184,6 +184,27 @@ class PositionBlip(unittest.TestCase):
         self.assertEqual([v['oracle'] for v in engine.oracle_unexpected_change(run)], ['unrequestedReset'])
 
 
+class RepeatFillOracle(unittest.TestCase):
+    def test_loading_cursor_between_end_and_restart_does_not_hide_wrap(self):
+        first = {'songId': 'a', 'dur': 300000}
+        samples = [{'t': t, 'pos': pos, 'proc': proc, 'songId': 'a', 'idx': 0,
+                    'mat': 1, 'deferred': 0, 'qlen': 15}
+                   for t, pos, proc in [(10.9, 299541, 'ready'), (11.0, 292001, 'loading'),
+                                        (11.1, 0, 'ready'), (11.2, 100, 'ready')]]
+        run = Mock(metrics={}, samples=samples, checks=[])
+        env = Mock()
+        env.backend.fresh_artist.return_value = ('artist', ['a', 'b'])
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(engine, 'await_audio', return_value=first))
+            stack.enter_context(patch.object(engine, 'issue_seek', return_value={'t': 0}))
+            stack.enter_context(patch.object(engine, 'landed'))
+            stack.enter_context(patch.object(engine, 'finish_futures'))
+            stack.enter_context(patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}))
+            engine.case_repeat_one_fill(run, env)
+            self.assertEqual(run.checks[0](), [])
+        self.assertEqual(len(run.metrics['wraps']), 1)
+
+
 class CodeAreaMap(unittest.TestCase):
     def test_paths(self):
         names = lambda *paths: h.map_files(list(paths))[0]
