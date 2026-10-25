@@ -246,7 +246,8 @@ initNavisAudioServiceHandler({
       androidNotificationOngoing: false,
       androidStopForegroundOnPause: false,
       // Keeps the ALBUM_ART bitmap small for AVRCP and binder limits.
-      androidArtDownscaleSize: const Size(512, 512),
+      artDownscaleWidth: 512,
+      artDownscaleHeight: 512,
       androidBrowsableRootExtras: const <String, dynamic>{
         AndroidAutoConstants.contentStyleSupportedKey: true,
         AndroidAutoConstants.contentStyleBrowsableHintKey:
