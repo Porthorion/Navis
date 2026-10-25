@@ -50,10 +50,11 @@ class Thresholds(unittest.TestCase):
         self.assertFalse(results['flickCells:'])
         self.assertFalse(all(ok for ok, _ in h.evaluate('stress-drag', clean, broken)))
 
-    def test_clean_run_needs_clean_base_too(self):
-        good = drag_metrics()
-        self.assertTrue(all(ok for ok, _ in h.evaluate('stress-drag', good, good)))
-        self.assertFalse(verdicts('stress-drag', {**good, 'caseErrors': 1}, good)['caseErrors:'])
+    def test_base_error_cell_invalidates_the_comparison(self):
+        rows = [{'case': 'stress_drag', 'rep': 0, 'violations': []},
+                {'case': 'stress_flick', 'rep': 2, 'violations': [{'oracle': 'stall'}, {'oracle': 'appExited'}]}]
+        self.assertEqual(h.invalid_cells(rows), ['stress_flick rep 2: appExited'])
+        self.assertEqual(h.invalid_cells(rows[:1]), [])
 
     def test_android_stall_rule_is_wider(self):
         base, fix = drag_metrics(max_ms=149.0, over50=1), drag_metrics(max_ms=188.0, over50=46)
@@ -174,6 +175,19 @@ class InfraErrors(unittest.TestCase):
         code, err = self.ab('seek', '--platform', 'android', '--base', 'HEAD')
         self.assertEqual(code, 2)
         self.assertIn('not available on Android', err)
+
+    def test_android_map_of_linux_only_scenarios_skips_and_exits_2(self):
+        out = io.StringIO()
+        saved = h.map_files
+        h.map_files = lambda paths: (['local-seek'], 'stub')
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()) as err:
+                code = h.main(['ab', '--map', '--platform', 'android', '--base-range', 'HEAD'])
+        finally:
+            h.map_files = saved
+        self.assertEqual(code, 2)
+        self.assertIn('SKIP local-seek: linux-only', out.getvalue())
+        self.assertIn('--platform linux', err.getvalue())
 
     def test_unknown_scenario_is_exit_2(self):
         code, _ = self.ab('nonsense', '--platform', 'linux')

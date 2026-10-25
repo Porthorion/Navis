@@ -198,6 +198,12 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
     return out
 
 
+def invalid_cells(rows: list[dict]) -> list[str]:
+    """Cells that died of a case/oracle error or an app exit: a base with one cannot be compared with."""
+    return [f"{r['case']} rep {r['rep']}: {v['oracle']}" for r in rows for v in r['violations']
+            if v['oracle'] in ('caseError', 'oracleError', 'appExited')]
+
+
 def _fmt(value) -> str:
     if isinstance(value, float):
         return f'{value:.3f}'.rstrip('0').rstrip('.')
@@ -215,7 +221,7 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
         name, kind, *args = check
         f, b = fix.get(name), base.get(name)
         if kind == 'clean':  # a harness or app error in a cell is never a zero
-            ok, limit = f == 0 and b == 0, 'no case/oracle error or app exit in either run'
+            ok, limit = f == 0, 'no case/oracle error or app exit'
         elif kind == 'nonew':
             new = sorted(set(f or []) - set(b or []))
             ok, limit = not new, 'no kind the base lacks' + (f' (new: {new})' if new else '')
@@ -568,14 +574,11 @@ def cmd_ab(args) -> int:
         skipped = [n for n in names if n not in ANDROID_SCENARIOS]
         if skipped and not (args.map or args.all):
             raise InfraError(f'not available on Android: {skipped} (Android runs {list(ANDROID_SCENARIOS)})')
-        kept = [n for n in names if n in ANDROID_SCENARIOS]
-        if not kept and args.map:
-            # Only Linux-only scenarios were mapped: player code changed, so run every Android scenario.
-            print(f'map: {names} are Linux-only; running all Android scenarios')
-            kept = list(ANDROID_SCENARIOS)
-        names = kept
-    if not names:
-        raise InfraError('no scenario left to run on this platform')
+        for name in skipped:
+            print(f'SKIP {name}: linux-only', flush=True)
+        names = [n for n in names if n in ANDROID_SCENARIOS]
+        if not names:
+            raise InfraError('every selected scenario is Linux-only: run with --platform linux')
     CACHE.mkdir(parents=True, exist_ok=True)
     lock = (CACHE / 'lock').open('w')
     try:
@@ -629,6 +632,8 @@ def cmd_ab(args) -> int:
                         print(f'{variant} {name}: the emulator died, repeating once', flush=True)
                         continue
                     break
+                if variant == 'base' and invalid_cells(rows):
+                    raise InfraError(f'base {name} is not a valid comparison: {invalid_cells(rows)} (logs: {out / variant / name})')
                 results[(variant, name)] = metrics(name, rows)
                 timings[(variant, name)] = seconds
                 print(f'{variant} {name}: {len(rows)} cells in {seconds} s', flush=True)

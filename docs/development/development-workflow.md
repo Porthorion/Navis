@@ -1470,7 +1470,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   --virtual` (Linux) or a disposable 3072 MiB, 2-core AVD cloned from
   `NAVIS_HARNESS_AVD` (default `Pixel_9_Pro_XL`; a fresh guest per scenario and variant), and
   stops only the processes it started. Android runs `stress-drag`,
-  `memory-soak`, `repeat` and `queue-edit`; its heartbeat numbers come from a
+  `memory-soak`, `repeat` and `queue-edit` (other selected scenarios print `SKIP <scenario>: linux-only`; if none is left the tool exits 2, run `--platform linux`); its heartbeat numbers come from a
   software-rendered guest and are noisier, hence the wider Android tolerances
   recorded in the PR. Outputs: `build/harness/<stamp>/{base,fix}/<scenario>/`
   (engine `report.json`, traces, app logs), `comparison.json`, `summary.md`.
@@ -1490,12 +1490,12 @@ Paste this to a Haiku agent; it reports lines, it does not judge them.
 >
 > ```
 > tool/playback_harness.py ab --map --platform linux > /tmp/harness.log 2>&1; rc=$?
-> echo "exit=$rc"; grep -E '^(PASS|FAIL|RESULT|ERROR|summary:)' /tmp/harness.log
+> echo "exit=$rc"; grep -E '^(map:|SKIP|PASS|FAIL|RESULT|ERROR|summary:)' /tmp/harness.log
 > ```
 >
 > (use the scenarios the orchestrator names instead of `--map` when given).
-> Report the `exit=` line and every `PASS`, `FAIL`, `RESULT`, `ERROR` and
-> `summary:` line quoted exactly. Exit 0 is pass, 1 a threshold failed, 2 an
+> Report the `exit=` line and every `map:`, `SKIP`, `PASS`, `FAIL`, `RESULT`,
+> `ERROR` and `summary:` line quoted exactly. Exit 0 is pass, 1 a threshold failed, 2 an
 > infrastructure error (never a FAIL). Do not edit files, retry, loosen anything
 > or explain causes. Never run a second heavy job meanwhile and never end your
 > turn with a background job pending.
