@@ -522,6 +522,9 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Kept here, not in [MediaItem.extras], which audio_service publishes to
   /// the platform media session.
   final Map<String, Uri> _sidecarStreamUris = <String, Uri>{};
+
+  /// The current-to-next song pair whose next-song warm was last attempted.
+  String? _sidecarChainKey;
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
   String? _remotePlaybackStallSongId;

@@ -4,6 +4,23 @@ part of 'navis_audio_handler.dart';
 const _cachedExtentMaxUnchanged = 5;
 
 extension _NavisCache on NavisAudioHandler {
+  /// The song that plays after [currentSongId], in play order (shuffled
+  /// when shuffle is on). Repeat One replays the current song, so there is
+  /// nothing further to warm; Repeat All wraps to the first song.
+  String? _rollingCacheNextSongId(String? currentSongId) {
+    final ids = _logicalQueueIds;
+    final index = _logicalCurrentIndex;
+    if (index == null ||
+        index < 0 ||
+        index >= ids.length ||
+        ids[index] != currentSongId) {
+      return null;
+    }
+    if (_desiredLoopMode == LoopMode.one) return currentSongId;
+    if (index + 1 < ids.length) return ids[index + 1];
+    return _desiredLoopMode == LoopMode.all ? ids.first : null;
+  }
+
   /// Stops lock-cache downloads of songs other than the current and next
   /// ones. Such a download otherwise runs to completion after the player has
   /// moved on and, on a slow link, starves the song now playing (its first
@@ -11,15 +28,7 @@ extension _NavisCache on NavisAudioHandler {
   /// discarded; the song downloads again if it is played again.
   void _cancelStaleLockCacheDownloads(String? currentSongId) {
     if (_lockCacheSources.isEmpty) return;
-    final ids = _logicalQueueIds;
-    final index = _logicalCurrentIndex;
-    final next =
-        index == null ||
-            index < 0 ||
-            index + 1 >= ids.length ||
-            ids[index] != currentSongId
-        ? null
-        : ids[index + 1];
+    final next = _rollingCacheNextSongId(currentSongId);
     for (final entry in _lockCacheSources.entries.toList()) {
       final songId = entry.value.songId;
       if (songId == currentSongId || songId == next) continue;
@@ -47,15 +56,7 @@ extension _NavisCache on NavisAudioHandler {
 
   void _syncLockCacheDownloadPriority() {
     final current = _currentMediaItem;
-    final ids = _logicalQueueIds;
-    final index = _logicalCurrentIndex;
-    final next =
-        index == null ||
-            index < 0 ||
-            index + 1 >= ids.length ||
-            ids[index] != current?.id
-        ? null
-        : ids[index + 1];
+    final next = _rollingCacheNextSongId(current?.id);
     final rangePlaying =
         defaultTargetPlatform == TargetPlatform.android &&
         !_disposeHandlerStarted &&
@@ -94,6 +95,7 @@ extension _NavisCache on NavisAudioHandler {
   }
 
   void _syncSidecarRollingCache(MediaItem? item) {
+    _sidecarChainKey = null;
     if (item?.extras?['bridgeFormat'] == null) _sidecarDownloader.resume();
     if (!_isDesktopRuntime || _radioStation != null) {
       unawaited(_sidecarDownloader.cancel());
@@ -119,8 +121,20 @@ extension _NavisCache on NavisAudioHandler {
         song == null ||
         streamUri == null) {
       unawaited(_sidecarDownloader.cancel());
+      _syncSidecarChain();
       return;
     }
+    _startSidecarDownload(item, song, streamUri, sidecarPath);
+    _syncBridgeDownloadPriority();
+    _syncSidecarChain();
+  }
+
+  void _startSidecarDownload(
+    MediaItem item,
+    SongsTableData song,
+    Uri streamUri,
+    String sidecarPath,
+  ) {
     unawaited(
       _sidecarDownloader.start(
         songId: song.id,
@@ -155,11 +169,52 @@ extension _NavisCache on NavisAudioHandler {
             ),
             cacheFilePath: cacheFile.path,
           );
+          _syncSidecarChain();
         },
         onTerminated: () => _completeRollingCacheActivity(sidecarPath),
       ),
     );
-    _syncBridgeDownloadPriority();
+  }
+
+  /// Warms the song that plays next with the one sidecar downloader, once the
+  /// current song is on disk (so the two never compete), and cancels a warm
+  /// that is no longer the next song after a skip, queue edit or shuffle.
+  /// Called on every track change, queue edit, download completion and
+  /// position tick; the key makes each current-to-next pair start once.
+  void _syncSidecarChain() {
+    if (!_isDesktopRuntime || _radioStation != null) return;
+    final current = _currentMediaItem;
+    final nextId = _rollingCacheNextSongId(current?.id);
+    final active = _sidecarDownloader.activeSongId;
+    if (active != null && active != current?.id && active != nextId) {
+      unawaited(_sidecarDownloader.cancel());
+      _sidecarChainKey = null;
+    }
+    if (current == null ||
+        nextId == null ||
+        nextId == current.id ||
+        _sidecarDownloader.activeSongId == nextId) {
+      return;
+    }
+    final key = '${current.id}>$nextId';
+    if (_sidecarChainKey == key) return;
+    final warm =
+        current.extras?['sourceKind'] == PlaybackSourceKind.file.name ||
+        _completedCacheSongIds.contains(current.id);
+    if (!warm || !_readRuntimeSettings().nextSongPrefetchAllowed) return;
+    _sidecarChainKey = key;
+    final next = _queueItems.where((item) => item.id == nextId).firstOrNull;
+    final path = next?.extras?['sidecarCacheFilePath'] as String?;
+    final song = _sidecarSongsById[nextId];
+    final uri = _sidecarStreamUris[nextId];
+    if (next == null ||
+        path == null ||
+        path.isEmpty ||
+        song == null ||
+        uri == null) {
+      return;
+    }
+    _startSidecarDownload(next, song, uri, path);
   }
 
   void _observeLockCachingSource({
@@ -458,8 +513,14 @@ extension _NavisCache on NavisAudioHandler {
             (resolvedSource.metadata.isTranscoded ? 'transcoded' : null),
         bitRate: resolvedSource.metadata.bitRate,
       );
+      final currentId = _currentMediaItem?.id;
+      final nextId = _rollingCacheNextSongId(currentId);
       await _rollingCacheManager.enforceBudget(
         maxBytes: _readRollingCacheBudgetBytes(),
+        keepSongIds: {
+          for (final id in [currentId, nextId])
+            if (id != null) _canonicalSongId(id),
+        },
       );
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
