@@ -50,6 +50,20 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('prefetch next on mobile data defaults on and roundtrips', () async {
+      final initial = await repository.getSettings();
+      expect(initial.prefetchNextOnMobileData, isTrue);
+      await repository.saveSettings(
+        initial.copyWith(prefetchNextOnMobileData: false),
+      );
+      expect(
+        (await database.appSettingsDao.getSettings())!.prefetchNextOnMobileData,
+        isFalse,
+      );
+      await repository.saveSettings(initial);
+      expect((await repository.getSettings()).prefetchNextOnMobileData, isTrue);
+    }, skip: !sqliteAvailable);
+
     test(
       'playlist destination targeted save survives stale full-row save',
       () async {

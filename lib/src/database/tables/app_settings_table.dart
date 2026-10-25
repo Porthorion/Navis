@@ -29,6 +29,9 @@ class AppSettingsTable extends Table {
   BoolColumn get fastSeekingEnabled =>
       boolean().withDefault(const Constant(true))();
 
+  BoolColumn get prefetchNextOnMobileData =>
+      boolean().withDefault(const Constant(true))();
+
   BoolColumn get gaplessEnabled =>
       boolean().withDefault(const Constant(true))();
 

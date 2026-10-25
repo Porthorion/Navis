@@ -179,6 +179,7 @@ extension _NavisQueueEditing on NavisAudioHandler {
       }),
     );
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
+    _syncSidecarChain();
     // An index event emitted during the native edit may have been deferred
     // until this mirror committed. Refresh its song-scoped state now.
     if (!_isLoading && _pendingLogicalQueueSongIds == null) {

@@ -8,6 +8,29 @@ import 'package:path/path.dart' as p;
 
 class _MockHttpClient extends Mock implements HttpClient;
 
+class _MockRequest extends Mock implements HttpClientRequest;
+
+class _MockHeaders extends Mock implements HttpHeaders;
+
+class _FastResponse extends Mock implements HttpClientResponse {
+  new(this.body);
+
+  final Stream<List<int>> body;
+
+  @override
+  StreamSubscription<List<int>> listen(
+    void Function(List<int>)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) => body.listen(
+    onData,
+    onError: onError,
+    onDone: onDone,
+    cancelOnError: cancelOnError,
+  );
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = null;
@@ -33,6 +56,49 @@ void main() {
     if (tempDir.existsSync()) {
       await tempDir.delete(recursive: true);
     }
+  });
+
+  test('a fast response cannot outrun file writes', () async {
+    const chunkSize = 64 * 1024;
+    const chunkCount = 64;
+    final uri = Uri.parse('http://fixture.invalid/audio');
+    final client = _MockHttpClient();
+    final request = _MockRequest();
+    final headers = _MockHeaders();
+    final response = _FastResponse(
+      Stream.fromIterable(
+        List.generate(chunkCount, (_) => List<int>.filled(chunkSize, 1)),
+      ),
+    );
+    when(() => client.getUrl(uri)).thenAnswer((_) async => request);
+    when(request.close).thenAnswer((_) async => response);
+    when(() => response.headers).thenReturn(headers);
+    when(() => response.statusCode).thenReturn(HttpStatus.ok);
+    when(() => response.contentLength).thenReturn(chunkSize * chunkCount);
+    final downloader = RollingCacheSidecarDownloader(
+      httpClientFactory: () => client,
+    );
+    addTearDown(downloader.dispose);
+    final file = File(p.join(tempDir.path, 'backpressure.opus'));
+    var maxPendingBytes = 0;
+    await downloader.start(
+      songId: 'backpressure',
+      uri: uri,
+      cacheFilePath: file.path,
+      isTranscoded: true,
+      onProgress: (_) {
+        final path = downloader.activePartFilePath;
+        if (path == null) return;
+        final part = File(path);
+        if (!part.existsSync()) return;
+        final pending = downloader.activeReceivedBytes! - part.lengthSync();
+        if (pending > maxPendingBytes) maxPendingBytes = pending;
+      },
+      onComplete: (_) async {},
+      onTerminated: () {},
+    );
+    expect(file.lengthSync(), chunkSize * chunkCount);
+    expect(maxPendingBytes, lessThanOrEqualTo(chunkSize));
   });
 
   group('range resume', () {
