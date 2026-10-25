@@ -239,8 +239,10 @@ def _fmt(value) -> str:
 ANDROID_STALL = (3, 100)
 # Linux: same-code A/As (2026-10-25) failed the old max-vs-base rule in 3 of 5 runs: fix max/over50 204.0/1 vs base 20.6/0,
 # 353.8/2 vs 93.9/2, base 83.0/12 vs fix 50.9/2, and 50.2/1 vs 33.7/0 on the release comparison. Single-frame outliers
-# swing the max by 100s of ms, so only the >50 ms count is compared (worst same-code gap +1) with slack 3; p95 stays gated.
-LINUX_STALL_COUNT_SLACK = 3
+# swing the max by 100s of ms, so the max gets a wide absolute allowance (max(base max, 50) + 320 ms: 204 and 354 ms pass,
+# multi-second freezes fail) and the >50 ms count is held to base + 1 (worst same-code gap +1); p95 stays gated.
+LINUX_STALL_COUNT_SLACK = 1
+LINUX_STALL_MAX_SLACK_MS = 320
 
 
 def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> list[tuple[bool, str]]:
@@ -280,8 +282,10 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
                 ok = f['max'] <= 50 or (f['max'] <= b['max'] * factor + slack and f['over50'] <= b['over50'] * factor + slack)
                 limit = f'max <= 50 ms or (max and >50 ms count <= base * {_fmt(factor)} + {_fmt(slack)})'
             else:
-                ok = f['max'] <= 50 or f['over50'] <= b['over50'] + LINUX_STALL_COUNT_SLACK
-                limit = f'max <= 50 ms or >50 ms count <= base + {LINUX_STALL_COUNT_SLACK} (max not compared)'
+                ok = f['max'] <= 50 or (f['over50'] <= b['over50'] + LINUX_STALL_COUNT_SLACK
+                                        and f['max'] <= max(b['max'], 50) + LINUX_STALL_MAX_SLACK_MS)
+                limit = (f'max <= 50 ms or (>50 ms count <= base + {LINUX_STALL_COUNT_SLACK} '
+                         f'and max <= max(base max, 50) + {LINUX_STALL_MAX_SLACK_MS} ms)')
         else:
             raise ValueError(check)
         lines.append((ok, f"{'PASS' if ok else 'FAIL'} {scenario} {name}: fix={_fmt(f)} base={_fmt(b)} limit={limit}"))

@@ -42,6 +42,14 @@ class Thresholds(unittest.TestCase):
                           (drag_metrics(max_ms=93.9, over50=2), drag_metrics(max_ms=353.8, over50=2))):
             self.assertTrue(verdicts('stress-drag', base, fix)['frameGapStall:'])
 
+    def test_linux_stall_rule_fails_long_freezes_with_unchanged_p95(self):
+        base = drag_metrics(max_ms=20.0, over50=0)
+        self.assertFalse(verdicts('stress-drag', base, drag_metrics(max_ms=5000.0, over50=3))['frameGapStall:'])
+        self.assertFalse(verdicts('stress-drag', base, drag_metrics(max_ms=5000.0, over50=1))['frameGapStall:'])
+        # recorded same-code numbers and the final run still pass
+        for b, f in ((20.6, 204.0), (93.9, 353.8), (33.7, 50.2), (19.994, 20.103)):
+            self.assertTrue(verdicts('stress-drag', drag_metrics(max_ms=b), drag_metrics(max_ms=f, over50=1))['frameGapStall:'])
+
     def test_stall_rule_allows_what_the_base_also_does(self):
         slow = drag_metrics(max_ms=80.0, over50=2)
         self.assertTrue(verdicts('stress-drag', slow, slow)['frameGapStall:'])
