@@ -255,8 +255,8 @@ class NextSongReadiness(unittest.TestCase):
                           ('nextRequestLeadMinS', None), ('nextSeekLocalRate', None)):
             self.assertFalse(verdicts('repeat', base, {**good, name: bad})[name + ':'], (name, bad))
         android = h.evaluate('repeat', base, {**good, 'nextRequestLeadMinS': -1.0}, 'android')
-        self.assertTrue(all(ok for ok, _ in android))
-        self.assertTrue(any(line.startswith('INFO') for _, line in android))
+        self.assertFalse(all(ok for ok, _ in android))
+        self.assertTrue(all(ok for ok, _ in h.evaluate('repeat', base, good, 'android')))
 
 
 class PositionBlip(unittest.TestCase):
