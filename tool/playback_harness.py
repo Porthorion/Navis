@@ -203,7 +203,11 @@ def _fmt(value) -> str:
     return json.dumps(value) if isinstance(value, (list, dict)) else str(value)
 
 
-def evaluate(scenario: str, base: dict, fix: dict) -> list[tuple[bool, str]]:
+# A software-rendered guest janks in bursts (A/A: >50 ms counts of 1 vs 46, maxima 149 vs 188 ms), so Android's stall rule is wide.
+ANDROID_STALL = (3, 100)
+
+
+def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> list[tuple[bool, str]]:
     """PASS/FAIL lines of one scenario from the metrics of its base and fix variants."""
     lines = []
     for check in SCENARIOS[scenario]['checks']:
@@ -225,7 +229,7 @@ def evaluate(scenario: str, base: dict, fix: dict) -> list[tuple[bool, str]]:
         elif kind == 'base*':
             ok, limit = f <= b * args[0] + args[1], f'<= base * {_fmt(args[0])} + {_fmt(args[1])}'
         elif kind == 'stall':
-            factor, slack = args or (1, 0)
+            factor, slack = ANDROID_STALL if platform == 'android' else (1, 0)
             ok = f['max'] <= 50 or (f['max'] <= b['max'] * factor + slack and f['over50'] <= b['over50'] * factor + slack)
             limit = f'max <= 50 ms or (max and >50 ms count <= base * {_fmt(factor)} + {_fmt(slack)})'
         else:
@@ -611,7 +615,7 @@ def cmd_ab(args) -> int:
         raise InfraError(f'{DOWNLOADS} changed during the run (before/after in {out})')
     lines, comparison, ok = [], {}, True
     for name in names:
-        checked = evaluate(name, results[('base', name)], results[('fix', name)])
+        checked = evaluate(name, results[('base', name)], results[('fix', name)], platform)
         ok &= all(good for good, _ in checked)
         lines += [line for _, line in checked]
         comparison[name] = {'base': results[('base', name)], 'fix': results[('fix', name)], 'checks': [line for _, line in checked],

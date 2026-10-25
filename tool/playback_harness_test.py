@@ -39,6 +39,12 @@ class Thresholds(unittest.TestCase):
         slow = drag_metrics(max_ms=80.0, over50=2)
         self.assertTrue(verdicts('stress-drag', slow, slow)['frameGapStall:'])
 
+    def test_android_stall_rule_is_wider(self):
+        base, fix = drag_metrics(max_ms=149.0, over50=1), drag_metrics(max_ms=188.0, over50=46)
+        self.assertFalse(verdicts('stress-drag', base, fix)['frameGapStall:'])
+        android = {line.split()[2]: ok for ok, line in h.evaluate('stress-drag', base, fix, 'android')}
+        self.assertTrue(android['frameGapStall:'])
+
     def test_line_format(self):
         ok, line = h.evaluate('queue-edit', {'violations': 0}, {'violations': 2})[0]
         self.assertFalse(ok)
