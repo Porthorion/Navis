@@ -29,7 +29,7 @@ final class ProgressiveRepeat {
         if (requestedMode < 0 || requestedMode > 2) return -1;
         if (seeking) return RESUME;
         if (requestedMode == 1) return currentIndex;
-        if (currentIndex == itemCount - 1) return requestedMode == 2 ? 0 : -1;
+        if (currentIndex == itemCount - 1) return requestedMode == 2 ? 0 : (ended ? -1 : RESUME);
         return ended ? currentIndex + 1 : RESUME;
     }
 }

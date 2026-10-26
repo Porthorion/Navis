@@ -337,7 +337,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         boolean owned = ownsProgressiveRepeat();
         boolean pauseAtEnd = ProgressiveRepeat.pauseAtEnd(requestedLoopMode, owned,
                 player.getCurrentMediaItemIndex() == player.getMediaItemCount() - 1);
-        if (player.getPlayWhenReady()) {
+        if (player.getPlayWhenReady() || !playRequested) {
             repeatPauseUid = pauseAtEnd ? currentItemUid() : null;
         }
         player.setRepeatMode(owned ? Player.REPEAT_MODE_OFF : requestedLoopMode);
@@ -369,7 +369,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         final Object currentUid = currentItemUid();
         if (currentUid == null) return false;
         if (repeatAtEndUid == null) {
-            repeatAtEndUid = repeatPauseUid != null ? repeatPauseUid : currentUid;
+            repeatAtEndUid = currentUid;
         }
         if (!playRequested) return false;
         if (repeatPending) return true;
