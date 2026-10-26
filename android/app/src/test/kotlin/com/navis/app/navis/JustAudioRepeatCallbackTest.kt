@@ -1,5 +1,6 @@
 package com.navis.app.navis
 
+import android.os.Handler
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Method
 import java.lang.reflect.Proxy
@@ -11,8 +12,8 @@ import sun.misc.Unsafe
  * Callback-order regressions. The real bridge is driven through the same
  * Unsafe/reflection/proxy pattern as JustAudioRepeatBoundaryTest, but with:
  *  - one distinct timeline-window UID per queue item,
- *  - the production scheduling path with an inert Android Handler stub: callbacks return normally,
- *    then the newly pending (uid, revision) action is recorded and run later by runPosts(),
+ *  - the production scheduling path with a host Handler queue: callbacks return normally,
+ *    then runPosts() executes the actual captured runnables, including their UID/revision,
  *  - re-entrant ExoPlayer-style synchronous listener dispatch for setPlayWhenReady()/seekTo(),
  *  - an app-visible getPlayWhenReady() that lags the playback thread's native pause until
  *    deliverPause() (what Media3 1.4.1 does: ExoPlayerImpl.getPlayWhenReady() reads playbackInfo).
@@ -29,8 +30,6 @@ class JustAudioRepeatCallbackTest {
         target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
     }
 
-    class Post(val uid: Any, val revision: Long)
-
     inner class Fx(kinds: String, startIndex: Int, mode: Int) {
         val bridge: Any = unsafe.allocateInstance(bridgeClass)
         val tag = "probe-stream"
@@ -45,7 +44,8 @@ class JustAudioRepeatCallbackTest {
         var completedDispatches = 0
         var resumes = 0             // setPlayWhenReady(true) calls that changed state
         val seeks = mutableListOf<String>()
-        val posts = ArrayDeque<Post>()
+        private val handler = Handler()
+        val posts = handler.posted
         val log = mutableListOf<String>()
 
         private fun newItem(kind: Char): Any {
@@ -113,7 +113,7 @@ class JustAudioRepeatCallbackTest {
 
         init {
             for (k in kinds) addLocal(k)
-            put(bridge, "handler", unsafe.allocateInstance(Class.forName("android.os.Handler")))
+            put(bridge, "handler", handler)
             put(bridge, "player", exo)
             put(bridge, "progressiveHttpSources", hashSetOf(tag))
             put(bridge, "playRequested", true)
@@ -134,18 +134,9 @@ class JustAudioRepeatCallbackTest {
         fun call(name: String, vararg args: Any?) { find(name, args.size).invoke(bridge, *args) }
         fun field(name: String): Any? = bridgeClass.declaredFields.firstOrNull { it.name == name }?.apply { isAccessible = true }?.get(bridge)
 
-        /** Records a newly armed post after the entire callback returns through the inert Handler stub. */
         fun dispatch(block: () -> Unit) {
-            val pending = field("repeatPending") == true
-            val revision = field("repeatRevision")
             try { block(); completedDispatches++ } catch (e: InvocationTargetException) {
                 throw (e.cause ?: e)
-            }
-            if (field("repeatPending") == true && (!pending || revision != field("repeatRevision"))) {
-                val uid = field("repeatAtEndUid")
-                    ?: throw AssertionError("an empty timeline must not schedule a repeat post")
-                posts.addLast(Post(uid, field("repeatRevision") as Long))
-                log.add("post(rev=${field("repeatRevision")})")
             }
         }
 
@@ -181,8 +172,8 @@ class JustAudioRepeatCallbackTest {
         fun runPosts() {
             var n = 0
             while (posts.isNotEmpty()) {
-                val p = posts.removeFirst()
-                dispatch { call("completeProgressiveRepeat", p.uid, p.revision) }
+                val action = posts.removeFirst()
+                dispatch { action.run() }
                 if (++n > 20) fail("post storm: $log")
             }
         }
@@ -770,6 +761,7 @@ class JustAudioRepeatCallbackTest {
         f.deliverPause(false)
         val posted: Any = f.posts.single()
         assertTrue("capture the Runnable actually passed to Handler.post", posted is Runnable)
+        f.posts.removeFirst()
         (posted as Runnable).run()
         assertEquals(f.digest(), listOf("0@0"), f.seeks)
         assertEquals(f.digest(), 1, f.resumes)

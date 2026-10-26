@@ -100,7 +100,7 @@ android {
     }
 
     testOptions {
-        // The repeat fixture records posts itself while allowing the caller's tail to run.
+        // Android calls outside the test Handler queue remain inert in host JVM tests.
         unitTests.isReturnDefaultValues = true
     }
 

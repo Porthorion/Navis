@@ -69,68 +69,64 @@ set -e
 test "${navis_actual}" -eq 124
 
 python3 - "${navis_root}" <<'PYTHON'
-import copy
 import pathlib
+import re
 import shlex
 import sys
-import yaml
 
 root = pathlib.Path(sys.argv[1])
 check = (root / "tool/check.sh").read_text()
-workflow = yaml.safe_load((root / ".github/workflows/ci.yml").read_text())
-command = "./tool/android_repeat_native_test.sh"
+workflow = (root / ".github/workflows/ci.yml").read_text()
+commands = (("./tool/android_repeat_native_test.sh", "Android repeat bridge JVM"),
+            ("./tool/android_repeat_runner_test.sh", "Android repeat runner contract"))
+
+def job(source, name):
+    blocks = re.findall(rf"(?ms)^  {name}:\s*\n(.*?)(?=^  \S|\Z)", source)
+    assert len(blocks) == 1, f"expected one {name} job in the maintained workflow layout"
+    return blocks[0]
 
 def validate(check, workflow):
-    lines = [shlex.split(line, comments=True) for line in check.splitlines()
-             if command in line]
-    assert lines == [["run_step", "Android repeat bridge JVM", command]], "check.sh must run the bridge without swallowing failure"
-    native = workflow["jobs"]["native"]
-    assert "if" not in native and native.get("continue-on-error", False) is False, "native job must run and propagate failure"
-    steps = [step for step in native["steps"] if command in str(step.get("run", ""))]
-    assert len(steps) == 1 and steps[0]["run"].strip() == command, "CI must run the bridge without swallowing failure"
-    assert "if" not in steps[0] and steps[0].get("continue-on-error", False) is False, "bridge step must run and propagate failure"
-    ci = workflow["jobs"]["ci"]
-    assert "native" in ci["needs"], "CI aggregate must require native"
-    assert ci.get("continue-on-error", False) is False
-    assert any('test "${{ needs.native.result }}" = success' in step.get("run", "")
-               and "||" not in step["run"] and "if" not in step
-               and step.get("continue-on-error", False) is False for step in ci["steps"])
+    # Accept the repository's block/inline-step layout; unsupported forms fail closed.
+    native = job(workflow, "native")
+    assert not re.search(r"^\s*(?:if|continue-on-error):", native, re.M), "native job and steps must run and propagate failure"
+    runs = re.findall(r"^      - run: (.+)$", native, re.M)
+    for command, label in commands:
+        lines = [shlex.split(line, comments=True) for line in check.splitlines() if command in line]
+        assert lines == [["run_step", label, command]], f"check.sh must run {command} without swallowing failure"
+        assert [line for line in runs if command in line] == [command], f"CI must run {command} without swallowing failure"
+    ci = job(workflow, "ci")
+    needs = re.findall(r"^    needs: \[([^\]]+)\]$", ci, re.M)
+    assert len(needs) == 1 and "native" in [name.strip() for name in needs[0].split(",")], "CI aggregate must require native"
+    assert not re.search(r"^\s*continue-on-error:", ci, re.M)
+    assert re.findall(r"^\s*if:.*$", ci, re.M) == ["    if: always()"]
+    gate = ' && '.join(f'test "${{{{ needs.{name}.result }}}}" = success' for name in ("static", "test", "native"))
+    assert re.findall(r"^      - run: (.+)$", ci, re.M) == [gate], "CI aggregate must enforce each job's success"
 
 validate(check, workflow)
-# Prove the contract rejects silent skips and swallowed failures.
-for target in ("step", "job"):
-    for key, value in (("continue-on-error", True), ("if", False)):
-        broken = copy.deepcopy(workflow)
-        native = broken["jobs"]["native"]
-        subject = native if target == "job" else next(s for s in native["steps"] if s.get("run") == command)
-        subject[key] = value
-        try:
-            validate(check, broken)
-        except AssertionError:
-            pass
-        else:
-            raise AssertionError(f"contract accepted {target} {key}")
+negative_count = 0
 
-# Raw source variants also prove comments and shell suffixes cannot hide a gate.
-workflow_source = (root / ".github/workflows/ci.yml").read_text()
-for variant_command in ("./tool/android_repeat_native_test.sh", "./tool/android_repeat_runner_test.sh"):
-    for replacement in (f"- run: {variant_command} || true", f"# - run: {variant_command}"):
-        broken = workflow_source.replace(f"- run: {variant_command}", replacement)
-        try:
-            validate(check, yaml.safe_load(broken))
-        except AssertionError:
-            pass
-        else:
-            raise AssertionError(f"contract accepted {replacement}")
-for variant_command, label in (("./tool/android_repeat_native_test.sh", "Android repeat bridge JVM"),
-                       ("./tool/android_repeat_runner_test.sh", "Android repeat runner contract")):
-    line = f'run_step "{label}" {variant_command}'
-    for replacement in (f"{line} || true", f"# {line}"):
-        try:
-            validate(check.replace(line, replacement), workflow)
-        except AssertionError:
-            pass
-        else:
-            raise AssertionError(f"contract accepted {replacement}")
+def rejects(broken_check, broken_workflow, label):
+    global negative_count
+    try:
+        validate(broken_check, broken_workflow)
+    except AssertionError:
+        negative_count += 1
+    else:
+        raise AssertionError(f"contract accepted {label}")
+
+# Keep the previously scratch-only failure, comment-out and removal variants here.
+for command, label in commands:
+    step = f"- run: {command}"
+    line = f'run_step "{label}" {command}'
+    assert workflow.count(step) == 1 and check.count(line) == 1
+    for replacement in (f"{step} || true", f"# {step}", ""):
+        rejects(check, workflow.replace(step, replacement), replacement or f"removed {step}")
+    for replacement in (f"{line} || true", f"# {line}", ""):
+        rejects(check.replace(line, replacement), workflow, replacement or f"removed {line}")
+    for key in ("continue-on-error: true", "if: false"):
+        rejects(check, workflow.replace(step, f"{step}\n        {key}"), f"{command} {key}")
+for key in ("continue-on-error: true", "if: false"):
+    rejects(check, workflow.replace("  native:\n", f"  native:\n    {key}\n"), f"native {key}")
+print(f"Android repeat CI contract: {negative_count} negative variants rejected (stdlib).")
 PYTHON
 echo 'Android repeat runner: wrapper, bounds, nonzero test counts, failure propagation and gate wiring passed.'
