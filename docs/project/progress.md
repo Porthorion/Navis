@@ -14,6 +14,15 @@ Last updated: 2026-10-25
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 14 Android Ogg/Opus cut splice — `fix/ogg-cut-splice`:
+  `LockCachingAudioSource` continues a cut unknown-length Opus transcode from a
+  `timeOffset` request one second early through `OggOpusSplicer` (headers dropped;
+  serial, sequence, granule, CRC rewritten; overlap dropped), so the player sees
+  no cut. Test-first: the wiring tests failed to compile before the fix; unit,
+  wiring and resolver tests added. Harness `cut-recovery` cuts only the first
+  body on Android and gates reloads, player errors, continuation requests and the
+  final file decode. Remaining: Android base-vs-fix harness run and `check.sh`
+  evidence.
 - [ ] Issue #86, item 13b Android next-song warm — `fix/android-next-warm`: at
   current-song completion `_syncSidecarChain` starts the next song's own
   lock-cache source with the vendored `prefetch()` (no replay buffer); one source

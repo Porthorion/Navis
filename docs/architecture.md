@@ -4054,6 +4054,25 @@ queue is still loading, the Play waits and restarts recovery once that load
 completes; only an error-free event that is not idle clears the failure. Song and station state remain buffering while waiting, preserving OS
 transport controls.
 
+On Android, a cut Opus transcode that the lock-cache download is receiving
+(an unknown-length `OggS` body) is spliced instead of failing. The vendored
+`LockCachingAudioSource` takes a `continuationUri` callback; the resolver sets
+it only for an Opus transcode on a server with `timeOffset` support, using the
+same URI builder as the offset stream. On an origin error or a body-progress
+timeout the source requests `timeOffset = floor((lastGranule - preSkip)/48000) - 1`
+(one second of decoder pre-roll) and feeds that body through `OggOpusSplicer`
+into the same `.part` and client fan-out: it forwards only complete pages, drops
+the continuation's OpusHead/OpusTags pages, rewrites serial, page sequence,
+granule and CRC, and drops packets that end at or before the delivered granule.
+The player therefore sees one continuous stream and no reload or recovery runs.
+At most two continuations per fetch; none after a cancel; a cut before the first
+audio page, a header mismatch or an unplaceable packet takes the plain failure
+path (`.part` deleted, error to the clients). Media3 never checks serial or
+sequence after the first headers, which is why the splice is a same-stream
+rewrite and not a chained stream. Each attempt reports an `oggSplice` transport
+trace event. Other formats, known-length responses and desktop (mpv reads the
+origin directly) keep exact-position recovery.
+
 On desktop, a native auto-advance (including Repeat One) or final-item
 completion can hide a cut transcode as a clean EOF. Navis compares the departed
 occurrence's last backend position with its authoritative `MediaItem.duration`.

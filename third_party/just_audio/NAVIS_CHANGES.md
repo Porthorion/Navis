@@ -141,3 +141,13 @@ harness. The pairwise Dart loop detector now also recognizes unknown-duration
 plain-stream backwards jumps; tail/zero/buffering/ready fixtures cover middle
 and last items with and without offsets. Navis's existing offset handler and
 crossfade controller remain the sole Dart owners of offset reloads and fades.
+
+`LockCachingAudioSource.continuationUri` (with `onOggSplice`) opts an
+unknown-length Ogg/Opus download into a cut splice. When the body is cut or
+stalls, the source requests `continuationUri(floor(t) - 1)` and joins the new
+body into the same stream with `OggOpusSplicer` (`lib/src/ogg_opus_splicer.dart`):
+header pages dropped; serial, page sequence, granule and CRC rewritten;
+overlapped packets dropped. At most two continuations per fetch; cancellation
+makes none; a failure behaves as before (partial file deleted, error to the
+clients). Null keeps the previous behaviour. `cancelDownload()` now closes the
+HTTP client before awaiting the subscription cancel.

@@ -130,6 +130,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'On Android, a streamed Opus song whose connection drops mid-song now '
+        'keeps playing without a pause or restart: Navis reconnects a second '
+        'earlier and joins the new audio to the old.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Adding an album or several songs to a server playlist now works on '
         'Navidrome 0.64, which silently ignored multi-song adds. Navis '
         'verifies the result and reports songs that could not be added.',
