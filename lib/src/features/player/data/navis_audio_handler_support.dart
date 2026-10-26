@@ -13,7 +13,7 @@ bool get _supportsAudioSessionRuntime =>
     !kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
 
 class _PreparedQueueItem {
-  const new({
+  new({
     required this.song,
     required this.source,
     required this.mediaItem,
@@ -23,7 +23,7 @@ class _PreparedQueueItem {
   final SongsTableData song;
   final ResolvedPlaybackSource source;
   final MediaItem mediaItem;
-  final AudioSource audioSource;
+  AudioSource audioSource;
 }
 
 class CrossfadeTransitionMetric {

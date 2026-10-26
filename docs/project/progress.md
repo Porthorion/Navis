@@ -14,6 +14,12 @@ Last updated: 2026-10-25
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 13b Android next-song warm — `fix/android-next-warm`: at
+  current-song completion `_syncSidecarChain` starts the next song's own
+  lock-cache source with the vendored `prefetch()` (no replay buffer); one source
+  per cache file across rebuilds and duplicates, paused during a live range fetch,
+  cancelled on dispose, radio, gate close and queue edits; Android now gates the
+  `repeat` next-song metrics. Remaining: Android harness proof at the final HEAD.
 - [ ] Issue #86, item 13 prefetch check and tune — `fix/prefetch-13`: desktop
   next-song warm chained on the sidecar downloader, shared next-song helper
   (Repeat One/All, shuffle) for the Android stale/priority logic, eviction keeps

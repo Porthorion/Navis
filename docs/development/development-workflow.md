@@ -1445,7 +1445,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   | `seek` | seek landing, offset path, cache integrity |
   | `stress-drag` | held slider drag: preview sockets, GETs, heartbeat, release latency |
   | `memory-soak` | PSS + SwapPss slope and post-GC total, plus Dart heap over 20 drags and an idle window |
-  | `repeat` | Repeat One/All wraps, append at the queue end, next-song readiness and network-free seeks at handover (`chain_end`; Linux gates, informational on Android) |
+  | `repeat` | Repeat One/All wraps, append at the queue end, next-song readiness and network-free seeks at handover (`chain_end`; gated on Linux and Android) |
   | `crossfade` | hand-off under a 4 s cross-fade, skips |
   | `cut-recovery` | origin cuts, dead sources, cold seeks |
   | `local-seek` | seeks in a downloaded or fully cached file |
@@ -1490,7 +1490,9 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   transcoding let the current and next download finish within the 25 s wait.
   The wait is also bounded by remaining playback time minus 10 s. It waits
   for the complete next file, rather than its first GET. `nextRequestLeadS`
-  and `nextBytesAtHandover` come from full-song Dart requests in the proxy log;
+  and `nextBytesAtHandover` come from the app's own full-song requests in the proxy log (Dart user
+  agent on desktop; on Android the lock-cache origin GET with the player's
+  `Navis/<ver>` user agent and no Range or `bytes=0-`, never `Navis Desktop`);
   missing requests count as cold. `nextSeekLocal` requires the final cache
   file to match a completed full-song GET before the 2 s seek and no new media
   request for that song after the seek. This proves a network-free seek with

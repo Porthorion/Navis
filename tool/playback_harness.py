@@ -121,7 +121,6 @@ SCENARIOS = {
         areas=QUEUE,
         checks=[('violations', '<=', 0)]),
 }
-INFORMATIONAL_ON_ANDROID = ('nextRequestLeadMinS', 'nextBytesAtHandoverMin', 'nextSeekLocalRate')
 ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'queue-edit')
 PLAYER_FALLBACK = 'lib/src/features/player/**'
 
@@ -251,10 +250,6 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
     for check in [('caseErrors', 'clean')] + SCENARIOS[scenario]['checks']:
         name, kind, *args = check
         f, b = fix.get(name), base.get(name)
-        if platform == 'android' and name in INFORMATIONAL_ON_ANDROID:
-            # Item 13 measures what ExoPlayer's own preload does before deciding on an Android warm: report, do not gate.
-            lines.append((True, f'INFO {scenario} {name}: fix={_fmt(f)} base={_fmt(b)} (not gated on Android)'))
-            continue
         if kind == 'clean':  # a harness or app error in a cell is never a zero
             ok, limit = f == 0, 'no case/oracle error or app exit'
         elif kind == 'nonew':
