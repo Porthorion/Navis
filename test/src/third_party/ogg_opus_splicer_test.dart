@@ -108,6 +108,7 @@ Uint8List _page(
   List<List<int>> packets, {
   int flags = 0,
   int seq = 2,
+  int serial = 42,
   List<int>? lacing,
 }) {
   final body = packets.expand((p) => p).toList();
@@ -124,7 +125,7 @@ Uint8List _page(
   out[5] = flags;
   final h = ByteData.sublistView(out)
     ..setInt64(6, granule, Endian.little)
-    ..setUint32(14, 42, Endian.little)
+    ..setUint32(14, serial, Endian.little)
     ..setUint32(18, seq, Endian.little);
   out[26] = segments.length;
   out.setRange(27, 27 + segments.length, segments);
@@ -133,7 +134,7 @@ Uint8List _page(
   return out;
 }
 
-List<int> _headers() => [
+List<int> _headers({int serial = 42}) => [
   ..._page(
     0,
     [
@@ -141,8 +142,9 @@ List<int> _headers() => [
     ],
     flags: 2,
     seq: 0,
+    serial: serial,
   ),
-  ..._page(0, ['OpusTags'.codeUnits], seq: 1),
+  ..._page(0, ['OpusTags'.codeUnits], seq: 1, serial: serial),
 ];
 
 void main() {
@@ -363,28 +365,90 @@ void main() {
         [152, 0],
       ]),
     ]);
-    s.beginContinuation(0);
+    s.beginContinuation(2);
     final pages = pagesOf(
       s.splice([
-        ..._headers(),
+        ..._headers(serial: 84),
         ..._page(1920, [
           [152, 0],
           [152, 1],
-        ]),
-        ..._page(1920, [], flags: 4),
+        ], serial: 84),
+        ..._page(1920, [], flags: 4, serial: 84),
       ]),
     );
     expect(pages, hasLength(2));
     expect(pages.first.flags & 4, 0);
     expect(pages.last.flags & 4, 4);
     expect(pages.last.packets, isEmpty);
-    expect(pages.last.granule, 1920);
+    expect(pages.last.granule, 96000 + 1920);
     expect(pages.map((p) => p.seq).toList(), [3, 4]);
     expect(pages.every((p) => p.crcOk && p.serial == 42), isTrue);
     expect(s.continuationComplete, isTrue);
   });
 
-  test('a cut after EOS does not append a duplicate empty EOS', () {
+  for (final partial in [false, true]) {
+    test(
+      'empty EOS cannot be emitted with ${partial ? 'a partial packet' : 'missing headers'}',
+      () {
+        final s = OggOpusSplicer();
+        s.forward([
+          ..._headers(),
+          ..._page(960, [
+            [152, 0],
+          ]),
+        ]);
+        s.beginContinuation(0);
+        expect(
+          s.splice([
+            if (partial) ...[
+              ..._headers(serial: 84),
+              ..._page(-1, [List.filled(255, 152)], lacing: [255], serial: 84),
+            ],
+            ..._page(-1, [], flags: 4, serial: 84),
+          ]),
+          isEmpty,
+        );
+        expect(s.continuationComplete, isFalse);
+      },
+    );
+  }
+
+  for (final emptyEos in [false, true]) {
+    test(
+      'end trim preserves a short mixed-duration packet, empty EOS=$emptyEos',
+      () {
+        final s = OggOpusSplicer();
+        s.forward([
+          ..._headers(),
+          ..._page(960, [
+            [152, 0],
+          ]),
+        ]);
+        s.beginContinuation(0);
+        final packets = [
+          [144, 1],
+          [152, 2],
+        ]; // 480 + 960 samples, with 700 trimmed at the end.
+        final pages = pagesOf(
+          s.splice([
+            ..._headers(),
+            ..._page(960, [
+              [152, 0],
+            ]),
+            ..._page(1700, packets, flags: emptyEos ? 0 : 4),
+            if (emptyEos) ..._page(1700, [], flags: 4),
+          ]),
+        );
+        expect(pages.expand((p) => p.packets).toList(), packets);
+        expect(pages.last.granule, 1700);
+        expect(pages.last.flags & 4, 4);
+        expect(pages.every((p) => p.crcOk), isTrue);
+        expect(s.droppedPackets, 1);
+      },
+    );
+  }
+
+  test('a cut after EOS cannot continue or append a duplicate EOS', () {
     final s = OggOpusSplicer();
     s.forward([
       ..._headers(),
@@ -392,6 +456,7 @@ void main() {
         [152, 0],
       ], flags: 4),
     ]);
+    expect(s.canContinue, isFalse);
     s.beginContinuation(0);
     expect(
       s.splice([

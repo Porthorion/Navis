@@ -1,6 +1,7 @@
 // ignore_for_file: experimental_member_use, reason: exercises the Navis splice additions to the vendored source.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -195,6 +196,85 @@ void main() {
     expect(error, isNotNull);
     expect(requests, hasLength(1));
     expect(File('${cacheFile.path}.part').existsSync(), isFalse);
+  });
+
+  test('pre-listen cancel closes its sink and clears downloading', () async {
+    final (server, _) = await _origin(
+      [full],
+      [_Reply(cut.length, _End.complete)],
+    );
+    addTearDown(() => server.close(force: true));
+    final sinks = <_TrackedSink>[];
+    addTearDown(() async {
+      for (final sink in sinks) {
+        if (!sink.closed) await sink.close();
+      }
+    });
+    late LockCachingAudioSource s;
+    Future<void>? cancellation;
+    Object? error;
+    await IOOverrides.runZoned(
+      () async {
+        s = source(server);
+        await s.prefetch().catchError((Object e) => error = e);
+        await cancellation;
+      },
+      createFile: (path) {
+        final file = Zone.root.run(() => File(path));
+        return path == '${cacheFile.path}.part'
+            ? _TrackedPart(file, (sink) {
+                sinks.add(sink);
+                cancellation = s.cancelDownload();
+              })
+            : file;
+      },
+    );
+    expect(error, isA<StateError>());
+    expect(sinks, hasLength(1));
+    expect(
+      sinks.single.closed,
+      isTrue,
+      reason: 'pre-listen cancellation must close the file sink',
+    );
+    expect(s.isDownloading, isFalse);
+    expect(cacheFile.existsSync(), isFalse);
+    expect(File('${cacheFile.path}.part').existsSync(), isFalse);
+  });
+
+  test('a cut immediately after EOS makes no continuation request', () async {
+    final (server, requests) = await _origin(
+      [full, from2],
+      [_Reply(full.length, _End.cut), _Reply(from2.length, _End.complete)],
+    );
+    addTearDown(() => server.close(force: true));
+    final events = <Map<String, Object?>>[];
+    final (bytes, error) = await drain(source(server, events: events));
+    expect(requests, [null]);
+    expect(error, isA<HttpException>());
+    expect(bytes, full);
+    expect(events, isEmpty);
+  });
+
+  test('a failed second attempt reports its own dropped count', () async {
+    final (server, requests) = await _origin(
+      [full, from2, const []],
+      [
+        _Reply(cut.length, _End.cut),
+        _Reply(6000, _End.cut),
+        _Reply(0, _End.complete, status: 404),
+      ],
+    );
+    addTearDown(() => server.close(force: true));
+    final events = <Map<String, Object?>>[];
+    final (_, error) = await drain(source(server, events: events));
+    expect(error, isA<HttpException>());
+    expect(requests, hasLength(3));
+    expect(events, hasLength(2));
+    expect(events.first['result'], 'cut');
+    expect(events.first['dropped'], greaterThan(0));
+    expect(events.last['attempt'], 2);
+    expect(events.last['result'], 'failed');
+    expect(events.last['dropped'], 0);
   });
 
   for (final splice in [false, true]) {
@@ -752,3 +832,35 @@ Future<T> _withSetupClock<T>(FakeAsync clock, Future<T> Function() body) =>
         },
       ),
     );
+
+class _TrackedPart extends Fake implements File {
+  _TrackedPart(this.inner, this.onOpen);
+  final File inner;
+  final void Function(_TrackedSink) onOpen;
+  @override
+  void createSync({bool recursive = false, bool exclusive = false}) =>
+      inner.createSync(recursive: recursive, exclusive: exclusive);
+  @override
+  IOSink openWrite({FileMode mode = FileMode.write, Encoding encoding = utf8}) {
+    final sink = _TrackedSink(inner.openWrite(mode: mode, encoding: encoding));
+    onOpen(sink);
+    return sink;
+  }
+
+  @override
+  bool existsSync() => inner.existsSync();
+  @override
+  void deleteSync({bool recursive = false}) =>
+      inner.deleteSync(recursive: recursive);
+}
+
+class _TrackedSink extends Fake implements IOSink {
+  _TrackedSink(this.inner);
+  final IOSink inner;
+  bool closed = false;
+  @override
+  Future<void> close() async {
+    closed = true;
+    await inner.close();
+  }
+}

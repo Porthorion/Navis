@@ -315,6 +315,7 @@ void main() {
           cacheFile: file,
           continuationUri: splice ? (_) => uri : null,
         );
+        addTearDown(source.cancelDownload);
         final other = AudioSource.uri(Uri.parse('https://example.com/other'));
         final player = AudioPlayer(
           handleAudioSessionActivation: false,
@@ -341,6 +342,7 @@ void main() {
           case 'replace':
             await player.setAudioSources([other]);
           case 'dispose':
+            source.pauseDownload();
             await player.dispose();
         }
         expect(
