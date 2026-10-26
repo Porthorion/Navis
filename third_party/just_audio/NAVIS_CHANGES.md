@@ -151,8 +151,10 @@ before resuming, including removal of the last eligible stream elsewhere while
 the paused occurrence remains current. Removing the current occurrence can also
 recover an ENDED engine with a remaining stream, or a file-only Repeat All queue;
 the old post's UID is never reused for the fresh boundary. Paused queue edits
-refresh the policy snapshot, preserving the legacy paused-ENDED rewind. An
-in-item seek re-arms pause policy after seeking. Off releases a non-last pause
+refresh the policy snapshot; the legacy paused-ENDED rewind applies only without
+a retained boundary UID. With one retained, mode/queue edits can leave the engine
+ENDED or publish Off completion, and a later Play can advance to an appended
+song instead of replaying. An in-item seek re-arms pause policy after seeking. Off releases a non-last pause
 without restarting the song (advancing if already ENDED). On the last item it
 resumes the current position when native state is not ENDED, including the late
 end-after-scrub case that previously stayed paused. A truly ENDED engine publishes
@@ -164,7 +166,11 @@ Known limits: Pause/Play before the native boundary signal can advance under
 Repeat One, and a seek before a delayed end reason can still be overwritten by
 a restart at zero under Repeat One/All. Off now resumes that scrubbed last item
 without seeking when the engine is not ENDED. Removing a current Repeat One
-stream into a READY file successor can still require explicit Play. Existing
+stream into any READY successor (streamed or local) can still require explicit
+Play, as on the original implementation. Play can itself be lost if it reuses a
+pending post and a second command removes the current occurrence before the post
+runs in the same main-looper turn. Owned Repeat All removal of the playing last
+song can start item 1 instead of item 0; this also predates these fixes. Existing
 app-visible state cannot distinguish the pre-delivery races from ordinary
 in-item Pause/Play or a fresh EOF after seeking.
 `ProgressiveRepeatTest` covers policy and restart decisions in the existing JVM
@@ -173,8 +179,10 @@ playlist tag scan and posted action using the existing reflection/proxy JVM
 fixtures, with the posted callback driven directly instead of an Android Looper.
 `JustAudioRepeatCallbackTest` drives production scheduling, timeline and item
 transition listeners, distinct occurrence UIDs and ExoPlayer-style callback
-order. It captures the missing-Handler post boundary and runs the guarded action;
-it does not run an Android Looper or the posted lambda itself.
+order. An inert Android Handler stub lets scheduling return normally, so the
+caller tails and completion suppression are exercised. The fixture records each
+new pending UID/revision and runs the guarded action directly; it does not run
+an Android Looper or the posted lambda itself.
 The pairwise Dart loop detector now also recognizes unknown-duration
 plain-stream backwards jumps; tail/zero/buffering/ready fixtures cover middle
 and last items with and without offsets. Navis's existing offset handler and

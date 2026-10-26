@@ -4684,10 +4684,20 @@ An ordinary in-item seek re-evaluates loop policy after seeking, so it re-arms
 the pause-policy UID even without a media-item transition or PlayWhenReady
 change. Removing or replacing a captured boundary occurrence cancels both the
 post and the paused boundary retained for explicit Play. A Repeat One removal
-that leaves a file successor already READY can still need explicit Play;
-no fresh ENDED recovery is available in that case. Paused queue edits refresh
-the pause-policy snapshot too, preserving the legacy paused-ENDED rewind without
-resuming playback. Item/timeline changes and source replacement re-evaluate
+that leaves any successor already READY, streamed or local, can still need
+explicit Play; no fresh ENDED recovery is available in that case. This also
+occurs on the original implementation. An explicit Play that reuses a pending
+post can itself be lost if the current occurrence is removed before that post
+runs: two commands in one main-looper turn leave the READY engine paused.
+Under owned Repeat All, removing the playing last song can start item 1 rather
+than item 0: Media3 selects item 0 and reports ENDED, which the bridge interprets
+as item 0 ending. This also predates the boundary fixes.
+
+Paused queue edits refresh the pause-policy snapshot. The legacy paused-ENDED
+rewind still applies when no boundary UID is retained; with a retained boundary,
+mode and queue changes can instead leave the engine ENDED, publish completion
+under Off, and make the next Play advance to an appended song rather than replay.
+Item/timeline changes and source replacement re-evaluate
 eligibility and the last-item pause policy, so an append while playing enables auto-advance and removal can make
 the current item last.
 

@@ -159,15 +159,13 @@ const List<ChangelogVersion> changelogs = [
         'Playback keeps its place until you let go.',
       ),
       ChangelogEntry(
-        'Android: with Repeat All, songs no longer restart just before their end. '
-        'Mixed queues stay protected. At an end pause, appends, mode changes '
-        'and removal of another streamed song keep the current occurrence '
-        'moving in either event order. Removing the current song no longer '
-        'leaves playback stuck in ENDED when another stream remains. Repeat Off '
-        'releases a last-item pause if the engine has not ended, preserving '
-        'a scrubbed position. Seeks after a reported pause keep their target. '
-        'Pre-delivery scrubs can still restart under Repeat One/All, and '
-        'pre-delivery Pause/Play can advance under Repeat One.',
+        'Android: Repeat All no longer restarts streamed songs just before '
+        'they finish. Changing repeat mode, adding songs or removing another '
+        'streamed song at the end of a song keeps playback moving. Seeking '
+        'after the player pauses at a song’s end keeps the chosen position; '
+        'turning Repeat Off also releases that pause. Removing the current '
+        'song can still leave playback paused. Seeking or pressing Pause then '
+        'Play just as a song ends can still restart it or skip to the next song.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

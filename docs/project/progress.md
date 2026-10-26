@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-26
+Last updated: 2026-10-27
 
 ---
 
@@ -15,9 +15,9 @@ Last updated: 2026-10-26
 
 ## Current Focus
 - [ ] Issue #86, P2 Android repeat-boundary policy (triage 06, 07, 09) —
-  R3 implementation on `fix/android-repeat-boundary`, 2026-10-26; orchestrator
-  full quality gate, hosted CI, follow-up review, Linux smoke and Android runtime
-  acceptance remain pending. R1/R2 repaired delivered-pause policy changes,
+  R4 implementation on `fix/android-repeat-boundary`, 2026-10-27; R3 review found
+  no blockers. Orchestrator full quality gate, hosted CI, Linux smoke and Android
+  runtime acceptance remain pending. R1/R2 repaired delivered-pause policy changes,
   app-thread-first delivery and post-scrub re-arming. R3 captures the current UID
   for fresh recovery after current-occurrence removal, restores paused policy
   refresh (`|| !playRequested`, which was not redundant), and resumes an Off
@@ -34,25 +34,45 @@ Last updated: 2026-10-26
   R3's adapted fast sweep kills 38/49 bridge mutations: the 46 non-fix
   reviewer variants plus inverse mutations of the three fixes. All seven target
   mutations (U6/C4/K4/L3 and the inverse fixes) die; 17/17 pure mutations die too.
-  Eleven bridge survivors remain explicitly recorded in the handoff; redundant
-  predicates, error/load cleanup and the host seam are not claimed fully covered.
-  Foreground 6 GiB-capped checks pass: native suites including 54 repeat bridge
-  tests (43 callback cases and 11 boundary/scan cases), 97 repeat decisions,
-  13 retry fixtures, equalizer fixtures and 11 changelog/release-note tests.
+  The eleven R3 bridge survivors included two observable gaps, S4 (late end
+  after Pause) and K3 (Pause/scrub/Play loses the scrub), as well as redundant
+  predicates and error/load cleanup. R4 commits the reviewer's S4/K3 probes and
+  the Off-completion flag-reset probe. It also replaces the missing-Handler
+  exception seam with an inert default-returning Handler stub: scheduling now
+  returns normally, exercising callback tails and the completed-state assertions.
+  A failing-first seam test reported `expected:<2> but was:<1>` on R3. The real
+  Looper, posted lambda and native audio timing still require runtime evidence.
+  R4's four target bridge mutants all die: K3, S4, the Off-completion reset and
+  scheduling's success return (the last now fails four completion assertions).
+  Foreground 6 GiB-capped R4 checks pass: 58 repeat bridge tests (47 callback
+  cases and 11 boundary/scan cases), five related recovery/error tests, and
+  11 changelog/release-note tests. Dart formatting and shell syntax pass too.
+  R3 also passed 97 repeat decisions, 13 retry and equalizer fixtures, and
+  11 changelog/release-note tests.
   Dart formatting, shell syntax, CI YAML wiring and the runner contract checks
   pass. The bounded runner and its hermetic contract are wired into `check.sh`
   immediately after the pure fixtures and into the new
   required CI `native` job. The runner uses a ten-minute timeout, one worker,
-  bounded JVM memory and no persistent daemon, APK install or device.
-  Fresh execution of the supplied model reports one failing seed in 8,000
-  (4927): removing a current Repeat One stream into a READY file successor still
-  requires explicit Play. Pre-delivery Pause/Play can advance under Repeat One,
+  bounded JVM memory and no persistent daemon, APK install or device. R4 pins
+  all actions in the native job by full SHA, parses CI YAML to reject suppressed
+  failures/conditional skips, and requires nonzero executed-test counts in both
+  named suites from Gradle XML. The old contract accepted all eight negative
+  wiring variants (`contract accepted 8/8 broken gates`); R4 rejects them all.
+  R3 execution of the supplied model reports one failing seed in 8,000
+  (4927): removing a current Repeat One stream into a READY successor can still
+  require explicit Play, whether streamed or local, as on base. A Play reusing a
+  pending post can itself be lost if the current occurrence is removed before
+  the post runs in the same main-looper turn. Owned Repeat All removal of the
+  playing last song can start item 1 instead of item 0 (also on base). Paused
+  queue edits preserve the legacy ENDED rewind only without a retained boundary
+  UID; with one retained they can complete under Off and advance on the next Play.
+  Pre-delivery Pause/Play can advance under Repeat One,
   and a pre-delivery seek can still restart under One/All; the Off form now
   resumes the current position when not ENDED. These limits are documented,
   alongside the narrower non-current last-stream-removal continuation guarantee.
-  The fixture captures the missing-Handler post point and drives the guarded
-  action, not an Android Looper or the posted lambda. No emulator, harness, VM,
-  analyzer or `./tool/check.sh` ran here; the orchestrator owns runtime/full-gate
+  The fixture records each newly pending UID/revision after the callback returns
+  and drives the guarded action, not an Android Looper or the posted lambda.
+  No emulator, harness, VM, analyzer or `./tool/check.sh` ran here; the orchestrator owns runtime/full-gate
   checks. AI implementation/verification: Codex gpt-6.1-sol; local commits only,
   no push, PR or Fable model use. The legacy empty-playlist fallback is unchanged.
 - [ ] Issue #86, item 13b Android next-song warm — `fix/android-next-warm`: at
