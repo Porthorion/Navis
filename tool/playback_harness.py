@@ -126,7 +126,7 @@ SCENARIOS = {
 # clean and joins within the rms bound (the base line shows its reloads for comparison; the base must be >= 1 to prove the cut bites).
 ANDROID_CHECKS = {'cut-recovery': [('reloadsAfterCut', '<=', 0), ('playerErrorsAfterCut', '<=', 0), ('frozenMedianS', '<=', 1.0),
                                    ('spliceRequestsOk', 'true'), ('spliceFileOk', 'true'), ('joinRmsMax', '<=', 0.005)]}
-ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'queue-edit')
+ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'queue-edit', 'cut-recovery')
 PLAYER_FALLBACK = 'lib/src/features/player/**'
 
 
