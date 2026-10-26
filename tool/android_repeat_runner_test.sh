@@ -88,17 +88,19 @@ def job(source, name):
 def validate(check, workflow):
     # Accept the repository's block/inline-step layout; unsupported forms fail closed.
     native = job(workflow, "native")
-    assert not re.search(r"^\s*(?:if|continue-on-error):", native, re.M), "native job and steps must run and propagate failure"
+    ci = job(workflow, "ci")
+    # Quoted keys and anchors/aliases/merges would evade these line checks: fail closed on them.
+    assert not re.search(r"(?:^|[\s:\[,-])[&*][\w-]|<<\s*:", native + ci), "native/ci jobs must not use YAML anchors, aliases or merges"
+    assert not re.search(r"^\s*(?:-\s+)?[\"']?(?:if|continue-on-error)[\"']?\s*:", native, re.M), "native job and steps must run and propagate failure"
     runs = re.findall(r"^      - run: (.+)$", native, re.M)
     for command, label in commands:
         lines = [shlex.split(line, comments=True) for line in check.splitlines() if command in line]
         assert lines == [["run_step", label, command]], f"check.sh must run {command} without swallowing failure"
         assert [line for line in runs if command in line] == [command], f"CI must run {command} without swallowing failure"
-    ci = job(workflow, "ci")
     needs = re.findall(r"^    needs: \[([^\]]+)\]$", ci, re.M)
     assert len(needs) == 1 and "native" in [name.strip() for name in needs[0].split(",")], "CI aggregate must require native"
-    assert not re.search(r"^\s*continue-on-error:", ci, re.M)
-    assert re.findall(r"^\s*if:.*$", ci, re.M) == ["    if: always()"]
+    assert not re.search(r"^\s*(?:-\s+)?[\"']?continue-on-error[\"']?\s*:", ci, re.M)
+    assert re.findall(r"^\s*(?:-\s+)?[\"']?if[\"']?\s*:.*$", ci, re.M) == ["    if: always()"]
     gate = ' && '.join(f'test "${{{{ needs.{name}.result }}}}" = success' for name in ("static", "test", "native"))
     assert re.findall(r"^      - run: (.+)$", ci, re.M) == [gate], "CI aggregate must enforce each job's success"
 
@@ -123,10 +125,12 @@ for command, label in commands:
         rejects(check, workflow.replace(step, replacement), replacement or f"removed {step}")
     for replacement in (f"{line} || true", f"# {line}", ""):
         rejects(check.replace(line, replacement), workflow, replacement or f"removed {line}")
-    for key in ("continue-on-error: true", "if: false"):
+    for key in ("continue-on-error: true", "if: false", '"if": false', "'continue-on-error': true"):
         rejects(check, workflow.replace(step, f"{step}\n        {key}"), f"{command} {key}")
-for key in ("continue-on-error: true", "if: false"):
+    rejects(check, workflow.replace(step, f"{step}\n        <<: *skip"), f"{command} merged alias")
+for key in ("continue-on-error: true", "if: false", '"if": false', '"continue-on-error": true'):
     rejects(check, workflow.replace("  native:\n", f"  native:\n    {key}\n"), f"native {key}")
+rejects(check, workflow.replace("  ci:\n", '  ci:\n    "continue-on-error": true\n'), 'ci quoted continue-on-error')
 print(f"Android repeat CI contract: {negative_count} negative variants rejected (stdlib).")
 PYTHON
 echo 'Android repeat runner: wrapper, bounds, nonzero test counts, failure propagation and gate wiring passed.'

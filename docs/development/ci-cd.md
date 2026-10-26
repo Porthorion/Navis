@@ -144,8 +144,9 @@ when Gradle reuses up-to-date results. Its hermetic contract covers wrapper setu
 flags, counts and failure propagation. Stdlib checks of the maintained workflow
 job blocks and inline run steps reject commented-out/removed steps, swallowed
 failures, conditional skips and step/job `continue-on-error`, including for the
-contract's own step. Unsupported workflow layouts fail closed. Eighteen committed
-negative variants prove these checks without a third-party YAML dependency.
+contract's own step. Unsupported workflow layouts, quoted
+`if`/`continue-on-error` keys and YAML anchors, aliases or merges in the `native`
+and `ci` jobs fail closed. Twenty-seven committed negative variants prove these checks without a third-party YAML dependency.
 The CI native job's actions are pinned to full SHAs with version comments.
 Allow about 3.5 GiB host memory for the observed clean-checkout JVM run; cold-cache
 time and hosted CI headroom remain unmeasured.
