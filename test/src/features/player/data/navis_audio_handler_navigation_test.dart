@@ -647,7 +647,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Completer<void>? replacementLoadGate;
   Completer<void>? stopGate;
   int stopGateFrom = 0;
-  int pauseGateAfterStops = 0;
+  bool Function()? pauseGateWhen;
   Completer<void>? stopEntered;
 
   /// Every stop from this call number on never completes.
@@ -973,7 +973,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     emitPlayerEvent();
     _playing?.complete();
     _playing = null;
-    final gate = stopCalls >= pauseGateAfterStops ? pauseGate : null;
+    final gate = pauseGateWhen?.call() != false ? pauseGate : null;
     if (gate != null) pauseGate = null;
     if (gate != null) {
       pauseEntered?.complete();
@@ -10428,9 +10428,8 @@ void main() {
         await settleQueue(handler);
       }
 
-      test(
-        'row 15 cut during native tail fill recovers the departed occurrence',
-        () async {
+      for (final intent in ['none', 'Play', 'Pause', 'skip']) {
+        test('row 15 cut during native tail fill honors $intent', () async {
           final (handler, player, database) = await offsetHandler();
           await database.libraryDao.upsertSongs([
             SongsTableCompanion.insert(
@@ -10459,24 +10458,35 @@ void main() {
             endPosition: const Duration(milliseconds: 47750),
           );
           await pumpEventQueue(times: 20);
+          if (intent == 'Play') await handler.play();
+          if (intent == 'Pause') await handler.pause();
+          final newer = intent == 'skip'
+              ? handler.skipToNext()
+              : Future<void>.value();
           gate.complete();
           await loading;
+          await newer;
           await drain(handler);
           expect(
             handler.snapshot.currentSongId,
-            'song-1',
+            intent == 'skip' ? 'song-2' : 'song-1',
             reason: 'row 15: retain the departed occurrence through fill',
           );
-          expect(player.sourceLoads, loads + 1);
-          expect(current(player).positionOffset, const Duration(seconds: 47));
+          expect(player.sourceLoads, loads + (intent == 'skip' ? 0 : 1));
           expect(
-            player.position,
-            greaterThanOrEqualTo(const Duration(seconds: 47)),
+            current(player).positionOffset,
+            intent == 'skip' ? Duration.zero : const Duration(seconds: 47),
           );
+          expect(player.playing, intent != 'Pause');
+          if (intent != 'skip')
+            expect(
+              player.position,
+              greaterThanOrEqualTo(const Duration(seconds: 47)),
+            );
           expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
           expectNativeMirrorsQueue(handler, player);
-        },
-      );
+        });
+      }
 
       for (final duplicate in [false, true]) {
         test(
@@ -15680,7 +15690,10 @@ void main() {
               player
                 ..pauseGate = release
                 ..pauseEntered = entered
-                ..pauseGateAfterStops = player.stopCalls + 2;
+                ..pauseGateWhen = () =>
+                    (handler.collectPlaybackDiagnostics()['seek']!
+                        as Map)['outcome'] ==
+                    'failed';
             } else {
               player
                 ..stopGate = release
