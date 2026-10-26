@@ -646,6 +646,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Set<AudioSource>? claimedSources;
   Completer<void>? replacementLoadGate;
   Completer<void>? stopGate;
+  int stopGateFrom = 0;
+  int pauseGateAfterStops = 0;
   Completer<void>? stopEntered;
 
   /// Every stop from this call number on never completes.
@@ -971,8 +973,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     emitPlayerEvent();
     _playing?.complete();
     _playing = null;
-    final gate = pauseGate;
-    pauseGate = null;
+    final gate = stopCalls >= pauseGateAfterStops ? pauseGate : null;
+    if (gate != null) pauseGate = null;
     if (gate != null) {
       pauseEntered?.complete();
       await gate.future;
@@ -1014,8 +1016,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     if (stopCalls >= (hangStopsFrom ?? 1 << 30)) {
       await Completer<void>().future;
     }
-    final gate = stopGate;
-    stopGate = null;
+    final gate = stopCalls >= stopGateFrom ? stopGate : null;
+    if (gate != null) stopGate = null;
     if (gate != null) {
       stopEntered?.complete();
       await gate.future;
@@ -9712,6 +9714,7 @@ void main() {
           final (handler, player, _, downloader) = await bridgeHandler();
           await seekTo(handler, target);
           final starts = downloader.starts;
+          final loads = player.sourceLoads;
           final notices = <PlaybackLoadFailure>[];
           final subscription = handler.loadFailureStream.listen(notices.add);
           addTearDown(subscription.cancel);
@@ -9745,6 +9748,16 @@ void main() {
           await settleQueue(handler);
           expect(handler.snapshot.currentSongId, 'song-1');
           expect(event(handler)['outcome'], 'reloaded');
+          expect(
+            player.sourceLoads,
+            loads + 2,
+            reason: 'row 03: one bridge and one original open',
+          );
+          expect(
+            event(handler)['recoveryPath'],
+            completesDuringReopen ? 'completedFile' : 'original',
+            reason: 'row 04: attribute the selected fallback',
+          );
           expect(bridging(handler), isFalse);
           expect(
             handler.mediaItem.value!.extras,
@@ -9770,6 +9783,70 @@ void main() {
         },
       );
     }
+
+    test(
+      'row 04 rejected bridge resolver reports the original recovery path',
+      () async {
+        late _GatedSourceResolver resolver;
+        final (handler, player, _, _) = await bridgeHandler(
+          wrap: (base) => resolver = _GatedSourceResolver(base),
+        );
+        await seekTo(handler, target);
+        resolver.rejectBridge = true;
+        final before =
+            (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                .length;
+        player
+          ..simulatedPosition = const Duration(seconds: 110)
+          ..state = ProcessingState.idle;
+        player._events.addError(PlayerException(2002, 'Read timed out', 1));
+        for (
+          var i = 0;
+          i < 300 &&
+              (handler.collectPlaybackDiagnostics()['seekEvents']! as List)
+                      .length ==
+                  before;
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        await settleQueue(handler);
+        expect(event(handler)['recoveryPath'], 'original');
+        expect(bridging(handler), isFalse);
+      },
+    );
+
+    test(
+      'row 17 newer Fast Seeking target wins while cut reopen resolves',
+      () async {
+        late _GatedSourceResolver resolver;
+        final (handler, player, _, _) = await bridgeHandler(
+          wrap: (base) => resolver = _GatedSourceResolver(base),
+        );
+        await seekTo(handler, target);
+        resolver
+          ..blockedSongId = 'song-1'
+          ..entered = Completer<void>()
+          ..release = Completer<void>();
+        addTearDown(() {
+          if (!resolver.release!.isCompleted) resolver.release!.complete();
+        });
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 110));
+        await resolver.entered!.future.timeout(const Duration(seconds: 3));
+        final newer = handler.seek(const Duration(seconds: 140));
+        resolver
+          ..blockedSongId = null
+          ..release!.complete();
+        await newer;
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.index, 1);
+        expect(bridging(handler), isTrue);
+        expect(current(player).positionOffset, const Duration(seconds: 140));
+        expect(player.playing, isTrue);
+        expectNativeMirrorsQueue(handler, player);
+      },
+    );
 
     test('superseded bridge seek reloads only the newest target and clamps the tail', () async {
       late _GatedSourceResolver resolver;
@@ -10350,6 +10427,56 @@ void main() {
         await pumpEventQueue(times: 100);
         await settleQueue(handler);
       }
+
+      test(
+        'row 15 cut during native tail fill recovers the departed occurrence',
+        () async {
+          final (handler, player, database) = await offsetHandler();
+          await database.libraryDao.upsertSongs([
+            SongsTableCompanion.insert(
+              id: 'song-1',
+              title: 'Song 1',
+              duration: const Value(300),
+            ),
+          ]);
+          final gate = Completer<void>();
+          final entered = Completer<void>();
+          player
+            ..afterAppendGate = gate
+            ..afterAppendEntered = entered;
+          addTearDown(() {
+            if (!gate.isCompleted) gate.complete();
+          });
+          final loading = handler.replaceQueue(
+            ['song-0', 'song-1', 'song-2'],
+            startIndex: 1,
+            expandMatchFlows: false,
+          );
+          await entered.future.timeout(const Duration(seconds: 3));
+          expect(handler.debugQueueLaneIdle, isFalse);
+          final loads = player.sourceLoads;
+          player.finishCurrentTrack(
+            endPosition: const Duration(milliseconds: 47750),
+          );
+          await pumpEventQueue(times: 20);
+          gate.complete();
+          await loading;
+          await drain(handler);
+          expect(
+            handler.snapshot.currentSongId,
+            'song-1',
+            reason: 'row 15: retain the departed occurrence through fill',
+          );
+          expect(player.sourceLoads, loads + 1);
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+          expect(
+            player.position,
+            greaterThanOrEqualTo(const Duration(seconds: 47)),
+          );
+          expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
+          expectNativeMirrorsQueue(handler, player);
+        },
+      );
 
       for (final duplicate in [false, true]) {
         test(
@@ -11089,6 +11216,82 @@ void main() {
         });
       }
 
+      test('row 16 newer seek owns a failed cut reopen', () async {
+        late _GatedSourceResolver resolver;
+        final (handler, player) = await setup(
+          wrap: (base) => resolver = _GatedSourceResolver(base),
+        );
+        resolver
+          ..blockedSongId = 'song-1'
+          ..entered = Completer<void>()
+          ..release = Completer<void>()
+          ..failure = StateError('reopen unavailable');
+        addTearDown(() {
+          if (!resolver.release!.isCompleted) resolver.release!.complete();
+        });
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await resolver.entered!.future.timeout(const Duration(seconds: 3));
+        final newer = handler.seek(const Duration(seconds: 130));
+        resolver
+          ..blockedSongId = null
+          ..release!.complete();
+        await newer;
+        await drain(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(current(player).positionOffset, const Duration(seconds: 130));
+        expect(player.playing, isTrue);
+        expectNativeMirrorsQueue(handler, player);
+      });
+
+      for (final edit in ['append', 'insert']) {
+        test(
+          'row 18 $edit during completed cut resolution keeps the queue and Play intent',
+          () async {
+            late _GatedSourceResolver resolver;
+            final (handler, player) = await setup(
+              last: true,
+              wrap: (base) => resolver = _GatedSourceResolver(base),
+            );
+            resolver
+              ..blockedSongId = 'song-1'
+              ..entered = Completer<void>()
+              ..release = Completer<void>();
+            addTearDown(() {
+              if (!resolver.release!.isCompleted) resolver.release!.complete();
+            });
+            player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+            await resolver.entered!.future.timeout(const Duration(seconds: 3));
+            final editing = edit == 'append'
+                ? handler.addToQueue(['song-2'], expandMatchFlows: false)
+                : handler.playNext(['song-2'], expandMatchFlows: false);
+            await handler.pause();
+            final plays = player.playedFrom.length;
+            await handler.play();
+            expect(
+              player.playedFrom.length,
+              plays,
+              reason: 'source is not ready',
+            );
+            expect(player.audibleSongId, isNull);
+            resolver
+              ..blockedSongId = null
+              ..release!.complete();
+            await editing;
+            await drain(handler);
+            expect(handler.snapshot.currentSongId, 'song-1');
+            expect(handler.snapshot.currentIndex, 1);
+            expect(handler.snapshot.queueSongIds, [
+              'song-0',
+              'song-1',
+              'song-2',
+            ]);
+            expect(current(player).positionOffset, const Duration(seconds: 47));
+            expect(player.playing, isTrue);
+            expectNativeMirrorsQueue(handler, player);
+          },
+        );
+      }
+
       test('a failed reopen uses bounded silent failover', () async {
         late _GatedSourceResolver resolver;
         final (handler, player) = await setup(
@@ -11164,6 +11367,107 @@ void main() {
       expect(player.sourceLoads, loads + 1);
       expect(player.playing, isTrue);
     });
+
+    for (final superseded in [false, true]) {
+      test(
+        'row 05 unbuilt original recovery ${superseded ? 'yields to selection' : 'fails over once'}',
+        () async {
+          final (handler, player, database) = await offsetHandler(
+            capable: false,
+            count: 4,
+          );
+          await start(handler);
+          final release = Completer<void>();
+          final entered = Completer<void>();
+          player
+            ..appendGate = release
+            ..appendEntered = entered;
+          final editing = handler.addToQueue([
+            'song-3',
+          ], expandMatchFlows: false);
+          await entered.future;
+          player
+            ..simulatedPosition = const Duration(seconds: 70)
+            ..state = ProcessingState.idle;
+          final recovery = handler.debugRecoverCurrentSong();
+          await pumpEventQueue(times: 30);
+          if (!superseded) {
+            await (database.delete(
+              database.songsTable,
+            )..where((row) => row.id.equals('song-0'))).go();
+          }
+          final selection = superseded
+              ? handler.playFromIndex(2)
+              : Future<void>.value();
+          release.complete();
+          await Future.wait([editing, recovery, selection]);
+          await settleQueue(handler);
+          expect(
+            handler.snapshot.currentSongId,
+            'song-2',
+            reason: 'row 05: only the owned failure may fail over',
+          );
+          expect(player.playing, isTrue);
+          expectNativeMirrorsQueue(handler, player);
+        },
+      );
+    }
+
+    test(
+      'row 02 failed seek suppression uses the configured healthy interval',
+      () async {
+        final (handler, player, _) = await offsetHandler(
+          capable: false,
+          desktopRuntimeOverride: false,
+          timeouts: const NavisPlaybackTimeouts(
+            seekProgress: Duration(milliseconds: 400),
+            seekBufferingRecovery: Duration(milliseconds: 150),
+            healthyPlayback: Duration(milliseconds: 600),
+          ),
+        );
+        await start(handler);
+        player
+          ..ignoreSeeks = true
+          ..nativePositionFrozen = true
+          ..simulateProgress = false;
+        await handler.seek(const Duration(seconds: 90));
+        expect(
+          (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+          'failed',
+        );
+        final failedAt = player.position;
+        final loads = player.sourceLoads;
+        player
+          ..state = ProcessingState.ready
+          ..simulatedPosition = failedAt + const Duration(milliseconds: 500);
+        player._events.add(player.playbackEvent);
+        await pumpEventQueue(times: 20);
+        player.state = ProcessingState.idle;
+        await handler.debugRecoverCurrentSong();
+        expect(
+          player.sourceLoads,
+          loads,
+          reason: 'no renewal below healthyPlayback',
+        );
+        player
+          ..state = ProcessingState.ready
+          ..simulatedPosition = failedAt + const Duration(milliseconds: 700);
+        player._events.add(player.playbackEvent);
+        await pumpEventQueue(times: 20);
+        player
+          ..state = ProcessingState.idle
+          ..ignoreSeeks = false
+          ..nativePositionFrozen = false
+          ..simulateProgress = true;
+        await handler.debugRecoverCurrentSong();
+        await settleQueue(handler);
+        expect(
+          player.sourceLoads,
+          loads + 1,
+          reason: 'row 02: renew at healthyPlayback, before five seconds',
+        );
+      },
+    );
 
     test(
       'stall recovery without the capability keeps the original path',
@@ -15354,6 +15658,69 @@ void main() {
 
     List<String> songIds(int count) =>
         List<String>.generate(count, (i) => 'song-$i');
+
+    for (final halt in ['pause', 'stop', 'timed-out stop']) {
+      for (final pauseAgain in [false, true]) {
+        test(
+          'row 01 Play during final $halt honors latest intent (later Pause: $pauseAgain)',
+          () async {
+            final rebuilt = <_ControllableAudioPlayer>[];
+            final (handler, player, _) = await fixture(
+              timeouts: quick,
+              rebuiltPlayers: rebuilt,
+            );
+            await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+            final release = Completer<void>();
+            final entered = Completer<void>();
+            addTearDown(() {
+              if (!release.isCompleted) release.complete();
+            });
+            player.nativePositionFrozen = true;
+            if (halt == 'pause') {
+              player
+                ..pauseGate = release
+                ..pauseEntered = entered
+                ..pauseGateAfterStops = player.stopCalls + 2;
+            } else {
+              player
+                ..stopGate = release
+                ..stopEntered = entered
+                ..stopGateFrom = player.stopCalls + 2;
+            }
+            final seeking = handler.seek(const Duration(seconds: 60));
+            await entered.future.timeout(const Duration(seconds: 6));
+            player
+              ..nativePositionFrozen = false
+              ..ignoreSeeks = false;
+            await handler.play();
+            if (pauseAgain) await handler.pause();
+            if (halt != 'timed-out stop') release.complete();
+            await seeking.timeout(const Duration(seconds: 8));
+            await idle(handler);
+            if (!release.isCompleted) release.complete();
+            await pumpEventQueue(times: 30);
+            await idle(handler);
+            final active =
+                handler.debugActivePlayer as _ControllableAudioPlayer;
+            expect(handler.snapshot.currentSongId, 'song-0');
+            expect(
+              handler.snapshot.playing,
+              !pauseAgain,
+              reason: 'row 01: final halt must honor the latest intent',
+            );
+            if (!pauseAgain) {
+              expect(active.processingState, ProcessingState.ready);
+              final position = active.position;
+              await Future<void>.delayed(const Duration(milliseconds: 80));
+              expect(active.position, greaterThan(position));
+            }
+            if (halt == 'timed-out stop') {
+              expect(active, isNot(same(player)));
+            }
+          },
+        );
+      }
+    }
 
     test('a hung final stop never parks the seek lane', () async {
       final (handler, player, _) = await fixture(timeouts: quick);
