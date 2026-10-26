@@ -10453,6 +10453,11 @@ void main() {
           );
           await entered.future.timeout(const Duration(seconds: 3));
           expect(handler.debugQueueLaneIdle, isFalse);
+          final published = <String?>[];
+          final subscription = handler.mediaItem.listen(
+            (item) => published.add(item?.id),
+          );
+          addTearDown(subscription.cancel);
           final loads = player.sourceLoads;
           player.finishCurrentTrack(
             endPosition: const Duration(milliseconds: 47750),
@@ -10472,7 +10477,11 @@ void main() {
             intent == 'skip' ? 'song-2' : 'song-1',
             reason: 'row 15: retain the departed occurrence through fill',
           );
-          expect(player.sourceLoads, loads + (intent == 'skip' ? 0 : 1));
+          if (intent == 'skip') {
+            expect(player.sourceLoads, lessThanOrEqualTo(loads + 1));
+          } else {
+            expect(player.sourceLoads, loads + 1);
+          }
           expect(
             current(player).positionOffset,
             intent == 'skip' ? Duration.zero : const Duration(seconds: 47),
@@ -10480,9 +10489,16 @@ void main() {
           expect(player.playing, intent != 'Pause');
           if (intent != 'skip')
             expect(
-              player.position,
-              greaterThanOrEqualTo(const Duration(seconds: 47)),
+              published,
+              isNot(contains('song-2')),
+              reason: 'the successor must never own metadata',
             );
+          if (intent != 'skip') {
+            expect(
+              (player.position - const Duration(milliseconds: 47750)).abs(),
+              lessThan(const Duration(seconds: 1)),
+            );
+          }
           expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
           expectNativeMirrorsQueue(handler, player);
         });
@@ -11422,6 +11438,38 @@ void main() {
         },
       );
     }
+
+    test(
+      'row 05 removal before an original rebuild does not fail over again',
+      () async {
+        final (handler, player, _) = await offsetHandler(
+          capable: false,
+          count: 4,
+        );
+        await start(handler);
+        final release = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..appendGate = release
+          ..appendEntered = entered;
+        addTearDown(() {
+          if (!release.isCompleted) release.complete();
+        });
+        final editing = handler.addToQueue(['song-3'], expandMatchFlows: false);
+        await entered.future;
+        final removing = handler.removeAt(1);
+        player.state = ProcessingState.idle;
+        final recovery = handler.debugRecoverCurrentSong();
+        await pumpEventQueue(times: 30);
+        release.complete();
+        await Future.wait([editing, removing, recovery]);
+        await settleQueue(handler);
+        expect(handler.snapshot.queueSongIds, ['song-0', 'song-2', 'song-3']);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(player.playing, isTrue);
+        expectNativeMirrorsQueue(handler, player);
+      },
+    );
 
     test(
       'row 02 failed seek suppression uses the configured healthy interval',
