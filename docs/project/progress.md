@@ -15,7 +15,7 @@ Last updated: 2026-10-27
 
 ## Current Focus
 - [ ] Issue #86, P2 Android repeat-boundary policy (triage 06, 07, 09) —
-  R4 implementation on `fix/android-repeat-boundary`, 2026-10-27; R3 review found
+  R5 implementation on `fix/android-repeat-boundary`, 2026-10-27; R4 review found
   no blockers. Orchestrator full quality gate, hosted CI, Linux smoke and Android
   runtime acceptance remain pending. R1/R2 repaired delivered-pause policy changes,
   app-thread-first delivery and post-scrub re-arming. R3 captures the current UID
@@ -37,11 +37,18 @@ Last updated: 2026-10-27
   The eleven R3 bridge survivors included two observable gaps, S4 (late end
   after Pause) and K3 (Pause/scrub/Play loses the scrub), as well as redundant
   predicates and error/load cleanup. R4 commits the reviewer's S4/K3 probes and
-  the Off-completion flag-reset probe. It also replaces the missing-Handler
-  exception seam with an inert default-returning Handler stub: scheduling now
-  returns normally, exercising callback tails and the completed-state assertions.
-  A failing-first seam test reported `expected:<2> but was:<1>` on R3. The real
-  Looper, posted lambda and native audio timing still require runtime evidence.
+  the Off-completion flag-reset probe. R4 replaced the missing-Handler exception
+  seam with an inert default-returning Handler stub, making scheduling return
+  normally and exercising callback tails and completed-state assertions.
+  A failing-first seam test reported `expected:<2> but was:<1>` on R3. R5 replaces
+  inferred posts with a host-only Handler queue that captures actual runnables
+  and executes their lambdas, including captured UID/revision. Its test first
+  failed with `capture the Runnable actually passed to Handler.post` on R4.
+  Both post mutants now die: deleting `handler.post` fails 29 cases and capturing
+  `revision + 1` fails 23, including the new direct Runnable test in each.
+  R5 passes all 72 app JVM tests (59 repeat bridge cases) under the 6 GiB cap;
+  the four R4 target mutants remain killed. Real Looper scheduling and native
+  timing still require runtime evidence.
   R4's four target bridge mutants all die: K3, S4, the Off-completion reset and
   scheduling's success return (the last now fails four completion assertions).
   Foreground 6 GiB-capped R4 checks pass: 58 repeat bridge tests (47 callback
@@ -54,10 +61,13 @@ Last updated: 2026-10-27
   immediately after the pure fixtures and into the new
   required CI `native` job. The runner uses a ten-minute timeout, one worker,
   bounded JVM memory and no persistent daemon, APK install or device. R4 pins
-  all actions in the native job by full SHA, parses CI YAML to reject suppressed
-  failures/conditional skips, and requires nonzero executed-test counts in both
-  named suites from Gradle XML. The old contract accepted all eight negative
-  wiring variants (`contract accepted 8/8 broken gates`); R4 rejects them all.
+  all actions in the native job by full SHA and requires nonzero executed-test
+  counts in both named suites from Gradle XML. R5's contract uses only Python's
+  stdlib to check the maintained workflow layout and fails closed on unsupported
+  forms. Eighteen committed variants reject suppressed/removed/commented CI and
+  check.sh steps, conditional skips and step/job error suppression, including
+  the contract's own step. `python3 -S` proves no site-package dependency.
+  The old contract accepted all eight negative wiring variants (`contract accepted 8/8 broken gates`); R4 rejects them all.
   R3 execution of the supplied model reports one failing seed in 8,000
   (4927): removing a current Repeat One stream into a READY successor can still
   require explicit Play, whether streamed or local, as on base. A Play reusing a
@@ -70,8 +80,8 @@ Last updated: 2026-10-27
   and a pre-delivery seek can still restart under One/All; the Off form now
   resumes the current position when not ENDED. These limits are documented,
   alongside the narrower non-current last-stream-removal continuation guarantee.
-  The fixture records each newly pending UID/revision after the callback returns
-  and drives the guarded action, not an Android Looper or the posted lambda.
+  The fixture records actual Handler posts and runs their captured lambdas after
+  the callback returns, without an Android Looper or native playback thread.
   No emulator, harness, VM, analyzer or `./tool/check.sh` ran here; the orchestrator owns runtime/full-gate
   checks. AI implementation/verification: Codex gpt-6.1-sol; local commits only,
   no push, PR or Fable model use. The legacy empty-playlist fallback is unchanged.

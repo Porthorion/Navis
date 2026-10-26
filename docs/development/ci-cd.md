@@ -128,9 +128,9 @@ The dead-code CLI self-tests invoke its shared library entry point against
 temporary fixtures in-process, avoiding a Dart subprocess compilation per check.
 
 Android repeat bridge fixtures require bootstrap, JDK 21, Android SDK 37,
-Python 3 with PyYAML and GNU `timeout`. Run `flutter precache --android` once if
-Flutter's wrapper cache is absent. `tool/android_repeat_native_test.sh` copies missing
-ignored wrapper launch/JAR files from that cache, preserving the repository's
+Python 3 (stdlib only) and GNU `timeout`. Run `flutter precache --android` once
+if Flutter's wrapper cache is absent. `tool/android_repeat_native_test.sh` copies
+missing ignored wrapper launch/JAR files from that cache, preserving the repository's
 pinned distribution URL and checksum. It runs `:app:testSideloadDebugUnitTest`
 with `--tests '*JustAudioRepeat*Test'` (both suites, including future added
 cases), without installing an APK or starting a device. The runner forces the
@@ -141,8 +141,11 @@ ten-second kill grace. Failures and timeout status propagate to `check.sh` and
 the CI `native` job. The runner reports the executed count from Gradle's result
 XML and requires nonzero, failure-free execution in each named suite, including
 when Gradle reuses up-to-date results. Its hermetic contract covers wrapper setup,
-flags, counts and failure propagation; semantic YAML checks reject commented-out
-steps, swallowed failures, conditional skips and step/job `continue-on-error`.
+flags, counts and failure propagation. Stdlib checks of the maintained workflow
+job blocks and inline run steps reject commented-out/removed steps, swallowed
+failures, conditional skips and step/job `continue-on-error`, including for the
+contract's own step. Unsupported workflow layouts fail closed. Eighteen committed
+negative variants prove these checks without a third-party YAML dependency.
 The CI native job's actions are pinned to full SHAs with version comments.
 Allow about 3.5 GiB host memory for the observed clean-checkout JVM run; cold-cache
 time and hosted CI headroom remain unmeasured.
@@ -1015,11 +1018,12 @@ app-visible pause; it drives the posted action directly without a Looper or audi
 device. The callback suite additionally reaches production scheduling without
 pre-setting `repeatPending`, drives timeline/item listeners with distinct UIDs,
 and models app-thread-first as well as native-update-first delivery. App JVM
-tests use Android stubs that return defaults; the inert Handler allows scheduling
-to return to its callers instead of aborting at a missing-Handler exception.
-The fixture records newly pending actions and drives their guarded bodies, so
-completion suppression and callback tails run. The Android Looper and captured
-lambda still require runtime coverage. Run these after changing just_audio too.
+tests use Android stubs that return defaults, with a host-only Handler queue
+provided in test sources. It records actual `post(Runnable)` calls and runs the
+captured lambda later, so missing posts, stale captured revisions, completion
+suppression and callback tails are exercised. Android Looper scheduling and
+native playback-thread timing still require runtime coverage. Run these after
+changing just_audio too.
 Follow with the profile-clone recovery fixtures in
 [development-workflow.md](development-workflow.md); JVM reflection checks alone
 do not prove media-session commands or engine survival.

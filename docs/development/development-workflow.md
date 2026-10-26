@@ -171,7 +171,7 @@ Checks performed:
   available JDK or the Android Studio JDK selected by `ANDROID_STUDIO_JDK`
 - Android repeat bridge suites (`tool/android_repeat_native_test.sh`) and their
   hermetic runner contract (`tool/android_repeat_runner_test.sh`), immediately
-  after the pure fixtures. Bootstrap, JDK 21, Android SDK 37, Python 3 with PyYAML
+  after the pure fixtures. Bootstrap, JDK 21, Android SDK 37, Python 3 (stdlib only)
   and GNU `timeout` are required. Run `flutter precache --android` once if the Flutter
   wrapper cache is missing. The runner generates only missing ignored wrapper
   files, uses the pinned Gradle distribution, one worker, in-process Kotlin and

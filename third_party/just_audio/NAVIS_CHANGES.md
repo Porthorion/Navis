@@ -179,10 +179,10 @@ playlist tag scan and posted action using the existing reflection/proxy JVM
 fixtures, with the posted callback driven directly instead of an Android Looper.
 `JustAudioRepeatCallbackTest` drives production scheduling, timeline and item
 transition listeners, distinct occurrence UIDs and ExoPlayer-style callback
-order. An inert Android Handler stub lets scheduling return normally, so the
-caller tails and completion suppression are exercised. The fixture records each
-new pending UID/revision and runs the guarded action directly; it does not run
-an Android Looper or the posted lambda itself.
+order. A host-only Handler queue in test sources records the actual posted
+runnables and executes their captured lambdas later. This exercises the post call,
+captured UID/revision, caller tails and completion suppression without changing
+production code. It does not run an Android Looper or native playback thread.
 The pairwise Dart loop detector now also recognizes unknown-duration
 plain-stream backwards jumps; tail/zero/buffering/ready fixtures cover middle
 and last items with and without offsets. Navis's existing offset handler and
