@@ -15883,6 +15883,41 @@ void main() {
       }
     }
 
+    test(
+      'row 01 a newer queue plays while an older final Pause settles',
+      () async {
+        final (handler, player, _) = await fixture(timeouts: quick);
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        final release = Completer<void>();
+        final entered = Completer<void>();
+        addTearDown(() {
+          if (!release.isCompleted) release.complete();
+        });
+        player
+          ..nativePositionFrozen = true
+          ..pauseGate = release
+          ..pauseEntered = entered
+          ..pauseGateWhen = () =>
+              (handler.collectPlaybackDiagnostics()['seek']!
+                  as Map)['outcome'] ==
+              'failed';
+        final seeking = handler.seek(const Duration(seconds: 60));
+        await entered.future.timeout(const Duration(seconds: 6));
+        player.nativePositionFrozen = false;
+        await handler.replaceQueue(['song-1'], expandMatchFlows: false);
+        release.complete();
+        await seeking;
+        await idle(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(
+          player.playing,
+          isTrue,
+          reason: 'an older halt must not hold a newer source paused',
+        );
+        expect(player.processingState, ProcessingState.ready);
+      },
+    );
+
     test('a hung final stop never parks the seek lane', () async {
       final (handler, player, _) = await fixture(timeouts: quick);
       await handler.replaceQueue(['song-0'], expandMatchFlows: false);
