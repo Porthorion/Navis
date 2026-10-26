@@ -281,7 +281,6 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
     _lockCacheWarmSongId = null;
     _sidecarChainKey = null;
-    _preparedLockCacheSources.clear();
     _silenceAbandonedPlayer(_player);
     final inactive = _crossfadePlayer;
     if (inactive != null) _silenceAbandonedPlayer(inactive);
@@ -562,6 +561,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
                 : capture.position,
           )
           .timeout(_playerLoadTimeout);
+      _observeLockCacheForPrepared(prepared);
       _setCurrentMediaItem(_queueItems[landed]);
       _reportDroppedSongs(dropped, QueueDropReason.rebuild);
       if (dropped.isNotEmpty) {
@@ -772,6 +772,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         ),
       );
     }
+    _shareLockCacheSources(prepared);
     return prepared;
   }
 
@@ -786,10 +787,21 @@ extension _NavisQueueLoading on NavisAudioHandler {
     if (source.kind != PlaybackSourceKind.lockCachedStream || path == null) {
       return null;
     }
-    final live = _lockCacheSources[path]?.source;
-    if (live != null) return live;
-    final own = source.lockCachingAudioSource!;
-    return _preparedLockCacheSources.putIfAbsent(path, () => own);
+    return _lockCacheSources[path]?.source;
+  }
+
+  /// Within one prepared batch the first source per cache file wins, so a song
+  /// that occurs twice is one source, one download.
+  void _shareLockCacheSources(List<_PreparedQueueItem> prepared) {
+    // ignore: experimental_member_use, reason: as above.
+    final first = <String, LockCachingAudioSource>{};
+    for (final item in prepared) {
+      final path = item.source.cachedFilePath;
+      final own = item.audioSource;
+      // ignore: experimental_member_use, reason: as above.
+      if (path == null || own is! LockCachingAudioSource) continue;
+      item.audioSource = first.putIfAbsent(path, () => own);
+    }
   }
 
   MediaItem _mediaItemForSong(
@@ -1213,6 +1225,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       prepared.add(item);
       preparedIndexes.add(firstOriginalIndex + j);
     }
+    _shareLockCacheSources(prepared);
     _checkQueueWorkCurrent(token, generation);
     if (prepared.isEmpty) {
       return 0;

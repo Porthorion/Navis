@@ -340,6 +340,9 @@ extension _NavisCache on NavisAudioHandler {
     _lockCacheWarmSongId = null;
     final key = _sidecarChainKey;
     if (source != null && key != null && key.endsWith('>$id')) {
+      for (final entry in _lockCacheSources.entries) {
+        if (entry.value.songId == id) _completeRollingCacheActivity(entry.key);
+      }
       _sidecarChainKey = null;
       if (key.startsWith('${_currentMediaItem?.id}>')) {
         _sidecarChainRetry = (key, DateTime.now().add(sidecarChainRetryDelay));
@@ -387,7 +390,6 @@ extension _NavisCache on NavisAudioHandler {
       return;
     }
     _lockCacheSources[cacheFilePath] = (songId: song.id, source: source);
-    _preparedLockCacheSources.remove(cacheFilePath);
 
     late final StreamSubscription<double> subscription;
     subscription = source.downloadProgressStream.listen(
@@ -690,13 +692,16 @@ extension _NavisCache on NavisAudioHandler {
   /// in [prepared].
   void _observeLockCacheForPrepared(List<_PreparedQueueItem> prepared) {
     for (final entry in prepared) {
-      if (entry.source.kind == PlaybackSourceKind.lockCachedStream &&
-          entry.source.lockCachingAudioSource != null &&
+      // Register the source the player holds, never the resolver's own.
+      final held = entry.audioSource;
+      // ignore: experimental_member_use, reason: as above.
+      if (held is LockCachingAudioSource &&
+          entry.source.kind == PlaybackSourceKind.lockCachedStream &&
           entry.source.cachedFilePath != null) {
         _observeLockCachingSource(
           song: entry.song,
           resolvedSource: entry.source,
-          source: entry.source.lockCachingAudioSource!,
+          source: held,
           cacheFilePath: entry.source.cachedFilePath!,
         );
       }
