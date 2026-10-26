@@ -235,7 +235,7 @@ class OggOpusSplicer {
     }
     final kept = <Uint8List>[];
     for (var i = 0; i < audio.length; i++) {
-      if (ends[i] > _granule) {
+      if (ends[i] > _granule && mappedGranule > _granule) {
         kept.add(audio[i]);
       } else {
         droppedPackets++;
