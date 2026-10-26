@@ -10463,6 +10463,11 @@ void main() {
             endPosition: const Duration(milliseconds: 47750),
           );
           await pumpEventQueue(times: 20);
+          expect(
+            player.audibleSongId,
+            isNull,
+            reason: 'the successor must stay silent while the lane finishes',
+          );
           if (intent == 'Play') await handler.play();
           if (intent == 'Pause') await handler.pause();
           final newer = intent == 'skip'
