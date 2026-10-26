@@ -4117,9 +4117,10 @@ explicit navigation invalidate the capture, including delayed discontinuities
 whose previous backend event predates the edit. A cut during queue tail release,
 trim or fill retains the source occurrence and departure position while that
 lane finishes. Recovery then rechecks the source identity, load generation
-and queue invalidation before reopening; an
-edit or selection that retired the occurrence cannot reopen it. Metadata stays
-with the departed occurrence throughout the wait. Native source tags supply
+and seek ownership before reopening. An append that preserves the classified
+occurrence does not cancel recovery; an edit or selection that retired it
+cannot reopen it. Metadata stays with the departed occurrence throughout the
+wait. Native source tags supply
 occurrence metadata when a background mutation temporarily leads the Dart
 mirror; completion is still classified while that mismatch suppresses ordinary
 player events. New background releases and trims wait for the reopen.
@@ -4617,8 +4618,10 @@ ownership of the original load, avoiding an additional restoration open. Its
 request path and the `remote_retry.recoveryPath` diagnostic identify
 `completedFile` or `original`, rather than the rejected bridge. Only a failed
 original recovery proceeds to the existing silent song failover. An unbuilt
-original rebuild also fails over when it still owns the failed queued song;
-superseded work and a removed occurrence leave the newer selection alone.
+original rebuild also fails over when it still owns the failed queued song.
+Play/Pause preserve that request's failover ownership, and Pause lands on the
+next playable song paused. Newer seeks, selections and a removed occurrence
+retire the request.
 
 libmpv therefore opens the credential-bearing `stream.view` URL (and radio
 stream URLs) itself. Its built-in ytdl hook would retry any http(s) URL that
@@ -5105,7 +5108,10 @@ at 0. Landing or handing over onto an entry that beat its repair reopens it from
 the start, and a crossfade is not started into one. If the final pause or stop times out, the player
 is replaced through the timeout-recovery path so Play reloads on a fresh one.
 Play during the final bounded halt records intent and re-arms the same song at
-its retained position after shutdown; a later Pause cancels that resume. An
+its retained position after shutdown; a later Pause cancels that resume. A
+current seek reloads the still-selected failed source at its newer target after
+shutdown, using the latest Play/Pause intent. It prefers a completed local copy
+and otherwise uses the existing original/offset rebuild and landing path. An
 older halt cannot mark a newer selection failed. While recovery still owns
 that occurrence, a timed-out halt finishes only on the retired player. Native timeout recovery and failed seeks log
 diagnostics without emitting user notices; automatic recovery needs no user

@@ -131,9 +131,11 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       ChangelogEntry(
         'Play during a final playback failure now resumes the same song after '
-        'shutdown, while a later Pause stays paused. Desktop cut recovery keeps '
-        'the song and your latest seek during queue fills or a failed reopen, '
-        'and a rejected Fast Seeking bridge opens the original only once.',
+        'shutdown, while a newer seek keeps its target and a later Pause stays '
+        'paused. Desktop cut recovery keeps the song and your latest seek '
+        'during queue fills, queued appends or a failed reopen. Pausing a '
+        'failed reload lets failover select the next song paused, and a '
+        'rejected Fast Seeking bridge opens the original only once.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

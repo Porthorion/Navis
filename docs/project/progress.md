@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-26
+Last updated: 2026-10-27
 
 ---
 
@@ -48,6 +48,26 @@ Last updated: 2026-10-26
   (foreground, 6 GiB cap, `--concurrency 1`; zero OOM kills).
   Architecture and the 1.5.1 changelog updated; item-14 `oggSplice` event fields
   preserved. No emulator, playback harness, full gate, push, merge or rebase run.
+  Review r2, 2026-10-27: queued appends preserve an already classified cut;
+  a current seek reloads its failed source at its newer target after shutdown;
+  Pause preserves ordinary unbuilt recovery ownership and lands failover paused.
+  Each finding has a committed failing-first regression: append
+  `Expected: 'song-1' / Actual: 'song-2'`, current seek
+  `Expected: 'completed' / Actual: 'failed'` (seek, Play and Pause), and paused
+  failover `Expected: 'song-2' / Actual: 'song-1'`.
+  Six mutations were killed: post-classification invalidation, missing seek
+  reload, departed-only revision capture, ordinary transport rejection, missing
+  shutdown wait, and the new-seek eligibility check. Cold-load retry/deadline
+  controls keep their existing bounds; the shutdown wait has a separate
+  ordinary-recovery regression.
+  After restricting reload to a fresh seek that was not waiting on a load,
+  39 P1/retry/deadline/intent cases pass, as do all nine final reviewer probes.
+  Scoped analysis reports the same 30 existing infos for the four checked files,
+  no added findings and no errors/warnings. Final navigation, handler helper,
+  playback lane and transport-trace suites passed together:
+  `09:03 +962: All tests passed!` (foreground, 4 GiB cap, concurrency 1;
+  zero OOM kills). The full gate and native runtime certification remain with
+  the orchestrator.
 - [ ] Issue #86, item 14 Android Ogg/Opus cut splice — `fix/ogg-cut-splice`:
   continues unknown-length Android Opus transcodes through the existing
   `LockCachingAudioSource` and `OggOpusSplicer`. Round 2 fixes pre-listen cancel
