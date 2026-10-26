@@ -138,6 +138,16 @@ public final class ProgressiveRepeatTest {
                 "ENDED on the last item still wraps ALL");
         check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, boundaryUid, 4, 6, 7, 7, false, true) == 4,
                 "ENDED still restarts ONE at its own index");
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 1, 3, 7, 7, false, false)
+                == ProgressiveRepeat.RESUME, "OFF releases an owned middle-item pause without restarting");
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 1, 3, 7, 7, false, true)
+                == 2, "OFF advances an ended middle-item boundary once");
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, false, true)
+                == -1, "OFF at the true end stays completed");
+        check(ProgressiveRepeat.boundaryAction(0, true, false, boundaryUid, boundaryUid, 1, 3, 7, 7, false, false)
+                == -1, "OFF must preserve an explicit Pause at a middle boundary");
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, otherUid, 1, 3, 7, 7, false, false)
+                == -1, "OFF cannot release another occurrence's boundary");
         System.out.println("ProgressiveRepeatTest: " + fixtures + " fixtures passed");
     }
 }
