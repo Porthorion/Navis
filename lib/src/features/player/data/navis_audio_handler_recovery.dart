@@ -1911,7 +1911,7 @@ extension _NavisRecovery on NavisAudioHandler {
     Future<void>? pausing,
   }) async {
     _remotePlaybackRecoveryInProgress = true;
-    int? departedFailureSeekRevision;
+    int? failureSeekRevision;
     final attemptKey = '$transportGeneration:$songId';
     final duration = _effectivePlaybackDuration(
       departedItem ?? _currentMediaItem,
@@ -2048,8 +2048,8 @@ extension _NavisRecovery on NavisAudioHandler {
             } finally {
               recoveryPath = request.path;
               // Play/Pause preserve this seek even when transport changes.
-              if (departedItem != null && identical(_pendingSeek, request)) {
-                departedFailureSeekRevision = request.generation;
+              if (identical(_pendingSeek, request)) {
+                failureSeekRevision = request.generation;
               }
               if (identical(_pendingSeek, request)) {
                 _pendingSeek = null;
@@ -2085,8 +2085,11 @@ extension _NavisRecovery on NavisAudioHandler {
       }
 
       if (!_isCurrentTransportIntent(transportGeneration) &&
-          !(departedFailureSeekRevision == _seekRevision &&
-              identical(_prematureTranscodeDeparture?.item, departedItem))) {
+          !(failureSeekRevision == _seekRevision &&
+              (departedItem != null
+                  ? identical(_prematureTranscodeDeparture?.item, departedItem)
+                  : _resolveCurrentQueueMetadata().mediaItem?.id == songId &&
+                        _locateQueueTarget(songId, currentIndex) >= 0))) {
         return;
       }
       await _skipPastFailedRemoteSong(
