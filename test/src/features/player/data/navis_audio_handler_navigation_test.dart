@@ -656,6 +656,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   StateError? blockedLoadError;
   Completer<void>? appendGate;
   Completer<void>? appendEntered;
+  Completer<void>? afterAppendGate;
+  Completer<void>? afterAppendEntered;
   String? attemptedSongId;
   int lastSetAudioSourcesCount = 0;
   int maxConcurrentMutations = 0;
@@ -1179,6 +1181,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       throw StateError('append unavailable');
     }
     _sources.addAll(sources);
+    final after = afterAppendGate;
+    if (after != null) {
+      afterAppendGate = null;
+      afterAppendEntered?.complete();
+      await after.future;
+    }
   });
 
   @override
@@ -5839,6 +5847,7 @@ void main() {
       int startIndex = 0,
       RollingCacheSidecarDownloader? downloader,
       bool build = true,
+      NavisQueueWindow window = const NavisQueueWindow(),
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
     }) async {
       final previousHttp = HttpOverrides.current;
@@ -5909,6 +5918,7 @@ void main() {
         desktopRuntimeOverride: false,
         sidecarDownloader: downloader,
         wrapResolver: wrap,
+        queueWindow: window,
         cacheSongs: false,
         positionStreams: true,
         readApiClient: () => api,
@@ -5964,10 +5974,15 @@ void main() {
         // ignore: experimental_member_use, reason: as above.
         p.audioSources[i] as LockCachingAudioSource;
 
+    // A download can finish (and rename its partial file) between a response
+    // and its first read: that is a finished download, not a failure.
+    Future<void> drain(StreamAudioResponse r) =>
+        r.stream.drain<void>().onError<PathNotFoundException>((_, _) {});
+
     // The player's own request for the current song; its completion is what
     // starts the warm.
     Future<void> playCurrent(_ControllableAudioPlayer p) =>
-        sourceAt(p, 0).request().then((r) => r.stream.drain<void>());
+        sourceAt(p, 0).request().then(drain);
 
     Future<void> until(bool Function() condition) async {
       for (var i = 0; i < 600 && !condition(); i++) {
@@ -6020,7 +6035,7 @@ void main() {
         // The player now asks for the song the warm is fetching.
         final asked = sourceAt(s.player, 1).request();
         s.release.complete();
-        await (await asked).stream.drain<void>();
+        await drain(await asked);
         await settle();
         expect(s.requests.where((id) => id == 'song-1'), hasLength(1));
       },
@@ -6039,6 +6054,7 @@ void main() {
       await s.handler.removeQueueItemAt(1);
       await until(() => s.requests.contains('song-2'));
       await until(() => !part.existsSync());
+      await settle();
     });
 
     test(
@@ -6052,6 +6068,7 @@ void main() {
         await until(() => !part.existsSync());
         s.player.moveTo(0);
         await until(() => s.requests.where((id) => id == 'song-1').length == 2);
+        await settle();
       },
     );
 
@@ -6084,7 +6101,7 @@ void main() {
         expect(identical(sourceAt(s.player, 1), warm), isTrue);
         final asked = sourceAt(s.player, 1).request();
         s.release.complete();
-        await (await asked).stream.drain<void>();
+        await drain(await asked);
         await settle();
         expect(s.requests.where((id) => id == 'song-1'), hasLength(1));
       },
@@ -6102,7 +6119,7 @@ void main() {
         await until(() => s.requests.contains('song-1') && next.isDownloading);
         final asked = sourceAt(s.player, 1).request();
         s.release.complete();
-        await (await asked).stream.drain<void>();
+        await drain(await asked);
         await settle();
         expect(s.requests.where((id) => id == 'song-1'), hasLength(1));
       },
@@ -6164,6 +6181,7 @@ void main() {
         await until(() => !warm.isDownloading);
         s.gate[0] = true;
         await until(() => count(s.requests, 'song-1') == 2);
+        await settle();
       },
     );
 
@@ -6176,7 +6194,7 @@ void main() {
       await pumpEventQueue();
       final asked = sourceAt(s.player, 1).request();
       s.release.complete();
-      await (await asked).stream.drain<void>();
+      await drain(await asked);
       await until(() => s.requests.contains('song-2'));
       expect(s.requests, ['song-0', 'song-1', 'song-2']);
       await settle();
@@ -6186,7 +6204,7 @@ void main() {
       final s = await serveQueue(2, startIndex: 1);
       await s.handler.setRepeatMode(AudioServiceRepeatMode.all);
       ticks(s.player);
-      await sourceAt(s.player, 1).request().then((r) => r.stream.drain<void>());
+      await sourceAt(s.player, 1).request().then(drain);
       await until(() => s.requests.contains('song-0'));
       expect(s.requests, ['song-1', 'song-0']);
       await settle();
@@ -6207,13 +6225,13 @@ void main() {
       expect(identical(sourceAt(s.player, 0), warm), isTrue);
       final asked = sourceAt(s.player, 0).request();
       s.release.complete();
-      await (await asked).stream.drain<void>();
+      await drain(await asked);
       await settle();
       expect(count(s.requests, 'song-1'), 1);
     });
 
     test(
-      'a song twice in the queue shares one source and one download',
+      'a song twice in the queue has one lock-cache source and one download',
       () async {
         final s = await serveQueue(
           3,
@@ -6221,17 +6239,147 @@ void main() {
           ids: ['song-0', 'song-1', 'song-1'],
         );
         ticks(s.player);
-        expect(identical(sourceAt(s.player, 1), sourceAt(s.player, 2)), isTrue);
+        // One writer per cache file, and one instance never at two playlist
+        // positions (just_audio derives the native id from it): the repeat
+        // streams without downloading.
+        expect(s.player.audioSources[1], isA<LockCachingAudioSource>());
+        expect(s.player.audioSources[2], isNot(isA<LockCachingAudioSource>()));
+        expect(
+          s.player.audioSources.toSet(),
+          hasLength(s.player.audioSources.length),
+        );
         await playCurrent(s.player);
         await until(() => s.requests.contains('song-1'));
-        s.player.moveTo(2);
+        s.player.moveTo(1);
         await pumpEventQueue();
-        final asked = sourceAt(s.player, 2).request();
+        final asked = sourceAt(s.player, 1).request();
         s.release.complete();
-        await (await asked).stream.drain<void>();
+        await drain(await asked);
         await settle();
         expect(count(s.requests, 'song-1'), 1);
         expect(s.maxActive['song-1'], 1);
+      },
+    );
+
+    // Per player index: 'reg' when the player holds the registered source of
+    // that song, else 'DIFF'/'UNREG'; plus how many instances each song has.
+    String audit(NavisAudioHandler handler, _ControllableAudioPlayer player) {
+      final ids = [for (final m in handler.queue.value) m.id];
+      final instances = <String, Set<int>>{};
+      var bad = 0;
+      for (var i = 0; i < player.audioSources.length; i++) {
+        final s = player.audioSources[i];
+        // ignore: experimental_member_use, reason: the lock-cache source.
+        if (s is! LockCachingAudioSource) continue;
+        final id = ids[i];
+        if (!identical(s, handler.debugRegisteredLockCacheSource(id))) bad++;
+        (instances[id] ??= <int>{}).add(identityHashCode(s));
+      }
+      final multi = [
+        for (final e in instances.entries)
+          if (e.value.length > 1) e.key,
+      ];
+      return 'bad=$bad multiInstance=$multi';
+    }
+
+    const oneInstance = 'bad=0 multiInstance=[]';
+
+    test(
+      'addToQueue and playNext duplicates keep one registered source',
+      () async {
+        final s = await serveQueue(
+          4,
+          hold: {'song-1', 'song-3'},
+          ids: ['song-0', 'song-1'],
+        );
+        ticks(s.player);
+        await s.handler.addToQueue([
+          'song-1',
+          'song-3',
+          'song-3',
+        ], expandMatchFlows: false);
+        await settleQueue(s.handler);
+        expect(audit(s.handler, s.player), oneInstance);
+        await s.handler.playNext(['song-3', 'song-1'], expandMatchFlows: false);
+        await settleQueue(s.handler);
+        expect(audit(s.handler, s.player), oneInstance);
+        await settle();
+      },
+    );
+
+    test(
+      'a released tail with duplicates keeps one registered source',
+      () async {
+        final s = await serveQueue(
+          4,
+          hold: {'song-2'},
+          ids: ['song-0', 'song-1', 'song-2', 'song-2', 'song-3', 'song-2'],
+          window: const NavisQueueWindow(
+            deferThreshold: 3,
+            ahead: 1,
+            lowWater: 1,
+            page: 4,
+            nearJump: 5,
+            behind: 1,
+            trimSlack: 1,
+          ),
+        );
+        ticks(s.player);
+        await s.handler.skipToNext();
+        await settleQueue(s.handler);
+        await until(() => s.player.audioSources.length == 6);
+        await settleQueue(s.handler);
+        expect(audit(s.handler, s.player), oneInstance);
+        await settle();
+      },
+    );
+
+    test('addToQueue on an empty queue shares duplicates', () async {
+      final s = await serveQueue(3, hold: {'song-1'}, build: false);
+      ticks(s.player);
+      await s.handler.addToQueue([
+        'song-0',
+        'song-1',
+        'song-1',
+      ], expandMatchFlows: false);
+      await settleQueue(s.handler);
+      expect(audit(s.handler, s.player), oneInstance);
+      await settle();
+    });
+
+    test(
+      'a fill superseded after its native append is still registered',
+      () async {
+        final s = await serveQueue(3, hold: {'song-1'}, build: false);
+        final p = s.player;
+        final afterGate = Completer<void>();
+        final afterEntered = Completer<void>();
+        p.afterAppendGate = afterGate;
+        p.afterAppendEntered = afterEntered;
+        final first = s.handler.replaceQueue([
+          'song-0',
+          'song-1',
+          'song-2',
+        ], expandMatchFlows: false);
+        await afterEntered.future.timeout(const Duration(seconds: 5));
+        // The batch is in the player; a newer queue load supersedes the fill
+        // before its native call returns.
+        final x1 = sourceAt(p, 1);
+        final second = s.handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await pumpEventQueue();
+        afterGate.complete();
+        await first.catchError((Object _) {});
+        expect(
+          identical(s.handler.debugRegisteredLockCacheSource('song-1'), x1),
+          isTrue,
+        );
+        await second.catchError((Object _) {});
+        await settleQueue(s.handler);
+        expect(audit(s.handler, p), oneInstance);
+        await settle();
       },
     );
 
@@ -6254,7 +6402,7 @@ void main() {
         await pumpEventQueue();
         final asked = player1.request();
         s.release.complete();
-        await (await asked).stream.drain<void>();
+        await drain(await asked);
         await settle();
         expect(count(s.requests, 'song-1'), 1);
         expect(s.maxActive['song-1'], 1);
@@ -6298,7 +6446,7 @@ void main() {
       await pumpEventQueue();
       final asked = player1.request();
       s.release.complete();
-      await (await asked).stream.drain<void>();
+      await drain(await asked);
       await settle();
       expect(count(s.requests, 'song-1'), 1);
       expect(s.maxActive['song-1'], 1);

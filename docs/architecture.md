@@ -4507,8 +4507,10 @@ sidecar downloader, on Android with `prefetch()` on the next song's existing
 `LockCachingAudioSource` (no response, so no replay buffer; ExoPlayer's later
 request joins the running download, `_lockCacheWarmSongId`; one source per cache
 file: a rebuilt queue reuses the registered source (`_runningLockCacheSource`), a
-prepared batch shares its first source per file (`_shareLockCacheSources`) and the
-registry always holds the source the player holds; the warm pauses while the current song's Fast Seeking
+first entry per file keeps it and a repeat of the song, in the batch or already in the
+player, gets the plain non-downloading stream form (`_shareLockCacheSources`; one
+source instance never sits at two playlist positions) and the
+registry holds the source the player holds once a batch is applied; the warm pauses while the current song's Fast Seeking
 range fetch is live; no source, such as a downloaded, fully cached or
 deferred-tail song, is no warm). Its
 completed file is available to normal cache-first resolution and seek recovery.

@@ -537,7 +537,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
       final rows = await _rowsForDeferredEntries(
         items.map(_deferredEntryForItem).toList(growable: false),
       );
-      final (:prepared, :offsets) = await _prepareRowsConcurrently(rows);
+      final (:prepared, :offsets) = await _prepareRowsConcurrently(
+        rows,
+        replacesQueue: true,
+      );
       if (prepared.isEmpty) {
         throw StateError('No queued song can be prepared.');
       }
@@ -772,7 +775,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         ),
       );
     }
-    _shareLockCacheSources(prepared);
+    _shareLockCacheSources(prepared, replacesQueue: true);
     return prepared;
   }
 
@@ -790,17 +793,30 @@ extension _NavisQueueLoading on NavisAudioHandler {
     return _lockCacheSources[path]?.source;
   }
 
-  /// Within one prepared batch the first source per cache file wins, so a song
-  /// that occurs twice is one source, one download.
-  void _shareLockCacheSources(List<_PreparedQueueItem> prepared) {
-    // ignore: experimental_member_use, reason: as above.
-    final first = <String, LockCachingAudioSource>{};
+  /// A cache file has one writer and one player entry: the first entry per
+  /// file, counting the sources the player already holds unless [replacesQueue],
+  /// keeps its lock-cache source; later entries of the same song get the plain
+  /// stream form (the one the cross-fade deck uses), which does not download.
+  /// One source instance never sits at two playlist positions: just_audio
+  /// derives the native id from the source, and an adjacent repeat of an id is
+  /// not seen as an auto-advance.
+  void _shareLockCacheSources(
+    List<_PreparedQueueItem> prepared, {
+    bool replacesQueue = false,
+  }) {
+    final seen = <String>{
+      if (!replacesQueue)
+        for (final entry in _lockCacheSources.entries)
+          if (_player.sequence.any((s) => identical(s, entry.value.source)))
+            entry.key,
+    };
     for (final item in prepared) {
       final path = item.source.cachedFilePath;
-      final own = item.audioSource;
       // ignore: experimental_member_use, reason: as above.
-      if (path == null || own is! LockCachingAudioSource) continue;
-      item.audioSource = first.putIfAbsent(path, () => own);
+      if (path == null || item.audioSource is! LockCachingAudioSource) continue;
+      if (!seen.add(path)) {
+        item.audioSource = item.source.asClonedAudioSource(tag: item.mediaItem);
+      }
     }
   }
 
@@ -1241,6 +1257,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
         ),
         songId: prepared.first.song.id,
         reloadQueueOnTimeout: true,
+        // An append that succeeded is committed: register it below, then let
+        // the supersession check discard the fill.
+        cancelAfterSuccess: false,
       );
     } on PlaybackLoadTimeoutException catch (error) {
       _lastFailedSongId = error.songId ?? prepared.first.song.id;
@@ -1279,8 +1298,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
     for (var j = 0; j < prepared.length; j++) {
       preparedByIndex[preparedIndexes[j]] = prepared[j];
     }
-    _checkQueueWorkCurrent(token, generation);
+    // Observe before the supersession check: the batch is already in the
+    // player, so the registry must hold what it holds even if this fill is stale.
     _observeLockCacheForPrepared(prepared);
+    _checkQueueWorkCurrent(token, generation);
     return prepared.length;
   }
 

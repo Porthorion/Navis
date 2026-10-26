@@ -220,6 +220,13 @@ class NavisAudioHandler extends BaseAudioHandler
   bool get _isDesktopRuntime => desktopRuntimeOverride ?? _isDesktopPlatform;
 
   /// Whether the latest seek request carries a trace callback (tests).
+  /// The registered lock-cache source of [songId] (tests assert it is the one
+  /// the player holds).
+  @visibleForTesting
+  // ignore: experimental_member_use, reason: as above.
+  LockCachingAudioSource? debugRegisteredLockCacheSource(String songId) =>
+      _lockCacheSourceOfSong(songId);
+
   @visibleForTesting
   bool get debugSeekTraceInstalled => _lastSeek?.onStage != null;
 
@@ -1697,6 +1704,7 @@ class NavisAudioHandler extends BaseAudioHandler
     List<SongsTableData?> rows, {
     OperationToken? token,
     void Function(int index)? onRetryLater,
+    bool replacesQueue = false,
   }) async {
     final prepared = <_PreparedQueueItem>[];
     final offsets = <int?>[];
@@ -1727,7 +1735,7 @@ class NavisAudioHandler extends BaseAudioHandler
       }
       token?.checkCancelled();
     }
-    _shareLockCacheSources(prepared);
+    _shareLockCacheSources(prepared, replacesQueue: replacesQueue);
     return (prepared: prepared, offsets: offsets);
   }
 
