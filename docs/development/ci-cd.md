@@ -977,11 +977,14 @@ runtime codec certification. Historical results remain in the progress log.
 
 After changing audio_service or the app-owned media service, configure
 `JAVA_HOME` for the Android build's JDK and run
-`cd android && ./gradlew :app:testSideloadDebugUnitTest --tests '*NavisAudioServiceRecoveryTest' --tests '*JustAudioRecoveryPositionTest'`.
+`cd android && ./gradlew :app:testSideloadDebugUnitTest --tests '*NavisAudioServiceRecoveryTest' --tests '*JustAudioRecoveryPositionTest' --tests '*JustAudioRepeatBoundaryTest'`.
 This reflects on the private listener and handler-interface names/types relied
 on by the lifecycle repair. The position test exercises the vendored Android
 error-event path and requires the actual player position before idle/error
-publication. Run it after changing just_audio too. Follow with the profile-clone
+publication. The repeat-boundary fixture exercises the actual bridge's loop
+policy, playlist-tag eligibility scan and guarded posted action in both callback
+orders; it drives the posted action directly without an Android Looper or audio
+device. Run these after changing just_audio too. Follow with the profile-clone
 recovery fixtures in
 [development-workflow.md](development-workflow.md); JVM reflection checks alone
 do not prove media-session commands or engine survival.

@@ -124,20 +124,33 @@ The matching platform interface serializes this source option. No HTTP timeout
 or HLS/DASH policy changes are made. `ProgressiveLoadRetryTest` supplies pure
 JVM framing fixtures using the existing `EqualizerDspTest` executable pattern.
 
-Android progressive HTTP repeat-one keeps the requested Dart loop mode but
-uses native repeat-off plus pause-at-end. The end-of-item PlayWhenReady reason
-(and an idempotent ENDED fallback) restarts the same queue occurrence at zero,
-preserving Play/Pause intent without publishing terminal completion. Its timeline
-window UID survives appends, inserts and moves while it remains current; restart
-uses its current index. Removal/replacement clears the paused boundary as well.
-A revision cancels pending restarts on transport, selection/source replacement
-or loop-mode changes.
-This prevents Media3 1.4.1 from preloading the same linear stream and silently
-rewinding the current period when the repeated request becomes seekable (#86).
-Local files/assets, HLS/DASH, radio's existing default-retry opt-out and all
-repeat-all behavior remain native; HTTP repeat-one loses gapless restart.
+Android progressive HTTP Repeat One and Repeat All playlists containing a
+progressive HTTP source keep the requested Dart loop mode but use native
+repeat-off. Pause-at-end applies to the current item for owned One and only
+the last item for owned All. The end-of-item PlayWhenReady reason (and an
+idempotent ENDED fallback) restarts the same occurrence for One or wraps to
+index zero for All, preserving Play/Pause intent without terminal completion.
+Its timeline window UID survives appends, inserts and moves while current;
+removal/replacement cannot restart a different occurrence. A revision cancels
+pending restarts on transport and selection/source replacement.
+
+Mode changes retain an already owned pause and apply the latest mode when it
+is consumed. The pause-policy UID survives a policy/timeline callback delivered
+before the end-pause reason. Native ownership is recomputed from current
+playlist tags before resuming, including when the last eligible stream was
+removed. Off releases a non-last pause without restarting the song (advancing
+if already ENDED), while the true end stays completed. Late end callbacks
+cannot consume a boundary twice or publish completion after its resume.
+This prevents Media3 1.4.1 from preloading another occurrence of a linear
+stream and silently rewinding its current period when a later request becomes
+seekable (#86). File-only playlists, HLS/DASH and radio's existing default-retry
+opt-out retain native repeat; owned One loses its gapless restart and owned All
+loses the gapless queue wrap.
 `ProgressiveRepeatTest` covers policy and restart decisions in the existing JVM
-harness. The pairwise Dart loop detector now also recognizes unknown-duration
+harness; `JustAudioRepeatBoundaryTest` exercises the real bridge's policy,
+playlist tag scan and posted action using the existing reflection/proxy JVM
+fixtures, with the posted callback driven directly instead of an Android Looper.
+The pairwise Dart loop detector now also recognizes unknown-duration
 plain-stream backwards jumps; tail/zero/buffering/ready fixtures cover middle
 and last items with and without offsets. Navis's existing offset handler and
 crossfade controller remain the sole Dart owners of offset reloads and fades.

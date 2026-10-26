@@ -4641,8 +4641,10 @@ the current index for Repeat One, or index zero at the last item for Repeat All.
 `STATE_ENDED` is an idempotent fallback and does not publish `completed` during
 an owned repeat. A command revision consumes each boundary once and invalidates
 pending work on Pause (even if native playback already paused at the boundary),
-Stop/disposal, seek/selection, playlist replacement, item transition or loop
-mode change. The boundary tracks the timeline window UID of the queue occurrence:
+Stop/disposal, seek/selection, playlist replacement or item transition.
+Loop-mode changes retain an already owned pause and apply the latest requested
+mode when consuming it. The boundary tracks the timeline window UID of the
+queue occurrence:
 appends, inserts and moves preserve it while that occurrence remains current.
 Repeat One restarts at its current index; Repeat All checks again that it is
 still last before wrapping. If an append or move makes the paused boundary
@@ -4653,8 +4655,16 @@ now non-last boundary rather than rejecting it on the new last-item policy.
 If native playback has already reached `STATE_ENDED`, the guarded action seeks
 to the newly appended next item before resuming; setting PlayWhenReady alone
 cannot leave ENDED. Timeline changes and the ENDED callback share this recovery.
-Boundary ownership is captured when scheduling, allowing that pause to be released even
-if timeline updates change current eligibility. A seek during a pending boundary
+The UID of the occurrence whose end-pause was enabled is retained while native
+playback is paused. This preserves the old owner even when a mode or timeline
+change arrives before the end-pause callback; removing or replacing that
+occurrence cannot transfer its pause to the new current item. Before consuming
+the boundary, native repeat and pause-at-end policy are recomputed from the
+current playlist. Removing its last eligible stream restores native repeat and
+releases the old owned pause exactly once. Switching Off resumes a non-last
+boundary (or advances to its successor if already ENDED); Off at the true end
+stays completed. Late end callbacks cannot re-arm a consumed boundary or
+publish completion after it has resumed. A seek during a pending boundary
 consumes the old restart and resumes at the requested position for both modes,
 only while Play remains requested. Removing or replacing that occurrence cancels
 both the pending restart and the paused boundary retained for explicit Play. Playback
