@@ -10,6 +10,8 @@ import 'package:just_audio_platform_interface/just_audio_platform_interface.dart
 import 'package:path/path.dart' as p;
 import 'package:mocktail/mocktail.dart';
 
+import 'ogg_opus_splicer_test.dart' show cutAfter;
+
 class _StalledConnection extends Fake implements HttpClient {
   bool closed = false;
   @override
@@ -277,6 +279,52 @@ void main() {
     }
     expect(condition(), isTrue);
   }
+
+  test('dispose cancels a continuation waiting for headers', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final connecting = Completer<void>();
+    final release = Completer<void>();
+    addTearDown(() {
+      if (!release.isCompleted) release.complete();
+    });
+    server.listen((request) async {
+      if (request.uri.queryParameters.containsKey('timeOffset')) {
+        connecting.complete();
+        await release.future;
+        return;
+      }
+      request.response.add(cutAfter(100800));
+      await request.response.flush();
+      request.response.deadline = Duration.zero;
+    });
+    final uri = Uri.parse('http://127.0.0.1:${server.port}/song');
+    final file = File(p.join(directory.path, 'dispose.opus'));
+    final events = <OggSpliceEvent>[];
+    final source = LockCachingAudioSource(
+      uri,
+      cacheFile: file,
+      continuationUri: (seconds) =>
+          uri.replace(queryParameters: {'timeOffset': '$seconds'}),
+      onOggSplice: events.add,
+    );
+    final player = AudioPlayer(
+      handleAudioSessionActivation: false,
+      handleInterruptions: false,
+      androidApplyAudioAttributes: false,
+    );
+    addTearDown(player.dispose);
+    await player.setAudioSource(source);
+    final response = await source.request();
+    final done = response.stream.drain<void>().catchError((Object _) {});
+    await connecting.future;
+    await player.dispose();
+    await done.timeout(const Duration(milliseconds: 500));
+    expect(source.isDownloading, isFalse);
+    expect(file.existsSync(), isFalse);
+    expect(File('${file.path}.part').existsSync(), isFalse);
+    expect(events, isEmpty);
+  });
 
   test('replaced adopted previews release their owners', () async {
     final player = AudioPlayer(

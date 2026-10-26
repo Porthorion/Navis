@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:mocktail/mocktail.dart';
 
 import 'ogg_opus_splicer_test.dart' show cutAfter, from2, full, pagesOf;
 
@@ -13,7 +14,9 @@ enum _End { cut, stall, complete }
 
 /// One scripted origin response: [body] up to [length] bytes, then [end].
 class _Reply {
-  new(this.length, this.end);
+  new(this.length, this.end, {this.status = 200, this.headersGate});
+  final int status;
+  final Completer<void>? headersGate;
   final int length;
   final _End end;
 }
@@ -33,8 +36,9 @@ Future<(HttpServer, List<String?>)> _origin(
     requests.add(request.uri.queryParameters['timeOffset']);
     final reply = replies[n < replies.length ? n : replies.length - 1];
     final body = bodies[n < bodies.length ? n : bodies.length - 1];
+    await reply.headersGate?.future;
     final response = request.response
-      ..statusCode = HttpStatus.ok
+      ..statusCode = reply.status
       ..headers.contentType = ContentType('audio', 'ogg')
       ..bufferOutput = false;
     if (knownLength) response.contentLength = body.length;
@@ -131,6 +135,8 @@ void main() {
       expect(File('${cacheFile.path}.part').existsSync(), isFalse);
       expect(events.single['result'], 'ok');
       expect(events.single['offset'], 1);
+      expect(events.single['dropped'], 55);
+      expect(pages.last.granule, pagesOf(from2).last.granule + 48000);
     },
   );
 
@@ -158,6 +164,168 @@ void main() {
     expect(requests, hasLength(1));
     expect(File('${cacheFile.path}.part').existsSync(), isFalse);
   });
+
+  for (final splice in [false, true]) {
+    test(
+      'cancel after headers never publishes cache, splice=$splice',
+      () async {
+        final (server, _) = await _origin(
+          [full],
+          [_Reply(cut.length, _End.complete)],
+        );
+        addTearDown(() => server.close(force: true));
+        late LockCachingAudioSource s;
+        var cancelled = false;
+        final progress = <double>[];
+        Future<void>? cancellation;
+        await HttpOverrides.runZoned(
+          () async {
+            s = source(server, splice: splice);
+            final subscription = s.downloadProgressStream.listen(progress.add);
+            addTearDown(subscription.cancel);
+            final prefetch = s.prefetch().catchError((Object _) {});
+            await Future<void>.delayed(const Duration(milliseconds: 400));
+            await cancellation;
+            await prefetch;
+          },
+          createHttpClient: (context) => _HeadersClient(
+            Zone.root.run(() => HttpClient(context: context)),
+            () {
+              if (cancelled) return;
+              cancelled = true;
+              Timer.run(() => cancellation = s.cancelDownload());
+            },
+          ),
+        );
+        expect(cancelled, isTrue);
+        expect(
+          cacheFile.existsSync(),
+          isFalse,
+          reason: 'a cancelled download must not publish a cache file',
+        );
+        expect(File('${cacheFile.path}.part').existsSync(), isFalse);
+        expect(progress.where((p) => p >= 1), isEmpty);
+        expect(s.isDownloading, isFalse);
+      },
+    );
+  }
+
+  for (final length in [10, 100, 140, 4000]) {
+    test('fallback preserves withheld bytes at cut $length', () async {
+      final (server, requests) = await _origin(
+        [full],
+        [_Reply(length, _End.cut)],
+      );
+      addTearDown(() => server.close(force: true));
+      final (bytes, error) = await drain(source(server));
+      expect(error, isA<HttpException>());
+      expect(bytes, full.take(length).toList());
+      expect(requests, hasLength(1));
+    });
+  }
+
+  test('known-length cut is passthrough and never continues', () async {
+    final (server, requests) = await _origin(
+      [full],
+      [_Reply(cut.length, _End.cut)],
+      knownLength: true,
+    );
+    addTearDown(() => server.close(force: true));
+    final (bytes, error) = await drain(source(server));
+    expect(error, isA<HttpException>());
+    expect(bytes, cut);
+    expect(requests, hasLength(1));
+    expect(cacheFile.existsSync(), isFalse);
+  });
+
+  for (final failure in ['status', 'connect', 'headers', 'mismatch']) {
+    test(
+      'continuation $failure preserves origin error and tail promptly',
+      () async {
+        final headersGate = Completer<void>();
+        addTearDown(() {
+          if (!headersGate.isCompleted) headersGate.complete();
+        });
+        final bad = Uint8List.fromList(from2)..[37] = 2;
+        final (server, requests) = await _origin(
+          [full, failure == 'mismatch' ? bad : from2],
+          [
+            _Reply(cut.length, _End.cut),
+            _Reply(
+              from2.length,
+              _End.complete,
+              status: failure == 'status' ? 404 : 200,
+              headersGate: failure == 'headers' ? headersGate : null,
+            ),
+          ],
+        );
+        addTearDown(() => server.close(force: true));
+        final unavailable = await ServerSocket.bind(
+          InternetAddress.loopbackIPv4,
+          0,
+        );
+        final port = unavailable.port;
+        await unavailable.close();
+        final events = <OggSpliceEvent>[];
+        final s = LockCachingAudioSource(
+          base(server),
+          cacheFile: cacheFile,
+          continuationUri: (offset) => failure == 'connect'
+              ? Uri.parse('http://127.0.0.1:$port/song')
+              : base(server)
+                    .replace(queryParameters: {'timeOffset': '$offset'}),
+          onOggSplice: events.add,
+        );
+        final clock = Stopwatch()..start();
+        final (bytes, error) = await drain(s);
+        expect(error, isA<HttpException>());
+        expect(error.toString(), contains('Connection closed'));
+        expect(bytes, cut);
+        expect(clock.elapsed, lessThan(const Duration(seconds: 2)));
+        expect(
+          events.last.result,
+          failure == 'mismatch' ? 'refused' : 'failed',
+        );
+        expect(requests.length, failure == 'connect' ? 1 : 2);
+        expect(cacheFile.existsSync(), isFalse);
+      },
+    );
+  }
+
+  test(
+    'cancel races a hung continuation connect without a failed trace',
+    () async {
+      final (server, _) = await _origin([full], [_Reply(cut.length, _End.cut)]);
+      addTearDown(() => server.close(force: true));
+      final connecting = Completer<void>();
+      final client = _HungContinuationClient(connecting);
+      final events = <OggSpliceEvent>[];
+      late LockCachingAudioSource s;
+      await HttpOverrides.runZoned(
+        () async {
+          s = LockCachingAudioSource(
+            base(server),
+            cacheFile: cacheFile,
+            continuationUri: (_) =>
+                Uri.parse('http://continuation.invalid/song'),
+            onOggSplice: events.add,
+          );
+          final response = await s.request();
+          final done = response.stream.drain<void>().catchError((Object _) {});
+          await connecting.future;
+          await s.cancelDownload().timeout(const Duration(milliseconds: 300));
+          await done;
+        },
+        createHttpClient: (context) {
+          client.inner = Zone.root.run(() => HttpClient(context: context));
+          return client;
+        },
+      );
+      expect(client.closed, isTrue);
+      expect(events, isEmpty);
+      expect(cacheFile.existsSync(), isFalse);
+    },
+  );
 
   test('a second cut during the continuation is spliced again', () async {
     final (server, requests) = await _origin(
@@ -260,4 +428,64 @@ void main() {
       expect(rb, hasLength(1));
     },
   );
+}
+
+class _HeadersClient extends Fake implements HttpClient {
+  _HeadersClient(this.inner, this.onHeaders);
+  final HttpClient inner;
+  final void Function() onHeaders;
+  @override
+  set connectionTimeout(Duration? value) => inner.connectionTimeout = value;
+  @override
+  String? get userAgent => inner.userAgent;
+  @override
+  set userAgent(String? value) => inner.userAgent = value;
+  @override
+  Future<HttpClientRequest> getUrl(Uri uri) async =>
+      _HeadersRequest(await inner.getUrl(uri), onHeaders);
+  @override
+  void close({bool force = false}) => inner.close(force: force);
+}
+
+class _HeadersRequest extends Fake implements HttpClientRequest {
+  _HeadersRequest(this.inner, this.onHeaders);
+  final HttpClientRequest inner;
+  final void Function() onHeaders;
+  @override
+  int get maxRedirects => inner.maxRedirects;
+  @override
+  set maxRedirects(int value) => inner.maxRedirects = value;
+  @override
+  HttpHeaders get headers => inner.headers;
+  @override
+  Future<HttpClientResponse> close() async {
+    final response = await inner.close();
+    onHeaders();
+    return response;
+  }
+}
+
+class _HungContinuationClient extends Fake implements HttpClient {
+  _HungContinuationClient(this.connecting);
+  final Completer<void> connecting;
+  late HttpClient inner;
+  bool closed = false;
+  @override
+  set connectionTimeout(Duration? value) => inner.connectionTimeout = value;
+  @override
+  String? get userAgent => inner.userAgent;
+  @override
+  set userAgent(String? value) => inner.userAgent = value;
+  @override
+  Future<HttpClientRequest> getUrl(Uri uri) {
+    if (uri.host != 'continuation.invalid') return inner.getUrl(uri);
+    connecting.complete();
+    return Completer<HttpClientRequest>().future;
+  }
+
+  @override
+  void close({bool force = false}) {
+    closed = force;
+    inner.close(force: force);
+  }
 }
