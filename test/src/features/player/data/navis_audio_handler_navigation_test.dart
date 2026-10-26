@@ -891,6 +891,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> removeAudioSourceRange(int start, int end) => _mutate(() async {
     await _hangIf('removeAudioSourceRange');
+    final gate = removeGate;
+    removeGate = null;
+    if (gate != null) {
+      removeEntered?.complete();
+      await gate.future;
+    }
     rangeRemovals++;
     _sources.removeRange(start, end);
     // Like just_audio: the current item keeps its place in the playlist.
@@ -9904,6 +9910,7 @@ void main() {
       bool? desktopRuntimeOverride,
       StreamingQuality quality = opus128,
       int count = 3,
+      NavisQueueWindow queueWindow = const NavisQueueWindow(),
       SubsonicApiClient? Function()? readApiClient,
       ScrobbleService? scrobbleService,
       bool positionStreams = false,
@@ -9925,6 +9932,7 @@ void main() {
         timeouts: timeouts,
         rebuiltPlayers: rebuiltPlayers,
         wrapResolver: wrapResolver,
+        queueWindow: queueWindow,
       );
       addTearDown(() async {
         await created.$1.disposeHandler();
@@ -10492,12 +10500,13 @@ void main() {
             intent == 'skip' ? Duration.zero : const Duration(seconds: 47),
           );
           expect(player.playing, intent != 'Pause');
-          if (intent != 'skip')
+          if (intent != 'skip') {
             expect(
               published,
               isNot(contains('song-2')),
               reason: 'the successor must never own metadata',
             );
+          }
           if (intent != 'skip') {
             expect(
               (player.position - const Duration(milliseconds: 47750)).abs(),
@@ -10507,6 +10516,82 @@ void main() {
           expect(handler.snapshot.queueSongIds, ['song-0', 'song-1', 'song-2']);
           expectNativeMirrorsQueue(handler, player);
         });
+      }
+
+      for (final work in ['release', 'trim']) {
+        test(
+          'row 15 cut during deferred tail $work retains the source occurrence',
+          () async {
+            final (handler, player, database) = await offsetHandler(
+              count: 12,
+              queueWindow: const NavisQueueWindow(
+                deferThreshold: 4,
+                ahead: 1,
+                lowWater: 1,
+                page: 2,
+                nearJump: 3,
+                behind: 1,
+                trimSlack: 0,
+              ),
+            );
+            final ids = List.generate(12, (i) => 'song-$i');
+            await database.libraryDao.upsertSongs([
+              for (final id in ids)
+                SongsTableCompanion.insert(
+                  id: id,
+                  title: id,
+                  duration: const Value(300),
+                ),
+            ]);
+            await handler.replaceQueue(
+              ids,
+              startIndex: work == 'trim' ? 10 : 0,
+              expandMatchFlows: false,
+            );
+            await drain(handler);
+            final release = Completer<void>();
+            final entered = Completer<void>();
+            addTearDown(() {
+              if (!release.isCompleted) release.complete();
+            });
+            if (work == 'trim') {
+              player
+                ..removeGate = release
+                ..removeEntered = entered;
+            } else {
+              player
+                ..afterAppendGate = release
+                ..afterAppendEntered = entered;
+            }
+            player.moveTo(work == 'trim' ? 2 : 1);
+            await entered.future.timeout(const Duration(seconds: 3));
+            expect(handler.debugQueueLaneIdle, isFalse);
+            final loads = player.sourceLoads;
+            player.finishCurrentTrack(
+              endPosition: const Duration(milliseconds: 47750),
+            );
+            await pumpEventQueue(times: 20);
+            release.complete();
+            await drain(handler);
+            expect(
+              player.sourceLoads,
+              loads + 1,
+              reason: 'row 15: cut while $work owns the lane must reopen once',
+            );
+            expect(
+              handler.snapshot.currentSongId,
+              work == 'trim' ? 'song-11' : 'song-1',
+            );
+            expect(current(player).positionOffset, const Duration(seconds: 47));
+            expect(
+              (player.position - const Duration(milliseconds: 47750)).abs(),
+              lessThan(const Duration(seconds: 1)),
+            );
+            expect(handler.snapshot.queueSongIds, ids);
+            expect(player.playing, isTrue);
+            expectNativeMirrorsQueue(handler, player);
+          },
+        );
       }
 
       for (final duplicate in [false, true]) {
