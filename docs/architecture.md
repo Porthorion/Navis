@@ -4643,9 +4643,10 @@ an owned repeat. A command revision consumes each boundary once and invalidates
 pending work on Pause (even if native playback already paused at the boundary),
 Stop/disposal, seek/selection, playlist replacement or item transition.
 Loop-mode changes retain an already owned pause and apply the latest requested
-mode when consuming it. The boundary tracks the timeline window UID of the
-queue occurrence:
-appends, inserts and moves preserve it while that occurrence remains current.
+mode when consuming it. Each scheduled action captures the current timeline
+window UID; the retained pause-policy UID only signals a former owned pause.
+Appends, inserts and moves preserve the captured UID while its occurrence
+remains current.
 Repeat One restarts at its current index; Repeat All checks again that it is
 still last before wrapping. If an append or move makes the paused boundary
 non-last before the posted callback runs, the same guarded decision resumes
@@ -4661,12 +4662,19 @@ instead arrive while `getPlayWhenReady()` still reports true, clearing that
 policy snapshot before the native pause is delivered. The end-of-item reason
 therefore arms a valid current boundary independently of eligibility; ENDED with
 Play requested but native PlayWhenReady false also schedules recovery. An empty
-timeline has no current UID and still publishes completion. Both orders release the obsolete pause after a mode change or removal of the last
-eligible stream. A captured boundary UID cannot restart a different occurrence.
+timeline has no current UID and still publishes completion. Both orders release
+the obsolete pause after a mode change or removal of the last eligible stream
+elsewhere in the playlist, while the paused occurrence remains current. A post
+captured for an old UID cannot restart its replacement. If the current occurrence
+is removed while the engine remains ENDED, recovery captures the new current UID
+instead of adopting the removed occurrence's stale pause-policy UID. This lets a
+remaining streamed item restart, or Repeat All wrap a remaining file-only queue.
 Before consumption, native repeat and pause-at-end policy are recomputed from
 the current playlist. Switching Off resumes a non-last boundary (or advances to
-its successor if already ENDED); Off at the true end publishes completion
-without scheduling another boundary. A stale ENDED listener callback while Play
+its successor if already ENDED). At the last item, Off resumes without seeking
+when the engine is not ENDED, including after a scrub followed by a late end
+reason; it publishes completion only when the engine is truly ENDED, without
+scheduling another boundary. A stale ENDED listener callback while Play
 is requested and the engine is no longer ENDED does not publish `completed`,
 including on file-only queues. Late end reasons after resume cannot re-arm it.
 
@@ -4675,15 +4683,20 @@ at the requested position for both modes, only while Play remains requested.
 An ordinary in-item seek re-evaluates loop policy after seeking, so it re-arms
 the pause-policy UID even without a media-item transition or PlayWhenReady
 change. Removing or replacing a captured boundary occurrence cancels both the
-post and the paused boundary retained for explicit Play. Item/timeline changes
-and source replacement also re-evaluate eligibility and the last-item pause
-policy, so an append while playing enables auto-advance and removal can make
+post and the paused boundary retained for explicit Play. A Repeat One removal
+that leaves a file successor already READY can still need explicit Play;
+no fresh ENDED recovery is available in that case. Paused queue edits refresh
+the pause-policy snapshot too, preserving the legacy paused-ENDED rewind without
+resuming playback. Item/timeline changes and source replacement re-evaluate
+eligibility and the last-item pause policy, so an append while playing enables auto-advance and removal can make
 the current item last.
 
 Two pre-delivery races remain: Pause then Play before any native boundary signal
 can resume into the next song under Repeat One, and a seek made before a delayed
-end reason can be overwritten by a restart at zero. The app-visible state does
-not distinguish the former from an ordinary in-item Pause/Play, or the latter
+end reason can be overwritten by a restart at zero under Repeat One/All. The Off
+form previously left the last item paused; it now resumes its current position
+when native state is not ENDED, rather than restarting or staying paused. The
+app-visible state does not distinguish the former from an ordinary in-item Pause/Play, or the latter
 from a fresh EOF after seeking. These cases need native signal identity/timing
 rather than treating every armed pause policy as an already reached boundary.
 

@@ -4,7 +4,12 @@ Releases are built and published locally with `tool/release.sh`; `tool/check.sh`
 
 - `static`: bootstrap, format check, `build_runner build` followed by a diff check (committed generated code must be current), analyze and the dead-code check.
 - `test`: four parallel shards of `flutter test`; they skip `build_runner` because generated code is committed.
-- `ci`: waits for both and fails unless both succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
+- `native`: prepares JDK 21, Android SDK 37 and Flutter's Android artifacts, then
+  runs the pure native fixtures and the repeat bridge runner/contract. It uses
+  [setup-java](https://github.com/actions/setup-java) and
+  [setup-android](https://github.com/android-actions/setup-android); the job has a
+  15-minute deadline and requires no emulator or secrets.
+- `ci`: waits for all three and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
 
 Windows media-session changes additionally require the Windows-only isolated
 GMTC validation command described in `docs/development/development-workflow.md`:
@@ -99,8 +104,9 @@ Checks performed (in order, fail-fast):
 2. Flutter test-log guard fixtures (`tool/check_test_log_test.sh`) and Linux
    desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
 3. Native equalizer response/PCM and progressive HTTP retry/repeat fixtures
-   (`tool/equalizer_native_test.sh`)
-   and the Last.fm key masking / artifact secret scan shell tests
+   (`tool/equalizer_native_test.sh`), Android repeat runner contract
+   (`tool/android_repeat_runner_test.sh`) and bridge JVM suites
+   (`tool/android_repeat_native_test.sh`), and the Last.fm key masking / artifact secret scan shell tests
    (`tool/lastfm_key_defines_test.sh`, `tool/scan_artifact_secret_test.sh`;
    fake key and synthetic artifacts, runnable on their own to debug a failure)
 4. `./tool/dart_format.sh --check` (reports without rewriting; excludes
@@ -120,6 +126,20 @@ Checks performed (in order, fail-fast):
 
 The dead-code CLI self-tests invoke its shared library entry point against
 temporary fixtures in-process, avoiding a Dart subprocess compilation per check.
+
+Android repeat bridge fixtures require bootstrap, JDK 21, Android SDK 37,
+Python 3 and GNU `timeout`. Run `flutter precache --android` once if Flutter's
+wrapper cache is absent. `tool/android_repeat_native_test.sh` copies missing
+ignored wrapper launch/JAR files from that cache, preserving the repository's
+pinned distribution URL and checksum. It runs `:app:testSideloadDebugUnitTest`
+with `--tests '*JustAudioRepeat*Test'` (both suites, including future added
+cases), without installing an APK or starting a device. The runner forces the
+sideload test flavor, uses one Gradle worker and in-process Kotlin, bounds the
+Gradle JVM to a 2 GiB heap / 768 MiB metaspace / 256 MiB code cache, and disables
+persistent daemons. GNU `timeout` limits the invocation to ten minutes with a
+ten-second kill grace. Failures and timeout status propagate to `check.sh` and
+the CI `native` job. Its hermetic contract test covers wrapper setup, flags,
+selection, failure propagation and both gate call sites.
 
 Native EQ fixtures use an available JDK, or Android Studio's bundled JDK.
 `ANDROID_STUDIO_JDK` may select an alternate JDK directory. They validate
@@ -975,6 +995,8 @@ runtime codec certification. Historical results remain in the progress log.
 
 ### Android media-service upgrade contract
 
+The repeat bridge suites run automatically through
+`./tool/android_repeat_native_test.sh` in `check.sh` and the CI `native` job.
 After changing audio_service or the app-owned media service, configure
 `JAVA_HOME` for the Android build's JDK and run
 `cd android && ./gradlew :app:testSideloadDebugUnitTest --tests '*NavisAudioServiceRecoveryTest' --tests '*JustAudioRecoveryPositionTest' --tests '*JustAudioRepeatBoundaryTest' --tests '*JustAudioRepeatCallbackTest'`.
