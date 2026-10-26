@@ -756,6 +756,41 @@ void main() {
         expect(cloned.positionOffset, const Duration(seconds: 95));
       }, skip: !sqliteAvailable);
 
+      test('the Ogg cut splice is wired only for an Opus transcode with '
+          'timeOffset support', () async {
+        final song = await flacSong('song-splice-gate');
+        const mp3 = StreamingQuality(
+          label: 'mp3',
+          maxBitRate: 128,
+          format: 'mp3',
+        );
+        Future<Uri Function(int)?> continuation(
+          StreamingQuality quality, {
+          bool offsets = true,
+        }) async {
+          final resolved = await resolverFor(
+            quality: () => quality,
+            supportsTranscodeOffset: () => offsets,
+          ).resolveForSong(song);
+          // ignore: experimental_member_use, reason: reads the Navis splice hook.
+          return (resolved.lockCachingAudioSource! as LockCachingAudioSource)
+              .continuationUri;
+        }
+
+        final wired = await continuation(opus128);
+        expect(wired, isNotNull);
+        final uri = wired!(7);
+        expect(uri.queryParameters['timeOffset'], '7');
+        expect(uri.queryParameters['format'], 'opus');
+        expect(uri.queryParameters['maxBitRate'], '128');
+        expect(await continuation(opus128, offsets: false), isNull);
+        expect(await continuation(mp3), isNull);
+        expect(
+          await continuation(const StreamingQuality(label: 'original')),
+          isNull,
+        );
+      }, skip: !sqliteAvailable);
+
       test('no timeOffset without the capability, a transcode or a positive '
           'offset', () async {
         final song = await flacSong('song-offset-none');

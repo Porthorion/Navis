@@ -142,7 +142,7 @@ void main() {
       );
       addTearDown(() => server.close(force: true));
       final (_, error) = await drain(source(server, splice: false));
-      expect(error, isNotNull);
+      expect(error, isA<HttpException>()); // the origin's own failure
       expect(requests, hasLength(1));
       expect(File('${cacheFile.path}.part').existsSync(), isFalse);
       expect(cacheFile.existsSync(), isFalse);
