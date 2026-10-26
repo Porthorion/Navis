@@ -578,4 +578,36 @@ void main() {
     run(s, full.sublist(0, 120), 50, false); // headers only
     expect(s.canContinue, isFalse);
   });
+
+  test('a cut after the final trimmed audio page appends no packet (EOS on a separate empty page)', () {
+    final s = OggOpusSplicer();
+    s.forward([
+      ..._headers(),
+      ..._page(960, [
+        [152, 0],
+      ]),
+      ..._page(1700, [
+        [152, 1],
+      ], seq: 3),
+    ]);
+    expect(s.canContinue, isTrue);
+    s.beginContinuation(0);
+    final out = s.splice([
+      ..._headers(serial: 84),
+      ..._page(1700, [
+        [152, 0],
+        [152, 1],
+      ], serial: 84),
+      ..._page(1700, [], flags: 4, seq: 3, serial: 84),
+    ]);
+    final d = Uint8List.fromList(out);
+    // Exactly one data-less EOS page: no segments, mapped granule, next sequence.
+    expect(d.length, 27);
+    expect(d[5], 4);
+    expect(d[26], 0);
+    expect(ByteData.sublistView(d).getInt64(6, Endian.little), 1700);
+    expect(ByteData.sublistView(d).getUint32(18, Endian.little), 4);
+    expect(s.droppedPackets, 2);
+    expect(s.continuationComplete, isTrue);
+  });
 }
