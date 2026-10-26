@@ -11539,6 +11539,42 @@ void main() {
       expect(player.playing, isTrue);
     });
 
+    test(
+      'row 05 unbuilt original recovery honors Pause during failover',
+      () async {
+        final (handler, player, database) = await offsetHandler(
+          capable: false,
+          count: 4,
+        );
+        await start(handler);
+        final release = Completer<void>();
+        final entered = Completer<void>();
+        addTearDown(() {
+          if (!release.isCompleted) release.complete();
+        });
+        player
+          ..appendGate = release
+          ..appendEntered = entered;
+        final editing = handler.addToQueue(['song-3'], expandMatchFlows: false);
+        await entered.future;
+        player
+          ..simulatedPosition = const Duration(seconds: 70)
+          ..state = ProcessingState.idle;
+        final recovery = handler.debugRecoverCurrentSong();
+        await pumpEventQueue(times: 30);
+        await (database.delete(
+          database.songsTable,
+        )..where((row) => row.id.equals('song-0'))).go();
+        await handler.pause();
+        release.complete();
+        await Future.wait([editing, recovery]);
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(player.playing, isFalse);
+        expectNativeMirrorsQueue(handler, player);
+      },
+    );
+
     for (final superseded in [false, true]) {
       test(
         'row 05 unbuilt original recovery ${superseded ? 'yields to selection' : 'fails over once'}',
