@@ -773,8 +773,7 @@ void main() {
             supportsTranscodeOffset: () => offsets,
           ).resolveForSong(song);
           // ignore: experimental_member_use, reason: reads the Navis splice hook.
-          return (resolved.lockCachingAudioSource! as LockCachingAudioSource)
-              .continuationUri;
+          return resolved.lockCachingAudioSource!.continuationUri;
         }
 
         final wired = await continuation(opus128);

@@ -6,19 +6,17 @@ import 'package:just_audio/src/ogg_opus_splicer.dart';
 
 /// Independent page reader and CRC so the tests do not trust the splicer.
 class P {
-  P(
+  new(
     this.flags,
     this.granule,
     this.serial,
     this.seq,
     this.crcOk,
     this.packets,
-    this.raw,
   );
   final int flags, granule, serial, seq;
   final bool crcOk;
   final List<Uint8List> packets;
-  final Uint8List raw;
 }
 
 int _crc(Uint8List b) {
@@ -64,7 +62,6 @@ List<P> pagesOf(List<int> bytes) {
         h.getUint32(p + 18, Endian.little),
         _crc(raw) == stored,
         packets,
-        d.sublist(p, at),
       ),
     );
     p = at;

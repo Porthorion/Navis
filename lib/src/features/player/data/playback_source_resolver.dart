@@ -438,13 +438,13 @@ class PlaybackSourceResolver {
     );
 
     try {
-      // ignore: experimental_member_use, reason: just_audio exposes rolling stream caching through this experimental source type.
       // A cut Ogg/Opus transcode is spliced from a second request instead of
       // failing (Android lock cache only; whole-second timeOffset needed).
       final splicesCut =
           streamingMetadata.isTranscoded &&
           streamingMetadata.format == 'opus' &&
           supportsTranscodeOffset;
+      // ignore: experimental_member_use, reason: just_audio exposes rolling stream caching through this experimental source type.
       final lockCachingSource = LockCachingAudioSource(
         streamUri,
         cacheFile: cacheFile,

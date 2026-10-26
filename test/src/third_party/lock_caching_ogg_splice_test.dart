@@ -1,3 +1,5 @@
+// ignore_for_file: experimental_member_use, reason: exercises the Navis splice additions to the vendored source.
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -11,7 +13,7 @@ enum _End { cut, stall, complete }
 
 /// One scripted origin response: [body] up to [length] bytes, then [end].
 class _Reply {
-  _Reply(this.length, this.end);
+  new(this.length, this.end);
   final int length;
   final _End end;
 }
@@ -70,7 +72,6 @@ void main() {
 
   Uri base(HttpServer s) => Uri.parse('http://127.0.0.1:${s.port}/song');
 
-  // ignore: experimental_member_use, reason: tests the Navis additions to the vendored source.
   LockCachingAudioSource source(
     HttpServer server, {
     bool splice = true,

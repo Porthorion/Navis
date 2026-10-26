@@ -87,8 +87,7 @@ class OggOpusSplicer {
   void _track(_Page page) {
     if (_pages++ == 0) {
       final head = page.bodyStart;
-      _opus =
-          page.flags & 2 != 0 &&
+      _opus = page.flags & 2 != 0 &&
           page.segments.length == 1 &&
           _isOpusHead(page.data, head, page.end);
       if (_opus) {
@@ -152,8 +151,8 @@ class OggOpusSplicer {
         if (!_isOpusHead(packet, 0, packet.length) || packet[9] != _channels) {
           throw const FormatException('continuation header mismatch');
         }
-        _contPreSkip = ByteData.sublistView(packet)
-            .getUint16(10, Endian.little);
+        _contPreSkip =
+            ByteData.sublistView(packet).getUint16(10, Endian.little);
         _packetIndex++;
       } else if (_packetIndex == 1) {
         if (!_startsWith(packet, 0, 'OpusTags'.codeUnits)) {
@@ -258,8 +257,8 @@ int _packetSamples(Uint8List packet) {
   final frame = config < 12
       ? const [480, 960, 1920, 2880][config & 3]
       : config < 16
-      ? const [480, 960][config & 1]
-      : const [120, 240, 480, 960][config & 3];
+          ? const [480, 960][config & 1]
+          : const [120, 240, 480, 960][config & 3];
   final code = toc & 3;
   final int frames;
   if (code == 0) {
