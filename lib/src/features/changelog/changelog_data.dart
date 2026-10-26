@@ -130,6 +130,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'On Android, Ogg/Opus transcodes can recover a mid-song connection '
+        'cut without reloading the song: Navis joins a continuation to the '
+        'audio already buffered.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Adding an album or several songs to a server playlist now works on '
         'Navidrome 0.64, which silently ignored multi-song adds. Navis '
         'verifies the result and reports songs that could not be added.',

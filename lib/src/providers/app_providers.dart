@@ -67,6 +67,7 @@ import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dar
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
+import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -1357,6 +1358,7 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       matchFlowDao: database.matchFlowDao,
       historyDao: database.historyDao,
       sourceResolver: PlaybackSourceResolver(
+        transportTrace: PlaybackTransportTrace(),
         cacheDao: database.cacheDao,
         libraryDao: database.libraryDao,
         rollingCacheManager: ref.read(rollingCacheManagerProvider),

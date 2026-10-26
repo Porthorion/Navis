@@ -1447,7 +1447,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   | `memory-soak` | PSS + SwapPss slope and post-GC total, plus Dart heap over 20 drags and an idle window |
   | `repeat` | Repeat One/All wraps, append at the queue end, next-song readiness and network-free seeks at handover (`chain_end`; gated on Linux and Android) |
   | `crossfade` | hand-off under a 4 s cross-fade, skips |
-  | `cut-recovery` | origin cuts, dead sources, cold seeks |
+  | `cut-recovery` | origin cuts, dead sources, cold seeks; on Android also the Ogg cut splice (`cut40`, `cut40x2`, `cut5`: only the first body is cut, then no reload or player error, one continuation request per cut, final cache file decodes clean within the join rms and 20 ms length bounds; `cut5` is Android-only) |
   | `local-seek` | seeks in a downloaded or fully cached file |
   | `queue-edit` | queue edits during a fill |
 
@@ -1460,6 +1460,13 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   counts are relative to the base for `seek`, `repeat` and `cut-recovery`
   because some cases are red on release/1.5 (see the PR); a new violation kind
   is always a FAIL.
+
+  Android cut-splice comparisons require at least one base `reloadsAfterCut`;
+  a missing or zero count fails `baseCutObserved` as a vacuous comparison. The
+  one-second frozen-median limit uses only cells containing `spliceCheck`, so
+  unrelated scenario cases cannot dilute a stalled splice. File validation
+  gates both RMS (0.005) and absolute decoded length difference (20 ms).
+  Linux's full case list excludes `cut5`.
 
   Both seek oracles recognize a brief native clock reset, including at an
   offset stream's start, only if the previous position returns within 500 ms
