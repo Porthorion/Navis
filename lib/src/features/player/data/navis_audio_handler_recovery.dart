@@ -570,7 +570,6 @@ extension _NavisRecovery on NavisAudioHandler {
       if (_seekRevision != seekRevision ||
           !_isActiveLoadGeneration(loadGeneration) ||
           !identical(player, _player) ||
-          _transcodeEndInvalidatedAt != invalidated ||
           !identical(_prematureTranscodeDeparture?.source, occurrence.source) ||
           departedIndex < 0 ||
           _queueItems.elementAtOrNull(departedIndex)?.id != item.id) {
