@@ -20,10 +20,10 @@ final class ProgressiveRepeat {
     }
 
     // A boundary that no longer needs a wrap still needs its native pause released.
-    static int boundaryAction(int requestedMode, boolean owned, boolean playRequested,
+    static int boundaryAction(int requestedMode, boolean pendingBoundary, boolean playRequested,
             Object boundaryUid, Object currentUid, int currentIndex, int itemCount,
             long boundaryRevision, long currentRevision, boolean seeking, boolean ended) {
-        if (!owned || !playRequested || currentIndex < 0 || currentIndex >= itemCount
+        if (!pendingBoundary || !playRequested || currentIndex < 0 || currentIndex >= itemCount
                 || boundaryUid == null || !boundaryUid.equals(currentUid)
                 || boundaryRevision != currentRevision) return -1;
         if (requestedMode < 0 || requestedMode > 2) return -1;

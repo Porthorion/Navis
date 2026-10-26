@@ -123,6 +123,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private Object repeatAtEndUid;
     // The pause reason may arrive after a policy/timeline change removed ownership.
     private Object repeatPauseUid;
+    private boolean repeatPublishingEnd;
     private final Set<String> progressiveHttpSources = new HashSet<>();
 
     private ExoPlayer player;
@@ -336,7 +337,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         boolean owned = ownsProgressiveRepeat();
         boolean pauseAtEnd = ProgressiveRepeat.pauseAtEnd(requestedLoopMode, owned,
                 player.getCurrentMediaItemIndex() == player.getMediaItemCount() - 1);
-        if (player.getPlayWhenReady() || !playRequested) {
+        if (player.getPlayWhenReady()) {
             repeatPauseUid = pauseAtEnd ? currentItemUid() : null;
         }
         player.setRepeatMode(owned ? Player.REPEAT_MODE_OFF : requestedLoopMode);
@@ -365,9 +366,10 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private boolean scheduleProgressiveRepeat() {
         // A delivered end reason must not re-arm a boundary already resumed by another callback.
         if (player.getPlayWhenReady() && player.getPlaybackState() != Player.STATE_ENDED) return false;
+        final Object currentUid = currentItemUid();
+        if (currentUid == null) return false;
         if (repeatAtEndUid == null) {
-            if (repeatPauseUid == null && !ownsProgressiveRepeat()) return false;
-            repeatAtEndUid = repeatPauseUid != null ? repeatPauseUid : currentItemUid();
+            repeatAtEndUid = repeatPauseUid != null ? repeatPauseUid : currentUid;
         }
         if (!playRequested) return false;
         if (repeatPending) return true;
@@ -393,7 +395,13 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         repeatPauseUid = null;
         if (action == -1) {
             if (requestedLoopMode == Player.REPEAT_MODE_OFF && player.getPlaybackState() == Player.STATE_ENDED) {
-                onPlaybackStateChanged(Player.STATE_ENDED);
+                // Publishing terminal Off must not re-arm the native pause.
+                repeatPublishingEnd = true;
+                try {
+                    onPlaybackStateChanged(Player.STATE_ENDED);
+                } finally {
+                    repeatPublishingEnd = false;
+                }
             }
             return;
         }
@@ -511,8 +519,10 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         case Player.STATE_ENDED:
             // Releasing an old boundary may already have changed native state and ownership.
             if (playRequested && player.getPlaybackState() != Player.STATE_ENDED) break;
-            if ((ownsProgressiveRepeat() || repeatPauseUid != null || repeatAtEndUid != null)
-                    && playRequested && scheduleProgressiveRepeat()) break;
+            if (!repeatPublishingEnd && playRequested
+                    && (!player.getPlayWhenReady() || ownsProgressiveRepeat()
+                        || repeatPauseUid != null || repeatAtEndUid != null)
+                    && scheduleProgressiveRepeat()) break;
             if (processingState != ProcessingState.completed) {
                 updatePosition();
                 processingState = ProcessingState.completed;
@@ -1272,6 +1282,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
             int windowIndex = index != null ? index : player.getCurrentMediaItemIndex();
             player.seekTo(windowIndex, position);
             if (resumeBoundary && playRequested) player.setPlayWhenReady(true);
+            updateLoopPolicy();
         } catch (RuntimeException e) {
             seekResult = null;
             seekPos = null;
