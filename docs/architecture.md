@@ -4067,13 +4067,18 @@ granule and CRC, and drops packets that end at or before the delivered granule.
 A successful splice gives the player one stream without a song reload; a short
 buffer can still rebuffer. Repacking splits at packet boundaries to respect
 Ogg's 255-segment page limit. Packet durations must divide a whole second
-exactly: 60/80/120 ms layouts are refused rather than overlapped.
+exactly: 60/80/120 ms layouts are refused rather than overlapped. A last delivered
+page ending mid-packet cannot continue and falls back to the original error
+path; this can occur with larger page sizes/high bitrates. End trimming changes
+only the final granule, preserving shorter packets before the trimmed tail.
+A cut after EOS never requests another continuation.
 At most two continuations per fetch. Playlist removal, clearing and replacement
 keep whole-file caching for both plain and opted-in sources. Player disposal
 cancels opted-in splicing sources; plain sources retain the base whole-file
 caching semantics. Range requests are cancelled in either case. Explicit
 cancellation races connect and headers, disarms the setup timer, and produces
-no failed-splice trace. Continuation connect plus headers share a six-second
+no failed-splice trace. Each attempt resets its dropped-packet count before
+connecting, including failed setup attempts. Continuation connect plus headers share a six-second
 deadline, allowing measured Navidrome
 startup while staying below Media3's eight-second loopback read timeout.
 Continuation body progress uses the source's normal `bodyProgressTimeout`

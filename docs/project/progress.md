@@ -51,6 +51,21 @@ Last updated: 2026-10-26
   kills). Targeted review mutants N4, M6, M2b, M3, W1 and S10b are killed (6/6);
   the full 71-mutant review set was not rerun. Changed Dart formatting and
   `git diff --check` pass.
+  Round 4 preserves mixed-duration packets before end trim, including when the
+  continuation's first audio page is EOS, by calibrating the decoded granule
+  base from the original stream. Cut-after-EOS falls back without requesting or
+  appending continuation audio; failed attempt 2 resets its own drop count.
+  First failing trim lines: `Expected: [[144, 1], [152, 2]]`,
+  `Actual: [[152, 2]]`; telemetry: `Expected: <0>`, `Actual: <55>`.
+  New assertions cover mapped/serial-rewritten empty EOS, emission guards,
+  paused plain-player disposal and pre-listen sink/state cleanup. Focused
+  splicer, lock-cache and resolver suites: `00:14 +170: All tests passed!`;
+  regenerated review seeds 9145, 9517 and 10451 all preserve every packet,
+  final granules, CRCs and a single EOS. The mid-packet-page fallback limit is
+  now explicit in the architecture section. Targeted D3, D10, D11, D12, D16
+  and D20 mutations are killed (6/7 total). D18 survives because the shared
+  `_startFetch` error cleanup also clears `_downloading`; public state and sink
+  closure are explicitly asserted. The full review mutation set was not rerun.
   Harness gates now require a base reload, use a cut-cell frozen median,
   enforce decoded length parity within 20 ms, and reserve `cut5` for Android.
   Remaining: final Android base-vs-fix runtime evidence and `check.sh` from the

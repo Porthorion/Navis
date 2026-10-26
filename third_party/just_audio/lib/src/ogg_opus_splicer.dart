@@ -27,14 +27,17 @@ class OggOpusSplicer {
   var _channels = 0;
   var _sequence = 0;
   var _emittedEos = false;
+  int? _originalGranuleBase;
+  var _originalSamples = 0;
 
   /// Granule of the last page handed out (the audio delivered so far).
   var _granule = 0;
 
-  // Continuation state, reset by [beginContinuation].
+  // Packet and continuation state, reset by [beginContinuation].
   var _offsetSeconds = 0;
   var _packetIndex = 0;
   var _contPreSkip = 0;
+  int? _contGranule;
   var _continuationEos = false;
   final _partial = BytesBuilder(copy: false);
 
@@ -43,7 +46,7 @@ class OggOpusSplicer {
 
   /// Whether the stream so far is a clean Opus page sequence with audio.
   bool get canContinue =>
-      !_passthrough && _opus && !_endsMidPacket && _granule > 0;
+      !_passthrough && _opus && !_endsMidPacket && !_emittedEos && _granule > 0;
 
   /// Whole-second offset to request: one second of decoder pre-roll before the
   /// end of the delivered audio, so the join decodes like an uncut stream.
@@ -106,6 +109,25 @@ class OggOpusSplicer {
         _serial = page.serial;
       }
     }
+    if (_opus && _originalGranuleBase == null) {
+      try {
+        var at = page.bodyStart;
+        for (final segment in page.segments) {
+          _partial.add(Uint8List.sublistView(page.data, at, at + segment));
+          at += segment;
+          if (segment < 255) {
+            final packet = _partial.takeBytes();
+            if (_packetIndex++ >= 2) _originalSamples += _packetSamples(packet);
+          }
+        }
+        if (_originalSamples > 0 && page.granule >= 0) {
+          _originalGranuleBase = page.granule - _originalSamples;
+        }
+      } on FormatException {
+        // Invalid original packets keep the plain decoder failure path.
+        _opus = false;
+      }
+    }
     _sequence = page.sequence;
     if (page.flags & 4 != 0) _emittedEos = true;
     if (page.granule >= 0) _granule = page.granule;
@@ -125,6 +147,7 @@ class OggOpusSplicer {
   void beginContinuation(int offsetSeconds) {
     _offsetSeconds = offsetSeconds;
     _packetIndex = 0;
+    _contGranule = _originalGranuleBase;
     _continuationEos = false;
     _pending = Uint8List(0);
     _partial.clear();
@@ -191,11 +214,24 @@ class OggOpusSplicer {
     if (page.granule < 0) throw const FormatException('audio without granule');
     // Map the page granule into the delivered stream's granule space, then
     // walk back through the packet durations to place every packet's end.
+    final samples = audio.map(_packetSamples).toList();
+    if (samples.any((n) => 48000 % n != 0)) {
+      throw const FormatException('unplaceable Opus packet duration');
+    }
+    final duration = samples.fold<int>(0, (sum, n) => sum + n);
+    final previousGranule = _contGranule;
+    // End trimming changes the final granule, not the preceding packet ends.
+    final untrimmed = previousGranule == null
+        ? page.granule
+        : max(page.granule, previousGranule + duration);
+    _contGranule = page.granule;
+    final mappedGranule =
+        _offsetSeconds * 48000 + (page.granule - _contPreSkip) + _preSkip;
     final ends = List<int>.filled(audio.length, 0);
-    var end = _offsetSeconds * 48000 + (page.granule - _contPreSkip) + _preSkip;
+    var end = mappedGranule + untrimmed - page.granule;
     for (var i = audio.length - 1; i >= 0; i--) {
       ends[i] = end;
-      end -= _packetSamples(audio[i]);
+      end -= samples[i];
     }
     final kept = <Uint8List>[];
     for (var i = 0; i < audio.length; i++) {
@@ -220,11 +256,15 @@ class OggOpusSplicer {
       }
       if (last == first) throw const FormatException('oversized Opus packet');
       final endIndex = audio.length - kept.length + last - 1;
-      out.add(_buildPage(_serial, ++_sequence, ends[endIndex],
-          last == kept.length ? page.flags & 4 : 0, kept.sublist(first, last)));
+      out.add(_buildPage(
+          _serial,
+          ++_sequence,
+          last == kept.length ? mappedGranule : ends[endIndex],
+          last == kept.length ? page.flags & 4 : 0,
+          kept.sublist(first, last)));
       first = last;
     }
-    _granule = ends.last;
+    _granule = mappedGranule;
     return out.takeBytes();
   }
 
@@ -308,7 +348,7 @@ int _packetSamples(Uint8List packet) {
     frames = packet[1] & 0x3F;
   }
   final samples = frame * frames;
-  if (samples <= 0 || samples > 5760 || 48000 % samples != 0) {
+  if (samples <= 0 || samples > 5760) {
     throw const FormatException('unplaceable Opus packet duration');
   }
   return samples;

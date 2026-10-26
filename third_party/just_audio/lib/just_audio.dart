@@ -4178,6 +4178,7 @@ class LockCachingAudioSource extends StreamAudioSource {
         attempt++;
         continuing = true;
         _spliceOffset = splicer.resumeSeconds;
+        splicer.beginContinuation(_spliceOffset);
         try {
           // Put the deadline around the race so cancellation disarms its timer.
           final response = await Future.any([
@@ -4194,7 +4195,6 @@ class LockCachingAudioSource extends StreamAudioSource {
           if (response.statusCode != 200) {
             throw HttpException('HTTP Status Error: ${response.statusCode}');
           }
-          splicer.beginContinuation(_spliceOffset);
           source = response;
         } catch (_) {
           if (cancelled.isCompleted) return;

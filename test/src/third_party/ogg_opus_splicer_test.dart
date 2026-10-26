@@ -278,12 +278,11 @@ void main() {
   ]) {
     test('unplaceable duration $packet refuses instead of overlapping', () {
       final s = OggOpusSplicer();
-      s.forward([
+      final original = [
         ..._headers(),
-        ..._page(96000, [
-          [152, 0],
-        ]),
-      ]);
+        ..._page(96000, [packet]),
+      ];
+      expect(s.forward(original), original);
       s.beginContinuation(1);
       expect(
         () => s.splice([
@@ -448,6 +447,33 @@ void main() {
     );
   }
 
+  test('first continuation audio page can carry mixed-duration end trim', () {
+    final s = OggOpusSplicer();
+    s.forward([
+      ..._headers(),
+      ..._page(960, [
+        [152, 0],
+      ]),
+    ]);
+    s.beginContinuation(0);
+    final packets = [
+      [144, 1],
+      [152, 2],
+    ];
+    final pages = pagesOf(
+      s.splice([
+        ..._headers(),
+        ..._page(1700, [
+          [152, 0],
+          ...packets,
+        ], flags: 4),
+      ]),
+    );
+    expect(pages.single.packets, packets);
+    expect(pages.single.granule, 1700);
+    expect(s.droppedPackets, 1);
+  });
+
   test('a cut after EOS cannot continue or append a duplicate EOS', () {
     final s = OggOpusSplicer();
     s.forward([
@@ -524,6 +550,18 @@ void main() {
     s.beginContinuation(2);
     final bad = Uint8List.fromList(from2)..[28 + 9] = 2;
     expect(() => s.splice(bad), throwsFormatException);
+  });
+
+  test('invalid original packets pass through and disable splicing', () {
+    final s = OggOpusSplicer();
+    final original = [
+      ..._headers(),
+      ..._page(960, [
+        [155],
+      ]),
+    ];
+    expect(s.forward(original), original);
+    expect(s.canContinue, isFalse);
   });
 
   test('a non-Opus or non-Ogg stream passes through and cannot continue', () {

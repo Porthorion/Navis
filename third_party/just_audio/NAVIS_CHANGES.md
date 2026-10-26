@@ -153,7 +153,11 @@ page within 255 segments; durations that do not divide a second (including
 A clean continuation EOF requires complete packets and an EOS page, including
 at an otherwise complete page boundary. Missing EOS refuses the continuation,
 deletes the partial file, and reports the original cut error and stack. An empty
-EOS page is preserved without duplicating an EOS already delivered.
+EOS page is preserved with the original serial and mapped granule. Mixed packet
+durations retain every needed packet before end trim. Packet ends use the
+original stream's decoded granule base; the final granule retains the trim. A cut after EOS cannot start a continuation. Pages ending
+mid-packet fall back instead of splicing. Each attempt resets its dropped count
+before connecting, so failed setup cannot report the previous attempt's drops.
 At most two continuations per fetch. Continuation connect and headers share
 a six-second deadline and race cancellation: this allows Navidrome startup
 while staying below Media3's eight-second loopback read timeout. Continuation
