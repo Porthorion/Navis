@@ -17773,7 +17773,7 @@ void main() {
     });
 
     for (final command in ['pause', 'selection']) {
-      test('failed remote recovery yields to a newer $command', () async {
+      test('failed remote recovery honors a newer $command', () async {
         final (handler, player, _) = await recovering(5);
         await start(handler, 5);
         final gate = Completer<void>();
@@ -17794,9 +17794,10 @@ void main() {
         await until(() => !handler.snapshot.isLoading);
         expect(
           handler.snapshot.currentSongId,
-          command == 'pause' ? 'song-1' : 'song-4',
+          command == 'pause' ? 'song-2' : 'song-4',
         );
         expect(player.playing, command != 'pause');
+        expectNativeMirrorsQueue(handler, player);
       });
     }
 

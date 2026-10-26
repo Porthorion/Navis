@@ -108,13 +108,15 @@ extension _NavisRecovery on NavisAudioHandler {
     // Phase one must finish before an older occurrence of the same song can
     // be mistaken for readiness on the source selected by this request.
     await _queueLane.enqueue((_) async => _checkSeekCurrent(request, token));
-    while (_quietStopInProgress) {
+    final canReload = !sawLoading && request.recoveryAttempts == 0;
+    while (canReload && _quietStopInProgress) {
       _checkSeekCurrent(request, token);
       await Future<void>.delayed(const Duration(milliseconds: 25));
     }
     _checkSeekCurrent(request, token);
     // A newer seek owns the reload after the failed source's final shutdown.
-    if (_remoteSourceFailed &&
+    if (canReload &&
+        _remoteSourceFailed &&
         !_isLoading &&
         _resolveCurrentQueueMetadata().mediaItem?.id == request.songId) {
       request
