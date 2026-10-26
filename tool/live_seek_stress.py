@@ -224,6 +224,13 @@ class ThrottledProxy:
         """Closes the in-flight media bodies (the next [window] s of chunks)."""
         self.cut_until, self.cut_mode = time.monotonic() + window, mode
 
+    def cut_inflight(self, song_id, mode='fin'):
+        """Cuts the media bodies of [song_id] that are in flight now and nothing opened later (a continuation
+        request that follows the cut must survive; cut_active's window would cut it too)."""
+        for entry in list(self.log):
+            if entry.get('id') == song_id and entry['endpoint'] in ('stream', 'download') and 'end' not in entry:
+                entry['cutNow'] = mode
+
     def arm_fault(self, after_bytes: int, count=1, only='any', mode='fin'):
         """Cuts the next [count] stream/download request(s) after [after_bytes]
         of body. [only]: 'any', 'transcode' (has a format) or 'download'."""
@@ -350,6 +357,10 @@ class ThrottledProxy:
                 if time.monotonic() < self.cut_until and is_media:
                     entry['end'] = f'injectedCut-{self.cut_mode}'
                     self._abort(handler, self.cut_mode)
+                    return
+                if entry.get('cutNow'):
+                    entry['end'] = f"injectedCut-{entry['cutNow']}"
+                    self._abort(handler, entry['cutNow'])
                     return
                 self.take(len(chunk))
                 if self.pace and entry['id'] == self.pace[0]:
@@ -2898,21 +2909,27 @@ def case_repeat_one_fill(run: Run, env):
     run.checks.append(check)
 
 
-def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=176):
+def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=176, at_s=None):
     """#86 item 2 (proxy abort on origin cut): album, repeat off; after song 1 starts the origin is paced
     near real time, and when song 1 reaches [fraction] of its length the in-flight origin body is cut
     ([cuts] times, [gap_s] apart). Records whether it resumes in place, restarts, or ends early, then
-    lets the song play to its natural end. The progress-loss oracle judges the rest."""
+    lets the song play to its natural end. The progress-loss oracle judges the rest. [at_s] cuts at that play time
+    instead of a fraction. On Android only the bodies in flight at the cut are cut (cut_inflight), so the Ogg splice's
+    continuation request is not cut as well; its metrics (spliceCheck) come from the trace, the proxy log and the
+    song's final cache file."""
     def case(run: Run, env):
         ids = env.backend.fresh_album()
         run.songs = [{'id': i} for i in ids]
         env.proxy.pace_song(ids[0], pace_kbps)  # song 1's body arrives at ~1.4x real time, so it is in flight at the cut
+        android = isinstance(run.app, AndroidApp)
+        rolling_before = rolling_names(run) if android else set()
         rec = start_queue(run, ids)
         first = await_audio(run, rec, ids[0])
         dur = first['dur'] or run.last()['dur'] or 0
         restore = THROTTLES[run.throttle]
-        run.metrics['cutPlan'] = {'fraction': fraction, 'cuts': cuts, 'durMs': dur, 'paceKbps': pace_kbps}
-        at = run.until(lambda s: s['songId'] == ids[0] and (s['pos'] or 0) >= dur * fraction, dur / 1000 + 90)
+        run.metrics['cutPlan'] = {'fraction': fraction, 'cuts': cuts, 'durMs': dur, 'paceKbps': pace_kbps, 'atS': at_s}
+        cut_ms = at_s * 1000 if at_s else dur * fraction
+        at = run.until(lambda s: s['songId'] == ids[0] and (s['pos'] or 0) >= cut_ms, dur / 1000 + 90)
         if at is None:
             env.proxy.pace_song(None, 0)
             raise CaseAbort('song 1 never reached the cut point')
@@ -2920,10 +2937,13 @@ def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=176):
         events = []
         for n in range(cuts):
             if n:  # the first cut only surfaces when the buffer runs out: cut again gap_s after the recovery resumed
-                run.until(lambda s: s['off'] and s['proc'] == 'ready' and s['playing'] and s['songId'] == ids[0], 90)
+                run.until(lambda s: (s['off'] or android) and s['proc'] == 'ready' and s['playing'] and s['songId'] == ids[0], 90)
                 time.sleep(gap_s)
             cur = run.last()
-            env.proxy.cut_active('fin', window=3.0)
+            if android:
+                env.proxy.cut_inflight(ids[0], 'fin')
+            else:
+                env.proxy.cut_active('fin', window=3.0)
             run.act('originCut', n=n + 1)
             events.append({'n': n + 1, 't': run.now(), 'pos': cur['pos'], 'buf': cur['buf']})
             time.sleep(3.2)
@@ -2948,12 +2968,64 @@ def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=176):
                                        for e in run.trace if e['kind'] in ('recovery', 'seekEvent', 'navigate', 'setAudioSources', 'sourceResolved', 'playerState')
                                        and (e['kind'] != 'playerState' or e.get('errorCode')) and device_ms - 2000 <= e['atMs'] <= device_ms + 60000
                                        and (e['kind'] != 'sourceResolved' or e.get('timeOffset'))][:40]
+        if android and device_ms:
+            run.metrics['spliceCheck'] = splice_check(run, env, ids[0], dur / 1000, device_ms, cuts, rolling_before)
         if early:
             run.violations.append(violation('cutEndedEarly', t_first, f"song 1 advanced at pos {top}/{dur}", run))
         if resumed is None:
             run.violations.append(violation('cutNoResume', t_first, f"no playback past {events[0]['pos']}+1.5 s afterwards", run))
         run.checks.append(lambda: oracle_sequence(run, ids, minimum=2) if moved is not None else [])
     return case
+
+
+SPLICE_WINDOW_MS = 60000
+JOIN_RMS_MAX = 0.005  # stitched vs uncut decode, per 1 s window (probe: codec noise floor ~0.001 against a 0.35 signal)
+
+
+def decode_f32(path: Path):
+    """(exit code, first stderr line, mono 48 kHz float samples) of ffmpeg decoding [path]."""
+    import numpy
+    done = subprocess.run(['ffmpeg', '-v', 'error', '-i', str(path), '-f', 'f32le', '-ac', '1', '-ar', '48000', '-'], capture_output=True)
+    return done.returncode, (done.stderr.decode(errors='replace').splitlines() or [''])[0], numpy.frombuffer(done.stdout, dtype='<f4')
+
+
+def join_rms(stitched: Path, run: Run, song_id: str) -> dict:
+    """Decodes the app's final cache file and an uncut transcode of the same fixture song: `ffmpeg -v error` must be
+    silent and no 1 s window may differ by more than JOIN_RMS_MAX rms."""
+    import numpy
+    library = run.env.backend.library
+    reference = stitched.with_name(f'{song_id}-uncut.ogg')
+    kbps = QUALITIES[run.quality][1]
+    subprocess.run(['ffmpeg', '-y', '-v', 'error', '-i', str(library.media_path(library.media_seconds[song_id])), '-vn', '-c:a', 'libopus',
+                    '-b:a', f'{kbps}k', '-f', 'ogg', str(reference)], check=True)
+    code, error, a = decode_f32(stitched)
+    _, _, b = decode_f32(reference)
+    n = min(len(a), len(b))
+    window = 48000
+    diff = (a[:n] - b[:n]).astype('float64')
+    windows = [float(numpy.sqrt(numpy.mean(diff[i:i + window] ** 2))) for i in range(0, n - window // 2, window)]
+    return {'decodeExit': code, 'decodeStderr': error, 'lenDiffS': round((len(a) - len(b)) / 48000, 3),
+            'maxWindowRms': round(max(windows), 5) if windows else None, 'ok': code == 0 and not error and bool(windows)
+            and max(windows) <= JOIN_RMS_MAX}
+
+
+def splice_check(run: Run, env, song_id: str, duration_s: float, cut_device_ms: int, cuts: int, rolling_before: set) -> dict:
+    """Android Ogg splice evidence for a cut case: reload/error trace entries after the cut (the fix has none), the
+    continuation requests the origin saw, the app's oggSplice events and the final cache file's decode."""
+    window = [e for e in run.trace if cut_device_ms <= e['atMs'] <= cut_device_ms + SPLICE_WINDOW_MS]
+    reloads = [e['kind'] for e in window if e['kind'] in ('setAudioSources', 'recovery')
+               or (e['kind'] == 'sourceResolved' and e.get('timeOffset'))]
+    errors = [e['errorCode'] for e in window if e['kind'] == 'playerState' and e.get('errorCode')]
+    requests = [r['timeOffset'] for r in env.proxy.log[run.proxy_mark:] if r['id'] == song_id and r.get('timeOffset')]
+    events = [{k: e.get(k) for k in ('timeOffset', 'dropped', 'attempt', 'result')} for e in run.trace if e['kind'] == 'oggSplice']
+    info = {'reloads': reloads, 'playerErrors': errors, 'timeOffsetRequests': requests, 'spliceEvents': events,
+            'requestsOk': len(requests) == cuts and [str(e['timeOffset']) for e in events if e['attempt'] is not None][:cuts] == requests[:cuts]}
+    violations = oracle_cache_integrity(run, song_id, duration_s, rolling_before, run.quality)
+    kept = run.app.run / f'cache-{song_id}.opus'
+    info['cacheViolations'] = [v['oracle'] for v in violations]
+    run.violations.extend(violations)
+    info['file'] = join_rms(kept, run, song_id) if kept.exists() else {'ok': False, 'decodeStderr': 'no cache file copy'}
+    return info
 
 
 def cold_seek_target(song_id: str, wanted_ms=60000) -> int:
@@ -4107,6 +4179,7 @@ CASE_FUNCS = {
     'cold_seek_hold40': lambda run, env: case_cold_seek_stall(run, env, stall_s=40.0, at_start=True),
     'cut40': cut_at_case(0.40, 1),
     'cut40x2': cut_at_case(0.40, 2),
+    'cut5': cut_at_case(0.0, 1, at_s=5),  # Android splice: near-empty buffer, the 8 s loopback read timeout
     'repeat_one_fill': case_repeat_one_fill,
     'chain_end': case_chain_end,
     'natural_play3': case_natural_play3,

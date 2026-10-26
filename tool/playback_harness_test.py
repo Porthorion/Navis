@@ -77,6 +77,18 @@ class Thresholds(unittest.TestCase):
         android = {line.split()[2]: ok for ok, line in h.evaluate('stress-drag', base, fix, 'android')}
         self.assertTrue(android['frameGapStall:'])
 
+    def test_cut_recovery_splice_checks_are_android_only(self):
+        base = {'caseErrors': 0, 'violations': 0, 'kinds': [], 'progressLoss': 0, 'recoveryMedianS': 5.0, 'frozenMedianS': 6.0,
+                'reloadsAfterCut': 3}
+        fix = {**base, 'frozenMedianS': 0.0, 'recoveryMedianS': 0.0, 'reloadsAfterCut': 0, 'playerErrorsAfterCut': 0,
+               'spliceRequestsOk': True, 'spliceFileOk': True, 'joinRmsMax': 0.001}
+        self.assertTrue(all(ok for ok, _ in h.evaluate('cut-recovery', base, fix, 'android')))
+        for broken in ({'reloadsAfterCut': 1}, {'spliceRequestsOk': False}, {'spliceFileOk': False}, {'joinRmsMax': 0.02},
+                       {'playerErrorsAfterCut': 1}, {'frozenMedianS': 5.0}):
+            self.assertFalse(all(ok for ok, _ in h.evaluate('cut-recovery', base, {**fix, **broken}, 'android')), broken)
+        # Linux has no splice: those metrics are neither required nor checked.
+        self.assertEqual(len(h.evaluate('cut-recovery', base, fix)), len(h.evaluate('cut-recovery', base, fix, 'android')) - 6)
+
     def test_line_format(self):
         ok, line = h.evaluate('queue-edit', {'caseErrors': 0, 'violations': 0}, {'caseErrors': 0, 'violations': 2})[1]
         self.assertFalse(ok)

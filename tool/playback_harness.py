@@ -104,9 +104,9 @@ SCENARIOS = {
         areas=CROSSFADE,
         checks=[('violations', '<=', 0), ('frozenMedianS', 'base+', 0.1)]),
     'cut-recovery': dict(
-        cases='cut40,cut40x2,i9_cut,i9_inject,dead_start,dead_source_hold,cold_seek_stall',
+        cases='cut40,cut40x2,cut5,i9_cut,i9_inject,dead_start,dead_source_hold,cold_seek_stall',
         quick='cut40,i9_inject,dead_start',
-        qualities='opus128', throttle='slow1500', reps=3, budget=(3, 33), args=['--verify-offset'],
+        qualities='opus128', throttle='slow1500', reps=3, budget=(3, 37), args=['--verify-offset'],
         areas=HANDLER + ['lib/src/features/player/data/navis_audio_handler_recovery.dart'],
         checks=[('kinds', 'nonew'), ('violations', 'base*', 1.25, 3), ('progressLoss', 'base+', 3), ('recoveryMedianS', 'base+', 0.5)]),
     'local-seek': dict(
@@ -121,6 +121,11 @@ SCENARIOS = {
         areas=QUEUE,
         checks=[('violations', '<=', 0)]),
 }
+# Checks that only the Android build can answer, added to a scenario's own. Item 14 (Ogg cut splice): after an origin cut the
+# fix reloads nothing, shows no player error, sends exactly one continuation request per cut, and the final cache file decodes
+# clean and joins within the rms bound (the base line shows its reloads for comparison; the base must be >= 1 to prove the cut bites).
+ANDROID_CHECKS = {'cut-recovery': [('reloadsAfterCut', '<=', 0), ('playerErrorsAfterCut', '<=', 0), ('frozenMedianS', '<=', 1.0),
+                                   ('spliceRequestsOk', 'true'), ('spliceFileOk', 'true'), ('joinRmsMax', '<=', 0.005)]}
 ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'queue-edit')
 PLAYER_FALLBACK = 'lib/src/features/player/**'
 
@@ -216,6 +221,11 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
         out['recoveryMedianS'] = _med((r['metrics'].get('cutVerdict') or {}).get('resumedAfterS') or r['metrics'].get('maxFrozenS')
                                       for r in rows)
         out['progressLoss'] = hard.count('progressLoss')
+        checks = [r['metrics']['spliceCheck'] for r in rows if 'spliceCheck' in r['metrics']]
+        if checks:  # Android only: the Ogg cut splice (1.5.1 item 14)
+            out.update(reloadsAfterCut=sum(len(c['reloads']) for c in checks), playerErrorsAfterCut=sum(len(c['playerErrors']) for c in checks),
+                       spliceRequestsOk=all(c['requestsOk'] for c in checks), spliceFileOk=all(c['file']['ok'] for c in checks),
+                       joinRmsMax=max([c['file'].get('maxWindowRms') or 0 for c in checks]))
     elif scenario == 'local-seek':
         errors = [e for r in rows for e in (r['metrics'].get('localSeek') or {}).get('errorsMs', [])]
         out['landingErrorMaxMs'] = max(errors) if errors else None
@@ -247,7 +257,7 @@ LINUX_STALL_MAX_SLACK_MS = 320
 def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> list[tuple[bool, str]]:
     """PASS/FAIL lines of one scenario from the metrics of its base and fix variants."""
     lines = []
-    for check in [('caseErrors', 'clean')] + SCENARIOS[scenario]['checks']:
+    for check in [('caseErrors', 'clean')] + SCENARIOS[scenario]['checks'] + (ANDROID_CHECKS.get(scenario, []) if platform == 'android' else []):
         name, kind, *args = check
         f, b = fix.get(name), base.get(name)
         if kind == 'clean':  # a harness or app error in a cell is never a zero
