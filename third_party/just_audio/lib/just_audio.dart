@@ -4170,7 +4170,7 @@ class LockCachingAudioSource extends StreamAudioSource {
             !splicer.canContinue ||
             attempt >= _maxSplices) {
           if (withheld.isNotEmpty) yield withheld;
-          Error.throwWithStackTrace(originError, originStack!);
+          Error.throwWithStackTrace(originError, originStack);
         }
         attempt++;
         continuing = true;
@@ -4197,7 +4197,7 @@ class LockCachingAudioSource extends StreamAudioSource {
           if (cancelled.isCompleted) return;
           _reportSplice(splicer, attempt, 'failed');
           if (withheld.isNotEmpty) yield withheld;
-          Error.throwWithStackTrace(originError, originStack!);
+          Error.throwWithStackTrace(originError, originStack);
         }
       }
     }

@@ -309,6 +309,7 @@ void main() {
     final uri = Uri.parse('http://127.0.0.1:${server.port}/song');
     final file = File(p.join(directory.path, 'dispose.opus'));
     final events = <OggSpliceEvent>[];
+    // ignore: experimental_member_use, reason: exercises dispose of the public source.
     final source = LockCachingAudioSource(
       uri,
       cacheFile: file,
