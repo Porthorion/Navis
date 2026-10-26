@@ -26,10 +26,10 @@ final class ProgressiveRepeat {
         if (!owned || !playRequested || currentIndex < 0 || currentIndex >= itemCount
                 || boundaryUid == null || !boundaryUid.equals(currentUid)
                 || boundaryRevision != currentRevision) return -1;
-        if (requestedMode != 1 && requestedMode != 2) return -1;
+        if (requestedMode < 0 || requestedMode > 2) return -1;
         if (seeking) return RESUME;
         if (requestedMode == 1) return currentIndex;
-        if (currentIndex == itemCount - 1) return 0;
+        if (currentIndex == itemCount - 1) return requestedMode == 2 ? 0 : -1;
         return ended ? currentIndex + 1 : RESUME;
     }
 }

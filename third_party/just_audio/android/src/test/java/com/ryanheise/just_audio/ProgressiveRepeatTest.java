@@ -118,7 +118,7 @@ public final class ProgressiveRepeatTest {
                     == -1, "a seek after Pause must stay paused");
         }
         check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, true, false)
-                == -1, "OFF cannot resume a canceled repeat boundary");
+                == ProgressiveRepeat.RESUME, "a seek after switching OFF releases a still-owned boundary");
         check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 4, 6, 7, 7, false, true) == 5,
                 "an append applied before ENDED must advance to the new next item, not resume ENDED");
         check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 4, 6, 7, 7, false, false)
