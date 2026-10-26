@@ -4119,10 +4119,13 @@ trim or fill retains the source occurrence and departure position while that
 lane finishes. Recovery then rechecks the source identity, load generation
 and seek ownership before reopening. An append that preserves the classified
 occurrence does not cancel recovery; an edit or selection that retired it
-cannot reopen it. Metadata stays with the departed occurrence throughout the
-wait. Native source tags supply
-occurrence metadata when a background mutation temporarily leads the Dart
-mirror; completion is still classified while that mismatch suppresses ordinary
+cannot reopen it. When cancellation retires recovery, shared cleanup waits for
+its native pause acknowledgement and releases the pause on the surviving source
+only while its player, load and seek ownership remain current. The latest Pause
+keeps it paused; newer work and a quietly stopped failed source keep ownership.
+Metadata stays with the departed occurrence throughout the wait. Native source
+tags supply occurrence metadata when a background mutation temporarily leads the
+Dart mirror; completion is still classified while that mismatch suppresses ordinary
 player events. New background releases and trims wait for the reopen.
 On classification the native player pauses before source resolution, and the
 departed occurrence keeps metadata authority and its existing scrobble/history

@@ -68,6 +68,20 @@ Last updated: 2026-10-27
   `09:03 +962: All tests passed!` (foreground, 4 GiB cap, concurrency 1;
   zero OOM kills). The full gate and native runtime certification remain with
   the orchestrator.
+  Review r3, 2026-10-27: removing a classified cut releases recovery's native
+  pause on the surviving queue after acknowledgement, with the latest intent
+  and only while the captured player/load/seek remain owned. Shared cleanup
+  covers every recovery return; newer work and quiet stops keep ownership.
+  The committed red regression reported `Expected: <true> / Actual: <false>`
+  in four cases, with both Pause controls passing. All six cases now pass,
+  including delayed acknowledgement and unchanged source-load counts.
+  Three mutations were killed: disabled release, ignored latest intent, and
+  omitted acknowledgement wait. P1 rows plus the r1/r2 reviewer copies pass:
+  `00:53 +130: All tests passed!`. The complete four-file P1 set passes:
+  `08:58 +968: All tests passed!` (foreground, 4 GiB cap, concurrency 1;
+  zero OOM kills). Scoped analysis retains the same 30 infos, no added findings
+  or errors/warnings. Item-14 trace fields remain intact; the full gate and
+  native/audible certification remain with the orchestrator.
 - [ ] Issue #86, item 14 Android Ogg/Opus cut splice — `fix/ogg-cut-splice`:
   continues unknown-length Android Opus transcodes through the existing
   `LockCachingAudioSource` and `OggOpusSplicer`. Round 2 fixes pre-listen cancel
