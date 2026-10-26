@@ -148,6 +148,12 @@ public final class ProgressiveRepeatTest {
                 == -1, "OFF must preserve an explicit Pause at a middle boundary");
         check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, otherUid, 1, 3, 7, 7, false, false)
                 == -1, "OFF cannot release another occurrence's boundary");
+        for (int invalidMode : new int[] {-1, 3}) {
+            check(ProgressiveRepeat.boundaryAction(invalidMode, true, true, boundaryUid, boundaryUid,
+                    1, 3, 7, 7, false, false) == -1, "invalid loop modes cannot consume a boundary");
+            check(ProgressiveRepeat.boundaryAction(invalidMode, true, true, boundaryUid, boundaryUid,
+                    1, 3, 7, 7, true, false) == -1, "invalid loop modes cannot resume a seek");
+        }
         System.out.println("ProgressiveRepeatTest: " + fixtures + " fixtures passed");
     }
 }
