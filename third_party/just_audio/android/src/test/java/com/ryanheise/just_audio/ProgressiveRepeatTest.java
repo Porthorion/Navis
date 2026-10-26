@@ -97,8 +97,8 @@ public final class ProgressiveRepeatTest {
             check(ProgressiveRepeat.boundaryAction(mode, true, true, boundaryUid, boundaryUid, 3, 3, 7, 7, false, false) == -1,
                     "ONE and ALL reject an index outside the queue");
         }
-        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, false, false) == -1,
-                "OFF cannot restart even if ownership is stale");
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, false, false)
+                == ProgressiveRepeat.RESUME, "OFF must resume the last item when the engine is not ENDED");
         for (boolean seeking : new boolean[] {false, true}) {
             check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 1, 3, 7, 7, seeking, false)
                     == ProgressiveRepeat.RESUME, "a formerly owned non-last boundary resumes");

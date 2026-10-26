@@ -617,4 +617,98 @@ class JustAudioRepeatCallbackTest {
         assertTrue(f.seeks.isEmpty())
         assertTrue(f.posts.isEmpty())
     }
+    // Current-occurrence removal and repeat-boundary regression coverage.
+    /** ExoPlayerImpl.removeMediaItems(current): timeline, discontinuity(REMOVE), transition(PLAYLIST_CHANGED), [ENDED]. */
+    private fun Fx.removeCurrent(i: Int, newIndex: Int, toEnded: Boolean) {
+        items.removeAt(i); kindList.removeAt(i); uids.removeAt(i)
+        index = newIndex
+        if (toEnded) ended = true
+        timelineChanged()
+        dispatch { call("onPositionDiscontinuity", null, null, 4) }
+        dispatch { call("onMediaItemTransition", null, 3) }
+        if (toEnded) dispatch { call("onPlaybackStateChanged", 4) }
+    }
+
+    /** D1 (regression vs base): removing the CURRENT occurrence after its boundary was delivered, another stream remains. */
+    @Test fun d1_removeCurrentStreamAtDeliveredBoundary_remainingStreamResumes() {
+        val f = Fx("SS", 1, 1)
+        f.deliverPause(true)                  // last item ended: native pause + ENDED delivered, post captured
+        f.removeCurrent(1, 0, toEnded = false) // already ENDED: state unchanged, current becomes item 0
+        f.runPosts()
+        report("d1", f)
+        assertEquals("the remaining stream must be restarted exactly once: ${f.digest()}", listOf("0@0"), f.seeks)
+        assertEquals(f.digest(), 1, f.resumes)
+    }
+
+    /** D1b: same, queue becomes file-only (ALL); base un-ends, HEAD leaves ENDED with completion unpublished. */
+    @Test fun d1b_removeCurrentLastStreamAtDeliveredBoundary_fileOnly_notStuckEndedAndUnpublished() {
+        val f = Fx("FS", 1, 2)
+        f.deliverPause(true)
+        f.removeCurrent(1, 0, toEnded = false)
+        f.runPosts()
+        report("d1b", f)
+        assertTrue("ENDED must be published or the engine must be restarted: ${f.digest()}",
+            f.state() == "completed" || f.resumes == 1)
+    }
+
+    /** D3 (delta regression): user Pause mid-song, remove the CURRENT last stream, tail removal ends the engine. */
+    @Test fun d3_pausedRemoveCurrentLastStream_legacyRecoveryRewindsTheRemainingItem() {
+        val f = Fx("FS", 1, 2)
+        f.pause()
+        f.removeCurrent(1, 0, toEnded = true)
+        report("d3", f)
+        assertEquals("paused ENDED after a tail removal must rewind like any file queue: ${f.digest()}", listOf("0@0"), f.seeks)
+    }
+
+    /** D2: Off + last item + engine NOT ended (scrub moved it off the end): the paused boundary must be released. */
+    @Test fun d2_offAtLastItemEngineNotEnded_releasesTheBoundary() {
+        val f = Fx("S", 0, 2)
+        f.seek(5000, null)
+        f.mode(0)
+        f.deliverPause(false)                 // late END_OF_MEDIA_ITEM after the scrub and Off
+        f.runPosts()
+        report("d2", f)
+        assertEquals("playback must continue from the scrub: ${f.digest()}", 1, f.resumes)
+        assertEquals(f.digest(), listOf("0@5000"), f.seeks)
+        assertTrue(f.playing)
+    }
+
+    // ---- surviving-mutant gap tests (all pass on HEAD; each is killed by the named mutant)
+    /** C4: completeProgressiveRepeat must clear repeatAtEndUid, else Pause/Play mid-item replays the consumed boundary. */
+    @Test fun gap_c4_consumedBoundaryIsNotReplayedByPauseThenPlay() {
+        val f = Fx("SFF", 0, 1)
+        f.deliverPause(false); f.runPosts()
+        assertEquals(listOf("0@0"), f.seeks)
+        f.pause(); f.play(); f.runPosts()
+        assertEquals(f.digest(), listOf("0@0"), f.seeks)
+    }
+
+    /** K4: seek() must cancel the pending post, else a same-item scrub at a pending Repeat One boundary is overwritten. */
+    @Test fun gap_k4_scrubAtPendingRepeatOneBoundaryIsNotOverwrittenByTheStalePost() {
+        val f = Fx("SFF", 0, 1)
+        f.deliverPause(false)
+        f.seek(5000, null)
+        f.runPosts()
+        assertEquals(f.digest(), listOf("0@5000"), f.seeks)
+    }
+
+    /** L3: onTimelineChanged itself must restore the native repeat policy (no boundary needed). */
+    @Test fun gap_l3_timelineCallbackRestoresNativePolicyWhenLastStreamIsRemoved() {
+        val f = Fx("SF", 1, 2)
+        assertEquals(0, f.nativeMode)
+        f.removeAt(0)
+        assertEquals(f.digest(), 2, f.nativeMode)
+        assertFalse(f.digest(), f.pauseAtEnd)
+    }
+
+    /** U6: an owned Repeat One item must arm the native end pause (never asserted by the committed tests). */
+    @Test fun gap_u6_repeatOneOnEligibleItemArmsNativeEndPause() {
+        val f = Fx("SFF", 0, 1)
+        assertEquals(0, f.nativeMode)
+        assertTrue(f.digest(), f.pauseAtEnd)
+        val g = Fx("FSF", 2, 2)       // ALL owned by the playlist, pause only on the last item
+        assertTrue(g.digest(), g.pauseAtEnd)
+        val h = Fx("SFF", 1, 2)       // ALL owned, middle item: no end pause
+        assertFalse(h.digest(), h.pauseAtEnd)
+    }
 }
