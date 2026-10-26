@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:mocktail/mocktail.dart';
@@ -19,6 +20,7 @@ class _Reply {
     this.end, {
     this.status = 200,
     this.headersGate,
+    this.bodyGate,
     this.headersDelay = Duration.zero,
     this.bodyPause = Duration.zero,
   });
@@ -26,6 +28,7 @@ class _Reply {
   final Duration bodyPause;
   final int status;
   final Completer<void>? headersGate;
+  final Completer<void>? bodyGate;
   final int length;
   final _End end;
 }
@@ -65,6 +68,7 @@ Future<(HttpServer, List<String?>)> _origin(
         await Future<void>.delayed(const Duration(milliseconds: 2));
       }
       if (gate != null && n == 0) await gate.future;
+      await reply.bodyGate?.future;
       switch (reply.end) {
         case _End.complete:
           await response.close();
@@ -114,16 +118,29 @@ void main() {
           }),
   );
 
-  Future<(List<int>, Object?)> drain(LockCachingAudioSource s) async {
+  Future<(List<int>, Object?)> drain(
+    LockCachingAudioSource s, {
+    List<StackTrace>? stacks,
+  }) async {
     final response = await s.request();
     final bytes = <int>[];
     Object? error;
     await response.stream
-        .listen(bytes.addAll, onError: (Object e) => error = e)
+        .listen(bytes.addAll)
         .asFuture<void>()
-        .catchError((Object e) => error = e)
+        .catchError((Object e, StackTrace stack) {
+          error = e;
+          stacks?.add(stack);
+        })
         .timeout(const Duration(seconds: 15));
     return (bytes, error);
+  }
+
+  Future<void> until(bool Function() condition) async {
+    for (var i = 0; i < 400 && !condition(); i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    expect(condition(), isTrue);
   }
 
   final cut = cutAfter(100800);
@@ -297,27 +314,26 @@ void main() {
   for (final failure in [
     'status',
     'connect',
-    'headers',
     'mismatch',
     'truncated',
+    'missing EOS',
   ]) {
     test(
       'continuation $failure preserves origin error and tail within its deadline',
       () async {
-        final headersGate = Completer<void>();
-        addTearDown(() {
-          if (!headersGate.isCompleted) headersGate.complete();
-        });
         final bad = Uint8List.fromList(from2)..[37] = 2;
         final (server, requests) = await _origin(
           [full, failure == 'mismatch' ? bad : from2],
           [
             _Reply(cut.length, _End.cut),
             _Reply(
-              failure == 'truncated' ? 100 : from2.length,
+              failure == 'truncated'
+                  ? 100
+                  : failure == 'missing EOS'
+                  ? pagesOf(from2)[pagesOf(from2).length - 2].end
+                  : from2.length,
               _End.complete,
               status: failure == 'status' ? 404 : 200,
-              headersGate: failure == 'headers' ? headersGate : null,
             ),
           ],
         );
@@ -340,36 +356,146 @@ void main() {
         );
         final clock = Stopwatch()..start();
         final originErrors = <Object>[];
+        final originStacks = <StackTrace>[];
+        final clientStacks = <StackTrace>[];
         final (bytes, error) = await HttpOverrides.runZoned(
-          () => drain(s),
+          () => drain(s, stacks: clientStacks),
           createHttpClient: (context) => _HeadersClient(
             Zone.root.run(() => HttpClient(context: context)),
             () {},
             originErrors,
+            originStacks,
           ),
         );
         expect(error, same(originErrors.first));
+        expect(clientStacks.single.toString(), originStacks.first.toString());
         expect(error, isA<HttpException>());
         expect(error.toString(), contains('Connection closed'));
-        expect(bytes, cut);
-        if (failure == 'headers') {
-          expect(
-            clock.elapsed,
-            greaterThanOrEqualTo(const Duration(seconds: 6)),
-          );
-          expect(clock.elapsed, lessThan(const Duration(seconds: 8)));
+        if (failure == 'missing EOS') {
+          final pages = pagesOf(bytes);
+          expect(pages.last.end, bytes.length);
+          expect(pages.every((p) => p.crcOk), isTrue);
+          expect(bytes.length, greaterThan(cut.length));
         } else {
-          expect(clock.elapsed, lessThan(const Duration(seconds: 2)));
+          expect(bytes, cut);
         }
+        expect(clock.elapsed, lessThan(const Duration(seconds: 2)));
         expect(
           events.last.result,
-          ['mismatch', 'truncated'].contains(failure) ? 'refused' : 'failed',
+          ['mismatch', 'truncated', 'missing EOS'].contains(failure)
+              ? 'refused'
+              : 'failed',
         );
         expect(requests.length, failure == 'connect' ? 1 : 2);
         expect(cacheFile.existsSync(), isFalse);
       },
     );
   }
+
+  for (final cancel in [false, true]) {
+    test(
+      'setup clock ${cancel ? 'is disarmed on cancel' : 'expires at six seconds'}',
+      () async {
+        final headersGate = Completer<void>();
+        addTearDown(() {
+          if (!headersGate.isCompleted) headersGate.complete();
+        });
+        final (server, requests) = await _origin(
+          [full, from2],
+          [
+            _Reply(cut.length, _End.cut),
+            _Reply(from2.length, _End.complete, headersGate: headersGate),
+          ],
+        );
+        addTearDown(() => server.close(force: true));
+        final clock = FakeAsync();
+        final connecting = Completer<void>();
+        final hung = _HungContinuationClient(connecting);
+        addTearDown(() {
+          if (cancel && !hung.pending.isCompleted) {
+            hung.pending.completeError(StateError('connect cleanup'));
+          }
+        });
+        final events = <Map<String, Object?>>[];
+        final s = source(server, events: events);
+        final originErrors = <Object>[];
+        final originStacks = <StackTrace>[];
+        final clientStacks = <StackTrace>[];
+        var completed = false;
+        final draining = _withSetupClock(
+          clock,
+          () => HttpOverrides.runZoned(
+            () => drain(
+              s,
+              stacks: clientStacks,
+            ).whenComplete(() => completed = true),
+            createHttpClient: (context) {
+              final inner = Zone.root.run(() => HttpClient(context: context));
+              if (cancel) {
+                hung.inner = inner;
+                return hung;
+              }
+              return _HeadersClient(inner, () {}, originErrors, originStacks);
+            },
+          ),
+        );
+        await until(
+          () =>
+              (cancel ? connecting.isCompleted : requests.length == 2) &&
+              clock.nonPeriodicTimerCount == 1,
+        );
+        clock.elapse(const Duration(seconds: 5));
+        expect(completed, isFalse);
+        if (cancel) {
+          await s.cancelDownload();
+        } else {
+          clock.elapse(const Duration(seconds: 1));
+        }
+        final (bytes, error) = await draining;
+        expect(
+          clock.nonPeriodicTimerCount,
+          0,
+          reason: 'cancel must disarm the six-second setup timer',
+        );
+        if (cancel) {
+          expect(events, isEmpty);
+          expect(error, isNotNull);
+        } else {
+          expect(error, same(originErrors.first));
+          expect(clientStacks.single.toString(), originStacks.first.toString());
+          expect(bytes, cut);
+          expect(events.single['result'], 'failed');
+        }
+        expect(cacheFile.existsSync(), isFalse);
+      },
+    );
+  }
+
+  test('cancel mid-continuation body emits no splice event', () async {
+    final bodyGate = Completer<void>();
+    addTearDown(() {
+      if (!bodyGate.isCompleted) bodyGate.complete();
+    });
+    final (server, requests) = await _origin(
+      [full, from2],
+      [
+        _Reply(cut.length, _End.cut),
+        _Reply(5000, _End.complete, bodyGate: bodyGate),
+      ],
+    );
+    addTearDown(() => server.close(force: true));
+    final events = <Map<String, Object?>>[];
+    final s = source(server, events: events);
+    final draining = drain(s);
+    await until(() => requests.length == 2 && s.downloadedBytes > cut.length);
+    await s.cancelDownload().timeout(const Duration(milliseconds: 300));
+    final (_, error) = await draining;
+    expect(error, isNotNull);
+    expect(events, isEmpty, reason: 'cancellation is not a cut splice failure');
+    expect(cacheFile.existsSync(), isFalse);
+    expect(File('${cacheFile.path}.part').existsSync(), isFalse);
+    expect(s.isDownloading, isFalse);
+  });
 
   test(
     'cancel races a hung continuation connect without a failed trace',
@@ -433,8 +559,14 @@ void main() {
       [_Reply(cut.length, _End.cut), _Reply(5000, _End.cut)],
     );
     addTearDown(() => server.close(force: true));
-    final (_, error) = await drain(source(server));
+    final (bytes, error) = await drain(source(server));
     expect(error, isNotNull);
+    final pages = pagesOf(bytes);
+    expect(pages.last.end, bytes.length);
+    expect(pages.every((p) => p.crcOk), isTrue);
+    expect(pages.map((p) => p.seq).toList(), [
+      for (var i = 0; i < pages.length; i++) i,
+    ]);
     expect(requests, hasLength(3)); // the origin plus two continuations
     expect(File('${cacheFile.path}.part').existsSync(), isFalse);
   });
@@ -510,8 +642,9 @@ void main() {
 }
 
 class _HeadersClient extends Fake implements HttpClient {
-  _HeadersClient(this.inner, this.onHeaders, [this.errors]);
+  _HeadersClient(this.inner, this.onHeaders, [this.errors, this.stacks]);
   final List<Object>? errors;
+  final List<StackTrace>? stacks;
   final HttpClient inner;
   final void Function() onHeaders;
   @override
@@ -522,14 +655,15 @@ class _HeadersClient extends Fake implements HttpClient {
   set userAgent(String? value) => inner.userAgent = value;
   @override
   Future<HttpClientRequest> getUrl(Uri uri) async =>
-      _HeadersRequest(await inner.getUrl(uri), onHeaders, errors);
+      _HeadersRequest(await inner.getUrl(uri), onHeaders, errors, stacks);
   @override
   void close({bool force = false}) => inner.close(force: force);
 }
 
 class _HeadersRequest extends Fake implements HttpClientRequest {
-  _HeadersRequest(this.inner, this.onHeaders, this.errors);
+  _HeadersRequest(this.inner, this.onHeaders, this.errors, this.stacks);
   final List<Object>? errors;
+  final List<StackTrace>? stacks;
   final HttpClientRequest inner;
   final void Function() onHeaders;
   @override
@@ -542,13 +676,16 @@ class _HeadersRequest extends Fake implements HttpClientRequest {
   Future<HttpClientResponse> close() async {
     final response = await inner.close();
     onHeaders();
-    return errors == null ? response : _ObservedResponse(response, errors!);
+    return errors == null
+        ? response
+        : _ObservedResponse(response, errors!, stacks);
   }
 }
 
 class _HungContinuationClient extends Fake implements HttpClient {
   _HungContinuationClient(this.connecting);
   final Completer<void> connecting;
+  final pending = Completer<HttpClientRequest>();
   late HttpClient inner;
   bool closed = false;
   @override
@@ -559,9 +696,11 @@ class _HungContinuationClient extends Fake implements HttpClient {
   set userAgent(String? value) => inner.userAgent = value;
   @override
   Future<HttpClientRequest> getUrl(Uri uri) {
-    if (uri.host != 'continuation.invalid') return inner.getUrl(uri);
+    if (uri.host != 'continuation.invalid' &&
+        !uri.queryParameters.containsKey('timeOffset'))
+      return inner.getUrl(uri);
     connecting.complete();
-    return Completer<HttpClientRequest>().future;
+    return pending.future;
   }
 
   @override
@@ -574,13 +713,14 @@ class _HungContinuationClient extends Fake implements HttpClient {
 // Retain the exact body error object seen before continuation recovery.
 class _ObservedResponse extends StreamView<List<int>>
     implements HttpClientResponse {
-  _ObservedResponse(this.inner, List<Object> errors)
+  _ObservedResponse(this.inner, List<Object> errors, List<StackTrace>? stacks)
     : super(
         inner.transform(
           StreamTransformer.fromHandlers(
             handleError:
                 (Object error, StackTrace stack, EventSink<List<int>> sink) {
                   errors.add(error);
+                  stacks?.add(stack);
                   sink.addError(error, stack);
                 },
           ),
@@ -596,3 +736,19 @@ class _ObservedResponse extends StreamView<List<int>>
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
+
+// Only the six-second setup timer uses fake time; HTTP and file I/O stay real.
+Future<T> _withSetupClock<T>(FakeAsync clock, Future<T> Function() body) =>
+    runZoned(
+      body,
+      zoneSpecification: ZoneSpecification(
+        createTimer: (self, parent, zone, duration, callback) {
+          if (duration == const Duration(seconds: 6)) {
+            return clock.run(
+              (_) => Timer(duration, () => zone.runGuarded(callback)),
+            );
+          }
+          return parent.createTimer(zone, duration, callback);
+        },
+      ),
+    );

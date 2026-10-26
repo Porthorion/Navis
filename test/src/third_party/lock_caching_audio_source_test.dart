@@ -280,6 +280,84 @@ void main() {
     expect(condition(), isTrue);
   }
 
+  for (final splice in [false, true]) {
+    for (final action in [
+      'remove',
+      'clear',
+      'replace',
+      if (!splice) 'dispose',
+    ]) {
+      test('$action retains whole-file caching, splice=$splice', () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        final release = Completer<void>();
+        addTearDown(() {
+          if (!release.isCompleted) release.complete();
+        });
+        final body = List<int>.generate(32 * 1024, (i) => i % 251);
+        server.listen((request) async {
+          final response = request.response..bufferOutput = false;
+          try {
+            response.add(body.sublist(0, 1024));
+            await response.flush();
+            await release.future;
+            response.add(body.sublist(1024));
+            await response.close();
+          } on Object {
+            // A regression may cancel the origin before the gate is released.
+          }
+        });
+        final uri = Uri.parse('http://127.0.0.1:${server.port}/song');
+        final file = File(p.join(directory.path, 'retained.mp3'));
+        // ignore: experimental_member_use, reason: verifies source-removal caching semantics.
+        final source = LockCachingAudioSource(
+          uri,
+          cacheFile: file,
+          continuationUri: splice ? (_) => uri : null,
+        );
+        final other = AudioSource.uri(Uri.parse('https://example.com/other'));
+        final player = AudioPlayer(
+          handleAudioSessionActivation: false,
+          handleInterruptions: false,
+          androidApplyAudioAttributes: false,
+        );
+        addTearDown(player.dispose);
+        await player.setAudioSources([source, other]);
+        final response = await source.request();
+        final bytes = <int>[];
+        final errors = <Object>[];
+        final done = Completer<void>();
+        response.stream.listen(
+          bytes.addAll,
+          onError: errors.add,
+          onDone: done.complete,
+        );
+        await until(() => source.downloadedBytes == 1024);
+        switch (action) {
+          case 'remove':
+            await player.removeAudioSourceAt(0);
+          case 'clear':
+            await player.clearAudioSources();
+          case 'replace':
+            await player.setAudioSources([other]);
+          case 'dispose':
+            await player.dispose();
+        }
+        expect(
+          source.isDownloading,
+          isTrue,
+          reason: 'removal must retain the original whole-file download',
+        );
+        release.complete();
+        await done.future.timeout(const Duration(seconds: 2));
+        await until(() => !source.isDownloading);
+        expect(errors, isEmpty);
+        expect(bytes, body);
+        expect(file.readAsBytesSync(), body);
+      });
+    }
+  }
+
   test('dispose cancels a continuation waiting for headers', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));

@@ -13,8 +13,9 @@ class P {
     this.seq,
     this.crcOk,
     this.packets,
+    this.end,
   );
-  final int flags, granule, serial, seq;
+  final int flags, granule, serial, seq, end;
   final bool crcOk;
   final List<Uint8List> packets;
 }
@@ -62,6 +63,7 @@ List<P> pagesOf(List<int> bytes) {
         h.getUint32(p + 18, Endian.little),
         _crc(raw) == stored,
         packets,
+        at,
       ),
     );
     p = at;
@@ -333,14 +335,53 @@ void main() {
       ]),
     ]);
     fresh.beginContinuation(1);
-    final split = pagesOf(run(fresh, input, 10000, true));
-    expect(split.expand((p) => p.packets).toList(), many);
-    expect(split.length, 3);
-    expect(split.map((p) => p.seq).toList(), [3, 4, 5]);
+    final eosInput = [
+      ..._headers(),
+      ..._page(-1, [big.sublist(0, 255)], lacing: [255]),
+      ..._page(
+        254 * 960,
+        [big.sublist(255), ...many.skip(1).take(253)],
+        lacing: [255, 0, ...List.filled(253, 2)],
+        flags: 5,
+      ),
+    ];
+    final split = pagesOf(run(fresh, eosInput, 10000, true));
+    expect(split.expand((p) => p.packets).toList(), many.take(254).toList());
+    expect(split.length, 2);
+    expect(split.map((p) => p.seq).toList(), [3, 4]);
     expect(split.every((p) => p.crcOk && p.serial == 42), isTrue);
-    expect(split.take(2).every((p) => p.flags & 4 == 0), isTrue);
+    expect(split.first.flags & 4, 0);
     expect(split.last.flags & 4, 4);
     expect(split.first.granule, 48000 + 253 * 960);
+  });
+
+  test('a data-less EOS page remains the final rewritten page', () {
+    final s = OggOpusSplicer();
+    s.forward([
+      ..._headers(),
+      ..._page(960, [
+        [152, 0],
+      ]),
+    ]);
+    s.beginContinuation(0);
+    final pages = pagesOf(
+      s.splice([
+        ..._headers(),
+        ..._page(1920, [
+          [152, 0],
+          [152, 1],
+        ]),
+        ..._page(1920, [], flags: 4),
+      ]),
+    );
+    expect(pages, hasLength(2));
+    expect(pages.first.flags & 4, 0);
+    expect(pages.last.flags & 4, 4);
+    expect(pages.last.packets, isEmpty);
+    expect(pages.last.granule, 1920);
+    expect(pages.map((p) => p.seq).toList(), [3, 4]);
+    expect(pages.every((p) => p.crcOk && p.serial == 42), isTrue);
+    expect(s.continuationComplete, isTrue);
   });
 
   test('beginContinuation clears a previously unfinished packet', () {
