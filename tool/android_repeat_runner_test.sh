@@ -110,5 +110,27 @@ for target in ("step", "job"):
             pass
         else:
             raise AssertionError(f"contract accepted {target} {key}")
+
+# Raw source variants also prove comments and shell suffixes cannot hide a gate.
+workflow_source = (root / ".github/workflows/ci.yml").read_text()
+for variant_command in ("./tool/android_repeat_native_test.sh", "./tool/android_repeat_runner_test.sh"):
+    for replacement in (f"- run: {variant_command} || true", f"# - run: {variant_command}"):
+        broken = workflow_source.replace(f"- run: {variant_command}", replacement)
+        try:
+            validate(check, yaml.safe_load(broken))
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f"contract accepted {replacement}")
+for variant_command, label in (("./tool/android_repeat_native_test.sh", "Android repeat bridge JVM"),
+                       ("./tool/android_repeat_runner_test.sh", "Android repeat runner contract")):
+    line = f'run_step "{label}" {variant_command}'
+    for replacement in (f"{line} || true", f"# {line}"):
+        try:
+            validate(check.replace(line, replacement), workflow)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f"contract accepted {replacement}")
 PYTHON
 echo 'Android repeat runner: wrapper, bounds, nonzero test counts, failure propagation and gate wiring passed.'

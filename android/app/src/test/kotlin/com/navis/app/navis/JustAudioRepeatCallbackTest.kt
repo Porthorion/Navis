@@ -765,4 +765,15 @@ class JustAudioRepeatCallbackTest {
         }
     }
 
+    @Test fun boundaryCompletesThroughTheRunnablePassedToHandler() {
+        val f = Fx("SFF", 0, 1)
+        f.deliverPause(false)
+        val posted: Any = f.posts.single()
+        assertTrue("capture the Runnable actually passed to Handler.post", posted is Runnable)
+        (posted as Runnable).run()
+        assertEquals(f.digest(), listOf("0@0"), f.seeks)
+        assertEquals(f.digest(), 1, f.resumes)
+        assertFalse(f.digest(), f.field("repeatPending") as Boolean)
+    }
+
 }
