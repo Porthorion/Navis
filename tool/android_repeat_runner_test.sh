@@ -29,6 +29,10 @@ cat >"${NAVIS_FLUTTER_SDK}/bin/cache/artifacts/gradle_wrapper/gradlew" <<'STUB'
 printf '%s\n' "$@" >"${NAVIS_FIXTURE_ARGS}"
 printf '%s' "${JAVA_HOME:-}" >"${NAVIS_FIXTURE_JDK}"
 [[ "${NAVIS_SELF_UPDATE:-}" == true ]] || exit 92
+mkdir -p app/build/test-results/testSideloadDebugUnitTest
+for suite in JustAudioRepeatBoundaryTest JustAudioRepeatCallbackTest; do
+  printf '<testsuite tests="%s" failures="0" errors="0" skipped="0"/>\n' "${NAVIS_FIXTURE_TESTS:-1}" >"app/build/test-results/testSideloadDebugUnitTest/TEST-com.navis.app.navis.${suite}.xml"
+done
 exit "${NAVIS_FIXTURE_EXIT:-0}"
 STUB
 printf 'fixture wrapper\n' >"${NAVIS_FLUTTER_SDK}/bin/cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar"
@@ -36,7 +40,13 @@ chmod +x "${navis_fixture}/bin/timeout" \
   "${NAVIS_FLUTTER_SDK}/bin/cache/artifacts/gradle_wrapper/gradlew"
 
 # Start without ignored wrapper files, as in a clean CI checkout.
-NAVIS_SELF_UPDATE=false "${navis_fixture}/tool/android_repeat_native_test.sh"
+NAVIS_SELF_UPDATE=false "${navis_fixture}/tool/android_repeat_native_test.sh" >"${navis_fixture}/output"
+grep -Fxq 'Android repeat bridge: 2 tests, 0 failures.' "${navis_fixture}/output"
+set +e
+NAVIS_FIXTURE_TESTS=0 "${navis_fixture}/tool/android_repeat_native_test.sh"
+navis_actual=$?
+set -e
+test "${navis_actual}" -ne 0
 test -f "${navis_fixture}/android/gradle/wrapper/gradle-wrapper.jar"
 test "$(cat "${NAVIS_FIXTURE_JDK}")" == "${ANDROID_STUDIO_JDK}"
 for navis_arg in ':app:testSideloadDebugUnitTest' '--tests' '*JustAudioRepeat*Test' \
@@ -57,8 +67,47 @@ navis_actual=$?
 set -e
 test "${navis_actual}" -eq 124
 
-grep -Fq 'run_step "Android repeat bridge JVM" ./tool/android_repeat_native_test.sh' "${navis_root}/tool/check.sh"
-grep -Fq -- '- run: ./tool/android_repeat_native_test.sh' "${navis_root}/.github/workflows/ci.yml"
-grep -Fq 'needs: [static, test, native]' "${navis_root}/.github/workflows/ci.yml"
-grep -Fq 'needs.native.result' "${navis_root}/.github/workflows/ci.yml"
-echo 'Android repeat runner: wrapper, bounds, test selection, failure propagation and gate wiring passed.'
+python3 - "${navis_root}" <<'PYTHON'
+import copy
+import pathlib
+import shlex
+import sys
+import yaml
+
+root = pathlib.Path(sys.argv[1])
+check = (root / "tool/check.sh").read_text()
+workflow = yaml.safe_load((root / ".github/workflows/ci.yml").read_text())
+command = "./tool/android_repeat_native_test.sh"
+
+def validate(check, workflow):
+    lines = [shlex.split(line, comments=True) for line in check.splitlines()
+             if command in line]
+    assert lines == [["run_step", "Android repeat bridge JVM", command]], "check.sh must run the bridge without swallowing failure"
+    native = workflow["jobs"]["native"]
+    assert "if" not in native and native.get("continue-on-error", False) is False, "native job must run and propagate failure"
+    steps = [step for step in native["steps"] if command in str(step.get("run", ""))]
+    assert len(steps) == 1 and steps[0]["run"].strip() == command, "CI must run the bridge without swallowing failure"
+    assert "if" not in steps[0] and steps[0].get("continue-on-error", False) is False, "bridge step must run and propagate failure"
+    ci = workflow["jobs"]["ci"]
+    assert "native" in ci["needs"], "CI aggregate must require native"
+    assert ci.get("continue-on-error", False) is False
+    assert any('test "${{ needs.native.result }}" = success' in step.get("run", "")
+               and "||" not in step["run"] and "if" not in step
+               and step.get("continue-on-error", False) is False for step in ci["steps"])
+
+validate(check, workflow)
+# Prove the contract rejects silent skips and swallowed failures.
+for target in ("step", "job"):
+    for key, value in (("continue-on-error", True), ("if", False)):
+        broken = copy.deepcopy(workflow)
+        native = broken["jobs"]["native"]
+        subject = native if target == "job" else next(s for s in native["steps"] if s.get("run") == command)
+        subject[key] = value
+        try:
+            validate(check, broken)
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError(f"contract accepted {target} {key}")
+PYTHON
+echo 'Android repeat runner: wrapper, bounds, nonzero test counts, failure propagation and gate wiring passed.'

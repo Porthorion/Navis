@@ -42,6 +42,7 @@ class JustAudioRepeatCallbackTest {
         var pauseAtEnd = false
         var playing = true          // app-visible getPlayWhenReady()
         var ended = false           // app-visible getPlaybackState() == ENDED
+        var completedDispatches = 0
         var resumes = 0             // setPlayWhenReady(true) calls that changed state
         val seeks = mutableListOf<String>()
         val posts = ArrayDeque<Post>()
@@ -134,7 +135,7 @@ class JustAudioRepeatCallbackTest {
 
         /** Runs one app/native-thread entry; records the production handler.post as a Post. */
         fun dispatch(block: () -> Unit) {
-            try { block() } catch (e: InvocationTargetException) {
+            try { block(); completedDispatches++ } catch (e: InvocationTargetException) {
                 val c = e.cause
                 if (c is NullPointerException && c.stackTrace.firstOrNull()?.methodName == "scheduleProgressiveRepeat") {
                     val uid = field("repeatAtEndUid")
@@ -711,4 +712,54 @@ class JustAudioRepeatCallbackTest {
         val h = Fx("SFF", 1, 2)       // ALL owned, middle item: no end pause
         assertFalse(h.digest(), h.pauseAtEnd)
     }
+    @Test fun k3_pauseScrubPlayAtDeliveredBoundary_keepsTheScrubTarget() {
+        val f = Fx("SFF", 0, 1)
+        f.deliverPause(false)
+        f.pause()
+        f.seek(5000, null)
+        f.play()
+        f.runPosts()
+        assertEquals(f.digest(), listOf("0@5000"), f.seeks)
+        assertEquals(f.digest(), 1, f.resumes)
+    }
+    @Test fun s4_lateEndReasonAfterPause_thenPlay_restartsTheItem() {
+        val f = Fx("SFF", 0, 1)
+        f.pause()
+        f.deliverPause(false)          // late reason after the user's Pause arms the boundary but must not post
+        assertTrue(f.digest(), f.posts.isEmpty())
+        f.runPosts()
+        f.play()
+        f.runPosts()
+        assertEquals(f.digest(), listOf("0@0"), f.seeks)
+        assertEquals(f.digest(), 1, f.resumes)
+    }
+
+    @Test fun r1_afterOffCompletion_nextBoundaryStillArmsInsteadOfPublishingCompleted() {
+        val f = Fx("SF", 1, 2)
+        f.deliverPause(true)
+        f.mode(0)
+        f.runPosts()                                   // Off at the true end: completion via the guarded re-entrant publish
+        assertEquals("completed", f.state())
+        f.mode(2)                                      // user restarts and switches Repeat All back on
+        f.play()
+        f.call("onPlaybackStateChanged", 3)            // READY again (processingState -> ready)
+        f.seek(0, 1)                                   // back onto the last stream
+        f.deliverPause(true)                           // second natural end of the owned last item
+        assertNotEquals("the second end must arm a boundary, not publish completed: ${f.digest()}", "completed", f.state())
+        assertTrue(f.digest(), f.posts.isNotEmpty())
+    }
+    @Test fun firstSchedulingReturnsToEndedAndTimelineCallers() {
+        for (timelineFirst in listOf(false, true)) {
+            val f = Fx("SF", 1, 2)
+            f.playing = false
+            f.ended = true
+            val before = f.completedDispatches
+            if (timelineFirst) f.timelineChanged()
+            else f.dispatch { f.call("onPlaybackStateChanged", 4) }
+            assertEquals("scheduling must return to its caller: ${f.digest()}", before + 1, f.completedDispatches)
+            assertNotEquals(f.digest(), "completed", f.state())
+            assertEquals(f.digest(), 1, f.posts.size)
+        }
+    }
+
 }
