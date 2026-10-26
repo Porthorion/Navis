@@ -160,11 +160,14 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android: with Repeat All, a song no longer restarts just before its end. '
-        'Mixed downloaded and streamed queues stay protected too. Queue edits and '
-        'seeks at a repeat boundary keep playback running, including an append '
-        'that arrives before the native end pause. Changing repeat mode or '
-        'removing the last streamed song at that boundary also keeps playback '
-        'moving while preserving Pause and stopping at the end with Repeat Off.',
+        'Mixed downloaded and streamed queues stay protected too. Appends, '
+        'repeat-mode changes and removal of the last streamed song keep '
+        'playback moving at the boundary in either event order. Seeks after a '
+        'reported end pause preserve their target, and ordinary in-item '
+        'scrubs keep Repeat All armed. Pause stays paused and Repeat Off '
+        'stops at the true end. '
+        'A scrub before that end event can still be overwritten; Pause/Play '
+        'before delivery can still advance under Repeat One.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

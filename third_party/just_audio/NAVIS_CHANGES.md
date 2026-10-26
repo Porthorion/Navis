@@ -134,13 +134,24 @@ Its timeline window UID survives appends, inserts and moves while current;
 removal/replacement cannot restart a different occurrence. A revision cancels
 pending restarts on transport and selection/source replacement.
 
-Mode changes retain an already owned pause and apply the latest mode when it
-is consumed. The pause-policy UID survives a policy/timeline callback delivered
-before the end-pause reason. Native ownership is recomputed from current
-playlist tags before resuming, including when the last eligible stream was
-removed. Off releases a non-last pause without restarting the song (advancing
-if already ENDED), while the true end stays completed. Late end callbacks
-cannot consume a boundary twice or publish completion after its resume.
+Mode changes retain a captured boundary and apply the latest mode when it is
+consumed. An end-of-item reason also arms recovery when an app-thread mode
+change or root-playlist removal cleared the pause-policy UID before native
+PlayWhenReady became false. A current window UID is still required; an empty
+timeline publishes completion instead of capturing an invalid boundary.
+ENDED with Play requested and native playback paused
+shares that recovery. Native ownership is recomputed from current playlist tags
+before resuming, including when the last eligible stream was removed. An in-item
+seek re-arms pause policy after seeking. Off releases a non-last pause without
+restarting the song (advancing if already ENDED), while the true end publishes
+completion without re-arming. Stale ENDED callbacks cannot publish completion
+while Play is requested and native state has already moved on, including on
+file-only queues; late end reasons cannot re-arm a resumed boundary.
+
+Known limits: Pause/Play before the native boundary signal can advance under
+Repeat One, and a seek before a delayed end reason can still be overwritten by
+a restart at zero. Existing app-visible state cannot distinguish these from
+ordinary in-item Pause/Play or a fresh EOF after seeking.
 This prevents Media3 1.4.1 from preloading another occurrence of a linear
 stream and silently rewinding its current period when a later request becomes
 seekable (#86). File-only playlists, HLS/DASH and radio's existing default-retry
@@ -150,6 +161,10 @@ loses the gapless queue wrap.
 harness; `JustAudioRepeatBoundaryTest` exercises the real bridge's policy,
 playlist tag scan and posted action using the existing reflection/proxy JVM
 fixtures, with the posted callback driven directly instead of an Android Looper.
+`JustAudioRepeatCallbackTest` drives production scheduling, timeline and item
+transition listeners, distinct occurrence UIDs and ExoPlayer-style callback
+order. It captures the missing-Handler post boundary and runs the guarded action;
+it does not run an Android Looper or the posted lambda itself.
 The pairwise Dart loop detector now also recognizes unknown-duration
 plain-stream backwards jumps; tail/zero/buffering/ready fixtures cover middle
 and last items with and without offsets. Navis's existing offset handler and

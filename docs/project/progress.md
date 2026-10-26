@@ -15,31 +15,45 @@ Last updated: 2026-10-26
 
 ## Current Focus
 - [ ] Issue #86, P2 Android repeat-boundary policy (triage 06, 07, 09) —
-  implementation complete on `fix/android-repeat-boundary`, 2026-10-26;
-  orchestrator quality gate, independent review, Linux startup smoke and Android
-  runtime acceptance remain pending under the build brief. An already owned
-  end-pause follows the latest repeat mode; its pause-policy UID survives a
-  timeline/mode update before the end reason. Consuming it recomputes native
-  ownership, resumes/advances once, rejects stale occurrences/revisions, preserves
-  explicit Pause and keeps Repeat Off completed at the true end. Delayed end
-  callbacks cannot re-arm it or report completion after resume. The actual
-  playlist/tag scan is directly covered at every stream/current index, with
-  unregistered tags, removed sources and an empty playlist; no new test framework.
-  Failing first: `OFF releases an owned middle-item pause without restarting`
-  and `mode changes must retain the paused occurrence`; additional completion
-  regressions first reported `expected:<[completed]> but was:<[ready]>` and the
-  inverse. Foreground 6 GiB-capped native checks pass: 93 repeat decisions,
-  13 retry fixtures, equalizer fixtures and 14 Android JVM bridge/error tests
-  (11 repeat-boundary tests). The focused Flutter repeat/crossfade handler suite
-  passes 274 tests; changelog/release-note checks pass 11 tests and the changed
-  Dart file needs no formatting changes. All six mutants are killed: stale UID, explicit
-  Pause, ownership recomputation, delayed pause-owner retention, stale revision,
-  late end-reason rearming. JVM bridge callbacks are driven directly without
-  an Android Looper/audio device. No emulator, harness, VM or `./tool/check.sh`
-  was started; those runtime/full-gate checks remain with the orchestrator to
-  avoid interfering with the active Android harness in another worktree.
-  AI implementation/verification: Codex gpt-6.1-sol; local commits only,
-  no push, PR or Fable model use. Row 08 remains outside this change.
+  implementation on `fix/android-repeat-boundary`, 2026-10-26; orchestrator full
+  quality gate, follow-up review, Linux startup smoke and Android runtime
+  acceptance remain pending under the build brief. R1 fixed a delivered owned
+  pause followed by policy changes. R2 also handles the app-thread-first mode
+  change/root removal while native PlayWhenReady still reports true: the native
+  end signal arms recovery independently of current eligibility. Off completion
+  bypasses repeat re-entry; ordinary in-item seeks re-arm their pause policy.
+  The redundant `!playRequested` policy-refresh clause is removed, and the
+  boundary decision names its input `pendingBoundary` rather than ownership.
+  New production-path callback fixtures reach scheduling without pre-setting
+  `repeatPending`, use distinct occurrence UIDs and drive timeline, transition,
+  discontinuity and synchronous PlayWhenReady callbacks. They pin stale ENDED
+  suppression for file-only queues too. First failures on `4749212fc`: g1a
+  `expected:<1> but was:<0>`, g1c `expected:<[0@0]> but was:<[]>`, g9a
+  `resumes=0 seeks=[1@5000, 0@0]`, followed by the direct post-scrub failure
+  `an in-item scrub must re-arm its pause owner`. The actual playlist/tag scan
+  remains directly covered; no new test framework or dependency was added.
+  Verifying F3 also exposed empty-timeline completion stuck at `ready`; its
+  failing-first fixture now requires a current UID before repeat scheduling,
+  preserving completion without changing the legacy empty-playlist branch.
+  Known pre-delivery limits remain explicit: Pause/Play before a native boundary
+  signal can advance under Repeat One (g3d), and a seek before a delayed end
+  reason can be overwritten by a repeat restart (g4b). Existing state cannot
+  distinguish these from ordinary in-item Pause/Play or a fresh post-seek EOF;
+  they are characterization tests, not claimed fixes.
+  Foreground 6 GiB-capped checks pass: 51 native JVM tests (35 callback-order
+  cases, 11 boundary/scan cases, five service/error cases), 97 repeat decisions,
+  13 retry fixtures, equalizer fixtures and 11 changelog/release-note tests.
+  The changed Dart file needs no formatting changes. The adapted reviewer sweep
+  kills 18/22 applicable bridge mutants and 17/17 pure mutants, including every
+  required callback/owner-clear and mode-range guard. A6's redundant clause was
+  deleted and is not counted. Survivors: A11a/A11b (posted-lambda live capture,
+  outside the missing-Handler seam) and A17/A18 (error/load pause-owner cleanup,
+  not pinned by these repeat fixtures). The fixture captures the post point
+  and drives the guarded action, not an Android Looper or the posted lambda.
+  No emulator, harness, VM, analyzer or `./tool/check.sh` was started; the
+  orchestrator's runner owns those runtime/full-gate checks. AI implementation
+  and verification: Codex gpt-6.1-sol; local commits only, no push, PR or Fable
+  model use. The legacy empty-playlist fallback (row 08) is not reworked.
 - [ ] Issue #86, item 13b Android next-song warm — `fix/android-next-warm`: at
   current-song completion `_syncSidecarChain` starts the next song's own
   lock-cache source with the vendored `prefetch()` (no replay buffer); one source
