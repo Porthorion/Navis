@@ -4070,8 +4070,10 @@ Ogg's 255-segment page limit. Packet durations must divide a whole second
 exactly: 60/80/120 ms layouts are refused rather than overlapped.
 At most two continuations per fetch; cancellation (including source disposal)
 races connect and headers and produces no failed-splice trace. Continuation
-connect plus headers share a one-second deadline; continuation body progress
-also has a one-second bound, or the shorter configured body deadline. A clean
+connect plus headers share a six-second deadline, allowing measured Navidrome
+startup while staying below Media3's eight-second loopback read timeout.
+Continuation body progress uses the source's normal `bodyProgressTimeout`
+(30 seconds by default, honoring shorter configured deadlines). A clean
 continuation EOF must include complete packets and an EOS page; otherwise it
 fails instead of publishing a truncated cache entry.
 A cut before the first audio page, a header mismatch or an unplaceable packet

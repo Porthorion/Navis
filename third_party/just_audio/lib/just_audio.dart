@@ -4134,10 +4134,7 @@ class LockCachingAudioSource extends StreamAudioSource {
     List<int> withheld = const [];
     while (true) {
       try {
-        final timeout = continuing && bodyProgressTimeout > _spliceTimeout
-            ? _spliceTimeout
-            : bodyProgressTimeout;
-        await for (final chunk in source.timeout(timeout)) {
+        await for (final chunk in source.timeout(bodyProgressTimeout)) {
           final out =
               continuing ? splicer.splice(chunk) : splicer.forward(chunk);
           if (out.isNotEmpty) {
@@ -4187,7 +4184,7 @@ class LockCachingAudioSource extends StreamAudioSource {
                 .then((request) {
               if (cancelled.isCompleted) throw StateError('Download cancelled');
               return request.close().timeout(headerTimeout);
-            }).timeout(_spliceTimeout),
+            }).timeout(_spliceSetupTimeout),
             cancelled.future,
           ]);
           if (cancelled.isCompleted) return;
@@ -4207,7 +4204,8 @@ class LockCachingAudioSource extends StreamAudioSource {
   }
 
   static const _maxSplices = 2;
-  static const _spliceTimeout = Duration(seconds: 1);
+  // Allow Navidrome startup below Media3's 8 s loopback read timeout.
+  static const _spliceSetupTimeout = Duration(seconds: 6);
   var _spliceOffset = 0;
 
   void _reportSplice(OggOpusSplicer splicer, int attempt, String result) =>

@@ -19,14 +19,20 @@ Last updated: 2026-10-26
   `LockCachingAudioSource` and `OggOpusSplicer`. Round 2 fixes pre-listen cancel
   publication, disposal/connect cancellation, original-error/tail fallback,
   unsupported frame durations, the 255-segment page limit and incomplete
-  continuation EOF publication. Continuation
-  setup and body progress are bounded to one second each; rewritten bytes
-  already delivered cannot be rolled back after a later failure.
+  continuation EOF publication. Round 2b allows six seconds for continuation
+  setup (connect plus headers) below Media3's eight-second loopback read
+  timeout; body progress uses the normal configured source deadline (30 seconds
+  by default). Rewritten bytes already delivered cannot be rolled back after
+  a later failure.
   Test-first cancel reproduction: `Expected: false`, `Actual: <true>`,
-  `a cancelled download must not publish a cache file`. Focused splicer,
-  lock-cache, resolver suites: `00:14 +147: All tests passed!`; harness
-  self-checks: `Ran 51 tests`, `OK` (all foreground, 6 GiB cap). Mutation
-  recheck: splicer 26/26 killed; wiring 15/17 killed. The two survivors remove
+  `a cancelled download must not publish a cache file`.
+  Round 2b regressions failed first for 2.5-second startup and 1.5-second body
+  gaps (`Expected: null`, `Actual: HttpException`) and observed the old setup
+  deadline at 1.025 seconds. Both delay cases now splice; exceeding six seconds
+  preserves the original cut error object and withheld bytes. Focused splicer,
+  lock-cache, resolver suites: `00:14 +149: All tests passed!`; harness
+  self-checks: `Ran 51 tests`, `OK` (all foreground, 6 GiB cap). Prior round 2
+  mutation recheck: splicer 26/26 killed; wiring 15/17 killed. The two survivors remove
   redundant cancellation guards; connect cancellation, pre-listen cancellation
   and cancellation trace regressions still pass. The old empty-page refusal
   mutation was retired because valid empty pages now pass through. Formatting

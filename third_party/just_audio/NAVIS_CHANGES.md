@@ -153,9 +153,11 @@ page within 255 segments; durations that do not divide a second (including
 A clean continuation EOF requires complete packets and an EOS page; an
 incomplete response cannot publish the prefix as a finished cache file.
 At most two continuations per fetch. Continuation connect and headers share
-a one-second deadline and race cancellation; continuation body progress is
-bounded to one second (or the shorter configured body deadline). Fallback
-flushes the withheld original bytes before the original cut error and stack,
+a six-second deadline and race cancellation: this allows Navidrome startup
+while staying below Media3's eight-second loopback read timeout. Continuation
+body progress uses the normal configured `bodyProgressTimeout` (30 seconds by
+default). Fallback flushes the withheld original bytes before the original
+cut error and stack,
 unless rewritten audio has already been delivered: that prefix cannot be
 rolled back or followed by the discarded original partial page. Failure deletes
 the partial file. Cancel during pre-listen file I/O cannot publish a cache file
