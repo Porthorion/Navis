@@ -10518,7 +10518,7 @@ void main() {
         });
       }
 
-      for (final work in ['release', 'trim']) {
+      for (final work in ['release', 'trim', 'advance during release']) {
         test(
           'row 15 cut during deferred tail $work retains the source occurrence',
           () async {
@@ -10567,6 +10567,12 @@ void main() {
             await entered.future.timeout(const Duration(seconds: 3));
             expect(handler.debugQueueLaneIdle, isFalse);
             final loads = player.sourceLoads;
+            if (work == 'advance during release') {
+              player.finishCurrentTrack(
+                endPosition: const Duration(seconds: 300),
+              );
+              await pumpEventQueue(times: 20);
+            }
             player.finishCurrentTrack(
               endPosition: const Duration(milliseconds: 47750),
             );
@@ -10580,7 +10586,11 @@ void main() {
             );
             expect(
               handler.snapshot.currentSongId,
-              work == 'trim' ? 'song-11' : 'song-1',
+              work == 'trim'
+                  ? 'song-11'
+                  : work == 'advance during release'
+                  ? 'song-2'
+                  : 'song-1',
             );
             expect(current(player).positionOffset, const Duration(seconds: 47));
             expect(
