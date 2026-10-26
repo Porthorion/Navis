@@ -10436,6 +10436,51 @@ void main() {
         await settleQueue(handler);
       }
 
+      test('row 15 queued append preserves the classified cut', () async {
+        final (handler, player, database) = await offsetHandler();
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(
+            id: 'song-1',
+            title: 'Song 1',
+            duration: const Value(300),
+          ),
+        ]);
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..afterAppendGate = gate
+          ..afterAppendEntered = entered;
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        final loading = handler.replaceQueue(
+          ['song-0', 'song-1', 'song-2'],
+          startIndex: 1,
+          expandMatchFlows: false,
+        );
+        await entered.future.timeout(const Duration(seconds: 3));
+        final editing = handler.addToQueue(['song-0'], expandMatchFlows: false);
+        await pumpEventQueue(times: 20);
+        player.finishCurrentTrack(
+          endPosition: const Duration(milliseconds: 47750),
+        );
+        await pumpEventQueue(times: 20);
+        gate.complete();
+        await Future.wait([loading, editing]);
+        await drain(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(handler.snapshot.currentIndex, 1);
+        expect(current(player).positionOffset, const Duration(seconds: 47));
+        expect(player.playing, isTrue);
+        expect(handler.snapshot.queueSongIds, [
+          'song-0',
+          'song-1',
+          'song-2',
+          'song-0',
+        ]);
+        expectNativeMirrorsQueue(handler, player);
+      });
+
       for (final intent in ['none', 'Play', 'Pause', 'skip']) {
         test('row 15 cut during native tail fill honors $intent', () async {
           final (handler, player, database) = await offsetHandler();
