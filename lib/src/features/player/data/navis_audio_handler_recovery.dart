@@ -108,13 +108,52 @@ extension _NavisRecovery on NavisAudioHandler {
     // Phase one must finish before an older occurrence of the same song can
     // be mistaken for readiness on the source selected by this request.
     await _queueLane.enqueue((_) async => _checkSeekCurrent(request, token));
+    while (_quietStopInProgress) {
+      _checkSeekCurrent(request, token);
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    _checkSeekCurrent(request, token);
+    // A newer seek owns the reload after the failed source's final shutdown.
+    if (_remoteSourceFailed &&
+        !_isLoading &&
+        _resolveCurrentQueueMetadata().mediaItem?.id == request.songId) {
+      request
+        ..recoveryAttempts = 1
+        ..stage = 'recovering';
+      final fromFile = await _trySeekViaCompletedCacheFile(
+        request.position,
+        autoPlay: _requestedPlaying,
+        token: token,
+        transportGeneration: _transportGeneration,
+        seekRequest: request,
+      );
+      if (!fromFile) {
+        final offset = await _shouldSeekViaTranscodeOffset(
+          request.position,
+          request,
+          token,
+        );
+        if (offset) request.path = 'transcodeOffset';
+        await _rebuildQueueForSeekRecovery(
+          request.position,
+          autoPlay: _requestedPlaying,
+          token: token,
+          transportGeneration: _transportGeneration,
+          seekRequest: request,
+          transcodeOffset: offset
+              ? Duration(seconds: request.position.inSeconds)
+              : null,
+        );
+      }
+      _checkSeekCurrent(request, token);
+    }
     final wait = Stopwatch()..start();
     final total = Stopwatch()..start();
     while (true) {
       _checkSeekCurrent(request, token);
       // A load this seek waited on ended in a quiet stop: nothing is loading
-      // and nothing will become ready. (A seek made after the stop still
-      // waits, because Play may re-arm the source.)
+      // and nothing will become ready. A seek made after the stop reopens
+      // the failed source above.
       sawLoading |= _isLoading;
       final stopped =
           sawLoading &&
