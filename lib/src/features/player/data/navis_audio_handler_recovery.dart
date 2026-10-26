@@ -445,20 +445,24 @@ extension _NavisRecovery on NavisAudioHandler {
 
   void _captureTranscodeEndOccurrence({bool indexEvent = false}) {
     if (!_isDesktopRuntime || _prematureTranscodeDeparture != null) return;
-    // ponytail: the index listener can return during tail fill/release before
-    // capturing an occurrence; like busy-lane cuts, these keep normal EOF.
-    // Revisit both windows if recovery must cover background queue work.
     final event = _player.playbackEvent;
     final index = event.currentIndex;
     final invalidated = _transcodeEndInvalidatedAt;
+    final matchingQueue = _sequenceMatchesQueue(_player);
     if (index == null ||
         event.processingState == ProcessingState.completed ||
         (invalidated != null && !event.updateTime.isAfter(invalidated)) ||
-        !_sequenceMatchesQueue(_player)) {
+        (!matchingQueue && (!indexEvent || _queueLane.isIdle))) {
       return;
     }
     final source = _player.sequence.elementAtOrNull(index);
-    final item = _queueItems.elementAtOrNull(index);
+    // Native indices can lead the Dart mirror during background queue work.
+    final nativeTag = source?.tag;
+    final item = matchingQueue
+        ? _queueItems.elementAtOrNull(index)
+        : nativeTag is MediaItem
+        ? nativeTag
+        : null;
     if (source == null ||
         item == null ||
         (!indexEvent &&
@@ -487,28 +491,27 @@ extension _NavisRecovery on NavisAudioHandler {
   bool _retryPrematureTranscodeEnd(PlaybackEvent previousEvent) {
     final occurrence = _transcodeEndOccurrence;
     final index = previousEvent.currentIndex;
-    // ponytail: cuts during background tail release/trim/fill keep normal EOF
-    // behavior; revisit if recovery must wait for a busy queue lane.
+    // A committed source can finish while its lane still restores neighbours.
+    final backgroundQueueWork = !_queueLane.isIdle;
     if (!_isDesktopRuntime ||
         _disposeHandlerStarted ||
-        _isLoading ||
-        !_queueLane.isIdle ||
+        (_isLoading && !backgroundQueueWork) ||
         _pendingSeek != null ||
         _remotePlaybackRecoveryInProgress ||
         _isCrossfading ||
         _crossfadeHandoffInProgress ||
         _radioStation != null ||
         _latestExplicitTransportPlaying == false ||
-        _pendingLogicalQueueSongIds != null ||
+        (_pendingLogicalQueueSongIds != null && !backgroundQueueWork) ||
         !_sourceResolver.supportsTranscodeOffset ||
         index == null ||
         index < 0 ||
-        index >= _queueItems.length) {
+        index >= _player.sequence.length) {
       return false;
     }
     final invalidated = _transcodeEndInvalidatedAt;
     if (occurrence == null ||
-        occurrence.index != index ||
+        (occurrence.index != index && !backgroundQueueWork) ||
         (invalidated != null &&
             !previousEvent.updateTime.isAfter(invalidated)) ||
         !identical(
@@ -546,17 +549,50 @@ extension _NavisRecovery on NavisAudioHandler {
       sourceReady: false,
     );
     _continuingIntoDeferredTail = true;
-    unawaited(
-      _retryRemotePlayback(
-        currentIndex: index,
+    final player = _player;
+    final seekRevision = _seekRevision;
+    final loadGeneration = _activeLoadGeneration;
+    final pausing =
+        _runTimedPlayerOperation(
+          generation: loadGeneration,
+          operation: 'pause premature transcode EOF',
+          action: player.pause,
+          songId: item.id,
+          timeout: _timeouts.control,
+        ).catchError((Object error) {
+          AppLogger.debug('Pause before transcode recovery failed: $error');
+        });
+    Future<void> recover() async {
+      if (backgroundQueueWork) {
+        await _queueLane.enqueue((token) async => token.checkCancelled());
+      }
+      final departedIndex = player.sequence.indexOf(occurrence.source);
+      if (_seekRevision != seekRevision ||
+          !_isActiveLoadGeneration(loadGeneration) ||
+          !identical(player, _player) ||
+          _transcodeEndInvalidatedAt != invalidated ||
+          !identical(_prematureTranscodeDeparture?.source, occurrence.source) ||
+          departedIndex < 0 ||
+          _queueItems.elementAtOrNull(departedIndex)?.id != item.id) {
+        return;
+      }
+      await _retryRemotePlayback(
+        currentIndex: departedIndex,
         songId: item.id,
         position: position,
         autoPlay: _requestedPlaying,
         transportGeneration: _transportGeneration,
         reason: 'premature transcode EOF',
         departedItem: item,
-      ).whenComplete(() {
-        if (identical(_prematureTranscodeDeparture?.item, item)) {
+        pausing: pausing,
+      );
+    }
+
+    unawaited(
+      recover().whenComplete(() {
+        // A newer seek still needs the departed occurrence if reopening failed.
+        if (identical(_prematureTranscodeDeparture?.item, item) &&
+            _pendingSeek?.songId != item.id) {
           _prematureTranscodeDeparture = null;
           _captureTranscodeEndOccurrence(indexEvent: true);
         }
@@ -992,6 +1028,7 @@ extension _NavisRecovery on NavisAudioHandler {
         'positionOffsetMs': 0,
       },
     );
+    seekRequest?.path = 'completedFile';
     try {
       return await _rebuildQueueForSeekRecovery(
         position,
@@ -1039,6 +1076,9 @@ extension _NavisRecovery on NavisAudioHandler {
     bool fastSeekBridge = false,
     MediaItem? departedItem,
   }) async {
+    if (transcodeOffset == null && preparedStart == null) {
+      seekRequest?.path = 'original';
+    }
     final metadata = _resolveCurrentQueueMetadata();
     // While a queue replacement is still filling, the player and the queue
     // lists hold only part of the queue; the whole order is the pending
@@ -1232,7 +1272,7 @@ extension _NavisRecovery on NavisAudioHandler {
           // rebuilds the player around the next one.
           _recoveryStage = 'reload failed';
           final failedItem = _queueItems.singleOrNull;
-          if (!fastSeekBridge &&
+          if ((!fastSeekBridge || seekRequest?.isRemoteRecovery == true) &&
               failedItem != null &&
               failedItem.id == currentSongId &&
               _sequenceMatchesQueue(_player)) {
@@ -1250,7 +1290,7 @@ extension _NavisRecovery on NavisAudioHandler {
           } else {
             _restoreQueueLists(restore);
           }
-          if (fastSeekBridge) {
+          if (fastSeekBridge && seekRequest?.isRemoteRecovery != true) {
             // Native may already hold the failed bridge's single-item playlist.
             await _reloadQueueAfterTimeout(restore.capture);
           } else {
@@ -1386,7 +1426,7 @@ extension _NavisRecovery on NavisAudioHandler {
       if (!current()) return;
     }
     final departure = _prematureTranscodeDeparture;
-    if (departure != null && seekRequest?.isRemoteRecovery == true) {
+    if (departure != null && seekRequest?.songId == departure.item.id) {
       _prematureTranscodeDeparture = (
         item: departure.item,
         source: departure.source,
@@ -1442,6 +1482,7 @@ extension _NavisRecovery on NavisAudioHandler {
 
   Future<void> _playWithFocusRecovery({bool lastFocusAttempt = false}) async {
     if (_disposeHandlerStarted ||
+        _quietStopInProgress ||
         _prematureTranscodeDeparture?.sourceReady == false) {
       return;
     }
@@ -1638,7 +1679,7 @@ extension _NavisRecovery on NavisAudioHandler {
         _pendingSeek == null &&
         failedAt != null &&
         _player.playing &&
-        _player.position - failedAt >= const Duration(seconds: 5)) {
+        _player.position - failedAt >= _timeouts.healthyPlayback) {
       _seekFailureBlocksRecovery = false;
       _seekFailurePosition = null;
     }
@@ -1829,6 +1870,7 @@ extension _NavisRecovery on NavisAudioHandler {
     required int transportGeneration,
     required String reason,
     MediaItem? departedItem,
+    Future<void>? pausing,
   }) async {
     _remotePlaybackRecoveryInProgress = true;
     int? departedFailureSeekRevision;
@@ -1857,21 +1899,11 @@ extension _NavisRecovery on NavisAudioHandler {
     );
 
     // Install the seek request before awaiting Pause's native acknowledgement.
-    final pausing = departedItem == null
-        ? null
-        : _runTimedPlayerOperation(
-            generation: _activeLoadGeneration,
-            operation: 'pause premature transcode EOF',
-            action: _player.pause,
-            songId: songId,
-            timeout: _timeouts.control,
-          ).catchError((Object error) {
-            AppLogger.debug('Pause before transcode recovery failed: $error');
-          });
     try {
       if (isRetry) {
         try {
           var rebuilt = false;
+          String? recoveryPath;
           await _seekLane.run((recoveryToken) async {
             if (!_isCurrentTransportIntent(transportGeneration)) return;
             final request = _PendingSeek(
@@ -1961,9 +1993,22 @@ extension _NavisRecovery on NavisAudioHandler {
                   autoPlay: autoPlay,
                   token: recoveryToken,
                   transportGeneration: transportGeneration,
+                  seekRequest: request,
+                );
+              }
+              if (!rebuilt &&
+                  _isCurrentSeekOrTransport(transportGeneration, request) &&
+                  (departedItem != null ||
+                      (_remotePlaybackStillFailed &&
+                          _resolveCurrentQueueMetadata().mediaItem?.id ==
+                              songId &&
+                          _locateQueueTarget(songId, currentIndex) >= 0))) {
+                throw StateError(
+                  'Remote recovery did not rebuild the failed source.',
                 );
               }
             } finally {
+              recoveryPath = request.path;
               // Play/Pause preserve this seek even when transport changes.
               if (departedItem != null && identical(_pendingSeek, request)) {
                 departedFailureSeekRevision = request.generation;
@@ -1984,6 +2029,7 @@ extension _NavisRecovery on NavisAudioHandler {
           _recordSeekDiagnosticsEvent(<String, Object?>{
             'at': DateTime.now().toUtc().toIso8601String(),
             'path': 'remote_retry',
+            'recoveryPath': recoveryPath,
             'requestedPositionMs': position.inMilliseconds,
             'songId': songId,
             'reason': reason,
@@ -2065,26 +2111,46 @@ extension _NavisRecovery on NavisAudioHandler {
       return;
     }
 
-    // Best effort, like _disposeAbandonedPlayer: a stuck native stop must not
-    // park the seek lane that called this.
+    // Finish bounded shutdown before letting a newer Play reopen this source.
     final player = _player;
+    final generation = _transportGeneration;
+    final loadGeneration = _activeLoadGeneration;
+    final songId = _resolveCurrentQueueMetadata().mediaItem?.id;
+    final position = _player.position;
+    bool ownsSong() =>
+        !_disposeHandlerStarted &&
+        _isActiveLoadGeneration(loadGeneration) &&
+        _resolveCurrentQueueMetadata().mediaItem?.id == songId;
     var wedged = false;
-    for (final halt in <Future<void> Function()>[player.pause, player.stop]) {
-      try {
-        await halt().timeout(_playerResetTimeout);
-      } on Object {
-        wedged = true;
+    _quietStopLoadGeneration = loadGeneration;
+    try {
+      for (final halt in <Future<void> Function()>[player.pause, player.stop]) {
+        if (!ownsSong() || !identical(player, _player)) return;
+        try {
+          await halt().timeout(_playerResetTimeout);
+        } on Object {
+          wedged = true;
+        }
+      }
+      if (!ownsSong()) return;
+      // Late halt completions can affect only the retired player.
+      if (wedged && identical(player, _player)) {
+        await _recoverPlayersFromTimeout(
+          generation: loadGeneration,
+          operation: 'final quiet stop',
+        );
+      }
+      if (!ownsSong()) return;
+      _loadedSourceFailed = true;
+    } finally {
+      if (_quietStopLoadGeneration == loadGeneration) {
+        _quietStopLoadGeneration = null;
       }
     }
-    // A native call that never returned may leave the platform stuck, which
-    // Play would then wait on: replace the player, keeping the queue.
-    if (wedged) {
-      await _recoverPlayersFromTimeout(
-        generation: _activeLoadGeneration,
-        operation: 'final quiet stop',
-      );
+    if (!_isCurrentTransportIntent(generation) &&
+        _latestExplicitTransportPlaying == true) {
+      _rearmRemoteRecovery(position: position, autoPlay: true);
     }
-    _loadedSourceFailed = true;
     _broadcastPlaybackState();
     _emitSnapshot();
   }
