@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-25
+Last updated: 2026-10-26
 
 ---
 
@@ -14,6 +14,63 @@ Last updated: 2026-10-25
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86, item 14 Android Ogg/Opus cut splice — `fix/ogg-cut-splice`:
+  continues unknown-length Android Opus transcodes through the existing
+  `LockCachingAudioSource` and `OggOpusSplicer`. Round 2 fixes pre-listen cancel
+  publication, disposal/connect cancellation, original-error/tail fallback,
+  unsupported frame durations, the 255-segment page limit and incomplete
+  continuation EOF publication. Round 2b allows six seconds for continuation
+  setup (connect plus headers) below Media3's eight-second loopback read
+  timeout; body progress uses the normal configured source deadline (30 seconds
+  by default). Rewritten bytes already delivered cannot be rolled back after
+  a later failure.
+  Test-first cancel reproduction: `Expected: false`, `Actual: <true>`,
+  `a cancelled download must not publish a cache file`.
+  Round 2b regressions failed first for 2.5-second startup and 1.5-second body
+  gaps (`Expected: null`, `Actual: HttpException`) and observed the old setup
+  deadline at 1.025 seconds. Both delay cases now splice; exceeding six seconds
+  preserves the original cut error object and withheld bytes. Focused splicer,
+  lock-cache, resolver suites: `00:14 +149: All tests passed!`; harness
+  self-checks: `Ran 51 tests`, `OK` (all foreground, 6 GiB cap). Prior round 2
+  mutation recheck: splicer 26/26 killed; wiring 15/17 killed. Round 3 closes the
+  observable mid-continuation cancel trace gap previously classified as a
+  redundant guard; the old empty-page refusal mutation was retired because
+  valid empty pages pass through.
+  Round 3 restores whole-file caching after remove/clear/replace for plain and
+  opted-in sources, and after player disposal for plain sources. Only opted-in
+  sources are cancelled by the private player-disposal hook. Cancellation now
+  disarms the six-second setup timer; a fake setup clock replaces the wall-time
+  deadline assertion. Data-less EOS pages retain the delivered granule and EOS
+  without duplicating a marker already delivered. Missing EOS at a complete
+  page boundary refuses, deletes the partial file and preserves the original
+  error and stack. Test-first removal evidence: `Expected: empty`,
+  `Actual: [_Exception:Exception: Download cancelled]`; EOS evidence:
+  `Expected: an object with length of <2>`, `Which: has length of <1>`; setup
+  timer evidence: `Expected: <0>`, `Actual: <1>`. Final focused splicer,
+  lock-cache and resolver run: `00:14 +161: All tests passed!` (6 GiB cap, no OOM
+  kills). Targeted review mutants N4, M6, M2b, M3, W1 and S10b are killed (6/6);
+  the full 71-mutant review set was not rerun. Changed Dart formatting and
+  `git diff --check` pass.
+  Round 4 preserves mixed-duration packets before end trim, including when the
+  continuation's first audio page is EOS, by calibrating the decoded granule
+  base from the original stream. Cut-after-EOS falls back without requesting or
+  appending continuation audio; failed attempt 2 resets its own drop count.
+  First failing trim lines: `Expected: [[144, 1], [152, 2]]`,
+  `Actual: [[152, 2]]`; telemetry: `Expected: <0>`, `Actual: <55>`.
+  New assertions cover mapped/serial-rewritten empty EOS, emission guards,
+  paused plain-player disposal and pre-listen sink/state cleanup. Focused
+  splicer, lock-cache and resolver suites: `00:14 +170: All tests passed!`;
+  regenerated review seeds 9145, 9517 and 10451 all preserve every packet,
+  final granules, CRCs and a single EOS. The mid-packet-page fallback limit is
+  now explicit in the architecture section. Targeted D3, D10, D11, D12, D16
+  and D20 mutations are killed (6/7 total). D18 survives because the shared
+  `_startFetch` error cleanup also clears `_downloading`; public state and sink
+  closure are explicitly asserted. The full review mutation set was not rerun.
+  Harness gates now require a base reload, use a cut-cell frozen median,
+  enforce decoded length parity within 20 ms, and reserve `cut5` for Android.
+  Remaining: final Android base-vs-fix runtime evidence and `check.sh` from the
+  coordinator; both are explicitly prohibited for this implementation task
+  while its independently owned harness run is active.
 - [ ] Issue #86, item 13b Android next-song warm — `fix/android-next-warm`: at
   current-song completion `_syncSidecarChain` starts the next song's own
   lock-cache source with the vendored `prefetch()` (no replay buffer); one source

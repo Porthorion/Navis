@@ -319,7 +319,8 @@ class NavisAudioHandler extends BaseAudioHandler
   Map<String, Object?>? _lastQueueFill;
 
   /// Diagnostics-only ring buffer of native transport events.
-  final PlaybackTransportTrace _transportTrace = PlaybackTransportTrace();
+  late final PlaybackTransportTrace _transportTrace =
+      _sourceResolver.transportTrace ?? PlaybackTransportTrace();
   ({ProcessingState state, bool playing, int? index})? _tracedPlayerState;
   // The player re-emits its index with every event; trace only changes (and
   // the first announcement after each source load).
