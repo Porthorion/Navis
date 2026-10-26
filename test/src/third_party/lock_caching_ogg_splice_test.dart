@@ -14,7 +14,16 @@ enum _End { cut, stall, complete }
 
 /// One scripted origin response: [body] up to [length] bytes, then [end].
 class _Reply {
-  new(this.length, this.end, {this.status = 200, this.headersGate});
+  new(
+    this.length,
+    this.end, {
+    this.status = 200,
+    this.headersGate,
+    this.headersDelay = Duration.zero,
+    this.bodyPause = Duration.zero,
+  });
+  final Duration headersDelay;
+  final Duration bodyPause;
   final int status;
   final Completer<void>? headersGate;
   final int length;
@@ -37,6 +46,9 @@ Future<(HttpServer, List<String?>)> _origin(
     final reply = replies[n < replies.length ? n : replies.length - 1];
     final body = bodies[n < bodies.length ? n : bodies.length - 1];
     await reply.headersGate?.future;
+    if (reply.headersDelay > Duration.zero) {
+      await Future<void>.delayed(reply.headersDelay);
+    }
     final response = request.response
       ..statusCode = reply.status
       ..headers.contentType = ContentType('audio', 'ogg')
@@ -47,6 +59,9 @@ Future<(HttpServer, List<String?>)> _origin(
         final end = at + 1024 < reply.length ? at + 1024 : reply.length;
         response.add(body.sublist(at, end));
         await response.flush();
+        if (at == 0 && reply.bodyPause > Duration.zero) {
+          await Future<void>.delayed(reply.bodyPause);
+        }
         await Future<void>.delayed(const Duration(milliseconds: 2));
       }
       if (gate != null && n == 0) await gate.future;
@@ -249,6 +264,36 @@ void main() {
     expect(cacheFile.existsSync(), isFalse);
   });
 
+  for (final spec in [
+    ('startup', const Duration(milliseconds: 2500), Duration.zero),
+    ('body progress', Duration.zero, const Duration(milliseconds: 1500)),
+  ]) {
+    test('realistic continuation ${spec.$1} delay still splices', () async {
+      final (server, requests) = await _origin(
+        [full, from2],
+        [
+          _Reply(cut.length, _End.cut),
+          _Reply(
+            from2.length,
+            _End.complete,
+            headersDelay: spec.$2,
+            bodyPause: spec.$3,
+          ),
+        ],
+      );
+      addTearDown(() => server.close(force: true));
+      final events = <Map<String, Object?>>[];
+      final (bytes, error) = await drain(
+        source(server, timeout: const Duration(seconds: 3), events: events),
+      );
+      expect(error, isNull);
+      expect(requests, [null, '1']);
+      expect(pagesOf(bytes).every((page) => page.crcOk), isTrue);
+      expect(events.single['result'], 'ok');
+      expect(pagesOf(bytes).last.flags & 4, 4);
+    });
+  }
+
   for (final failure in [
     'status',
     'connect',
@@ -257,7 +302,7 @@ void main() {
     'truncated',
   ]) {
     test(
-      'continuation $failure preserves origin error and tail promptly',
+      'continuation $failure preserves origin error and tail within its deadline',
       () async {
         final headersGate = Completer<void>();
         addTearDown(() {
@@ -307,7 +352,15 @@ void main() {
         expect(error, isA<HttpException>());
         expect(error.toString(), contains('Connection closed'));
         expect(bytes, cut);
-        expect(clock.elapsed, lessThan(const Duration(seconds: 2)));
+        if (failure == 'headers') {
+          expect(
+            clock.elapsed,
+            greaterThanOrEqualTo(const Duration(seconds: 6)),
+          );
+          expect(clock.elapsed, lessThan(const Duration(seconds: 8)));
+        } else {
+          expect(clock.elapsed, lessThan(const Duration(seconds: 2)));
+        }
         expect(
           events.last.result,
           ['mismatch', 'truncated'].contains(failure) ? 'refused' : 'failed',
