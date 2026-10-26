@@ -629,7 +629,9 @@ extension _NavisRecovery on NavisAudioHandler {
     }
 
     unawaited(
-      recover().whenComplete(() {
+      recover().whenComplete(() async {
+        await pausing;
+        final resumePlaying = _requestedPlaying;
         // A newer seek still needs the departed occurrence if reopening failed.
         if (identical(_prematureTranscodeDeparture?.item, item) &&
             _pendingSeek?.songId != item.id) {
@@ -637,6 +639,15 @@ extension _NavisRecovery on NavisAudioHandler {
           _captureTranscodeEndOccurrence(indexEvent: true);
         }
         _continuingIntoDeferredTail = false;
+        // Cancellation must release our pause without taking over newer work.
+        if (_seekRevision == seekRevision &&
+            _isActiveLoadGeneration(loadGeneration) &&
+            identical(player, _player) &&
+            resumePlaying &&
+            !_remoteSourceFailed &&
+            player.processingState != ProcessingState.completed) {
+          unawaited(_playWithFocusRecovery());
+        }
         _handleScrobbleSignals();
         _broadcastPlaybackState();
         _emitSnapshot();
