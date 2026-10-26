@@ -384,6 +384,28 @@ void main() {
     expect(s.continuationComplete, isTrue);
   });
 
+  test('a cut after EOS does not append a duplicate empty EOS', () {
+    final s = OggOpusSplicer();
+    s.forward([
+      ..._headers(),
+      ..._page(960, [
+        [152, 0],
+      ], flags: 4),
+    ]);
+    s.beginContinuation(0);
+    expect(
+      s.splice([
+        ..._headers(),
+        ..._page(960, [
+          [152, 0],
+        ]),
+        ..._page(960, [], flags: 4),
+      ]),
+      isEmpty,
+    );
+    expect(s.continuationComplete, isTrue);
+  });
+
   test('beginContinuation clears a previously unfinished packet', () {
     final s = OggOpusSplicer();
     s.forward([

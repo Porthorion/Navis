@@ -4068,14 +4068,20 @@ A successful splice gives the player one stream without a song reload; a short
 buffer can still rebuffer. Repacking splits at packet boundaries to respect
 Ogg's 255-segment page limit. Packet durations must divide a whole second
 exactly: 60/80/120 ms layouts are refused rather than overlapped.
-At most two continuations per fetch; cancellation (including source disposal)
-races connect and headers and produces no failed-splice trace. Continuation
-connect plus headers share a six-second deadline, allowing measured Navidrome
+At most two continuations per fetch. Playlist removal, clearing and replacement
+keep whole-file caching for both plain and opted-in sources. Player disposal
+cancels opted-in splicing sources; plain sources retain the base whole-file
+caching semantics. Range requests are cancelled in either case. Explicit
+cancellation races connect and headers, disarms the setup timer, and produces
+no failed-splice trace. Continuation connect plus headers share a six-second
+deadline, allowing measured Navidrome
 startup while staying below Media3's eight-second loopback read timeout.
 Continuation body progress uses the source's normal `bodyProgressTimeout`
 (30 seconds by default, honoring shorter configured deadlines). A clean
-continuation EOF must include complete packets and an EOS page; otherwise it
-fails instead of publishing a truncated cache entry.
+continuation EOF must include complete packets and an EOS page, even when HTTP
+closes cleanly at a page boundary; otherwise it refuses, deletes the partial
+file, and reports the original cut error and stack. A data-less EOS page is
+rewritten with the delivered granule; an EOS already delivered is not repeated.
 A cut before the first audio page, a header mismatch or an unplaceable packet
 uses the plain failure cleanup (`.part` deleted). Until rewritten audio has
 been delivered, fallback forwards the withheld original tail before surfacing

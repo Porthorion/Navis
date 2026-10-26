@@ -26,6 +26,7 @@ class OggOpusSplicer {
   var _preSkip = 0;
   var _channels = 0;
   var _sequence = 0;
+  var _emittedEos = false;
 
   /// Granule of the last page handed out (the audio delivered so far).
   var _granule = 0;
@@ -106,6 +107,7 @@ class OggOpusSplicer {
       }
     }
     _sequence = page.sequence;
+    if (page.flags & 4 != 0) _emittedEos = true;
     if (page.granule >= 0) _granule = page.granule;
     if (page.segments.isNotEmpty) {
       _endsMidPacket = page.segments.last == 255;
@@ -175,7 +177,17 @@ class OggOpusSplicer {
         audio.add(packet);
       }
     }
-    if (audio.isEmpty) return null;
+    if (audio.isEmpty) {
+      if (!_emittedEos &&
+          page.segments.isEmpty &&
+          page.flags & 4 != 0 &&
+          _packetIndex >= 2 &&
+          _partial.isEmpty) {
+        _emittedEos = true;
+        return _buildPage(_serial, ++_sequence, _granule, 4, const []);
+      }
+      return null;
+    }
     if (page.granule < 0) throw const FormatException('audio without granule');
     // Map the page granule into the delivered stream's granule space, then
     // walk back through the packet durations to place every packet's end.
@@ -194,6 +206,7 @@ class OggOpusSplicer {
       }
     }
     if (kept.isEmpty) return null;
+    if (page.flags & 4 != 0) _emittedEos = true;
     final out = BytesBuilder(copy: false);
     var first = 0;
     while (first < kept.length) {

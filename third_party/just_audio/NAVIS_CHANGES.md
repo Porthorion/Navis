@@ -150,18 +150,22 @@ header pages dropped; serial, page sequence, granule and CRC rewritten;
 overlapped packets dropped. Repacking splits at packet boundaries to keep every
 page within 255 segments; durations that do not divide a second (including
 60/80/120 ms) are refused. Valid empty original pages pass through unchanged.
-A clean continuation EOF requires complete packets and an EOS page; an
-incomplete response cannot publish the prefix as a finished cache file.
+A clean continuation EOF requires complete packets and an EOS page, including
+at an otherwise complete page boundary. Missing EOS refuses the continuation,
+deletes the partial file, and reports the original cut error and stack. An empty
+EOS page is preserved without duplicating an EOS already delivered.
 At most two continuations per fetch. Continuation connect and headers share
 a six-second deadline and race cancellation: this allows Navidrome startup
 while staying below Media3's eight-second loopback read timeout. Continuation
 body progress uses the normal configured `bodyProgressTimeout` (30 seconds by
 default). Fallback flushes the withheld original bytes before the original
-cut error and stack,
-unless rewritten audio has already been delivered: that prefix cannot be
-rolled back or followed by the discarded original partial page. Failure deletes
+cut error and stack, unless rewritten audio has already been delivered: that
+prefix cannot be rolled back or followed by the discarded original partial page. Failure deletes
 the partial file. Cancel during pre-listen file I/O cannot publish a cache file
-or completion progress; source `dispose()` also cancels an active download.
-Cancellation emits no failed-splice trace. Null keeps the plain fetch path.
+or completion progress. Playlist removal/clear/replacement retain whole-file
+caching for plain and opted-in sources. Player `_dispose()` retains base range
+cleanup and cancels the whole-file download only for opted-in sources; public
+`dispose()` retains its base semantics. Cancellation disarms the six-second
+setup timer and emits no failed-splice trace. Null keeps the plain fetch path.
 `cancelDownload()` closes the HTTP client before awaiting subscription cancel.
 The Navis resolver enables this hook on Android only.

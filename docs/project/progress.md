@@ -32,11 +32,25 @@ Last updated: 2026-10-26
   preserves the original cut error object and withheld bytes. Focused splicer,
   lock-cache, resolver suites: `00:14 +149: All tests passed!`; harness
   self-checks: `Ran 51 tests`, `OK` (all foreground, 6 GiB cap). Prior round 2
-  mutation recheck: splicer 26/26 killed; wiring 15/17 killed. The two survivors remove
-  redundant cancellation guards; connect cancellation, pre-listen cancellation
-  and cancellation trace regressions still pass. The old empty-page refusal
-  mutation was retired because valid empty pages now pass through. Formatting
-  of all eight changed Dart files and `git diff --check` pass.
+  mutation recheck: splicer 26/26 killed; wiring 15/17 killed. Round 3 closes the
+  observable mid-continuation cancel trace gap previously classified as a
+  redundant guard; the old empty-page refusal mutation was retired because
+  valid empty pages pass through.
+  Round 3 restores whole-file caching after remove/clear/replace for plain and
+  opted-in sources, and after player disposal for plain sources. Only opted-in
+  sources are cancelled by the private player-disposal hook. Cancellation now
+  disarms the six-second setup timer; a fake setup clock replaces the wall-time
+  deadline assertion. Data-less EOS pages retain the delivered granule and EOS
+  without duplicating a marker already delivered. Missing EOS at a complete
+  page boundary refuses, deletes the partial file and preserves the original
+  error and stack. Test-first removal evidence: `Expected: empty`,
+  `Actual: [_Exception:Exception: Download cancelled]`; EOS evidence:
+  `Expected: an object with length of <2>`, `Which: has length of <1>`; setup
+  timer evidence: `Expected: <0>`, `Actual: <1>`. Final focused splicer,
+  lock-cache and resolver run: `00:14 +161: All tests passed!` (6 GiB cap, no OOM
+  kills). Targeted review mutants N4, M6, M2b, M3, W1 and S10b are killed (6/6);
+  the full 71-mutant review set was not rerun. Changed Dart formatting and
+  `git diff --check` pass.
   Harness gates now require a base reload, use a cut-cell frozen median,
   enforce decoded length parity within 20 ms, and reserve `cut5` for Android.
   Remaining: final Android base-vs-fix runtime evidence and `check.sh` from the

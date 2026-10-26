@@ -3720,10 +3720,13 @@ class LockCachingAudioSource extends StreamAudioSource {
     await Future.wait(_rangeFetches.toList().map((fetch) => fetch.cancel()));
   }
 
+  // Playlist removal keeps caching; only player disposal stops opt-in splices.
   @override
-  void dispose() {
-    unawaited(cancelDownload());
-    super.dispose();
+  void _dispose() {
+    resumeDownload();
+    unawaited(
+        continuationUri == null ? _cancelRangeFetches() : cancelDownload());
+    super._dispose();
   }
 
   Future<void> _init() async {
@@ -4176,7 +4179,7 @@ class LockCachingAudioSource extends StreamAudioSource {
         continuing = true;
         _spliceOffset = splicer.resumeSeconds;
         try {
-          // One deadline covers connect AND headers; a hung DNS lookup also races cancel.
+          // Put the deadline around the race so cancellation disarms its timer.
           final response = await Future.any([
             _getUrl(httpClient, continuationUri!(_spliceOffset),
                     headers: headers)
@@ -4184,9 +4187,9 @@ class LockCachingAudioSource extends StreamAudioSource {
                 .then((request) {
               if (cancelled.isCompleted) throw StateError('Download cancelled');
               return request.close().timeout(headerTimeout);
-            }).timeout(_spliceSetupTimeout),
+            }),
             cancelled.future,
-          ]);
+          ]).timeout(_spliceSetupTimeout);
           if (cancelled.isCompleted) return;
           if (response.statusCode != 200) {
             throw HttpException('HTTP Status Error: ${response.statusCode}');
