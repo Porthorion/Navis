@@ -141,7 +141,7 @@ extension _NavisRecovery on NavisAudioHandler {
           transportGeneration: _transportGeneration,
           seekRequest: request,
           transcodeOffset: offset
-              ? Duration(seconds: request.position.inSeconds)
+              ? _seekOffset(request.position, _currentMediaItem)
               : null,
         );
       }
@@ -2050,8 +2050,6 @@ extension _NavisRecovery on NavisAudioHandler {
               // Play/Pause preserve this seek even when transport changes.
               if (identical(_pendingSeek, request)) {
                 failureSeekRevision = request.generation;
-              }
-              if (identical(_pendingSeek, request)) {
                 _pendingSeek = null;
                 _anomalies.event('seekDone', {'outcome': 'recovery'});
               }

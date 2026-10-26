@@ -11539,6 +11539,56 @@ void main() {
       expect(player.playing, isTrue);
     });
 
+    test('row 01 newer seek waits for ordinary recovery final Stop', () async {
+      final (handler, player, database) = await offsetHandler(
+        capable: false,
+        timeouts: const NavisPlaybackTimeouts(
+          load: Duration(milliseconds: 300),
+          reset: Duration(milliseconds: 300),
+          seekProgress: Duration(milliseconds: 1200),
+          desktopSeekSettle: Duration(milliseconds: 600),
+        ),
+      );
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await (database.delete(
+        database.songsTable,
+      )..where((row) => row.id.equals('song-0'))).go();
+      final release = Completer<void>();
+      final entered = Completer<void>();
+      addTearDown(() {
+        if (!release.isCompleted) release.complete();
+      });
+      player
+        ..stopGate = release
+        ..stopEntered = entered
+        ..stopGateFrom = player.stopCalls + 1
+        ..simulatedPosition = const Duration(seconds: 70)
+        ..state = ProcessingState.idle;
+      final recovery = handler.debugRecoverCurrentSong();
+      await entered.future.timeout(const Duration(seconds: 3));
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'song-0', title: 'Song 0'),
+      ]);
+      final seeking = handler.seek(const Duration(seconds: 130));
+      await pumpEventQueue(times: 30);
+      release.complete();
+      await Future.wait([recovery, seeking]);
+      await settleQueue(handler);
+      expect(
+        (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+        'completed',
+      );
+      expect(handler.snapshot.currentSongId, 'song-1');
+      expect(player.position.inSeconds, greaterThanOrEqualTo(130));
+      expect(player.playing, isTrue);
+      expectNativeMirrorsQueue(handler, player);
+    });
+
     test(
       'row 05 unbuilt original recovery honors Pause during failover',
       () async {
