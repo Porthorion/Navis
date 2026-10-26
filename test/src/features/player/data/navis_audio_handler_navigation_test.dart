@@ -10481,6 +10481,80 @@ void main() {
         expectNativeMirrorsQueue(handler, player);
       });
 
+      for (final delayedPause in [false, true]) {
+        for (final intent in ['none', 'Play', 'Pause']) {
+          test('row 15 removed cut releases its pause with $intent '
+              '(delayed acknowledgement: $delayedPause)', () async {
+            final (handler, player, database) = await offsetHandler();
+            await database.libraryDao.upsertSongs([
+              SongsTableCompanion.insert(
+                id: 'song-1',
+                title: 'Song 1',
+                duration: const Value(300),
+              ),
+            ]);
+            final fill = Completer<void>();
+            final entered = Completer<void>();
+            final pause = Completer<void>();
+            final paused = Completer<void>();
+            addTearDown(() {
+              if (!fill.isCompleted) fill.complete();
+              if (!pause.isCompleted) pause.complete();
+            });
+            player
+              ..afterAppendGate = fill
+              ..afterAppendEntered = entered;
+            final loading = handler.replaceQueue(
+              ['song-0', 'song-1', 'song-2'],
+              startIndex: 1,
+              expandMatchFlows: false,
+            );
+            await entered.future.timeout(const Duration(seconds: 3));
+            final editing = handler.removeAt(1);
+            await pumpEventQueue(times: 20);
+            final loads = player.sourceLoads;
+            if (delayedPause) {
+              player
+                ..pauseGate = pause
+                ..pauseEntered = paused;
+            }
+            player.finishCurrentTrack(
+              endPosition: const Duration(milliseconds: 47750),
+            );
+            await pumpEventQueue(times: 20);
+            if (delayedPause) await paused.future;
+            if (intent == 'Play') await handler.play();
+            if (intent == 'Pause') await handler.pause();
+            fill.complete();
+            await Future.wait([loading, editing]);
+            await drain(handler);
+            if (delayedPause) {
+              expect(
+                player.playing,
+                isFalse,
+                reason: 'wait for the owned pause acknowledgement',
+              );
+              pause.complete();
+              await drain(handler);
+            }
+            expect(handler.snapshot.queueSongIds, ['song-0', 'song-2']);
+            expect(handler.snapshot.currentSongId, 'song-2');
+            expect(handler.snapshot.currentIndex, 1);
+            expect(
+              player.playing,
+              intent != 'Pause',
+              reason: 'release recovery pause with the latest intent',
+            );
+            expect(
+              player.sourceLoads,
+              loads,
+              reason: 'never reopen the removed occurrence',
+            );
+            expectNativeMirrorsQueue(handler, player);
+          });
+        }
+      }
+
       for (final intent in ['none', 'Play', 'Pause', 'skip']) {
         test('row 15 cut during native tail fill honors $intent', () async {
           final (handler, player, database) = await offsetHandler();
