@@ -130,6 +130,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Play during a final playback failure now resumes the same song after '
+        'shutdown, while a later Pause stays paused. Desktop cut recovery keeps '
+        'the song and your latest seek during queue fills or a failed reopen, '
+        'and a rejected Fast Seeking bridge opens the original only once.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On Android, Ogg/Opus transcodes can recover a mid-song connection '
         'cut without reloading the song: Navis joins a continuation to the '
         'audio already buffered.',

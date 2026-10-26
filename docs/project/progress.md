@@ -14,6 +14,40 @@ Last updated: 2026-10-26
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86 P1, recovery intent and fallback (triage 01–05, 15–18) —
+  implementation complete on `fix/recovery-intent`, 2026-10-26; integrated
+  runtime certification and `tool/check.sh` remain with the orchestrator.
+  Final quiet shutdown holds only its load generation: newer Play re-arms the
+  same occurrence, later Pause stays paused, and a newer queue plays normally.
+  Failed bridge recovery opens the original once, prefers a file completing
+  during reopen, and records the selected `recoveryPath`. An owned, unbuilt
+  original rebuild uses bounded failover; removal and selection retire it.
+  Failed-seek suppression uses the configured `healthyPlayback` distance while
+  real backend advancement keeps its separate failover accounting semantics.
+  Deterministic row-15 tests reproduce cuts during initial fill, deferred
+  release, trim and an uncaptured natural advance inside release. Recovery
+  pauses the successor immediately, retains metadata, waits for the lane,
+  rechecks occurrence/generation, and prevents another idle trim from overtaking
+  the reopen. A newer seek also retains its occurrence after a failed reopen
+  (row 16 reproduced a defect, rather than only a coverage gap).
+  Failing-first evidence: row 01 `Expected: <true>`, `Actual: <false>`;
+  row 02 `Expected: <3>`, `Actual: <2>`; row 03 `Expected: <4>`, `Actual: <5>`;
+  row 04 `Expected: 'original'`, `Actual: <null>`; row 05
+  `Expected: 'song-2'`, `Actual: 'song-1'`; rows 15/16
+  `Expected: 'song-1'`, `Actual: 'song-2'`. Deferred release/trim/capture-gap
+  tests also failed with `Expected: <2>`, `Actual: <1>`; the successor-silence
+  test failed with `Expected: null`, `Actual: 'song-2'`.
+  Bootstrap ran once. All 25 row-focused cases pass. Fourteen targeted mutations
+  were killed: intent re-arm, single fallback, failover cap, healthy interval,
+  unbuilt failure, newer-seek ownership/selection, source-ready Play, queue
+  neighbours, and the five row-15 pause/index/completion/idle-trim/capture guards.
+  Scoped analysis compared
+  with the item-14 base reports the same 33 pre-existing infos, no added
+  findings and no errors/warnings. Final navigation, handler helper, playback
+  lane and transport-trace files passed together: `08:58 +956: All tests passed!`
+  (foreground, 6 GiB cap, `--concurrency 1`; zero OOM kills).
+  Architecture and the 1.5.1 changelog updated; item-14 `oggSplice` event fields
+  preserved. No emulator, playback harness, full gate, push, merge or rebase run.
 - [ ] Issue #86, item 14 Android Ogg/Opus cut splice — `fix/ogg-cut-splice`:
   continues unknown-length Android Opus transcodes through the existing
   `LockCachingAudioSource` and `OggOpusSplicer`. Round 2 fixes pre-listen cancel
