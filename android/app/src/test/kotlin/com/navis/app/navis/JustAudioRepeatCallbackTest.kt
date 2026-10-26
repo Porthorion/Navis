@@ -11,8 +11,8 @@ import sun.misc.Unsafe
  * Callback-order regressions. The real bridge is driven through the same
  * Unsafe/reflection/proxy pattern as JustAudioRepeatBoundaryTest, but with:
  *  - one distinct timeline-window UID per queue item,
- *  - the production scheduling path (the missing Handler throws an NPE at `handler.post`, which is
- *    caught and recorded as the posted (uid, revision) action, run later by runPosts()),
+ *  - the production scheduling path with an inert Android Handler stub: callbacks return normally,
+ *    then the newly pending (uid, revision) action is recorded and run later by runPosts(),
  *  - re-entrant ExoPlayer-style synchronous listener dispatch for setPlayWhenReady()/seekTo(),
  *  - an app-visible getPlayWhenReady() that lags the playback thread's native pause until
  *    deliverPause() (what Media3 1.4.1 does: ExoPlayerImpl.getPlayWhenReady() reads playbackInfo).
@@ -113,6 +113,7 @@ class JustAudioRepeatCallbackTest {
 
         init {
             for (k in kinds) addLocal(k)
+            put(bridge, "handler", unsafe.allocateInstance(Class.forName("android.os.Handler")))
             put(bridge, "player", exo)
             put(bridge, "progressiveHttpSources", hashSetOf(tag))
             put(bridge, "playRequested", true)
@@ -133,16 +134,18 @@ class JustAudioRepeatCallbackTest {
         fun call(name: String, vararg args: Any?) { find(name, args.size).invoke(bridge, *args) }
         fun field(name: String): Any? = bridgeClass.declaredFields.firstOrNull { it.name == name }?.apply { isAccessible = true }?.get(bridge)
 
-        /** Runs one app/native-thread entry; records the production handler.post as a Post. */
+        /** Records a newly armed post after the entire callback returns through the inert Handler stub. */
         fun dispatch(block: () -> Unit) {
+            val pending = field("repeatPending") == true
+            val revision = field("repeatRevision")
             try { block(); completedDispatches++ } catch (e: InvocationTargetException) {
-                val c = e.cause
-                if (c is NullPointerException && c.stackTrace.firstOrNull()?.methodName == "scheduleProgressiveRepeat") {
-                    val uid = field("repeatAtEndUid")
-                        ?: throw AssertionError("an empty timeline must not schedule a repeat post")
-                    posts.addLast(Post(uid, field("repeatRevision") as Long))
-                    log.add("post(rev=${field("repeatRevision")})")
-                } else throw (c ?: e)
+                throw (e.cause ?: e)
+            }
+            if (field("repeatPending") == true && (!pending || revision != field("repeatRevision"))) {
+                val uid = field("repeatAtEndUid")
+                    ?: throw AssertionError("an empty timeline must not schedule a repeat post")
+                posts.addLast(Post(uid, field("repeatRevision") as Long))
+                log.add("post(rev=${field("repeatRevision")})")
             }
         }
 

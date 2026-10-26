@@ -29,9 +29,9 @@ cat >"${NAVIS_FLUTTER_SDK}/bin/cache/artifacts/gradle_wrapper/gradlew" <<'STUB'
 printf '%s\n' "$@" >"${NAVIS_FIXTURE_ARGS}"
 printf '%s' "${JAVA_HOME:-}" >"${NAVIS_FIXTURE_JDK}"
 [[ "${NAVIS_SELF_UPDATE:-}" == true ]] || exit 92
-mkdir -p app/build/test-results/testSideloadDebugUnitTest
+mkdir -p ../build/app/test-results/testSideloadDebugUnitTest
 for suite in JustAudioRepeatBoundaryTest JustAudioRepeatCallbackTest; do
-  printf '<testsuite tests="%s" failures="0" errors="0" skipped="0"/>\n' "${NAVIS_FIXTURE_TESTS:-1}" >"app/build/test-results/testSideloadDebugUnitTest/TEST-com.navis.app.navis.${suite}.xml"
+  printf '<testsuite tests="%s" failures="0" errors="0" skipped="0"/>\n' "${NAVIS_FIXTURE_TESTS:-1}" >"../build/app/test-results/testSideloadDebugUnitTest/TEST-com.navis.app.navis.${suite}.xml"
 done
 exit "${NAVIS_FIXTURE_EXIT:-0}"
 STUB
@@ -43,10 +43,11 @@ chmod +x "${navis_fixture}/bin/timeout" \
 NAVIS_SELF_UPDATE=false "${navis_fixture}/tool/android_repeat_native_test.sh" >"${navis_fixture}/output"
 grep -Fxq 'Android repeat bridge: 2 tests, 0 failures.' "${navis_fixture}/output"
 set +e
-NAVIS_FIXTURE_TESTS=0 "${navis_fixture}/tool/android_repeat_native_test.sh"
+NAVIS_FIXTURE_TESTS=0 "${navis_fixture}/tool/android_repeat_native_test.sh" >"${navis_fixture}/zero-output" 2>&1
 navis_actual=$?
 set -e
 test "${navis_actual}" -ne 0
+grep -Fq 'must execute tests with no failures' "${navis_fixture}/zero-output"
 test -f "${navis_fixture}/android/gradle/wrapper/gradle-wrapper.jar"
 test "$(cat "${NAVIS_FIXTURE_JDK}")" == "${ANDROID_STUDIO_JDK}"
 for navis_arg in ':app:testSideloadDebugUnitTest' '--tests' '*JustAudioRepeat*Test' \

@@ -22,8 +22,23 @@ elif ! command -v java >/dev/null 2>&1 && [[ -x "${HOME}/android-studio/jbr/bin/
 fi
 export NAVIS_SELF_UPDATE=true
 cd "${navis_root}/android"
-exec timeout --kill-after=10s 10m ./gradlew \
+timeout --kill-after=10s 10m ./gradlew \
   :app:testSideloadDebugUnitTest --tests '*JustAudioRepeat*Test' \
   --no-daemon --max-workers=1 --console=plain \
   '-Dorg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=768m -XX:ReservedCodeCacheSize=256m' \
   -Pkotlin.compiler.execution.strategy=in-process
+
+python3 - "${navis_root}/build/app/test-results/testSideloadDebugUnitTest" <<'PYTHON'
+import pathlib
+import sys
+import xml.etree.ElementTree as ET
+
+total = 0
+for name in ("JustAudioRepeatBoundaryTest", "JustAudioRepeatCallbackTest"):
+    suite = ET.parse(pathlib.Path(sys.argv[1]) / f"TEST-com.navis.app.navis.{name}.xml").getroot()
+    executed = int(suite.attrib["tests"]) - int(suite.get("skipped", "0"))
+    if executed <= 0 or int(suite.get("failures", "0")) or int(suite.get("errors", "0")):
+        sys.exit(f"Android repeat bridge: {name} must execute tests with no failures.")
+    total += executed
+print(f"Android repeat bridge: {total} tests, 0 failures.")
+PYTHON

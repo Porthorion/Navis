@@ -99,6 +99,11 @@ android {
         }
     }
 
+    testOptions {
+        // The repeat fixture records posts itself while allowing the caller's tail to run.
+        unitTests.isReturnDefaultValues = true
+    }
+
     buildTypes {
         debug {
             // Optional debug-only sidecar install path for device testing.
