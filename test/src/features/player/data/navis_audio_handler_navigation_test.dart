@@ -5976,6 +5976,7 @@ void main() {
 
     // A download can finish (and rename its partial file) between a response
     // and its first read: that is a finished download, not a failure.
+    // ignore: experimental_member_use, reason: the lock-cache source response.
     Future<void> drain(StreamAudioResponse r) =>
         r.stream.drain<void>().onError<PathNotFoundException>((_, _) {});
 
@@ -6242,7 +6243,9 @@ void main() {
         // One writer per cache file, and one instance never at two playlist
         // positions (just_audio derives the native id from it): the repeat
         // streams without downloading.
+        // ignore: experimental_member_use, reason: the lock-cache source.
         expect(s.player.audioSources[1], isA<LockCachingAudioSource>());
+        // ignore: experimental_member_use, reason: the lock-cache source.
         expect(s.player.audioSources[2], isNot(isA<LockCachingAudioSource>()));
         expect(
           s.player.audioSources.toSet(),
