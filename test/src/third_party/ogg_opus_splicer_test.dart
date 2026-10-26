@@ -204,6 +204,7 @@ void main() {
   test('the continuation starts exactly after the delivered granule', () {
     final s = OggOpusSplicer();
     run(s, cutAfter(96000), 4000, false);
+    expect(s.resumeSeconds, 0); // pre-skip keeps this just below two seconds.
     s.beginContinuation(1); // 1 s early: the tail repeats 1 s of audio
     final tail = pagesOf(run(s, from2, 4000, true));
     expect(s.droppedPackets, 50); // 1 s of overlap = 50 packets
@@ -269,7 +270,7 @@ void main() {
     [24, 0],
     [17, 0],
     [25, 0],
-    [155, 48],
+    [131, 48],
   ]) {
     test('unplaceable duration $packet refuses instead of overlapping', () {
       final s = OggOpusSplicer();
@@ -385,6 +386,7 @@ void main() {
       ]),
       isEmpty,
     );
+    expect(s.resumeSeconds, 1);
     expect(() => s.splice([0, 0, 0, 0]), throwsFormatException);
   });
 

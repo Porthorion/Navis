@@ -441,6 +441,8 @@ class PlaybackSourceResolver {
       // A cut Ogg/Opus transcode is spliced from a second request instead of
       // failing (Android lock cache only; whole-second timeOffset needed).
       final splicesCut =
+          !kIsWeb &&
+          defaultTargetPlatform == TargetPlatform.android &&
           streamingMetadata.isTranscoded &&
           streamingMetadata.format == 'opus' &&
           supportsTranscodeOffset;

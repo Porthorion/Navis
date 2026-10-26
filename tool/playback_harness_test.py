@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Self-check for tool/playback_harness.py (stdlib only, no builds or emulators): python3 tool/playback_harness_test.py"""
+"""Self-check for tool/playback_harness.py (no builds or emulators; NumPy for the PCM gate): python3 tool/playback_harness_test.py"""
 
 import contextlib
 import io

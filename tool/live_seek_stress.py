@@ -2979,6 +2979,7 @@ def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=176, at_s=None
 
 
 SPLICE_WINDOW_MS = 60000
+JOIN_LENGTH_MAX_S = 0.02  # one default Opus packet; missing tails must not pass the overlapping-window RMS check
 JOIN_RMS_MAX = 0.005  # stitched vs uncut decode, per 1 s window (probe: codec noise floor ~0.001 against a 0.35 signal)
 
 
@@ -3006,7 +3007,7 @@ def join_rms(stitched: Path, run: Run, song_id: str) -> dict:
     windows = [float(numpy.sqrt(numpy.mean(diff[i:i + window] ** 2))) for i in range(0, n - window // 2, window)]
     return {'decodeExit': code, 'decodeStderr': error, 'lenDiffS': round((len(a) - len(b)) / 48000, 3),
             'maxWindowRms': round(max(windows), 5) if windows else None, 'ok': code == 0 and not error and bool(windows)
-            and max(windows) <= JOIN_RMS_MAX}
+            and max(windows) <= JOIN_RMS_MAX and abs(len(a) - len(b)) / 48000 <= JOIN_LENGTH_MAX_S}
 
 
 def splice_check(run: Run, env, song_id: str, duration_s: float, cut_device_ms: int, cuts: int, rolling_before: set) -> dict:

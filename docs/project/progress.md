@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-25
+Last updated: 2026-10-26
 
 ---
 
@@ -15,14 +15,27 @@ Last updated: 2026-10-25
 
 ## Current Focus
 - [ ] Issue #86, item 14 Android Ogg/Opus cut splice — `fix/ogg-cut-splice`:
-  `LockCachingAudioSource` continues a cut unknown-length Opus transcode from a
-  `timeOffset` request one second early through `OggOpusSplicer` (headers dropped;
-  serial, sequence, granule, CRC rewritten; overlap dropped), so the player sees
-  no cut. Test-first: the wiring tests failed to compile before the fix; unit,
-  wiring and resolver tests added. Harness `cut-recovery` cuts only the first
-  body on Android and gates reloads, player errors, continuation requests and the
-  final file decode. Remaining: Android base-vs-fix harness run and `check.sh`
-  evidence.
+  continues unknown-length Android Opus transcodes through the existing
+  `LockCachingAudioSource` and `OggOpusSplicer`. Round 2 fixes pre-listen cancel
+  publication, disposal/connect cancellation, original-error/tail fallback,
+  unsupported frame durations, the 255-segment page limit and incomplete
+  continuation EOF publication. Continuation
+  setup and body progress are bounded to one second each; rewritten bytes
+  already delivered cannot be rolled back after a later failure.
+  Test-first cancel reproduction: `Expected: false`, `Actual: <true>`,
+  `a cancelled download must not publish a cache file`. Focused splicer,
+  lock-cache, resolver suites: `00:14 +147: All tests passed!`; harness
+  self-checks: `Ran 51 tests`, `OK` (all foreground, 6 GiB cap). Mutation
+  recheck: splicer 26/26 killed; wiring 15/17 killed. The two survivors remove
+  redundant cancellation guards; connect cancellation, pre-listen cancellation
+  and cancellation trace regressions still pass. The old empty-page refusal
+  mutation was retired because valid empty pages now pass through. Formatting
+  of all eight changed Dart files and `git diff --check` pass.
+  Harness gates now require a base reload, use a cut-cell frozen median,
+  enforce decoded length parity within 20 ms, and reserve `cut5` for Android.
+  Remaining: final Android base-vs-fix runtime evidence and `check.sh` from the
+  coordinator; both are explicitly prohibited for this implementation task
+  while its independently owned harness run is active.
 - [ ] Issue #86, item 13b Android next-song warm — `fix/android-next-warm`: at
   current-song completion `_syncSidecarChain` starts the next song's own
   lock-cache source with the vendored `prefetch()` (no replay buffer); one source

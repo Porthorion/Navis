@@ -130,9 +130,9 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
-        'On Android, a streamed Opus song whose connection drops mid-song now '
-        'keeps playing without a pause or restart: Navis reconnects a second '
-        'earlier and joins the new audio to the old.',
+        'On Android, Ogg/Opus transcodes can recover a mid-song connection '
+        'cut without reloading the song: Navis joins a continuation to the '
+        'audio already buffered.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

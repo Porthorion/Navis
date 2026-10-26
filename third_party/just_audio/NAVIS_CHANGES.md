@@ -147,7 +147,19 @@ unknown-length Ogg/Opus download into a cut splice. When the body is cut or
 stalls, the source requests `continuationUri(floor(t) - 1)` and joins the new
 body into the same stream with `OggOpusSplicer` (`lib/src/ogg_opus_splicer.dart`):
 header pages dropped; serial, page sequence, granule and CRC rewritten;
-overlapped packets dropped. At most two continuations per fetch; cancellation
-makes none; a failure behaves as before (partial file deleted, error to the
-clients). Null keeps the previous behaviour. `cancelDownload()` now closes the
-HTTP client before awaiting the subscription cancel.
+overlapped packets dropped. Repacking splits at packet boundaries to keep every
+page within 255 segments; durations that do not divide a second (including
+60/80/120 ms) are refused. Valid empty original pages pass through unchanged.
+A clean continuation EOF requires complete packets and an EOS page; an
+incomplete response cannot publish the prefix as a finished cache file.
+At most two continuations per fetch. Continuation connect and headers share
+a one-second deadline and race cancellation; continuation body progress is
+bounded to one second (or the shorter configured body deadline). Fallback
+flushes the withheld original bytes before the original cut error and stack,
+unless rewritten audio has already been delivered: that prefix cannot be
+rolled back or followed by the discarded original partial page. Failure deletes
+the partial file. Cancel during pre-listen file I/O cannot publish a cache file
+or completion progress; source `dispose()` also cancels an active download.
+Cancellation emits no failed-splice trace. Null keeps the plain fetch path.
+`cancelDownload()` closes the HTTP client before awaiting subscription cancel.
+The Navis resolver enables this hook on Android only.

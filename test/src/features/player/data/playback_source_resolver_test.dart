@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show TableUpdateQuery, Value;
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';

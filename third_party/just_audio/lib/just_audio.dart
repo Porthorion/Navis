@@ -3721,10 +3721,9 @@ class LockCachingAudioSource extends StreamAudioSource {
   }
 
   @override
-  void _dispose() {
-    resumeDownload();
-    unawaited(_cancelRangeFetches());
-    super._dispose();
+  void dispose() {
+    unawaited(cancelDownload());
+    super.dispose();
   }
 
   Future<void> _init() async {
@@ -3878,6 +3877,15 @@ class LockCachingAudioSource extends StreamAudioSource {
     _originSupportsRangeRequests = originSupportsRangeRequests;
     final mimeFile = await _mimeFile;
     await mimeFile.writeAsString(mimeType);
+    // Cancellation may arrive during the file I/O before the body is listened to.
+    if (cancelled.isCompleted) {
+      httpClient.close(force: true);
+      await sink.close();
+      if (partialCacheFile.existsSync()) partialCacheFile.deleteSync();
+      _abortDownload = null;
+      _downloading = false;
+      throw StateError('Download cancelled');
+    }
     final inProgressResponses = <_InProgressCacheResponse>[];
     late StreamSubscription<List<int>> subscription;
     void updateProgress(int percentProgress) {
@@ -4121,22 +4129,37 @@ class LockCachingAudioSource extends StreamAudioSource {
     Stream<List<int>> source = first;
     var attempt = 0;
     var continuing = false;
+    Object? originError;
+    StackTrace? originStack;
+    List<int> withheld = const [];
     while (true) {
       try {
-        await for (final chunk in source.timeout(bodyProgressTimeout)) {
+        final timeout = continuing && bodyProgressTimeout > _spliceTimeout
+            ? _spliceTimeout
+            : bodyProgressTimeout;
+        await for (final chunk in source.timeout(timeout)) {
           final out =
               continuing ? splicer.splice(chunk) : splicer.forward(chunk);
-          if (out.isNotEmpty) yield out;
+          if (out.isNotEmpty) {
+            // Once rewritten audio is delivered the original tail cannot follow it.
+            if (continuing) withheld = const [];
+            yield out;
+          }
         }
         if (!continuing) {
           final tail = splicer.flush();
           if (tail.isNotEmpty) yield tail;
         }
+        if (continuing && !splicer.continuationComplete) {
+          throw const FormatException('incomplete Ogg continuation');
+        }
         if (continuing) _reportSplice(splicer, attempt, 'ok');
         return;
-      } catch (error) {
-        // A cancel closes the client under this read: end quietly.
+      } catch (error, stack) {
+        // The abort owner cleans up and fails clients; cancellation is not a splice failure.
         if (cancelled.isCompleted) return;
+        originError ??= error;
+        originStack ??= stack;
         if (continuing) {
           _reportSplice(
             splicer,
@@ -4144,40 +4167,47 @@ class LockCachingAudioSource extends StreamAudioSource {
             error is FormatException ? 'refused' : 'cut',
           );
         }
+        final tail = splicer.flush();
+        if (!continuing) withheld = tail;
         if (error is FormatException ||
-            cancelled.isCompleted ||
             !splicer.canContinue ||
             attempt >= _maxSplices) {
-          rethrow;
+          if (withheld.isNotEmpty) yield withheld;
+          Error.throwWithStackTrace(originError, originStack!);
         }
         attempt++;
         continuing = true;
         _spliceOffset = splicer.resumeSeconds;
         try {
-          final request = await _getUrl(
-            httpClient,
-            continuationUri!(_spliceOffset),
-            headers: headers,
-          ).timeout(connectionTimeout);
-          final response = await request.close().timeout(headerTimeout);
+          // One deadline covers connect AND headers; a hung DNS lookup also races cancel.
+          final response = await Future.any([
+            _getUrl(httpClient, continuationUri!(_spliceOffset),
+                    headers: headers)
+                .timeout(connectionTimeout)
+                .then((request) {
+              if (cancelled.isCompleted) throw StateError('Download cancelled');
+              return request.close().timeout(headerTimeout);
+            }).timeout(_spliceTimeout),
+            cancelled.future,
+          ]);
+          if (cancelled.isCompleted) return;
           if (response.statusCode != 200) {
-            await response.drain<void>().catchError((_) {});
             throw HttpException('HTTP Status Error: ${response.statusCode}');
           }
-          if (cancelled.isCompleted) throw error;
           splicer.beginContinuation(_spliceOffset);
           source = response;
         } catch (_) {
-          _reportSplice(splicer, attempt, 'failed');
-          // A cancel closes the client under this request: end quietly.
           if (cancelled.isCompleted) return;
-          rethrow;
+          _reportSplice(splicer, attempt, 'failed');
+          if (withheld.isNotEmpty) yield withheld;
+          Error.throwWithStackTrace(originError, originStack!);
         }
       }
     }
   }
 
   static const _maxSplices = 2;
+  static const _spliceTimeout = Duration(seconds: 1);
   var _spliceOffset = 0;
 
   void _reportSplice(OggOpusSplicer splicer, int attempt, String result) =>

@@ -294,8 +294,16 @@ void main() {
         await release.future;
         return;
       }
-      request.response.add(cutAfter(100800));
-      await request.response.flush();
+      request.response.bufferOutput = false;
+      request.response.headers.contentType = ContentType('audio', 'ogg');
+      final bytes = cutAfter(100800);
+      for (var at = 0; at < bytes.length; at += 1024) {
+        request.response.add(
+          bytes.sublist(at, (at + 1024).clamp(0, bytes.length)),
+        );
+        await request.response.flush();
+        await Future<void>.delayed(const Duration(milliseconds: 2));
+      }
       request.response.deadline = Duration.zero;
     });
     final uri = Uri.parse('http://127.0.0.1:${server.port}/song');
@@ -314,13 +322,13 @@ void main() {
       androidApplyAudioAttributes: false,
     );
     addTearDown(player.dispose);
-    await player.setAudioSource(source);
-    final response = await source.request();
+    await player.setAudioSource(source).timeout(const Duration(seconds: 2));
+    final response = await source.request().timeout(const Duration(seconds: 2));
     final done = response.stream.drain<void>().catchError((Object _) {});
-    await connecting.future;
-    await player.dispose();
+    await connecting.future.timeout(const Duration(seconds: 2));
+    await player.dispose().timeout(const Duration(seconds: 2));
     await done.timeout(const Duration(milliseconds: 500));
-    expect(source.isDownloading, isFalse);
+    await until(() => !source.isDownloading);
     expect(file.existsSync(), isFalse);
     expect(File('${file.path}.part').existsSync(), isFalse);
     expect(events, isEmpty);

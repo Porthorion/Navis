@@ -34,6 +34,7 @@ class OggOpusSplicer {
   var _offsetSeconds = 0;
   var _packetIndex = 0;
   var _contPreSkip = 0;
+  var _continuationEos = false;
   final _partial = BytesBuilder(copy: false);
 
   /// Packets dropped by the current continuation because they were delivered.
@@ -46,6 +47,13 @@ class OggOpusSplicer {
   /// Whole-second offset to request: one second of decoder pre-roll before the
   /// end of the delivered audio, so the join decodes like an uncut stream.
   int get resumeSeconds => max(0, (_granule - _preSkip) ~/ 48000 - 1);
+
+  /// Whether the continuation ended with complete packets and an EOS page.
+  bool get continuationComplete =>
+      _packetIndex >= 2 &&
+      _continuationEos &&
+      _pending.isEmpty &&
+      _partial.isEmpty;
 
   /// Original-phase: returns the complete pages of the data so far. Non-Ogg
   /// and non-Opus data passes through byte-identical.
@@ -99,7 +107,9 @@ class OggOpusSplicer {
     }
     _sequence = page.sequence;
     if (page.granule >= 0) _granule = page.granule;
-    _endsMidPacket = page.segments.last == 255;
+    if (page.segments.isNotEmpty) {
+      _endsMidPacket = page.segments.last == 255;
+    }
   }
 
   List<int> _takePassthrough() {
@@ -113,6 +123,7 @@ class OggOpusSplicer {
   void beginContinuation(int offsetSeconds) {
     _offsetSeconds = offsetSeconds;
     _packetIndex = 0;
+    _continuationEos = false;
     _pending = Uint8List(0);
     _partial.clear();
     droppedPackets = 0;
@@ -138,6 +149,7 @@ class OggOpusSplicer {
   }
 
   Uint8List? _rewrite(_Page page) {
+    if (page.flags & 4 != 0) _continuationEos = true;
     final packets = <Uint8List>[];
     var at = page.bodyStart;
     for (final s in page.segments) {
@@ -182,8 +194,25 @@ class OggOpusSplicer {
       }
     }
     if (kept.isEmpty) return null;
+    final out = BytesBuilder(copy: false);
+    var first = 0;
+    while (first < kept.length) {
+      var last = first;
+      var segments = 0;
+      while (last < kept.length) {
+        final count = kept[last].length ~/ 255 + 1;
+        if (segments + count > 255) break;
+        segments += count;
+        last++;
+      }
+      if (last == first) throw const FormatException('oversized Opus packet');
+      final endIndex = audio.length - kept.length + last - 1;
+      out.add(_buildPage(_serial, ++_sequence, ends[endIndex],
+          last == kept.length ? page.flags & 4 : 0, kept.sublist(first, last)));
+      first = last;
+    }
     _granule = ends.last;
-    return _buildPage(_serial, ++_sequence, _granule, page.flags & 4, kept);
+    return out.takeBytes();
   }
 
   void _append(List<int> chunk) {
@@ -222,10 +251,6 @@ class _Page {
     final bodyStart = pos + 27 + count;
     if (data.length < bodyStart) return null;
     final segments = Uint8List.sublistView(data, pos + 27, bodyStart);
-    if (segments.isEmpty) {
-      // A page without segments carries nothing and cannot be placed.
-      throw const FormatException('empty Ogg page');
-    }
     var body = 0;
     for (final s in segments) {
       body += s;
@@ -270,7 +295,7 @@ int _packetSamples(Uint8List packet) {
     frames = packet[1] & 0x3F;
   }
   final samples = frame * frames;
-  if (samples <= 0 || samples > 5760) {
+  if (samples <= 0 || samples > 5760 || 48000 % samples != 0) {
     throw const FormatException('unplaceable Opus packet duration');
   }
   return samples;

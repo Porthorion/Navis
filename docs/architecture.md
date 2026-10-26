@@ -4057,20 +4057,34 @@ transport controls.
 On Android, a cut Opus transcode that the lock-cache download is receiving
 (an unknown-length `OggS` body) is spliced instead of failing. The vendored
 `LockCachingAudioSource` takes a `continuationUri` callback; the resolver sets
-it only for an Opus transcode on a server with `timeOffset` support, using the
-same URI builder as the offset stream. On an origin error or a body-progress
+it only on Android for an Opus transcode on a server with `timeOffset` support,
+using the same URI builder as the offset stream. On an origin error or a body-progress
 timeout the source requests `timeOffset = floor((lastGranule - preSkip)/48000) - 1`
 (one second of decoder pre-roll) and feeds that body through `OggOpusSplicer`
 into the same `.part` and client fan-out: it forwards only complete pages, drops
 the continuation's OpusHead/OpusTags pages, rewrites serial, page sequence,
 granule and CRC, and drops packets that end at or before the delivered granule.
-The player therefore sees one continuous stream and no reload or recovery runs.
-At most two continuations per fetch; none after a cancel; a cut before the first
-audio page, a header mismatch or an unplaceable packet takes the plain failure
-path (`.part` deleted, error to the clients). Media3 never checks serial or
+A successful splice gives the player one stream without a song reload; a short
+buffer can still rebuffer. Repacking splits at packet boundaries to respect
+Ogg's 255-segment page limit. Packet durations must divide a whole second
+exactly: 60/80/120 ms layouts are refused rather than overlapped.
+At most two continuations per fetch; cancellation (including source disposal)
+races connect and headers and produces no failed-splice trace. Continuation
+connect plus headers share a one-second deadline; continuation body progress
+also has a one-second bound, or the shorter configured body deadline. A clean
+continuation EOF must include complete packets and an EOS page; otherwise it
+fails instead of publishing a truncated cache entry.
+A cut before the first audio page, a header mismatch or an unplaceable packet
+uses the plain failure cleanup (`.part` deleted). Until rewritten audio has
+been delivered, fallback forwards the withheld original tail before surfacing
+the original cut's error object and stack. Once rewritten audio is delivered,
+that prefix cannot be rolled back or followed by the original partial page;
+a later failure keeps the delivered prefix and still surfaces the original
+cut error. Cancellation during pre-listen file I/O discards the partial file
+and never publishes progress 1.0. Media3 never checks serial or
 sequence after the first headers, which is why the splice is a same-stream
-rewrite and not a chained stream. Each attempt reports an `oggSplice` transport
-trace event. Other formats, known-length responses and desktop (mpv reads the
+rewrite and not a chained stream. Each non-cancelled attempt reports an
+`oggSplice` transport trace event. Other formats, known-length responses and desktop (mpv reads the
 origin directly) keep exact-position recovery.
 
 On desktop, a native auto-advance (including Repeat One) or final-item

@@ -220,9 +220,20 @@ void main() {
       final (bytes, error) = await drain(source(server));
       expect(error, isA<HttpException>());
       expect(bytes, full.take(length).toList());
-      expect(requests, hasLength(1));
+      expect(requests, hasLength(length == 4000 ? 3 : 1));
     });
   }
+
+  test('a clean EOF flushes its ragged final bytes unchanged', () async {
+    final (server, _) = await _origin(
+      [full],
+      [_Reply(cut.length, _End.complete)],
+    );
+    addTearDown(() => server.close(force: true));
+    final (bytes, error) = await drain(source(server));
+    expect(error, isNull);
+    expect(bytes, cut);
+  });
 
   test('known-length cut is passthrough and never continues', () async {
     final (server, requests) = await _origin(
@@ -238,7 +249,13 @@ void main() {
     expect(cacheFile.existsSync(), isFalse);
   });
 
-  for (final failure in ['status', 'connect', 'headers', 'mismatch']) {
+  for (final failure in [
+    'status',
+    'connect',
+    'headers',
+    'mismatch',
+    'truncated',
+  ]) {
     test(
       'continuation $failure preserves origin error and tail promptly',
       () async {
@@ -252,7 +269,7 @@ void main() {
           [
             _Reply(cut.length, _End.cut),
             _Reply(
-              from2.length,
+              failure == 'truncated' ? 100 : from2.length,
               _End.complete,
               status: failure == 'status' ? 404 : 200,
               headersGate: failure == 'headers' ? headersGate : null,
@@ -277,14 +294,23 @@ void main() {
           onOggSplice: events.add,
         );
         final clock = Stopwatch()..start();
-        final (bytes, error) = await drain(s);
+        final originErrors = <Object>[];
+        final (bytes, error) = await HttpOverrides.runZoned(
+          () => drain(s),
+          createHttpClient: (context) => _HeadersClient(
+            Zone.root.run(() => HttpClient(context: context)),
+            () {},
+            originErrors,
+          ),
+        );
+        expect(error, same(originErrors.first));
         expect(error, isA<HttpException>());
         expect(error.toString(), contains('Connection closed'));
         expect(bytes, cut);
         expect(clock.elapsed, lessThan(const Duration(seconds: 2)));
         expect(
           events.last.result,
-          failure == 'mismatch' ? 'refused' : 'failed',
+          ['mismatch', 'truncated'].contains(failure) ? 'refused' : 'failed',
         );
         expect(requests.length, failure == 'connect' ? 1 : 2);
         expect(cacheFile.existsSync(), isFalse);
@@ -391,7 +417,7 @@ void main() {
       onDone: done.complete,
     );
     await Future<void>.delayed(const Duration(milliseconds: 200));
-    await s.cancelDownload();
+    await s.cancelDownload().timeout(const Duration(milliseconds: 300));
     gate.complete(); // the origin cuts only after the cancel
     await done.future.timeout(const Duration(seconds: 5));
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -431,7 +457,8 @@ void main() {
 }
 
 class _HeadersClient extends Fake implements HttpClient {
-  _HeadersClient(this.inner, this.onHeaders);
+  _HeadersClient(this.inner, this.onHeaders, [this.errors]);
+  final List<Object>? errors;
   final HttpClient inner;
   final void Function() onHeaders;
   @override
@@ -442,13 +469,14 @@ class _HeadersClient extends Fake implements HttpClient {
   set userAgent(String? value) => inner.userAgent = value;
   @override
   Future<HttpClientRequest> getUrl(Uri uri) async =>
-      _HeadersRequest(await inner.getUrl(uri), onHeaders);
+      _HeadersRequest(await inner.getUrl(uri), onHeaders, errors);
   @override
   void close({bool force = false}) => inner.close(force: force);
 }
 
 class _HeadersRequest extends Fake implements HttpClientRequest {
-  _HeadersRequest(this.inner, this.onHeaders);
+  _HeadersRequest(this.inner, this.onHeaders, this.errors);
+  final List<Object>? errors;
   final HttpClientRequest inner;
   final void Function() onHeaders;
   @override
@@ -461,7 +489,7 @@ class _HeadersRequest extends Fake implements HttpClientRequest {
   Future<HttpClientResponse> close() async {
     final response = await inner.close();
     onHeaders();
-    return response;
+    return errors == null ? response : _ObservedResponse(response, errors!);
   }
 }
 
@@ -488,4 +516,30 @@ class _HungContinuationClient extends Fake implements HttpClient {
     closed = force;
     inner.close(force: force);
   }
+}
+
+// Retain the exact body error object seen before continuation recovery.
+class _ObservedResponse extends StreamView<List<int>>
+    implements HttpClientResponse {
+  _ObservedResponse(this.inner, List<Object> errors)
+    : super(
+        inner.transform(
+          StreamTransformer.fromHandlers(
+            handleError:
+                (Object error, StackTrace stack, EventSink<List<int>> sink) {
+                  errors.add(error);
+                  sink.addError(error, stack);
+                },
+          ),
+        ),
+      );
+  final HttpClientResponse inner;
+  @override
+  int get statusCode => inner.statusCode;
+  @override
+  int get contentLength => inner.contentLength;
+  @override
+  HttpHeaders get headers => inner.headers;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

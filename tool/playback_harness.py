@@ -104,9 +104,9 @@ SCENARIOS = {
         areas=CROSSFADE,
         checks=[('violations', '<=', 0), ('frozenMedianS', 'base+', 0.1)]),
     'cut-recovery': dict(
-        cases='cut40,cut40x2,cut5,i9_cut,i9_inject,dead_start,dead_source_hold,cold_seek_stall',
+        cases='cut40,cut40x2,i9_cut,i9_inject,dead_start,dead_source_hold,cold_seek_stall',
         quick='cut40,i9_inject,dead_start',
-        qualities='opus128', throttle='slow1500', reps=3, budget=(3, 37), args=['--verify-offset'],
+        qualities='opus128', throttle='slow1500', reps=3, budget=(3, 33), args=['--verify-offset'],
         areas=HANDLER + ['lib/src/features/player/data/navis_audio_handler_recovery.dart'],
         checks=[('kinds', 'nonew'), ('violations', 'base*', 1.25, 3), ('progressLoss', 'base+', 3), ('recoveryMedianS', 'base+', 0.5)]),
     'local-seek': dict(
@@ -124,7 +124,7 @@ SCENARIOS = {
 # Checks that only the Android build can answer, added to a scenario's own. Item 14 (Ogg cut splice): after an origin cut the
 # fix reloads nothing, shows no player error, sends exactly one continuation request per cut, and the final cache file decodes
 # clean and joins within the rms bound (the base line shows its reloads for comparison; the base must be >= 1 to prove the cut bites).
-ANDROID_CHECKS = {'cut-recovery': [('reloadsAfterCut', '<=', 0), ('playerErrorsAfterCut', '<=', 0), ('frozenMedianS', '<=', 1.0),
+ANDROID_CHECKS = {'cut-recovery': [('reloadsAfterCut', '<=', 0), ('playerErrorsAfterCut', '<=', 0), ('spliceFrozenMedianS', '<=', 1.0),
                                    ('spliceRequestsOk', 'true'), ('spliceFileOk', 'true'), ('joinRmsMax', '<=', 0.005)]}
 ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'queue-edit', 'cut-recovery')
 PLAYER_FALLBACK = 'lib/src/features/player/**'
@@ -221,9 +221,11 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
         out['recoveryMedianS'] = _med((r['metrics'].get('cutVerdict') or {}).get('resumedAfterS') or r['metrics'].get('maxFrozenS')
                                       for r in rows)
         out['progressLoss'] = hard.count('progressLoss')
-        checks = [r['metrics']['spliceCheck'] for r in rows if 'spliceCheck' in r['metrics']]
+        cut_rows = [r for r in rows if 'spliceCheck' in r['metrics']]
+        checks = [r['metrics']['spliceCheck'] for r in cut_rows]
         if checks:  # Android only: the Ogg cut splice (1.5.1 item 14)
-            out.update(reloadsAfterCut=sum(len(c['reloads']) for c in checks), playerErrorsAfterCut=sum(len(c['playerErrors']) for c in checks),
+            out.update(spliceFrozenMedianS=_med(r['metrics'].get('maxFrozenS') for r in cut_rows),
+                       reloadsAfterCut=sum(len(c['reloads']) for c in checks), playerErrorsAfterCut=sum(len(c['playerErrors']) for c in checks),
                        spliceRequestsOk=all(c['requestsOk'] for c in checks), spliceFileOk=all(c['file']['ok'] for c in checks),
                        joinRmsMax=max([c['file'].get('maxWindowRms') or 0 for c in checks]))
     elif scenario == 'local-seek':
@@ -294,6 +296,11 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
         else:
             raise ValueError(check)
         lines.append((ok, f"{'PASS' if ok else 'FAIL'} {scenario} {name}: fix={_fmt(f)} base={_fmt(b)} limit={limit}"))
+    if scenario == 'cut-recovery' and platform == 'android':
+        observed = base.get('reloadsAfterCut')
+        ok = observed is not None and observed >= 1
+        lines.append((ok, f"{'PASS' if ok else 'FAIL'} cut-recovery baseCutObserved: base={_fmt(observed)} "
+                          'limit=base reloadsAfterCut >= 1 (otherwise comparison is vacuous)'))
     if scenario == 'memory-soak':
         lines.append((True, f"INFO {scenario} postGcPssMiB: fix={_fmt(fix.get('postGcPssMiB'))} "
                             f"base={_fmt(base.get('postGcPssMiB'))} (resident only; not gated)"))
@@ -559,16 +566,21 @@ def engine(args: list[str], env: dict, out: Path, extra_env: dict, timeout: int,
                               cwd=PROJECT, env=full, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
 
 
-def plan(name: str, full: bool, reps: int | None) -> tuple[str, int, int]:
+def plan(name: str, full: bool, reps: int | None, platform: str = 'linux') -> tuple[str, int, int]:
     """(cases, reps, budget minutes) of a scenario in the quick or full set."""
     spec = SCENARIOS[name]
-    return (spec['cases'], reps or spec['reps'], spec['budget'][1]) if full else (spec['quick'], reps or spec.get('qreps', 1), spec['budget'][0])
+    cases, repetitions, budget = ((spec['cases'], reps or spec['reps'], spec['budget'][1]) if full
+                                  else (spec['quick'], reps or spec.get('qreps', 1), spec['budget'][0]))
+    if name == 'cut-recovery' and full and platform == 'android':
+        cases += ',cut5'
+        budget = 37
+    return cases, repetitions, budget
 
 
 def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict, serial: str | None, apk: Path | None,
                  full: bool, reps: int | None, real: bool) -> tuple[list[dict], float]:
     spec = SCENARIOS[name]
-    cases, reps, budget = plan(name, full, reps)
+    cases, reps, budget = plan(name, full, reps, platform)
     args = ['--cases', cases, '--qualities', spec['qualities'], '--throttles', spec['throttle'], '--reps', str(reps), *spec['args']]
     extra, env = ({} if full else dict(spec.get('quick_env', {}))), dict(display_env)
     if serial:
