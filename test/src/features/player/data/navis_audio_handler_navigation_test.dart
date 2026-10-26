@@ -10555,6 +10555,61 @@ void main() {
         }
       }
 
+      for (final late in ['Pause', 'Play']) {
+        test('row 15 removed cut honours a late $late during the pause '
+            'acknowledgement', () async {
+          final (handler, player, database) = await offsetHandler();
+          await database.libraryDao.upsertSongs([
+            SongsTableCompanion.insert(
+              id: 'song-1',
+              title: 'Song 1',
+              duration: const Value(300),
+            ),
+          ]);
+          final fill = Completer<void>();
+          final entered = Completer<void>();
+          final pause = Completer<void>();
+          final paused = Completer<void>();
+          addTearDown(() {
+            if (!fill.isCompleted) fill.complete();
+            if (!pause.isCompleted) pause.complete();
+          });
+          player
+            ..afterAppendGate = fill
+            ..afterAppendEntered = entered;
+          final loading = handler.replaceQueue(
+            ['song-0', 'song-1', 'song-2'],
+            startIndex: 1,
+            expandMatchFlows: false,
+          );
+          await entered.future.timeout(const Duration(seconds: 3));
+          final editing = handler.removeAt(1);
+          await pumpEventQueue(times: 20);
+          player
+            ..pauseGate = pause
+            ..pauseEntered = paused;
+          player.finishCurrentTrack(
+            endPosition: const Duration(milliseconds: 47750),
+          );
+          await pumpEventQueue(times: 20);
+          await paused.future;
+          if (late == 'Play') await handler.pause();
+          fill.complete();
+          await Future.wait([loading, editing]);
+          await pumpEventQueue(times: 50);
+          // The intent arrives while cleanup still awaits the pause ack.
+          if (late == 'Pause') {
+            await handler.pause();
+          } else {
+            await handler.play();
+          }
+          pause.complete();
+          await drain(handler);
+
+          expect(player.playing, late == 'Play');
+        });
+      }
+
       for (final intent in ['none', 'Play', 'Pause', 'skip']) {
         test('row 15 cut during native tail fill honors $intent', () async {
           final (handler, player, database) = await offsetHandler();
