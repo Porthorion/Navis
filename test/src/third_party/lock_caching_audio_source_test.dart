@@ -1344,4 +1344,30 @@ void main() {
     await source.cancelDownload();
     await failed.timeout(const Duration(seconds: 1));
   });
+
+  test(
+    'prefetch downloads without a response and a request joins it',
+    () async {
+      final body = List<int>.filled(256 * 1024, 3);
+      final (server, downloads) = await _serve(body, ranges: false);
+      addTearDown(() => server.close(force: true));
+      final cacheFile = File('${directory.path}/prefetch.mp3');
+      // ignore: experimental_member_use, reason: tests the Navis additions to the vendored source.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/song'),
+        cacheFile: cacheFile,
+      );
+      await source.prefetch();
+      final joined = await source.request();
+      final bytes = await joined.stream.fold<int>(
+        0,
+        (n, chunk) => n + chunk.length,
+      );
+      expect(bytes, body.length);
+      expect(downloads, hasLength(1));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(cacheFile.existsSync(), isTrue);
+      expect(source.isDownloading, isFalse);
+    },
+  );
 }

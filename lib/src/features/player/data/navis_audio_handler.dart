@@ -222,6 +222,13 @@ class NavisAudioHandler extends BaseAudioHandler
   bool get _isDesktopRuntime => desktopRuntimeOverride ?? _isDesktopPlatform;
 
   /// Whether the latest seek request carries a trace callback (tests).
+  /// The registered lock-cache source of [songId] (tests assert it is the one
+  /// the player holds).
+  @visibleForTesting
+  // ignore: experimental_member_use, reason: as above.
+  LockCachingAudioSource? debugRegisteredLockCacheSource(String songId) =>
+      _lockCacheSourceOfSong(songId);
+
   @visibleForTesting
   bool get debugSeekTraceInstalled => _lastSeek?.onStage != null;
 
@@ -510,6 +517,7 @@ class NavisAudioHandler extends BaseAudioHandler
   _lockCacheSources =
       // ignore: experimental_member_use, reason: as above.
       <String, ({String songId, LockCachingAudioSource source})>{};
+
   final Set<String> _lockCachingBypassedSongIds = <String>{};
   final List<Map<String, Object?>> _seekDiagnosticsEvents =
       <Map<String, Object?>>[];
@@ -530,6 +538,9 @@ class NavisAudioHandler extends BaseAudioHandler
 
   /// Only the failed pair waits before retrying; a skip can warm a new pair.
   (String, DateTime)? _sidecarChainRetry;
+
+  /// The song whose lock-cache download the Android next-song warm started.
+  String? _lockCacheWarmSongId;
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
   String? _remotePlaybackStallSongId;
@@ -1002,6 +1013,7 @@ class NavisAudioHandler extends BaseAudioHandler
       offsets.add(item == null ? null : prepared.length);
       if (item != null) prepared.add(item);
     }
+    _shareLockCacheSources(prepared);
     // The lane serialises queue work, but a restore outside it (Android Auto
     // resume) can replace the queue meanwhile; release nothing then.
     if (_queueItems.structureRevision != queueRevision ||
@@ -1694,6 +1706,7 @@ class NavisAudioHandler extends BaseAudioHandler
     List<SongsTableData?> rows, {
     OperationToken? token,
     void Function(int index)? onRetryLater,
+    bool replacesQueue = false,
   }) async {
     final prepared = <_PreparedQueueItem>[];
     final offsets = <int?>[];
@@ -1724,6 +1737,7 @@ class NavisAudioHandler extends BaseAudioHandler
       }
       token?.checkCancelled();
     }
+    _shareLockCacheSources(prepared, replacesQueue: replacesQueue);
     return (prepared: prepared, offsets: offsets);
   }
 
@@ -3289,6 +3303,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> _disposeHandler() async {
     _disposeHandlerStarted = true;
     cancelSeekPreview();
+    _cancelLockCacheWarm();
     _resumeLockCacheDownloads();
     _focusRetryTimer?.cancel();
     _networkRetryTimer?.cancel();

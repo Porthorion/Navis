@@ -27,6 +27,12 @@ request starts over. Navis cancels downloads of songs the player has moved on
 from, which otherwise ran to completion and starved the current song on a slow
 link.
 
+`LockCachingAudioSource.prefetch()` starts (or joins) the whole-file download
+without creating a response, so no in-progress replay buffer holds the body; a
+later `request()` shares the same download. Navis warms the next song with it.
+`isDownloading` reports whether the whole-file download is running, which the
+warm uses to notice a download that died mid-body.
+
 `LockCachingAudioSource.downloadedBytes` exposes the current download's
 in-memory byte count. `downloadProgressStream` emits on every body chunk,
 including repeated whole-percent values for sub-percent or unknown-length
