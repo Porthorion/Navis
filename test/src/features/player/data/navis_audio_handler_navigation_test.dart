@@ -15963,6 +15963,42 @@ void main() {
       },
     );
 
+    for (final intent in ['seek', 'Play', 'Pause']) {
+      test('row 01 newer seek during final Stop honors $intent', () async {
+        final (handler, player, _) = await fixture(timeouts: quick);
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        final release = Completer<void>();
+        final entered = Completer<void>();
+        addTearDown(() {
+          if (!release.isCompleted) release.complete();
+        });
+        player
+          ..nativePositionFrozen = true
+          ..stopGate = release
+          ..stopEntered = entered
+          ..stopGateFrom = player.stopCalls + 2;
+        final older = handler.seek(const Duration(seconds: 60));
+        await entered.future.timeout(const Duration(seconds: 6));
+        player
+          ..nativePositionFrozen = false
+          ..ignoreSeeks = false;
+        final newer = handler.seek(const Duration(seconds: 130));
+        if (intent == 'Play') await handler.play();
+        if (intent == 'Pause') await handler.pause();
+        release.complete();
+        await Future.wait([older, newer]).timeout(const Duration(seconds: 8));
+        await idle(handler);
+        final active = handler.debugActivePlayer as _ControllableAudioPlayer;
+        expect(
+          (handler.collectPlaybackDiagnostics()['seek']! as Map)['outcome'],
+          'completed',
+        );
+        expect(active.position.inSeconds, greaterThanOrEqualTo(130));
+        expect(active.playing, intent != 'Pause');
+        expectNativeMirrorsQueue(handler, active);
+      });
+    }
+
     test('a hung final stop never parks the seek lane', () async {
       final (handler, player, _) = await fixture(timeouts: quick);
       await handler.replaceQueue(['song-0'], expandMatchFlows: false);
