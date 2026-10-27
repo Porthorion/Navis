@@ -522,27 +522,35 @@ void main() {
     expect(tail.single.crcOk, isTrue);
   });
 
-  test('lost sync is refused and a wholly overlapped EOS emits nothing', () {
-    final s = OggOpusSplicer();
-    s.forward([
-      ..._headers(),
-      ..._page(96000, [
-        [152, 0],
-      ]),
-    ]);
-    s.beginContinuation(0);
-    expect(
-      s.splice([
+  test(
+    'lost sync is refused and a wholly overlapped EOS emits only an empty EOS',
+    () {
+      final s = OggOpusSplicer();
+      s.forward([
+        ..._headers(),
+        ..._page(96000, [
+          [152, 0],
+        ]),
+      ]);
+      s.beginContinuation(0);
+      final out = s.splice([
         ..._headers(),
         ..._page(960, [
           [152, 0],
         ], flags: 4),
-      ]),
-      isEmpty,
-    );
-    expect(s.resumeSeconds, 1);
-    expect(() => s.splice([0, 0, 0, 0]), throwsFormatException);
-  });
+      ]);
+      // No audio is new, but the stream still ends: one data-less EOS page.
+      expect(out.length, 27);
+      expect(out[5], 4);
+      expect(
+        ByteData.sublistView(Uint8List.fromList(out))
+            .getInt64(6, Endian.little),
+        96000,
+      );
+      expect(s.resumeSeconds, 1);
+      expect(() => s.splice([0, 0, 0, 0]), throwsFormatException);
+    },
+  );
 
   test('a channel mismatch is refused', () {
     final s = OggOpusSplicer();
