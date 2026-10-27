@@ -419,7 +419,7 @@ class RepeatFillDuration(unittest.TestCase):
     def play(self, first_dur, samples, known=None):
         """Runs case_repeat_one_fill; returns (run, issue_seek mock, violations of the check)."""
         first = {'songId': 'a', 'dur': first_dur}
-        run = Mock(metrics={}, samples=samples, checks=[])
+        run = self.run = Mock(metrics={}, samples=samples, checks=[], violations=[])
         run.last.return_value = {'dur': first_dur}
         run.until.return_value = known
         env = Mock()
@@ -441,6 +441,7 @@ class RepeatFillDuration(unittest.TestCase):
         self.assertEqual(out, [])
         with self.assertRaises(engine.CaseAbort):
             self.play(0, [], known=None)  # the duration never became known: no verdict from a made-up 0
+        self.assertEqual(self.run.violations, [{'oracle': 'caseError'}])  # and the aborted cell is a recorded failure, not a pass
 
     def test_true_five_second_loop_counts_exactly_one_restart(self):
         positions = lambda end: [self.sample(round(i * 0.1, 1), (i * 100) % 5000, 5000) for i in range(int(end * 10))]
@@ -463,6 +464,7 @@ class RepeatFillDuration(unittest.TestCase):
             self.assertLessEqual(start_to, end_from)
         with self.assertRaises(engine.CaseAbort):
             self.play(2000, [])
+        self.assertEqual(self.run.violations, [{'oracle': 'caseError'}])
 
 
 class RepeatClockBlip(unittest.TestCase):

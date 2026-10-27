@@ -2894,10 +2894,12 @@ def case_repeat_one_fill(run: Run, env):
     dur = first['dur'] or run.last()['dur'] or 0
     if not dur:  # the duration can still be unknown right at the start: wait for the backend's value, never guess
         known = run.until(lambda s: s['songId'] == first['songId'] and (s['dur'] or 0) > 0, 30)
-        if known is None:
+        if known is None:  # an abort alone would record a pass: the cell has no verdict, so it fails
+            run.violations.append(violation('caseError', run.now(), 'song 1 duration never became known', run))
             raise CaseAbort('song 1 duration never became known')
         dur = known['dur']
     if dur < 3000:
+        run.violations.append(violation('caseError', run.now(), f'song 1 is {dur} ms: too short to observe one loop', run))
         raise CaseAbort(f'song 1 is {dur} ms: too short to observe one loop')
     seek_ms = max(0, dur - 8000)
     observe_s = (dur - seek_ms) / 1000 + min(17.0, dur / 2000)  # to the end, then at most half a song (17 s of a long one): no second loop
