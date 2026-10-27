@@ -568,6 +568,35 @@ void main() {
     expect(downloads, 2);
   });
 
+  for (final prefetch in [false, true]) {
+    test('a request after the completed file was deleted downloads again, '
+        'prefetch=$prefetch', () async {
+      final body = List<int>.generate(2048, (i) => i % 251);
+      final (server, downloads) = await _serve(body, ranges: false);
+      addTearDown(() => server.close(force: true));
+      final file = File('${directory.path}/evicted.mp3');
+      // ignore: experimental_member_use, reason: tests the Navis additions to the vendored source.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/evicted'),
+        cacheFile: file,
+      );
+      final first = await source.request();
+      expect(await first.stream.expand((chunk) => chunk).toList(), body);
+      await until(() => file.existsSync() && !source.isDownloading);
+      expect(downloads, hasLength(1));
+      // Rolling-cache eviction or "clear cache" removes the finished file.
+      file.deleteSync();
+      if (prefetch) {
+        await source.prefetch().timeout(const Duration(seconds: 3));
+        await until(() => file.existsSync());
+      }
+      final second = await source.request().timeout(const Duration(seconds: 3));
+      expect(await second.stream.expand((chunk) => chunk).toList(), body);
+      await until(() => file.existsSync());
+      expect(downloads, hasLength(2));
+    });
+  }
+
   test(
     'removing the item loaded natively keeps the next item served',
     () async {

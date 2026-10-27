@@ -76,4 +76,48 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'a repeat requests a fresh download after the finished file is deleted',
+    () async {
+      final body = List<int>.generate(1024, (i) => i % 251);
+      var downloads = 0;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        downloads++;
+        request.response
+          ..headers.contentType = ContentType('audio', 'mpeg')
+          ..contentLength = body.length
+          ..add(body);
+        await request.response.close();
+      });
+      final file = File('${directory.path}/b.mp3');
+      // ignore: experimental_member_use, reason: the real writer behind the follower.
+      final writer = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/b'),
+        cacheFile: file,
+      );
+      final follower = LockCacheFollowerSource(writer);
+      final first = await writer.request();
+      await first.stream.drain<void>();
+      for (var i = 0; i < 200 && !file.existsSync(); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(downloads, 1);
+      file.deleteSync();
+      for (final source in [follower, writer]) {
+        final response = await source.request().timeout(
+          const Duration(seconds: 3),
+        );
+        expect(await response.stream.expand((c) => c).toList(), body);
+        for (var i = 0; i < 200 && !file.existsSync(); i++) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        // The first request refills the file; a repeat then reads it.
+        if (source == follower) expect(downloads, 2);
+      }
+      expect(downloads, 2);
+    },
+  );
 }
