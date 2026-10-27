@@ -7164,7 +7164,9 @@ void main() {
         sources['song-0']!.activeRange = true;
         player.emitBuffered(const Duration(seconds: 2));
         await pumpEventQueue();
-        // The main download of song-0 finishes; its range fetch stays open.
+        // The main download of song-0 finishes (its file is published); its
+        // range fetch stays open.
+        File('${directory.path}/0.mp3').writeAsBytesSync([1]);
         sources['song-0']!.progress.add(1.0);
         await pumpEventQueue();
         player.emitBuffered(const Duration(seconds: 3));
