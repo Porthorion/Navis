@@ -533,7 +533,7 @@ class Gate(unittest.TestCase):
             with self.assertRaisesRegex(h.InfraError, 'getprop timed out'):
                 emulator._adb('getprop', 'sys.boot_completed', timeout=15)
 
-    def boot(self, states, reconnect_fixes=True, reconnect_works=True):
+    def boot(self, states, reconnect_fixes=True, reconnect_works=True, booted=True):
         """Boots Emulator._acquire against a fake adb and clock. [states] gives get-state per call (last repeats);
         returns (error or None, adb calls, fake seconds)."""
         clock, calls, state = [0.0], [], ['unauthorized']
@@ -551,7 +551,7 @@ class Gate(unittest.TestCase):
                 if reconnect_fixes:
                     states[:] = ['device']
             elif 'getprop' in cmd:
-                done.stdout = '1\n' if state[0] == 'device' else ''
+                done.stdout = '1\n' if state[0] == 'device' and booted else ''
             return done
         fake_time = type('T', (), {'monotonic': staticmethod(lambda: clock[0]),
                                    'sleep': staticmethod(lambda s: clock.__setitem__(0, clock[0] + s))})
@@ -588,14 +588,23 @@ class Gate(unittest.TestCase):
             self.assertEqual(reconnects, [['reconnect']], state)
             self.assertGreater(seconds, 40)
 
-    def test_boot_wait_falls_back_to_reconnect_offline_and_ignores_a_short_blip(self):
-        error, calls, _ = self.boot(['offline'], reconnect_works=False)
-        self.assertIsNone(error)
-        self.assertIn(['reconnect'], calls)
-        self.assertIn(['reconnect', 'offline'], calls)
+    def test_boot_wait_ignores_a_short_blip(self):
         error, calls, _ = self.boot(['offline', 'offline', 'device'])
         self.assertIsNone(error)
         self.assertFalse([c for c in calls if 'reconnect' in c])
+
+    def test_failed_reconnect_is_an_infra_error_and_never_touches_other_devices(self):
+        error, calls, _ = self.boot(['offline'], reconnect_works=False)
+        self.assertRegex(str(error), 'reconnect')
+        self.assertEqual([c for c in calls if 'reconnect' in c], [['reconnect']])  # `adb reconnect offline` hits every offline device
+
+    def test_flapping_adb_still_names_its_state_at_about_90_s(self):
+        # reconnect makes the device vanish for a few polls ('unknown'); a device state that never finishes booting resets nothing
+        for states in (['unauthorized'] * 22 + ['unknown'] * 3 + ['unauthorized'],
+                       (['unauthorized'] * 14 + ['device']) * 20):
+            error, _, seconds = self.boot(states, reconnect_fixes=False, booted=False)
+            self.assertRegex(str(error), 'unauthorized')
+            self.assertLess(seconds, 100)
 
     def guest_run(self, platform='android', boot=('ok',), run_errors=(), dies=False):
         """h.run_guest_scenario against fake guests. [boot] lists what each Emulator.__enter__ does ('ok' or 'fail');

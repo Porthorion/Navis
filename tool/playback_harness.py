@@ -821,14 +821,15 @@ class Emulator:
 
     def _wait_boot(self):
         """Waits for sys.boot_completed. A guest can finish booting while adb stays unauthorized/offline (67 such polls in
-        one emulator.log): after BOOT_ADB_RECONNECT_S in that state reconnect once, after BOOT_ADB_GIVE_UP_S give up."""
+        one emulator.log): after BOOT_ADB_RECONNECT_S in that state reconnect once, after BOOT_ADB_GIVE_UP_S since the first bad
+        poll give up. Only a completed boot clears that clock: a reconnect makes the device vanish for a few polls, and a flapping
+        adb must still end in the state-naming error."""
         deadline, bad_since, reconnected = time.monotonic() + 240, None, False
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
                 raise InfraError(f'emulator exited with {self.proc.returncode} (see {self.out / "emulator.log"})')
             state = self._adb_state()
             if state == 'device':
-                bad_since = None
                 if self._adb('getprop', 'sys.boot_completed', timeout=15).stdout.strip() == '1':
                     return
             elif state in ('unauthorized', 'offline'):
@@ -838,13 +839,12 @@ class Emulator:
                     raise InfraError(f'emulator adb stayed {state} for {round(stuck)} s (see {self.out / "emulator.log"})')
                 if stuck >= BOOT_ADB_RECONNECT_S and not reconnected:
                     reconnected = True
-                    try:
-                        if run(self.adb + ['reconnect'], timeout=30).returncode:
-                            run([self.adb[0], 'reconnect', 'offline'], timeout=30)
+                    try:  # scoped to this serial: a serial-less reconnect would also reset other emulators on the shared adb server
+                        failed = run(self.adb + ['reconnect'], timeout=30).returncode
                     except subprocess.TimeoutExpired:
-                        pass  # the give-up deadline still ends the wait
-            else:
-                bad_since = None
+                        failed = 'timed out'
+                    if failed:
+                        raise InfraError(f'emulator adb stayed {state} and `adb reconnect` failed ({failed})')
             time.sleep(2)
         raise InfraError('emulator boot timed out')
 

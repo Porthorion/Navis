@@ -1047,8 +1047,9 @@ its observation before a second loop; fixtures cover a zero duration at start, a
 true 5 s loop and the 300 s case.
 
 Emulator-boot self-checks (fake adb and clock) cover an adb that stays
-`unauthorized`/`offline` (reconnect at 40 s, `InfraError` at 90 s), the
-`reconnect offline` fallback, and the one boot retry on a fresh guest. Pairing
+`unauthorized`/`offline` (reconnect at 40 s, `InfraError` at 90 s from the first
+bad poll even if the state flaps, a failed serial-scoped reconnect is an
+`InfraError`), and the one boot retry on a fresh guest. Pairing
 self-checks cover the interleaved base/fix schedule and that its merged evidence
 still verifies. None of these starts an emulator or a runtime matrix.
 

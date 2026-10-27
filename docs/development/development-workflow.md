@@ -1700,8 +1700,8 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   --virtual` (Linux) or a disposable 3072 MiB, 2-core AVD cloned from
   `NAVIS_HARNESS_AVD` (default `Pixel_9_Pro_XL`; a fresh guest per scenario and variant), and
   stops only the processes it started. The boot wait polls `adb get-state` as well as `sys.boot_completed`: a guest
-  whose adb stays `unauthorized`/`offline` gets one `adb reconnect` after 40 s (falling back to `adb reconnect offline`)
-  and an `InfraError` naming the state after 90 s. A guest that fails to boot is removed with its clone and replaced once;
+  whose adb stays `unauthorized`/`offline` gets one `adb -s <serial> reconnect` after 40 s
+  and an `InfraError` naming the state 90 s after the first bad poll (only a completed boot clears that clock; a failed `adb -s <serial> reconnect` is an `InfraError`, never a serial-less reconnect). A guest that fails to boot is removed with its clone and replaced once;
   each boot attempt keeps its own `attempt-N/emulator.log`. Android runs `stress-drag`,
   `memory-soak`, `repeat`, `cut-recovery` and `queue-edit` (other selected scenarios print `SKIP <scenario>: linux-only`; if none is left the tool exits 2, run `--platform linux`); its heartbeat numbers come from a
   software-rendered guest and are noisier, hence the wider Android tolerances
