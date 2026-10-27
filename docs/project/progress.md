@@ -22,7 +22,10 @@ Last updated: 2026-10-27
   for fresh recovery after current-occurrence removal, restores paused policy
   refresh (`|| !playRequested`, which was not redundant), and resumes an Off
   boundary on the last item when native state is not ENDED. A truly ENDED Off
-  engine still publishes completion. Current-removal d1/d1b, paused-removal d3,
+  engine still publishes completion. F1 (R5 review): that
+  completion now restores native `playWhenReady` to the requested play intent
+  (a user pause stays paused), so a seek restart after it plays; bridge suites are
+  61 tests. Current-removal d1/d1b, paused-removal d3,
   Off-after-scrub d2 and U6/C4/K4/L3 gap fixtures are committed in the existing
   callback suite. First failures on `c167f8783`: d1/d3
   `expected:<[0@0]> but was:<[]>`, d2 `expected:<1> but was:<0>`, and the pure

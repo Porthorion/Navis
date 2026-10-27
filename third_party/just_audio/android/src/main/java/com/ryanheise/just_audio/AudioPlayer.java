@@ -398,6 +398,9 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 // Publishing terminal Off must not re-arm the native pause.
                 repeatPublishingEnd = true;
                 try {
+                    // The boundary paused natively; Dart still reports playing, so a restart
+                    // seek relies on playWhenReady being restored. A user pause stays paused.
+                    player.setPlayWhenReady(playRequested);
                     onPlaybackStateChanged(Player.STATE_ENDED);
                 } finally {
                     repeatPublishingEnd = false;

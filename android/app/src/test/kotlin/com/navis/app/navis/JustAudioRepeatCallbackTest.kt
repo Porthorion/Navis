@@ -722,8 +722,7 @@ class JustAudioRepeatCallbackTest {
         f.mode(0)
         f.runPosts()                                   // Off at the true end: completion via the guarded re-entrant publish
         assertEquals("completed", f.state())
-        f.mode(2)                                      // user restarts and switches Repeat All back on
-        f.play()
+        f.mode(2)                                      // user restarts and switches Repeat All back on (playWhenReady already restored; Dart play() no-ops)
         f.call("onPlaybackStateChanged", 3)            // READY again (processingState -> ready)
         f.seek(0, 1)                                   // back onto the last stream
         f.deliverPause(true)                           // second natural end of the owned last item
