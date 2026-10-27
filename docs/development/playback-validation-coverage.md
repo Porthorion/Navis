@@ -94,7 +94,10 @@ Schema 1 contains:
   pointers, base artifact hash and retained artifact hashes;
 - candidate identity after execution and terminal status/exit code.
 
-Ignored files are excluded from candidate identity. Existing build outputs and
+Ignored files are excluded from candidate identity, and so is exactly one tracked
+path, `docs/project/progress.md` (both its content and its index entry): evidence
+is recorded there after the run, which must not invalidate the run. Any other
+docs/tooling edit, and a commit that changes HEAD, still invalidates the evidence. Existing build outputs and
 local secrets must remain ignored; do not put an evidence output directory into
 tracked source. Environment values are hashed rather than exposed. Evidence and
 logs remain local diagnostic artifacts, not suitable for public upload without
@@ -103,7 +106,10 @@ physical devices and an edit reverted between identity snapshots are not fully
 attested by this record. No claim of reproducible hardware timing is made.
 
 `comparison.json` and `summary.md` retain their existing successful-completion
-contracts. Failures before comparison completion still have `evidence.json`;
+contracts; a completed FAIL comparison keeps its detailed per-check `summary.md`
+(only incomplete or blocked runs get the short status summary), and `RESULT
+PASS|FAIL` is printed only after finalization, so it never precedes a run that
+finalization turns into exit 2. Failures before comparison completion still have `evidence.json`;
 absence of comparison is never a pass. `verify_evidence(out, candidate,
 environment, config)` is the Python integration seam for task B: provide the
 current candidate/environment and the exact required config (including resolved
@@ -135,7 +141,7 @@ evidence. No Flutter/runtime acceptance is claimed by tooling self-checks.
 
 ## Task A focused verification
 
-`python3 tool/playback_harness_test.py`: 60 tests passed (0.958 s), including
+`python3 tool/playback_harness_test.py`: 62 tests passed (and `python3 tool/validation_gate_test.py`: 34), including
 retained threshold/oracle probes and new deterministic failure, partial-report,
 timeout, interruption, build-exit, exact-cell, stale-source/environment/config,
 artifact and successful-finalization checks. Python byte-compilation,
@@ -173,6 +179,13 @@ configuration contents require new evidence even when their paths stay equal;
 record that reason. New environment-controlled playback/build inputs must be added
 to this selection with a regression test. Source identity has no broad path ignore
 for reuse; tooling/docs changes also invalidate prior exact-state evidence.
+
+A failed `check.sh` stops the gate: the Linux and Android steps are recorded as
+`not-run` ("skipped: check failed") and the gate is `failed` (exit 1), never
+passed. A command that dies of a signal (for example an OOM SIGKILL) is reported
+with its exact negative exit and "command killed by signal N", without an owner
+traceback. Direct `ab` holds the heavy-lock descriptors across its build, engine
+and bootstrap commands, so a killed holder keeps the lock while any of them runs.
 
 `gate.json` / `gate-summary.md` retain command vectors, actual command exits,
 step exits/statuses and log/evidence pointers. A reused platform has no new command

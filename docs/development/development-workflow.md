@@ -16,7 +16,8 @@ What it does:
 - resolves root and owned Flutter packages plus CargoKit development dependencies
 
 The local quality gate also requires Python 3.11+ and NumPy for the playback
-PCM/oracle self-checks. Install NumPy using your system package manager, or use
+PCM/oracle self-checks (`tool/bootstrap.sh` checks that NumPy imports and prints
+the install hint). Install NumPy using your system package manager, or use
 an ignored virtual environment before running `./tool/check.sh`:
 
 ```bash
@@ -1449,7 +1450,8 @@ Each invocation creates `build/harness/gate-<UTC-microsecond-stamp>/`, containin
 `gate.json`, `gate-summary.md`, `check.log`, `linux.log`, `android.log`, and new
 platform evidence directories. The JSON stores each exact argument vector,
 command exit (null for not executed), gate step exit, elapsed time and
-passed/failed/blocked/not-run status. A timeout is blocked with step exit 124;
+passed/failed/blocked/not-run status. A failed check.sh skips the matrices (not-run,
+"skipped: check failed"; gate failed, exit 1). A timeout is blocked with step exit 124;
 the actual terminated command exit is retained when available. Not-run steps
 have no command exit. Reused steps identify their existing evidence directory.
 check.sh retains every step log under its own unique `build/check/run-*` directory,
@@ -1458,7 +1460,8 @@ original command exit when both fail. It removes no captured logs.
 
 The gate holds `/tmp/navis-heavy.lock` and `~/.cache/navis-harness/lock`
 (plus `NAVIS_HARNESS_CACHE/lock` when configured elsewhere) for the entire invocation. Direct
-check.sh and A/B callers take the same pair. Busy jobs fail fast with the lock
+check.sh and A/B callers take the same pair (direct `ab` passes the descriptors to
+its build, engine and bootstrap commands, as the gate does). Busy jobs fail fast with the lock
 owner PID and evidence pointer when written by these tools; legacy owners may
 require `lslocks`. Never poll or launch replacements while an owner is active.
 Children inherit descriptors; nesting verifies inode/device identity, exclusive
@@ -1522,7 +1525,8 @@ python3 tool/playback_harness.py gate --base github/release/1.5 \
 
 There is no automatic discovery/reuse or fallback rerun on invalid reuse evidence.
 Source identity includes all tracked and nonignored untracked files, including
-tooling/docs; no playback-affecting path is ignored to enable reuse. Reuse applies
+tooling/docs; no playback-affecting path is ignored to enable reuse. The only
+exception is `docs/project/progress.md`, where evidence is recorded after the run. Reuse applies
 only to the attested state. Relevant environment values are hashed, never printed;
 see the coverage map for the stable selection and attestation limits.
 
