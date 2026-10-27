@@ -33,7 +33,7 @@ jobs:
         with:
           fetch-depth: 0 # the base-without-harness self-check walks to the repository's root commit
       # The system Python on ubuntu-24.04 is externally managed (PEP 668): pip install is refused.
-      - run: sudo apt-get install -y --no-install-recommends python3-numpy
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends python3-numpy
       - run: python3 tool/playback_harness_test.py
       - run: python3 tool/validation_gate_test.py
       - run: for script in tool/*.sh tool/lib/*.sh; do bash -n "$script"; done

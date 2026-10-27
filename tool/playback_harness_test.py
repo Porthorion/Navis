@@ -485,6 +485,15 @@ class InfraErrors(unittest.TestCase):
                 self.assertNotIn('busy', err)
                 self.assertFalse(list(Path(self.tmp.name).glob('run-*/evidence.json')))
 
+    def test_uncaught_exception_is_exit_2_with_traceback(self):
+        from contextlib import nullcontext
+        with patch.object(h, 'heavy_lock', return_value=nullcontext(())), patch.object(h, 'candidate_identity', return_value={'head': 'h'}), \
+                patch.object(h, '_cmd_ab', side_effect=KeyError('boom')):
+            code, err = self.ab('--all', '--platform', 'linux')
+        self.assertEqual(code, 2)
+        self.assertIn('Traceback', err)
+        self.assertIn("KeyError: 'boom'", err)
+
     def test_unknown_base_is_exit_2(self):
         code, err = self.ab('queue-edit', '--platform', 'linux', '--base', 'no-such-ref-anywhere')
         self.assertEqual(code, 2)

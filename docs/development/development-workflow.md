@@ -1445,7 +1445,7 @@ environment is preserved), and end the turn:
 
 ```bash
 stamp=$(date -u +%Y%m%dT%H%M%S); mkdir -p build/harness
-setsid bash -c 'echo $$ > build/harness/launch-'$stamp'.pid
+setsid bash -c 'trap : TERM; echo $$ > build/harness/launch-'$stamp'.pid
   python3 tool/playback_harness.py gate --base github/release/1.5
   echo $? > build/harness/launch-'$stamp'.exit' </dev/null > build/harness/launch-$stamp.log 2>&1 &
 ```
@@ -1459,7 +1459,8 @@ setsid bash -c 'echo $$ > build/harness/launch-'$stamp'.pid
   (`lslocks | grep navis`) and any surviving cleanup owner before relaunching.
 - **Cancel:** send TERM to the launch process group, `kill -TERM -- -$(cat
   build/harness/launch-<stamp>.pid)`, and wait for the `.exit` file; the bounded
-  owners then clean up their descendants and release the locks. Never SIGKILL
+  owners then clean up their descendants and release the locks (`trap : TERM` keeps the
+  wrapper alive so it still writes the `.exit` file, 143). Never SIGKILL
   the group.
 
 It runs check.sh, Linux, then Android serially; Android is required by this

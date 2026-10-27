@@ -1377,6 +1377,11 @@ def main(argv=None) -> int:
     except (InfraError, RuntimeError, OSError, subprocess.SubprocessError) as error:
         print(f'ERROR (infrastructure, not a FAIL): {error}', file=sys.stderr)
         return 2
+    except Exception:  # a harness bug is not a threshold FAIL (exit 1): keep the traceback, report infrastructure
+        import traceback
+        traceback.print_exc()
+        print('ERROR (infrastructure, not a FAIL): uncaught harness exception, see the traceback above', file=sys.stderr)
+        return 2
 
 
 if __name__ == '__main__':
