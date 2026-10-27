@@ -25,6 +25,8 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/features/player/data/system_media_art.dart'
+    show imageExtensionForBytes;
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:path/path.dart' as p;
@@ -138,25 +140,36 @@ class PlaybackArtCache {
     return path;
   }
 
-  /// Whether [path] is a file that starts like a JPEG, PNG or WebP image.
-  /// Reads only the first 12 bytes; cheap enough for each publish.
-  static bool isImageFile(String path) {
+  /// The first 12 bytes of [path], or `null` when it cannot be read.
+  static List<int>? _head(String path) {
     RandomAccessFile? file;
     try {
       file = File(path).openSync();
-      final b = file.readSync(12);
-      bool at(int i, List<int> magic) =>
-          b.length >= i + magic.length &&
-          [for (var k = 0; k < magic.length; k++) b[i + k] == magic[k]]
-              .every((same) => same);
-      return at(0, const [0xFF, 0xD8, 0xFF]) ||
-          at(0, const [0x89, 0x50, 0x4E, 0x47]) ||
-          (at(0, 'RIFF'.codeUnits) && at(8, 'WEBP'.codeUnits));
+      return file.readSync(12);
     } on FileSystemException {
-      return false;
+      return null;
     } finally {
       file?.closeSync();
     }
+  }
+
+  /// Whether [path] is a file that starts like an image `BitmapFactory`
+  /// decodes (see [imageExtensionForBytes]). Reads only the first 12 bytes;
+  /// cheap enough for each publish.
+  static bool isImageFile(String path) {
+    final head = _head(path);
+    return head != null && imageExtensionForBytes(head) != null;
+  }
+
+  /// Whether [path] is worth keeping as a cover: not an HTML or JSON page.
+  /// Servers may return formats [isImageFile] does not list (AVIF, HEIC,
+  /// TIFF); those are cached unchanged but only listed formats are published
+  /// to the system.
+  static bool _isUsableCover(String path) {
+    final head = _head(path);
+    if (head == null || head.isEmpty) return false;
+    final first = head.firstWhere((b) => b > 0x20, orElse: () => 0);
+    return first != 0x3C /* < */ && first != 0x7B /* { */;
   }
 
   /// Returns the local file path for [coverArtId], downloading from [artUri]
@@ -198,7 +211,9 @@ class PlaybackArtCache {
       // ignore: avoid_slow_async_io
       if (await file.exists()) {
         final length = await file.length();
-        if (length > 0) {
+        // A non-image file (a captive-portal page saved by an older build)
+        // is replaced, never reused.
+        if (length > 0 && _isUsableCover(file.path)) {
           _mem[coverArtId] = file.path;
           AppLogger.debug(
             'PlaybackArtCache: art for $coverArtId → ${file.path} (disk cache)',
@@ -252,7 +267,16 @@ class PlaybackArtCache {
           await sink.close().catchError((Object _) {});
         }
         written = await partial.length();
-        if (written > 0) await partial.rename(file.path);
+        // A 200 that is not an image (captive portal, proxy error page) must
+        // not become the cover.
+        if (written > 0 && _isUsableCover(partial.path)) {
+          await partial.rename(file.path);
+        } else if (written > 0) {
+          AppLogger.warning(
+            'PlaybackArtCache: cover for $coverArtId is not an image',
+          );
+          return null;
+        }
       } finally {
         // Keep metadata access asynchronous so storage latency cannot stall UI.
         // ignore: avoid_slow_async_io
