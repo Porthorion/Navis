@@ -4108,3 +4108,9 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   unchanged per-variant evidence record. Inventory, cell counts and thresholds
   untouched; recalibration stays a separate, evidence-based step. Each Android
   repetition still gets a fresh guest, so boots multiply by the repetition count.
+- Row 26 (`repeat_one_fill`): waits for the backend duration instead of choosing
+  0, uses disjoint wrap windows (`repeat_wrap_bounds`) and an observation that
+  ends before a second loop; fixtures for zero duration at start, a true 5 s loop
+  and the 300 s case. Row 25 (partial emulator acquisition) already fixed; its
+  self-check still passes. Row 27 (Linux cut-recovery) stays open: needs runtime
+  evidence. Self-checks only (hermetic), no harness or emulator run.

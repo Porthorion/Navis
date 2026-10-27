@@ -2871,10 +2871,18 @@ def case_repeat_switch_off(run: Run, env):
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=2))
 
 
+def repeat_wrap_bounds(dur_ms: int) -> tuple[int, int]:
+    """(a wrap starts after this position, ends before that one) for a song of [dur_ms]: the last 4 s and first 3 s of a long song,
+    at most half the song each, so the two windows never overlap (plain progress on a 5 s song would otherwise count as a wrap)."""
+    half = dur_ms // 2
+    return dur_ms - min(4000, half), min(3000, half)
+
+
 def case_repeat_one_fill(run: Run, env):
     """Repeat-one with the background queue fill still running at the song end: an artist shuffle
-    (a large queue), song 1 seeked to its last 8 s straight away; it must restart exactly once, on the
-    same index, and never advance."""
+    (a large queue), song 1 seeked to its last 8 s straight away (the whole song when it is shorter); it must restart
+    exactly once, on the same index, and never advance. The song's duration comes from the backend once it is known (never 0),
+    and the observation ends before a second loop could start."""
     run.metrics['repeatOne'] = True
     artist, ids = env.backend.fresh_artist()
     run.songs = [{'id': i} for i in ids]
@@ -2884,11 +2892,21 @@ def case_repeat_one_fill(run: Run, env):
     run.app.api('/v1/artists/playback', {'command': 'prepare', 'artistId': artist, 'action': 'shuffle'}, timeout=60)
     first = await_audio(run, rec)
     dur = first['dur'] or run.last()['dur'] or 0
+    if not dur:  # the duration can still be unknown right at the start: wait for the backend's value, never guess
+        known = run.until(lambda s: s['songId'] == first['songId'] and (s['dur'] or 0) > 0, 30)
+        if known is None:
+            raise CaseAbort('song 1 duration never became known')
+        dur = known['dur']
+    if dur < 3000:
+        raise CaseAbort(f'song 1 is {dur} ms: too short to observe one loop')
+    seek_ms = max(0, dur - 8000)
+    observe_s = (dur - seek_ms) / 1000 + min(17.0, dur / 2000)  # to the end, then at most half a song (17 s of a long one): no second loop
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-        seek = issue_seek(run, pool, max(0, dur - 8000))
+        seek = issue_seek(run, pool, seek_ms)
         landed(run, seek)
         finish_futures(run)
-    run.observe(25.0)
+    run.observe(observe_s)
+    end_from, start_to = repeat_wrap_bounds(dur)
 
     def check():
         out = []
@@ -2897,11 +2915,11 @@ def case_repeat_one_fill(run: Run, env):
         ready = [x for x in same if x['proc'] == 'ready']
         wraps = [(a, b) for i, (a, b) in enumerate(zip(ready, ready[1:]), 1)
                  if a['songId'] == b['songId'] == first['songId'] and a['idx'] == b['idx']
-                 and a['pos'] > dur - 4000 and b['pos'] < 3000 and not is_position_blip(ready, i)]
+                 and a['pos'] > end_from and b['pos'] < start_to and not is_position_blip(ready, i)]
         run.metrics['wraps'] = [{'t': round(b['t'], 1), 'from': a['pos'], 'to': b['pos'], 'mat': b['mat'], 'deferred': b['deferred'],
                                  'qlen': b['qlen']} for a, b in wraps]
         if len(wraps) != 1:
-            out.append(violation('repeatOneRestartCount', seek['t'], f"{len(wraps)} restarts of song 1 in 25 s (expected 1)", run))
+            out.append(violation('repeatOneRestartCount', seek['t'], f"{len(wraps)} restarts of song 1 in {observe_s:g} s (expected 1)", run))
         moved = next((x for x in same if x['songId'] != first['songId']), None)
         if moved:
             out.append(violation('repeatOneAdvanced', moved['t'], f"advanced to {moved['songId']} under repeat-one", run))

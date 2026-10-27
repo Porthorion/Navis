@@ -1041,7 +1041,16 @@ its bounded wait; network-free seek classification also verifies the final file.
 Seek-oracle self-checks cover raw and offset native clock blips, persistent
 rewinds, slow returns and queue/source identity changes.
 Repeat-driver checks reject clock blips before real wraps and still reject
-missing or duplicate loops.
+missing or duplicate loops. `repeat_one_fill` waits for the backend's song
+duration (never seeks from 0), uses disjoint per-duration wrap windows and ends
+its observation before a second loop; fixtures cover a zero duration at start, a
+true 5 s loop and the 300 s case.
+
+Emulator-boot self-checks (fake adb and clock) cover an adb that stays
+`unauthorized`/`offline` (reconnect at 40 s, `InfraError` at 90 s), the
+`reconnect offline` fallback, and the one boot retry on a fresh guest. Pairing
+self-checks cover the interleaved base/fix schedule and that its merged evidence
+still verifies. None of these starts an emulator or a runtime matrix.
 
 Android cut-splice self-checks reject a missing/zero base reload count, use
 only cut cells for the frozen median, and reject decoded files whose length

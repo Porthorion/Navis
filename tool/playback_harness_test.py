@@ -387,6 +387,62 @@ class RepeatFillOracle(unittest.TestCase):
                 self.assertEqual(len(run.metrics['wraps']), count)
 
 
+class RepeatFillDuration(unittest.TestCase):
+    """Row 26: repeat_one_fill needs a known duration, disjoint wrap windows and exactly one intended loop."""
+
+    @staticmethod
+    def sample(t, pos, dur):
+        return {'t': t, 'pos': pos, 'proc': 'ready', 'songId': 'a', 'idx': 0, 'mat': 1, 'deferred': 0, 'qlen': 15, 'dur': dur}
+
+    def play(self, first_dur, samples, known=None):
+        """Runs case_repeat_one_fill; returns (run, issue_seek mock, violations of the check)."""
+        first = {'songId': 'a', 'dur': first_dur}
+        run = Mock(metrics={}, samples=samples, checks=[])
+        run.last.return_value = {'dur': first_dur}
+        run.until.return_value = known
+        env = Mock()
+        env.backend.fresh_artist.return_value = ('artist', ['a', 'b'])
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(engine, 'await_audio', return_value=first))
+            seek = stack.enter_context(patch.object(engine, 'issue_seek', return_value={'t': 0}))
+            stack.enter_context(patch.object(engine, 'landed'))
+            stack.enter_context(patch.object(engine, 'finish_futures'))
+            stack.enter_context(patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}))
+            engine.case_repeat_one_fill(run, env)
+            return run, seek, run.checks[0]()
+
+    def test_zero_duration_at_start_waits_for_the_known_duration(self):
+        run, seek, out = self.play(0, [self.sample(10.9, 299541, 300000), self.sample(11.1, 0, 300000), self.sample(11.2, 100, 300000)],
+                                   known={'dur': 300000})
+        self.assertEqual(seek.call_args[0][2], 292000)  # never a seek to 0 because the duration was not known yet
+        self.assertEqual(run.observe.call_args[0][0], 25.0)
+        self.assertEqual(out, [])
+        with self.assertRaises(engine.CaseAbort):
+            self.play(0, [], known=None)  # the duration never became known: no verdict from a made-up 0
+
+    def test_true_five_second_loop_counts_exactly_one_restart(self):
+        positions = lambda end: [self.sample(round(i * 0.1, 1), (i * 100) % 5000, 5000) for i in range(int(end * 10))]
+        run, seek, out = self.play(5000, positions(7.5))
+        self.assertEqual(seek.call_args[0][2], 0)
+        self.assertEqual(run.observe.call_args[0][0], 7.5)  # a second loop would start at 10 s
+        self.assertEqual(out, [])
+        self.assertEqual(len(run.metrics['wraps']), 1)
+        run, _, out = self.play(5000, positions(12.0))  # a window that holds two loops must not pass as one
+        self.assertEqual(out, [{'oracle': 'repeatOneRestartCount'}])
+        self.assertEqual(len(run.metrics['wraps']), 2)
+        run, _, out = self.play(5000, positions(4.9))  # and a real missing restart still fails
+        self.assertEqual(out, [{'oracle': 'repeatOneRestartCount'}])
+
+    def test_wrap_windows_are_disjoint_per_duration_and_clips_too_short_to_loop_abort(self):
+        self.assertEqual(engine.repeat_wrap_bounds(300000), (296000, 3000))
+        self.assertEqual(engine.repeat_wrap_bounds(5000), (2500, 2500))
+        for dur in (3000, 5000, 8000, 300000):
+            end_from, start_to = engine.repeat_wrap_bounds(dur)
+            self.assertLessEqual(start_to, end_from)
+        with self.assertRaises(engine.CaseAbort):
+            self.play(2000, [])
+
+
 class RepeatClockBlip(unittest.TestCase):
     def fixture(self):
         samples = [{'t': t, 'pos': position, 'proc': 'ready', 'songId': 'a', 'idx': 0, 'off': 0}
