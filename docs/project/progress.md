@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
 ---
 
@@ -14,6 +14,12 @@ Last updated: 2026-10-27
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #109 (1.5.1 P6), Linux package install wait copy — 2026-10-28
+  (evidence: `update_dialog_test.dart` linuxDeb/linuxRpm apply cases failed first
+  with `Found 0 widgets with text "Installing the update. This can take a minute."`;
+  focused update dialog + changelog tests 39/39 pass; fresh review found no blockers).
+  Debian/RPM applying state shows the new localized copy; other modes keep
+  "Applying update…".
 - [ ] Issue #86, P2 Android repeat-boundary policy (triage 06, 07, 09) —
   R5 implementation on `fix/android-repeat-boundary`, 2026-10-27; R4 review found
   no blockers. Orchestrator full quality gate, hosted CI, Linux smoke and Android
