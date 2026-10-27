@@ -4011,6 +4011,13 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   checks and 21 gate checks, including real nested-session cleanup probes.
 - Full `check.sh`, Linux and Android runtime validation are assigned to one
   owner and remain pending. Self-check results do not certify playback runtime.
+- 2026-10-27: four review rounds (three Sonnet, one Opus) closed with all
+  findings fixed; harness and gate self-checks pass (64 + 37, hermetic). A real
+  Linux smoke, `ab queue-edit --platform linux --base github/dev` on 05f7e58a5
+  against 3e5bf9e06, exited 0 with `RESULT PASS` (3 + 3 cells, 0 case errors,
+  0 violations) and finalized `evidence.json` (`status: passed`, 68 artifacts)
+  under `build/harness/20261027T181142.198691Z/`. The full gate and Android
+  runtime runs stay at the final release validation step.
   See [plan](../plans/validation-evidence-workflow.md) and
   [coverage map](../development/playback-validation-coverage.md).
 
