@@ -289,7 +289,13 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
             const SizedBox(width: 16),
-            Expanded(child: Text(l10n.updateApplying)),
+            Expanded(
+              child: Text(
+                isLinuxSystemPackageMode(_installMode)
+                    ? l10n.updateInstallingPackage
+                    : l10n.updateApplying,
+              ),
+            ),
           ],
         );
 
