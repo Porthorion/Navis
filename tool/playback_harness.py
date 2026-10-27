@@ -41,6 +41,7 @@ DOWNLOADS = Path.home() / 'Downloads' / 'Navis_Downloads'
 SOURCE_AVD = os.environ.get('NAVIS_HARNESS_AVD', 'Pixel_9_Pro_XL')
 ANDROID_HOME = Path(os.environ.get('ANDROID_HOME', Path.home() / 'Android' / 'Sdk'))
 GUEST_MIB = 3072
+BOOT_ADB_STABLE_S = 10  # a continuous device state this long ends an unauthorized/offline episode
 BOOT_ADB_RECONNECT_S, BOOT_ADB_GIVE_UP_S = 40, 90  # seconds adb may stay unauthorized/offline before a reconnect / InfraError
 DEFAULT_BASE = 'github/release/1.5'
 MEMORY_MAX = '8G'
@@ -824,14 +825,17 @@ class Emulator:
     def _wait_boot(self):
         """Waits for sys.boot_completed. A guest can finish booting while adb stays unauthorized/offline (67 such polls in
         one emulator.log): after BOOT_ADB_RECONNECT_S in that state reconnect once, after BOOT_ADB_GIVE_UP_S since the first bad
-        poll give up. Only a completed boot clears that clock: a reconnect makes the device vanish for a few polls, and a flapping
-        adb must still end in the state-naming error."""
-        deadline, bad_since, reconnected = time.monotonic() + 240, None, False
+        poll give up. The clock survives a reconnect making the device vanish for a few polls, and a flapping adb still ends in the
+        state-naming error; it is cleared by a completed boot or by BOOT_ADB_STABLE_S of an uninterrupted device state."""
+        deadline, bad_since, device_since, reconnected = time.monotonic() + 240, None, None, False
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
                 raise InfraError(f'emulator exited with {self.proc.returncode} (see {self.out / "emulator.log"})')
             state = self._adb_state()
+            device_since = (device_since if device_since is not None else time.monotonic()) if state == 'device' else None
             if state == 'device':
+                if device_since is not None and time.monotonic() - device_since >= BOOT_ADB_STABLE_S:
+                    bad_since = None  # a blip after a stable device state is a new episode, not the old one
                 if self._adb('getprop', 'sys.boot_completed', timeout=15).stdout.strip() == '1':
                     return
             elif state in ('unauthorized', 'offline'):

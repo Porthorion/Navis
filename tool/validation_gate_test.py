@@ -533,7 +533,7 @@ class Gate(unittest.TestCase):
             with self.assertRaisesRegex(h.InfraError, 'getprop timed out'):
                 emulator._adb('getprop', 'sys.boot_completed', timeout=15)
 
-    def boot(self, states, reconnect_fixes=True, reconnect_works=True, booted=True):
+    def boot(self, states, reconnect_fixes=True, reconnect_works=True, booted=True, booted_after=0):
         """Boots Emulator._acquire against a fake adb and clock. [states] gives get-state per call (last repeats);
         returns (error or None, adb calls, fake seconds)."""
         clock, calls, state = [0.0], [], ['unauthorized']
@@ -551,7 +551,7 @@ class Gate(unittest.TestCase):
                 if reconnect_fixes:
                     states[:] = ['device']
             elif 'getprop' in cmd:
-                done.stdout = '1\n' if state[0] == 'device' and booted else ''
+                done.stdout = '1\n' if state[0] == 'device' and booted and clock[0] >= booted_after else ''
             return done
         fake_time = type('T', (), {'monotonic': staticmethod(lambda: clock[0]),
                                    'sleep': staticmethod(lambda s: clock.__setitem__(0, clock[0] + s))})
@@ -597,6 +597,13 @@ class Gate(unittest.TestCase):
         error, calls, _ = self.boot(['offline'], reconnect_works=False)
         self.assertRegex(str(error), 'reconnect')
         self.assertEqual([c for c in calls if 'reconnect' in c], [['reconnect']])  # `adb reconnect offline` hits every offline device
+
+    def test_slow_booting_guest_with_a_late_blip_is_not_a_false_failure(self):
+        # offline twice, ~100 s of a device that is up but not booted, one late offline blip, then booted: only 10 s of a
+        # continuous device state clears the bad-state clock
+        error, _, seconds = self.boot(['offline'] * 2 + ['device'] * 50 + ['offline'] + ['device'], reconnect_fixes=False, booted_after=110)
+        self.assertIsNone(error)
+        self.assertGreaterEqual(seconds, 110)
 
     def test_flapping_adb_still_names_its_state_at_about_90_s(self):
         # reconnect makes the device vanish for a few polls ('unknown'); a device state that never finishes booting resets nothing
