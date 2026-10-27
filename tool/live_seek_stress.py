@@ -1685,11 +1685,11 @@ class FixtureBackend:
     short_groups = True  # has albums/artists whose songs all end within seconds
     credentials = {'username': 'diagnostics', 'password': 'synthetic-seek-fixture'}
 
-    def __init__(self, upstream_url, library, handler):
+    def __init__(self, upstream_url, library, handler, rep_start=0):
         self.upstream, self.library, self.handler = upstream_url, library, handler
         self.credentials = {**self.credentials, 'url': upstream_url}
         self.used: set[str] = set()
-        self.rng = random.Random(86)
+        self.rng = random.Random(86 + rep_start)  # a repetition run alone (--rep-start) draws its own songs, not the first rep's again
         self.server = type('Catalog', (), {'call': lambda _, method, **params: {'song': library.songs[params['id']]}})()  # getSong only
 
     def _take(self, songs):
@@ -4453,7 +4453,7 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
         fixture_server, handler = fixture_tool.start_transcoding_server(
             library, speed=args.transcode_speed, advertise_offset=not args.no_transcode_offset,
             static=args.fixture_static_transcode)
-        backend = FixtureBackend(f'http://127.0.0.1:{fixture_server.server_port}', library, handler)
+        backend = FixtureBackend(f'http://127.0.0.1:{fixture_server.server_port}', library, handler, args.rep_start)
     else:
         backend = LiveBackend(credentials, Server(credentials))
     proxy = ThrottledProxy(backend.upstream, 0, 0, chunked=args.proxy_chunked, jsonl=run_dir / 'proxy.jsonl')

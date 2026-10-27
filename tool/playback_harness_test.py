@@ -387,6 +387,28 @@ class RepeatFillOracle(unittest.TestCase):
                 self.assertEqual(len(run.metrics['wraps']), count)
 
 
+class FixtureRepetitionSeed(unittest.TestCase):
+    """M1: a repetition run as its own engine invocation (--rep-start) must not replay the previous repetition's songs."""
+
+    @staticmethod
+    def draw(rep_start):
+        songs = [{'id': f's{i}', 'duration': 200, 'track': 2} for i in range(60)]
+        library = Mock(duplicates={})
+        library.sorted_songs.return_value = songs
+        backend = engine.FixtureBackend('http://x', library, Mock(), rep_start=rep_start)
+        return [s['id'] for s in backend.fresh_songs(5)]
+
+    def test_reps_draw_different_songs_and_the_same_rep_draws_the_same_for_both_variants(self):
+        draws = [self.draw(rep) for rep in range(3)]
+        self.assertEqual(len({tuple(d) for d in draws}), 3)
+        self.assertEqual(self.draw(1), self.draw(1))  # base and fix each start their own backend at the same rep
+        self.assertEqual(self.draw(0), [s for s in self.draw(0)])
+        library = Mock(duplicates={})
+        library.sorted_songs.return_value = [{'id': f's{i}', 'duration': 200, 'track': 2} for i in range(60)]
+        legacy = engine.FixtureBackend('http://x', library, Mock())  # one invocation (Android) keeps its seed
+        self.assertEqual([s['id'] for s in legacy.fresh_songs(5)], self.draw(0))
+
+
 class RepeatFillDuration(unittest.TestCase):
     """Row 26: repeat_one_fill needs a known duration, disjoint wrap windows and exactly one intended loop."""
 
