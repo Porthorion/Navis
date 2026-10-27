@@ -1705,9 +1705,9 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   each boot attempt keeps its own `attempt-N/emulator.log`. Android runs `stress-drag`,
   `memory-soak`, `repeat`, `cut-recovery` and `queue-edit` (other selected scenarios print `SKIP <scenario>: linux-only`; if none is left the tool exits 2, run `--platform linux`); its heartbeat numbers come from a
   software-rendered guest and are noisier, hence the wider Android tolerances
-  recorded in the PR. Base and fix repetitions alternate (base r1, fix r1, fix r2, base r2, ...) so run order cannot bias a comparison.
+  recorded in the PR. On Linux base and fix repetitions alternate (base r1, fix r1, fix r2, base r2, ...); on Android, where a guest boot costs minutes, each variant runs all its repetitions on one guest and the first variant alternates per scenario (base, then fix, ...), so run order cannot bias every comparison the same way.
   Outputs: `build/harness/<stamp>/{base,fix}/<scenario>/`
-  (per-repetition `rep-R/attempt-N/` engine reports, traces, app logs; merged `attempt-1/report.json`), `comparison.json`, `summary.md`.
+  (Linux: per-repetition `rep-R/attempt-N/` engine reports, traces, app logs, merged `attempt-1/report.json`; Android: `attempt-N/`), `comparison.json`, `summary.md`.
 - **Self-check.** `python3 tool/playback_harness_test.py` covers the threshold
   evaluation, the code-area map, the cache key and the exit-2 paths without
   building anything. Production hooks (the `transportTrace` ring and the

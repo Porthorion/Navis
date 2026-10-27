@@ -528,7 +528,7 @@ class PairedRepetitions(unittest.TestCase):
         self.assertEqual(list(engine.matrix_reps('seek_far', 1, 0, 2)), [2])
         self.assertEqual(list(engine.matrix_reps('shuffle_album', 3, 2, 1)), [1, 2])
 
-    def ab(self, fail_at=None, reps=3):
+    def ab(self, fail_at=None, reps=3, platform='linux', scenarios=('queue-edit',), full=False, guests=None):
         """Runs cmd_ab for queue-edit on Linux against a fake engine; returns (exit/exception, evidence dir, calls)."""
         import argparse
         import json
@@ -540,11 +540,12 @@ class PairedRepetitions(unittest.TestCase):
         artifact.write_text('bundle')
         def scenario(name, platform, variant_dir, display_env, serial, apk, full, nreps, real, rep=None):
             parts = variant_dir.parts
-            calls.append((parts[-4], parts[-3], int(parts[-2].split('-')[1])))
+            calls.append((parts[-4], parts[-3], int(parts[-2].split('-')[1])) if parts[-2].startswith('rep-')
+                         else (parts[-3], parts[-2], None))
             if fail_at is not None and len(calls) == fail_at:
                 raise h.InfraError('engine died')
             variant_dir.mkdir(parents=True, exist_ok=True)
-            cells = [c for c in h.expected_cells(name, full, nreps, platform) if c[3] == rep]
+            cells = [c for c in h.expected_cells(name, full, nreps, platform) if rep is None or c[3] == rep]
             rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={}, violations=[], latencyS=None, passed=True)
                     for c in cells]
             (variant_dir / f'{name}.log').write_text(f'engine log {parts[-4]} rep {rep}')
@@ -556,9 +557,17 @@ class PairedRepetitions(unittest.TestCase):
         identity = {'head': 'headsha', 'sha256': 'a'}
         def git(*a, **k):
             return 'headsha' if a[:2] == ('rev-parse', 'HEAD') else ('basesha' if a[0] == 'rev-parse' else '')
-        args = argparse.Namespace(fn=h.cmd_ab, command='ab', scenarios=['queue-edit'], map=False, all=False, platform='linux',
-                                  base='ref', base_range='r...HEAD', full=False, reps=reps, real=False, output=str(root / 'out'))
+        args = argparse.Namespace(fn=h.cmd_ab, command='ab', scenarios=list(scenarios), map=False, all=False, platform=platform,
+                                  base='ref', base_range='r...HEAD', full=full, reps=reps, real=False, output=str(root / 'out'))
+        class Guest:  # a fake Emulator that only counts boots
+            def __init__(self, out):
+                guests.append(out) if guests is not None else None
+                self.proc = Mock(poll=Mock(return_value=None))
+            def check(self): pass
+            def __enter__(self): return 'emulator-5620'
+            def __exit__(self, *_): pass
         with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', return_value=identity), \
+                patch.object(h, 'Emulator', Guest), patch.object(h, 'seed_android', return_value=root), \
                 patch.object(h, 'environment_identity', return_value={}), patch.object(h, 'heavy_lock', return_value=contextlib.nullcontext(())), \
                 patch.object(h, 'git', side_effect=git), patch.object(h, 'run', return_value=Mock(returncode=0)), \
                 patch.object(h, 'flutter_version', return_value='Flutter test'), patch.object(h, 'downloads_snapshot', return_value={}), \
@@ -585,6 +594,26 @@ class PairedRepetitions(unittest.TestCase):
             self.assertEqual((merged['status'], merged['exitCode'], merged['expected'], merged['observed']), ('complete', 0, cells, cells))
             self.assertEqual(len(json.loads(Path(merged['report']).read_text())['results']), len(cells))
             self.assertEqual(Path(merged['log']).read_text().count('engine log'), 3)
+
+    def test_android_runs_one_guest_per_variant_and_scenario_with_alternating_first_variant(self):
+        import json
+        guests = []
+        names = ('queue-edit', 'stress-drag', 'repeat')
+        with patch.object(h, 'evaluate', return_value=[(True, 'ok')]):  # these rows carry no metrics; thresholds are not under test
+            code, out, calls = self.ab(platform='android', scenarios=names, full=True, reps=None, guests=guests)
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, [('base', 'queue-edit', None), ('fix', 'queue-edit', None), ('fix', 'stress-drag', None),
+                                 ('base', 'stress-drag', None), ('base', 'repeat', None), ('fix', 'repeat', None)])
+        guests = [g for g in guests if g != Path('.')]  # _cmd_ab builds one Emulator only to check the tools exist
+        self.assertEqual(len(guests), 2 * len(names), 'a full Android A/B starts exactly 2 guests per scenario')
+        self.assertEqual(h.android_schedule(['a', 'b']), [('base', 'a', None), ('fix', 'a', None), ('fix', 'b', None), ('base', 'b', None)])
+        record = json.loads((out / 'evidence.json').read_text())
+        self.assertEqual(record['status'], 'passed')  # the unmerged per-scenario evidence verifies like the Linux merged one
+        for name in names:
+            cells = h.expected_cells(name, True, None, 'android')
+            for variant in ('base', 'fix'):
+                merged = record['variants'][f'{variant}/{name}']
+                self.assertEqual((merged['status'], merged['observed']), ('complete', cells))
 
     def test_ab_failure_midway_leaves_incomplete_evidence_for_started_variants(self):
         import json

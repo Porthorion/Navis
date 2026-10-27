@@ -4106,8 +4106,11 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   (`schedule`: base r1, fix r1, fix r2, base r2, ...), one engine invocation per
   repetition (`live_seek_stress.py --rep-start`), merged by `merge_reps` into the
   unchanged per-variant evidence record. Inventory, cell counts and thresholds
-  untouched; recalibration stays a separate, evidence-based step. Each Android
-  repetition still gets a fresh guest, so boots multiply by the repetition count.
+  untouched; recalibration stays a separate, evidence-based step. Layout is per
+  platform: Linux interleaves per repetition; Android keeps one fresh guest per
+  variant and scenario (all repetitions, 2 boots per scenario as before) and
+  alternates the first variant per scenario (`android_schedule`, ABBA). A
+  self-check pins the Android order and that a full A/B starts 2 guests per scenario.
 - Row 26 (`repeat_one_fill`): waits for the backend duration instead of choosing
   0, uses disjoint wrap windows (`repeat_wrap_bounds`) and an observation that
   ends before a second loop; fixtures for zero duration at start, a true 5 s loop
