@@ -5390,100 +5390,103 @@ void main() {
     },
   );
 
-  test('a cleared cover file is downloaded once and republished with art', () async {
-    final directory = await Directory.systemTemp.createTemp('navis-stale-art-');
-    const channel = MethodChannel('plugins.flutter.io/path_provider');
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(channel, (_) async => directory.path);
-    PlaybackArtCache.resetKeyForTesting();
-    addTearDown(() async {
-      messenger.setMockMethodCallHandler(channel, null);
+  test(
+    'a cleared cover file is downloaded once and republished with art',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-stale-art-',
+      );
+      const channel = MethodChannel('plugins.flutter.io/path_provider');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (_) async => directory.path);
       PlaybackArtCache.resetKeyForTesting();
-    });
-    await PlaybackArtCache.initializeKey(supportDirectory: directory);
-    final art = _JpegArtworkService();
-    final (handler, _, database) = await createHandler(
-      directory,
-      3,
-      sidecarStreams: true,
-      artworkFileService: art,
-    );
-    addTearDown(() async {
-      await handler.disposeHandler();
-      await database.close();
-    });
-    await database.libraryDao.upsertSongs([
-      for (final id in ['song-0', 'song-1', 'song-2'])
-        SongsTableCompanion.insert(
-          id: id,
-          title: id,
-          duration: const Value(300),
-          coverArt: Value('cover-$id'),
+      addTearDown(() async {
+        messenger.setMockMethodCallHandler(channel, null);
+        PlaybackArtCache.resetKeyForTesting();
+      });
+      await PlaybackArtCache.initializeKey(supportDirectory: directory);
+      final art = _JpegArtworkService();
+      final (handler, _, database) = await createHandler(
+        directory,
+        3,
+        sidecarStreams: true,
+        artworkFileService: art,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+      });
+      await database.libraryDao.upsertSongs([
+        for (final id in ['song-0', 'song-1', 'song-2'])
+          SongsTableCompanion.insert(
+            id: id,
+            title: id,
+            duration: const Value(300),
+            coverArt: Value('cover-$id'),
+          ),
+      ]);
+      final projection = RealTimeProjectionAudioHandler(
+        handler,
+        systemArt: AndroidSystemArt(
+          authority: 'app.test.artwork',
+          fetch: handler.cacheSystemArtwork,
+          cachedPath: handler.cachedSystemArtwork,
         ),
-    ]);
-    final projection = RealTimeProjectionAudioHandler(
-      handler,
-      systemArt: AndroidSystemArt(
-        authority: 'app.test.artwork',
-        fetch: handler.cacheSystemArtwork,
-        cachedPath: handler.cachedSystemArtwork,
-      ),
-    );
-    addTearDown(projection.dispose);
-    final published = <MediaItem?>[];
-    final sub = projection.mediaItem.listen(published.add);
-    addTearDown(sub.cancel);
-    String describe(MediaItem? m) =>
-        '${m?.id} uri=${m?.artUri?.scheme} file=${m?.extras?['artCacheFile'] != null}';
+      );
+      addTearDown(projection.dispose);
+      final published = <MediaItem?>[];
+      final sub = projection.mediaItem.listen(published.add);
+      addTearDown(sub.cancel);
 
-    await handler.replaceQueue(
-      ['song-0', 'song-1', 'song-2'],
-      startIndex: 0,
-      expandMatchFlows: false,
-    );
-    await settleQueue(handler);
-    await handler.play();
-    for (
-      var i = 0;
-      i < 300 &&
-          !(published.isNotEmpty &&
-              published.last?.artUri?.scheme == 'content');
-      i++
-    ) {
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    }
-    expect(published.last?.artUri?.scheme, 'content');
-    final file = File(published.last!.extras!['artCacheFile']! as String);
-    expect(file.existsSync(), isTrue);
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-2'],
+        startIndex: 0,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      for (
+        var i = 0;
+        i < 300 &&
+            !(published.isNotEmpty &&
+                published.last?.artUri?.scheme == 'content');
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(published.last?.artUri?.scheme, 'content');
+      final file = File(published.last!.extras!['artCacheFile']! as String);
+      expect(file.existsSync(), isTrue);
 
-    // Move to song-1 and wait for its art, then delete song-0's file (Android
-    // clears cacheDir) and come back to song-0.
-    await handler.skipToQueueItem(1);
-    await settleQueue(handler);
-    for (
-      var i = 0;
-      i < 300 &&
-          !(published.last?.id == 'song-1' &&
-              published.last?.artUri?.scheme == 'content');
-      i++
-    ) {
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    }
-    file.deleteSync();
-    final getsBefore = art.gets;
-    await handler.skipToQueueItem(0);
-    await settleQueue(handler);
-    await pumpEventQueue(times: 200);
-    await Future<void>.delayed(const Duration(milliseconds: 500));
-    await pumpEventQueue(times: 200);
-    expect(art.gets - getsBefore, 1);
-    expect(file.existsSync(), isTrue);
-    final last = projection.mediaItem.value!;
-    expect(last.id, 'song-0');
-    expect(last.artUri?.scheme, 'content');
-    expect(last.extras?['artCacheFile'], file.path);
-  });
+      // Move to song-1 and wait for its art, then delete song-0's file (Android
+      // clears cacheDir) and come back to song-0.
+      await handler.skipToQueueItem(1);
+      await settleQueue(handler);
+      for (
+        var i = 0;
+        i < 300 &&
+            !(published.last?.id == 'song-1' &&
+                published.last?.artUri?.scheme == 'content');
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      file.deleteSync();
+      final getsBefore = art.gets;
+      await handler.skipToQueueItem(0);
+      await settleQueue(handler);
+      await pumpEventQueue(times: 200);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await pumpEventQueue(times: 200);
+      expect(art.gets - getsBefore, 1);
+      expect(file.existsSync(), isTrue);
+      final last = projection.mediaItem.value!;
+      expect(last.id, 'song-0');
+      expect(last.artUri?.scheme, 'content');
+      expect(last.extras?['artCacheFile'], file.path);
+    },
+  );
 
   test(
     'begin then dispose closes all handler streams and browse parents',
