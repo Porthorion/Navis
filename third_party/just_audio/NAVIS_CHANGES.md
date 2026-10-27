@@ -231,3 +231,9 @@ running discards the finished download's stale `_response` (and resets progress 
 0), so a completed file deleted by cache eviction or clearing is downloaded again
 instead of leaving the request queued forever. A running fetch is kept (one
 writer), and an existing cache file is still served first.
+
+`LockCachingAudioSource.onDownloadStart` is called each time a whole-file download
+starts, including the restart after a finished download's cache file was deleted
+(`_discardFinishedFetch`). The Navis handler re-registers the source's progress
+observer there, so the re-download is a registered running download again
+(stale-download cancel, priority pause, rolling-cache completion).

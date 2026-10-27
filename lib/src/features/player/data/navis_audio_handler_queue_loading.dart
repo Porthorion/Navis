@@ -784,13 +784,37 @@ extension _NavisQueueLoading on NavisAudioHandler {
   /// or not its download has started: a second source on the same `.part`
   /// would start a second overlapping origin download, and the next-song warm
   /// targets the registered one. Completion, error and teardown unregister it;
-  /// a cancelled source stays usable (a later request downloads again).
+  /// a cancelled source stays usable (a later request downloads again). A
+  /// writer the player holds counts too when it is no longer registered.
   IndexedAudioSource? _runningLockCacheSource(ResolvedPlaybackSource source) {
     final path = source.cachedFilePath;
     if (source.kind != PlaybackSourceKind.lockCachedStream || path == null) {
       return null;
     }
-    return _lockCacheSources[path]?.source;
+    return _lockCacheSources[path]?.source ?? _heldLockCacheWriters()[path];
+  }
+
+  /// The lock-cache writers the player holds, by cache file path, whether or
+  /// not they are registered (a finished download is not, yet a deleted cache
+  /// file makes its writer download again). A repeat occurrence in the
+  /// playlist stands for its writer. Read from the playlist and the queue
+  /// items, which line up while no edit is in flight.
+  // ignore: experimental_member_use, reason: as above.
+  Map<String, LockCachingAudioSource> _heldLockCacheWriters() {
+    final sequence = _player.sequence;
+    if (sequence.length != _queueItems.length) return const {};
+    return {
+      for (var i = 0; i < sequence.length; i++)
+        if (_queueItems[i].extras?['cachedFilePath'] case final String path)
+          if (switch (sequence[i]) {
+                // ignore: experimental_member_use, reason: as above.
+                final LockCachingAudioSource writer => writer,
+                LockCacheFollowerSource(:final leader) => leader,
+                _ => null,
+              }
+              case final writer?)
+            path: writer,
+    };
   }
 
   /// A cache file has one writer: the first entry per file, counting the
@@ -807,6 +831,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
   }) {
     // ignore: experimental_member_use, reason: as above.
     final leaders = <String, LockCachingAudioSource>{
+      if (!replacesQueue) ..._heldLockCacheWriters(),
       if (!replacesQueue)
         for (final entry in _lockCacheSources.entries)
           if (_player.sequence.any((s) => identical(s, entry.value.source)))

@@ -5899,6 +5899,9 @@ void main() {
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
       bool crossfade = false,
       bool supportsTranscodeOffset = false,
+      // Songs whose second and later downloads stop half-way until the gate.
+      Set<String> holdLater = const <String>{},
+      Completer<void>? laterGate,
       NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     }) async {
       final previousHttp = HttpOverrides.current;
@@ -5933,7 +5936,12 @@ void main() {
             await Future<void>.delayed(const Duration(milliseconds: 100));
             return;
           }
-          if (silent.contains(id)) {
+          if (holdLater.contains(id) && nth > 1) {
+            request.response.add(List<int>.filled(size ~/ 2, 1));
+            await request.response.flush();
+            await laterGate?.future;
+            request.response.add(List<int>.filled(size ~/ 2, 1));
+          } else if (silent.contains(id)) {
             // Headers only: the warm has reported no progress yet.
             await request.response.flush();
             await release.future;
@@ -6384,7 +6392,16 @@ void main() {
       test(
         'an evicted song re-downloads through its held writer, $edit',
         () async {
-          final s = await serveQueue(3, ids: ['song-0', 'song-1', 'song-1']);
+          final gate = Completer<void>();
+          addTearDown(() {
+            if (!gate.isCompleted) gate.complete();
+          });
+          final s = await serveQueue(
+            3,
+            ids: ['song-0', 'song-1', 'song-1'],
+            holdLater: {'song-1'},
+            laterGate: gate,
+          );
           ticks(s.player);
           final leader = sourceAt(s.player, 1);
           await drain(await leader.request());
@@ -6394,7 +6411,6 @@ void main() {
             () => s.handler.debugRegisteredLockCacheSource('song-1') == null,
           );
           file.deleteSync();
-          leader.pauseDownload();
           final reading = leader.request();
           await until(() => leader.isDownloading);
           expect(
@@ -6444,7 +6460,7 @@ void main() {
           }
           final last = ids.lastIndexOf('song-1');
           final second = readOccurrence(s.player, last);
-          leader.resumeDownload();
+          gate.complete();
           await second;
           await drain(await reading);
           await settle();

@@ -390,6 +390,19 @@ extension _NavisCache on NavisAudioHandler {
       return;
     }
     _lockCacheSources[cacheFilePath] = (songId: song.id, source: source);
+    // A finished download whose file is later evicted downloads again through
+    // this same source: register it again, so the stale-download cancel, the
+    // priority pause and the rolling-cache completion apply to it too.
+    source.onDownloadStart = () {
+      if (!_disposeHandlerStarted) {
+        _observeLockCachingSource(
+          song: song,
+          resolvedSource: resolvedSource,
+          source: source,
+          cacheFilePath: cacheFilePath,
+        );
+      }
+    };
 
     late final StreamSubscription<double> subscription;
     subscription = source.downloadProgressStream.listen(

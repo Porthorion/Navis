@@ -4291,7 +4291,13 @@ class LockCachingAudioSource extends StreamAudioSource {
     _downloadProgressSubject.add(0.0);
   }
 
+  /// Navis: called each time a whole-file download starts, including the
+  /// restart after a finished download's cache file was deleted. The owner
+  /// re-registers its progress observer there.
+  void Function()? onDownloadStart;
+
   Future<HttpClientResponse> _startFetch() {
+    if (_response == null) onDownloadStart?.call();
     final response = _response ??=
         _fetch().catchError((dynamic error, StackTrace? stackTrace) async {
       // So that we can restart later
