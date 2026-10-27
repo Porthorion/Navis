@@ -158,8 +158,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _clearPendingLogicalQueue();
     _pendingLogicalQueueSongs = null;
     if (_radioStation == null) {
+      final departure = _prematureTranscodeDeparture;
       _setCurrentMediaItem(
-        _isDesktopRuntime && failed && _player.audioSources.isEmpty
+        departure != null && !departure.sourceReady
+            ? departure.item
+            : _isDesktopRuntime && failed && _player.audioSources.isEmpty
             ? _queueItems.where((item) => item.id == loadingSongId).firstOrNull
             : _player.audioSources.isEmpty
             ? null
