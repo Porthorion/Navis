@@ -3791,7 +3791,9 @@ Before starting any download, `UpdateService.canApplyUpdate(mode)` checks for
 user-writable. Unknown package owners always return false. Missing elevation
 shows the package-manager instructions. Exit 126 returns the dialog to confirm
 silently; exit 127, or 11 (the root script found no `apt-get`/`dnf`), shows the
-package-manager instructions. Installer stderr is
+package-manager instructions. While the privileged installer runs, the
+dialog reads "Installing the update. This can take a minute." for Debian/RPM modes
+(other desktop modes keep "Applying update…"). Installer stderr is
 logged before mapping these codes, since commands inside the root script can
 also return 126/127. A root-side integrity mismatch keeps Retry visible so the
 artifact can be downloaded and verified again; other installer failures show

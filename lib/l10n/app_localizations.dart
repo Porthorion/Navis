@@ -7049,6 +7049,12 @@ abstract class AppLocalizations {
   /// **'Applying update…'**
   String get updateApplying;
 
+  /// Shown in the update dialog while the Linux package manager (apt or dnf) installs a downloaded deb/rpm update, including while the system authentication prompt is open.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing the update. This can take a minute.'**
+  String get updateInstallingPackage;
+
   /// No description provided for @updateNoWriteAccess.
   ///
   /// In en, this message translates to:

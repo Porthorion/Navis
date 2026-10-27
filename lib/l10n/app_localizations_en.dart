@@ -4442,6 +4442,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get updateApplying => 'Applying update…';
 
   @override
+  String get updateInstallingPackage =>
+      'Installing the update. This can take a minute.';
+
+  @override
   String get updateNoWriteAccess =>
       'Navis cannot update itself from this location. Please download manually.';
 
