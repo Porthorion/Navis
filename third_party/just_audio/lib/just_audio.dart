@@ -4063,7 +4063,6 @@ class LockCachingAudioSource extends StreamAudioSource {
         // Navis: the partial file was removed under the finishing download
         // (cleanup, or another writer's rename). Fail it like a cut: queued
         // requests get the error, a later request downloads again.
-        _response = null;
         for (final req in _requests) {
           req.fail(publishError);
         }
@@ -4074,7 +4073,12 @@ class LockCachingAudioSource extends StreamAudioSource {
         }
         await subscription.cancel();
         httpClient.close(force: true);
+        // Reset together, after the last await: no request can slip between
+        // the fetch being forgotten and the flag clearing.
+        _response = null;
         _downloading = false;
+        _progress = 0;
+        _downloadProgressSubject.add(0.0);
         return;
       }
       updateProgress(100);

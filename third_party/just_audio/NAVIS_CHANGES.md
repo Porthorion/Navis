@@ -241,3 +241,6 @@ observer there, so the re-download is a registered running download again
 Requests queued while a download finishes (after the dispatcher stopped, during the
 flush and publication of the cache file) are served from the completed file once it
 is published; if publishing fails they get that error and the fetch resets.
+
+The failed-publication reset (removed `.part`) clears `_response` and `_downloading`
+together after its last await and resets progress to 0, as `_abortDownload` does.
