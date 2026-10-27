@@ -73,6 +73,9 @@ def main(arguments):
         if arguments[:1] == ['--owner']:
             owner, arguments = arguments[1], arguments[2:]
         verify = arguments[:1] == ['--verify']
+        if not arguments:
+            print('usage: heavy_lock.py [--owner NAME] (--verify | COMMAND [ARGS...])', file=sys.stderr)
+            return 2
         with heavy_lock(owner, require_inherited=verify) as descriptors:
             if verify:
                 return 0

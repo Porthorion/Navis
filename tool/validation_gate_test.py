@@ -74,6 +74,12 @@ class Ownership(unittest.TestCase):
             self.assertNotEqual(done.returncode, 0)
             self.assertIn(str(locks.LEGACY_LOCK), done.stderr)
 
+    def test_cli_without_a_command_prints_usage_and_exits_2(self):
+        done = subprocess.run([sys.executable, str(Path(locks.__file__))], capture_output=True, text=True, timeout=10)
+        self.assertEqual(done.returncode, 2)
+        self.assertIn('usage', done.stderr)
+        self.assertNotIn('Traceback', done.stderr)
+
     def test_cli_reports_unusable_lock_file_without_traceback(self):
         locked = self.root / 'locked'
         locked.mkdir()
@@ -97,7 +103,6 @@ class Ownership(unittest.TestCase):
                     self.fail('unlocked')
 
 
-class DirectAbLock(Ownership):
     def test_killed_holder_keeps_the_lock_while_its_bounded_command_runs(self):
         import time
         ready = self.root / 'ready'
@@ -123,6 +128,30 @@ class DirectAbLock(Ownership):
                     pass
         finally:
             subprocess.run(['pkill', '-KILL', '-f', f'touch {ready}; sleep 30'])
+
+    def test_display_and_emulator_children_inherit_the_lock_descriptors(self):
+        class Stop(Exception):
+            pass
+        captured = []
+        def popen(*args, **kwargs):
+            captured.append(kwargs.get('pass_fds'))
+            raise Stop
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            (root / (h.SOURCE_AVD + '.avd')).mkdir()
+            (root / (h.SOURCE_AVD + '.avd/config.ini')).write_text('hw.ramSize=3072')
+            emulator = h.Emulator(root)
+            emulator.home = root
+            display = h.Display(root)
+            with patch.object(h, 'LOCK_FDS', (7,)), patch.object(h.subprocess, 'Popen', side_effect=popen), \
+                    patch.object(emulator, 'check'), patch.object(emulator, '_free', return_value=True), \
+                    patch.dict(os.environ, {'XDG_RUNTIME_DIR': folder}):
+                for acquire in (display._acquire, emulator._acquire):
+                    with self.assertRaises(Stop):
+                        acquire()
+        self.assertEqual(captured, [(7,), (7,)])
+        with patch.object(h, 'LOCK_FDS', (7, 8)):
+            self.assertEqual(h.held_fds((8, 9)), (7, 8, 9))
 
     def test_cmd_ab_publishes_and_clears_its_lock_descriptors(self):
         seen = []
@@ -322,6 +351,26 @@ class Gate(unittest.TestCase):
         self.assertIn('incomplete', summary)
         returned, stdout, _ = exercise(0)
         self.assertEqual((returned, 'RESULT PASS' in stdout), (0, True))
+
+    def test_stale_pass_summary_never_survives_an_incomplete_run(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            def fake(args, out, evidence):
+                (out / 'comparison.json').write_text('{}')
+                (out / 'summary.md').write_text('# detail\nRESULT PASS\n')
+                (out / 'summary.md').chmod(0o444)
+                return 0
+            identities = iter([{'a': 1}] + [{'a': 2}] * 5)
+            stdout = io.StringIO()
+            with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', side_effect=lambda *a: next(identities)), \
+                    patch.object(h, 'heavy_lock', return_value=nullcontext(())), patch.object(h, '_cmd_ab', side_effect=fake), \
+                    patch.object(h, 'verify_evidence'), redirect_stdout(stdout):
+                with self.assertRaises(h.InfraError):
+                    h.cmd_ab(argparse.Namespace(fn=h.cmd_ab))
+            out = next(root.glob('build/harness/*'))
+            self.assertEqual(json.loads((out / 'evidence.json').read_text())['status'], 'incomplete')
+            self.assertNotIn('RESULT PASS', (out / 'summary.md').read_text())
+            self.assertNotIn('RESULT PASS', stdout.getvalue())
 
     def test_timeout_kills_owned_process_group(self):
         with self.assertRaises(subprocess.TimeoutExpired) as caught:

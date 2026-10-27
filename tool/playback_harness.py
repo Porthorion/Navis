@@ -415,10 +415,14 @@ def _command_owner(cmd, descriptors, grace):
 LOCK_FDS: tuple = ()
 
 
+def held_fds(extra=()) -> tuple:
+    return tuple(dict.fromkeys((*LOCK_FDS, *extra)))
+
+
 def bounded_command(cmd, *, timeout, cleanup_grace=60, **kwargs):
     if not (sys.platform == 'linux' and hasattr(os, 'pidfd_open') and hasattr(signal, 'pidfd_send_signal')):
         raise InfraError('bounded commands require Linux child-subreaper and pidfd support')
-    descriptors = tuple(dict.fromkeys((*LOCK_FDS, *kwargs.get('pass_fds', ()))))
+    descriptors = held_fds(kwargs.get('pass_fds', ()))
     kwargs['pass_fds'] = descriptors
     owner = [sys.executable, '-c',
              'import sys; sys.path.insert(0,sys.argv[1]); import playback_harness as h; '
@@ -736,7 +740,8 @@ class Display:
         self.proc = subprocess.Popen(
             ['dbus-run-session', '--', 'kwin_wayland', '--virtual', '--socket', self.socket, '--width', '1280', '--height', '800',
              '--no-lockscreen', '--no-global-shortcuts', '--no-kactivities', '--inputmethod', '/bin/true'],
-            env=env, stdout=(self.out / 'kwin.log').open('w'), stderr=subprocess.STDOUT, start_new_session=True)
+            env=env, stdout=(self.out / 'kwin.log').open('w'), stderr=subprocess.STDOUT, start_new_session=True,
+            pass_fds=held_fds())
         socket_path = Path(runtime) / self.socket
         for _ in range(100):
             if socket_path.exists():
@@ -823,7 +828,8 @@ class Emulator:
             [str(ANDROID_HOME / 'emulator' / 'emulator'), '-avd', self.name, '-port', str(port), '-no-snapshot', '-no-boot-anim',
              '-wipe-data', '-no-window', '-no-audio', '-gpu', 'swiftshader_indirect', '-memory', str(GUEST_MIB), '-cores', '2',
              '-partition-size', '4096'],
-            stdout=(self.out / 'emulator.log').open('w'), stderr=subprocess.STDOUT, start_new_session=True)
+            stdout=(self.out / 'emulator.log').open('w'), stderr=subprocess.STDOUT, start_new_session=True,
+            pass_fds=held_fds())
         deadline = time.monotonic() + 240
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
@@ -1158,6 +1164,7 @@ def cmd_ab(args) -> int:
                 # Keep the detailed per-check summary of a completed failed comparison; anything else gets the short status.
                 detailed = evidence['status'] == 'failed' and evidence['exitCode'] == 1 and (out / 'summary.md').exists()
                 if evidence['status'] != 'passed' and not detailed:
+                    (out / 'summary.md').unlink(missing_ok=True)  # a failed write must not leave a stale PASS summary
                     (out / 'summary.md').write_text(
                         f"Playback fixture matrix: {evidence['status']}; exit {evidence['exitCode']}\n"
                         f"{evidence.get('error', evidence.get('finalizationError', 'comparison failed'))}\n"
