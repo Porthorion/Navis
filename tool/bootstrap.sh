@@ -28,8 +28,7 @@ check_cmd python3
 
 # tool/check.sh runs the playback-harness self-checks, which import numpy.
 if ! python3 -c 'import numpy' >/dev/null 2>&1; then
-  echo "[bootstrap] Missing Python module numpy (needed by tool/check.sh); install it with: python3 -m pip install numpy" >&2
-  exit 1
+  echo "[bootstrap] Warning: Python module numpy is missing (tool/check.sh needs it); install it with: python3 -m pip install numpy" >&2
 fi
 
 echo "[bootstrap] Flutter:"
