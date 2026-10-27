@@ -581,8 +581,8 @@ class PairedRepetitions(unittest.TestCase):
                 raise h.InfraError('engine died')
             variant_dir.mkdir(parents=True, exist_ok=True)
             cells = [c for c in h.expected_cells(name, full, nreps, platform) if rep is None or c[3] == rep]
-            rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={}, violations=[], latencyS=None, passed=True)
-                    for c in cells]
+            rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), id=i, metrics={}, violations=[], latencyS=None, passed=True)
+                    for i, c in enumerate(cells, 1)]  # the engine numbers rows from 1 in every invocation
             (variant_dir / f'{name}.log').write_text(f'engine log {parts[-4]} rep {rep}')
             report = variant_dir / 'report.json'
             report.write_text(json.dumps({'results': rows}))
@@ -629,6 +629,9 @@ class PairedRepetitions(unittest.TestCase):
             self.assertEqual((merged['status'], merged['exitCode'], merged['expected'], merged['observed']), ('complete', 0, cells, cells))
             merged_rows = json.loads(Path(merged['report']).read_text())['results']
             self.assertEqual(len(merged_rows), len(cells))
+            ids = [r['id'] for r in merged_rows]
+            self.assertEqual(len(set(ids)), len(ids), 'row ids stay unique across repetitions (trace files are named by id)')
+            self.assertTrue(all(r['repDir'].endswith(f"rep-{r['rep']}/attempt-1") for r in merged_rows))
             self.assertEqual(Path(merged['log']).read_text().count('engine log'), 3)
 
     def test_android_runs_one_guest_per_variant_and_scenario_with_alternating_first_variant(self):

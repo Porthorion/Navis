@@ -1107,14 +1107,16 @@ def merge_reps(name: str, platform: str, step_dir: Path, full: bool, reps: int) 
     """Writes the one evidence record of a variant's scenario, <step_dir>/attempt-1 (what verify_evidence and the gate read),
     from the repetitions run in <step_dir>/rep-R/attempt-N: all cells of the scenario in matrix order, one report, one log.
     Incomplete unless every repetition completed. Returns the merged rows."""
-    parts = {}
+    parts, dirs = {}, {}
     for path in sorted(step_dir.glob('rep-*/attempt-*/evidence.json')):  # a later attempt of a repetition wins
         part = json.loads(path.read_text())
         if part['status'] == 'complete':
-            parts[int(path.parent.parent.name.split('-')[1])] = part
+            parts[int(path.parent.parent.name.split('-')[1])], dirs[int(path.parent.parent.name.split('-')[1])] = part, path.parent
     expected = expected_cells(name, full, reps, platform)
     order = {tuple(cell): i for i, cell in enumerate(expected)}
-    rows = sorted((row for _, part in sorted(parts.items()) for row in json.loads(Path(part['report']).read_text())['results']),
+    # Every invocation numbers its rows from 1 and names its trace files by that id: prefix the repetition and point at its directory.
+    rows = sorted(({**row, 'id': f'{rep}-{row["id"]}', 'repDir': str(dirs[rep])} if 'id' in row else row
+                   for rep, part in sorted(parts.items()) for row in json.loads(Path(part['report']).read_text())['results']),
                   key=lambda r: order[(r['case'], r['quality'], r['throttle'], r['rep'])])
     merged = step_dir / 'attempt-1'
     merged.mkdir(exist_ok=True)

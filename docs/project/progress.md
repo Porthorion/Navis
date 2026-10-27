@@ -4117,3 +4117,11 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   and the 300 s case. Row 25 (partial emulator acquisition) already fixed; its
   self-check still passes. Row 27 (Linux cut-recovery) stays open: needs runtime
   evidence. Self-checks only (hermetic), no harness or emulator run.
+- Review round 1 fixes (all self-check first): Linux repetitions draw their own
+  fixture songs (`Random(86 + rep)` via `--rep-start`; base and fix still match per
+  rep, Android unchanged); `repeat_one_fill` aborts record a `caseError`; the boot
+  wait keeps its first-bad clock (flapping adb still ends at ~90 s) and a failed
+  `adb -s <serial> reconnect` is an `InfraError` (no serial-less fallback); the
+  Linux first variant also alternates by scenario position (quick runs); the
+  `repeat_one_fill` window ends relative to the observed landing; merged report row
+  ids are `<rep>-<id>` with `repDir`. 75 harness + 44 gate self-checks, hermetic.
