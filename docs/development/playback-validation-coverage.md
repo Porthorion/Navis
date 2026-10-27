@@ -77,7 +77,7 @@ before build/preflight work. Atomic replacement leaves an incomplete record on
 abrupt termination; graceful failure/interrupt records its type and exit 2.
 Selected variants start as `not-run`. Linux repetitions run interleaved, not variant by
 variant: base r1, fix r1, fix r2, base r2, base r3, fix r3, ... (the first variant
-swaps on every other pair, so host drift and run order hit both equally; an A/A
+swaps on every other pair counting the scenario position too, so quick runs alternate across scenarios, and host drift and run order hit both equally; an A/A
 uses the same schedule). Each repetition is its own engine invocation numbered at
 its own index (the fixture backend seeds its song draws with `86 + rep`, so
 repetitions see different songs while base and fix see the same ones for a rep) and keeps its attempts' evidence/logs under

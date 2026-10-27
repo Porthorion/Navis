@@ -520,7 +520,9 @@ class PairedRepetitions(unittest.TestCase):
         steps = h.schedule(['seek', 'crossfade'], lambda name: 3)
         self.assertEqual(steps[:6], [('base', 'seek', 0), ('fix', 'seek', 0), ('fix', 'seek', 1),
                                      ('base', 'seek', 1), ('base', 'seek', 2), ('fix', 'seek', 2)])
-        self.assertEqual(steps[6:8], [('base', 'crossfade', 0), ('fix', 'crossfade', 0)])
+        self.assertEqual(steps[6:8], [('fix', 'crossfade', 0), ('base', 'crossfade', 0)])  # the second scenario starts with the other variant
+        quick = h.schedule(['a', 'b', 'c'], lambda name: 1)  # reps=1 (the default quick run) still alternates across scenarios
+        self.assertEqual([v for v, _, _ in quick], ['base', 'fix', 'fix', 'base', 'base', 'fix'])
         self.assertEqual(len(steps), len(set(steps)), 'every (variant, scenario, rep) exactly once')
         self.assertEqual(h.schedule(['seek'], lambda name: 1), [('base', 'seek', 0), ('fix', 'seek', 0)])
 

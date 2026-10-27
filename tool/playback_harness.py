@@ -1084,9 +1084,10 @@ def run_guest_scenario(label: str, name: str, platform: str, folder: Path, step_
 
 def schedule(names: list[str], reps_of) -> list[tuple[str, str, int]]:
     """(variant, scenario, repetition) in run order. Base and fix alternate repetition by repetition, so host drift (swap, heat,
-    first-run effects) lands on both, and the first variant swaps on every other pair so it cannot always be the one that runs first."""
-    return [(variant, name, rep) for name in names for rep in range(reps_of(name))
-            for variant in (('base', 'fix') if rep % 2 == 0 else ('fix', 'base'))]
+    first-run effects) lands on both, and the first variant swaps on every other pair, counting the scenario's position too (quick runs have one pair),
+    so it cannot always be the one that runs first."""
+    return [(variant, name, rep) for index, name in enumerate(names) for rep in range(reps_of(name))
+            for variant in (('base', 'fix') if (rep + index) % 2 == 0 else ('fix', 'base'))]
 
 
 def android_schedule(names: list[str]) -> list[tuple[str, str, None]]:
