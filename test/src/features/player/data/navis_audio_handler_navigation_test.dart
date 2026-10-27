@@ -56,6 +56,7 @@ import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/data/navis_shuffle_order.dart';
+import 'package:navis/src/features/player/data/lock_cache_follower_source.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
@@ -6375,6 +6376,118 @@ void main() {
       expect(count(s.requests, 'song-1'), 1);
       expect(s.maxActive['song-1'], 1);
     });
+
+    // The cache file of a completed song is evicted while the song is queued:
+    // the held writer downloads it again, registered like any running download,
+    // and a new occurrence follows it instead of becoming a second writer.
+    for (final edit in ['addToQueue', 'playNext', 'replaceQueue']) {
+      test(
+        'an evicted song re-downloads through its held writer, $edit',
+        () async {
+          final s = await serveQueue(3, ids: ['song-0', 'song-1', 'song-1']);
+          ticks(s.player);
+          final leader = sourceAt(s.player, 1);
+          await drain(await leader.request());
+          final file = await leader.cacheFile;
+          await until(() => file.existsSync());
+          await until(
+            () => s.handler.debugRegisteredLockCacheSource('song-1') == null,
+          );
+          file.deleteSync();
+          leader.pauseDownload();
+          final reading = leader.request();
+          await until(() => leader.isDownloading);
+          expect(
+            identical(
+              s.handler.debugRegisteredLockCacheSource('song-1'),
+              leader,
+            ),
+            isTrue,
+            reason: 'the re-download must be registered again',
+          );
+          switch (edit) {
+            case 'addToQueue':
+              await s.handler.addToQueue(['song-1'], expandMatchFlows: false);
+            case 'playNext':
+              await s.handler.playNext(['song-1'], expandMatchFlows: false);
+            default:
+              await s.handler.replaceQueue([
+                'song-0',
+                'song-1',
+                'song-1',
+                'song-1',
+              ], expandMatchFlows: false);
+          }
+          await settleQueue(s.handler);
+          expect(
+            identical(
+              s.handler.debugRegisteredLockCacheSource('song-1'),
+              leader,
+            ),
+            isTrue,
+          );
+          final ids = [for (final m in s.handler.queue.value) m.id];
+          final writers = [
+            for (var i = 0; i < ids.length; i++)
+              // ignore: experimental_member_use, reason: the lock-cache source.
+              if (ids[i] == 'song-1' &&
+                  s.player.audioSources[i] is LockCachingAudioSource)
+                s.player.audioSources[i],
+          ];
+          expect(writers, hasLength(1));
+          expect(identical(writers.single, leader), isTrue);
+          for (var i = 0; i < ids.length; i++) {
+            if (ids[i] == 'song-1' &&
+                !identical(s.player.audioSources[i], leader)) {
+              expect(s.player.audioSources[i], isA<LockCacheFollowerSource>());
+            }
+          }
+          final last = ids.lastIndexOf('song-1');
+          final second = readOccurrence(s.player, last);
+          leader.resumeDownload();
+          await second;
+          await drain(await reading);
+          await settle();
+          // One origin download, then one re-download: never a second writer.
+          expect(count(s.requests, 'song-1'), 2);
+          expect(s.maxActive['song-1'], 1);
+          // The re-download completed through the progress observer, so the
+          // rolling cache registered the file and the registry entry is gone.
+          await until(
+            () => s.handler.debugRegisteredLockCacheSource('song-1') == null,
+          );
+          expect(file.existsSync(), isTrue);
+        },
+      );
+    }
+
+    test(
+      'a new occurrence of an evicted song follows its idle held writer',
+      () async {
+        final s = await serveQueue(3, ids: ['song-0', 'song-1', 'song-1']);
+        ticks(s.player);
+        final leader = sourceAt(s.player, 1);
+        await drain(await leader.request());
+        final file = await leader.cacheFile;
+        await until(() => file.existsSync());
+        await until(
+          () => s.handler.debugRegisteredLockCacheSource('song-1') == null,
+        );
+        file.deleteSync();
+        await s.handler.addToQueue(['song-1'], expandMatchFlows: false);
+        await settleQueue(s.handler);
+        final added = s.player.audioSources.last;
+        expect(added, isA<LockCacheFollowerSource>());
+        expect(
+          identical((added as LockCacheFollowerSource).leader, leader),
+          isTrue,
+        );
+        await readOccurrence(s.player, s.player.audioSources.length - 1);
+        await settle();
+        expect(count(s.requests, 'song-1'), 2);
+        expect(s.maxActive['song-1'], 1);
+      },
+    );
 
     test('a repeat occurrence plays on after its leader is removed', () async {
       final s = await serveQueue(
