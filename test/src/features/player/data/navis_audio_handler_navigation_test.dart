@@ -330,6 +330,50 @@ class _RangeCacheResolver extends _GatedSourceResolver {
   }
 }
 
+/// Lock-cached streams of a server transcode (what the seek planners check).
+class _TranscodedLockResolver extends _GatedSourceResolver {
+  new(super.delegate);
+  @override
+  Future<ResolvedPlaybackSource> resolveForSong(
+    SongsTableData song, {
+    bool preferLockCaching = true,
+    bool allowStreaming = true,
+    Duration? transcodeOffset,
+    bool fastSeekBridge = false,
+  }) async {
+    final source = await super.resolveForSong(
+      song,
+      preferLockCaching: preferLockCaching,
+      allowStreaming: allowStreaming,
+      transcodeOffset: transcodeOffset,
+      fastSeekBridge: fastSeekBridge,
+    );
+    if (transcodeOffset != null &&
+        source.kind == PlaybackSourceKind.directStream) {
+      // The seek preview's transcode that starts at the offset.
+      return ResolvedPlaybackSource.directStream(
+        songId: song.id,
+        uri: source.uri!.replace(
+          queryParameters: {
+            ...source.uri!.queryParameters,
+            'timeOffset': '${transcodeOffset.inSeconds}',
+          },
+        ),
+        metadata: const ResolvedPlaybackMetadata(isTranscoded: true),
+        positionOffset: Duration(seconds: transcodeOffset.inSeconds),
+      );
+    }
+    if (source.kind != PlaybackSourceKind.lockCachedStream) return source;
+    return ResolvedPlaybackSource.lockCachedStream(
+      songId: song.id,
+      lockCachingStreamUri: source.lockCachingStreamUri!,
+      lockCachingAudioSource: source.lockCachingAudioSource!,
+      cachedFilePath: source.cachedFilePath!,
+      metadata: const ResolvedPlaybackMetadata(isTranscoded: true),
+    );
+  }
+}
+
 class _NoopScrobbleService extends Fake implements ScrobbleService {
   final nowPlaying = <String>[];
   final submissions = <String>[];
@@ -5853,6 +5897,7 @@ void main() {
       NavisQueueWindow window = const NavisQueueWindow(),
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
       bool crossfade = false,
+      bool supportsTranscodeOffset = false,
       NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     }) async {
       final previousHttp = HttpOverrides.current;
@@ -5925,6 +5970,7 @@ void main() {
         wrapResolver: wrap,
         queueWindow: window,
         crossfade: crossfade,
+        supportsTranscodeOffset: supportsTranscodeOffset,
         timeouts: timeouts,
         cacheSongs: false,
         positionStreams: true,
@@ -6270,6 +6316,123 @@ void main() {
         expect(s.maxActive['song-1'], 1);
       },
     );
+
+    // What the native player does with an occurrence: a stream source is read
+    // through its proxy request, a plain URI source is fetched from its origin.
+    Future<int> readOccurrence(_ControllableAudioPlayer p, int i) async {
+      final source = p.audioSources[i];
+      // ignore: experimental_member_use, reason: the proxy request contract.
+      if (source is StreamAudioSource) {
+        final response = await source.request();
+        await drain(response);
+        return response.contentLength ?? -1;
+      }
+      final client = HttpClient();
+      try {
+        final response = await (await client.getUrl(
+          (source as UriAudioSource).uri,
+        )).close();
+        return (await response.fold<int>(0, (n, chunk) => n + chunk.length));
+      } finally {
+        client.close(force: true);
+      }
+    }
+
+    test(
+      'a repeat occurrence of a completed song reads the cache file',
+      () async {
+        final s = await serveQueue(3, ids: ['song-0', 'song-1', 'song-1']);
+        ticks(s.player);
+        final leader = sourceAt(s.player, 1);
+        await drain(await leader.request());
+        final file = await leader.cacheFile;
+        await until(() => file.existsSync());
+        expect(count(s.requests, 'song-1'), 1);
+        expect(await readOccurrence(s.player, 2), size);
+        // The completed file is served: the origin is not asked again.
+        expect(count(s.requests, 'song-1'), 1);
+        // ignore: experimental_member_use, reason: the proxy request contract.
+        expect(s.player.audioSources[2], isA<StreamAudioSource>());
+      },
+    );
+
+    test('a repeat occurrence joins the leader download', () async {
+      final s = await serveQueue(
+        3,
+        hold: {'song-1'},
+        ids: ['song-0', 'song-1', 'song-1'],
+      );
+      ticks(s.player);
+      final leader = sourceAt(s.player, 1);
+      final first = leader.request();
+      await until(() => s.requests.contains('song-1') && leader.isDownloading);
+      final reading = readOccurrence(s.player, 2);
+      await pumpEventQueue();
+      s.release.complete();
+      expect(await reading, size);
+      await drain(await first);
+      await settle();
+      expect(count(s.requests, 'song-1'), 1);
+      expect(s.maxActive['song-1'], 1);
+    });
+
+    test('a repeat occurrence plays on after its leader is removed', () async {
+      final s = await serveQueue(
+        3,
+        hold: {'song-1'},
+        ids: ['song-0', 'song-1', 'song-1'],
+      );
+      ticks(s.player);
+      final leader = sourceAt(s.player, 1);
+      final first = leader.request();
+      await until(() => s.requests.contains('song-1') && leader.isDownloading);
+      await s.handler.removeQueueItemAt(1);
+      await settleQueue(s.handler);
+      expect(s.player.audioSources, hasLength(2));
+      final reading = readOccurrence(s.player, 1);
+      await pumpEventQueue();
+      s.release.complete();
+      expect(await reading, size);
+      await drain(await first);
+      await settle();
+      expect(count(s.requests, 'song-1'), 1);
+      expect(s.maxActive['song-1'], 1);
+    });
+
+    // The planner asks whether the origin serves ranges; a repeat occurrence
+    // answers with its leader's origin, not with "a plain source: yes".
+    for (final onRepeat in [false, true]) {
+      test(
+        'the seek planner uses the leader range support'
+        ' (playing the ${onRepeat ? 'repeat' : 'first'} occurrence)',
+        () async {
+          final s = await serveQueue(
+            3,
+            hold: {'song-1'},
+            ids: ['song-0', 'song-1', 'song-1'],
+            supportsTranscodeOffset: true,
+            wrap: (base) => _TranscodedLockResolver(base),
+          );
+          ticks(s.player);
+          final leader = sourceAt(s.player, 1);
+          final first = leader.request();
+          await until(() => leader.originSupportsRangeRequests == false);
+          s.player.moveTo(onRepeat ? 2 : 1);
+          await pumpEventQueue();
+          await s.handler.previewSeek(const Duration(seconds: 150));
+          // The origin (no Accept-Ranges) cannot serve the native seek: the
+          // planner opens a transcode at the offset instead.
+          expect(
+            s.handler.collectPlaybackDiagnostics()['seekPreview'],
+            isNotNull,
+          );
+          s.handler.cancelSeekPreview();
+          s.release.complete();
+          await drain(await first);
+          await settle();
+        },
+      );
+    }
 
     // Per player index: 'reg' when the player holds the registered source of
     // that song, else 'DIFF'/'UNREG'; plus how many instances each song has.

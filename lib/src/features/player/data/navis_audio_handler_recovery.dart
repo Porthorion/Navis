@@ -845,9 +845,7 @@ extension _NavisRecovery on NavisAudioHandler {
       final source = index == null || index >= sequence.length
           ? null
           : sequence[index];
-      // ignore: experimental_member_use, reason: the lock-cached source reports whether its origin supports ranges.
-      if (source is! LockCachingAudioSource) return true;
-      final ranges = source.originSupportsRangeRequests;
+      final ranges = lockCacheOriginRanges(source);
       if (ranges != null) return ranges;
       if (wait.elapsed >= _playerLoadTimeout) return false;
       await Future<void>.delayed(const Duration(milliseconds: 50));

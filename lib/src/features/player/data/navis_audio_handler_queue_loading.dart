@@ -793,29 +793,35 @@ extension _NavisQueueLoading on NavisAudioHandler {
     return _lockCacheSources[path]?.source;
   }
 
-  /// A cache file has one writer and one player entry: the first entry per
-  /// file, counting the sources the player already holds unless [replacesQueue],
-  /// keeps its lock-cache source; later entries of the same song get the plain
-  /// stream form (the one the cross-fade deck uses), which does not download.
-  /// One source instance never sits at two playlist positions: just_audio
-  /// derives the native id from the source, and an adjacent repeat of an id is
-  /// not seen as an auto-advance.
+  /// A cache file has one writer: the first entry per file, counting the
+  /// sources the player already holds unless [replacesQueue], keeps its
+  /// lock-cache source. Later entries of the same song get their own
+  /// [LockCacheFollowerSource] on that writer, which serves the completed file,
+  /// joins the running download and shares its range answer, so a repeat never
+  /// fetches the origin itself. One source instance never sits at two playlist
+  /// positions: just_audio derives the native id from the source, and an
+  /// adjacent repeat of an id is not seen as an auto-advance.
   void _shareLockCacheSources(
     List<_PreparedQueueItem> prepared, {
     bool replacesQueue = false,
   }) {
-    final seen = <String>{
+    // ignore: experimental_member_use, reason: as above.
+    final leaders = <String, LockCachingAudioSource>{
       if (!replacesQueue)
         for (final entry in _lockCacheSources.entries)
           if (_player.sequence.any((s) => identical(s, entry.value.source)))
-            entry.key,
+            entry.key: entry.value.source,
     };
     for (final item in prepared) {
       final path = item.source.cachedFilePath;
+      final held = item.audioSource;
       // ignore: experimental_member_use, reason: as above.
-      if (path == null || item.audioSource is! LockCachingAudioSource) continue;
-      if (!seen.add(path)) {
-        item.audioSource = item.source.asClonedAudioSource(tag: item.mediaItem);
+      if (path == null || held is! LockCachingAudioSource) continue;
+      final leader = leaders[path];
+      if (leader == null) {
+        leaders[path] = held;
+      } else {
+        item.audioSource = LockCacheFollowerSource(leader, tag: item.mediaItem);
       }
     }
   }
