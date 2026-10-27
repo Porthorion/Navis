@@ -272,6 +272,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // The abandoned player disposes every source it held, which detaches a
     // reused one from the new player: the reload builds fresh sources.
     for (final entry in _lockCacheSources.entries.toList()) {
+      // A retired source must not take the registry slot back by restarting a
+      // download (onDownloadStart); the rebuilt queue builds fresh sources.
+      entry.value.source.onDownloadStart = null;
       if (!identical(entry.value.source, retiredSource)) {
         await entry.value.source.cancelDownload();
       }
