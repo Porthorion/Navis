@@ -14,6 +14,9 @@ Uri _cover(String id) => Uri.parse(
 /// Stands in for `PlaybackArtCache`: a cover is cached once its fetch
 /// completes with a path, and [held] covers stay pending until completed.
 class _Fetches {
+  new(this.dir);
+
+  final Directory dir;
   final List<String> ids = <String>[];
   final Map<String, String> cached = <String, String>{};
   final Map<String, Completer<String?>> held = <String, Completer<String?>>{};
@@ -22,12 +25,23 @@ class _Fetches {
     ids.add(coverArtId);
     final path =
         await (held[coverArtId]?.future ??
-            Future<String?>.value('/cache/$coverArtId.jpg'));
+            Future<String?>.value(file('$coverArtId.jpg')));
     if (path != null) cached[coverArtId] = path;
     return path;
   }
 
   String? lookup(String coverArtId) => cached[coverArtId];
+
+  /// A real JPEG-headed file: the system art checks the file before it
+  /// publishes the content URI.
+  String file(
+    String name, {
+    List<int> bytes = const <int>[0xFF, 0xD8, 0xFF, 0],
+  }) {
+    final path = '${dir.path}/${name.replaceAll('/', '_')}';
+    File(path).writeAsBytesSync(bytes);
+    return path;
+  }
 
   AndroidSystemArt art([String authority = 'a.artwork']) =>
       AndroidSystemArt(authority: authority, fetch: call, cachedPath: lookup);
@@ -44,6 +58,12 @@ class _InnerHandler extends BaseAudioHandler {
 }
 
 void main() {
+  late Directory covers;
+  _Fetches newFetches() => _Fetches(covers);
+  setUp(() async {
+    covers = await Directory.systemTemp.createTemp('navis-system-art-');
+    addTearDown(() => covers.delete(recursive: true));
+  });
   setUpAll(() async {
     final directory = await Directory.systemTemp.createTemp(
       'navis-system-art-key-',
@@ -52,7 +72,7 @@ void main() {
     await PlaybackArtCache.initializeKey(supportDirectory: directory);
   });
   test('publishes no cover until it is cached, then a content URI', () async {
-    final fetches = _Fetches()..held['al-1/x'] = Completer<String?>();
+    final fetches = newFetches()..held['al-1/x'] = Completer<String?>();
     final art = fetches.art('app.test.artwork');
     final song = MediaItem(id: 's', title: 't', artUri: _cover('al-1/x'));
 
@@ -61,7 +81,7 @@ void main() {
     expect(art.forSystem(song, prefetch: true).artUri, isNull);
     expect(fetches.ids, <String>['al-1/x']);
 
-    fetches.held['al-1/x']!.complete('/cache/al-1_x.jpg');
+    fetches.held['al-1/x']!.complete(fetches.file('al-1_x.jpg'));
     await pumpEventQueue();
 
     final mapped = art.forSystem(song);
@@ -73,7 +93,7 @@ void main() {
   });
 
   test('a cover already handed to the session counts as cached', () {
-    final fetches = _Fetches();
+    final fetches = newFetches();
     final art = fetches.art();
 
     final mapped = art.forSystem(
@@ -81,7 +101,7 @@ void main() {
         id: 's',
         title: 't',
         artUri: _cover('c-9'),
-        extras: const <String, dynamic>{'artCacheFile': '/cache/c-9.jpg'},
+        extras: <String, dynamic>{'artCacheFile': fetches.file('c-9.jpg')},
       ),
     );
 
@@ -95,7 +115,8 @@ void main() {
   test('a cache hit hands the session the file with the content URI', () {
     // Without artCacheFile audio_service puts empty ALBUM_ART into the
     // session for a content URI, and Bluetooth then ignores the real bitmap.
-    final fetches = _Fetches()..cached['c-3'] = '/cache/c-3.jpg';
+    final fetches = newFetches();
+    fetches.cached['c-3'] = fetches.file('c-3.jpg');
     final art = fetches.art();
 
     final mapped = art.forSystem(
@@ -103,7 +124,7 @@ void main() {
     );
 
     expect(mapped.artUri?.scheme, 'content');
-    expect(mapped.extras?['artCacheFile'], '/cache/c-3.jpg');
+    expect(mapped.extras?['artCacheFile'], fetches.cached['c-3']);
     // No cache hit: no URI at all.
     expect(
       art
@@ -116,7 +137,8 @@ void main() {
   test(
     'the projection never publishes a content URI without the file',
     () async {
-      final fetches = _Fetches()..cached['c-5'] = '/cache/c-5.jpg';
+      final fetches = newFetches();
+      fetches.cached['c-5'] = fetches.file('c-5.jpg');
       final inner = _InnerHandler();
       final projection = RealTimeProjectionAudioHandler(
         inner,
@@ -134,12 +156,12 @@ void main() {
 
       final published = projection.mediaItem.value!;
       expect(published.artUri?.scheme, 'content');
-      expect(published.extras?['artCacheFile'], '/cache/c-5.jpg');
+      expect(published.extras?['artCacheFile'], fetches.cached['c-5']);
     },
   );
 
   test('passes radio art through and drops unusable cover URLs', () {
-    final art = _Fetches().art();
+    final art = newFetches().art();
     final radio = Uri.parse('https://radio.test/now.jpg');
 
     expect(
@@ -163,7 +185,7 @@ void main() {
   test(
     'radio art stays http(s) and a private file URI is never published',
     () async {
-      final art = _Fetches().art();
+      final art = newFetches().art();
       final radio = Uri.parse('http://radio.test/now.jpg');
 
       final published = art.forSystem(
@@ -186,7 +208,7 @@ void main() {
   );
 
   test('browse lists wait for their covers, but not past the budget', () async {
-    final fetches = _Fetches()..held['b'] = Completer<String?>();
+    final fetches = newFetches()..held['b'] = Completer<String?>();
     final art = fetches.art();
     final items = <MediaItem>[
       for (final id in <String>['a', 'b', 'a'])
@@ -212,7 +234,7 @@ void main() {
   });
 
   test('the projection publishes cover art only once it is cached', () async {
-    final fetches = _Fetches()..held['c-1'] = Completer<String?>();
+    final fetches = newFetches()..held['c-1'] = Completer<String?>();
     final inner = _InnerHandler()
       ..children = <MediaItem>[
         MediaItem(id: 'album', title: 'Album', artUri: _cover('c-2')),
@@ -238,13 +260,11 @@ void main() {
 
     // NavisAudioHandler re-emits the song with its cache file once the
     // download completes.
-    fetches.held['c-1']!.complete('/cache/c-1.jpg');
+    final c1 = fetches.file('c-1.jpg');
+    fetches.held['c-1']!.complete(c1);
     await pumpEventQueue();
     final withArt = song.copyWith(
-      extras: <String, dynamic>{
-        ...?song.extras,
-        'artCacheFile': '/cache/c-1.jpg',
-      },
+      extras: <String, dynamic>{...?song.extras, 'artCacheFile': c1},
     );
     inner.mediaItem.add(withArt);
     inner.queue.add(<MediaItem>[withArt]);
@@ -262,5 +282,68 @@ void main() {
     );
     // The app keeps its own cover URL.
     expect(inner.mediaItem.value!.artUri, _cover('c-1'));
+  });
+
+  test('withholds the content URI unless the file is an existing image', () {
+    final fetches = newFetches();
+    final art = fetches.art();
+    MediaItem song(String id, {Object? file, bool extra = true}) => MediaItem(
+      id: 's',
+      title: 't',
+      artUri: _cover(id),
+      extras: extra ? <String, dynamic>{'artCacheFile': file} : null,
+    );
+
+    // A missing path, an empty string and a non-image file would make
+    // audio_service put an empty bitmap into the session.
+    for (final bad in <String>[
+      '${covers.path}/gone.jpg',
+      '',
+      fetches.file('page.html', bytes: '<html>error</html>'.codeUnits),
+      fetches.file('empty.jpg', bytes: const <int>[]),
+    ]) {
+      final mapped = art.forSystem(song('c-1', file: bad));
+      expect(mapped.artUri, isNull, reason: 'file "$bad"');
+      expect(mapped.extras?.containsKey('artCacheFile'), isFalse);
+    }
+    // The cache's own path gets the same check.
+    fetches.cached['c-2'] = '${covers.path}/gone-too.jpg';
+    expect(art.forSystem(song('c-2', extra: false)).artUri, isNull);
+
+    final good = fetches.file('good.jpg');
+    final mapped = art.forSystem(song('c-1', file: good));
+    expect(mapped.artUri?.scheme, 'content');
+    expect(mapped.extras?['artCacheFile'], good);
+  });
+
+  test(
+    'a bad artCacheFile falls back to a good cached file, and refetches',
+    () {
+      final fetches = newFetches();
+      final art = fetches.art();
+      final good = fetches.file('c-7.jpg');
+      fetches.cached['c-7'] = good;
+      final mapped = art.forSystem(
+        MediaItem(
+          id: 's',
+          title: 't',
+          artUri: _cover('c-7'),
+          extras: const <String, dynamic>{'artCacheFile': '/no/such/file.jpg'},
+        ),
+      );
+      expect(mapped.artUri?.scheme, 'content');
+      expect(mapped.extras?['artCacheFile'], good);
+
+      art.forSystem(
+        MediaItem(id: 's', title: 't', artUri: _cover('c-8')),
+        prefetch: true,
+      );
+      expect(fetches.ids, <String>['c-8']);
+    },
+  );
+
+  test('the art downscale turns a 768 px cover into 384 px', () {
+    // audio_service halves sampling only while the result stays >= this.
+    expect(AndroidSystemArt.artDownscaleSize, 256);
   });
 }

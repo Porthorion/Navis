@@ -14,6 +14,16 @@ Last updated: 2026-10-28
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #151, no album art over Bluetooth AVRCP since 1.4.0 — 2026-10-28
+  (branch `fix/bt-album-art`, merged with `github/release/1.5`). `forSystem`
+  publishes the `content://` URI only when `artCacheFile` (or the cache path)
+  names an existing file with a JPEG/PNG/WebP header and hands the session that
+  file; otherwise it withholds the URI and a bad `artCacheFile`.
+  `PlaybackArtCache.cachedPath` drops entries whose file is gone. Art downscale
+  is 256 so 768 px covers decode at 384 px. Evidence: new tests failed first
+  (`Expected: null Actual: Uri:<content://a.artwork/cover/..>`; `Expected:
+  <256> Actual: <512>`); focused art tests 37/37 pass. Emulator could not
+  reproduce the base failure; the real-car check stays with the owner.
 - [x] Issue #109 (1.5.1 P6), Linux package install wait copy — 2026-10-28
   (evidence: `update_dialog_test.dart` linuxDeb/linuxRpm apply cases failed first
   with `Found 0 widgets with text "Installing the update. This can take a minute."`;

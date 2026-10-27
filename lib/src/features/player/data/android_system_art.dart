@@ -27,7 +27,9 @@ typedef SystemArtLookup = String? Function(String coverArtId);
 /// already allowed) is passed through; a `file:` URI, which URI-based clients
 /// cannot open, is dropped.
 ///
-/// The content URI is published only once the cover is on disk; until then
+/// The content URI is published only once the cover is an image file on disk
+/// (checked on each publish: a cleared cache directory or a bad download
+/// withholds it); until then
 /// the item has no art and the download is started. A URI the provider
 /// cannot open yet makes audio_service put empty `METADATA_KEY_ALBUM_ART`
 /// into the session, and the later update with the real bitmap keeps the
@@ -45,6 +47,11 @@ class AndroidSystemArt {
   final String authority;
   final SystemArtFetch _fetch;
   final SystemArtLookup _cachedPath;
+
+  /// `AudioServiceConfig.artDownscaleWidth/Height`. audio_service halves the
+  /// sampling only while the result stays at or above this size, so 256 turns
+  /// a 768 px cover into 384 px for AVRCP; 512 would leave it at 768.
+  static const artDownscaleSize = 256;
 
   static const _prefetchConcurrency = 6;
 
@@ -70,30 +77,33 @@ class AndroidSystemArt {
     final coverArtId = _credentialedCoverId(artUri);
     if (coverArtId == null) return item;
     if (coverArtId.isEmpty) return item.copyWith(artUri: null);
-    if (!_isCached(item, coverArtId)) {
+    // audio_service decodes ALBUM_ART only from `artCacheFile`; a content URI
+    // without a readable image there stores an empty bitmap that Bluetooth
+    // never replaces. So the URI goes out only with a real image file.
+    final extraFile = item.extras?['artCacheFile'];
+    final file = extraFile is String && PlaybackArtCache.isImageFile(extraFile)
+        ? extraFile
+        : _cachedPath(coverArtId);
+    if (file == null || !PlaybackArtCache.isImageFile(file)) {
       if (prefetch) unawaited(_fetch(coverArtId, artUri!));
-      return item.copyWith(artUri: null);
+      return item.copyWith(
+        artUri: null,
+        extras: extraFile == null
+            ? item.extras
+            : (Map<String, dynamic>.of(item.extras!)..remove('artCacheFile')),
+      );
     }
-    // audio_service decodes ALBUM_ART only from `artCacheFile`; with just the
-    // content URI it stores an empty bitmap that Bluetooth never replaces.
-    final file = _cachedPath(coverArtId);
-    final hasFile = item.extras?['artCacheFile'] is String;
     return item.copyWith(
       artUri: Uri(
         scheme: 'content',
         host: authority,
         pathSegments: <String>['cover', PlaybackArtCache.fileKey(coverArtId)],
       ),
-      extras: hasFile || file == null
+      extras: file == extraFile
           ? item.extras
           : <String, dynamic>{...?item.extras, 'artCacheFile': file},
     );
   }
-
-  /// NavisAudioHandler adds `artCacheFile` to the current item once its
-  /// cover is on disk; other items are looked up in the cover cache.
-  bool _isCached(MediaItem item, String coverArtId) =>
-      item.extras?['artCacheFile'] is String || _cachedPath(coverArtId) != null;
 
   /// [items] as the system may see them, once their covers are cached or
   /// [budget] has passed. Covers still downloading are left out.

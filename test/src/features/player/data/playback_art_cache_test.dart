@@ -311,6 +311,64 @@ void main() {
     expect(cache.cachedPath('al-1'), path);
   });
 
+  test('a cached entry whose file is gone is dropped and refetched', () async {
+    final temp = await Directory.systemTemp.createTemp('navis-art-cache-');
+    const channel = MethodChannel('plugins.flutter.io/path_provider');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async => temp.path);
+    addTearDown(() async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+      await temp.delete(recursive: true);
+    });
+    final stored = File('${temp.path}/stored-cover.jpg')
+      ..writeAsBytesSync(<int>[0xFF, 0xD8, 0xFF, 1, 2]);
+    final cache = PlaybackArtCache(readPermanentArtwork: (id) async => stored);
+    final path = (await cache.getOrFetch(
+      'al-1',
+      Uri.parse('http://127.0.0.1:9/art'),
+    ))!;
+    expect(cache.cachedPath('al-1'), path);
+
+    // Android may clear the cache directory while the process lives.
+    File(path).deleteSync();
+    expect(cache.cachedPath('al-1'), isNull);
+    expect(
+      await cache.getOrFetch('al-1', Uri.parse('http://127.0.0.1:9/art')),
+      path,
+    );
+    expect(File(path).existsSync(), isTrue);
+    expect(cache.cachedPath('al-1'), path);
+  });
+
+  test('isImageFile accepts JPEG, PNG and WebP headers only', () async {
+    final dir = await Directory.systemTemp.createTemp('navis-art-magic-');
+    addTearDown(() => dir.delete(recursive: true));
+    String file(String name, List<int> bytes) =>
+        (File('${dir.path}/$name')..writeAsBytesSync(bytes)).path;
+    expect(
+      PlaybackArtCache.isImageFile(file('a', [0xFF, 0xD8, 0xFF, 0])),
+      isTrue,
+    );
+    expect(
+      PlaybackArtCache.isImageFile(file('b', [0x89, 0x50, 0x4E, 0x47, 1])),
+      isTrue,
+    );
+    expect(
+      PlaybackArtCache.isImageFile(
+        file('c', [...'RIFF'.codeUnits, 1, 2, 3, 4, ...'WEBP'.codeUnits]),
+      ),
+      isTrue,
+    );
+    expect(
+      PlaybackArtCache.isImageFile(file('d', '<html>nope'.codeUnits)),
+      isFalse,
+    );
+    expect(PlaybackArtCache.isImageFile(file('e', const [])), isFalse);
+    expect(PlaybackArtCache.isImageFile('${dir.path}/missing'), isFalse);
+    expect(PlaybackArtCache.isImageFile(dir.path), isFalse);
+  });
+
   test('a durable cover that cannot be copied leaves nothing behind', () async {
     final temp = await _tempCacheDir();
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);

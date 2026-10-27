@@ -126,12 +126,44 @@ class PlaybackArtCache {
 
   /// The local file of [coverArtId]'s cover once this cache has it on disk,
   /// without downloading; `null` otherwise.
-  String? cachedPath(String coverArtId) => _mem[coverArtId];
+  ///
+  /// An entry whose file has gone (Android may clear the cache directory) is
+  /// dropped, so the next fetch rewrites it and is a fresh update.
+  String? cachedPath(String coverArtId) {
+    final path = _mem[coverArtId];
+    if (path != null && !File(path).existsSync()) {
+      _mem.remove(coverArtId);
+      return null;
+    }
+    return path;
+  }
+
+  /// Whether [path] is a file that starts like a JPEG, PNG or WebP image.
+  /// Reads only the first 12 bytes; cheap enough for each publish.
+  static bool isImageFile(String path) {
+    RandomAccessFile? file;
+    try {
+      file = File(path).openSync();
+      final b = file.readSync(12);
+      bool at(int i, List<int> magic) =>
+          b.length >= i + magic.length &&
+          [for (var k = 0; k < magic.length; k++) b[i + k] == magic[k]]
+              .every((same) => same);
+      return at(0, const [0xFF, 0xD8, 0xFF]) ||
+          at(0, const [0x89, 0x50, 0x4E, 0x47]) ||
+          (at(0, 'RIFF'.codeUnits) && at(8, 'WEBP'.codeUnits));
+    } on FileSystemException {
+      return false;
+    } finally {
+      file?.closeSync();
+    }
+  }
 
   /// Returns the local file path for [coverArtId], downloading from [artUri]
   /// on the first call. Returns `null` if the download fails.
   Future<String?> getOrFetch(String coverArtId, Uri artUri) {
-    if (_mem.containsKey(coverArtId)) return Future.value(_mem[coverArtId]);
+    final cached = cachedPath(coverArtId);
+    if (cached != null) return Future.value(cached);
 
     final existing = _pending[coverArtId];
     if (existing != null) return existing.future;
