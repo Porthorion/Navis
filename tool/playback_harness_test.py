@@ -11,7 +11,13 @@ from unittest.mock import Mock, patch
 from pathlib import Path
 
 os.environ['NAVIS_HARNESS_CAPPED'] = '1'
+# Hermetic: never touch the real heavy-job locks or harness cache, whatever HOME is.
+_ISOLATED = tempfile.TemporaryDirectory(prefix='navis-selfcheck-')
+os.environ['NAVIS_HARNESS_CACHE'] = str(Path(_ISOLATED.name) / 'cache')
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import heavy_lock as _locks  # noqa: E402
+_locks.HEAVY_LOCK = Path(_ISOLATED.name) / 'heavy.lock'
+_locks.LEGACY_LOCK = Path(_ISOLATED.name) / 'legacy' / 'lock'
 import playback_harness as h  # noqa: E402
 import live_seek_stress as engine  # noqa: E402
 
@@ -466,9 +472,27 @@ class InfraErrors(unittest.TestCase):
 
     def ab(self, *args):
         err = io.StringIO()
+        output = Path(self.tmp.name) / f'run-{len(list(Path(self.tmp.name).glob("run-*")))}'  # never the real worktree
         with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
-            code = h.main(['ab', *args])
+            code = h.main(['ab', *args, '--output', str(output)])
         return code, err.getvalue()
+
+    def test_bad_arguments_fail_before_the_lock_and_leave_no_evidence(self):
+        for arguments in (['--platform', 'linux'], ['nonsense', '--platform', 'linux'], ['seek', '--platform', 'android', '--base', 'HEAD']):
+            with self.subTest(arguments=arguments), patch.object(h, 'heavy_lock', side_effect=AssertionError('lock taken')):
+                code, err = self.ab(*arguments)
+                self.assertEqual(code, 2)
+                self.assertNotIn('busy', err)
+                self.assertFalse(list(Path(self.tmp.name).glob('run-*/evidence.json')))
+
+    def test_uncaught_exception_is_exit_2_with_traceback(self):
+        from contextlib import nullcontext
+        with patch.object(h, 'heavy_lock', return_value=nullcontext(())), patch.object(h, 'candidate_identity', return_value={'head': 'h'}), \
+                patch.object(h, '_cmd_ab', side_effect=KeyError('boom')):
+            code, err = self.ab('--all', '--platform', 'linux')
+        self.assertEqual(code, 2)
+        self.assertIn('Traceback', err)
+        self.assertIn("KeyError: 'boom'", err)
 
     def test_unknown_base_is_exit_2(self):
         code, err = self.ab('queue-edit', '--platform', 'linux', '--base', 'no-such-ref-anywhere')
@@ -513,6 +537,255 @@ class InfraErrors(unittest.TestCase):
     def test_unknown_scenario_is_exit_2(self):
         code, _ = self.ab('nonsense', '--platform', 'linux')
         self.assertEqual(code, 2)
+
+
+class DurableEvidence(unittest.TestCase):
+    def test_full_counts(self):
+        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'linux')) for n in h.SCENARIOS), 118)
+        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'android')) for n in h.ANDROID_SCENARIOS), 73)
+
+    def test_exact_cells(self):
+        expected = h.expected_cells('queue-edit', False, None, 'linux')
+        h.validate_cells(expected, expected)
+        for wrong in (expected[:-1], expected[:-1] + expected[:1], expected + expected[:1],
+                      [cell[:2] + ['wrong', cell[3]] for cell in expected]):
+            with self.assertRaises(h.InfraError):
+                h.validate_cells(expected, wrong)
+
+    def test_source_identity_tracks_bytes_modes_untracked_and_ignores(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return h.git(*args, cwd=root)
+            git('init', '-q')
+            git('config', 'user.email', 'test@example.invalid')
+            git('config', 'user.name', 'Test')
+            (root / '.gitignore').write_text('ignored\n')
+            (root / 'source').write_text('a')
+            git('add', '.')
+            git('commit', '-qm', 'fixture')
+            first = h.candidate_identity(root)
+            (root / 'ignored').write_text('secret')
+            self.assertEqual(first, h.candidate_identity(root))
+            (root / 'source').write_text('b')
+            self.assertNotEqual(first, h.candidate_identity(root))
+            (root / 'source').write_text('a')
+            (root / 'source').chmod(0o755)
+            self.assertNotEqual(first, h.candidate_identity(root))
+            (root / 'source').chmod(0o644)
+            (root / 'source').unlink()
+            self.assertNotEqual(first, h.candidate_identity(root))
+            (root / 'source').write_text('a')
+            (root / 'new').write_text('new')
+            self.assertNotEqual(first, h.candidate_identity(root))
+            self.assertNotIn('secret', str(h.candidate_identity(root)))
+
+    def test_source_identity_excludes_only_the_progress_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return h.git(*args, cwd=root)
+            git('init', '-q')
+            git('config', 'user.email', 'test@example.invalid')
+            git('config', 'user.name', 'Test')
+            (root / 'docs/project').mkdir(parents=True)
+            (root / 'docs/project/progress.md').write_text('log')
+            (root / 'docs/project/other.md').write_text('log')
+            git('add', '.')
+            git('commit', '-qm', 'fixture')
+            first = h.candidate_identity(root)
+            (root / 'docs/project/progress.md').write_text('log\nrecorded evidence')
+            self.assertEqual(first, h.candidate_identity(root))
+            git('add', 'docs/project/progress.md')
+            self.assertEqual(first, h.candidate_identity(root))
+            (root / 'docs/project/other.md').write_text('changed')
+            self.assertNotEqual(first, h.candidate_identity(root))
+
+    def test_engine_failure_timeout_partial_and_malformed_are_durable(self):
+        import json
+        import subprocess
+        for fault in ('exit', 'timeout', 'timeout-partial', 'interrupt', 'missing', 'malformed', 'partial', 'duplicate', 'wrong', 'missing-log', 'multiple'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                out = Path(directory)
+                def engine(*args, **kwargs):
+                    if fault != 'missing-log':
+                        (out / 'queue-edit.log').write_text('log')
+                    if fault == 'timeout':
+                        raise subprocess.TimeoutExpired('engine', 1)
+                    if fault == 'interrupt':
+                        raise KeyboardInterrupt()
+                    if fault != 'missing':
+                        folder = out / 'runs' / 'stamp-queue-edit'
+                        folder.mkdir(parents=True)
+                        cells = h.expected_cells('queue-edit', False, None, 'linux')
+                        if fault in ('partial', 'timeout-partial'):
+                            cells = cells[:-1]
+                        if fault == 'duplicate':
+                            cells[-1] = cells[0]
+                        if fault == 'wrong':
+                            cells[0][0] = 'wrong'
+                        rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c),
+                                     metrics={}, violations=[], latencyS=None, passed=True) for c in cells]
+                        (folder / 'report.json').write_text('{' if fault == 'malformed' else json.dumps({'results': rows}))
+                    if fault == 'timeout-partial':
+                        raise subprocess.TimeoutExpired('engine', 1)
+                    if fault == 'multiple':
+                        second = out / 'runs' / 'second-queue-edit'
+                        second.mkdir()
+                        (second / 'report.json').write_text('{}')
+                    return Mock(returncode=2 if fault == 'exit' else 0)
+                with patch.object(h, 'engine', side_effect=engine):
+                    with self.assertRaises((h.InfraError, KeyboardInterrupt)):
+                        h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, None, False)
+                record = json.loads((out / 'evidence.json').read_text())
+                self.assertNotEqual(record['status'], 'complete')
+                self.assertIn('seconds', record)
+                if fault == 'timeout-partial':
+                    self.assertEqual(record['status'], 'timeout')
+                    self.assertEqual(len(record['observed']), 2)
+
+    def test_complete_report_and_contradictory_exit(self):
+        import json
+        for code, passed, allowed in ((0, True, True), (1, False, True), (1, True, False), (0, False, False)):
+            with self.subTest(code=code, passed=passed), tempfile.TemporaryDirectory() as directory:
+                out = Path(directory)
+                def engine(*args, **kwargs):
+                    (out / 'queue-edit.log').write_text('log')
+                    folder = out / 'runs' / 'stamp-queue-edit'
+                    folder.mkdir(parents=True)
+                    rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={},
+                                 violations=[] if passed else [{'oracle': 'stall'}], latencyS=None, passed=passed)
+                            for c in h.expected_cells('queue-edit', False, None, 'linux')]
+                    (folder / 'report.json').write_text(json.dumps({'results': rows}))
+                    return Mock(returncode=code)
+                with patch.object(h, 'engine', side_effect=engine):
+                    if allowed:
+                        rows, seconds = h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, None, False)
+                        self.assertEqual(len(rows), 3)
+                    else:
+                        with self.assertRaises(h.InfraError):
+                            h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, None, False)
+
+    def test_cell_verdict_must_agree_with_violations(self):
+        row = dict(case='queue_reorder', quality='opus128', throttle='wan6000', rep=0,
+                   metrics={}, latencyS=None)
+        for passed, violations in ((False, []), (True, [{'oracle': 'stall'}]), (False, [{}])):
+            with self.subTest(passed=passed, violations=violations), self.assertRaises(h.InfraError):
+                h.observed_cells([{**row, 'passed': passed, 'violations': violations}])
+
+    def test_build_exit_and_interruption_records_without_building(self):
+        import json
+        for fault in ('exit', 'interrupt'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                with patch.object(h, 'DATA', root / 'data'), \
+                        patch.object(h, 'bounded_command', return_value=Mock(returncode=7),
+                                     side_effect=KeyboardInterrupt() if fault == 'interrupt' else None):
+                    with self.assertRaises((h.InfraError, KeyboardInterrupt)):
+                        h.build(root, 'android', root / 'artifact', root / 'build.log')
+                record = json.loads((root / 'build.result.json').read_text())
+                self.assertEqual(record['exitCode'], 7 if fault == 'exit' else None)
+                self.assertNotEqual(record['status'], 'complete')
+
+    def test_ab_finalizes_and_verifies_complete_evidence(self):
+        import argparse
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            identity = {'head': 'head', 'sha256': 'a'}
+            args = argparse.Namespace(fn=h.cmd_ab, full=False, reps=None, platform='linux')
+            def complete(args, out, evidence):
+                evidence.update(base='base', flutter='Flutter test')
+                evidence['config'].update(names=['queue-edit'], baseSha='base', flutter='Flutter test')
+                for variant in ('base', 'fix'):
+                    folder = out / variant / 'queue-edit' / 'attempt-1'
+                    folder.mkdir(parents=True)
+                    log, report = folder / 'queue-edit.log', folder / 'report.json'
+                    log.write_text('engine log')
+                    cells = h.expected_cells('queue-edit', False, None, 'linux')
+                    report.write_text(json.dumps({'results': [dict(zip(('case', 'quality', 'throttle', 'rep'), c),
+                                      metrics={}, violations=[], latencyS=None, passed=True) for c in cells]}))
+                    h.write_evidence(folder, {'status': 'complete', 'exitCode': 0, 'expected': cells, 'observed': cells,
+                                              'log': str(log), 'report': str(report)})
+                    evidence['variants'][variant + '/queue-edit'] = {'status': 'not-run'}
+                evidence['baseArtifact'] = {'path': str(log), 'sha256': h.sha256(log)}
+                (out / 'comparison.json').write_text(json.dumps({'base': 'base', 'fix': 'head', 'platform': 'linux',
+                                                               'scenarios': {'queue-edit': {}}}))
+                (out / 'summary.md').write_text('# detail\n\nRESULT UNVERIFIED\n')
+                return 0
+            with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', return_value=identity), \
+                    patch.object(h, '_cmd_ab', side_effect=complete), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(h.cmd_ab(args), 0)
+            record = json.loads(next(root.glob('build/harness/*/evidence.json')).read_text())
+            self.assertEqual(record['status'], 'passed')
+            self.assertEqual(len(record['variants']), 2)
+            summary = next(root.glob('build/harness/*/summary.md'))
+            self.assertIn('RESULT PASS', summary.read_text())
+            self.assertNotIn('UNVERIFIED', summary.read_text())
+            self.assertEqual(record['artifacts'][str(summary)], h.sha256(summary))
+            self.assertFalse(list(summary.parent.glob('*.tmp')))
+
+    def test_ab_persists_interruption_and_changed_source(self):
+        import argparse
+        import json
+        for fault in ('interrupt', 'source'):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                args = argparse.Namespace(fn=h.cmd_ab)
+                identity = {'head': 'head', 'sha256': 'a'}
+                identities = [identity, {**identity, 'sha256': 'b'}] if fault == 'source' else [identity, identity]
+                with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', side_effect=identities), \
+                        patch.object(h, '_cmd_ab', side_effect=KeyboardInterrupt() if fault == 'interrupt' else None, return_value=0):
+                    with contextlib.redirect_stdout(io.StringIO()), self.assertRaises((KeyboardInterrupt, h.InfraError)):
+                        h.cmd_ab(args)
+                record = json.loads(next(root.glob('build/harness/*/evidence.json')).read_text())
+                self.assertNotEqual(record['status'], 'passed')
+                self.assertEqual(record['exitCode'], 2)
+
+    def test_verify_rejects_stale_incomplete_and_missing_artifacts(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            config = {'names': ['queue-edit'], 'full': False, 'reps': None, 'platform': 'linux',
+                      'baseSha': 'base', 'flutter': 'Flutter test'}
+            cells = h.expected_cells('queue-edit', False, None, 'linux')
+            log, report = out / 'run.log', out / 'report.json'
+            for p in (log, report, out / 'comparison.json', out / 'summary.md'):
+                p.write_text('{}')
+            report.write_text(json.dumps({'results': [dict(zip(('case', 'quality', 'throttle', 'rep'), c),
+                              metrics={}, violations=[], latencyS=None, passed=True) for c in cells]}))
+            (out / 'comparison.json').write_text(json.dumps({'base': 'base', 'fix': 'head', 'platform': 'linux',
+                                                           'scenarios': {'queue-edit': {}}}))
+            record = {'base': 'base', 'flutter': 'Flutter test',
+                      'baseArtifact': {'path': str(log), 'sha256': h.sha256(log)},
+                      'schema': 1, 'status': 'passed', 'exitCode': 0, 'candidate': {'sha256': 'a', 'head': 'head'},
+                      'candidateAfter': {'sha256': 'a', 'head': 'head'}, 'environment': {}, 'config': config,
+                      'variants': {v + '/queue-edit': {'status': 'complete', 'exitCode': 0, 'expected': cells,
+                                   'observed': cells, 'log': str(log), 'report': str(report)} for v in ('base', 'fix')},
+                      'artifacts': {str(p): h.sha256(p) for p in out.iterdir()}}
+            h.write_evidence(out, record)
+            h.verify_evidence(out, record['candidate'], {}, config)
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, {'sha256': 'changed'}, {}, config)
+            for field, value in (('status', 'incomplete'), ('variants', {}), ('variants', []), ('artifacts', {}), ('artifacts', [])):
+                changed = {**record, field: value}
+                h.write_evidence(out, changed)
+                with self.assertRaises(h.InfraError):
+                    h.verify_evidence(out, record['candidate'], {}, config)
+            h.write_evidence(out, record)
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, record['candidate'], {'changed': True}, config)
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, record['candidate'], {}, {**config, 'full': True})
+            report.write_text('corrupt')
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, record['candidate'], {}, config)
+            report.unlink()
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, record['candidate'], {}, config)
+            (out / 'evidence.json').write_text('{')
+            with self.assertRaises(h.InfraError):
+                h.verify_evidence(out, {}, {}, config)
 
 
 if __name__ == '__main__':

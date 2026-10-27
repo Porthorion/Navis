@@ -4000,3 +4000,24 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   limits, the new harness was not run: no builds, publication, SSH, containers,
   app launches, emulators or full gate. R1–R9 runtime acceptance remains open;
   the active plan stays under `docs/plans/` until that evidence exists.
+# Validation evidence workflow — 2026-10-26 (in progress)
+
+- Branch `chore/validation-evidence` extends the existing playback harness and
+  check command. The coverage inventory retains 118 Linux and 73 Android cells
+  per variant (382 A/B cells); no matrix or threshold reduction.
+- Builders reported 60 harness and 20 gate checks passing before independent
+  review. Review found nested-timeout cleanup, contradictory report verdicts
+  and missing local NumPy setup guidance. The fixes passed ten focused evidence
+  checks and 21 gate checks, including real nested-session cleanup probes.
+- Full `check.sh`, Linux and Android runtime validation are assigned to one
+  owner and remain pending. Self-check results do not certify playback runtime.
+- 2026-10-27: four review rounds (three Sonnet, one Opus) closed with all
+  findings fixed; harness and gate self-checks pass (64 + 37, hermetic). A real
+  Linux smoke, `ab queue-edit --platform linux --base github/dev` on 05f7e58a5
+  against 3e5bf9e06, exited 0 with `RESULT PASS` (3 + 3 cells, 0 case errors,
+  0 violations) and finalized `evidence.json` (`status: passed`, 68 artifacts)
+  under `build/harness/20261027T181142.198691Z/`. The full gate and Android
+  runtime runs stay at the final release validation step.
+  See [plan](../plans/validation-evidence-workflow.md) and
+  [coverage map](../development/playback-validation-coverage.md).
+

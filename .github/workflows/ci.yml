@@ -25,6 +25,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  tooling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # the base-without-harness self-check walks to the repository's root commit
+      # The system Python on ubuntu-24.04 is externally managed (PEP 668): pip install is refused.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends python3-numpy
+      - run: python3 tool/playback_harness_test.py
+      - run: python3 tool/validation_gate_test.py
+      - run: for script in tool/*.sh tool/lib/*.sh; do bash -n "$script"; done
+
   # Format, committed generated code, analyze and dead-code gate.
   static:
     runs-on: ubuntu-latest
@@ -81,8 +94,8 @@ jobs:
 
   # One stable name to require in branch protection.
   ci:
-    needs: [static, test]
+    needs: [static, test, tooling]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success
+      - run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success && test "${{ needs.tooling.result }}" = success
