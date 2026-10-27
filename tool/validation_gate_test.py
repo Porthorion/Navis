@@ -74,11 +74,63 @@ class Ownership(unittest.TestCase):
             self.assertNotEqual(done.returncode, 0)
             self.assertIn(str(locks.LEGACY_LOCK), done.stderr)
 
+    def test_cli_reports_unusable_lock_file_without_traceback(self):
+        locked = self.root / 'locked'
+        locked.mkdir()
+        locked.chmod(0o500)
+        self.addCleanup(locked.chmod, 0o700)
+        if os.access(locked, os.W_OK):
+            self.skipTest('permissions are not enforced (root)')
+        with patch.object(locks, 'HEAVY_LOCK', locked / 'sub' / 'heavy.lock'):
+            message = locks.main(['true'])
+        self.assertIn('heavy lock unavailable', message)
+        self.assertIn('Permission denied', message)
+        done = subprocess.run([sys.executable, str(Path(locks.__file__)), '--verify'], capture_output=True, text=True,
+                              env={**os.environ, 'NAVIS_HARNESS_CACHE': str(locked / 'sub')}, timeout=10)
+        self.assertNotIn('Traceback', done.stderr)
+        self.assertNotEqual(done.returncode, 0)
+
     def test_environment_marker_does_not_bypass_ownership(self):
         with patch.dict(os.environ, {'NAVIS_HEAVY_LOCKED': '1'}):
             with self.assertRaisesRegex(RuntimeError, 'no verified inherited'):
                 with locks.heavy_lock('fake', self.cache, require_inherited=True):
                     self.fail('unlocked')
+
+
+class DirectAbLock(Ownership):
+    def test_killed_holder_keeps_the_lock_while_its_bounded_command_runs(self):
+        import time
+        ready = self.root / 'ready'
+        code = (f'import sys; sys.path.insert(0, {str(Path(__file__).parent)!r}); '
+                f'import heavy_lock as l, playback_harness as h; from pathlib import Path; '
+                f'l.HEAVY_LOCK=Path({str(locks.HEAVY_LOCK)!r}); l.LEGACY_LOCK=Path({str(locks.LEGACY_LOCK)!r}); '
+                f'h.CACHE=Path({str(self.cache)!r}); '
+                f'h.heavy_lock=l.heavy_lock; h.candidate_identity=lambda *a: {{}}; h.PROJECT=Path({str(self.root)!r}); '
+                f'h._cmd_ab=lambda a,o,e: h.bounded_command(["sh","-c","touch {ready}; sleep 30"], timeout=60); '
+                f'import argparse; h.cmd_ab(argparse.Namespace(fn=None))')
+        holder = subprocess.Popen([sys.executable, '-c', code], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            for _ in range(100):
+                if ready.exists():
+                    break
+                time.sleep(0.1)
+            self.assertTrue(ready.exists())
+            holder.kill()
+            holder.wait()
+            time.sleep(0.3)
+            with self.assertRaises(RuntimeError):
+                with locks.heavy_lock('second job', self.cache):
+                    pass
+        finally:
+            subprocess.run(['pkill', '-KILL', '-f', f'touch {ready}; sleep 30'])
+
+    def test_cmd_ab_publishes_and_clears_its_lock_descriptors(self):
+        seen = []
+        with tempfile.TemporaryDirectory() as folder, patch.object(h, 'PROJECT', Path(folder)), \
+                patch.object(h, 'candidate_identity', return_value={}), patch.object(h, 'heavy_lock', return_value=nullcontext((7,))), \
+                patch.object(h, '_cmd_ab', side_effect=lambda *a: seen.append(h.LOCK_FDS) or 1), redirect_stdout(io.StringIO()):
+            h.cmd_ab(argparse.Namespace(fn=None))
+        self.assertEqual((seen, h.LOCK_FDS), ([(7,)], ()))
 
 
 class Gate(unittest.TestCase):
@@ -147,7 +199,12 @@ class Gate(unittest.TestCase):
                     step = list(record['steps'].values())[failed_command]
                     self.assertEqual(step['commandExit'], 7 if fault == 'exit' else None)
                     self.assertIn(step['status'], ('failed', 'blocked'))
-                    self.assertEqual(len(calls), 3)
+                    skipped = failed_command == 0 and fault == 'exit'  # a failed check.sh stops the matrices
+                    self.assertEqual(len(calls), 1 if skipped else 3)
+                    if skipped:
+                        self.assertEqual([s['status'] for s in list(record['steps'].values())[1:]], ['not-run'] * 2)
+                        self.assertEqual((code, record['status']), (1, 'failed'))
+                        self.assertIn('skipped: check failed', summary)
                     self.assertIn('exact command exit=', summary)
 
     def test_missing_malformed_or_stale_evidence_is_blocked(self):
@@ -226,10 +283,72 @@ class Gate(unittest.TestCase):
             self.assertIn('finalizationError', record)
             self.assertIn('original engine failure', (out / 'summary.md').read_text())
 
+    def test_failed_comparison_keeps_detailed_summary_and_result_follows_finalization(self):
+        def exercise(code, finalize_error=False):
+            with tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                def fake(args, out, evidence):
+                    (out / 'comparison.json').write_text('{}')
+                    (out / 'summary.md').write_text('# detail\n    seek: FAIL p95 stall 9s > 2s\nRESULT FAIL\n')
+                    return code
+                stdout = io.StringIO()
+                with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', return_value={}), \
+                        patch.object(h, 'heavy_lock', return_value=nullcontext(())), patch.object(h, '_cmd_ab', side_effect=fake), \
+                        patch.object(h, 'verify_evidence', side_effect=h.InfraError('stale') if finalize_error else None), \
+                        redirect_stdout(stdout):
+                    try:
+                        returned = h.cmd_ab(argparse.Namespace(fn=h.cmd_ab))
+                    except h.InfraError:
+                        returned = 'raised'
+                out = next(root.glob('build/harness/*'))
+                return returned, stdout.getvalue(), (out / 'summary.md').read_text()
+        returned, stdout, summary = exercise(1)
+        self.assertEqual(returned, 1)
+        self.assertIn('RESULT FAIL', stdout)
+        self.assertIn('seek: FAIL p95 stall', summary)
+        returned, stdout, summary = exercise(0, finalize_error=True)
+        self.assertEqual(returned, 'raised')
+        self.assertNotIn('RESULT PASS', stdout)
+        self.assertNotIn('RESULT PASS', summary)
+        self.assertIn('incomplete', summary)
+        returned, stdout, _ = exercise(0)
+        self.assertEqual((returned, 'RESULT PASS' in stdout), (0, True))
+
     def test_timeout_kills_owned_process_group(self):
         with self.assertRaises(subprocess.TimeoutExpired) as caught:
             h.bounded_command([sys.executable, '-c', 'import time; time.sleep(60)'], timeout=0.05)
         self.assertLess(caught.exception.command_exit, 0)
+
+    def test_signal_death_is_reported_faithfully_without_traceback(self):
+        import signal
+        for sig in (signal.SIGKILL, signal.SIGSEGV):
+            with self.subTest(sig=sig), tempfile.TemporaryDirectory() as folder:
+                log = Path(folder) / 'log'
+                with log.open('w') as stream:
+                    done = h.bounded_command(['sh', '-c', f'kill -{int(sig)} $$'], timeout=10, stderr=stream)
+                self.assertEqual(done.returncode, -int(sig))
+                self.assertNotIn('Traceback', log.read_text())
+
+    def test_gate_records_the_signal_of_a_killed_command(self):
+        def runner(command, **kw):
+            return subprocess.CompletedProcess(command, -9 if 'check.sh' in command[0] else 0)
+        code, record, summary, _, _ = self.exercise(runner)
+        self.assertEqual((code, record['status'], record['steps']['check']['status']), (1, 'failed', 'failed'))
+        self.assertEqual(record['steps']['check']['commandExit'], -9)
+        self.assertIn('signal 9', summary)
+
+    def test_refused_termination_signal_is_logged_not_fatal(self):
+        code = (f'import sys, signal; sys.path.insert(0, {str(Path(h.__file__).parent)!r}); import playback_harness as h\n'
+                'real = signal.pidfd_send_signal\n'
+                'def refuse(fd, sig, *a):\n'
+                '    if sig == signal.SIGTERM: raise PermissionError(1, "Operation not permitted")\n'
+                '    return real(fd, sig, *a)\n'
+                'signal.pidfd_send_signal = refuse\n'
+                'sys.exit(h._command_owner(["sh", "-c", "sleep 30 & exit 0"], (), 0.3))')
+        done = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, timeout=20)
+        self.assertEqual(done.returncode, 0)  # the leftover descendant was escalated to SIGKILL after the grace period
+        self.assertNotIn('Traceback', done.stderr)
+        self.assertEqual(done.stderr.count('cannot signal'), 1)
 
     def test_engine_timeout_unwinds_cleanup_and_retains_sibling_imports(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -277,6 +396,13 @@ class Gate(unittest.TestCase):
             self.assertFalse((root / (emulator.name + '.ini')).exists())
             self.assertTrue(other.is_dir())
             stopped.assert_called_once_with(emulator.proc)
+
+    def test_slow_adb_call_is_an_infra_error_not_a_timeout(self):
+        emulator = h.Emulator(Path('unused'))
+        emulator.adb = ['unused-adb']
+        with patch.object(h, 'run', side_effect=subprocess.TimeoutExpired('adb', 15)):
+            with self.assertRaisesRegex(h.InfraError, 'getprop timed out'):
+                emulator._adb('getprop', 'sys.boot_completed', timeout=15)
 
     def test_failed_emulator_acquisition_preserves_existing_avd(self):
         with tempfile.TemporaryDirectory() as folder:

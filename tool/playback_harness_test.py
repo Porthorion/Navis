@@ -556,6 +556,27 @@ class DurableEvidence(unittest.TestCase):
             self.assertNotEqual(first, h.candidate_identity(root))
             self.assertNotIn('secret', str(h.candidate_identity(root)))
 
+    def test_source_identity_excludes_only_the_progress_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def git(*args):
+                return h.git(*args, cwd=root)
+            git('init', '-q')
+            git('config', 'user.email', 'test@example.invalid')
+            git('config', 'user.name', 'Test')
+            (root / 'docs/project').mkdir(parents=True)
+            (root / 'docs/project/progress.md').write_text('log')
+            (root / 'docs/project/other.md').write_text('log')
+            git('add', '.')
+            git('commit', '-qm', 'fixture')
+            first = h.candidate_identity(root)
+            (root / 'docs/project/progress.md').write_text('log\nrecorded evidence')
+            self.assertEqual(first, h.candidate_identity(root))
+            git('add', 'docs/project/progress.md')
+            self.assertEqual(first, h.candidate_identity(root))
+            (root / 'docs/project/other.md').write_text('changed')
+            self.assertNotEqual(first, h.candidate_identity(root))
+
     def test_engine_failure_timeout_partial_and_malformed_are_durable(self):
         import json
         import subprocess

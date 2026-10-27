@@ -381,6 +381,11 @@ def _command_owner(cmd, descriptors, grace):
                     termed.add(identity)
             except ProcessLookupError:
                 pass
+            except PermissionError as error:
+                # Keep supervising (and holding the inherited locks); SIGKILL is retried until the descendant is gone.
+                if (pid, 'refused') not in termed:
+                    termed.add((pid, 'refused'))
+                    print(f'cannot signal {pid}: {error}', file=sys.stderr, flush=True)
             finally:
                 os.close(fd)
 
@@ -399,15 +404,22 @@ def _command_owner(cmd, descriptors, grace):
         time.sleep(0.02)
     code = proc.returncode
     if code < 0:
-        signal.signal(-code, signal.SIG_DFL)
+        if -code not in (signal.SIGKILL, signal.SIGSTOP):  # uncatchable: the handler cannot (and need not) be reset
+            signal.signal(-code, signal.SIG_DFL)
         os.kill(os.getpid(), -code)
     return code
+
+
+# Heavy-lock descriptors held by this process (set by cmd_ab); every bounded command inherits them so a killed
+# holder cannot release the lock while an owner or its descendants still run.
+LOCK_FDS: tuple = ()
 
 
 def bounded_command(cmd, *, timeout, cleanup_grace=60, **kwargs):
     if not (sys.platform == 'linux' and hasattr(os, 'pidfd_open') and hasattr(signal, 'pidfd_send_signal')):
         raise InfraError('bounded commands require Linux child-subreaper and pidfd support')
-    descriptors = tuple(kwargs.get('pass_fds', ()))
+    descriptors = tuple(dict.fromkeys((*LOCK_FDS, *kwargs.get('pass_fds', ()))))
+    kwargs['pass_fds'] = descriptors
     owner = [sys.executable, '-c',
              'import sys; sys.path.insert(0,sys.argv[1]); import playback_harness as h; '
              'sys.exit(h._command_owner(sys.argv[4:],tuple(map(int,filter(None,sys.argv[2].split(",")))),float(sys.argv[3])))',
@@ -441,13 +453,17 @@ def sha256(path: Path) -> str:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
 
 
+# The one path recorded after a run (evidence is logged there), so editing it must not invalidate that run.
+PROGRESS_LOG = 'docs/project/progress.md'
+
+
 def candidate_identity(root: Path = PROJECT) -> dict:
     """Hash source bytes and modes, never retain file contents (including secrets)."""
     done = run(['git', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], cwd=root)
     if done.returncode:
         raise InfraError('cannot inventory candidate')
     files = {}
-    for name in sorted(set(done.stdout.split('\0')) - {''}):
+    for name in sorted(set(done.stdout.split('\0')) - {'', PROGRESS_LOG}):
         path = root / name
         if path.is_symlink():
             digest = hashlib.sha256(os.fsencode(os.readlink(path))).hexdigest()
@@ -459,7 +475,8 @@ def candidate_identity(root: Path = PROJECT) -> dict:
             raise InfraError(f'unsupported source entry: {name}')
         files[name] = [digest, path.lstat().st_mode if path.exists() or path.is_symlink() else None]
     payload = {'head': git('rev-parse', 'HEAD', cwd=root), 'files': files,
-               'index': git('ls-files', '--stage', cwd=root)}
+               'index': '\n'.join(line for line in git('ls-files', '--stage', cwd=root).splitlines()
+                                  if line.partition('\t')[2] != PROGRESS_LOG)}
     return {'head': payload['head'], 'sha256': hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest(),
             'fileCount': len(files)}
 
@@ -779,6 +796,12 @@ class Emulator:
             self.__exit__()
             raise
 
+    def _adb(self, *shell, timeout):
+        try:
+            return run(self.adb + ['shell', *shell], timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            raise InfraError(f'adb shell {shell[0]} timed out after {timeout}s') from error
+
     def _acquire(self) -> str:
         self.check()
         values = dict(line.split('=', 1) for line in (self.home / f'{SOURCE_AVD}.avd' / 'config.ini').read_text().splitlines() if '=' in line)
@@ -805,13 +828,13 @@ class Emulator:
         while time.monotonic() < deadline:
             if self.proc.poll() is not None:
                 raise InfraError(f'emulator exited with {self.proc.returncode} (see {self.out / "emulator.log"})')
-            if run(self.adb + ['shell', 'getprop', 'sys.boot_completed'], timeout=15).stdout.strip() == '1':
+            if self._adb('getprop', 'sys.boot_completed', timeout=15).stdout.strip() == '1':
                 break
             time.sleep(2)
         else:
             raise InfraError('emulator boot timed out')
         for setting in (['settings', 'put', 'system', 'screen_off_timeout', '2147483647'], ['svc', 'power', 'stayon', 'true']):
-            run(self.adb + ['shell', *setting], timeout=30)
+            self._adb(*setting, timeout=30)
         time.sleep(40)  # a fresh image keeps doing first-boot work after boot_completed
         return self.serial
 
@@ -1066,7 +1089,7 @@ def _cmd_ab(args, out: Path, evidence: dict) -> int:
     (out / 'comparison.json').write_text(json.dumps({'base': base_sha, 'fix': fix_sha, 'platform': platform, 'scenarios': comparison}, indent=1))
     (out / 'summary.md').write_text('\n'.join([f'# Playback harness {stamp} ({platform})', '', f'base {base_ref} {base_sha}', f'fix {fix_sha}', '',
                                                *[f'    {line}' for line in lines], '', result, '']))
-    print('\n'.join(lines + [result, f'summary: {out / "summary.md"}']))
+    print('\n'.join(lines + [f'summary: {out / "summary.md"}']))  # RESULT is printed by cmd_ab after finalization
     return 0 if ok else 1
 
 
@@ -1081,9 +1104,14 @@ def cmd_ab(args) -> int:
     evidence['config'].pop('output', None)
     evidence['config']['names'] = []
     write_evidence(out, evidence)
+    global LOCK_FDS
     try:
-        with heavy_lock(out, CACHE):
-            code = _cmd_ab(args, out, evidence)
+        with heavy_lock(out, CACHE) as descriptors:
+            LOCK_FDS = descriptors
+            try:
+                code = _cmd_ab(args, out, evidence)
+            finally:
+                LOCK_FDS = ()
         evidence['exitCode'] = code
         evidence['status'] = 'passed' if code == 0 and (out / 'comparison.json').exists() else 'failed'
         return code
@@ -1127,7 +1155,9 @@ def cmd_ab(args) -> int:
                 raise InfraError(f'cannot finalize evidence: {out}: {final_error}') from final_error
         finally:
             try:
-                if evidence['status'] != 'passed':
+                # Keep the detailed per-check summary of a completed failed comparison; anything else gets the short status.
+                detailed = evidence['status'] == 'failed' and evidence['exitCode'] == 1 and (out / 'summary.md').exists()
+                if evidence['status'] != 'passed' and not detailed:
                     (out / 'summary.md').write_text(
                         f"Playback fixture matrix: {evidence['status']}; exit {evidence['exitCode']}\n"
                         f"{evidence.get('error', evidence.get('finalizationError', 'comparison failed'))}\n"
@@ -1136,6 +1166,8 @@ def cmd_ab(args) -> int:
                 print(f'Cannot write summary {out}: {summary_error}', file=sys.stderr)
                 if original_error is None:
                     raise
+            if original_error is None and evidence['status'] in ('passed', 'failed') and (out / 'comparison.json').exists():
+                print(f"RESULT {'PASS' if evidence['status'] == 'passed' else 'FAIL'}")
             print(f'evidence: {out / "evidence.json"}', flush=True)
 
 
@@ -1201,6 +1233,10 @@ def cmd_gate(args):
                 command[command.index('--base') + 1] = base
             gate_summary(out, record)
             for name, command, deadline in commands:
+                if record['steps']['check']['status'] == 'failed':
+                    # Do not spend hours of matrices on a candidate that already failed the quality gate.
+                    record['steps'][name].update(error='skipped: check failed')
+                    continue
                 if candidate_identity() != record['candidate'] or environment_identity() != record['environment']:
                     raise InfraError('candidate/environment changed; remaining steps not run')
                 step = record['steps'][name]
@@ -1219,6 +1255,8 @@ def cmd_gate(args):
                                                    stderr=subprocess.STDOUT, pass_fds=descriptors)
                         step.update(commandExit=done.returncode, exitCode=done.returncode,
                                     status='passed' if done.returncode == 0 else 'failed')
+                        if done.returncode < 0:
+                            step['error'] = f'command killed by signal {-done.returncode}'
                         if done.returncode == 0 and name != 'check':
                             verify_evidence(out / name, record['candidate'], record['environment'], full_config(name, base, flutter))
                         if name != 'check' and done.returncode == 2:

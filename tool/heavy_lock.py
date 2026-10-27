@@ -67,18 +67,21 @@ def heavy_lock(owner, cache=None, require_inherited=False):
                 stream.close()
 
 
-if __name__ == '__main__':
+def main(arguments):
     try:
-        arguments = sys.argv[1:]
         owner = ' '.join(arguments)
         if arguments[:1] == ['--owner']:
             owner, arguments = arguments[1], arguments[2:]
         verify = arguments[:1] == ['--verify']
         with heavy_lock(owner, require_inherited=verify) as descriptors:
             if verify:
-                sys.exit(0)
+                return 0
             for fd in descriptors:
                 os.set_inheritable(fd, True)
             os.execvp(arguments[0], arguments)
-    except RuntimeError as error:
-        sys.exit(str(error))
+    except (RuntimeError, OSError) as error:  # busy lock, or e.g. PermissionError on a lock file owned by another user
+        return f'heavy lock unavailable: {error}' if isinstance(error, OSError) else str(error)
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))
