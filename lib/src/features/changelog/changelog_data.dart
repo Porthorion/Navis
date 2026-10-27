@@ -130,6 +130,16 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Play during a final playback failure now resumes the same song after '
+        'shutdown, while a newer seek keeps its target and a later Pause stays '
+        'paused. Desktop cut recovery keeps the song and your latest seek '
+        'during queue fills, queued appends or a failed reopen. Removing the '
+        'cut song preserves Play/Pause for the remaining queue. Pausing a '
+        'failed reload lets failover select the next song paused, and a '
+        'rejected Fast Seeking bridge opens the original only once.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On Android, Ogg/Opus transcodes can recover a mid-song connection '
         'cut without reloading the song: Navis joins a continuation to the '
         'audio already buffered.',
@@ -254,6 +264,11 @@ const List<ChangelogVersion> changelogs = [
         'first update after 1.5.1; 1.5.0 users update to 1.5.1 manually or '
         'through their package manager.',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Linux package updates now say "Installing the update. This can take '
+        'a minute." while the package manager works, instead of a bare '
+        '"Applying update…".',
       ),
       ChangelogEntry(
         'Show the seek bar buffered line exactly: for Opus, Vorbis and FLAC '

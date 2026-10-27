@@ -216,12 +216,36 @@ void main() {
         await tester.pump();
         expect(service.downloads, 1);
         expect(service.applies, 1);
-        expect(find.text('Applying update…'), findsOneWidget);
+        expect(
+          find.text('Installing the update. This can take a minute.'),
+          findsOneWidget,
+        );
+        expect(find.text('Applying update…'), findsNothing);
         expect(find.textContaining('cannot update itself'), findsNothing);
         await tester.pumpWidget(const SizedBox.shrink());
       },
     );
   }
+
+  testWidgets('non-package desktop installs keep the generic applying copy', (
+    tester,
+  ) async {
+    final service = _PackageUpdateService();
+    await _openPackageDialog(
+      tester,
+      service,
+      UpdateInstallMode.windowsPortable,
+    );
+    await tester.tap(find.text('Restart & Update'));
+    await tester.pump();
+    expect(service.applies, 1);
+    expect(find.text('Applying update…'), findsOneWidget);
+    expect(
+      find.text('Installing the update. This can take a minute.'),
+      findsNothing,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets('cancelled elevation silently returns to confirm and can retry', (
     tester,

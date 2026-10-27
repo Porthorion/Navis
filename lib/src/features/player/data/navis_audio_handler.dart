@@ -487,6 +487,9 @@ class NavisAudioHandler extends BaseAudioHandler
   DateTime? _lastPositionEmitAt;
   _PendingSeek? _lastSeek;
   int _seekRevision = 0;
+  int? _quietStopLoadGeneration;
+  bool get _quietStopInProgress =>
+      _quietStopLoadGeneration == _activeLoadGeneration;
   bool _seekFailureBlocksRecovery = false;
   // Where the failed seek left playback; normal progress past it lifts the
   // block above.
@@ -2254,11 +2257,12 @@ class NavisAudioHandler extends BaseAudioHandler
       if (!_isCurrentTransportIntent(transportGeneration)) return;
     }
 
-    if (_prematureTranscodeDeparture?.sourceReady == false) {
-      // The native source is the successor (or completed) until the reopen lands.
+    if (_quietStopInProgress ||
+        _prematureTranscodeDeparture?.sourceReady == false) {
+      // Hold playback until shutdown or the departed source's reopen finishes.
       _broadcastPlaybackState();
       _emitSnapshot();
-      _scheduleTransportPersistence(context: 'play during transcode recovery');
+      _scheduleTransportPersistence(context: 'play during recovery');
       return;
     }
 
@@ -2617,6 +2621,11 @@ class NavisAudioHandler extends BaseAudioHandler
           _pendingSeek = null;
           _broadcastPlaybackState();
           _emitSnapshot();
+        }
+        if (identical(_lastSeek, request) &&
+            _prematureTranscodeDeparture?.item.id == request.songId) {
+          _prematureTranscodeDeparture = null;
+          _captureTranscodeEndOccurrence(indexEvent: true);
         }
         _syncBridgeDownloadPriority();
       }
