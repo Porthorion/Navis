@@ -256,6 +256,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Linux package updates now say "Installing the update. This can take '
+        'a minute." while the package manager works, instead of a bare '
+        '"Applying update…".',
+      ),
+      ChangelogEntry(
         'Show the seek bar buffered line exactly: for Opus, Vorbis and FLAC '
         'the cached part is read from the downloaded file instead of being '
         'estimated from the bitrate, and after seeking past the download the '
