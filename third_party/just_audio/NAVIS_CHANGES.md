@@ -237,3 +237,7 @@ starts, including the restart after a finished download's cache file was deleted
 (`_discardFinishedFetch`). The Navis handler re-registers the source's progress
 observer there, so the re-download is a registered running download again
 (stale-download cancel, priority pause, rolling-cache completion).
+
+Requests queued while a download finishes (after the dispatcher stopped, during the
+flush and publication of the cache file) are served from the completed file once it
+is published; if publishing fails they get that error and the fetch resets.

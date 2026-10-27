@@ -4049,20 +4049,27 @@ class LockCachingAudioSource extends StreamAudioSource {
       await sink.flush();
       await sink.close();
       final partial = await _partialCacheFile;
+      Object? publishError;
       if (partial.existsSync()) {
-        partial.renameSync(cacheFile.path);
+        try {
+          partial.renameSync(cacheFile.path);
+        } on FileSystemException catch (error) {
+          publishError = error;
+        }
       } else if (!cacheFile.existsSync()) {
+        publishError = StateError('Partial cache file removed');
+      }
+      if (publishError != null) {
         // Navis: the partial file was removed under the finishing download
-        // (cleanup, or another writer's rename). Fail it like a cut: a later
-        // request downloads again, and nothing is left pending.
+        // (cleanup, or another writer's rename). Fail it like a cut: queued
+        // requests get the error, a later request downloads again.
         _response = null;
-        final error = StateError('Partial cache file removed');
         for (final req in _requests) {
-          req.fail(error);
+          req.fail(publishError);
         }
         _requests.clear();
         for (final res in inProgressResponses) {
-          res.controller.addError(error);
+          res.controller.addError(publishError);
           res.controller.close();
         }
         await subscription.cancel();
@@ -4071,6 +4078,20 @@ class LockCachingAudioSource extends StreamAudioSource {
         return;
       }
       updateProgress(100);
+      // Navis: requests queued after the dispatcher stopped (while the file was
+      // being flushed and published) are served from the completed file.
+      final length = cacheFile.lengthSync();
+      for (final req in _requests.toList()) {
+        _requests.remove(req);
+        req.complete(StreamAudioResponse(
+          rangeRequestsSupported: true,
+          sourceLength: req.start != null ? length : null,
+          contentLength: (req.end ?? length) - (req.start ?? 0),
+          offset: req.start,
+          contentType: mimeType,
+          stream: cacheFile.openRead(req.start, req.end).asBroadcastStream(),
+        ));
+      }
       for (var cacheResponse in inProgressResponses) {
         if (!cacheResponse.controller.isClosed) {
           cacheResponse.controller.close();
