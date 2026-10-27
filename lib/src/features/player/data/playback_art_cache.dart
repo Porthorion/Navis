@@ -140,12 +140,12 @@ class PlaybackArtCache {
     return path;
   }
 
-  /// The first 12 bytes of [path], or `null` when it cannot be read.
+  /// The first 32 bytes of [path], or `null` when it cannot be read.
   static List<int>? _head(String path) {
     RandomAccessFile? file;
     try {
       file = File(path).openSync();
-      return file.readSync(12);
+      return file.readSync(32);
     } on FileSystemException {
       return null;
     } finally {
@@ -154,22 +154,20 @@ class PlaybackArtCache {
   }
 
   /// Whether [path] is a file that starts like an image `BitmapFactory`
-  /// decodes (see [imageExtensionForBytes]). Reads only the first 12 bytes;
+  /// decodes (see [imageExtensionForBytes]). Reads only the first 32 bytes;
   /// cheap enough for each publish.
   static bool isImageFile(String path) {
     final head = _head(path);
     return head != null && imageExtensionForBytes(head) != null;
   }
 
-  /// Whether [path] is worth keeping as a cover: not an HTML or JSON page.
-  /// Servers may return formats [isImageFile] does not list (AVIF, HEIC,
-  /// TIFF); those are cached unchanged but only listed formats are published
-  /// to the system.
+  /// Whether [path] starts like an image the transport accepts
+  /// ([looksLikeImagePayload], which also covers AVIF, HEIC and TIFF), so an
+  /// error page saved by an older build is never reused. [isImageFile] is
+  /// stricter: only its formats are published to the system.
   static bool _isUsableCover(String path) {
     final head = _head(path);
-    if (head == null || head.isEmpty) return false;
-    final first = head.firstWhere((b) => b > 0x20, orElse: () => 0);
-    return first != 0x3C /* < */ && first != 0x7B /* { */;
+    return head != null && looksLikeImagePayload(head);
   }
 
   /// Returns the local file path for [coverArtId], downloading from [artUri]
@@ -267,16 +265,8 @@ class PlaybackArtCache {
           await sink.close().catchError((Object _) {});
         }
         written = await partial.length();
-        // A 200 that is not an image (captive portal, proxy error page) must
-        // not become the cover.
-        if (written > 0 && _isUsableCover(partial.path)) {
-          await partial.rename(file.path);
-        } else if (written > 0) {
-          AppLogger.warning(
-            'PlaybackArtCache: cover for $coverArtId is not an image',
-          );
-          return null;
-        }
+        // The transport rejects non-image bodies before they reach here.
+        if (written > 0) await partial.rename(file.path);
       } finally {
         // Keep metadata access asynchronous so storage latency cannot stall UI.
         // ignore: avoid_slow_async_io

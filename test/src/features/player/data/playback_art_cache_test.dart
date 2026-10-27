@@ -341,52 +341,57 @@ void main() {
     expect(cache.cachedPath('al-1'), path);
   });
 
-  test('a non-image file at the cover path is downloaded again', () async {
-    final temp = await _tempCacheDir();
-    var requests = 0;
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(() => server.close(force: true));
-    server.listen((request) async {
-      requests++;
-      request.response.headers.contentType = ContentType('image', 'jpeg');
-      request.response.add(<int>[0xff, 0xd8, 0xff, 1, 2, 3]);
-      await request.response.close();
+  for (final entry in <String, List<int>>{
+    'html': '<html>captive portal</html>'.codeUnits,
+    'whitespace': '\n\n  \n'.codeUnits,
+    'Forbidden': 'Forbidden'.codeUnits,
+    'cloudflare 1010': 'error code: 1010'.codeUnits,
+    'json array': '[1,2]'.codeUnits,
+    'BOM and html': [0xEF, 0xBB, 0xBF, ...'<html>x</html>'.codeUnits],
+  }.entries) {
+    test('a ${entry.key} file at the cover path is downloaded again', () async {
+      final temp = await _tempCacheDir();
+      var requests = 0;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        requests++;
+        request.response.headers.contentType = ContentType('image', 'jpeg');
+        request.response.add(<int>[0xff, 0xd8, 0xff, 1, 2, 3]);
+        await request.response.close();
+      });
+      await PlaybackArtCache.initializeKey(supportDirectory: temp);
+      final cover = File(
+        '${temp.path}/navis_art_v2_${PlaybackArtCache.fileKey('al-1')}.jpg',
+      )..writeAsBytesSync(entry.value);
+
+      final path = await PlaybackArtCache().getOrFetch(
+        'al-1',
+        Uri.parse('http://127.0.0.1:${server.port}/art'),
+      );
+
+      expect(path, cover.path);
+      expect(requests, 1);
+      expect(PlaybackArtCache.isImageFile(cover.path), isTrue);
     });
+  }
+
+  test('an AVIF file at the cover path is reused', () async {
+    final temp = await _tempCacheDir();
     await PlaybackArtCache.initializeKey(supportDirectory: temp);
+    final avif = <int>[0, 0, 0, 16, ...'ftypavif'.codeUnits, 0, 0, 0, 0];
     final cover = File(
       '${temp.path}/navis_art_v2_${PlaybackArtCache.fileKey('al-1')}.jpg',
-    )..writeAsStringSync('<html>captive portal</html>');
+    )..writeAsBytesSync(avif);
 
+    // Port 9 is closed: a download would fail.
     final path = await PlaybackArtCache().getOrFetch(
       'al-1',
-      Uri.parse('http://127.0.0.1:${server.port}/art'),
+      Uri.parse('http://127.0.0.1:9/art'),
     );
 
     expect(path, cover.path);
-    expect(requests, 1);
-    expect(PlaybackArtCache.isImageFile(cover.path), isTrue);
-  });
-
-  test('a non-image download is discarded, not published', () async {
-    final temp = await _tempCacheDir();
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(() => server.close(force: true));
-    server.listen((request) async {
-      // A captive portal answering 200 with a cover content type.
-      request.response.headers.contentType = ContentType('image', 'jpeg');
-      request.response.write('<html>sign in to the wifi</html>');
-      await request.response.close();
-    });
-    final cache = PlaybackArtCache();
-
-    final path = await cache.getOrFetch(
-      'al-1',
-      Uri.parse('http://127.0.0.1:${server.port}/art'),
-    );
-
-    expect(path, isNull);
-    expect(cache.cachedPath('al-1'), isNull);
-    expect(temp.listSync(), isEmpty);
+    expect(cover.readAsBytesSync(), avif);
   });
 
   test('isImageFile accepts JPEG, PNG and WebP headers only', () async {

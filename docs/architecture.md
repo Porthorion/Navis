@@ -5592,7 +5592,7 @@ Auto can open these URIs from its own process. The content URI is published only
 is an image file on disk: `AndroidSystemArt.forSystem` takes the item's
 `artCacheFile` or `PlaybackArtCache.cachedPath`, requires that the file exists
 and starts with a JPEG, PNG or WebP header (`PlaybackArtCache.isImageFile`,
-a stat plus a 12-byte read on each publish), and adds `artCacheFile` to the
+a stat plus a 32-byte read on each publish), and adds `artCacheFile` to the
 published item so audio_service decodes the bitmap. A missing path, an empty
 string or a non-image file withholds the URI (and the bad `artCacheFile`), and
 `cachedPath` drops an in-memory entry whose file has gone so the next fetch
@@ -5600,8 +5600,12 @@ rewrites it. `NavisAudioHandler._updateArtCacheFile` counts an
 `artCacheFile` as present only while that file is an image, otherwise it
 fetches again and re-emits the item (even at the same path) so the projection
 republishes the bitmap. `PlaybackArtCache` reuses an existing cover file only
-if it is not an HTML/JSON page, and discards a downloaded body of that kind
-before the rename. Lists check each cover ID once per build. Until then the item has no art and the download starts. The
+if it starts with an image signature (`looksLikeImagePayload`, the cover
+transport's check, so an error page saved by an older build is downloaded
+again; the transport itself already rejects non-image bodies). AVIF, HEIC and
+TIFF covers are cached but never published to the system item (only JPEG, PNG,
+GIF, WebP and BMP are); covers are requested at 512 px, so servers normally
+return JPEG or PNG. Lists check each cover ID once per build. Until then the item has no art and the download starts. The
 session bitmap is decoded with `AudioServiceConfig.artDownscaleWidth/Height`
 of 256 (`AndroidSystemArt.artDownscaleSize`): audio_service halves sampling
 only while the result stays at or above that size, so the 512 px covers Navis

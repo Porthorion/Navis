@@ -21,8 +21,10 @@ Last updated: 2026-10-28
   file; otherwise it withholds the URI and a bad `artCacheFile`.
   `PlaybackArtCache.cachedPath` drops entries whose file is gone; the handler
   re-fetches and re-emits a stale `artCacheFile` (review r2: final item had no
-  art, now content URI + file after exactly one download); a non-image file or
-  body (captive portal) is never reused or renamed into place; lists stat each
+  art, now content URI + file after exactly one download); a file without an image
+  signature (error page from an older build) is never reused and is downloaded
+  again (the transport already rejects non-image bodies); AVIF/HEIC/TIFF stay
+  cached but unpublished; lists stat each
   cover once. Art downscale
   is 256 so the 512 px covers decode at 256 px. Evidence: new tests failed first
   (`Expected: null Actual: Uri:<content://a.artwork/cover/..>`; `Expected:
