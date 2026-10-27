@@ -15,6 +15,19 @@ What it does:
 - checks the Flutter 3.47.5 minimum and active 3.47.x baseline
 - resolves root and owned Flutter packages plus CargoKit development dependencies
 
+The local quality gate also requires Python 3.11+ and NumPy for the playback
+PCM/oracle self-checks. Install NumPy using your system package manager, or use
+an ignored virtual environment before running `./tool/check.sh`:
+
+```bash
+python3 -m venv build/validation-venv
+. build/validation-venv/bin/activate
+python3 -m pip install numpy
+```
+
+Bootstrap resolves Dart packages; it does not install Python packages. Keep the
+same Python environment active for the final gate and evidence verification.
+
 ## Bundled licence notices
 
 `registerBundledLicenses` in `lib/src/app_licenses.dart` owns notices for
@@ -1405,6 +1418,122 @@ final invocation so the sanitized runtime-validation record captures the gate.
 
 ### Playback runtime harness
 
+
+#### Final fixture gate and ownership
+
+The final invocation extends the existing harness. Before, an owner assembled
+these three independent commands (and retained their logs manually):
+
+```bash
+./tool/check.sh
+python3 tool/playback_harness.py ab --all --full --platform linux --base github/release/1.5
+python3 tool/playback_harness.py ab --all --full --platform android --base github/release/1.5
+```
+
+After, use one foreground invocation from the repository root:
+
+```bash
+python3 tool/playback_harness.py gate --base github/release/1.5
+```
+
+It runs check.sh, Linux, then Android serially; Android is required by this
+fixture gate. A missing SDK/AVD is blocked, never successful or silently skipped.
+It preserves all **118 Linux + 73 Android cells per variant (382 A/B cells)**,
+assertions and tolerances. `--map`, quick runs and repetition overrides remain
+iteration tools, not substitutes. No calibration/threshold work is included.
+See the [coverage map](playback-validation-coverage.md) for requirements beyond
+these fixtures. The gate always reports whole playback acceptance as outstanding;
+its exit 0 certifies only check.sh plus both verified full fixture matrices.
+
+Each invocation creates `build/harness/gate-<UTC-microsecond-stamp>/`, containing
+`gate.json`, `gate-summary.md`, `check.log`, `linux.log`, `android.log`, and new
+platform evidence directories. The JSON stores each exact argument vector,
+command exit (null for not executed), gate step exit, elapsed time and
+passed/failed/blocked/not-run status. A timeout is blocked with step exit 124;
+the actual terminated command exit is retained when available. Not-run steps
+have no command exit. Reused steps identify their existing evidence directory.
+check.sh retains every step log under its own unique `build/check/run-*` directory,
+prints that pointer, and fails on either command or tee failure, preferring the
+original command exit when both fail. It removes no captured logs.
+
+The gate holds `/tmp/navis-heavy.lock` and `~/.cache/navis-harness/lock`
+(plus `NAVIS_HARNESS_CACHE/lock` when configured elsewhere) for the entire invocation. Direct
+check.sh and A/B callers take the same pair. Busy jobs fail fast with the lock
+owner PID and evidence pointer when written by these tools; legacy owners may
+require `lslocks`. Never poll or launch replacements while an owner is active.
+Children inherit descriptors; nesting verifies inode/device identity, exclusive
+flock ownership and contention on an independently opened descriptor. No
+environment flag grants lock ownership. An inherited outer `flock` is supported
+where its descriptor survives exec. Prefer the gate without an outer flock:
+`systemd-run` scope transitions may close outer descriptors. Do not delete lock
+files to bypass an owner; that creates different lock inodes.
+
+The harness retains the systemd MemoryMax=8G / MemorySwapMax=3G scope. It bounds
+check.sh to 2 hours, Linux to 18 hours and Android to 12 hours (32 hours total
+command budget, plus bounded preflight and cleanup). Builds have a 1-hour
+limit; base bootstrap 20 minutes; engine scenarios retain their existing
+budget×4+10-minute limits. Each bounded command runs under a private Linux
+child-subreaper, which retains inherited lock descriptors until all its children
+and adopted descendants have exited and been reaped, including separate sessions
+and descendants whose original parent already exited. Timeout/interrupt requests
+TERM cleanup; after 60 seconds the owner sends KILL only to verified descendants.
+Nested cleanup owners may be terminated, but the outer subreaper adopts and drains
+their children before returning or starting another platform. PID handles (pidfds)
+and live parent checks prevent signalling a reused PID. Engine SIGTERM still
+unwinds its existing app/proxy cleanup. Repeated cancellation cannot interrupt the
+caller's cleanup wait or replace its original timeout/cancellation error.
+This requires Linux `/proc`, child-subreaper and Python/kernel pidfd support;
+unsupported hosts fail closed before launching the command. The deadline bounds
+graceful cleanup, not kernel exit/reaping latency: an uninterruptible kernel task
+can keep ownership held past the deadline. Do not SIGKILL the outermost cleanup
+owner or its caller; external owner death, host failure and processes delegated
+to an existing service (rather than fork descendants) are outside this guarantee.
+Partial emulator acquisition removes only its own
+AVD and process. This safety fix does not close P4's ordering/calibration or
+other lifecycle acceptance work. Host/device timing still requires task C.
+
+One builder, one validation owner, one independent reviewer:
+
+1. **Builder:** finish edits and focused checks; hand over the exact candidate,
+   resolved base, Flutter/configuration, test results, evidence paths and known
+   gaps. Freeze source during validation. Do not start a parallel full gate.
+2. **Validation owner:** run the final command once, retain its unique directory,
+   exact exit and summary, and hand over all external/native/device/manual gaps
+   with applicability. Before replacing an owner, cancel its predecessor and
+   confirm its process/task is terminal, including any automatic resume. Use a
+   fresh directory for the replacement; never share a review scratch directory.
+3. **Reviewer:** inspect source and retained artifacts; independently verify
+   exact-state evidence and challenge concrete gaps. Reuse evidence instead of
+   executing merely to possess another copy. Request a rerun for changed source,
+   base, Flutter/configuration/environment, missing/corrupt artifacts, incomplete
+   cells, timeout, a concrete coverage hole or a new regression probe. Cite the
+   reason and smallest necessary scope; changed playback source invalidates the
+   previous full candidate certificate.
+
+Explicit reuse still runs check.sh and verifies each supplied matrix against the
+current exact candidate, resolved base, Flutter, stable environment and complete
+platform configuration before accepting it:
+
+```bash
+python3 tool/playback_harness.py gate --base github/release/1.5 \
+  --reuse-linux build/harness/<previous-gate>/linux \
+  --reuse-android build/harness/<previous-gate>/android
+```
+
+There is no automatic discovery/reuse or fallback rerun on invalid reuse evidence.
+Source identity includes all tracked and nonignored untracked files, including
+tooling/docs; no playback-affecting path is ignored to enable reuse. Reuse applies
+only to the attested state. Relevant environment values are hashed, never printed;
+see the coverage map for the stable selection and attestation limits.
+
+The local orchestrator at **2026-10-26 15:41:55 UTC** reported that a rate-limited
+r2 predecessor resumed automatically after its replacement started, sharing a
+review scratch directory. The replacement was cancelled only after the
+predecessor finished. This establishes overlapping ownership, not that all work
+was redundant. Existing r2/r3 briefs already prohibited heavy jobs and reused
+probes. No token, quota or cost saving is certified by this change.
+
+
 `tool/playback_harness.py` is the one command for playback runtime checks. It
 builds a base commit (cached) and the working tree, runs the same fixture
 scenarios on both with identical configuration, and prints one
@@ -1519,12 +1648,12 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   the harness, `~/Downloads/Navis_Downloads` changed, another heavy job holds
   the lock). An infrastructure error is never reported as a FAIL.
 - **Safety.** The tool re-runs itself in a `systemd-run --user --scope`
-  (MemoryMax 8G), takes `~/.cache/navis-harness/lock`, snapshots the sha256 of
+  (MemoryMax 8G), takes both `/tmp/navis-heavy.lock` and `~/.cache/navis-harness/lock`, snapshots the sha256 of
   the downloads folder before and after, starts a headless `kwin_wayland
   --virtual` (Linux) or a disposable 3072 MiB, 2-core AVD cloned from
   `NAVIS_HARNESS_AVD` (default `Pixel_9_Pro_XL`; a fresh guest per scenario and variant), and
   stops only the processes it started. Android runs `stress-drag`,
-  `memory-soak`, `repeat` and `queue-edit` (other selected scenarios print `SKIP <scenario>: linux-only`; if none is left the tool exits 2, run `--platform linux`); its heartbeat numbers come from a
+  `memory-soak`, `repeat`, `cut-recovery` and `queue-edit` (other selected scenarios print `SKIP <scenario>: linux-only`; if none is left the tool exits 2, run `--platform linux`); its heartbeat numbers come from a
   software-rendered guest and are noisier, hence the wider Android tolerances
   recorded in the PR. Outputs: `build/harness/<stamp>/{base,fix}/<scenario>/`
   (engine `report.json`, traces, app logs), `comparison.json`, `summary.md`.
