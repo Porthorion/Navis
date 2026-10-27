@@ -6505,6 +6505,49 @@ void main() {
       },
     );
 
+    test('a rebuild onto an idle evicted writer does not replay its completion', () async {
+      final gate = Completer<void>();
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
+      final s = await serveQueue(
+        4,
+        ids: ['song-0', 'song-1', 'song-1', 'song-2'],
+        holdLater: {'song-1'},
+        laterGate: gate,
+      );
+      ticks(s.player);
+      final leader = sourceAt(s.player, 1);
+      await drain(await leader.request());
+      final file = await leader.cacheFile;
+      await until(() => file.existsSync());
+      await until(
+        () => s.handler.debugRegisteredLockCacheSource('song-1') == null,
+      );
+      await s.handler.skipToQueueItem(3);
+      await settleQueue(s.handler);
+      await settle();
+      file.deleteSync();
+      await s.handler.replaceQueue(
+        ['song-1', 'song-0', 'song-1'],
+        startIndex: 0,
+        expandMatchFlows: false,
+      );
+      await settleQueue(s.handler);
+      await settle();
+      expect(identical(s.player.audioSources[0], leader), isTrue);
+      // The file is gone: the stale 1.0 the progress stream replays is not a
+      // completion, so the writer stays registered and the buffer is not full.
+      expect(
+        identical(s.handler.debugRegisteredLockCacheSource('song-1'), leader),
+        isTrue,
+      );
+      expect(
+        s.handler.bufferState.bufferedPosition,
+        lessThan(const Duration(minutes: 3)),
+      );
+    });
+
     test('a repeat occurrence plays on after its leader is removed', () async {
       final s = await serveQueue(
         3,
