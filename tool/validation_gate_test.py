@@ -533,6 +533,123 @@ class Gate(unittest.TestCase):
             with self.assertRaisesRegex(h.InfraError, 'getprop timed out'):
                 emulator._adb('getprop', 'sys.boot_completed', timeout=15)
 
+    def boot(self, states, reconnect_fixes=True, reconnect_works=True):
+        """Boots Emulator._acquire against a fake adb and clock. [states] gives get-state per call (last repeats);
+        returns (error or None, adb calls, fake seconds)."""
+        clock, calls, state = [0.0], [], ['unauthorized']
+        def fake_run(cmd, **kwargs):
+            calls.append(cmd[1:] if cmd[1:2] != ['-s'] else cmd[3:])
+            done = subprocess.CompletedProcess(cmd, 0, '', '')
+            if 'get-state' in cmd:
+                state[0] = states[min(len([c for c in calls if 'get-state' in c]) - 1, len(states) - 1)]
+                if state[0] == 'unauthorized':  # real adb: error text on stderr, exit 1
+                    return subprocess.CompletedProcess(cmd, 1, '', 'error: device unauthorized.\n')
+                done.stdout = state[0] + '\n'
+            elif 'reconnect' in cmd:
+                if not reconnect_works and cmd[-2:] != ['reconnect', 'offline']:
+                    return subprocess.CompletedProcess(cmd, 1, '', 'error')
+                if reconnect_fixes:
+                    states[:] = ['device']
+            elif 'getprop' in cmd:
+                done.stdout = '1\n' if state[0] == 'device' else ''
+            return done
+        fake_time = type('T', (), {'monotonic': staticmethod(lambda: clock[0]),
+                                   'sleep': staticmethod(lambda s: clock.__setitem__(0, clock[0] + s))})
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            source = root / (h.SOURCE_AVD + '.avd')
+            source.mkdir()
+            (source / 'config.ini').write_text('hw.ramSize=3072')
+            emulator = h.Emulator(root)
+            emulator.home = root
+            proc = type('P', (), {'poll': lambda self: None})()
+            error = None
+            with patch.object(emulator, 'check'), patch.object(emulator, '_free', return_value=True), \
+                    patch.object(h, 'run', side_effect=fake_run), patch.object(h, 'time', fake_time), \
+                    patch.object(h.subprocess, 'Popen', return_value=proc):
+                try:
+                    emulator._acquire()
+                except h.InfraError as caught:
+                    error = caught
+        return error, calls, clock[0]
+
+    def test_boot_wait_gives_up_on_a_guest_adb_never_authorizes(self):
+        error, calls, seconds = self.boot(['unauthorized'], reconnect_fixes=False)
+        self.assertIsNotNone(error)
+        self.assertRegex(str(error), 'unauthorized')
+        self.assertLess(seconds, 120)  # not the 240 s boot timeout
+        self.assertEqual(len([c for c in calls if 'reconnect' in c]), 1)
+
+    def test_boot_wait_reconnects_a_stuck_adb_and_continues(self):
+        for state in ('unauthorized', 'offline'):
+            error, calls, seconds = self.boot([state])
+            self.assertIsNone(error, state)
+            reconnects = [c for c in calls if 'reconnect' in c]
+            self.assertEqual(reconnects, [['reconnect']], state)
+            self.assertGreater(seconds, 40)
+
+    def test_boot_wait_falls_back_to_reconnect_offline_and_ignores_a_short_blip(self):
+        error, calls, _ = self.boot(['offline'], reconnect_works=False)
+        self.assertIsNone(error)
+        self.assertIn(['reconnect'], calls)
+        self.assertIn(['reconnect', 'offline'], calls)
+        error, calls, _ = self.boot(['offline', 'offline', 'device'])
+        self.assertIsNone(error)
+        self.assertFalse([c for c in calls if 'reconnect' in c])
+
+    def guest_run(self, platform='android', boot=('ok',), run_errors=(), dies=False):
+        """h.run_guest_scenario against fake guests. [boot] lists what each Emulator.__enter__ does ('ok' or 'fail');
+        returns (result or exception, emulators built)."""
+        built = []
+        class Fake:
+            def __init__(self, out):
+                self.out, self.entered, self.exited = out, False, False
+                self.proc = type('P', (), {'poll': lambda me: 1 if dies else None})()
+                built.append(self)
+            def __enter__(self):
+                if boot[min(len(built), len(boot)) - 1] == 'fail':
+                    self.exited = True  # the real __enter__ cleans its own failed acquisition
+                    raise h.InfraError('emulator adb stayed unauthorized')
+                self.entered = True
+                return 'emulator-5620'
+            def __exit__(self, *_):
+                self.exited = True
+        errors = list(run_errors)
+        def scenario(*args, **kwargs):
+            if errors:
+                raise errors.pop(0)
+            return ['row'], 1.0
+        with tempfile.TemporaryDirectory() as folder, patch.object(h, 'Emulator', Fake), \
+                patch.object(h, 'run_scenario', side_effect=scenario), patch.object(h, 'activate'), \
+                patch.object(h, 'artifact_of', return_value=Path('app.apk')), patch.object(h, 'candidate_identity', return_value={}), \
+                redirect_stdout(io.StringIO()):
+            try:
+                result = h.run_guest_scenario('base/queue-edit', 'queue-edit', platform, Path('base'), Path(folder), {}, None,
+                                              {}, False, None, False)
+            except h.InfraError as error:
+                result = error
+        return result, built
+
+    def test_boot_failure_is_retried_once_on_a_fresh_guest(self):
+        result, built = self.guest_run(boot=('fail', 'ok'))
+        self.assertEqual(result, (['row'], 1.0))
+        self.assertEqual(len(built), 2)
+        self.assertTrue(built[0].exited)
+        self.assertNotEqual(built[0].out, built[1].out)  # the failed boot keeps its emulator.log
+        result, built = self.guest_run(boot=('fail', 'fail'))
+        self.assertRegex(str(result), 'unauthorized')
+        self.assertEqual(len(built), 2)
+
+    def test_guest_run_retries_only_a_dead_guest_and_never_on_linux(self):
+        result, built = self.guest_run(run_errors=[h.InfraError('engine died')], dies=True)
+        self.assertEqual((result, len(built)), ((['row'], 1.0), 2))
+        result, built = self.guest_run(run_errors=[h.InfraError('engine failed')])
+        self.assertRegex(str(result), 'engine failed')
+        self.assertEqual(len(built), 1)
+        result, built = self.guest_run(platform='linux', run_errors=[h.InfraError('engine failed')])
+        self.assertRegex(str(result), 'engine failed')
+        self.assertEqual(built, [])
+
     def test_failed_emulator_acquisition_preserves_existing_avd(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

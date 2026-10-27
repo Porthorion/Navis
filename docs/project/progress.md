@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
 ---
 
@@ -4095,3 +4095,10 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   See [plan](../plans/validation-evidence-workflow.md) and
   [coverage map](../development/playback-validation-coverage.md).
 
+# Playback harness reliability (1.5.1 P4, ledger #86) — 2026-10-28 (in progress)
+
+- Branch `fix/harness-reliability`. Emulator boot wait: a guest that logs "Boot
+  completed" while adb stays `unauthorized`/`offline` now gets one reconnect at 40 s
+  and an `InfraError` at 90 s instead of spinning to the 240 s timeout; `cmd_ab`
+  replaces a guest that failed to boot once (`run_guest_scenario`). Hermetic
+  self-checks only (fake adb and clock); no emulator or harness run.

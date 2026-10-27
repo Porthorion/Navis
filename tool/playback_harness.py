@@ -41,6 +41,7 @@ DOWNLOADS = Path.home() / 'Downloads' / 'Navis_Downloads'
 SOURCE_AVD = os.environ.get('NAVIS_HARNESS_AVD', 'Pixel_9_Pro_XL')
 ANDROID_HOME = Path(os.environ.get('ANDROID_HOME', Path.home() / 'Android' / 'Sdk'))
 GUEST_MIB = 3072
+BOOT_ADB_RECONNECT_S, BOOT_ADB_GIVE_UP_S = 40, 90  # seconds adb may stay unauthorized/offline before a reconnect / InfraError
 DEFAULT_BASE = 'github/release/1.5'
 MEMORY_MAX = '8G'
 
@@ -808,6 +809,45 @@ class Emulator:
         except subprocess.TimeoutExpired as error:
             raise InfraError(f'adb shell {shell[0]} timed out after {timeout}s') from error
 
+    def _adb_state(self) -> str:
+        """`adb get-state`: device, unauthorized, offline, or unknown (no device yet). Newer adb prints the state of a
+        refused device on stderr with exit 1."""
+        try:
+            done = run(self.adb + ['get-state'], timeout=15)
+        except subprocess.TimeoutExpired as error:
+            raise InfraError('adb get-state timed out after 15s') from error
+        text = (done.stdout + done.stderr).lower()
+        return next((s for s in ('unauthorized', 'offline') if s in text), 'device' if done.stdout.strip() == 'device' else 'unknown')
+
+    def _wait_boot(self):
+        """Waits for sys.boot_completed. A guest can finish booting while adb stays unauthorized/offline (67 such polls in
+        one emulator.log): after BOOT_ADB_RECONNECT_S in that state reconnect once, after BOOT_ADB_GIVE_UP_S give up."""
+        deadline, bad_since, reconnected = time.monotonic() + 240, None, False
+        while time.monotonic() < deadline:
+            if self.proc.poll() is not None:
+                raise InfraError(f'emulator exited with {self.proc.returncode} (see {self.out / "emulator.log"})')
+            state = self._adb_state()
+            if state == 'device':
+                bad_since = None
+                if self._adb('getprop', 'sys.boot_completed', timeout=15).stdout.strip() == '1':
+                    return
+            elif state in ('unauthorized', 'offline'):
+                bad_since = bad_since if bad_since is not None else time.monotonic()
+                stuck = time.monotonic() - bad_since
+                if stuck >= BOOT_ADB_GIVE_UP_S:
+                    raise InfraError(f'emulator adb stayed {state} for {round(stuck)} s (see {self.out / "emulator.log"})')
+                if stuck >= BOOT_ADB_RECONNECT_S and not reconnected:
+                    reconnected = True
+                    try:
+                        if run(self.adb + ['reconnect'], timeout=30).returncode:
+                            run([self.adb[0], 'reconnect', 'offline'], timeout=30)
+                    except subprocess.TimeoutExpired:
+                        pass  # the give-up deadline still ends the wait
+            else:
+                bad_since = None
+            time.sleep(2)
+        raise InfraError('emulator boot timed out')
+
     def _acquire(self) -> str:
         self.check()
         values = dict(line.split('=', 1) for line in (self.home / f'{SOURCE_AVD}.avd' / 'config.ini').read_text().splitlines() if '=' in line)
@@ -831,15 +871,7 @@ class Emulator:
              '-partition-size', '4096'],
             stdout=(self.out / 'emulator.log').open('w'), stderr=subprocess.STDOUT, start_new_session=True,
             pass_fds=held_fds())
-        deadline = time.monotonic() + 240
-        while time.monotonic() < deadline:
-            if self.proc.poll() is not None:
-                raise InfraError(f'emulator exited with {self.proc.returncode} (see {self.out / "emulator.log"})')
-            if self._adb('getprop', 'sys.boot_completed', timeout=15).stdout.strip() == '1':
-                break
-            time.sleep(2)
-        else:
-            raise InfraError('emulator boot timed out')
+        self._wait_boot()
         for setting in (['settings', 'put', 'system', 'screen_off_timeout', '2147483647'], ['svc', 'power', 'stayon', 'true']):
             self._adb(*setting, timeout=30)
         time.sleep(40)  # a fresh image keeps doing first-boot work after boot_completed
@@ -1013,6 +1045,39 @@ def select_scenarios(args, announce=True) -> list[str]:
     return names
 
 
+def run_guest_scenario(label: str, name: str, platform: str, folder: Path, step_dir: Path, display_env: dict, seed: Path | None,
+                       candidate: dict, full: bool, reps: int | None, real: bool) -> tuple[list[dict], float]:
+    """One scenario run of the build in [folder], evidence under [step_dir]/attempt-N. Android gets a fresh guest per run: the
+    emulator's GPU translator has crashed (qemu core dump) minutes into a session, and a wiped guest starts both variants from
+    the same state. A guest that fails to boot (Emulator.__enter__ has already removed it and its clone) or dies during the run
+    is replaced once."""
+    for attempt in (1, 2):
+        attempt_dir = step_dir / f'attempt-{attempt}'
+        attempt_dir.mkdir(parents=True, exist_ok=True)
+        booted, why = False, ''
+        try:
+            with ExitStack() as guest:
+                emulator = Emulator(attempt_dir) if platform == 'android' else None
+                serial = guest.enter_context(emulator) if emulator else None
+                booted = True
+                apk = artifact_of('android', folder) if serial else None
+                if candidate_identity() != candidate:
+                    raise InfraError('candidate changed before scenario')
+                activate(folder, platform, seed)
+                try:
+                    return run_scenario(name, platform, attempt_dir, display_env, serial, apk, full, reps, real)
+                except InfraError:
+                    if not (emulator is not None and attempt == 1 and emulator.proc.poll() is not None):
+                        raise
+                    why = 'the emulator died'
+        except InfraError:
+            if booted or attempt == 2 or platform != 'android':
+                raise
+            why = 'the emulator failed to boot'
+        print(f'{label}: {why}, repeating once', flush=True)
+    raise AssertionError('unreachable')  # attempt 2 returns or raises
+
+
 def _cmd_ab(args, out: Path, evidence: dict) -> int:
     names = select_scenarios(args, announce=False)  # main() validated, and announced the skips, before the lock
     platform = args.platform
@@ -1060,29 +1125,8 @@ def _cmd_ab(args, out: Path, evidence: dict) -> int:
         seed = seed_android(base_sha, flutter, display_env, out) if platform == 'android' else None
         for variant, folder in (('base', base_dir), ('fix', fix_dir)):
             for name in names:
-                for attempt in (1, 2):
-                    # A fresh guest per scenario: the emulator's GPU translator has crashed (qemu core dump) minutes into
-                    # a session, and a wiped guest starts both variants from the same state. A run that lost its guest
-                    # is repeated once.
-                    retry = False
-                    with ExitStack() as guest:
-                        emulator = Emulator(out) if platform == 'android' else None
-                        serial = guest.enter_context(emulator) if emulator else None
-                        apk = artifact_of('android', folder) if serial else None
-                        if candidate_identity() != evidence['candidate']:
-                            raise InfraError('candidate changed before scenario')
-                        activate(folder, platform, seed)
-                        try:
-                            rows, seconds = run_scenario(name, platform, out / variant / name / f'attempt-{attempt}', display_env, serial, apk,
-                                                         args.full, args.reps, args.real)
-                        except InfraError:
-                            retry = emulator is not None and attempt == 1 and emulator.proc.poll() is not None
-                            if not retry:
-                                raise
-                    if retry:
-                        print(f'{variant} {name}: the emulator died, repeating once', flush=True)
-                        continue
-                    break
+                rows, seconds = run_guest_scenario(f'{variant} {name}', name, platform, folder, out / variant / name, display_env, seed,
+                                                   evidence['candidate'], args.full, args.reps, args.real)
                 if variant == 'base' and invalid_cells(rows):
                     raise InfraError(f'base {name} is not a valid comparison: {invalid_cells(rows)} (logs: {out / variant / name})')
                 results[(variant, name)] = metrics(name, rows)
