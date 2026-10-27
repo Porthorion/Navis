@@ -101,8 +101,8 @@ SCENARIOS = {
                 ('nextRequestLeadMinS', '>=', 6.0), ('nextBytesAtHandoverMin', '>=', 1048576),
                 ('nextSeekLocalRate', '>=', 0.75)]),
     'crossfade': dict(
-        cases='crossfade_end,skip_next,skip_prev', quick='crossfade_end,skip_next,skip_prev',
-        qualities='opus128', throttle='none', reps=3, budget=(1, 3),
+        cases='crossfade_end,skip_next,skip_prev,crossfade_long_end', quick='crossfade_end,skip_next,skip_prev,crossfade_long_end',
+        qualities='opus128', throttle='none', reps=3, budget=(2, 5),
         args=['--crossfade-s', '4'],
         areas=CROSSFADE,
         checks=[('violations', '<=', 0), ('frozenMedianS', 'base+', 0.1)]),

@@ -368,6 +368,69 @@ class PositionBlip(unittest.TestCase):
                 self.assertEqual([v['oracle'] for v in engine.oracle_progress_loss(run)], ['progressLoss'])
 
 
+class CrossfadeLongOracle(unittest.TestCase):
+    """P5 oracles (synthetic samples): a clean swap passes, each defect is reported by name."""
+    IDS = ['a', 'b']
+    FADE = 4000
+
+    @staticmethod
+    def swap(mutate=None):
+        rows = []
+        for i in range(160):  # 16 s at 10 Hz: the last 10 s of song a (0..99), then song b from 0 (100..)
+            song, pos = ('a', 290000 + i * 100) if i < 100 else ('b', (i - 100) * 100 + 4000)
+            rows.append({'t': 10 + i * 0.1, 'songId': song, 'idx': 0 if song == 'a' else 1, 'pos': pos, 'uiPos': pos,
+                         'playing': True, 'proc': 'ready', 'dur': 300000, 'off': 0, 'cf': {}})
+        if mutate:
+            mutate(rows)
+        return rows
+
+    def names(self, rows, saved=None):
+        run = type('R', (), {'samples': rows, 'actions': [], 'trace': [], 'metrics': {}})()
+        before, after = rows[-2], rows[-1]
+        return [v['oracle'] for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE, saved, before, after)]
+
+    def test_clean_swap_passes(self):
+        self.assertEqual(self.names(self.swap(), {'index': 1, 'positionMs': 9800}), [])
+
+    def test_jump_and_backstep(self):
+        def jump(rows):
+            for r in rows[50:]:
+                r['uiPos'] += 3000
+        def back(rows):
+            for r in rows[50:]:
+                r['pos'] -= 1000
+        self.assertEqual(self.names(self.swap(jump)), ['xfadeJump'])
+        self.assertEqual(self.names(self.swap(back)), ['xfadeJump'])
+
+    def test_freeze(self):
+        def freeze(rows):
+            for r in rows[60:90]:
+                r['pos'] = rows[60]['pos']
+        self.assertEqual(self.names(self.swap(freeze)), ['xfadeFrozen', 'xfadeJump'])  # the unfreeze is a 3 s step
+        def short_freeze(rows):
+            for r in rows[60:70]:
+                r['pos'] = rows[60]['pos']
+        self.assertNotIn('xfadeFrozen', self.names(self.swap(short_freeze)))
+
+    def test_late_incoming_start(self):
+        def late(rows):
+            for r in rows[100:]:
+                r['pos'] += 20000
+                r['uiPos'] += 20000
+        self.assertIn('xfadeLateStart', self.names(self.swap(late)))
+
+    def test_persisted_mismatch(self):
+        end = self.swap()[-1]['pos']
+        self.assertEqual(self.names(self.swap(), {'index': 1, 'positionMs': end - 2500}), ['xfadePersistMismatch'])
+        self.assertEqual(self.names(self.swap(), {'index': 0, 'positionMs': end}), ['xfadePersistMismatch'])
+        self.assertEqual(self.names(self.swap(), {'index': 1, 'positionMs': end - 1500}), [])
+
+    def test_seek_in_flight_is_not_a_jump(self):
+        rows = self.swap(lambda r: [x.update(uiPos=x['uiPos'] + 5000) for x in r[30:]])
+        run = type('R', (), {'samples': rows, 'actions': [{'kind': 'seek', 't': 12.9, 'ret': 13.1}], 'trace': [], 'metrics': {}})()
+        self.assertEqual(engine.oracle_crossfade_long(run, self.IDS, self.FADE), [])
+
+
 class RepeatFillOracle(unittest.TestCase):
     def test_loading_cursor_between_end_and_restart_does_not_hide_wrap(self):
         first = {'songId': 'a', 'dur': 300000}
@@ -786,7 +849,7 @@ class InfraErrors(unittest.TestCase):
 
 class DurableEvidence(unittest.TestCase):
     def test_full_counts(self):
-        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'linux')) for n in h.SCENARIOS), 118)
+        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'linux')) for n in h.SCENARIOS), 121)
         self.assertEqual(sum(len(h.expected_cells(n, True, None, 'android')) for n in h.ANDROID_SCENARIOS), 73)
 
     def test_exact_cells(self):

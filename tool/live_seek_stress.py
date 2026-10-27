@@ -1096,7 +1096,7 @@ class Run:
             'off': offset, 'pp': state.get('playerPositionMs'),
             'bridge': state.get('fastSeekBridge'), 'sidecar': state.get('sidecar'),
             'media': native.get('mediaKitCurrent'),
-            'cf': {k: (state.get('crossfade') or {}).get(k) for k in ('enabled', 'active', 'disabledReason', 'lastFailure', 'phases')},
+            'cf': {k: (state.get('crossfade') or {}).get(k) for k in ('enabled', 'active', 'disabledReason', 'lastFailure', 'phases', 'outgoing', 'incoming')},
         }
         self.samples.append(sample)
         for entry in state.get('transportTrace') or []:
@@ -3485,11 +3485,11 @@ def persisted_queue(app) -> dict:
                 shutil.copy(ROOT / name, tmp / name)
         db = sqlite3.connect(f'file:{tmp / "navis.sqlite"}?mode=ro', uri=True)
         try:
-            row = db.execute('SELECT shuffle_mode, current_index FROM play_queue ORDER BY id LIMIT 1').fetchone()
+            row = db.execute('SELECT shuffle_mode, current_index, position_ms FROM play_queue ORDER BY id LIMIT 1').fetchone()
             items = db.execute('SELECT song_id, original_order FROM play_queue_items ORDER BY sort_order').fetchall()
         finally:
             db.close()
-        return {'mode': row[0] if row else None, 'index': row[1] if row else None,
+        return {'mode': row[0] if row else None, 'index': row[1] if row else None, 'positionMs': row[2] if row else None,
                 'ids': [i[0] for i in items], 'ranks': [i[1] for i in items]}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -3976,6 +3976,101 @@ def case_crossfade_end(run: Run, env):
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=len(ids)))
 
 
+# P5 / triage row 28: cross-fading out of a LONG song (the 1-8 s fixture songs above cannot see it).
+XFADE_LONG_MIN_S = 180           # both songs at least this long (fixture tracks 2+ are 300 s)
+XFADE_LONG_LEAD_MS = 10000       # seek the first song to this long before its end
+XFADE_LONG_AFTER_SWAP_S = 6.0    # keep sampling this long after the incoming song is current
+XFADE_JUMP_MS = 1500             # (a) forward step between samples of one song
+XFADE_BACKSTEP_MS = 300          # (a) backwards step (native clock jitter stays well below this)
+XFADE_FREEZE_S = 1.5             # (b) position unchanged this long while playing and ready
+XFADE_FREEZE_EPS_MS = 50         # (b) a step smaller than this counts as unchanged
+XFADE_START_SLACK_MS = 1500      # (c) incoming first position <= fade + this
+XFADE_PERSIST_MS = 2000          # (d) saved vs displayed position
+
+
+def _xfade_shown(s):
+    """The position the user sees: the UI stream when sampled, else the transport position."""
+    return s['uiPos'] if s.get('uiPos') is not None else s['pos']
+
+
+def oracle_crossfade_long(run: Run, ids: list[str], fade_ms: int, saved=None, before=None, after=None) -> list[dict]:
+    """(a) a displayed or native position jump or backwards step inside one song, (b) a frozen position while playing,
+    (c) the incoming song not starting near 0, (d) the saved position disagreeing with the displayed one after the swap."""
+    out, samples = [], run.samples
+    for key in ('pos', 'uiPos'):
+        frozen_from, reported_freeze, reported_jump = None, False, False
+        for i in range(1, len(samples)):
+            a, b = samples[i - 1], samples[i]
+            if not (a['songId'] and a['songId'] == b['songId'] and a['idx'] == b['idx'] and a.get(key) is not None
+                    and b.get(key) is not None and a['playing'] and b['playing'] and a['proc'] == b['proc'] == 'ready') \
+                    or _requested_at(run, b['t']):
+                frozen_from, reported_freeze = None, False
+                continue
+            step = b[key] - a[key]
+            if (step > XFADE_JUMP_MS or step < -XFADE_BACKSTEP_MS) and not reported_jump \
+                    and not (key == 'pos' and is_position_blip(samples, i)):
+                reported_jump = True
+                out.append(violation('xfadeJump', b['t'], f"{key} {a[key]} -> {b[key]} on {b['songId']} "
+                                     f"(limit +{XFADE_JUMP_MS} / -{XFADE_BACKSTEP_MS} ms)", run))
+            if abs(step) > XFADE_FREEZE_EPS_MS:
+                frozen_from, reported_freeze = None, False
+                continue
+            frozen_from = a['t'] if frozen_from is None else frozen_from
+            if b['t'] - frozen_from > XFADE_FREEZE_S and not reported_freeze:
+                reported_freeze = True
+                out.append(violation('xfadeFrozen', b['t'], f"{key} stuck at {b[key]} on {b['songId']} for "
+                                     f"{b['t'] - frozen_from:.1f} s while playing", run))
+    first = next((s for s in samples if len(ids) > 1 and s['songId'] == ids[1] and s['proc'] == 'ready' and s['pos'] is not None), None)
+    if first and first['pos'] > fade_ms + XFADE_START_SLACK_MS:
+        out.append(violation('xfadeLateStart', first['t'], f"incoming song first ready at {first['pos']} ms "
+                             f"(limit {fade_ms} + {XFADE_START_SLACK_MS})", run))
+    if saved and before and after and _xfade_shown(before) is not None and _xfade_shown(after) is not None:
+        low, high = sorted((_xfade_shown(before), _xfade_shown(after)))
+        gap = max(0, low - (saved.get('positionMs') or 0), (saved.get('positionMs') or 0) - high)
+        if gap > XFADE_PERSIST_MS or saved.get('index') != 1:
+            out.append(violation('xfadePersistMismatch', after['t'], f"saved index {saved.get('index')} position {saved.get('positionMs')} ms "
+                                 f"vs displayed {low}..{high} ms on {after['songId']}", run))
+    return out
+
+
+def case_crossfade_long_end(run: Run, env):
+    """Cross-fade out of a long song: two songs of >= 3 min, the first seeked to 10 s before its end; the swap and the
+    seconds after it are sampled densely (displayed/native position, outgoing/incoming player, phases), then the saved
+    transport position is read from the profile database."""
+    songs = env.backend.fresh_songs(2, min_s=XFADE_LONG_MIN_S)
+    ids = [s['id'] for s in songs]
+    run.songs = songs
+    if any(s.get('duration', 0) < XFADE_LONG_MIN_S for s in songs):
+        run.violations.append(violation('caseError', run.now(), f'fixture songs shorter than {XFADE_LONG_MIN_S} s: {songs}', run))
+        raise CaseAbort('no long songs')
+    rec = start_queue(run, ids)
+    await_audio(run, rec, ids[0])
+    seek_ms = int(songs[0]['duration']) * 1000 - XFADE_LONG_LEAD_MS
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        seek = issue_seek(run, pool, seek_ms)
+        landing = landed(run, seek)
+        finish_futures(run)
+    if landing is None:
+        run.violations.append(violation('seekNoLand', seek['t'], f'no landing at {seek_ms} ms', run))
+        raise CaseAbort('seek did not land')
+    moved = run.until(lambda s: s['songId'] == ids[1] and s['proc'] == 'ready' and s['playing'],
+                      XFADE_LONG_LEAD_MS / 1000 + run.deadlines['advance'])
+    if moved is None:
+        run.violations.append(violation('chainNoHandover', run.now(), 'the long song never handed over to the next', run))
+        raise CaseAbort('no handover')
+    run.observe(XFADE_LONG_AFTER_SWAP_S)
+    before = run.last()
+    saved = persisted_queue(run.app)
+    after = run.last()
+    run.metrics['xfadeLong'] = {
+        'seekMs': seek_ms, 'landedAt': landing['t'], 'swapAt': moved['t'], 'saved': {k: saved.get(k) for k in ('index', 'positionMs')},
+        'displayedMs': [_xfade_shown(before), _xfade_shown(after)],
+        'window': [[s['t'], s['songId'], s['pos'], s['uiPos'], (s['cf'] or {}).get('active'),
+                    ((s['cf'] or {}).get('outgoing') or {}).get('positionMs'), ((s['cf'] or {}).get('incoming') or {}).get('positionMs')]
+                   for s in run.samples if landing['t'] <= s['t'] <= moved['t'] + 3]}
+    run.checks.append(lambda: oracle_crossfade_long(run, ids, CROSSFADE_S * 1000, saved, before, after))
+
+
 def start_player_overlay(run: Run):
     run.app.api('/v1/presentation/player-overlay', {'surface': 'nowPlaying', 'visible': True, 'settle': False})
     run.app.api('/v1/presentation/dismiss-popup', {})
@@ -4230,7 +4325,7 @@ CASE_FUNCS = {
     'shuffle_toggle': case_shuffle_toggle,
     'queue_playnext_add': queue_case(edit_play_next_add),
     'queue_reorder': queue_case(edit_reorder),
-    'crossfade_end': case_crossfade_end, 'stress_drag': case_stress_drag, 'stress_flick': case_stress_flick,
+    'crossfade_end': case_crossfade_end, 'crossfade_long_end': case_crossfade_long_end, 'stress_drag': case_stress_drag, 'stress_flick': case_stress_flick,
     'mem_soak': case_mem_soak, 'local_seek': case_local_seek,
     'q7_append_200': q7_append_case(200), 'q7_append_after5': q7_append_case(-5),
 }
