@@ -19,8 +19,12 @@ Last updated: 2026-10-28
   publishes the `content://` URI only when `artCacheFile` (or the cache path)
   names an existing file with a JPEG/PNG/WebP header and hands the session that
   file; otherwise it withholds the URI and a bad `artCacheFile`.
-  `PlaybackArtCache.cachedPath` drops entries whose file is gone. Art downscale
-  is 256 so 768 px covers decode at 384 px. Evidence: new tests failed first
+  `PlaybackArtCache.cachedPath` drops entries whose file is gone; the handler
+  re-fetches and re-emits a stale `artCacheFile` (review r2: final item had no
+  art, now content URI + file after exactly one download); a non-image file or
+  body (captive portal) is never reused or renamed into place; lists stat each
+  cover once. Art downscale
+  is 256 so the 512 px covers decode at 256 px. Evidence: new tests failed first
   (`Expected: null Actual: Uri:<content://a.artwork/cover/..>`; `Expected:
   <256> Actual: <512>`); focused art tests 37/37 pass. Emulator could not
   reproduce the base failure; the real-car check stays with the owner.

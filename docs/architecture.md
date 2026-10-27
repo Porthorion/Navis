@@ -5596,11 +5596,17 @@ a stat plus a 12-byte read on each publish), and adds `artCacheFile` to the
 published item so audio_service decodes the bitmap. A missing path, an empty
 string or a non-image file withholds the URI (and the bad `artCacheFile`), and
 `cachedPath` drops an in-memory entry whose file has gone so the next fetch
-rewrites it. Until then the item has no art and the download starts. The
+rewrites it. `NavisAudioHandler._updateArtCacheFile` counts an
+`artCacheFile` as present only while that file is an image, otherwise it
+fetches again and re-emits the item (even at the same path) so the projection
+republishes the bitmap. `PlaybackArtCache` reuses an existing cover file only
+if it is not an HTML/JSON page, and discards a downloaded body of that kind
+before the rename. Lists check each cover ID once per build. Until then the item has no art and the download starts. The
 session bitmap is decoded with `AudioServiceConfig.artDownscaleWidth/Height`
 of 256 (`AndroidSystemArt.artDownscaleSize`): audio_service halves sampling
-only while the result stays at or above that size, so a 768 px cover becomes
-384 px (512 would leave it at 768). A URI the
+only while the result stays at or above that size, so the 512 px covers Navis
+fetches decode at 256 px (512 would leave them unscaled; a 768 px permanent
+copy decodes at 384 px). A URI the
 provider cannot open yet made audio_service store empty
 `METADATA_KEY_ALBUM_ART`, and the following update with the bitmap kept the
 same URI, which Bluetooth AVRCP (Android 14+) treats as unchanged and

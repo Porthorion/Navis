@@ -49,8 +49,9 @@ class AndroidSystemArt {
   final SystemArtLookup _cachedPath;
 
   /// `AudioServiceConfig.artDownscaleWidth/Height`. audio_service halves the
-  /// sampling only while the result stays at or above this size, so 256 turns
-  /// a 768 px cover into 384 px for AVRCP; 512 would leave it at 768.
+  /// sampling only while the result stays at or above this size. Covers are
+  /// fetched at 512 px, so 256 decodes them at 256 px for AVRCP; 512 would
+  /// leave them at 512.
   static const artDownscaleSize = 256;
 
   static const _prefetchConcurrency = 6;
@@ -68,7 +69,14 @@ class AndroidSystemArt {
 
   /// [item] as the system may see it. With [prefetch] the cover download
   /// starts (or joins one in progress) when the cover is not cached yet.
-  MediaItem forSystem(MediaItem item, {bool prefetch = false}) {
+  ///
+  /// [resolved] memoises the image file found per cover ID, so a list of songs
+  /// sharing covers stats each file once.
+  MediaItem forSystem(
+    MediaItem item, {
+    bool prefetch = false,
+    Map<String, String?>? resolved,
+  }) {
     final artUri = item.artUri;
     // An app-private file cannot be opened from another process.
     if (artUri != null && artUri.scheme == 'file') {
@@ -81,10 +89,20 @@ class AndroidSystemArt {
     // without a readable image there stores an empty bitmap that Bluetooth
     // never replaces. So the URI goes out only with a real image file.
     final extraFile = item.extras?['artCacheFile'];
-    final file = extraFile is String && PlaybackArtCache.isImageFile(extraFile)
-        ? extraFile
-        : _cachedPath(coverArtId);
-    if (file == null || !PlaybackArtCache.isImageFile(file)) {
+    String? findFile() {
+      if (extraFile is String && PlaybackArtCache.isImageFile(extraFile)) {
+        return extraFile;
+      }
+      final cached = _cachedPath(coverArtId);
+      return cached != null && PlaybackArtCache.isImageFile(cached)
+          ? cached
+          : null;
+    }
+
+    final file = resolved == null
+        ? findFile()
+        : resolved.putIfAbsent(coverArtId, findFile);
+    if (file == null) {
       if (prefetch) unawaited(_fetch(coverArtId, artUri!));
       return item.copyWith(
         artUri: null,
@@ -123,7 +141,10 @@ class AndroidSystemArt {
       final downloads = _downloadAll(pending);
       await Future.any(<Future<void>>[downloads, Future<void>.delayed(budget)]);
     }
-    return <MediaItem>[for (final item in items) forSystem(item)];
+    final resolved = <String, String?>{};
+    return <MediaItem>[
+      for (final item in items) forSystem(item, resolved: resolved),
+    ];
   }
 
   Future<void> _downloadAll(List<(String, Uri)> covers) async {

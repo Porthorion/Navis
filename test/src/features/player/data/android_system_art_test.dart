@@ -30,7 +30,12 @@ class _Fetches {
     return path;
   }
 
-  String? lookup(String coverArtId) => cached[coverArtId];
+  int lookups = 0;
+
+  String? lookup(String coverArtId) {
+    lookups++;
+    return cached[coverArtId];
+  }
 
   /// A real JPEG-headed file: the system art checks the file before it
   /// publishes the content URI.
@@ -342,8 +347,23 @@ void main() {
     },
   );
 
-  test('the art downscale turns a 768 px cover into 384 px', () {
-    // audio_service halves sampling only while the result stays >= this.
+  test('a list checks each cover once', () async {
+    final fetches = newFetches();
+    fetches.cached['c-1'] = fetches.file('c-1.jpg');
+    final items = <MediaItem>[
+      for (var i = 0; i < 5; i++)
+        MediaItem(id: 's$i', title: 't', artUri: _cover('c-1')),
+    ];
+
+    final mapped = await fetches.art().forSystemList(items);
+
+    expect(mapped.every((item) => item.artUri?.scheme == 'content'), isTrue);
+    expect(fetches.lookups, 1);
+  });
+
+  test('the art downscale decodes 512 px covers at 256 px', () {
+    // audio_service halves sampling only while the result stays >= this, so
+    // the 512 px covers Navis fetches are halved (512 would leave them).
     expect(AndroidSystemArt.artDownscaleSize, 256);
   });
 }
