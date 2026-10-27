@@ -25,6 +25,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  tooling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: python3 -m pip install numpy
+      - run: python3 tool/playback_harness_test.py
+      - run: python3 tool/validation_gate_test.py
+      - run: bash -n tool/check.sh tool/lib/check_capture.sh
+
   # Format, committed generated code, analyze and dead-code gate.
   static:
     runs-on: ubuntu-latest
@@ -81,8 +91,8 @@ jobs:
 
   # One stable name to require in branch protection.
   ci:
-    needs: [static, test]
+    needs: [static, test, tooling]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success
+      - run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success && test "${{ needs.tooling.result }}" = success
