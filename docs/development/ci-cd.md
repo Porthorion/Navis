@@ -6,8 +6,8 @@ Releases are built and published locally with `tool/release.sh`; `tool/check.sh`
 - `test`: four parallel shards of `flutter test`; they skip `build_runner` because generated code is committed.
 - `native`: prepares JDK 21, Android SDK 37 and Flutter's Android artifacts, then
   runs the pure native fixtures and the repeat bridge runner/contract. It uses
-  [setup-java](https://github.com/actions/setup-java) and
-  [setup-android](https://github.com/android-actions/setup-android); the job has a
+  [setup-java](https://github.com/actions/setup-java) and the runner image's
+  preinstalled Android SDK (`sdkmanager` adds platform 37); the job has a
   15-minute deadline and requires no emulator or secrets.
 - `ci`: waits for all three and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
 
