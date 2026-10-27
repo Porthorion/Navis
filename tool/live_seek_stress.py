@@ -2905,9 +2905,11 @@ def case_repeat_one_fill(run: Run, env):
     observe_s = (dur - seek_ms) / 1000 + min(17.0, dur / 2000)  # to the end, then at most half a song (17 s of a long one): no second loop
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         seek = issue_seek(run, pool, seek_ms)
-        landed(run, seek)
+        landing = landed(run, seek)
         finish_futures(run)
-    run.observe(observe_s)
+    # The window ends observe_s after the observed landing, not after the API call returned: a slow return on a 3-5 s song
+    # must not let a second loop in.
+    run.observe(max(0.5, (landing['t'] if landing else run.now()) + observe_s - run.now()))
     end_from, start_to = repeat_wrap_bounds(dur)
 
     def check():

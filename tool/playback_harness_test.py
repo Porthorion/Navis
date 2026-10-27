@@ -364,12 +364,13 @@ class RepeatFillOracle(unittest.TestCase):
                    for t, pos, proc in [(10.9, 299541, 'ready'), (11.0, 292001, 'loading'),
                                         (11.1, 0, 'ready'), (11.2, 100, 'ready')]]
         run = Mock(metrics={}, samples=samples, checks=[])
+        run.now.return_value = 0.0
         env = Mock()
         env.backend.fresh_artist.return_value = ('artist', ['a', 'b'])
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(engine, 'await_audio', return_value=first))
             stack.enter_context(patch.object(engine, 'issue_seek', return_value={'t': 0}))
-            stack.enter_context(patch.object(engine, 'landed'))
+            stack.enter_context(patch.object(engine, 'landed', return_value={'t': 0.0}))
             stack.enter_context(patch.object(engine, 'finish_futures'))
             stack.enter_context(patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}))
             engine.case_repeat_one_fill(run, env)
@@ -416,18 +417,19 @@ class RepeatFillDuration(unittest.TestCase):
     def sample(t, pos, dur):
         return {'t': t, 'pos': pos, 'proc': 'ready', 'songId': 'a', 'idx': 0, 'mat': 1, 'deferred': 0, 'qlen': 15, 'dur': dur}
 
-    def play(self, first_dur, samples, known=None):
+    def play(self, first_dur, samples, known=None, land_t=0.0, now=0.0):
         """Runs case_repeat_one_fill; returns (run, issue_seek mock, violations of the check)."""
         first = {'songId': 'a', 'dur': first_dur}
         run = self.run = Mock(metrics={}, samples=samples, checks=[], violations=[])
         run.last.return_value = {'dur': first_dur}
         run.until.return_value = known
+        run.now.return_value = now
         env = Mock()
         env.backend.fresh_artist.return_value = ('artist', ['a', 'b'])
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(engine, 'await_audio', return_value=first))
             seek = stack.enter_context(patch.object(engine, 'issue_seek', return_value={'t': 0}))
-            stack.enter_context(patch.object(engine, 'landed'))
+            stack.enter_context(patch.object(engine, 'landed', return_value=None if land_t is None else {'t': land_t}))
             stack.enter_context(patch.object(engine, 'finish_futures'))
             stack.enter_context(patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}))
             engine.case_repeat_one_fill(run, env)
@@ -455,6 +457,13 @@ class RepeatFillDuration(unittest.TestCase):
         self.assertEqual(len(run.metrics['wraps']), 2)
         run, _, out = self.play(5000, positions(4.9))  # and a real missing restart still fails
         self.assertEqual(out, [{'oracle': 'repeatOneRestartCount'}])
+
+    def test_observation_is_measured_from_the_observed_landing(self):
+        # the second loop of a 5 s song starts 10 s after the landing: a slow landing/API return must not push the window past it
+        run, _, _ = self.play(5000, [], land_t=1.0, now=3.0)
+        self.assertEqual(run.observe.call_args[0][0], 5.5)  # lands at 1.0 s, window ends 7.5 s later, 3.0 s are already spent
+        run, _, _ = self.play(5000, [], land_t=None, now=3.0)  # never observed landing: the full window from now
+        self.assertEqual(run.observe.call_args[0][0], 7.5)
 
     def test_wrap_windows_are_disjoint_per_duration_and_clips_too_short_to_loop_abort(self):
         self.assertEqual(engine.repeat_wrap_bounds(300000), (296000, 3000))
@@ -618,7 +627,8 @@ class PairedRepetitions(unittest.TestCase):
         for variant in ('base', 'fix'):
             merged = record['variants'][f'{variant}/queue-edit']
             self.assertEqual((merged['status'], merged['exitCode'], merged['expected'], merged['observed']), ('complete', 0, cells, cells))
-            self.assertEqual(len(json.loads(Path(merged['report']).read_text())['results']), len(cells))
+            merged_rows = json.loads(Path(merged['report']).read_text())['results']
+            self.assertEqual(len(merged_rows), len(cells))
             self.assertEqual(Path(merged['log']).read_text().count('engine log'), 3)
 
     def test_android_runs_one_guest_per_variant_and_scenario_with_alternating_first_variant(self):
