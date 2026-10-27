@@ -561,6 +561,9 @@ void main() {
     release.complete();
     await until(() => !source.isDownloading);
     expect(file.existsSync(), isFalse);
+    // The failed download leaves no progress behind (not "caching 99%").
+    expect(source.downloadedBytes, 0);
+    expect(await source.downloadProgressStream.first, 0.0);
     // The source stays usable: a later request downloads again.
     final response = await source.request();
     expect(await response.stream.expand((chunk) => chunk).toList(), body);
