@@ -525,6 +525,49 @@ void main() {
     expect(await statusOf(native.player.childUris.last), HttpStatus.ok);
   });
 
+  test('a partial file removed under a finishing download fails it', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final release = Completer<void>();
+    addTearDown(() {
+      if (!release.isCompleted) release.complete();
+    });
+    final body = List<int>.generate(2048, (i) => i % 251);
+    var downloads = 0;
+    server.listen((request) async {
+      downloads++;
+      final response = request.response..bufferOutput = false;
+      try {
+        response.headers.contentType = ContentType('audio', 'mpeg');
+        response.add(body.sublist(0, 1024));
+        await response.flush();
+        await release.future;
+        response.add(body.sublist(1024));
+        await response.close();
+      } on Object {
+        // The test ends the transfer.
+      }
+    });
+    final file = File('${directory.path}/gone.mp3');
+    // ignore: experimental_member_use, reason: tests the Navis additions to the vendored source.
+    final source = LockCachingAudioSource(
+      Uri.parse('http://127.0.0.1:${server.port}/gone'),
+      cacheFile: file,
+    );
+    await source.prefetch();
+    await until(() => source.downloadedBytes == 1024);
+    // Cleanup (or a second writer's rename) takes the partial file away.
+    File('${file.path}.part').deleteSync();
+    release.complete();
+    await until(() => !source.isDownloading);
+    expect(file.existsSync(), isFalse);
+    // The source stays usable: a later request downloads again.
+    final response = await source.request();
+    expect(await response.stream.expand((chunk) => chunk).toList(), body);
+    await until(() => file.existsSync());
+    expect(downloads, 2);
+  });
+
   test(
     'removing the item loaded natively keeps the next item served',
     () async {

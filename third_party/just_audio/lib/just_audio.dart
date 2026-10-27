@@ -4048,7 +4048,28 @@ class LockCachingAudioSource extends StreamAudioSource {
       _downloadSubscription = null;
       await sink.flush();
       await sink.close();
-      (await _partialCacheFile).renameSync(cacheFile.path);
+      final partial = await _partialCacheFile;
+      if (partial.existsSync()) {
+        partial.renameSync(cacheFile.path);
+      } else if (!cacheFile.existsSync()) {
+        // Navis: the partial file was removed under the finishing download
+        // (cleanup, or another writer's rename). Fail it like a cut: a later
+        // request downloads again, and nothing is left pending.
+        _response = null;
+        final error = StateError('Partial cache file removed');
+        for (final req in _requests) {
+          req.fail(error);
+        }
+        _requests.clear();
+        for (final res in inProgressResponses) {
+          res.controller.addError(error);
+          res.controller.close();
+        }
+        await subscription.cancel();
+        httpClient.close(force: true);
+        _downloading = false;
+        return;
+      }
       updateProgress(100);
       for (var cacheResponse in inProgressResponses) {
         if (!cacheResponse.controller.isClosed) {
