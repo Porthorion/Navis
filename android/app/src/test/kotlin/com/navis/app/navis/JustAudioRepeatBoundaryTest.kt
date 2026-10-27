@@ -275,7 +275,8 @@ class JustAudioRepeatBoundaryTest {
         f.ended = true
         f.mode(0)
         f.complete()
-        assertEquals(0, f.resumes)
+        assertEquals("play was requested: playWhenReady must be restored", true, f.playing)
+        assertEquals(1, f.resumes)
         assertTrue(f.seeks.isEmpty())
         assertEquals(false, f.field("repeatPending"))
         assertEquals("completed", f.field("processingState").toString())

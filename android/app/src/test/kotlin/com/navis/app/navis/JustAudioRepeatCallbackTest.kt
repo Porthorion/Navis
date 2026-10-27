@@ -184,7 +184,6 @@ class JustAudioRepeatCallbackTest {
             "native=$nativeMode pauseAtEnd=$pauseAtEnd playing=$playing posts=${posts.size} log=$log"
     }
 
-    private fun report(name: String, f: Fx) = println("PROBE $name :: ${f.digest()}")
 
     // ---------------------------------------------------------------- G1: late pause reason
     /** Mode switch is processed on the app thread before the native pause is delivered. */
@@ -193,7 +192,6 @@ class JustAudioRepeatCallbackTest {
         f.mode(0)                 // user taps Repeat Off; getPlayWhenReady() is still true
         f.deliverPause(false)     // ExoPlayer had already paused at the end of item 0
         f.runPosts()
-        report("g1a", f)
         assertEquals("OFF must release the already-paused middle boundary exactly once: ${f.digest()}", 1, f.resumes)
         assertTrue("no restart expected: ${f.digest()}", f.seeks.isEmpty())
     }
@@ -203,7 +201,6 @@ class JustAudioRepeatCallbackTest {
         f.mode(2)
         f.deliverPause(false)
         f.runPosts()
-        report("g1b", f)
         assertEquals(f.digest(), 1, f.resumes)
         assertTrue(f.digest(), f.seeks.isEmpty())
     }
@@ -214,7 +211,6 @@ class JustAudioRepeatCallbackTest {
         f.removeAt(0)             // app thread; getPlayWhenReady() still true
         f.deliverPause(true)      // late END_OF_MEDIA_ITEM + STATE_ENDED
         f.runPosts()
-        report("g1c", f)
         assertEquals("ALL must wrap exactly once: ${f.digest()}", listOf("0@0"), f.seeks)
         assertEquals(f.digest(), 1, f.resumes)
         assertNotEquals("Repeat All must not publish completed: ${f.digest()}", "completed", f.state())
@@ -228,7 +224,6 @@ class JustAudioRepeatCallbackTest {
         f.call("onPlaybackStateChanged", 4)
         f.call("onPlayWhenReadyChanged", false, 5)
         f.runPosts()
-        report("g1d", f)
         assertEquals(f.digest(), listOf("0@0"), f.seeks)
         assertEquals(f.digest(), 1, f.resumes)
         assertNotEquals(f.digest(), "completed", f.state())
@@ -254,17 +249,15 @@ class JustAudioRepeatCallbackTest {
                         if (newMode == 1) { expSeeks = listOf("$idx@0"); expResumes = 1 }
                         else if (last) {
                             if (newMode == 2) { expSeeks = listOf("0@0"); expResumes = 1 }
-                            else { expSeeks = emptyList(); expResumes = 0 }
+                            else { expSeeks = emptyList(); expResumes = 1 }   // Off restores playWhenReady
                         } else { expSeeks = emptyList(); expResumes = 1 }
                         val ok = f.seeks == expSeeks && f.resumes == expResumes &&
-                            (!(newMode == 0 && last) || f.state() == "completed")
+                            (!(newMode == 0 && last) || (f.state() == "completed" && f.playing))
                         if (!ok) fails.add("queue=$queue idx=$idx initial=$initial new=$newMode -> ${f.digest()} exp=$expSeeks/$expResumes")
                     }
                 }
             }
         }
-        println("PROBE g2 fails=${fails.size}")
-        fails.forEach { println("PROBE g2 FAIL $it") }
         assertTrue(fails.joinToString("\n"), fails.isEmpty())
     }
 
@@ -282,8 +275,6 @@ class JustAudioRepeatCallbackTest {
                 if (f.seeks != exp || f.resumes != 1) fails.add("append=$append removeFirst=$removeFirst -> ${f.digest()} exp=$exp")
             }
         }
-        println("PROBE g2b fails=${fails.size}")
-        fails.forEach { println("PROBE g2b FAIL $it") }
         assertTrue(fails.joinToString("\n"), fails.isEmpty())
     }
 
@@ -293,7 +284,6 @@ class JustAudioRepeatCallbackTest {
         f.deliverPause(false)
         f.pause()
         f.runPosts()
-        report("g3a", f)
         assertEquals(f.digest(), 0, f.resumes)
         assertTrue(f.digest(), f.seeks.isEmpty())
     }
@@ -305,7 +295,6 @@ class JustAudioRepeatCallbackTest {
         f.mode(0)
         f.play()
         f.runPosts()
-        report("g3b", f)
         assertEquals(f.digest(), 1, f.resumes)
         assertTrue(f.digest(), f.seeks.isEmpty())
     }
@@ -317,7 +306,6 @@ class JustAudioRepeatCallbackTest {
         f.mode(2)
         f.play()
         f.runPosts()
-        report("g3c", f)
         assertEquals(f.digest(), 1, f.resumes)
         assertTrue(f.digest(), f.seeks.isEmpty())
     }
@@ -328,7 +316,6 @@ class JustAudioRepeatCallbackTest {
         f.pause()                 // app-visible playWhenReady true -> false; internal player is already paused at the end
         f.play()
         f.runPosts()
-        report("g3d", f)
         // No boundary signal distinguishes this from an ordinary in-item Pause/Play.
         assertTrue(f.digest(), f.seeks.isEmpty())
         assertEquals(f.digest(), 1, f.resumes)
@@ -340,7 +327,6 @@ class JustAudioRepeatCallbackTest {
         f.pause()
         f.mode(0); f.mode(2); f.mode(1)
         f.runPosts()
-        report("g3e", f)
         assertEquals(f.digest(), 0, f.resumes)
         assertTrue(f.digest(), f.seeks.isEmpty())
     }
@@ -351,7 +337,6 @@ class JustAudioRepeatCallbackTest {
         f.pause()
         f.play()
         f.runPosts()
-        report("g3f", f)
         assertEquals(f.digest(), listOf("0@0"), f.seeks)
         assertEquals(f.digest(), 1, f.resumes)
     }
@@ -363,7 +348,6 @@ class JustAudioRepeatCallbackTest {
         f.mode(0)
         f.seek(5000, null)
         f.runPosts()
-        report("g4a", f)
         assertEquals(f.digest(), listOf("0@5000"), f.seeks)
         assertEquals(f.digest(), 1, f.resumes)
     }
@@ -373,7 +357,6 @@ class JustAudioRepeatCallbackTest {
         f.seek(5000, null)        // user seeks inside the same item right before the native pause is delivered
         f.deliverPause(false)
         f.runPosts()
-        report("g4b", f)
         // A late old end signal is indistinguishable from a fresh natural end after the seek.
         assertEquals(f.digest(), listOf("0@5000", "0@0"), f.seeks)
     }
@@ -383,7 +366,6 @@ class JustAudioRepeatCallbackTest {
         f.deliverPause(false)
         f.seek(0, 1)
         f.runPosts()
-        report("g4c", f)
         assertEquals(f.digest(), listOf("1@0"), f.seeks)
         assertEquals(f.digest(), 1, f.resumes)
     }
@@ -395,7 +377,6 @@ class JustAudioRepeatCallbackTest {
         f.removeAt(0)
         f.insert(0, 'S')
         f.runPosts()
-        report("g6a", f)
         assertEquals(f.digest(), listOf("0@0"), f.seeks)
         assertEquals(f.digest(), 1, f.resumes)
         assertEquals("owned again: native repeat must be OFF", 0, f.nativeMode)
@@ -406,7 +387,6 @@ class JustAudioRepeatCallbackTest {
         f.deliverPause(true)
         f.removeAt(0)
         f.runPosts()
-        report("g6b", f)
         assertEquals("file-only ALL must hand repeat back to Media3", 2, f.nativeMode)
         assertFalse(f.digest(), f.pauseAtEnd)
     }
@@ -417,7 +397,6 @@ class JustAudioRepeatCallbackTest {
         f.deliverPause(false)
         f.mode(0); f.mode(1); f.mode(2)
         f.runPosts()
-        report("g6c", f)
         assertEquals(f.digest(), 1, f.resumes)
         assertTrue(f.digest(), f.seeks.isEmpty())
         assertFalse("ALL on a middle item must not leave the end-pause armed", f.pauseAtEnd)
@@ -434,7 +413,6 @@ class JustAudioRepeatCallbackTest {
             assertTrue("cycle $cycle repeatPauseUid must be re-armed after resume: ${f.digest()}",
                 f.field("repeatPauseUid") != null)
         }
-        report("g7", f)
     }
 
     @Test fun g7b_repeatAllWrapsThreeTimes_singleStream() {
@@ -445,7 +423,6 @@ class JustAudioRepeatCallbackTest {
             assertEquals("cycle $cycle: ${f.digest()}", cycle, f.resumes)
             assertEquals("cycle $cycle: ${f.digest()}", cycle, f.seeks.size)
         }
-        report("g7b", f)
     }
 
     // ---------------------------------------------------------------- G8: misc
@@ -454,7 +431,6 @@ class JustAudioRepeatCallbackTest {
         f.deliverPause(false)
         f.mode(1); f.mode(1)
         f.runPosts()
-        report("g8a", f)
         assertEquals(f.digest(), listOf("0@0"), f.seeks)
         assertEquals(f.digest(), 1, f.resumes)
     }
@@ -465,7 +441,6 @@ class JustAudioRepeatCallbackTest {
         put(f.bridge, "playRequested", false)
         f.mode(1); f.mode(2); f.mode(0); f.mode(2); f.mode(1)
         f.runPosts()
-        report("g8b", f)
         assertEquals(f.digest(), 0, f.resumes)
         assertTrue(f.digest(), f.seeks.isEmpty())
         assertTrue(f.digest(), f.posts.isEmpty())
@@ -476,7 +451,6 @@ class JustAudioRepeatCallbackTest {
         f.deliverPause(true)
         f.mode(1)
         f.runPosts()
-        report("g8c", f)
         assertEquals("ONE on a file hands repeat back to Media3", 1, f.nativeMode)
         assertEquals(f.digest(), listOf("1@0"), f.seeks)
         assertEquals(f.digest(), 1, f.resumes)
@@ -486,7 +460,6 @@ class JustAudioRepeatCallbackTest {
         // behaviour delta vs base: an ENDED callback while getPlaybackState() != ENDED
         val f = Fx("FF", 1, 0)
         f.call("onPlaybackStateChanged", 4)     // ended=false in the fixture (stale callback)
-        report("g8d", f)
         assertEquals("ready", f.state())
     }
 
@@ -494,7 +467,6 @@ class JustAudioRepeatCallbackTest {
         val f = Fx("FF", 1, 0)
         f.ended = true
         f.call("onPlaybackStateChanged", 4)
-        report("g8e", f)
         assertEquals("completed", f.state())
     }
 
@@ -503,7 +475,6 @@ class JustAudioRepeatCallbackTest {
         f.deliverPause(true)
         f.runPosts()                              // wrap consumed, player running again
         f.call("onPlaybackStateChanged", 4)       // stray ENDED
-        report("g8f", f)
         assertNotEquals(f.digest(), "completed", f.state())
     }
 
@@ -512,15 +483,39 @@ class JustAudioRepeatCallbackTest {
         f.deliverPause(true)
         f.mode(0)
         f.runPosts()
-        report("g8g", f)
         assertEquals("completed", f.state())
         assertNull("consuming an Off boundary must clear its old pause owner", f.field("repeatPauseUid"))
-        assertEquals(f.digest(), 0, f.resumes)
+        assertTrue("play was requested: native playWhenReady must be restored: ${f.digest()}", f.playing)
+        assertEquals("no extra resume or completion publish: ${f.digest()}", 1, f.resumes)
         assertTrue(f.digest(), f.seeks.isEmpty())
     }
 
+    @Test fun g8h_pausedAtBoundary_thenOff_completesWithoutResuming() {
+        val f = Fx("SF", 1, 2)
+        f.deliverPause(true)
+        f.pause()                                 // user pause: playRequested false
+        f.mode(0)
+        f.runPosts()
+        assertEquals(f.digest(), 0, f.resumes)
+        assertFalse("a user pause must stay paused: ${f.digest()}", f.playing)
+        assertTrue(f.digest(), f.seeks.isEmpty())
+    }
+
+    @Test fun g8i_offCompletion_thenSeekRestart_plays() {
+        val f = Fx("SF", 1, 2)
+        f.deliverPause(true)
+        f.mode(0)
+        f.runPosts()
+        assertEquals("completed", f.state())
+        // Dart play() returns early while playing, so the restart is a bare seek.
+        f.seek(0, 0)
+        f.runPosts()
+        assertTrue("restart after Off completion must be playing: ${f.digest()}", f.playing)
+        assertEquals(f.digest(), listOf("0@0"), f.seeks)
+    }
+
     // ---------------------------------------------------------------- G9: retention of the pause-policy UID
-    /** Any in-item scrub clears repeatPauseUid (seek()) and nothing re-arms it for a same-index seek. */
+    /** An in-item scrub clears repeatPauseUid in seek(), then the post-seek policy update re-arms it. */
     @Test fun g9a_scrubThenRemoveLastStream_sameBatch() {
         val f = Fx("SF", 1, 2)
         f.seek(5000, null)                       // scrub inside the pause-armed last item while playing
@@ -530,7 +525,6 @@ class JustAudioRepeatCallbackTest {
         f.call("onPlaybackStateChanged", 4)
         f.call("onPlayWhenReadyChanged", false, 5)
         f.runPosts()
-        report("g9a", f)
         assertEquals("ALL must still wrap exactly once after a scrub: ${f.digest()}", 1, f.resumes)
         assertNotEquals(f.digest(), "completed", f.state())
     }
@@ -542,7 +536,6 @@ class JustAudioRepeatCallbackTest {
         f.removeAt(0)
         f.play()
         f.runPosts()
-        report("g3g", f)
         assertEquals(f.digest(), listOf("0@0"), f.seeks)
         assertEquals(f.digest(), 1, f.resumes)
     }
@@ -552,7 +545,6 @@ class JustAudioRepeatCallbackTest {
         f.seek(5000, null)
         f.deliverPause(false)
         f.runPosts()
-        report("g9b", f)
         assertEquals(f.digest(), listOf("0@5000", "0@0"), f.seeks)   // scrub, then the Repeat One restart
         assertEquals(f.digest(), 1, f.resumes)
     }
@@ -630,7 +622,6 @@ class JustAudioRepeatCallbackTest {
         f.deliverPause(true)                  // last item ended: native pause + ENDED delivered, post captured
         f.removeCurrent(1, 0, toEnded = false) // already ENDED: state unchanged, current becomes item 0
         f.runPosts()
-        report("d1", f)
         assertEquals("the remaining stream must be restarted exactly once: ${f.digest()}", listOf("0@0"), f.seeks)
         assertEquals(f.digest(), 1, f.resumes)
     }
@@ -641,7 +632,6 @@ class JustAudioRepeatCallbackTest {
         f.deliverPause(true)
         f.removeCurrent(1, 0, toEnded = false)
         f.runPosts()
-        report("d1b", f)
         assertTrue("ENDED must be published or the engine must be restarted: ${f.digest()}",
             f.state() == "completed" || f.resumes == 1)
     }
@@ -651,7 +641,6 @@ class JustAudioRepeatCallbackTest {
         val f = Fx("FS", 1, 2)
         f.pause()
         f.removeCurrent(1, 0, toEnded = true)
-        report("d3", f)
         assertEquals("paused ENDED after a tail removal must rewind like any file queue: ${f.digest()}", listOf("0@0"), f.seeks)
     }
 
@@ -662,7 +651,6 @@ class JustAudioRepeatCallbackTest {
         f.mode(0)
         f.deliverPause(false)                 // late END_OF_MEDIA_ITEM after the scrub and Off
         f.runPosts()
-        report("d2", f)
         assertEquals("playback must continue from the scrub: ${f.digest()}", 1, f.resumes)
         assertEquals(f.digest(), listOf("0@5000"), f.seeks)
         assertTrue(f.playing)
