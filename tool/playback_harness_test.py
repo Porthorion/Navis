@@ -11,7 +11,13 @@ from unittest.mock import Mock, patch
 from pathlib import Path
 
 os.environ['NAVIS_HARNESS_CAPPED'] = '1'
+# Hermetic: never touch the real heavy-job locks or harness cache, whatever HOME is.
+_ISOLATED = tempfile.TemporaryDirectory(prefix='navis-selfcheck-')
+os.environ['NAVIS_HARNESS_CACHE'] = str(Path(_ISOLATED.name) / 'cache')
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import heavy_lock as _locks  # noqa: E402
+_locks.HEAVY_LOCK = Path(_ISOLATED.name) / 'heavy.lock'
+_locks.LEGACY_LOCK = Path(_ISOLATED.name) / 'legacy' / 'lock'
 import playback_harness as h  # noqa: E402
 import live_seek_stress as engine  # noqa: E402
 
@@ -466,9 +472,18 @@ class InfraErrors(unittest.TestCase):
 
     def ab(self, *args):
         err = io.StringIO()
+        output = Path(self.tmp.name) / f'run-{len(list(Path(self.tmp.name).glob("run-*")))}'  # never the real worktree
         with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
-            code = h.main(['ab', *args])
+            code = h.main(['ab', *args, '--output', str(output)])
         return code, err.getvalue()
+
+    def test_bad_arguments_fail_before_the_lock_and_leave_no_evidence(self):
+        for arguments in (['--platform', 'linux'], ['nonsense', '--platform', 'linux'], ['seek', '--platform', 'android', '--base', 'HEAD']):
+            with self.subTest(arguments=arguments), patch.object(h, 'heavy_lock', side_effect=AssertionError('lock taken')):
+                code, err = self.ab(*arguments)
+                self.assertEqual(code, 2)
+                self.assertNotIn('busy', err)
+                self.assertFalse(list(Path(self.tmp.name).glob('run-*/evidence.json')))
 
     def test_unknown_base_is_exit_2(self):
         code, err = self.ab('queue-edit', '--platform', 'linux', '--base', 'no-such-ref-anywhere')
@@ -687,7 +702,7 @@ class DurableEvidence(unittest.TestCase):
                 evidence['baseArtifact'] = {'path': str(log), 'sha256': h.sha256(log)}
                 (out / 'comparison.json').write_text(json.dumps({'base': 'base', 'fix': 'head', 'platform': 'linux',
                                                                'scenarios': {'queue-edit': {}}}))
-                (out / 'summary.md').write_text('RESULT PASS')
+                (out / 'summary.md').write_text('# detail\n\nRESULT UNVERIFIED\n')
                 return 0
             with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', return_value=identity), \
                     patch.object(h, '_cmd_ab', side_effect=complete), contextlib.redirect_stdout(io.StringIO()):
@@ -695,6 +710,11 @@ class DurableEvidence(unittest.TestCase):
             record = json.loads(next(root.glob('build/harness/*/evidence.json')).read_text())
             self.assertEqual(record['status'], 'passed')
             self.assertEqual(len(record['variants']), 2)
+            summary = next(root.glob('build/harness/*/summary.md'))
+            self.assertIn('RESULT PASS', summary.read_text())
+            self.assertNotIn('UNVERIFIED', summary.read_text())
+            self.assertEqual(record['artifacts'][str(summary)], h.sha256(summary))
+            self.assertFalse(list(summary.parent.glob('*.tmp')))
 
     def test_ab_persists_interruption_and_changed_source(self):
         import argparse

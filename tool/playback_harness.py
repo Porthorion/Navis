@@ -550,10 +550,11 @@ def write_evidence(out: Path, evidence: dict):
     temporary.replace(target)
 
 
-def verify_evidence(out: Path, candidate: dict, environment: dict, config: dict) -> dict:
-    """Fail closed when reusing evidence; callers supply the required exact configuration."""
+def verify_evidence(out: Path, candidate: dict, environment: dict, config: dict, record: dict | None = None) -> dict:
+    """Fail closed when reusing evidence; callers supply the required exact configuration.
+    [record] verifies an in-memory record (not yet promoted on disk) instead of reading evidence.json."""
     try:
-        record = json.loads((out / 'evidence.json').read_text())
+        record = json.loads((out / 'evidence.json').read_text()) if record is None else record
         if (record['schema'] != 1 or record['status'] != 'passed' or record['exitCode'] != 0
                 or record['candidate'] != candidate or record['candidateAfter'] != candidate
                 or record['environment'] != environment or record['config'] != config):
@@ -993,23 +994,31 @@ def pick_scenarios(args) -> list[str]:
     return args.scenarios
 
 
-def _cmd_ab(args, out: Path, evidence: dict) -> int:
+def select_scenarios(args, announce=True) -> list[str]:
+    """The scenarios [args] select on its platform; raises InfraError on bad arguments (before any lock is taken)."""
     names = pick_scenarios(args)
-    platform = args.platform
     if args.map and not names:
-        print('RESULT NONE: no playback code changed')
-        return 0
-    if platform == 'android':
+        return names
+    if args.platform == 'android':
         skipped = [n for n in names if n not in ANDROID_SCENARIOS]
         if skipped and not (args.map or args.all):
             raise InfraError(f'not available on Android: {skipped} (Android runs {list(ANDROID_SCENARIOS)})')
-        for name in skipped:
+        for name in skipped if announce else ():
             print(f'SKIP {name}: linux-only', flush=True)
         names = [n for n in names if n in ANDROID_SCENARIOS]
         if not names:
             raise InfraError('every selected scenario is Linux-only: run with --platform linux')
     if len(set(names)) != len(names):
         raise InfraError('duplicate scenarios')
+    return names
+
+
+def _cmd_ab(args, out: Path, evidence: dict) -> int:
+    names = select_scenarios(args, announce=False)  # main() validated, and announced the skips, before the lock
+    platform = args.platform
+    if args.map and not names:
+        print('RESULT NONE: no playback code changed')
+        return 0
     evidence['config']['names'] = names
     evidence['coverage'] = 'full-platform' if (args.all and args.full and args.reps is None and not args.map) else 'iteration'
     evidence['variants'] = {v + '/' + n: {'status': 'not-run', 'expected': expected_cells(n, args.full, args.reps, platform),
@@ -1091,7 +1100,7 @@ def _cmd_ab(args, out: Path, evidence: dict) -> int:
                             'seconds': {v: timings[(v, name)] for v in ('base', 'fix')}}
     if candidate_identity() != evidence['candidate']:
         raise InfraError('candidate changed during run')
-    result = f"RESULT {'PASS' if ok else 'FAIL'}"
+    result = 'RESULT FAIL' if not ok else 'RESULT UNVERIFIED'  # cmd_ab promotes it to PASS only after verify_evidence succeeds
     (out / 'comparison.json').write_text(json.dumps({'base': base_sha, 'fix': fix_sha, 'platform': platform, 'scenarios': comparison}, indent=1))
     (out / 'summary.md').write_text('\n'.join([f'# Playback harness {stamp} ({platform})', '', f'base {base_ref} {base_sha}', f'fix {fix_sha}', '',
                                                *[f'    {line}' for line in lines], '', result, '']))
@@ -1109,6 +1118,11 @@ def cmd_ab(args) -> int:
     evidence['config'].pop('fn')
     evidence['config'].pop('output', None)
     evidence['config']['names'] = []
+    if getattr(args, 'base', None):
+        try:  # store the resolved SHA so standalone evidence can match the gate's required configuration
+            evidence['config']['base'] = git('rev-parse', '--verify', f'{args.base}^{{commit}}')
+        except InfraError:
+            pass  # the run reports the unknown base itself
     write_evidence(out, evidence)
     global LOCK_FDS
     try:
@@ -1119,7 +1133,9 @@ def cmd_ab(args) -> int:
             finally:
                 LOCK_FDS = ()
         evidence['exitCode'] = code
-        evidence['status'] = 'passed' if code == 0 and (out / 'comparison.json').exists() else 'failed'
+        has_comparison = (out / 'comparison.json').exists()
+        evidence['status'] = 'passed' if code == 0 and has_comparison else (
+            'none' if code == 0 and getattr(args, 'map', False) else 'failed')
         return code
     except BaseException as error:
         evidence['exitCode'] = 2
@@ -1141,14 +1157,24 @@ def cmd_ab(args) -> int:
             evidence['artifacts'] = {str(p): sha256(p) for p in out.rglob('*')
                                      if p.is_file() and p != out / 'evidence.json' and p.name != 'evidence.tmp'}
             evidence['seconds'] = round(time.monotonic() - started, 1)
+            promote = evidence['status'] == 'passed'
+            if promote:  # never record or print a pass before it is verified: stay incomplete until then
+                evidence['status'], evidence['exitCode'] = 'incomplete', 2
             write_evidence(out, evidence)
-            if evidence['status'] == 'passed':
+            if promote:
                 try:
-                    verify_evidence(out, evidence['candidateAfter'], evidence['environment'], evidence['config'])
+                    verify_evidence(out, evidence['candidateAfter'], evidence['environment'], evidence['config'],
+                                    record={**evidence, 'status': 'passed', 'exitCode': 0})
                 except InfraError:
-                    evidence['status'], evidence['exitCode'] = 'incomplete', 2
                     write_evidence(out, evidence)
                     raise
+                summary = out / 'summary.md'
+                text = summary.read_text().replace('RESULT UNVERIFIED', 'RESULT PASS')
+                (out / 'summary.md.tmp').write_text(text)
+                evidence['artifacts'][str(summary)] = sha256(out / 'summary.md.tmp')
+                evidence['status'], evidence['exitCode'] = 'passed', 0
+                write_evidence(out, evidence)  # evidence first: a kill before the rename fails closed (hash mismatch)
+                os.replace(out / 'summary.md.tmp', summary)
             if evidence['candidateAfter'] != evidence['candidate']:
                 raise InfraError('candidate changed during run')
         except BaseException as final_error:
@@ -1167,7 +1193,7 @@ def cmd_ab(args) -> int:
                     (out / 'summary.md').unlink(missing_ok=True)  # a failed write must not leave a stale PASS summary
                     (out / 'summary.md').write_text(
                         f"Playback fixture matrix: {evidence['status']}; exit {evidence['exitCode']}\n"
-                        f"{evidence.get('error', evidence.get('finalizationError', 'comparison failed'))}\n"
+                        f"{evidence.get('error', evidence.get('finalizationError', 'no playback code changed' if evidence['status'] == 'none' else 'comparison failed'))}\n"
                         f"Evidence: {out / 'evidence.json'}\n")
             except OSError as summary_error:
                 print(f'Cannot write summary {out}: {summary_error}', file=sys.stderr)
@@ -1260,14 +1286,19 @@ def cmd_gate(args):
                         with Path(step['log']).open('w') as log:
                             done = bounded_command(command, timeout=deadline, cwd=PROJECT, stdout=log,
                                                    stderr=subprocess.STDOUT, pass_fds=descriptors)
-                        step.update(commandExit=done.returncode, exitCode=done.returncode,
-                                    status='passed' if done.returncode == 0 else 'failed')
-                        if done.returncode < 0:
-                            step['error'] = f'command killed by signal {-done.returncode}'
-                        if done.returncode == 0 and name != 'check':
-                            verify_evidence(out / name, record['candidate'], record['environment'], full_config(name, base, flutter))
-                        if name != 'check' and done.returncode == 2:
-                            step['status'] = 'blocked'
+                        code = done.returncode
+                        step.update(commandExit=code, exitCode=code, status='running')  # passed only after verification
+                        if code < 0:
+                            step['error'] = f'command killed by signal {-code}'
+                        if code == 0:
+                            if name != 'check':
+                                verify_evidence(out / name, record['candidate'], record['environment'], full_config(name, base, flutter))
+                            step['status'] = 'passed'
+                        elif code < 0 or code in (137, 143) or (name != 'check' and code != 1):
+                            # Killed (e.g. OOM) or an infrastructure exit (ab: only 1 is a threshold FAIL): not a verdict.
+                            step.update(status='blocked', exitCode=2)
+                        else:
+                            step['status'] = 'failed'
                     if step['status'] == 'passed':
                         step['logSha256'] = sha256(Path(step['log']))
                 except subprocess.TimeoutExpired as error:
@@ -1340,6 +1371,8 @@ def main(argv=None) -> int:
                                   '--setenv=NAVIS_HARNESS_CAPPED=1', sys.executable, *sys.argv])
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))  # unwind: stop the emulator, KWin and the temporary worktree
     try:
+        if args.command == 'ab':
+            select_scenarios(args)  # usage errors must not wait for, or report, the heavy lock
         return args.fn(args)
     except (InfraError, RuntimeError, OSError, subprocess.SubprocessError) as error:
         print(f'ERROR (infrastructure, not a FAIL): {error}', file=sys.stderr)

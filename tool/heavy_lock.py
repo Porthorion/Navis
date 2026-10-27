@@ -52,9 +52,11 @@ def heavy_lock(owner, cache=None, require_inherited=False):
                 fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
                 probe.seek(0)
-                detail = probe.read().strip() or 'external flock owner (inspect lslocks)'
+                detail = probe.read().strip() or 'external flock owner'
                 probe.close()
-                raise RuntimeError(f'heavy job busy: {path}: {detail}; cancel owner and confirm terminal state before retry')
+                raise RuntimeError(f'heavy job busy: {path}: {detail}; the recorded pid may be gone while a child (KWin, emulator, '
+                                   'cleanup owner) still holds the lock: find the holder with `lslocks | grep navis`; '
+                                   'cancel owner and confirm terminal state before retry')
             probe.seek(0)
             probe.truncate()
             probe.write(json.dumps({'pid': os.getpid(), 'owner': str(owner)}))

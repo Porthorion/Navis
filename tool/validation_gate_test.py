@@ -13,7 +13,12 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+# Hermetic: never touch the real heavy-job locks or harness cache, whatever HOME is.
+_ISOLATED = tempfile.TemporaryDirectory(prefix='navis-selfcheck-')
+os.environ['NAVIS_HARNESS_CACHE'] = str(Path(_ISOLATED.name) / 'cache')
 import heavy_lock as locks
+locks.HEAVY_LOCK = Path(_ISOLATED.name) / 'heavy.lock'
+locks.LEGACY_LOCK = Path(_ISOLATED.name) / 'legacy' / 'lock'
 import playback_harness as h
 
 
@@ -44,6 +49,7 @@ class Ownership(unittest.TestCase):
             busy = self.child()
             self.assertNotEqual(busy.returncode, 0)
             self.assertIn('evidence/run-1', busy.stderr)
+            self.assertIn('lslocks', busy.stderr)  # the recorded pid may be dead while a child holds the lock
             self.assertEqual(self.child(descriptors).returncode, 0)
             with locks.heavy_lock('nested', self.cache) as nested:
                 self.assertEqual(nested, descriptors)
@@ -91,10 +97,6 @@ class Ownership(unittest.TestCase):
             message = locks.main(['true'])
         self.assertIn('heavy lock unavailable', message)
         self.assertIn('Permission denied', message)
-        done = subprocess.run([sys.executable, str(Path(locks.__file__)), '--verify'], capture_output=True, text=True,
-                              env={**os.environ, 'NAVIS_HARNESS_CACHE': str(locked / 'sub')}, timeout=10)
-        self.assertNotIn('Traceback', done.stderr)
-        self.assertNotEqual(done.returncode, 0)
 
     def test_environment_marker_does_not_bypass_ownership(self):
         with patch.dict(os.environ, {'NAVIS_HEAVY_LOCKED': '1'}):
@@ -236,6 +238,28 @@ class Gate(unittest.TestCase):
                         self.assertIn(f"skipped: check {record['steps']['check']['status']}", summary)
                     self.assertIn('exact command exit=', summary)
 
+    def test_killed_or_infrastructure_exit_of_a_matrix_is_blocked_not_failed(self):
+        for platform in ('linux', 'android'):
+            for command_exit, expected in ((-9, 'blocked'), (137, 'blocked'), (143, 'blocked'), (2, 'blocked'), (7, 'blocked'), (1, 'failed')):
+                def runner(command, **kw):
+                    return subprocess.CompletedProcess(command, command_exit if ('--platform' in command and platform in command) else 0)
+                with self.subTest(platform=platform, exit=command_exit):
+                    code, record, _, _, _ = self.exercise(runner)
+                    self.assertEqual(record['steps'][platform]['status'], expected)
+                    self.assertEqual(record['steps'][platform]['commandExit'], command_exit)
+                    self.assertEqual((code, record['status']), (1, 'failed') if expected == 'failed' else (2, 'blocked'))
+        for command_exit in (137, 143):
+            code, record, _, _, _ = self.exercise(lambda command, **kw: subprocess.CompletedProcess(command, command_exit if 'check.sh' in command[0] else 0))
+            self.assertEqual((code, record['steps']['check']['status']), (2, 'blocked'))
+
+    def test_interruption_during_verification_never_leaves_a_step_passed(self):
+        for fault in (KeyboardInterrupt(), SystemExit(143)):
+            code, record, _, _, _ = self.exercise(verifier=fault)
+            self.assertEqual(code, 2)
+            self.assertEqual(record['steps']['linux']['status'], 'blocked')
+            self.assertEqual(record['steps']['android']['status'], 'not-run')
+            self.assertNotIn('passed', [s['status'] for s in list(record['steps'].values())[1:]])
+
     def test_missing_malformed_or_stale_evidence_is_blocked(self):
         for message in ('missing artifact', 'malformed evidence', 'stale source', 'wrong base', 'wrong Flutter', 'wrong config'):
             with self.subTest(message=message):
@@ -372,6 +396,53 @@ class Gate(unittest.TestCase):
             self.assertNotIn('RESULT PASS', (out / 'summary.md').read_text())
             self.assertNotIn('RESULT PASS', stdout.getvalue())
 
+    def ab_args(self, out, **overrides):
+        values = dict(fn=None, output=str(out), command='ab', scenarios=[], map=False, all=True, platform='linux',
+                      base='ref', base_range='r', full=True, reps=None, real=False)
+        return argparse.Namespace(**{**values, **overrides})
+
+    def test_a_kill_during_final_verification_never_leaves_a_pass(self):
+        script = (f'import sys, os, signal; sys.path.insert(0, {str(Path(h.__file__).parent)!r}); import playback_harness as h\n'
+                  'from contextlib import nullcontext\nfrom pathlib import Path\nfrom unittest.mock import patch\n'
+                  'import argparse\nout = Path(sys.argv[1])\n'
+                  'def fake(args, out, evidence):\n'
+                  '    (out / "comparison.json").write_text("{}"); (out / "summary.md").write_text("...\\nRESULT UNVERIFIED\\n"); return 0\n'
+                  'args = argparse.Namespace(fn=None, output=str(out), command="ab", scenarios=[], map=False, all=True, platform="linux",\n'
+                  '                         base="b", base_range="r", full=True, reps=None, real=False)\n'
+                  'with patch.object(h, "candidate_identity", return_value={"head": "h"}), patch.object(h, "environment_identity", return_value={}), \\\n'
+                  '        patch.object(h, "heavy_lock", return_value=nullcontext(())), patch.object(h, "_cmd_ab", fake), \\\n'
+                  '        patch.object(h, "git", return_value="sha"), \\\n'
+                  '        patch.object(h, "verify_evidence", lambda *a, **k: os.kill(os.getpid(), signal.SIGKILL)):\n'
+                  '    h.cmd_ab(args)\n')
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder) / 'run'
+            done = subprocess.run([sys.executable, '-c', script, str(out)], capture_output=True, text=True, timeout=30)
+            record = json.loads((out / 'evidence.json').read_text())
+            self.assertEqual(done.returncode, -9)
+            self.assertEqual((record['status'], record['exitCode']), ('incomplete', 2))
+            self.assertNotIn('RESULT PASS', (out / 'summary.md').read_text())
+            self.assertNotIn('PASS', done.stdout)
+
+    def test_map_without_playback_changes_is_status_none_not_failed(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder) / 'run'
+            with patch.object(h, 'candidate_identity', return_value={'head': 'h'}), patch.object(h, 'environment_identity', return_value={}), \
+                    patch.object(h, 'heavy_lock', return_value=nullcontext(())), patch.object(h, 'pick_scenarios', return_value=[]), \
+                    patch.object(h, 'git', return_value='sha'), redirect_stdout(io.StringIO()):
+                code = h.cmd_ab(self.ab_args(out, scenarios=[], all=False, map=True))
+            record = json.loads((out / 'evidence.json').read_text())
+            self.assertEqual((code, record['status'], record['exitCode']), (0, 'none', 0))
+            self.assertNotIn('failed', (out / 'summary.md').read_text())
+
+    def test_standalone_evidence_stores_the_resolved_base_sha(self):
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder) / 'run'
+            with patch.object(h, 'candidate_identity', return_value={'head': 'h'}), patch.object(h, 'environment_identity', return_value={}), \
+                    patch.object(h, 'heavy_lock', return_value=nullcontext(())), patch.object(h, '_cmd_ab', return_value=1), \
+                    patch.object(h, 'git', return_value='0123abc'), redirect_stdout(io.StringIO()):
+                h.cmd_ab(self.ab_args(out, base='github/release/1.5'))
+            self.assertEqual(json.loads((out / 'evidence.json').read_text())['config']['base'], '0123abc')
+
     def test_timeout_kills_owned_process_group(self):
         with self.assertRaises(subprocess.TimeoutExpired) as caught:
             h.bounded_command([sys.executable, '-c', 'import time; time.sleep(60)'], timeout=0.05)
@@ -391,7 +462,7 @@ class Gate(unittest.TestCase):
         def runner(command, **kw):
             return subprocess.CompletedProcess(command, -9 if 'check.sh' in command[0] else 0)
         code, record, summary, _, _ = self.exercise(runner)
-        self.assertEqual((code, record['status'], record['steps']['check']['status']), (1, 'failed', 'failed'))
+        self.assertEqual((code, record['status'], record['steps']['check']['status']), (2, 'blocked', 'blocked'))
         self.assertEqual(record['steps']['check']['commandExit'], -9)
         self.assertIn('signal 9', summary)
 
