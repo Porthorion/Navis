@@ -227,6 +227,19 @@ class NavisAudioHandler extends BaseAudioHandler
   LockCachingAudioSource? debugRegisteredLockCacheSource(String songId) =>
       _lockCacheSourceOfSong(songId);
 
+  /// The player sources a full queue rebuild of [songIds] would hold, without
+  /// applying them (tests pin that a held registered source stays the writer).
+  @visibleForTesting
+  Future<List<AudioSource>> debugPrepareReplacementSources(
+    List<String> songIds,
+  ) async => [
+    for (final item in await _prepareQueueItems(
+      await _libraryDao.getSongsByIds(songIds),
+      preferLockCaching: true,
+    ))
+      item.audioSource,
+  ];
+
   @visibleForTesting
   bool get debugSeekTraceInstalled => _lastSeek?.onStage != null;
 

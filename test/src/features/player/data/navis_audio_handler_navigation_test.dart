@@ -6383,6 +6383,125 @@ void main() {
       },
     );
 
+    // A full queue rebuild while the registered source is held (the flag on
+    // _prepareQueueItems/_reloadQueueAfterTimeout): the held source stays the
+    // song's one writer at its first occurrence, the repeat is its own
+    // instance, and nothing downloads twice.
+    Future<void> expectHeldLeaderSurvives(
+      ({
+        NavisAudioHandler handler,
+        _ControllableAudioPlayer player,
+        int port,
+        Map<String, int> maxActive,
+        List<String> requests,
+        Completer<void> release,
+        List<bool> gate,
+      })
+      s,
+      // ignore: experimental_member_use, reason: the lock-cache source.
+      LockCachingAudioSource leader,
+      List<String> ids, {
+      // A jump away cancels the unfinished warm (a later request downloads
+      // again), so only a rebuild that stays put downloads exactly once.
+      bool downloadsOnce = true,
+    }) async {
+      await settleQueue(s.handler);
+      expect(
+        identical(s.handler.debugRegisteredLockCacheSource('song-1'), leader),
+        isTrue,
+      );
+      expect(
+        identical(s.player.audioSources[ids.indexOf('song-1')], leader),
+        isTrue,
+      );
+      expectOccurrences(s.handler, s.player, ids);
+      s.release.complete();
+      await drain(await leader.request());
+      await settle();
+      if (downloadsOnce) {
+        expect(count(s.requests, 'song-1'), 1);
+        expect(s.maxActive['song-1'], 1);
+      }
+    }
+
+    test(
+      'a queue rebuilt while the registered source is held keeps it',
+      () async {
+        const ids = ['song-0', 'song-1', 'song-1'];
+        final s = await serveQueue(3, hold: {'song-1'}, ids: ids);
+        ticks(s.player);
+        final leader = sourceAt(s.player, 1);
+        await playCurrent(s.player);
+        await until(
+          () => s.requests.contains('song-1') && leader.isDownloading,
+        );
+        await s.handler.replaceQueue(ids, expandMatchFlows: false);
+        await expectHeldLeaderSurvives(s, leader, ids);
+      },
+    );
+
+    test('a rebuild prepared while the source is held keeps it', () async {
+      const ids = ['song-0', 'song-1', 'song-1'];
+      final s = await serveQueue(3, hold: {'song-1'}, ids: ids);
+      ticks(s.player);
+      final leader = sourceAt(s.player, 1);
+      await playCurrent(s.player);
+      await until(() => s.requests.contains('song-1') && leader.isDownloading);
+      // The rebuild replaces the whole queue: the player's own copy of the
+      // registered source is not a reason to demote its first occurrence.
+      final sources = await s.handler.debugPrepareReplacementSources(ids);
+      expect(identical(sources[1], leader), isTrue);
+      // ignore: experimental_member_use, reason: the lock-cache source.
+      expect(sources[2], isNot(isA<LockCachingAudioSource>()));
+      expect(sources.toSet(), hasLength(ids.length));
+      s.release.complete();
+      await settle();
+    });
+
+    test(
+      'a queue restored after a failed far jump keeps the held source',
+      () async {
+        final ids = [
+          'song-0',
+          'song-1',
+          'song-1',
+          for (var i = 3; i < 60; i++) 'song-$i',
+        ];
+        final s = await serveQueue(
+          60,
+          hold: {'song-1'},
+          ids: ids,
+          window: const NavisQueueWindow(
+            deferThreshold: 16,
+            ahead: 8,
+            lowWater: 3,
+            page: 8,
+            nearJump: 16,
+          ),
+        );
+        ticks(s.player);
+        final leader = sourceAt(s.player, 1);
+        await playCurrent(s.player);
+        await until(
+          () => s.requests.contains('song-1') && leader.isDownloading,
+        );
+        s.player.failLoadSongId = 'song-50';
+        await s.handler.playFromIndex(50);
+        await until(
+          () =>
+              s.handler.snapshot.lastFailedSongId == 'song-50' &&
+              !s.handler.snapshot.isLoading,
+        );
+        s.player.failLoadSongId = null;
+        await expectHeldLeaderSurvives(
+          s,
+          leader,
+          ids.take(9).toList(),
+          downloadsOnce: false,
+        );
+      },
+    );
+
     test(
       'a released tail with duplicates keeps one registered source',
       () async {
