@@ -14,6 +14,74 @@ Last updated: 2026-10-27
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [ ] Issue #86 P1, recovery intent and fallback (triage 01–05, 15–18) —
+  implementation complete on `fix/recovery-intent`, 2026-10-26; integrated
+  runtime certification and `tool/check.sh` remain with the orchestrator.
+  Final quiet shutdown holds only its load generation: newer Play re-arms the
+  same occurrence, later Pause stays paused, and a newer queue plays normally.
+  Failed bridge recovery opens the original once, prefers a file completing
+  during reopen, and records the selected `recoveryPath`. An owned, unbuilt
+  original rebuild uses bounded failover; removal and selection retire it.
+  Failed-seek suppression uses the configured `healthyPlayback` distance while
+  real backend advancement keeps its separate failover accounting semantics.
+  Deterministic row-15 tests reproduce cuts during initial fill, deferred
+  release, trim and an uncaptured natural advance inside release. Recovery
+  pauses the successor immediately, retains metadata, waits for the lane,
+  rechecks occurrence/generation, and prevents another idle trim from overtaking
+  the reopen. A newer seek also retains its occurrence after a failed reopen
+  (row 16 reproduced a defect, rather than only a coverage gap).
+  Failing-first evidence: row 01 `Expected: <true>`, `Actual: <false>`;
+  row 02 `Expected: <3>`, `Actual: <2>`; row 03 `Expected: <4>`, `Actual: <5>`;
+  row 04 `Expected: 'original'`, `Actual: <null>`; row 05
+  `Expected: 'song-2'`, `Actual: 'song-1'`; rows 15/16
+  `Expected: 'song-1'`, `Actual: 'song-2'`. Deferred release/trim/capture-gap
+  tests also failed with `Expected: <2>`, `Actual: <1>`; the successor-silence
+  test failed with `Expected: null`, `Actual: 'song-2'`.
+  Bootstrap ran once. All 25 row-focused cases pass. Fourteen targeted mutations
+  were killed: intent re-arm, single fallback, failover cap, healthy interval,
+  unbuilt failure, newer-seek ownership/selection, source-ready Play, queue
+  neighbours, and the five row-15 pause/index/completion/idle-trim/capture guards.
+  Scoped analysis compared
+  with the item-14 base reports the same 33 pre-existing infos, no added
+  findings and no errors/warnings. Final navigation, handler helper, playback
+  lane and transport-trace files passed together: `08:58 +956: All tests passed!`
+  (foreground, 6 GiB cap, `--concurrency 1`; zero OOM kills).
+  Architecture and the 1.5.1 changelog updated; item-14 `oggSplice` event fields
+  preserved. No emulator, playback harness, full gate, push, merge or rebase run.
+  Review r2, 2026-10-27: queued appends preserve an already classified cut;
+  a current seek reloads its failed source at its newer target after shutdown;
+  Pause preserves ordinary unbuilt recovery ownership and lands failover paused.
+  Each finding has a committed failing-first regression: append
+  `Expected: 'song-1' / Actual: 'song-2'`, current seek
+  `Expected: 'completed' / Actual: 'failed'` (seek, Play and Pause), and paused
+  failover `Expected: 'song-2' / Actual: 'song-1'`.
+  Six mutations were killed: post-classification invalidation, missing seek
+  reload, departed-only revision capture, ordinary transport rejection, missing
+  shutdown wait, and the new-seek eligibility check. Cold-load retry/deadline
+  controls keep their existing bounds; the shutdown wait has a separate
+  ordinary-recovery regression.
+  After restricting reload to a fresh seek that was not waiting on a load,
+  39 P1/retry/deadline/intent cases pass, as do all nine final reviewer probes.
+  Scoped analysis reports the same 30 existing infos for the four checked files,
+  no added findings and no errors/warnings. Final navigation, handler helper,
+  playback lane and transport-trace suites passed together:
+  `09:03 +962: All tests passed!` (foreground, 4 GiB cap, concurrency 1;
+  zero OOM kills). The full gate and native runtime certification remain with
+  the orchestrator.
+  Review r3, 2026-10-27: removing a classified cut releases recovery's native
+  pause on the surviving queue after acknowledgement, with the latest intent
+  and only while the captured player/load/seek remain owned. Shared cleanup
+  covers every recovery return; newer work and quiet stops keep ownership.
+  The committed red regression reported `Expected: <true> / Actual: <false>`
+  in four cases, with both Pause controls passing. All six cases now pass,
+  including delayed acknowledgement and unchanged source-load counts.
+  Three mutations were killed: disabled release, ignored latest intent, and
+  omitted acknowledgement wait. P1 rows plus the r1/r2 reviewer copies pass:
+  `00:53 +130: All tests passed!`. The complete four-file P1 set passes:
+  `08:58 +968: All tests passed!` (foreground, 4 GiB cap, concurrency 1;
+  zero OOM kills). Scoped analysis retains the same 30 infos, no added findings
+  or errors/warnings. Item-14 trace fields remain intact; the full gate and
+  native/audible certification remain with the orchestrator.
 - [ ] Issue #86, P2 Android repeat-boundary policy (triage 06, 07, 09) —
   R5 implementation on `fix/android-repeat-boundary`, 2026-10-27; R4 review found
   no blockers. Orchestrator full quality gate, hosted CI, Linux smoke and Android
