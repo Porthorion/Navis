@@ -432,6 +432,115 @@ class RepeatClockBlip(unittest.TestCase):
         self.assertEqual(run.violations, [{'oracle': 'baselineNoLoop'}])
 
 
+class PairedRepetitions(unittest.TestCase):
+    """Rows 24/29: base and fix alternate rep by rep (first variant swapping on every other pair), one merged
+    evidence record per variant and scenario, thresholds and cell counts unchanged."""
+
+    def test_schedule_alternates_pairs_and_swaps_the_first_variant(self):
+        steps = h.schedule(['seek', 'crossfade'], lambda name: 3)
+        self.assertEqual(steps[:6], [('base', 'seek', 0), ('fix', 'seek', 0), ('fix', 'seek', 1),
+                                     ('base', 'seek', 1), ('base', 'seek', 2), ('fix', 'seek', 2)])
+        self.assertEqual(steps[6:8], [('base', 'crossfade', 0), ('fix', 'crossfade', 0)])
+        self.assertEqual(len(steps), len(set(steps)), 'every (variant, scenario, rep) exactly once')
+        self.assertEqual(h.schedule(['seek'], lambda name: 1), [('base', 'seek', 0), ('fix', 'seek', 0)])
+
+    def test_engine_runs_one_rep_at_its_own_index(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            seen = []
+            def fake_engine(args, env, folder, extra, timeout, label):
+                seen.append(args)
+                (folder / f'{label}.log').write_text('log')
+                run = folder / 'runs' / f'stamp-{label}'
+                run.mkdir(parents=True)
+                rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={}, violations=[], latencyS=None, passed=True)
+                        for c in h.expected_cells('queue-edit', False, 3, 'linux') if c[3] == 2]
+                (run / 'report.json').write_text(json.dumps({'results': rows}))
+                return Mock(returncode=0)
+            with patch.object(h, 'engine', side_effect=fake_engine):
+                rows, _ = h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, 3, False, rep=2)
+            self.assertEqual({r['rep'] for r in rows}, {2})
+            args = seen[0]
+            self.assertEqual(args[args.index('--reps') + 1], '1')
+            self.assertEqual(args[args.index('--rep-start') + 1], '2')
+            self.assertEqual({tuple(c) for c in json.loads((out / 'evidence.json').read_text())['expected']},
+                             {tuple(c) for c in h.expected_cells('queue-edit', False, 3, 'linux') if c[3] == 2})
+
+    def test_engine_rep_numbers_start_at_the_requested_index(self):
+        self.assertEqual(list(engine.matrix_reps('seek_far', 3, 0, 0)), [0, 1, 2])
+        self.assertEqual(list(engine.matrix_reps('seek_far', 1, 0, 2)), [2])
+        self.assertEqual(list(engine.matrix_reps('shuffle_album', 3, 2, 1)), [1, 2])
+
+    def ab(self, fail_at=None, reps=3):
+        """Runs cmd_ab for queue-edit on Linux against a fake engine; returns (exit/exception, evidence dir, calls)."""
+        import argparse
+        import json
+        calls = []
+        root_ctx = tempfile.TemporaryDirectory()
+        self.addCleanup(root_ctx.cleanup)
+        root = Path(root_ctx.name)
+        artifact = root / 'bundle'
+        artifact.write_text('bundle')
+        def scenario(name, platform, variant_dir, display_env, serial, apk, full, nreps, real, rep=None):
+            parts = variant_dir.parts
+            calls.append((parts[-4], parts[-3], int(parts[-2].split('-')[1])))
+            if fail_at is not None and len(calls) == fail_at:
+                raise h.InfraError('engine died')
+            variant_dir.mkdir(parents=True, exist_ok=True)
+            cells = [c for c in h.expected_cells(name, full, nreps, platform) if c[3] == rep]
+            rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={}, violations=[], latencyS=None, passed=True)
+                    for c in cells]
+            (variant_dir / f'{name}.log').write_text(f'engine log {parts[-4]} rep {rep}')
+            report = variant_dir / 'report.json'
+            report.write_text(json.dumps({'results': rows}))
+            h.write_evidence(variant_dir, {'status': 'complete', 'exitCode': 0, 'expected': cells, 'observed': cells, 'seconds': 1.0,
+                                           'log': str(variant_dir / f'{name}.log'), 'report': str(report)})
+            return rows, 1.0
+        identity = {'head': 'headsha', 'sha256': 'a'}
+        def git(*a, **k):
+            return 'headsha' if a[:2] == ('rev-parse', 'HEAD') else ('basesha' if a[0] == 'rev-parse' else '')
+        args = argparse.Namespace(fn=h.cmd_ab, command='ab', scenarios=['queue-edit'], map=False, all=False, platform='linux',
+                                  base='ref', base_range='r...HEAD', full=False, reps=reps, real=False, output=str(root / 'out'))
+        with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', return_value=identity), \
+                patch.object(h, 'environment_identity', return_value={}), patch.object(h, 'heavy_lock', return_value=contextlib.nullcontext(())), \
+                patch.object(h, 'git', side_effect=git), patch.object(h, 'run', return_value=Mock(returncode=0)), \
+                patch.object(h, 'flutter_version', return_value='Flutter test'), patch.object(h, 'downloads_snapshot', return_value={}), \
+                patch.object(h, 'base_build', return_value=(root, 'cached')), patch.object(h, 'fix_build', return_value=root), \
+                patch.object(h, 'artifact_of', return_value=artifact), patch.object(h, 'activate'), \
+                patch.object(h, 'Display', return_value=contextlib.nullcontext({})), patch.object(h, 'run_scenario', side_effect=scenario), \
+                contextlib.redirect_stdout(io.StringIO()):
+            try:
+                code = h.cmd_ab(args)
+            except h.InfraError as error:
+                code = error
+        return code, root / 'out', calls
+
+    def test_ab_interleaves_and_keeps_one_verified_evidence_record_per_variant(self):
+        import json
+        code, out, calls = self.ab()
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, h.schedule(['queue-edit'], lambda name: 3))
+        record = json.loads((out / 'evidence.json').read_text())
+        self.assertEqual(record['status'], 'passed')  # cmd_ab verifies the merged records before it promotes a pass
+        cells = h.expected_cells('queue-edit', False, 3, 'linux')
+        for variant in ('base', 'fix'):
+            merged = record['variants'][f'{variant}/queue-edit']
+            self.assertEqual((merged['status'], merged['exitCode'], merged['expected'], merged['observed']), ('complete', 0, cells, cells))
+            self.assertEqual(len(json.loads(Path(merged['report']).read_text())['results']), len(cells))
+            self.assertEqual(Path(merged['log']).read_text().count('engine log'), 3)
+
+    def test_ab_failure_midway_leaves_incomplete_evidence_for_started_variants(self):
+        import json
+        code, out, calls = self.ab(fail_at=3)
+        self.assertIsInstance(code, h.InfraError)
+        record = json.loads((out / 'evidence.json').read_text())
+        self.assertNotEqual(record['status'], 'passed')
+        base = record['variants']['base/queue-edit']
+        self.assertEqual((base['status'], len(base['observed'])), ('incomplete', 3))
+        self.assertEqual(record['variants']['fix/queue-edit']['status'], 'incomplete')
+
+
 class CodeAreaMap(unittest.TestCase):
     def test_paths(self):
         names = lambda *paths: h.map_files(list(paths))[0]

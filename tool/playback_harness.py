@@ -952,10 +952,14 @@ def plan(name: str, full: bool, reps: int | None, platform: str = 'linux') -> tu
 
 
 def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict, serial: str | None, apk: Path | None,
-                 full: bool, reps: int | None, real: bool) -> tuple[list[dict], float]:
+                 full: bool, reps: int | None, real: bool, rep: int | None = None) -> tuple[list[dict], float]:
+    """Runs a scenario's matrix, or only repetition [rep] of every cell (one engine invocation per repetition, numbered at its own index)."""
     spec = SCENARIOS[name]
     cases, reps, budget = plan(name, full, reps, platform)
-    args = ['--cases', cases, '--qualities', spec['qualities'], '--throttles', spec['throttle'], '--reps', str(reps), *spec['args']]
+    if rep is not None and not 0 <= rep < reps:
+        raise InfraError(f'repetition {rep} outside 0..{reps - 1}')
+    args = ['--cases', cases, '--qualities', spec['qualities'], '--throttles', spec['throttle'],
+            *(['--reps', '1', '--rep-start', str(rep)] if rep is not None else ['--reps', str(reps)]), *spec['args']]
     extra, env = ({} if full else dict(spec.get('quick_env', {}))), dict(display_env)
     if serial:
         args += ['--android', serial]
@@ -971,7 +975,7 @@ def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict,
             raise InfraError(f'--real needs {credentials} with mode 600')
         args += ['--credentials', str(credentials)]
     started = time.monotonic()
-    record = {'status': 'running', 'expected': expected_cells(name, full, reps, platform),
+    record = {'status': 'running', 'expected': [c for c in expected_cells(name, full, reps, platform) if rep is None or c[3] == rep],
               'observed': [], 'exitCode': None, 'log': str(variant_dir / (name + '.log'))}
     variant_dir.mkdir(parents=True, exist_ok=True)
     write_evidence(variant_dir, record)
@@ -1046,8 +1050,8 @@ def select_scenarios(args, announce=True) -> list[str]:
 
 
 def run_guest_scenario(label: str, name: str, platform: str, folder: Path, step_dir: Path, display_env: dict, seed: Path | None,
-                       candidate: dict, full: bool, reps: int | None, real: bool) -> tuple[list[dict], float]:
-    """One scenario run of the build in [folder], evidence under [step_dir]/attempt-N. Android gets a fresh guest per run: the
+                       candidate: dict, full: bool, reps: int | None, real: bool, rep: int | None = None) -> tuple[list[dict], float]:
+    """One scenario run (or one repetition of it) of the build in [folder], evidence under [step_dir]/attempt-N. Android gets a fresh guest per run: the
     emulator's GPU translator has crashed (qemu core dump) minutes into a session, and a wiped guest starts both variants from
     the same state. A guest that fails to boot (Emulator.__enter__ has already removed it and its clone) or dies during the run
     is replaced once."""
@@ -1065,7 +1069,7 @@ def run_guest_scenario(label: str, name: str, platform: str, folder: Path, step_
                     raise InfraError('candidate changed before scenario')
                 activate(folder, platform, seed)
                 try:
-                    return run_scenario(name, platform, attempt_dir, display_env, serial, apk, full, reps, real)
+                    return run_scenario(name, platform, attempt_dir, display_env, serial, apk, full, reps, real, rep)
                 except InfraError:
                     if not (emulator is not None and attempt == 1 and emulator.proc.poll() is not None):
                         raise
@@ -1076,6 +1080,41 @@ def run_guest_scenario(label: str, name: str, platform: str, folder: Path, step_
             why = 'the emulator failed to boot'
         print(f'{label}: {why}, repeating once', flush=True)
     raise AssertionError('unreachable')  # attempt 2 returns or raises
+
+
+def schedule(names: list[str], reps_of) -> list[tuple[str, str, int]]:
+    """(variant, scenario, repetition) in run order. Base and fix alternate repetition by repetition, so host drift (swap, heat,
+    first-run effects) lands on both, and the first variant swaps on every other pair so it cannot always be the one that runs first."""
+    return [(variant, name, rep) for name in names for rep in range(reps_of(name))
+            for variant in (('base', 'fix') if rep % 2 == 0 else ('fix', 'base'))]
+
+
+def merge_reps(name: str, platform: str, step_dir: Path, full: bool, reps: int) -> list[dict]:
+    """Writes the one evidence record of a variant's scenario, <step_dir>/attempt-1 (what verify_evidence and the gate read),
+    from the repetitions run in <step_dir>/rep-R/attempt-N: all cells of the scenario in matrix order, one report, one log.
+    Incomplete unless every repetition completed. Returns the merged rows."""
+    parts = {}
+    for path in sorted(step_dir.glob('rep-*/attempt-*/evidence.json')):  # a later attempt of a repetition wins
+        part = json.loads(path.read_text())
+        if part['status'] == 'complete':
+            parts[int(path.parent.parent.name.split('-')[1])] = part
+    expected = expected_cells(name, full, reps, platform)
+    order = {tuple(cell): i for i, cell in enumerate(expected)}
+    rows = sorted((row for _, part in sorted(parts.items()) for row in json.loads(Path(part['report']).read_text())['results']),
+                  key=lambda r: order[(r['case'], r['quality'], r['throttle'], r['rep'])])
+    merged = step_dir / 'attempt-1'
+    merged.mkdir(exist_ok=True)
+    complete = set(parts) == set(range(reps))
+    code = (0 if all(r['passed'] for r in rows) else 1) if complete else None
+    record = {'status': 'complete' if complete else 'incomplete', 'expected': expected, 'observed': observed_cells(rows, code),
+              'exitCode': code, 'log': str(merged / f'{name}.log'), 'repetitions': {str(r): p['log'] for r, p in sorted(parts.items())},
+              'seconds': round(sum(p['seconds'] for p in parts.values()), 1)}
+    (merged / f'{name}.log').write_text(''.join(f'== repetition {r}: {p["log"]}\n{Path(p["log"]).read_text()}' for r, p in sorted(parts.items())))
+    if complete:
+        (merged / 'report.json').write_text(json.dumps({'results': rows}))
+        record['report'] = str(merged / 'report.json')
+    write_evidence(merged, record)
+    return rows
 
 
 def _cmd_ab(args, out: Path, evidence: dict) -> int:
@@ -1123,15 +1162,23 @@ def _cmd_ab(args, out: Path, evidence: dict) -> int:
     with ExitStack() as stack:
         display_env = stack.enter_context(Display(out))
         seed = seed_android(base_sha, flutter, display_env, out) if platform == 'android' else None
-        for variant, folder in (('base', base_dir), ('fix', fix_dir)):
-            for name in names:
-                rows, seconds = run_guest_scenario(f'{variant} {name}', name, platform, folder, out / variant / name, display_env, seed,
-                                                   evidence['candidate'], args.full, args.reps, args.real)
+        folders = {'base': base_dir, 'fix': fix_dir}
+        reps_of = lambda name: plan(name, args.full, args.reps, platform)[1]
+        steps, rows_of = schedule(names, reps_of), {}
+        try:
+            for variant, name, rep in steps:
+                rows, seconds = run_guest_scenario(f'{variant} {name} repetition {rep + 1}/{reps_of(name)}', name, platform, folders[variant],
+                                                   out / variant / name / f'rep-{rep}', display_env, seed, evidence['candidate'],
+                                                   args.full, args.reps, args.real, rep)
                 if variant == 'base' and invalid_cells(rows):
                     raise InfraError(f'base {name} is not a valid comparison: {invalid_cells(rows)} (logs: {out / variant / name})')
-                results[(variant, name)] = metrics(name, rows)
-                timings[(variant, name)] = seconds
-                print(f'{variant} {name}: {len(rows)} cells in {seconds} s', flush=True)
+                timings[(variant, name)] = timings.get((variant, name), 0) + seconds
+                print(f'{variant} {name} repetition {rep + 1}/{reps_of(name)}: {len(rows)} cells in {seconds} s', flush=True)
+        finally:  # the variant's evidence is merged even when the run stopped part way: incomplete, never missing
+            for variant, name in dict.fromkeys((v, n) for v, n, _ in steps):
+                if (out / variant / name).is_dir():
+                    rows_of[(variant, name)] = merge_reps(name, platform, out / variant / name, args.full, reps_of(name))
+    results = {key: metrics(key[1], rows) for key, rows in rows_of.items()}
     after = downloads_snapshot()
     if after != before:
         raise InfraError(f'{DOWNLOADS} changed during the run (before/after in {out})')

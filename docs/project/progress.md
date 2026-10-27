@@ -4102,3 +4102,9 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   and an `InfraError` at 90 s instead of spinning to the 240 s timeout; `cmd_ab`
   replaces a guest that failed to boot once (`run_guest_scenario`). Hermetic
   self-checks only (fake adb and clock); no emulator or harness run.
+- Rows 24/29 (order bias): base and fix repetitions now alternate per repetition
+  (`schedule`: base r1, fix r1, fix r2, base r2, ...), one engine invocation per
+  repetition (`live_seek_stress.py --rep-start`), merged by `merge_reps` into the
+  unchanged per-variant evidence record. Inventory, cell counts and thresholds
+  untouched; recalibration stays a separate, evidence-based step. Each Android
+  repetition still gets a fresh guest, so boots multiply by the repetition count.

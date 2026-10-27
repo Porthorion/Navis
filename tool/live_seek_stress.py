@@ -4221,6 +4221,11 @@ PROFILES = {
 REPEATED_CASES = {'shuffle_album', 'shuffle_artist', 'shuffle_album_natural', 'shuffle_artist_natural'}  # --shuffle-reps times each
 
 
+def matrix_reps(case: str, reps: int, shuffle_reps: int, start: int = 0) -> range:
+    """Repetition numbers of a case; --rep-start lets the harness run one repetition of a cell at its own index."""
+    return range(start, start + (shuffle_reps if case in REPEATED_CASES and shuffle_reps else reps))
+
+
 def set_quality(app, quality: str):
     fmt, kbps = QUALITIES[quality]
     setting = {'format': fmt, 'maxBitRate': kbps}
@@ -4507,7 +4512,7 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
             for quality in profile['qualities']:
                 set_quality(app, quality)
                 for case in profile['cases']:
-                    for rep in range(args.shuffle_reps if case in REPEATED_CASES and args.shuffle_reps else reps):
+                    for rep in matrix_reps(case, reps, args.shuffle_reps, args.rep_start):
                         if (case, quality, throttle, rep) in finished:
                             continue
                         serial += 1
@@ -4563,6 +4568,8 @@ def main() -> int:
     parser.add_argument('--qualities', help='matrix qualities, e.g. original,opus128')
     parser.add_argument('--throttles', help='matrix throttles: none,wan6000,slow1500')
     parser.add_argument('--reps', type=int, help='repetitions per matrix cell')
+    parser.add_argument('--rep-start', type=int, default=0,
+                        help='number the repetitions from this index (the harness runs one repetition per invocation)')
     parser.add_argument('--shuffle-reps', type=int, default=0,
                         help='repetitions for the shuffle cases (default: --reps)')
     parser.add_argument('--resume-from', type=Path,

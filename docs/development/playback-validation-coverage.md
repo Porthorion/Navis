@@ -75,8 +75,18 @@ fixture case or from a mocked orchestration test.
 Each A/B invocation writes `build/harness/<UTC-microsecond-stamp>/evidence.json`
 before build/preflight work. Atomic replacement leaves an incomplete record on
 abrupt termination; graceful failure/interrupt records its type and exit 2.
-Selected variants start as `not-run`; attempts retain their own evidence/logs
-under `<base|fix>/<scenario>/attempt-N/`. A retry cannot borrow a prior report.
+Selected variants start as `not-run`. Repetitions run interleaved, not variant by
+variant: base r1, fix r1, fix r2, base r2, base r3, fix r3, ... (the first variant
+swaps on every other pair, so host drift and run order hit both equally; an A/A
+uses the same schedule). Each repetition is its own engine invocation numbered at
+its own index and keeps its attempts' evidence/logs under
+`<base|fix>/<scenario>/rep-R/attempt-N/` (a repeated emulator boot or dead guest
+is a new attempt; a retry cannot borrow a prior report). After the last
+repetition, or when the run stops part way, they merge into the one record the
+verifier and gate read, `<base|fix>/<scenario>/attempt-1/` (all cells in matrix
+order, one `report.json`, one concatenated log; `incomplete` unless every
+repetition completed). Cell inventory, repetition counts and thresholds are
+unchanged by the interleaving.
 Reports from failed/timed-out attempts are retained, with observed partial cells
 when readable. Timeout never becomes a passing comparison.
 
