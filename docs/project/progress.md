@@ -145,6 +145,22 @@ Last updated: 2026-10-27
   Remaining: final Android base-vs-fix runtime evidence and `check.sh` from the
   coordinator; both are explicitly prohibited for this implementation task
   while its independently owned harness run is active.
+- [ ] Issue #86, P3 lock-cache duplicate occurrences (triage 19-22) —
+  `fix/lock-cache-occurrences`, 2026-10-28, local commits only. Row 21: `audit`
+  now fails one instance at two queue positions (`atTwoPositions`); a merged
+  identity mutant of `_shareLockCacheSources` dies in 3 tests. Row 22:
+  `debugPrepareReplacementSources` and a failed-far-jump restore test kill both
+  `replacesQueue: true` deletions (the `_prepareQueueItems` one only via the
+  rebuild test: no reachable flow rebuilds with a held writer; the seek-recovery
+  rebuild uses neither flag). Row 20: `_releaseTail` and `_applyMaterialisedInsert`
+  observe right after the native commit; the release mirror uses the bounded
+  `_mirrorInsertOnDeck`. Failing before: registered source `Expected: true Actual:
+  <false>` while the deck add hangs. Row 19: a repeat is a `LockCacheFollowerSource`
+  delegating to the one writer; before, a repeat read `Expected: <1> Actual: <2>`
+  origin fetches. `.part` race: removing the partial file under a finishing
+  download reproduced `PathNotFoundException` at the rename; the vendored fetch now
+  fails cleanly. Focused: navigation_test 878 pass, lock_caching 60, follower 4.
+  No `./tool/check.sh`, harness, emulator or runtime pass ran (host busy).
 - [ ] Issue #86, item 13b Android next-song warm — `fix/android-next-warm`: at
   current-song completion `_syncSidecarChain` starts the next song's own
   lock-cache source with the vendored `prefetch()` (no replay buffer); one source

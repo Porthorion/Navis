@@ -219,3 +219,9 @@ cleanup and cancels the whole-file download only for opted-in sources; public
 setup timer and emits no failed-splice trace. Null keeps the plain fetch path.
 `cancelDownload()` closes the HTTP client before awaiting subscription cancel.
 The Navis resolver enables this hook on Android only.
+
+When the finishing whole-file download finds its `.part` file gone (cleanup, or
+another writer's rename) and no completed cache file exists, it fails like a cut
+instead of throwing from the stream callback: pending and in-progress requests
+fail, `_response` resets, `isDownloading` clears and a later request downloads
+again. A completed cache file already in place counts as done.
