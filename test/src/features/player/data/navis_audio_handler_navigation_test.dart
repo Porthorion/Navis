@@ -5902,6 +5902,7 @@ void main() {
       // Songs whose second and later downloads stop half-way until the gate.
       Set<String> holdLater = const <String>{},
       Completer<void>? laterGate,
+      List<_ControllableAudioPlayer>? rebuiltPlayers,
       NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     }) async {
       final previousHttp = HttpOverrides.current;
@@ -5981,6 +5982,7 @@ void main() {
         crossfade: crossfade,
         supportsTranscodeOffset: supportsTranscodeOffset,
         timeouts: timeouts,
+        rebuiltPlayers: rebuiltPlayers,
         cacheSongs: false,
         positionStreams: true,
         readApiClient: () => api,
@@ -6553,6 +6555,7 @@ void main() {
         3,
         hold: {'song-1'},
         ids: ['song-0', 'song-1', 'song-1'],
+        rebuiltPlayers: <_ControllableAudioPlayer>[],
         timeouts: const NavisPlaybackTimeouts(
           load: Duration(milliseconds: 150),
           reset: Duration(milliseconds: 150),

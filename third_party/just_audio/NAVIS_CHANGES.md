@@ -244,3 +244,7 @@ is published; if publishing fails they get that error and the fetch resets.
 
 The failed-publication reset (removed `.part`) clears `_response` and `_downloading`
 together after its last await and resets progress to 0, as `_abortDownload` does.
+
+The failed-publication reset fails the requests still queued after its last await
+(not before), so a request queued during that await is not left waiting. Owners
+that retire a source clear `onDownloadStart` so it cannot re-register afterwards.

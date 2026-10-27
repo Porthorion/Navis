@@ -169,6 +169,12 @@ Last updated: 2026-10-27
   queued while a download finishes hung (`Expected: <0> Actual: <6>`); now served
   from the published file. F3 the failed-publication reset is atomic and resets
   progress (`Expected: <0> Actual: <2048>`).
+  Review r3 fixes: G1 a rebuild onto an idle evicted writer replayed its 1.0
+  progress as a completion (`Expected: true Actual: <false>` for the registry);
+  the listener now ignores 100% while the cache file is missing. G2 a player
+  recovery clears the retired sources' `onDownloadStart` (`Expected: null Actual:
+  <Closure: () => void>`). Nit: requests queued during the publish-failure
+  reset's await now fail after it.
 - [ ] Issue #86, item 13b Android next-song warm — `fix/android-next-warm`: at
   current-song completion `_syncSidecarChain` starts the next song's own
   lock-cache source with the vendored `prefetch()` (no replay buffer); one source
