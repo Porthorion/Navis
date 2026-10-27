@@ -597,6 +597,47 @@ void main() {
     });
   }
 
+  test('a request in the finishing window is served', () async {
+    var hung = 0;
+    var reached = 0;
+    for (var round = 0; round < 6; round++) {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      final body = List<int>.generate(256 * 1024, (i) => i % 251);
+      server.listen((request) async {
+        final response = request.response
+          ..contentLength = body.length
+          ..headers.contentType = ContentType('audio', 'mpeg')
+          ..add(body);
+        await response.close();
+      });
+      final file = File('${directory.path}/w$round.mp3');
+      // ignore: experimental_member_use, reason: tests the Navis additions to the vendored source.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/w$round'),
+        cacheFile: file,
+      );
+      await source.prefetch();
+      // All bytes received, still downloading, the file not yet published.
+      for (var i = 0; i < 20000; i++) {
+        if (source.downloadedBytes == body.length && !file.existsSync()) break;
+        await Future<void>.delayed(Duration.zero);
+      }
+      if (source.downloadedBytes != body.length || file.existsSync()) continue;
+      reached++;
+      try {
+        final response = await source.request().timeout(
+          const Duration(seconds: 2),
+        );
+        expect(await response.stream.expand((c) => c).toList(), body);
+      } on TimeoutException {
+        hung++;
+      }
+    }
+    expect(reached, 6, reason: 'the finishing window was missed');
+    expect(hung, 0, reason: '$hung of $reached requests never completed');
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
   test(
     'removing the item loaded natively keeps the next item served',
     () async {
