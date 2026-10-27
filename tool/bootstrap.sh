@@ -24,6 +24,13 @@ version_ge() {
 
 check_cmd flutter
 check_cmd dart
+check_cmd python3
+
+# tool/check.sh runs the playback-harness self-checks, which import numpy.
+if ! python3 -c 'import numpy' >/dev/null 2>&1; then
+  echo "[bootstrap] Missing Python module numpy (needed by tool/check.sh); install it with: python3 -m pip install numpy" >&2
+  exit 1
+fi
 
 echo "[bootstrap] Flutter:"
 flutter --version | sed -n '1,3p'

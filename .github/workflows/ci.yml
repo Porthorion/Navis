@@ -33,7 +33,7 @@ jobs:
       - run: python3 -m pip install numpy
       - run: python3 tool/playback_harness_test.py
       - run: python3 tool/validation_gate_test.py
-      - run: bash -n tool/check.sh tool/lib/check_capture.sh
+      - run: for script in tool/check.sh tool/lib/check_capture.sh; do bash -n "$script"; done
 
   # Format, committed generated code, analyze and dead-code gate.
   static:
