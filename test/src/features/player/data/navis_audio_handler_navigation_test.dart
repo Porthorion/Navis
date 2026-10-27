@@ -6273,8 +6273,12 @@ void main() {
       final ids = [for (final m in handler.queue.value) m.id];
       final instances = <String, Set<int>>{};
       var bad = 0;
+      // One source instance at two playlist positions merges their native ids
+      // (any kind of source, so a follower is held to it as well).
+      final positions = <int, List<int>>{};
       for (var i = 0; i < player.audioSources.length; i++) {
         final s = player.audioSources[i];
+        (positions[identityHashCode(s)] ??= <int>[]).add(i);
         // ignore: experimental_member_use, reason: the lock-cache source.
         if (s is! LockCachingAudioSource) continue;
         final id = ids[i];
@@ -6285,10 +6289,14 @@ void main() {
         for (final e in instances.entries)
           if (e.value.length > 1) e.key,
       ];
-      return 'bad=$bad multiInstance=$multi';
+      final shared = [
+        for (final p in positions.values)
+          if (p.length > 1) p,
+      ];
+      return 'bad=$bad multiInstance=$multi atTwoPositions=$shared';
     }
 
-    const oneInstance = 'bad=0 multiInstance=[]';
+    const oneInstance = 'bad=0 multiInstance=[] atTwoPositions=[]';
 
     test(
       'addToQueue and playNext duplicates keep one registered source',
@@ -6309,6 +6317,68 @@ void main() {
         await s.handler.playNext(['song-3', 'song-1'], expandMatchFlows: false);
         await settleQueue(s.handler);
         expect(audit(s.handler, s.player), oneInstance);
+        await settle();
+      },
+    );
+
+    // Each occurrence of a song is its own source instance (the native id
+    // derives from it), with one lock-cache writer per song.
+    void expectOccurrences(
+      NavisAudioHandler handler,
+      _ControllableAudioPlayer player,
+      List<String> ids,
+    ) {
+      expect([for (final m in handler.queue.value) m.id], ids);
+      expect(player.audioSources, hasLength(ids.length));
+      expect(player.audioSources.toSet(), hasLength(ids.length));
+      expect(audit(handler, player), oneInstance);
+      for (final id in ids.toSet()) {
+        final writers = [
+          for (var i = 0; i < ids.length; i++)
+            // ignore: experimental_member_use, reason: the lock-cache source.
+            if (ids[i] == id &&
+                player.audioSources[i] is LockCachingAudioSource)
+              i,
+        ];
+        expect(writers.length, lessThanOrEqualTo(1), reason: id);
+      }
+    }
+
+    test('addToQueue of a queued song adds its own occurrence', () async {
+      final s = await serveQueue(
+        2,
+        hold: {'song-1'},
+        ids: ['song-0', 'song-1'],
+      );
+      ticks(s.player);
+      await s.handler.addToQueue(['song-1', 'song-1'], expandMatchFlows: false);
+      await settleQueue(s.handler);
+      expectOccurrences(s.handler, s.player, [
+        'song-0',
+        'song-1',
+        'song-1',
+        'song-1',
+      ]);
+      await settle();
+    });
+
+    test(
+      'playNext of the playing and a queued song adds occurrences',
+      () async {
+        final s = await serveQueue(
+          2,
+          hold: {'song-1'},
+          ids: ['song-0', 'song-1'],
+        );
+        ticks(s.player);
+        await s.handler.playNext(['song-0', 'song-1'], expandMatchFlows: false);
+        await settleQueue(s.handler);
+        expectOccurrences(s.handler, s.player, [
+          'song-0',
+          'song-0',
+          'song-1',
+          'song-1',
+        ]);
         await settle();
       },
     );
