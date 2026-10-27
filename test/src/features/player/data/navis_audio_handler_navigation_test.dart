@@ -6548,6 +6548,31 @@ void main() {
       );
     });
 
+    test('a source retired by a player recovery no longer re-registers', () async {
+      final s = await serveQueue(
+        3,
+        hold: {'song-1'},
+        ids: ['song-0', 'song-1', 'song-1'],
+        timeouts: const NavisPlaybackTimeouts(
+          load: Duration(milliseconds: 150),
+          reset: Duration(milliseconds: 150),
+        ),
+      );
+      ticks(s.player);
+      final leader = sourceAt(s.player, 1);
+      expect(leader.onDownloadStart, isNotNull);
+      s.player.hang.add('insertAudioSources');
+      await expectLater(
+        s.handler.playNext(['song-0'], expandMatchFlows: false),
+        throwsA(isA<PlaybackLoadTimeoutException>()),
+      );
+      // Recovery unregistered the retired writer; a retry of its fetch must not
+      // take the registry slot back from the rebuilt queue's source.
+      expect(s.handler.debugRegisteredLockCacheSource('song-1'), isNot(leader));
+      expect(leader.onDownloadStart, isNull);
+      s.release.complete();
+    });
+
     test('a repeat occurrence plays on after its leader is removed', () async {
       final s = await serveQueue(
         3,
