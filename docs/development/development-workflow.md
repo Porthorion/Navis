@@ -1450,8 +1450,8 @@ Each invocation creates `build/harness/gate-<UTC-microsecond-stamp>/`, containin
 `gate.json`, `gate-summary.md`, `check.log`, `linux.log`, `android.log`, and new
 platform evidence directories. The JSON stores each exact argument vector,
 command exit (null for not executed), gate step exit, elapsed time and
-passed/failed/blocked/not-run status. A failed check.sh skips the matrices (not-run,
-"skipped: check failed"; gate failed, exit 1). A timeout is blocked with step exit 124;
+passed/failed/blocked/not-run status. A check.sh that did not pass (failed, timed out or blocked) skips the matrices
+(not-run, "skipped: check <status>"; the gate keeps check's mapping: failed/1, blocked/2). A timeout is blocked with step exit 124;
 the actual terminated command exit is retained when available. Not-run steps
 have no command exit. Reused steps identify their existing evidence directory.
 check.sh retains every step log under its own unique `build/check/run-*` directory,

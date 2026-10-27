@@ -1233,9 +1233,9 @@ def cmd_gate(args):
                 command[command.index('--base') + 1] = base
             gate_summary(out, record)
             for name, command, deadline in commands:
-                if record['steps']['check']['status'] == 'failed':
-                    # Do not spend hours of matrices on a candidate that already failed the quality gate.
-                    record['steps'][name].update(error='skipped: check failed')
+                if name != 'check' and record['steps']['check']['status'] != 'passed':
+                    # Do not spend hours of matrices on a candidate whose quality gate did not pass.
+                    record['steps'][name].update(error=f"skipped: check {record['steps']['check']['status']}")
                     continue
                 if candidate_identity() != record['candidate'] or environment_identity() != record['environment']:
                     raise InfraError('candidate/environment changed; remaining steps not run')

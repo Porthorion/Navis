@@ -180,9 +180,9 @@ record that reason. New environment-controlled playback/build inputs must be add
 to this selection with a regression test. Source identity has no broad path ignore
 for reuse; tooling/docs changes also invalidate prior exact-state evidence.
 
-A failed `check.sh` stops the gate: the Linux and Android steps are recorded as
-`not-run` ("skipped: check failed") and the gate is `failed` (exit 1), never
-passed. A command that dies of a signal (for example an OOM SIGKILL) is reported
+A `check.sh` that did not pass (failed, timed out or blocked) stops the gate: the
+Linux and Android steps are recorded as `not-run` ("skipped: check <status>") and
+the gate keeps check's status (`failed`/exit 1, `blocked`/exit 2), never passed. A command that dies of a signal (for example an OOM SIGKILL) is reported
 with its exact negative exit and "command killed by signal N", without an owner
 traceback. Direct `ab` holds the heavy-lock descriptors across its build, engine
 and bootstrap commands, so a killed holder keeps the lock while any of them runs.

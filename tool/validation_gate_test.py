@@ -199,12 +199,12 @@ class Gate(unittest.TestCase):
                     step = list(record['steps'].values())[failed_command]
                     self.assertEqual(step['commandExit'], 7 if fault == 'exit' else None)
                     self.assertIn(step['status'], ('failed', 'blocked'))
-                    skipped = failed_command == 0 and fault == 'exit'  # a failed check.sh stops the matrices
+                    skipped = failed_command == 0  # a check.sh that did not pass (failed or timed out) stops the matrices
                     self.assertEqual(len(calls), 1 if skipped else 3)
                     if skipped:
                         self.assertEqual([s['status'] for s in list(record['steps'].values())[1:]], ['not-run'] * 2)
-                        self.assertEqual((code, record['status']), (1, 'failed'))
-                        self.assertIn('skipped: check failed', summary)
+                        self.assertEqual((code, record['status']), (1, 'failed') if fault == 'exit' else (2, 'blocked'))
+                        self.assertIn(f"skipped: check {record['steps']['check']['status']}", summary)
                     self.assertIn('exact command exit=', summary)
 
     def test_missing_malformed_or_stale_evidence_is_blocked(self):
@@ -217,13 +217,22 @@ class Gate(unittest.TestCase):
                 self.assertIn(message, summary)
 
     def test_missing_captured_log_cannot_pass(self):
-        def runner(command, **kwargs):
-            Path(kwargs['stdout'].name).unlink()
-            return subprocess.CompletedProcess(command, 0)
-        code, record, _, _, _ = self.exercise(runner=runner)
-        self.assertEqual(code, 2)
-        self.assertTrue(all(s['status'] == 'blocked' for s in record['steps'].values()))
-        self.assertTrue(all(s['commandExit'] == 0 for s in record['steps'].values()))
+        for missing in range(3):
+            calls = []
+            def runner(command, **kwargs):
+                if len(calls) == missing:
+                    Path(kwargs['stdout'].name).unlink()
+                calls.append(command)
+                return subprocess.CompletedProcess(command, 0)
+            with self.subTest(missing=missing):
+                code, record, _, _, _ = self.exercise(runner=runner)
+                steps = list(record['steps'].values())
+                self.assertEqual(code, 2)
+                self.assertEqual(steps[missing]['status'], 'blocked')
+                self.assertEqual(steps[missing]['commandExit'], 0)
+                self.assertTrue(all(s['status'] == 'passed' for s in steps[:missing]))
+                if missing == 0:  # a check.sh that did not pass stops the matrices
+                    self.assertEqual([s['status'] for s in steps[1:]], ['not-run'] * 2)
 
     def test_explicit_verified_reuse_runs_only_check(self):
         code, record, _, calls, verifies = self.exercise(reuse=True)
