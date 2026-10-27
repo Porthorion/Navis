@@ -187,3 +187,35 @@ The pairwise Dart loop detector now also recognizes unknown-duration
 plain-stream backwards jumps; tail/zero/buffering/ready fixtures cover middle
 and last items with and without offsets. Navis's existing offset handler and
 crossfade controller remain the sole Dart owners of offset reloads and fades.
+
+`LockCachingAudioSource.continuationUri` (with `onOggSplice`) opts an
+unknown-length Ogg/Opus download into a cut splice. When the body is cut or
+stalls, the source requests `continuationUri(floor(t) - 1)` and joins the new
+body into the same stream with `OggOpusSplicer` (`lib/src/ogg_opus_splicer.dart`):
+header pages dropped; serial, page sequence, granule and CRC rewritten;
+overlapped packets dropped. Repacking splits at packet boundaries to keep every
+page within 255 segments; durations that do not divide a second (including
+60/80/120 ms) are refused. Valid empty original pages pass through unchanged.
+A clean continuation EOF requires complete packets and an EOS page, including
+at an otherwise complete page boundary. Missing EOS refuses the continuation,
+deletes the partial file, and reports the original cut error and stack. An empty
+EOS page is preserved with the original serial and mapped granule. Mixed packet
+durations retain every needed packet before end trim. Packet ends use the
+original stream's decoded granule base; the final granule retains the trim. A cut after EOS cannot start a continuation. Pages ending
+mid-packet fall back instead of splicing. Each attempt resets its dropped count
+before connecting, so failed setup cannot report the previous attempt's drops.
+At most two continuations per fetch. Continuation connect and headers share
+a six-second deadline and race cancellation: this allows Navidrome startup
+while staying below Media3's eight-second loopback read timeout. Continuation
+body progress uses the normal configured `bodyProgressTimeout` (30 seconds by
+default). Fallback flushes the withheld original bytes before the original
+cut error and stack, unless rewritten audio has already been delivered: that
+prefix cannot be rolled back or followed by the discarded original partial page. Failure deletes
+the partial file. Cancel during pre-listen file I/O cannot publish a cache file
+or completion progress. Playlist removal/clear/replacement retain whole-file
+caching for plain and opted-in sources. Player `_dispose()` retains base range
+cleanup and cancels the whole-file download only for opted-in sources; public
+`dispose()` retains its base semantics. Cancellation disarms the six-second
+setup timer and emits no failed-splice trace. Null keeps the plain fetch path.
+`cancelDownload()` closes the HTTP client before awaiting subscription cancel.
+The Navis resolver enables this hook on Android only.

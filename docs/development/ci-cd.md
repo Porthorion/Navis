@@ -1042,6 +1042,12 @@ rewinds, slow returns and queue/source identity changes.
 Repeat-driver checks reject clock blips before real wraps and still reject
 missing or duplicate loops.
 
+Android cut-splice self-checks reject a missing/zero base reload count, use
+only cut cells for the frozen median, and reject decoded files whose length
+differs by more than 20 ms even when RMS over their common prefix is zero.
+`cut5` is included only in Android's full case list. These unit checks do not
+replace the Android base-vs-fix run.
+
 Memory-soak self-checks cover swap-out with a flat `Pss + SwapPss` total,
 identical negative slopes, real growth and missing kernel fields in either
 variant, including a single incomplete repetition. The harness gates the total

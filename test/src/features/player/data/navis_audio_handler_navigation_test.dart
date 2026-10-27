@@ -57,6 +57,7 @@ import 'package:navis/src/features/player/presentation/personal_radio_notifier.d
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/data/navis_shuffle_order.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
+import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
 import 'package:navis/src/features/player/data/scrobble_service.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -152,6 +153,8 @@ class _GatedSourceResolver extends Fake implements PlaybackSourceResolver {
   @override
   Uri? resolveArtUri(SongsTableData song) => delegate.resolveArtUri(song);
 
+  @override
+  PlaybackTransportTrace? get transportTrace => delegate.transportTrace;
   @override
   bool get supportsTranscodeOffset => delegate.supportsTranscodeOffset;
   @override

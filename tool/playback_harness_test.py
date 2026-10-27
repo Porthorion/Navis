@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Self-check for tool/playback_harness.py (stdlib only, no builds or emulators): python3 tool/playback_harness_test.py"""
+"""Self-check for tool/playback_harness.py (no builds or emulators; NumPy for the PCM gate): python3 tool/playback_harness_test.py"""
 
 import contextlib
 import io
@@ -76,6 +76,48 @@ class Thresholds(unittest.TestCase):
         self.assertFalse(verdicts('stress-drag', base, fix)['frameGapStall:'])
         android = {line.split()[2]: ok for ok, line in h.evaluate('stress-drag', base, fix, 'android')}
         self.assertTrue(android['frameGapStall:'])
+
+    def test_cut_recovery_splice_checks_are_android_only(self):
+        base = {'caseErrors': 0, 'violations': 0, 'kinds': [], 'progressLoss': 0, 'recoveryMedianS': 5.0, 'frozenMedianS': 6.0,
+                'reloadsAfterCut': 3}
+        fix = {**base, 'frozenMedianS': 0.0, 'spliceFrozenMedianS': 0.0, 'recoveryMedianS': 0.0, 'reloadsAfterCut': 0, 'playerErrorsAfterCut': 0,
+               'spliceRequestsOk': True, 'spliceFileOk': True, 'joinRmsMax': 0.001}
+        self.assertTrue(all(ok for ok, _ in h.evaluate('cut-recovery', base, fix, 'android')))
+        for broken in ({'reloadsAfterCut': 1}, {'spliceRequestsOk': False}, {'spliceFileOk': False}, {'joinRmsMax': 0.02},
+                       {'playerErrorsAfterCut': 1}, {'spliceFrozenMedianS': 5.0}):
+            self.assertFalse(all(ok for ok, _ in h.evaluate('cut-recovery', base, {**fix, **broken}, 'android')), broken)
+        # Linux has no splice: those metrics are neither required nor checked.
+        self.assertEqual(len(h.evaluate('cut-recovery', base, fix)), len(h.evaluate('cut-recovery', base, fix, 'android')) - 7)
+
+    def test_cut_base_without_reload_is_a_failed_comparison(self):
+        for reloads in (None, 0):
+            lines = h.evaluate('cut-recovery', {'reloadsAfterCut': reloads}, {}, 'android')
+            self.assertTrue(any(not ok and 'baseCutObserved' in line for ok, line in lines))
+
+    def test_splice_frozen_median_uses_only_cut_rows(self):
+        rows = [{'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0}} for _ in range(7)]
+        rows.append({'violations': [], 'latencyS': None, 'metrics': {
+            'maxFrozenS': 5, 'spliceCheck': {'reloads': [], 'playerErrors': [], 'requestsOk': True,
+                                          'file': {'ok': True, 'maxWindowRms': 0.001, 'lenDiffS': 0}}}})
+        metrics = h.metrics('cut-recovery', rows)
+        self.assertEqual(metrics['spliceFrozenMedianS'], 5)
+        lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 1}, metrics, 'android')
+        self.assertTrue(any(not ok and 'spliceFrozenMedianS' in line for ok, line in lines))
+
+    def test_cut5_is_android_full_only(self):
+        self.assertNotIn('cut5', h.plan('cut-recovery', True, None)[0].split(','))
+        self.assertIn('cut5', h.plan('cut-recovery', True, None, platform='android')[0].split(','))
+
+    def test_join_rms_rejects_a_missing_tail(self):
+        import numpy
+        run = Mock(quality='opus128')
+        run.env.backend.library.media_seconds = {'song': 5}
+        for missing, ok in [(0, True), (480, True), (48000, False)]:
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as folder, \
+                    patch.object(engine.subprocess, 'run'), \
+                    patch.object(engine, 'decode_f32', side_effect=[
+                        (0, '', numpy.zeros(96000 - missing)), (0, '', numpy.zeros(96000))]):
+                self.assertEqual(engine.join_rms(Path(folder) / 'cache.ogg', run, 'song')['ok'], ok)
 
     def test_line_format(self):
         ok, line = h.evaluate('queue-edit', {'caseErrors': 0, 'violations': 0}, {'caseErrors': 0, 'violations': 2})[1]
