@@ -103,6 +103,26 @@ class Thresholds(unittest.TestCase):
         lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 0, 'cutsObserved': 2}, {}, 'android')
         self.assertTrue(all(ok for ok, line in lines if 'baseCutObserved' in line))
 
+    def test_cuts_observed_must_hold_for_every_cut_row_not_the_pool(self):
+        def row(requests):
+            return {'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0, 'spliceCheck': {
+                'reloads': [], 'playerErrors': [], 'requestsOk': True, 'timeOffsetRequests': requests, 'spliceEvents': [],
+                'file': {'ok': True, 'maxWindowRms': 0.001}}}}
+        self.assertEqual(h.metrics('cut-recovery', [row([1]), row([])])['cutsObserved'], 0)  # one row missed its cut
+        self.assertEqual(h.metrics('cut-recovery', [row([1]), row([5, 6])])['cutsObserved'], 1)
+
+    def test_splice_events_outside_the_cut_window_are_not_evidence(self):
+        trace = [{'atMs': 500, 'kind': 'oggSplice', 'timeOffset': 1, 'attempt': 0},       # before the cut
+                 {'atMs': 1500, 'kind': 'oggSplice', 'timeOffset': 2, 'attempt': 0}]       # inside the window
+        run = Mock(trace=trace, proxy_mark=0, quality='opus128')
+        run.app.run = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__('shutil').rmtree(run.app.run, ignore_errors=True))
+        env = Mock()
+        env.proxy.log = []
+        with patch.object(engine, 'oracle_cache_integrity', return_value=[]):
+            info = engine.splice_check(run, env, 's', 5.0, 1000, 1, set())
+        self.assertEqual([e['timeOffset'] for e in info['spliceEvents']], [2])
+
     def test_cuts_observed_counts_continuation_requests_events_and_reloads(self):
         def row(**check):
             return {'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0, 'spliceCheck': {

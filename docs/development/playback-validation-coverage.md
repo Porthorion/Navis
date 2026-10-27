@@ -85,7 +85,7 @@ repetitions see different songs while base and fix see the same ones for a rep) 
 is a new attempt; a retry cannot borrow a prior report). After the last
 repetition, or when the run stops part way, they merge into the one record the
 verifier and gate read, `<base|fix>/<scenario>/attempt-1/` (all cells in matrix
-order, one `report.json` whose row ids are prefixed with the repetition (`<rep>-<id>`, with `repDir` pointing at its `rep-R/attempt-N` traces), one concatenated log; `incomplete` unless every
+order, one `report.json` whose row ids are prefixed with the repetition (`<rep>-<id>`, with `repDir` pointing at its `rep-R/attempt-N` directory, whose `runs/*/traces` hold the trace files), one concatenated log; `incomplete` unless every
 repetition completed). Android keeps one fresh guest per variant and scenario
 (2 boots per scenario, as before) that runs all of the variant's repetitions in
 one engine invocation, with that record directly in `attempt-N/`; order bias is
@@ -161,7 +161,7 @@ evidence. No Flutter/runtime acceptance is claimed by tooling self-checks.
 
 ## Task A focused verification
 
-`python3 tool/playback_harness_test.py`: 76 tests passed (and `python3 tool/validation_gate_test.py`: 44), including
+`python3 tool/playback_harness_test.py`: 79 tests passed (and `python3 tool/validation_gate_test.py`: 45), including
 retained threshold/oracle probes and new deterministic failure, partial-report,
 timeout, interruption, build-exit, exact-cell, stale-source/environment/config,
 artifact and successful-finalization checks. Python byte-compilation,

@@ -3043,7 +3043,7 @@ def splice_check(run: Run, env, song_id: str, duration_s: float, cut_device_ms: 
                or (e['kind'] == 'sourceResolved' and e.get('timeOffset'))]
     errors = [e['errorCode'] for e in window if e['kind'] == 'playerState' and e.get('errorCode')]
     requests = [r['timeOffset'] for r in env.proxy.log[run.proxy_mark:] if r['id'] == song_id and r.get('timeOffset')]
-    events = [{k: e.get(k) for k in ('timeOffset', 'dropped', 'attempt', 'result')} for e in run.trace if e['kind'] == 'oggSplice']
+    events = [{k: e.get(k) for k in ('timeOffset', 'dropped', 'attempt', 'result')} for e in window if e['kind'] == 'oggSplice']
     info = {'reloads': reloads, 'playerErrors': errors, 'timeOffsetRequests': requests, 'spliceEvents': events,
             'requestsOk': len(requests) == cuts and [str(e['timeOffset']) for e in events if e['attempt'] is not None][:cuts] == requests[:cuts]}
     violations = oracle_cache_integrity(run, song_id, duration_s, rolling_before, run.quality)
