@@ -4089,6 +4089,9 @@ continuation EOF must include complete packets and an EOS page, even when HTTP
 closes cleanly at a page boundary; otherwise it refuses, deletes the partial
 file, and reports the original cut error and stack. A data-less EOS page is
 rewritten with the delivered granule; an EOS already delivered is not repeated.
+A continuation EOS page whose audio is wholly overlapped (the original delivered
+its final audio page but lost its separate empty EOS page) emits one data-less
+EOS page at the delivered granule, so the published file always ends in EOS.
 A cut before the first audio page, a header mismatch or an unplaceable packet
 uses the plain failure cleanup (`.part` deleted). Until rewritten audio has
 been delivered, fallback forwards the withheld original tail before surfacing
