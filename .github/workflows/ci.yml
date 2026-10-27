@@ -89,7 +89,7 @@ jobs:
           cache: gradle
       # The runner image ships the SDK with licenses accepted; setup-android's
       # cmdline-tools 22 license step fails non-interactively.
-      - run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platform-tools' 'platforms;android-37' > /dev/null
+      - run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platform-tools' 'platforms;android-37.0' > /dev/null
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
