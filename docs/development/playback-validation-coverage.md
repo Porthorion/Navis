@@ -107,9 +107,14 @@ attested by this record. No claim of reproducible hardware timing is made.
 
 `comparison.json` and `summary.md` retain their existing successful-completion
 contracts; a completed FAIL comparison keeps its detailed per-check `summary.md`
-(only incomplete or blocked runs get the short status summary), and `RESULT
-PASS|FAIL` is printed only after finalization, so it never precedes a run that
-finalization turns into exit 2. Failures before comparison completion still have `evidence.json`;
+(only incomplete or blocked runs get the short status summary). A passing
+comparison writes `RESULT UNVERIFIED` and an `incomplete`/exit 2 `evidence.json`;
+both are promoted to `RESULT PASS` / `passed` only after `verify_evidence` succeeded
+on the in-memory record (evidence first, then an atomic summary rename), so a run
+killed during finalization never reads as a pass. `RESULT PASS|FAIL` is printed
+only after finalization. `ab --map` with no playback change records status `none`.
+Standalone `ab` stores the resolved base SHA in its configuration, so its evidence
+can match the gate's required configuration for `--reuse-*`. Failures before comparison completion still have `evidence.json`;
 absence of comparison is never a pass. `verify_evidence(out, candidate,
 environment, config)` is the Python integration seam for task B: provide the
 current candidate/environment and the exact required config (including resolved
@@ -141,7 +146,7 @@ evidence. No Flutter/runtime acceptance is claimed by tooling self-checks.
 
 ## Task A focused verification
 
-`python3 tool/playback_harness_test.py`: 62 tests passed (and `python3 tool/validation_gate_test.py`: 34), including
+`python3 tool/playback_harness_test.py`: 63 tests passed (and `python3 tool/validation_gate_test.py`: 37), including
 retained threshold/oracle probes and new deterministic failure, partial-report,
 timeout, interruption, build-exit, exact-cell, stale-source/environment/config,
 artifact and successful-finalization checks. Python byte-compilation,
@@ -179,6 +184,12 @@ configuration contents require new evidence even when their paths stay equal;
 record that reason. New environment-controlled playback/build inputs must be added
 to this selection with a regression test. Source identity has no broad path ignore
 for reuse; tooling/docs changes also invalidate prior exact-state evidence.
+
+A matrix that dies by signal or exits other than 0/1 (137/143 included) is `blocked`
+(exit 2), as is `check.sh` dying by signal; only a plain non-zero check.sh exit or
+an ab exit 1 is `failed`. A step is marked passed only after its evidence verified.
+The self-checks are hermetic: they redirect the heavy locks, harness cache and
+evidence output to a temporary directory and never touch the real lock files.
 
 A `check.sh` that did not pass (failed, timed out or blocked) stops the gate: the
 Linux and Android steps are recorded as `not-run` ("skipped: check <status>") and

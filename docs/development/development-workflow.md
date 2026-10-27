@@ -1431,11 +1431,36 @@ python3 tool/playback_harness.py ab --all --full --platform linux --base github/
 python3 tool/playback_harness.py ab --all --full --platform android --base github/release/1.5
 ```
 
-After, use one foreground invocation from the repository root:
+After, run one gate invocation from the repository root:
 
 ```bash
 python3 tool/playback_harness.py gate --base github/release/1.5
 ```
+
+An agent shell cannot run this in the foreground (up to a 32-hour command budget
+against a 10-minute foreground and 2-hour background cap). Launch it detached in
+its own session, keep the existing memory-capped scope (the harness re-execs
+itself under `systemd-run --user --scope`, MemoryMax 8G, and the launching shell's
+environment is preserved), and end the turn:
+
+```bash
+stamp=$(date -u +%Y%m%dT%H%M%S); mkdir -p build/harness
+setsid bash -c 'echo $$ > build/harness/launch-'$stamp'.pid
+  python3 tool/playback_harness.py gate --base github/release/1.5
+  echo $? > build/harness/launch-'$stamp'.exit' </dev/null > build/harness/launch-$stamp.log 2>&1 &
+```
+
+- **Completion:** the gate is finished only when `build/harness/launch-<stamp>.exit`
+  exists (it holds the gate exit code); `gate.json` reads `blocked` while the
+  gate is still running. Do not poll in a loop: schedule one wake-up after the
+  expected duration, then read `gate.json` / `gate-summary.md` from the
+  `gate-*` directory named in `launch-<stamp>.log`. If the pid file's process is
+  gone and no `.exit` file exists, the gate was killed: inspect the lock holder
+  (`lslocks | grep navis`) and any surviving cleanup owner before relaunching.
+- **Cancel:** send TERM to the launch process group, `kill -TERM -- -$(cat
+  build/harness/launch-<stamp>.pid)`, and wait for the `.exit` file; the bounded
+  owners then clean up their descendants and release the locks. Never SIGKILL
+  the group.
 
 It runs check.sh, Linux, then Android serially; Android is required by this
 fixture gate. A missing SDK/AVD is blocked, never successful or silently skipped.
@@ -1447,8 +1472,9 @@ these fixtures. The gate always reports whole playback acceptance as outstanding
 its exit 0 certifies only check.sh plus both verified full fixture matrices.
 
 Each invocation creates `build/harness/gate-<UTC-microsecond-stamp>/`, containing
-`gate.json`, `gate-summary.md`, `check.log`, `linux.log`, `android.log`, and new
-platform evidence directories. The JSON stores each exact argument vector,
+`gate.json`, `gate-summary.md`, `check.log`, a `linux.log` / `android.log` only for a
+step that ran or was reused (skipped steps create none), and new platform evidence
+directories. The JSON stores each exact argument vector,
 command exit (null for not executed), gate step exit, elapsed time and
 passed/failed/blocked/not-run status. A check.sh that did not pass (failed, timed out or blocked) skips the matrices
 (not-run, "skipped: check <status>"; the gate keeps check's mapping: failed/1, blocked/2). A timeout is blocked with step exit 124;
@@ -1462,8 +1488,9 @@ The gate holds `/tmp/navis-heavy.lock` and `~/.cache/navis-harness/lock`
 (plus `NAVIS_HARNESS_CACHE/lock` when configured elsewhere) for the entire invocation. Direct
 check.sh and A/B callers take the same pair (direct `ab` passes the descriptors to
 its build, engine, bootstrap, KWin and emulator children, as the gate does). Busy jobs fail fast with the lock
-owner PID and evidence pointer when written by these tools; legacy owners may
-require `lslocks`. Never poll or launch replacements while an owner is active.
+owner PID and evidence pointer when written by these tools. The recorded PID may be
+dead while a child (KWin, emulator, cleanup owner) still holds the lock, so every
+busy message points at `lslocks | grep navis` to find the real holder. Never poll or launch replacements while an owner is active.
 Children inherit descriptors; nesting verifies inode/device identity, exclusive
 flock ownership and contention on an independently opened descriptor. No
 environment flag grants lock ownership. An inherited outer `flock` is supported
@@ -1647,7 +1674,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   Repeat-wrap counting compares ready samples across a transient loading
   cursor when the handler replaces an offset stream with its completed file.
 
-- **Exit codes.** 0 pass (or `RESULT NONE` when `--map` finds no playback code changed), 1 at least one threshold failed, 2 infrastructure
+- **Exit codes.** 0 pass (or `RESULT NONE`, evidence status `none`, when `--map` finds no playback code changed), 1 at least one threshold failed, 2 infrastructure
   error (build or emulator failure, missing base or AVD, a base that predates
   the harness, `~/Downloads/Navis_Downloads` changed, another heavy job holds
   the lock). An infrastructure error is never reported as a FAIL.
