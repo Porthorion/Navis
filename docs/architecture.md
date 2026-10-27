@@ -4705,9 +4705,12 @@ the current index for Repeat One, or index zero at the last item for Repeat All.
 `STATE_ENDED` is an idempotent fallback and does not publish `completed` during
 an owned repeat. A command revision consumes each boundary once and invalidates
 pending work on Pause (even if native playback already paused at the boundary),
-Stop/disposal, seek/selection, playlist replacement, item transition or loop
-mode change. The boundary tracks the timeline window UID of the queue occurrence:
-appends, inserts and moves preserve it while that occurrence remains current.
+Stop/disposal, seek/selection, playlist replacement or item transition.
+Loop-mode changes retain an already owned pause and apply the latest requested
+mode when consuming it. Each scheduled action captures the current timeline
+window UID; the retained pause-policy UID only signals a former owned pause.
+Appends, inserts and moves preserve the captured UID while its occurrence
+remains current.
 Repeat One restarts at its current index; Repeat All checks again that it is
 still last before wrapping. If an append or move makes the paused boundary
 non-last before the posted callback runs, the same guarded decision resumes
@@ -4717,14 +4720,59 @@ now non-last boundary rather than rejecting it on the new last-item policy.
 If native playback has already reached `STATE_ENDED`, the guarded action seeks
 to the newly appended next item before resuming; setting PlayWhenReady alone
 cannot leave ENDED. Timeline changes and the ENDED callback share this recovery.
-Boundary ownership is captured when scheduling, allowing that pause to be released even
-if timeline updates change current eligibility. A seek during a pending boundary
-consumes the old restart and resumes at the requested position for both modes,
-only while Play remains requested. Removing or replacing that occurrence cancels
-both the pending restart and the paused boundary retained for explicit Play. Playback
-resumes only while Play is still requested. Item/timeline changes and source
-replacement re-evaluate eligibility and the last-item pause policy, so an append
-while playing enables auto-advance and a removal can make the current item last.
+The UID of the occurrence whose end-pause was enabled is retained while native
+playback is paused. An app-thread mode change or root-playlist removal can
+instead arrive while `getPlayWhenReady()` still reports true, clearing that
+policy snapshot before the native pause is delivered. The end-of-item reason
+therefore arms a valid current boundary independently of eligibility; ENDED with
+Play requested but native PlayWhenReady false also schedules recovery. An empty
+timeline has no current UID and still publishes completion. Both orders release
+the obsolete pause after a mode change or removal of the last eligible stream
+elsewhere in the playlist, while the paused occurrence remains current. A post
+captured for an old UID cannot restart its replacement. If the current occurrence
+is removed while the engine remains ENDED, recovery captures the new current UID
+instead of adopting the removed occurrence's stale pause-policy UID. This lets a
+remaining streamed item restart, or Repeat All wrap a remaining file-only queue.
+Before consumption, native repeat and pause-at-end policy are recomputed from
+the current playlist. Switching Off resumes a non-last boundary (or advances to
+its successor if already ENDED). At the last item, Off resumes without seeking
+when the engine is not ENDED, including after a scrub followed by a late end
+reason; it publishes completion only when the engine is truly ENDED, without
+scheduling another boundary. A stale ENDED listener callback while Play
+is requested and the engine is no longer ENDED does not publish `completed`,
+including on file-only queues. Late end reasons after resume cannot re-arm it.
+
+A seek after a boundary has been captured consumes the old restart and resumes
+at the requested position for both modes, only while Play remains requested.
+An ordinary in-item seek re-evaluates loop policy after seeking, so it re-arms
+the pause-policy UID even without a media-item transition or PlayWhenReady
+change. Removing or replacing a captured boundary occurrence cancels both the
+post and the paused boundary retained for explicit Play. A Repeat One removal
+that leaves any successor already READY, streamed or local, can still need
+explicit Play; no fresh ENDED recovery is available in that case. This also
+occurs on the original implementation. An explicit Play that reuses a pending
+post can itself be lost if the current occurrence is removed before that post
+runs: two commands in one main-looper turn leave the READY engine paused.
+Under owned Repeat All, removing the playing last song can start item 1 rather
+than item 0: Media3 selects item 0 and reports ENDED, which the bridge interprets
+as item 0 ending. This also predates the boundary fixes.
+
+Paused queue edits refresh the pause-policy snapshot. The legacy paused-ENDED
+rewind still applies when no boundary UID is retained; with a retained boundary,
+mode and queue changes can instead leave the engine ENDED, publish completion
+under Off, and make the next Play advance to an appended song rather than replay.
+Item/timeline changes and source replacement re-evaluate
+eligibility and the last-item pause policy, so an append while playing enables auto-advance and removal can make
+the current item last.
+
+Two pre-delivery races remain: Pause then Play before any native boundary signal
+can resume into the next song under Repeat One, and a seek made before a delayed
+end reason can be overwritten by a restart at zero under Repeat One/All. The Off
+form previously left the last item paused; it now resumes its current position
+when native state is not ENDED, rather than restarting or staying paused. The
+app-visible state does not distinguish the former from an ordinary in-item Pause/Play, or the latter
+from a fresh EOF after seeking. These cases need native signal identity/timing
+rather than treating every armed pause policy as an already reached boundary.
 
 The native tail event followed by zero preserves just_audio's existing
 same-index `autoAdvance` event. Its pairwise detector checks a backwards jump

@@ -97,8 +97,8 @@ public final class ProgressiveRepeatTest {
             check(ProgressiveRepeat.boundaryAction(mode, true, true, boundaryUid, boundaryUid, 3, 3, 7, 7, false, false) == -1,
                     "ONE and ALL reject an index outside the queue");
         }
-        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, false, false) == -1,
-                "OFF cannot restart even if ownership is stale");
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, false, false)
+                == ProgressiveRepeat.RESUME, "OFF must resume the last item when the engine is not ENDED");
         for (boolean seeking : new boolean[] {false, true}) {
             check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 1, 3, 7, 7, seeking, false)
                     == ProgressiveRepeat.RESUME, "a formerly owned non-last boundary resumes");
@@ -118,7 +118,7 @@ public final class ProgressiveRepeatTest {
                     == -1, "a seek after Pause must stay paused");
         }
         check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, true, false)
-                == -1, "OFF cannot resume a canceled repeat boundary");
+                == ProgressiveRepeat.RESUME, "a seek after switching OFF releases a still-owned boundary");
         check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 4, 6, 7, 7, false, true) == 5,
                 "an append applied before ENDED must advance to the new next item, not resume ENDED");
         check(ProgressiveRepeat.boundaryAction(2, true, true, boundaryUid, boundaryUid, 4, 6, 7, 7, false, false)
@@ -138,6 +138,22 @@ public final class ProgressiveRepeatTest {
                 "ENDED on the last item still wraps ALL");
         check(ProgressiveRepeat.boundaryAction(1, true, true, boundaryUid, boundaryUid, 4, 6, 7, 7, false, true) == 4,
                 "ENDED still restarts ONE at its own index");
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 1, 3, 7, 7, false, false)
+                == ProgressiveRepeat.RESUME, "OFF releases an owned middle-item pause without restarting");
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 1, 3, 7, 7, false, true)
+                == 2, "OFF advances an ended middle-item boundary once");
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, boundaryUid, 2, 3, 7, 7, false, true)
+                == -1, "OFF at the true end stays completed");
+        check(ProgressiveRepeat.boundaryAction(0, true, false, boundaryUid, boundaryUid, 1, 3, 7, 7, false, false)
+                == -1, "OFF must preserve an explicit Pause at a middle boundary");
+        check(ProgressiveRepeat.boundaryAction(0, true, true, boundaryUid, otherUid, 1, 3, 7, 7, false, false)
+                == -1, "OFF cannot release another occurrence's boundary");
+        for (int invalidMode : new int[] {-1, 3}) {
+            check(ProgressiveRepeat.boundaryAction(invalidMode, true, true, boundaryUid, boundaryUid,
+                    1, 3, 7, 7, false, false) == -1, "invalid loop modes cannot consume a boundary");
+            check(ProgressiveRepeat.boundaryAction(invalidMode, true, true, boundaryUid, boundaryUid,
+                    1, 3, 7, 7, true, false) == -1, "invalid loop modes cannot resume a seek");
+        }
         System.out.println("ProgressiveRepeatTest: " + fixtures + " fixtures passed");
     }
 }

@@ -39,10 +39,8 @@ jobs:
           flutter-version: 3.47.5
           cache: true
 
-      # Not tool/check.sh: it also runs release/packaging shell tests, Python
-      # tests, a JDK-based equalizer test and needs ripgrep, which are local
-      # release tooling and not part of the app's correctness. check.sh has no
-      # CI-only mode, so this runs its app-level steps in the same order.
+      # Local release/packaging and Python tooling stays in tool/check.sh.
+      # Native JVM checks have their own Android SDK job below.
       - run: ./tool/bootstrap.sh
       - run: ./tool/dart_format.sh --check
       - run: dart run build_runner build
@@ -79,10 +77,34 @@ jobs:
           flutter test --total-shards 4 --shard-index ${{ matrix.shard }} 2>&1 | tee "$RUNNER_TEMP/test.log"
           assert_no_test_failures "$RUNNER_TEMP/test.log"
 
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      # The runner image ships the SDK with licenses accepted; setup-android's
+      # cmdline-tools 22 license step fails non-interactively.
+      - run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platform-tools' 'platforms;android-37.0' > /dev/null
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+      - run: flutter precache --android
+      - run: ./tool/bootstrap.sh
+      - run: ./tool/equalizer_native_test.sh
+      - run: ./tool/android_repeat_runner_test.sh
+      - run: ./tool/android_repeat_native_test.sh
+
   # One stable name to require in branch protection.
   ci:
-    needs: [static, test]
+    needs: [static, test, native]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success
+      - run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success && test "${{ needs.native.result }}" = success
