@@ -4255,6 +4255,7 @@ class LockCachingAudioSource extends StreamAudioSource {
         stream: cacheFile.openRead(start, end).asBroadcastStream(),
       );
     }
+    _discardFinishedFetch();
     final byteRangeRequest = _StreamingByteRangeRequest(start, end);
     cancelled?.then((_) async {
       _requests.remove(byteRangeRequest);
@@ -4275,7 +4276,19 @@ class LockCachingAudioSource extends StreamAudioSource {
   /// Throws if the download fails; a finished file is a no-op.
   Future<void> prefetch() async {
     if ((await cacheFile).existsSync()) return;
+    _discardFinishedFetch();
     await _startFetch();
+  }
+
+  /// Navis: a finished download keeps its [_response]. Called when the cache
+  /// file is known to be missing: if no download is running, the file was
+  /// deleted after completion (cache eviction or clearing), so forget the stale
+  /// fetch and let the next request download again. A running fetch is kept.
+  void _discardFinishedFetch() {
+    if (_response == null || _downloading) return;
+    _response = null;
+    _progress = 0;
+    _downloadProgressSubject.add(0.0);
   }
 
   Future<HttpClientResponse> _startFetch() {

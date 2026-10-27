@@ -4558,9 +4558,12 @@ player, gets its own `LockCacheFollowerSource` (`_shareLockCacheSources`; a
 `StreamAudioSource` with its own id whose `request` delegates to the writer, so it reads the
 completed file first, joins the running download and never fetches the origin itself;
 one source instance never sits at two playlist positions, and disposing an occurrence
-never touches the writer) and the
+never touches the writer; if the writer's cache file is evicted after completion, the next
+request, from the writer or a repeat, downloads it again through the same writer) and the
 registry holds the source the player holds as soon as the native call returns, before any
-cross-fade deck mirror (`_releaseTail`, `_applyMaterialisedInsert`, `_fillQueueBatch`); the warm pauses while the current song's Fast Seeking
+cross-fade deck mirror (`_releaseTail`, `_applyMaterialisedInsert`, `_fillQueueBatch`; known limit: if the writer's native insert fails in the one-by-one fallback while its
+repeat is inserted, the repeat downloads through an unobserved writer (needs a batch
+failure plus a duplicate in the same batch); the warm pauses while the current song's Fast Seeking
 range fetch is live; no source, such as a downloaded, fully cached or
 deferred-tail song, is no warm). Its
 completed file is available to normal cache-first resolution and seek recovery.

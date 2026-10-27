@@ -225,3 +225,9 @@ another writer's rename) and no completed cache file exists, it fails like a cut
 instead of throwing from the stream callback: pending and in-progress requests
 fail, `_response` resets, `isDownloading` clears and a later request downloads
 again. A completed cache file already in place counts as done.
+
+A request or `prefetch()` that finds the cache file missing while no download is
+running discards the finished download's stale `_response` (and resets progress to
+0), so a completed file deleted by cache eviction or clearing is downloaded again
+instead of leaving the request queued forever. A running fetch is kept (one
+writer), and an existing cache file is still served first.
