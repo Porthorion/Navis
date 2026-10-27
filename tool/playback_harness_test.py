@@ -431,6 +431,29 @@ class CrossfadeLongOracle(unittest.TestCase):
         self.assertEqual(engine.oracle_crossfade_long(run, self.IDS, self.FADE), [])
 
 
+class AndroidCrossfadeSeed(unittest.TestCase):
+    """An Android crossfade run seeds crossfade_enabled and the duration into the emulator profile (not crossfadeOff)."""
+    def seeded(self, fade_s):
+        import sqlite3
+        db = sqlite3.connect(':memory:')
+        db.executescript("CREATE TABLE server_config(url TEXT); INSERT INTO server_config VALUES('x');"
+                         "CREATE TABLE app_settings(rolling_cache_budget_mb INT, crossfade_enabled INT DEFAULT 0, "
+                         "crossfade_duration_seconds INT DEFAULT 5, gapless_enabled INT DEFAULT 0); INSERT INTO app_settings(rolling_cache_budget_mb) VALUES(1);"
+                         "CREATE TABLE play_queue(id INT); CREATE TABLE play_queue_items(id INT);")
+        with patch.object(engine, 'CROSSFADE_S', fade_s):
+            engine.android_seed_edits(db, 'http://127.0.0.1:1')
+        return db.execute('SELECT crossfade_enabled, crossfade_duration_seconds, gapless_enabled, rolling_cache_budget_mb FROM app_settings').fetchone()
+
+    def test_crossfade_run_seeds_enabled_and_duration(self):
+        self.assertEqual(self.seeded(4), (1, 4, 1, 160))
+
+    def test_other_runs_keep_the_seed_settings(self):
+        self.assertEqual(self.seeded(0), (0, 5, 0, 160))
+
+    def test_crossfade_is_an_android_scenario(self):
+        self.assertIn('crossfade', h.ANDROID_SCENARIOS)
+
+
 class RepeatFillOracle(unittest.TestCase):
     def test_loading_cursor_between_end_and_restart_does_not_hide_wrap(self):
         first = {'songId': 'a', 'dur': 300000}
@@ -850,7 +873,7 @@ class InfraErrors(unittest.TestCase):
 class DurableEvidence(unittest.TestCase):
     def test_full_counts(self):
         self.assertEqual(sum(len(h.expected_cells(n, True, None, 'linux')) for n in h.SCENARIOS), 121)
-        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'android')) for n in h.ANDROID_SCENARIOS), 73)
+        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'android')) for n in h.ANDROID_SCENARIOS), 85)
 
     def test_exact_cells(self):
         expected = h.expected_cells('queue-edit', False, None, 'linux')

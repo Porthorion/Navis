@@ -20,14 +20,14 @@ All current qualities/throttles are singleton dimensions. Counts below are
 | stress-drag | 2 | 5 | 10 | 10 | opus128, wan6000; sockets, GETs, heartbeat, release latency |
 | memory-soak | 1 | 3 | 3 | 3 | opus128, wan6000, VM; Pss + SwapPss slope/total, Dart heap |
 | repeat | 9 | 3 | 27 | 27 | opus128, wan6000, 30× transcodes; wraps, fill, readiness/local seeks |
-| crossfade | 4 | 3 | 12 | unsupported | opus128, unthrottled, 4-second crossfade; `crossfade_long_end` (P5) swaps out of a 300 s song seeked to 10 s before its end |
+| crossfade | 4 | 3 | 12 | 12 | opus128, unthrottled, 4-second crossfade; `crossfade_long_end` (P5) swaps out of a 300 s song seeked to 10 s before its end |
 | cut-recovery | 7 / 8 | 3 | 21 | 24 | opus128, slow1500, offset verification; Android adds cut5 |
 | local-seek | 3 | 3 | 9 | unsupported | original, wan6000; download/cache landing and latency |
 | queue-edit | 3 | 3 | 9 | 9 | opus128, wan6000; edits during fill |
-| **Total** | **39 / 23** | | **121** | **73** | **242 Linux + 146 Android A/B cells** |
+| **Total** | **39 / 27** | | **121** | **85** | **242 Linux + 170 Android A/B cells** |
 
 `crossfade_long_end` (P5, reproduction only) raises `xfadeJump`, `xfadeFrozen`, `xfadeLateStart` and `xfadePersistMismatch`
-(constants `XFADE_*` in `tool/live_seek_stress.py`); it is expected to fail on an affected build until the app fix lands.
+(constants `XFADE_*` in `tool/live_seek_stress.py`); it is expected to fail on an affected build until the app fix lands. An Android crossfade run seeds `crossfade_enabled=1` and the duration into the emulator profile (`android_seed_edits`).
 
 Exact retained case lists, assertions and tolerances live in `SCENARIOS`,
 `ANDROID_CHECKS`, `plan`, `evaluate`, and engine case/oracle functions. No case,
@@ -225,8 +225,8 @@ self-certifying boolean or automatic promotion of external acceptance. Reviewers
 must assess applicable external/native/device/manual evidence against the owning
 reference, with candidate/configuration, commands, real exit results and inspectable
 artifacts; absent evidence stays outstanding. The gate does not ingest an external
-"complete playback passed" declaration. The 121 Linux / 73 Android per-variant
-cells (the 3 added `crossfade_long_end` cells aside), all repetitions, thresholds and assertions remain unchanged.
+"complete playback passed" declaration. The 121 Linux / 85 Android per-variant
+cells (the added `crossfade_long_end` and Android `crossfade` cells aside), all repetitions, thresholds and assertions remain unchanged.
 
 ### Nested timeout ownership self-check
 

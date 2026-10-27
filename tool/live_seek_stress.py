@@ -423,6 +423,20 @@ def point_profile_at(url: str):
             (1 if CROSSFADE_S else 0, CROSSFADE_S or 5))
 
 
+def android_seed_edits(copy, server_url: str):
+    """Edits to the emulator's seed copy of the Linux profile: server, rolling-cache budget, empty queue, and the
+    cross-fade the run asks for (the same UPDATE point_profile_at gives the Linux profile)."""
+    copy.execute('UPDATE server_config SET url = ?', (server_url,))
+    # Keep streamed FLAC from filling the emulator's data partition
+    # (the phone AVD has only ~500 MB free; a full disk cascades
+    # into player and API failures).
+    copy.execute('UPDATE app_settings SET rolling_cache_budget_mb=160')
+    copy.execute('DELETE FROM play_queue_items')
+    copy.execute('DELETE FROM play_queue')
+    if CROSSFADE_S:
+        copy.execute('UPDATE app_settings SET crossfade_enabled = 1, crossfade_duration_seconds = ?, gapless_enabled = 1', (CROSSFADE_S,))
+
+
 class App:
     def __init__(self, run: Path, platform: str):
         self.run = run
@@ -524,13 +538,7 @@ class AndroidApp(App):
             # The backup inherits WAL mode; edits would then stay in a -wal
             # file that is never pushed.
             copy.execute('PRAGMA journal_mode=DELETE')
-            copy.execute('UPDATE server_config SET url = ?', (server_url,))
-            # Keep streamed FLAC from filling the emulator's data partition
-            # (the phone AVD has only ~500 MB free; a full disk cascades
-            # into player and API failures).
-            copy.execute('UPDATE app_settings SET rolling_cache_budget_mb=160')
-            copy.execute('DELETE FROM play_queue_items')
-            copy.execute('DELETE FROM play_queue')
+            android_seed_edits(copy, server_url)
             copy.commit()
         finally:
             copy.close()

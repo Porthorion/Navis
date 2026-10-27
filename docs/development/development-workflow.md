@@ -1480,7 +1480,7 @@ setsid bash -c 'trap : TERM; echo $$ > build/harness/launch-'$stamp'.pid
 
 It runs check.sh, Linux, then Android serially; Android is required by this
 fixture gate. A missing SDK/AVD is blocked, never successful or silently skipped.
-It preserves all **121 Linux + 73 Android cells per variant (388 A/B cells)**,
+It preserves all **121 Linux + 85 Android cells per variant (412 A/B cells)**,
 assertions and tolerances. `--map`, quick runs and repetition overrides remain
 iteration tools, not substitutes. No calibration/threshold work is included.
 See the [coverage map](playback-validation-coverage.md) for requirements beyond
