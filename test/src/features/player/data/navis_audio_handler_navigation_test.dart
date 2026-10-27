@@ -5852,6 +5852,8 @@ void main() {
       bool build = true,
       NavisQueueWindow window = const NavisQueueWindow(),
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
+      bool crossfade = false,
+      NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     }) async {
       final previousHttp = HttpOverrides.current;
       HttpOverrides.global = null;
@@ -5922,6 +5924,8 @@ void main() {
         sidecarDownloader: downloader,
         wrapResolver: wrap,
         queueWindow: window,
+        crossfade: crossfade,
+        timeouts: timeouts,
         cacheSongs: false,
         positionStreams: true,
         readApiClient: () => api,
@@ -6526,6 +6530,73 @@ void main() {
         await settleQueue(s.handler);
         expect(audit(s.handler, s.player), oneInstance);
         await settle();
+      },
+    );
+
+    test(
+      'a released tail is registered while its deck mirror is blocked',
+      () async {
+        final s = await serveQueue(
+          4,
+          hold: {'song-2'},
+          ids: ['song-0', 'song-1', 'song-2', 'song-2', 'song-3', 'song-2'],
+          crossfade: true,
+          timeouts: const NavisPlaybackTimeouts(reset: Duration(seconds: 3)),
+          window: const NavisQueueWindow(
+            deferThreshold: 3,
+            ahead: 1,
+            lowWater: 1,
+            page: 4,
+            nearJump: 5,
+            behind: 1,
+            trimSlack: 1,
+          ),
+        );
+        ticks(s.player);
+        await s.handler.debugStartCrossfade();
+        final deck = s.handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        deck.hang.add('addAudioSources');
+        unawaited(s.handler.skipToNext().catchError((Object _) {}));
+        await until(() => s.player.audioSources.length == 6);
+        // The native append is committed: the source the player holds must be
+        // the registered one now, not once the (still blocked) mirror ends.
+        await until(
+          () => identical(
+            s.handler.debugRegisteredLockCacheSource('song-2'),
+            s.player.audioSources[2],
+          ),
+        );
+        s.release.complete();
+      },
+    );
+
+    test(
+      'an inserted song is registered while its deck mirror is blocked',
+      () async {
+        final s = await serveQueue(
+          3,
+          hold: {'song-2'},
+          ids: ['song-0', 'song-1'],
+          crossfade: true,
+          timeouts: const NavisPlaybackTimeouts(reset: Duration(seconds: 4)),
+        );
+        ticks(s.player);
+        await s.handler.debugStartCrossfade();
+        final deck = s.handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        deck.hang.add('addAudioSources');
+        unawaited(
+          s.handler
+              .addToQueue(['song-2'], expandMatchFlows: false)
+              .catchError((Object _) {}),
+        );
+        await until(() => s.player.audioSources.length == 3);
+        await until(
+          () => identical(
+            s.handler.debugRegisteredLockCacheSource('song-2'),
+            s.player.audioSources[2],
+          ),
+        );
+        s.release.complete();
       },
     );
 

@@ -1049,25 +1049,22 @@ class NavisAudioHandler extends BaseAudioHandler
         songId: prepared.first.song.id,
         cancelAfterSuccess: false,
       );
+      // The append is committed: register what the player holds before
+      // anything can wait (the deck mirror), as a queue fill does.
+      _observeLockCacheForPrepared(prepared);
+      final at = _queueItems.length;
       // Move the page from the tail to the materialised queue in one step,
       // so no snapshot sees it in both.
       _queueItems.addAll(prepared.map((item) => item.mediaItem));
       _deferredTail.removeRange(0, take);
       if (deckInSync) {
-        try {
-          await inactiveDeck.addAudioSources(
-            prepared
-                .map(
-                  (item) =>
-                      item.source.asClonedAudioSource(tag: item.mediaItem),
-                )
-                .toList(growable: false),
-          );
-        } on Object catch (error) {
-          AppLogger.debug('Deferred queue deck mirror failed: $error');
-        }
+        await _mirrorInsertOnDeck(
+          inactiveDeck,
+          prepared,
+          at: at,
+          operation: 'release deferred queue',
+        );
       }
-      _observeLockCacheForPrepared(prepared);
     }
     final dropped = take - prepared.length;
     _reportDroppedSongs(<String>[

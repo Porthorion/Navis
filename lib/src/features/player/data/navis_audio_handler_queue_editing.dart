@@ -121,6 +121,8 @@ extension _NavisQueueEditing on NavisAudioHandler {
         index++;
       }
     }
+    // Register before the (bounded) deck mirror: the native insert is final.
+    _observeLockCacheForPrepared(inserted);
     if (deckInSync && mirrorDeck && inserted.isNotEmpty) {
       await _mirrorInsertOnDeck(
         inactiveDeck,
@@ -129,7 +131,6 @@ extension _NavisQueueEditing on NavisAudioHandler {
         operation: operation,
       );
     }
-    _observeLockCacheForPrepared(inserted);
     return inserted;
   }
 
