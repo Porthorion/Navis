@@ -1637,8 +1637,9 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   because some cases are red on release/1.5 (see the PR); a new violation kind
   is always a FAIL.
 
-  Android cut-splice comparisons require at least one base `reloadsAfterCut`;
-  a missing or zero count fails `baseCutObserved` as a vacuous comparison. The
+  Android cut-splice comparisons require at least one base `cutsObserved`
+  (continuation requests, splice events or reloads after the cut: a splicing base
+  has no reloads); a missing or zero count fails `baseCutObserved` as a vacuous comparison. The
   one-second frozen-median limit uses only cells containing `spliceCheck`, so
   unrelated scenario cases cannot dilute a stalled splice. File validation
   gates both RMS (0.005) and absolute decoded length difference (20 ms).

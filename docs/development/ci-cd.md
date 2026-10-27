@@ -1053,7 +1053,7 @@ bad poll even if the state flaps, a failed serial-scoped reconnect is an
 self-checks cover the interleaved base/fix schedule and that its merged evidence
 still verifies. None of these starts an emulator or a runtime matrix.
 
-Android cut-splice self-checks reject a missing/zero base reload count, use
+Android cut-splice self-checks reject a missing/zero base `cutsObserved` count (a splicing base has zero reloads), use
 only cut cells for the frozen median, and reject decoded files whose length
 differs by more than 20 ms even when RMS over their common prefix is zero.
 `cut5` is included only in Android's full case list. These unit checks do not

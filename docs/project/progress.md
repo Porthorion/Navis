@@ -4125,3 +4125,7 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   Linux first variant also alternates by scenario position (quick runs); the
   `repeat_one_fill` window ends relative to the observed landing; merged report row
   ids are `<rep>-<id>` with `repDir`. 75 harness + 44 gate self-checks, hermetic.
+- Android cut-recovery `baseCutObserved` no longer needs a base reload (the current
+  base splices, so every A/B reported RESULT FAIL): it requires `cutsObserved >= 1`
+  (continuation requests + splice events + reloads after the cut). Still fails when
+  no cut was observed. 76 harness + 44 gate self-checks, hermetic.

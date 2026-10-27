@@ -228,7 +228,9 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
         checks = [r['metrics']['spliceCheck'] for r in cut_rows]
         if checks:  # Android only: the Ogg cut splice (1.5.1 item 14)
             out.update(spliceFrozenMedianS=_med(r['metrics'].get('maxFrozenS') for r in cut_rows),
-                       reloadsAfterCut=sum(len(c['reloads']) for c in checks), playerErrorsAfterCut=sum(len(c['playerErrors']) for c in checks),
+                       reloadsAfterCut=sum(len(c['reloads']) for c in checks),
+                       # Evidence that the injected cuts bit, whichever way the build recovers (reload before #163, splice since).
+                       cutsObserved=sum(len(c['reloads']) + len(c.get('timeOffsetRequests', [])) + len(c.get('spliceEvents', [])) for c in checks), playerErrorsAfterCut=sum(len(c['playerErrors']) for c in checks),
                        spliceRequestsOk=all(c['requestsOk'] for c in checks), spliceFileOk=all(c['file']['ok'] for c in checks),
                        joinRmsMax=max([c['file'].get('maxWindowRms') or 0 for c in checks]))
     elif scenario == 'local-seek':
@@ -300,10 +302,10 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
             raise ValueError(check)
         lines.append((ok, f"{'PASS' if ok else 'FAIL'} {scenario} {name}: fix={_fmt(f)} base={_fmt(b)} limit={limit}"))
     if scenario == 'cut-recovery' and platform == 'android':
-        observed = base.get('reloadsAfterCut')
+        observed = base.get('cutsObserved')
         ok = observed is not None and observed >= 1
         lines.append((ok, f"{'PASS' if ok else 'FAIL'} cut-recovery baseCutObserved: base={_fmt(observed)} "
-                          'limit=base reloadsAfterCut >= 1 (otherwise comparison is vacuous)'))
+                          'limit=base cutsObserved >= 1: continuation requests, splice events or reloads after the cut (otherwise comparison is vacuous)'))
     if scenario == 'memory-soak':
         lines.append((True, f"INFO {scenario} postGcPssMiB: fix={_fmt(fix.get('postGcPssMiB'))} "
                             f"base={_fmt(base.get('postGcPssMiB'))} (resident only; not gated)"))

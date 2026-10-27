@@ -85,7 +85,7 @@ class Thresholds(unittest.TestCase):
 
     def test_cut_recovery_splice_checks_are_android_only(self):
         base = {'caseErrors': 0, 'violations': 0, 'kinds': [], 'progressLoss': 0, 'recoveryMedianS': 5.0, 'frozenMedianS': 6.0,
-                'reloadsAfterCut': 3}
+                'reloadsAfterCut': 0, 'cutsObserved': 3}  # the current base splices instead of reloading
         fix = {**base, 'frozenMedianS': 0.0, 'spliceFrozenMedianS': 0.0, 'recoveryMedianS': 0.0, 'reloadsAfterCut': 0, 'playerErrorsAfterCut': 0,
                'spliceRequestsOk': True, 'spliceFileOk': True, 'joinRmsMax': 0.001}
         self.assertTrue(all(ok for ok, _ in h.evaluate('cut-recovery', base, fix, 'android')))
@@ -95,10 +95,22 @@ class Thresholds(unittest.TestCase):
         # Linux has no splice: those metrics are neither required nor checked.
         self.assertEqual(len(h.evaluate('cut-recovery', base, fix)), len(h.evaluate('cut-recovery', base, fix, 'android')) - 7)
 
-    def test_cut_base_without_reload_is_a_failed_comparison(self):
-        for reloads in (None, 0):
-            lines = h.evaluate('cut-recovery', {'reloadsAfterCut': reloads}, {}, 'android')
-            self.assertTrue(any(not ok and 'baseCutObserved' in line for ok, line in lines))
+    def test_cut_base_without_an_observed_cut_is_a_failed_comparison(self):
+        for observed in (None, 0):
+            lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 0, 'cutsObserved': observed}, {}, 'android')
+            self.assertTrue(any(not ok and 'baseCutObserved' in line for ok, line in lines), observed)
+        # A base that splices has no reloads, but its continuation requests/events prove the cut bit.
+        lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 0, 'cutsObserved': 2}, {}, 'android')
+        self.assertTrue(all(ok for ok, line in lines if 'baseCutObserved' in line))
+
+    def test_cuts_observed_counts_continuation_requests_events_and_reloads(self):
+        def row(**check):
+            return {'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0, 'spliceCheck': {
+                'reloads': [], 'playerErrors': [], 'requestsOk': True, 'timeOffsetRequests': [], 'spliceEvents': [],
+                'file': {'ok': True, 'maxWindowRms': 0.001}, **check}}}
+        self.assertEqual(h.metrics('cut-recovery', [row(timeOffsetRequests=[120], spliceEvents=[{}])])['cutsObserved'], 2)
+        self.assertEqual(h.metrics('cut-recovery', [row(reloads=['setAudioSources'])])['cutsObserved'], 1)
+        self.assertEqual(h.metrics('cut-recovery', [row(), row()])['cutsObserved'], 0)
 
     def test_splice_frozen_median_uses_only_cut_rows(self):
         rows = [{'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0}} for _ in range(7)]
@@ -107,7 +119,7 @@ class Thresholds(unittest.TestCase):
                                           'file': {'ok': True, 'maxWindowRms': 0.001, 'lenDiffS': 0}}}})
         metrics = h.metrics('cut-recovery', rows)
         self.assertEqual(metrics['spliceFrozenMedianS'], 5)
-        lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 1}, metrics, 'android')
+        lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 0, 'cutsObserved': 1}, metrics, 'android')
         self.assertTrue(any(not ok and 'spliceFrozenMedianS' in line for ok, line in lines))
 
     def test_cut5_is_android_full_only(self):
