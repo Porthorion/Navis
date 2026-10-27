@@ -14,6 +14,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/file_utils.dart';
@@ -171,6 +172,7 @@ class PlaybackSourceResolver {
     bool Function()? readSupportsLockCaching,
     bool Function()? readUsesSidecarRollingCache,
     bool Function()? readSupportsTranscodeOffset,
+    this.transportTrace,
   }) : _readCachedPlaybackFirst = readCachedPlaybackFirst ?? _readFalse,
        _readPreferAnyCache = readPreferAnyCache ?? _readFalse,
        _readCanStream = readCanStream ?? _readTrue,
@@ -185,6 +187,10 @@ class PlaybackSourceResolver {
   final SubsonicApiClient? Function() _readApiClient;
   final StreamingQuality Function() _readStreamingQuality;
   final Future<Directory> Function() _readRollingCacheDirectory;
+
+  /// The diagnostics trace the audio handler adopts, so a source built here
+  /// can report into it (the Ogg cut splice).
+  final PlaybackTransportTrace? transportTrace;
   final bool Function() _readCachedPlaybackFirst;
   final bool Function() _readPreferAnyCache;
   final bool Function() _readCanStream;
@@ -432,10 +438,43 @@ class PlaybackSourceResolver {
     );
 
     try {
+      // A cut Ogg/Opus transcode is spliced from a second request instead of
+      // failing (Android lock cache only; whole-second timeOffset needed).
+      final splicesCut =
+          !kIsWeb &&
+          defaultTargetPlatform == TargetPlatform.android &&
+          streamingMetadata.isTranscoded &&
+          streamingMetadata.format == 'opus' &&
+          supportsTranscodeOffset;
       // ignore: experimental_member_use, reason: just_audio exposes rolling stream caching through this experimental source type.
       final lockCachingSource = LockCachingAudioSource(
         streamUri,
         cacheFile: cacheFile,
+        continuationUri: splicesCut
+            ? (seconds) => _buildStreamUri(
+                api: api,
+                song: song,
+                quality: quality,
+                timeOffsetSeconds: seconds,
+              )
+            : null,
+        onOggSplice: (event) {
+          AppLogger.info(
+            'Ogg splice: song=${song.id} offset=${event.offsetSeconds} '
+            'dropped=${event.droppedPackets} attempt=${event.attempt} '
+            'result=${event.result}',
+          );
+          transportTrace?.record(
+            'oggSplice',
+            () => <String, Object?>{
+              'songId': song.id,
+              'timeOffset': event.offsetSeconds,
+              'dropped': event.droppedPackets,
+              'attempt': event.attempt,
+              'result': event.result,
+            },
+          );
+        },
       );
 
       AppLogger.debug(

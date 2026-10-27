@@ -4,7 +4,12 @@ Releases are built and published locally with `tool/release.sh`; `tool/check.sh`
 
 - `static`: bootstrap, format check, `build_runner build` followed by a diff check (committed generated code must be current), analyze and the dead-code check.
 - `test`: four parallel shards of `flutter test`; they skip `build_runner` because generated code is committed.
-- `ci`: waits for both and fails unless both succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
+- `native`: prepares JDK 21, Android SDK 37 and Flutter's Android artifacts, then
+  runs the pure native fixtures and the repeat bridge runner/contract. It uses
+  [setup-java](https://github.com/actions/setup-java) and the runner image's
+  preinstalled Android SDK (`sdkmanager` adds platform 37); the job has a
+  15-minute deadline and requires no emulator or secrets.
+- `ci`: waits for all three and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
 
 Windows media-session changes additionally require the Windows-only isolated
 GMTC validation command described in `docs/development/development-workflow.md`:
@@ -99,8 +104,9 @@ Checks performed (in order, fail-fast):
 2. Flutter test-log guard fixtures (`tool/check_test_log_test.sh`) and Linux
    desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
 3. Native equalizer response/PCM and progressive HTTP retry/repeat fixtures
-   (`tool/equalizer_native_test.sh`)
-   and the Last.fm key masking / artifact secret scan shell tests
+   (`tool/equalizer_native_test.sh`), Android repeat runner contract
+   (`tool/android_repeat_runner_test.sh`) and bridge JVM suites
+   (`tool/android_repeat_native_test.sh`), and the Last.fm key masking / artifact secret scan shell tests
    (`tool/lastfm_key_defines_test.sh`, `tool/scan_artifact_secret_test.sh`;
    fake key and synthetic artifacts, runnable on their own to debug a failure)
 4. `./tool/dart_format.sh --check` (reports without rewriting; excludes
@@ -120,6 +126,30 @@ Checks performed (in order, fail-fast):
 
 The dead-code CLI self-tests invoke its shared library entry point against
 temporary fixtures in-process, avoiding a Dart subprocess compilation per check.
+
+Android repeat bridge fixtures require bootstrap, JDK 21, Android SDK 37,
+Python 3 (stdlib only) and GNU `timeout`. Run `flutter precache --android` once
+if Flutter's wrapper cache is absent. `tool/android_repeat_native_test.sh` copies
+missing ignored wrapper launch/JAR files from that cache, preserving the repository's
+pinned distribution URL and checksum. It runs `:app:testSideloadDebugUnitTest`
+with `--tests '*JustAudioRepeat*Test'` (both suites, including future added
+cases), without installing an APK or starting a device. The runner forces the
+sideload test flavor, uses one Gradle worker and in-process Kotlin, bounds the
+Gradle JVM to a 2 GiB heap / 768 MiB metaspace / 256 MiB code cache, and disables
+persistent daemons. GNU `timeout` limits the invocation to ten minutes with a
+ten-second kill grace. Failures and timeout status propagate to `check.sh` and
+the CI `native` job. The runner reports the executed count from Gradle's result
+XML and requires nonzero, failure-free execution in each named suite, including
+when Gradle reuses up-to-date results. Its hermetic contract covers wrapper setup,
+flags, counts and failure propagation. Stdlib checks of the maintained workflow
+job blocks and inline run steps reject commented-out/removed steps, swallowed
+failures, conditional skips and step/job `continue-on-error`, including for the
+contract's own step. Unsupported workflow layouts, quoted
+`if`/`continue-on-error` keys and YAML anchors, aliases or merges in the `native`
+and `ci` jobs fail closed. Twenty-seven committed negative variants prove these checks without a third-party YAML dependency.
+The CI native job's actions are pinned to full SHAs with version comments.
+Allow about 3.5 GiB host memory for the observed clean-checkout JVM run; cold-cache
+time and hosted CI headroom remain unmeasured.
 
 Native EQ fixtures use an available JDK, or Android Studio's bundled JDK.
 `ANDROID_STUDIO_JDK` may select an alternate JDK directory. They validate
@@ -975,17 +1005,50 @@ runtime codec certification. Historical results remain in the progress log.
 
 ### Android media-service upgrade contract
 
+The repeat bridge suites run automatically through
+`./tool/android_repeat_native_test.sh` in `check.sh` and the CI `native` job.
 After changing audio_service or the app-owned media service, configure
 `JAVA_HOME` for the Android build's JDK and run
-`cd android && ./gradlew :app:testSideloadDebugUnitTest --tests '*NavisAudioServiceRecoveryTest' --tests '*JustAudioRecoveryPositionTest'`.
+`cd android && ./gradlew :app:testSideloadDebugUnitTest --tests '*NavisAudioServiceRecoveryTest' --tests '*JustAudioRecoveryPositionTest' --tests '*JustAudioRepeatBoundaryTest' --tests '*JustAudioRepeatCallbackTest'`.
 This reflects on the private listener and handler-interface names/types relied
 on by the lifecycle repair. The position test exercises the vendored Android
 error-event path and requires the actual player position before idle/error
-publication. Run it after changing just_audio too. Follow with the profile-clone
-recovery fixtures in
+publication. The repeat-boundary fixture exercises the actual bridge's loop
+policy, playlist-tag eligibility scan and guarded posted action after an
+app-visible pause; it drives the posted action directly without a Looper or audio
+device. The callback suite additionally reaches production scheduling without
+pre-setting `repeatPending`, drives timeline/item listeners with distinct UIDs,
+and models app-thread-first as well as native-update-first delivery. App JVM
+tests use Android stubs that return defaults, with a host-only Handler queue
+provided in test sources. It records actual `post(Runnable)` calls and runs the
+captured lambda later, so missing posts, stale captured revisions, completion
+suppression and callback tails are exercised. Android Looper scheduling and
+native playback-thread timing still require runtime coverage. Run these after
+changing just_audio too.
+Follow with the profile-clone recovery fixtures in
 [development-workflow.md](development-workflow.md); JVM reflection checks alone
 do not prove media-session commands or engine survival.
 
 Seek-drag diagnostics contract coverage in `sync_diagnostics_server_test.dart`
 checks clone-only authorization and bounded scripted/flick inputs; presentation
 controller tests verify one held pointer, intermediate moves and one release.
+
+Playback prefetch checks use the `repeat/chain_end` fixture and gates documented
+in [Playback runtime harness](development-workflow.md#playback-runtime-harness).
+The repeat fixture uses 30× transcodes to finish current and next files within
+its bounded wait; network-free seek classification also verifies the final file.
+Seek-oracle self-checks cover raw and offset native clock blips, persistent
+rewinds, slow returns and queue/source identity changes.
+Repeat-driver checks reject clock blips before real wraps and still reject
+missing or duplicate loops.
+
+Android cut-splice self-checks reject a missing/zero base reload count, use
+only cut cells for the frozen median, and reject decoded files whose length
+differs by more than 20 ms even when RMS over their common prefix is zero.
+`cut5` is included only in Android's full case list. These unit checks do not
+replace the Android base-vs-fix run.
+
+Memory-soak self-checks cover swap-out with a flat `Pss + SwapPss` total,
+identical negative slopes, real growth and missing kernel fields in either
+variant, including a single incomplete repetition. The harness gates the total
+from `smaps_rollup`; resident PSS is informational and Dart heap stays gated.

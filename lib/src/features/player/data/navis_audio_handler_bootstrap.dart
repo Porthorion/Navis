@@ -349,6 +349,10 @@ abstract class _DelegatingNavisPlaybackHandler
   MediaItem? get currentMediaItem => _delegate.currentMediaItem;
 
   @override
+  Set<String> get rollingCacheProtectedSongIds =>
+      _delegate.rollingCacheProtectedSongIds;
+
+  @override
   Stream<MediaItem?> get mediaItemStream => _delegate.mediaItemStream;
 
   @override

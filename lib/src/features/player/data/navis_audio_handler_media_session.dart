@@ -273,6 +273,10 @@ extension _NavisMediaSession on NavisAudioHandler {
       if (!_queueLane.isIdle &&
           _queueReplacementMetadataAnchor == null &&
           !_sequenceMatchesQueue(_player)) {
+        if (_player.processingState == ProcessingState.completed &&
+            _prematureTranscodeDeparture == null) {
+          _retryPrematureTranscodeEnd(event);
+        }
         return;
       }
       _syncBridgeDownloadPriority();
@@ -367,6 +371,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           (!_queueLane.isIdle &&
               _queueReplacementMetadataAnchor == null &&
               !_sequenceMatchesQueue(_player))) {
+        _captureTranscodeEndOccurrence(indexEvent: true);
         return;
       }
       final resolved = _resolveCurrentQueueMetadata();
@@ -513,6 +518,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         .listen((position) {
           if (!identical(_player, wiredPlayer)) return;
           _syncLockCacheDownloadPriority();
+          _syncSidecarChain();
           _checkCrossfadeTrigger(position);
         });
   }

@@ -160,6 +160,40 @@ void main() {
       expect(file3.existsSync(), isTrue);
     }, skip: !sqliteAvailable);
 
+    test(
+      'enforceBudget never evicts the kept current and next songs',
+      () async {
+        for (final id in ['song-1', 'song-2', 'song-3']) {
+          await _insertSong(database, id);
+        }
+        final files = [
+          for (final id in ['song-1', 'song-2', 'song-3'])
+            await _writeFile(tempDir, '$id.mp3', 100),
+        ];
+        for (var i = 0; i < 3; i++) {
+          await _seedCachedTrack(
+            database,
+            'song-${i + 1}',
+            files[i].path,
+            100,
+            lastAccessedAt: DateTime.now().subtract(Duration(hours: 3 - i)),
+          );
+        }
+
+        await manager.enforceBudget(
+          maxBytes: 100,
+          keepSongIds: {'song-1', 'song-2'},
+        );
+
+        expect(await database.cacheDao.getCachedTrack('song-1'), isNotNull);
+        expect(await database.cacheDao.getCachedTrack('song-2'), isNotNull);
+        expect(await database.cacheDao.getCachedTrack('song-3'), isNull);
+        expect(files[0].existsSync(), isTrue);
+        expect(files[2].existsSync(), isFalse);
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('pruneMissingFiles drops stale rolling entries', () async {
       await _insertSong(database, 'song-1');
       await _insertSong(database, 'song-2');

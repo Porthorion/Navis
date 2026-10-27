@@ -15,6 +15,8 @@ import 'package:rxdart/rxdart.dart';
 import 'package:synchronized/synchronized.dart';
 import 'package:uuid/uuid.dart';
 
+import 'src/ogg_opus_splicer.dart';
+
 export 'package:just_audio_platform_interface/just_audio_platform_interface.dart'
     show
         EqualizerConfigurationMessage,
@@ -3607,6 +3609,29 @@ class StreamAudioResponse {
   final Stream<List<int>> stream;
 }
 
+/// Navis: the outcome of one Ogg/Opus continuation attempt.
+class OggSpliceEvent {
+  const OggSpliceEvent({
+    required this.offsetSeconds,
+    required this.droppedPackets,
+    required this.attempt,
+    required this.result,
+  });
+
+  /// The `timeOffset` the continuation was requested at.
+  final int offsetSeconds;
+
+  /// Packets dropped because the delivered audio already contained them.
+  final int droppedPackets;
+
+  /// 1-based continuation attempt of this fetch.
+  final int attempt;
+
+  /// `ok` (joined to a clean end), `cut` (cut again), `refused` (the splicer
+  /// could not place it) or `failed` (no usable response).
+  final String result;
+}
+
 /// This is an experimental audio source that caches the audio while it is being
 /// downloaded and played. It is not supported on platforms that do not provide
 /// access to the file system (e.g. web).
@@ -3625,6 +3650,8 @@ class LockCachingAudioSource extends StreamAudioSource {
     this.connectionTimeout = const Duration(seconds: 15),
     this.headerTimeout = const Duration(seconds: 15),
     this.bodyProgressTimeout = const Duration(seconds: 30),
+    this.continuationUri,
+    this.onOggSplice,
     dynamic tag,
   })  : cacheFile =
             cacheFile != null ? Future.value(cacheFile) : _getCacheFile(uri),
@@ -3634,6 +3661,15 @@ class LockCachingAudioSource extends StreamAudioSource {
   final Duration connectionTimeout;
   final Duration headerTimeout;
   final Duration bodyProgressTimeout;
+
+  /// Navis: opt-in splice of a cut Ogg/Opus transcode. When the unknown-length
+  /// `OggS` body is cut, this builds the request that restarts the transcode
+  /// at a whole second; its audio is joined into the same stream and `.part`
+  /// (see [OggOpusSplicer]). Null keeps the plain behaviour: a cut fails.
+  final Uri Function(int offsetSeconds)? continuationUri;
+
+  /// Navis: called once per continuation attempt with its outcome.
+  final void Function(OggSpliceEvent event)? onOggSplice;
   Future<HttpClientResponse>? _response;
   final Uri uri;
   final Map<String, String>? headers;
@@ -3647,6 +3683,9 @@ class LockCachingAudioSource extends StreamAudioSource {
   Future<void> Function()? _dispatchRequests;
   final _rangeFetches = <_LockCacheRangeFetch>{};
   int _rangeFetchBytes = 0;
+
+  /// Navis: whether the whole-file download is running (headers pending or body streaming).
+  bool get isDownloading => _downloading;
 
   /// Navis: whether a beyond-cache origin request is still live.
   bool get hasActiveRangeFetch => _rangeFetches.isNotEmpty;
@@ -3681,10 +3720,12 @@ class LockCachingAudioSource extends StreamAudioSource {
     await Future.wait(_rangeFetches.toList().map((fetch) => fetch.cancel()));
   }
 
+  // Playlist removal keeps caching; only player disposal stops opt-in splices.
   @override
   void _dispose() {
     resumeDownload();
-    unawaited(_cancelRangeFetches());
+    unawaited(
+        continuationUri == null ? _cancelRangeFetches() : cancelDownload());
     super._dispose();
   }
 
@@ -3839,6 +3880,15 @@ class LockCachingAudioSource extends StreamAudioSource {
     _originSupportsRangeRequests = originSupportsRangeRequests;
     final mimeFile = await _mimeFile;
     await mimeFile.writeAsString(mimeType);
+    // Cancellation may arrive during the file I/O before the body is listened to.
+    if (cancelled.isCompleted) {
+      httpClient.close(force: true);
+      await sink.close();
+      if (partialCacheFile.existsSync()) partialCacheFile.deleteSync();
+      _abortDownload = null;
+      _downloading = false;
+      throw StateError('Download cancelled');
+    }
     final inProgressResponses = <_InProgressCacheResponse>[];
     late StreamSubscription<List<int>> subscription;
     void updateProgress(int percentProgress) {
@@ -3960,7 +4010,13 @@ class LockCachingAudioSource extends StreamAudioSource {
     }
 
     _progress = 0;
-    subscription = response.timeout(bodyProgressTimeout).listen((data) async {
+    // Navis: an unknown-length Ogg body may be spliced across a cut; the
+    // splicer's own loop owns the inactivity timeout then.
+    final spliced = continuationUri != null && sourceLength == null;
+    subscription = (spliced
+            ? _splicedBody(response, httpClient, cancelled)
+            : response.timeout(bodyProgressTimeout))
+        .listen((data) async {
       _progress += data.length;
       final newPercentProgress = (sourceLength == null)
           ? 0
@@ -4032,12 +4088,18 @@ class LockCachingAudioSource extends StreamAudioSource {
     // The first request can now dispatch without waiting for another main chunk.
     unawaited(dispatchRequests());
     _abortDownload = () async {
+      if (!cancelled.isCompleted) {
+        cancelled.completeError(StateError('Download cancelled'));
+      }
       active = false;
       _abortDownload = null;
       _dispatchRequests = null;
       _downloadSubscription = null;
-      await subscription.cancel();
+      // Navis: close the client before awaiting the cancel, which a spliced
+      // body only completes once its pending origin read has ended.
+      final cancelling = subscription.cancel();
       httpClient.close(force: true);
+      await cancelling;
       await sink.close();
       final error = Exception('Download cancelled');
       for (final req in _requests) {
@@ -4058,6 +4120,104 @@ class LockCachingAudioSource extends StreamAudioSource {
     };
     return response;
   }
+
+  /// Navis: the origin body with a cut Ogg/Opus transcode spliced (at most
+  /// [_maxSplices] continuations); anything else is forwarded unchanged.
+  Stream<List<int>> _splicedBody(
+    HttpClientResponse first,
+    HttpClient httpClient,
+    Completer<Never> cancelled,
+  ) async* {
+    final splicer = OggOpusSplicer();
+    Stream<List<int>> source = first;
+    var attempt = 0;
+    var continuing = false;
+    Object? originError;
+    StackTrace? originStack;
+    List<int> withheld = const [];
+    while (true) {
+      try {
+        await for (final chunk in source.timeout(bodyProgressTimeout)) {
+          final out =
+              continuing ? splicer.splice(chunk) : splicer.forward(chunk);
+          if (out.isNotEmpty) {
+            // Once rewritten audio is delivered the original tail cannot follow it.
+            if (continuing) withheld = const [];
+            yield out;
+          }
+        }
+        if (!continuing) {
+          final tail = splicer.flush();
+          if (tail.isNotEmpty) yield tail;
+        }
+        if (continuing && !splicer.continuationComplete) {
+          throw const FormatException('incomplete Ogg continuation');
+        }
+        if (continuing) _reportSplice(splicer, attempt, 'ok');
+        return;
+      } catch (error, stack) {
+        // The abort owner cleans up and fails clients; cancellation is not a splice failure.
+        if (cancelled.isCompleted) return;
+        originError ??= error;
+        originStack ??= stack;
+        if (continuing) {
+          _reportSplice(
+            splicer,
+            attempt,
+            error is FormatException ? 'refused' : 'cut',
+          );
+        }
+        final tail = splicer.flush();
+        if (!continuing) withheld = tail;
+        if (error is FormatException ||
+            !splicer.canContinue ||
+            attempt >= _maxSplices) {
+          if (withheld.isNotEmpty) yield withheld;
+          Error.throwWithStackTrace(originError, originStack);
+        }
+        attempt++;
+        continuing = true;
+        _spliceOffset = splicer.resumeSeconds;
+        splicer.beginContinuation(_spliceOffset);
+        try {
+          // Put the deadline around the race so cancellation disarms its timer.
+          final response = await Future.any([
+            _getUrl(httpClient, continuationUri!(_spliceOffset),
+                    headers: headers)
+                .timeout(connectionTimeout)
+                .then((request) {
+              if (cancelled.isCompleted) throw StateError('Download cancelled');
+              return request.close().timeout(headerTimeout);
+            }),
+            cancelled.future,
+          ]).timeout(_spliceSetupTimeout);
+          if (cancelled.isCompleted) return;
+          if (response.statusCode != 200) {
+            throw HttpException('HTTP Status Error: ${response.statusCode}');
+          }
+          source = response;
+        } catch (_) {
+          if (cancelled.isCompleted) return;
+          _reportSplice(splicer, attempt, 'failed');
+          if (withheld.isNotEmpty) yield withheld;
+          Error.throwWithStackTrace(originError, originStack);
+        }
+      }
+    }
+  }
+
+  static const _maxSplices = 2;
+  // Allow Navidrome startup below Media3's 8 s loopback read timeout.
+  static const _spliceSetupTimeout = Duration(seconds: 6);
+  var _spliceOffset = 0;
+
+  void _reportSplice(OggOpusSplicer splicer, int attempt, String result) =>
+      onOggSplice?.call(OggSpliceEvent(
+        offsetSeconds: _spliceOffset,
+        droppedPackets: splicer.droppedPackets,
+        attempt: attempt,
+        result: result,
+      ));
 
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
@@ -4085,7 +4245,20 @@ class LockCachingAudioSource extends StreamAudioSource {
     _requests.add(byteRangeRequest);
     final dispatch = _dispatchRequests;
     if (dispatch != null) unawaited(dispatch());
-    _response ??=
+    _startFetch();
+    return byteRangeRequest.future;
+  }
+
+  /// Navis: starts (or joins) the whole-file download without a response, so
+  /// no replay buffer holds the body. A later [request] shares the download.
+  /// Throws if the download fails; a finished file is a no-op.
+  Future<void> prefetch() async {
+    if ((await cacheFile).existsSync()) return;
+    await _startFetch();
+  }
+
+  Future<HttpClientResponse> _startFetch() {
+    final response = _response ??=
         _fetch().catchError((dynamic error, StackTrace? stackTrace) async {
       // So that we can restart later
       _response = null;
@@ -4098,8 +4271,8 @@ class LockCachingAudioSource extends StreamAudioSource {
       return Future<HttpClientResponse>.error(error as Object, stackTrace);
     });
     // Errors reach every request; the retained fetch future has no direct caller.
-    _response!.ignore();
-    return byteRangeRequest.future;
+    response.ignore();
+    return response;
   }
 }
 

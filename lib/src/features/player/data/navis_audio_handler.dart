@@ -220,6 +220,13 @@ class NavisAudioHandler extends BaseAudioHandler
   bool get _isDesktopRuntime => desktopRuntimeOverride ?? _isDesktopPlatform;
 
   /// Whether the latest seek request carries a trace callback (tests).
+  /// The registered lock-cache source of [songId] (tests assert it is the one
+  /// the player holds).
+  @visibleForTesting
+  // ignore: experimental_member_use, reason: as above.
+  LockCachingAudioSource? debugRegisteredLockCacheSource(String songId) =>
+      _lockCacheSourceOfSong(songId);
+
   @visibleForTesting
   bool get debugSeekTraceInstalled => _lastSeek?.onStage != null;
 
@@ -312,7 +319,8 @@ class NavisAudioHandler extends BaseAudioHandler
   Map<String, Object?>? _lastQueueFill;
 
   /// Diagnostics-only ring buffer of native transport events.
-  final PlaybackTransportTrace _transportTrace = PlaybackTransportTrace();
+  late final PlaybackTransportTrace _transportTrace =
+      _sourceResolver.transportTrace ?? PlaybackTransportTrace();
   ({ProcessingState state, bool playing, int? index})? _tracedPlayerState;
   // The player re-emits its index with every event; trace only changes (and
   // the first announcement after each source load).
@@ -477,6 +485,9 @@ class NavisAudioHandler extends BaseAudioHandler
   DateTime? _lastPositionEmitAt;
   _PendingSeek? _lastSeek;
   int _seekRevision = 0;
+  int? _quietStopLoadGeneration;
+  bool get _quietStopInProgress =>
+      _quietStopLoadGeneration == _activeLoadGeneration;
   bool _seekFailureBlocksRecovery = false;
   // Where the failed seek left playback; normal progress past it lifts the
   // block above.
@@ -508,6 +519,7 @@ class NavisAudioHandler extends BaseAudioHandler
   _lockCacheSources =
       // ignore: experimental_member_use, reason: as above.
       <String, ({String songId, LockCachingAudioSource source})>{};
+
   final Set<String> _lockCachingBypassedSongIds = <String>{};
   final List<Map<String, Object?>> _seekDiagnosticsEvents =
       <Map<String, Object?>>[];
@@ -522,6 +534,15 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Kept here, not in [MediaItem.extras], which audio_service publishes to
   /// the platform media session.
   final Map<String, Uri> _sidecarStreamUris = <String, Uri>{};
+
+  /// The current-to-next song pair whose next-song warm was last attempted.
+  String? _sidecarChainKey;
+
+  /// Only the failed pair waits before retrying; a skip can warm a new pair.
+  (String, DateTime)? _sidecarChainRetry;
+
+  /// The song whose lock-cache download the Android next-song warm started.
+  String? _lockCacheWarmSongId;
   final Map<String, String> _songIdentityAliases = <String, String>{};
   Timer? _remotePlaybackStallTimer;
   String? _remotePlaybackStallSongId;
@@ -712,6 +733,9 @@ class NavisAudioHandler extends BaseAudioHandler
   MediaItem? get currentMediaItem => _currentMediaItem;
 
   @override
+  Set<String> get rollingCacheProtectedSongIds => _rollingCacheKeepSongIds();
+
+  @override
   Stream<MediaItem?> get mediaItemStream => mediaItem;
 
   @override
@@ -897,8 +921,24 @@ class NavisAudioHandler extends BaseAudioHandler
       await _rollingCacheManager.pruneMissingFiles();
       await _rollingCacheManager.pruneMissingPermanentFiles();
       await _rollingCacheManager.cleanupOrphanedRollingFiles();
+      // Maintenance runs before restoration; saved rows are already in play order.
+      final saved = await _playQueueDao.getQueueItems();
+      final state = await _playQueueDao.getQueueState();
+      final keep = _rollingCacheKeepSongIds();
+      if (saved.isNotEmpty) {
+        final index = (state?.currentIndex ?? 0).clamp(0, saved.length - 1);
+        keep.add(_canonicalSongId(saved[index].id));
+        if (state?.repeatMode != schema.RepeatMode.one) {
+          if (index + 1 < saved.length) {
+            keep.add(_canonicalSongId(saved[index + 1].id));
+          } else if (state?.repeatMode == schema.RepeatMode.all) {
+            keep.add(_canonicalSongId(saved.first.id));
+          }
+        }
+      }
       await _rollingCacheManager.enforceBudget(
         maxBytes: _readRollingCacheBudgetBytes(),
+        keepSongIds: keep,
       );
     } on Object catch (error, stackTrace) {
       AppLogger.warning(
@@ -975,6 +1015,7 @@ class NavisAudioHandler extends BaseAudioHandler
       offsets.add(item == null ? null : prepared.length);
       if (item != null) prepared.add(item);
     }
+    _shareLockCacheSources(prepared);
     // The lane serialises queue work, but a restore outside it (Android Auto
     // resume) can replace the queue meanwhile; release nothing then.
     if (_queueItems.structureRevision != queueRevision ||
@@ -1667,6 +1708,7 @@ class NavisAudioHandler extends BaseAudioHandler
     List<SongsTableData?> rows, {
     OperationToken? token,
     void Function(int index)? onRetryLater,
+    bool replacesQueue = false,
   }) async {
     final prepared = <_PreparedQueueItem>[];
     final offsets = <int?>[];
@@ -1697,6 +1739,7 @@ class NavisAudioHandler extends BaseAudioHandler
       }
       token?.checkCancelled();
     }
+    _shareLockCacheSources(prepared, replacesQueue: replacesQueue);
     return (prepared: prepared, offsets: offsets);
   }
 
@@ -2212,11 +2255,12 @@ class NavisAudioHandler extends BaseAudioHandler
       if (!_isCurrentTransportIntent(transportGeneration)) return;
     }
 
-    if (_prematureTranscodeDeparture?.sourceReady == false) {
-      // The native source is the successor (or completed) until the reopen lands.
+    if (_quietStopInProgress ||
+        _prematureTranscodeDeparture?.sourceReady == false) {
+      // Hold playback until shutdown or the departed source's reopen finishes.
       _broadcastPlaybackState();
       _emitSnapshot();
-      _scheduleTransportPersistence(context: 'play during transcode recovery');
+      _scheduleTransportPersistence(context: 'play during recovery');
       return;
     }
 
@@ -2575,6 +2619,11 @@ class NavisAudioHandler extends BaseAudioHandler
           _pendingSeek = null;
           _broadcastPlaybackState();
           _emitSnapshot();
+        }
+        if (identical(_lastSeek, request) &&
+            _prematureTranscodeDeparture?.item.id == request.songId) {
+          _prematureTranscodeDeparture = null;
+          _captureTranscodeEndOccurrence(indexEvent: true);
         }
         _syncBridgeDownloadPriority();
       }
@@ -3262,6 +3311,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> _disposeHandler() async {
     _disposeHandlerStarted = true;
     cancelSeekPreview();
+    _cancelLockCacheWarm();
     _resumeLockCacheDownloads();
     _focusRetryTimer?.cancel();
     _networkRetryTimer?.cancel();

@@ -114,7 +114,12 @@ class RollingCacheManager {
     return _cacheDao.getPermanentlyCachedSongIds();
   }
 
-  Future<void> enforceBudget({required int maxBytes}) async {
+  /// Evicts the least recently used rolling entries until the total fits
+  /// [maxBytes], never those of [keepSongIds] (the playing and next songs).
+  Future<void> enforceBudget({
+    required int maxBytes,
+    Set<String> keepSongIds = const <String>{},
+  }) async {
     if (maxBytes <= 0) {
       return;
     }
@@ -132,6 +137,7 @@ class RollingCacheManager {
       if (totalBytes <= maxBytes) {
         break;
       }
+      if (keepSongIds.contains(entry.songId)) continue;
 
       actualBytesFreed += await _deleteCacheFileSet(entry.filePath);
       evictedIds.add(entry.songId);

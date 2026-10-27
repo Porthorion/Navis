@@ -135,6 +135,37 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Play during a final playback failure now resumes the same song after '
+        'shutdown, while a newer seek keeps its target and a later Pause stays '
+        'paused. Desktop cut recovery keeps the song and your latest seek '
+        'during queue fills, queued appends or a failed reopen. Removing the '
+        'cut song preserves Play/Pause for the remaining queue. Pausing a '
+        'failed reload lets failover select the next song paused, and a '
+        'rejected Fast Seeking bridge opens the original only once.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'On Android, Ogg/Opus transcodes can recover a mid-song connection '
+        'cut without reloading the song: Navis joins a continuation to the '
+        'audio already buffered.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Adding an album or several songs to a server playlist now works on '
+        'Navidrome 0.64, which silently ignored multi-song adds. Navis '
+        'verifies the result and reports songs that could not be added.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The next song now downloads as soon as the current one is '
+        'saved, so song changes and the first seeks after them start without '
+        'waiting on the network. Playback settings has a new "Prefetch the '
+        'next song on mobile data" switch (on by default). Failed warms no longer '
+        'delay unrelated songs, and refilling a deleted current file immediately '
+        're-arms the next download; startup keeps the saved current and next cache files. '
+        'Background downloads keep memory bounded on slow storage.',
+      ),
+      ChangelogEntry(
         'Desktop quick search keeps all its filter chips on one line.',
         type: ChangelogEntryType.fix,
       ),
@@ -149,10 +180,13 @@ const List<ChangelogVersion> changelogs = [
         'Playback keeps its place until you let go.',
       ),
       ChangelogEntry(
-        'Android: with Repeat All, a song no longer restarts just before its end. '
-        'Mixed downloaded and streamed queues stay protected too. Queue edits and '
-        'seeks at a repeat boundary keep playback running, including an append '
-        'that arrives before the native end pause.',
+        'Android: Repeat All no longer restarts streamed songs just before '
+        'they finish. Changing repeat mode, adding songs or removing another '
+        'streamed song at the end of a song keeps playback moving. Seeking '
+        'after the player pauses at a song’s end keeps the chosen position; '
+        'turning Repeat Off also releases that pause. Removing the current '
+        'song can still leave playback paused. Seeking or pressing Pause then '
+        'Play just as a song ends can still restart it or skip to the next song.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -235,6 +269,11 @@ const List<ChangelogVersion> changelogs = [
         'first update after 1.5.1; 1.5.0 users update to 1.5.1 manually or '
         'through their package manager.',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Linux package updates now say "Installing the update. This can take '
+        'a minute." while the package manager works, instead of a bare '
+        '"Applying update…".',
       ),
       ChangelogEntry(
         'Show the seek bar buffered line exactly: for Opus, Vorbis and FLAC '

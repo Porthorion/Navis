@@ -27,6 +27,12 @@ request starts over. Navis cancels downloads of songs the player has moved on
 from, which otherwise ran to completion and starved the current song on a slow
 link.
 
+`LockCachingAudioSource.prefetch()` starts (or joins) the whole-file download
+without creating a response, so no in-progress replay buffer holds the body; a
+later `request()` shares the same download. Navis warms the next song with it.
+`isDownloading` reports whether the whole-file download is running, which the
+warm uses to notice a download that died mid-body.
+
 `LockCachingAudioSource.downloadedBytes` exposes the current download's
 in-memory byte count. `downloadProgressStream` emits on every body chunk,
 including repeated whole-percent values for sub-percent or unknown-length
@@ -118,20 +124,98 @@ The matching platform interface serializes this source option. No HTTP timeout
 or HLS/DASH policy changes are made. `ProgressiveLoadRetryTest` supplies pure
 JVM framing fixtures using the existing `EqualizerDspTest` executable pattern.
 
-Android progressive HTTP repeat-one keeps the requested Dart loop mode but
-uses native repeat-off plus pause-at-end. The end-of-item PlayWhenReady reason
-(and an idempotent ENDED fallback) restarts the same queue occurrence at zero,
-preserving Play/Pause intent without publishing terminal completion. Its timeline
-window UID survives appends, inserts and moves while it remains current; restart
-uses its current index. Removal/replacement clears the paused boundary as well.
-A revision cancels pending restarts on transport, selection/source replacement
-or loop-mode changes.
-This prevents Media3 1.4.1 from preloading the same linear stream and silently
-rewinding the current period when the repeated request becomes seekable (#86).
-Local files/assets, HLS/DASH, radio's existing default-retry opt-out and all
-repeat-all behavior remain native; HTTP repeat-one loses gapless restart.
+Android progressive HTTP Repeat One and Repeat All playlists containing a
+progressive HTTP source keep the requested Dart loop mode but use native
+repeat-off. Pause-at-end applies to the current item for owned One and only
+the last item for owned All. The end-of-item PlayWhenReady reason (and an
+idempotent ENDED fallback) restarts the same occurrence for One or wraps to
+index zero for All, preserving Play/Pause intent without terminal completion.
+Each post captures its current timeline window UID, surviving appends, inserts
+and moves while current. Removing/replacing that occurrence cancels the old
+post; fresh ENDED recovery captures the new current UID. A revision cancels
+pending restarts on transport and selection/source replacement.
+
+Keeping native repeat Off prevents Media3 1.4.1 from preloading another
+occurrence of a linear stream and silently rewinding its current period when a
+later request becomes seekable (#86). File-only playlists, HLS/DASH and radio's
+existing default-retry opt-out retain native repeat; owned One loses its gapless
+restart and owned All loses the gapless queue wrap.
+
+Mode changes retain a captured boundary and apply the latest mode when it is
+consumed. An end-of-item reason also arms recovery when an app-thread mode
+change or root-playlist removal cleared the pause-policy UID before native
+PlayWhenReady became false. A current window UID is still required; an empty
+timeline publishes completion instead of capturing an invalid boundary.
+ENDED with Play requested and native playback paused shares that recovery. Native ownership is recomputed from current playlist tags
+before resuming, including removal of the last eligible stream elsewhere while
+the paused occurrence remains current. Removing the current occurrence can also
+recover an ENDED engine with a remaining stream, or a file-only Repeat All queue;
+the old post's UID is never reused for the fresh boundary. Paused queue edits
+refresh the policy snapshot; the legacy paused-ENDED rewind applies only without
+a retained boundary UID. With one retained, mode/queue edits can leave the engine
+ENDED or publish Off completion, and a later Play can advance to an appended
+song instead of replaying. An in-item seek re-arms pause policy after seeking. Off releases a non-last pause
+without restarting the song (advancing if already ENDED). On the last item it
+resumes the current position when native state is not ENDED, including the late
+end-after-scrub case that previously stayed paused. A truly ENDED engine publishes
+completion without re-arming. Stale ENDED callbacks cannot publish completion
+while Play is requested and native state has already moved on, including on
+file-only queues; late end reasons cannot re-arm a resumed boundary.
+
+Known limits: Pause/Play before the native boundary signal can advance under
+Repeat One, and a seek before a delayed end reason can still be overwritten by
+a restart at zero under Repeat One/All. Off now resumes that scrubbed last item
+without seeking when the engine is not ENDED. Removing a current Repeat One
+stream into any READY successor (streamed or local) can still require explicit
+Play, as on the original implementation. Play can itself be lost if it reuses a
+pending post and a second command removes the current occurrence before the post
+runs in the same main-looper turn. Owned Repeat All removal of the playing last
+song can start item 1 instead of item 0; this also predates these fixes. Existing
+app-visible state cannot distinguish the pre-delivery races from ordinary
+in-item Pause/Play or a fresh EOF after seeking.
 `ProgressiveRepeatTest` covers policy and restart decisions in the existing JVM
-harness. The pairwise Dart loop detector now also recognizes unknown-duration
+harness; `JustAudioRepeatBoundaryTest` exercises the real bridge's policy,
+playlist tag scan and posted action using the existing reflection/proxy JVM
+fixtures, with the posted callback driven directly instead of an Android Looper.
+`JustAudioRepeatCallbackTest` drives production scheduling, timeline and item
+transition listeners, distinct occurrence UIDs and ExoPlayer-style callback
+order. A host-only Handler queue in test sources records the actual posted
+runnables and executes their captured lambdas later. This exercises the post call,
+captured UID/revision, caller tails and completion suppression without changing
+production code. It does not run an Android Looper or native playback thread.
+The pairwise Dart loop detector now also recognizes unknown-duration
 plain-stream backwards jumps; tail/zero/buffering/ready fixtures cover middle
 and last items with and without offsets. Navis's existing offset handler and
 crossfade controller remain the sole Dart owners of offset reloads and fades.
+
+`LockCachingAudioSource.continuationUri` (with `onOggSplice`) opts an
+unknown-length Ogg/Opus download into a cut splice. When the body is cut or
+stalls, the source requests `continuationUri(floor(t) - 1)` and joins the new
+body into the same stream with `OggOpusSplicer` (`lib/src/ogg_opus_splicer.dart`):
+header pages dropped; serial, page sequence, granule and CRC rewritten;
+overlapped packets dropped. Repacking splits at packet boundaries to keep every
+page within 255 segments; durations that do not divide a second (including
+60/80/120 ms) are refused. Valid empty original pages pass through unchanged.
+A clean continuation EOF requires complete packets and an EOS page, including
+at an otherwise complete page boundary. Missing EOS refuses the continuation,
+deletes the partial file, and reports the original cut error and stack. An empty
+EOS page is preserved with the original serial and mapped granule. Mixed packet
+durations retain every needed packet before end trim. Packet ends use the
+original stream's decoded granule base; the final granule retains the trim. A cut after EOS cannot start a continuation. Pages ending
+mid-packet fall back instead of splicing. Each attempt resets its dropped count
+before connecting, so failed setup cannot report the previous attempt's drops.
+At most two continuations per fetch. Continuation connect and headers share
+a six-second deadline and race cancellation: this allows Navidrome startup
+while staying below Media3's eight-second loopback read timeout. Continuation
+body progress uses the normal configured `bodyProgressTimeout` (30 seconds by
+default). Fallback flushes the withheld original bytes before the original
+cut error and stack, unless rewritten audio has already been delivered: that
+prefix cannot be rolled back or followed by the discarded original partial page. Failure deletes
+the partial file. Cancel during pre-listen file I/O cannot publish a cache file
+or completion progress. Playlist removal/clear/replacement retain whole-file
+caching for plain and opted-in sources. Player `_dispose()` retains base range
+cleanup and cancels the whole-file download only for opted-in sources; public
+`dispose()` retains its base semantics. Cancellation disarms the six-second
+setup timer and emits no failed-splice trace. Null keeps the plain fetch path.
+`cancelDownload()` closes the HTTP client before awaiting subscription cancel.
+The Navis resolver enables this hook on Android only.

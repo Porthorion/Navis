@@ -1054,6 +1054,24 @@ class AppLocalizationsEn extends AppLocalizations {
       'Seeking ahead in a lossless song that is still downloading plays a high-quality compressed stream right away. Lossless returns on the next play.';
 
   @override
+  String get playbackSettingsPrefetchNextTitle =>
+      'Prefetch the next song on mobile data';
+
+  @override
+  String get playbackSettingsPrefetchNextSubtitle =>
+      'Download the next song ahead of time even on mobile data or a metered connection, so the song change is seamless.';
+
+  @override
+  String get playbackSettingsPrefetchNextOffTitle => 'Turn off prefetching?';
+
+  @override
+  String get playbackSettingsPrefetchNextOffMessage =>
+      'Playback will feel worse on mobile data: the next song starts slower, and seeking right after a song change may wait on the network.';
+
+  @override
+  String get playbackSettingsPrefetchNextOffConfirm => 'Turn off';
+
+  @override
   String get playbackSettingsGaplessTitle => 'Enable Gapless Playback';
 
   @override
@@ -4422,6 +4440,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get updateApplying => 'Applying update…';
+
+  @override
+  String get updateInstallingPackage =>
+      'Installing the update. This can take a minute.';
 
   @override
   String get updateNoWriteAccess =>

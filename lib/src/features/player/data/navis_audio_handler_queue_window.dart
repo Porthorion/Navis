@@ -95,6 +95,7 @@ extension _NavisQueueWindow on NavisAudioHandler {
 
   bool _shouldReleaseTail() {
     if (_deferredTail.isEmpty ||
+        _prematureTranscodeDeparture != null ||
         _radioStation != null ||
         _pendingLogicalQueueSongIds != null ||
         _isLoading ||
@@ -282,7 +283,8 @@ extension _NavisQueueWindow on NavisAudioHandler {
   }
 
   bool _shouldTrimPlayedSongs() {
-    if (_radioStation != null ||
+    if (_prematureTranscodeDeparture != null ||
+        _radioStation != null ||
         _pendingLogicalQueueSongIds != null ||
         _isLoading ||
         _isCrossfading ||

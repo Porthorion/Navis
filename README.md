@@ -97,6 +97,8 @@ Official downloads are served from Porthorion's Cloudflare R2 storage (`download
 ## Build from source
 
 You need Flutter 3.47.5+ (stable) and the toolchain for your platform: Android SDK, Linux desktop packages, or Visual Studio + Rust for Windows. Details are in the [development workflow](docs/development/development-workflow.md).
+The full quality gate additionally needs JDK 21, Android SDK 37 and GNU `timeout`
+for the Android host JVM fixtures.
 
 ```bash
 git clone https://github.com/Porthorion/Navis.git

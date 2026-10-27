@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-24
+Last updated: 2026-10-28
 
 ---
 
@@ -14,6 +14,267 @@ Last updated: 2026-10-24
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #109 (1.5.1 P6), Linux package install wait copy — 2026-10-28
+  (evidence: `update_dialog_test.dart` linuxDeb/linuxRpm apply cases failed first
+  with `Found 0 widgets with text "Installing the update. This can take a minute."`;
+  focused update dialog + changelog tests 39/39 pass; fresh review found no blockers).
+  Debian/RPM applying state shows the new localized copy; other modes keep
+  "Applying update…".
+- [ ] Issue #86 P1, recovery intent and fallback (triage 01–05, 15–18) —
+  implementation complete on `fix/recovery-intent`, 2026-10-26; integrated
+  runtime certification and `tool/check.sh` remain with the orchestrator.
+  Final quiet shutdown holds only its load generation: newer Play re-arms the
+  same occurrence, later Pause stays paused, and a newer queue plays normally.
+  Failed bridge recovery opens the original once, prefers a file completing
+  during reopen, and records the selected `recoveryPath`. An owned, unbuilt
+  original rebuild uses bounded failover; removal and selection retire it.
+  Failed-seek suppression uses the configured `healthyPlayback` distance while
+  real backend advancement keeps its separate failover accounting semantics.
+  Deterministic row-15 tests reproduce cuts during initial fill, deferred
+  release, trim and an uncaptured natural advance inside release. Recovery
+  pauses the successor immediately, retains metadata, waits for the lane,
+  rechecks occurrence/generation, and prevents another idle trim from overtaking
+  the reopen. A newer seek also retains its occurrence after a failed reopen
+  (row 16 reproduced a defect, rather than only a coverage gap).
+  Failing-first evidence: row 01 `Expected: <true>`, `Actual: <false>`;
+  row 02 `Expected: <3>`, `Actual: <2>`; row 03 `Expected: <4>`, `Actual: <5>`;
+  row 04 `Expected: 'original'`, `Actual: <null>`; row 05
+  `Expected: 'song-2'`, `Actual: 'song-1'`; rows 15/16
+  `Expected: 'song-1'`, `Actual: 'song-2'`. Deferred release/trim/capture-gap
+  tests also failed with `Expected: <2>`, `Actual: <1>`; the successor-silence
+  test failed with `Expected: null`, `Actual: 'song-2'`.
+  Bootstrap ran once. All 25 row-focused cases pass. Fourteen targeted mutations
+  were killed: intent re-arm, single fallback, failover cap, healthy interval,
+  unbuilt failure, newer-seek ownership/selection, source-ready Play, queue
+  neighbours, and the five row-15 pause/index/completion/idle-trim/capture guards.
+  Scoped analysis compared
+  with the item-14 base reports the same 33 pre-existing infos, no added
+  findings and no errors/warnings. Final navigation, handler helper, playback
+  lane and transport-trace files passed together: `08:58 +956: All tests passed!`
+  (foreground, 6 GiB cap, `--concurrency 1`; zero OOM kills).
+  Architecture and the 1.5.1 changelog updated; item-14 `oggSplice` event fields
+  preserved. No emulator, playback harness, full gate, push, merge or rebase run.
+  Review r2, 2026-10-27: queued appends preserve an already classified cut;
+  a current seek reloads its failed source at its newer target after shutdown;
+  Pause preserves ordinary unbuilt recovery ownership and lands failover paused.
+  Each finding has a committed failing-first regression: append
+  `Expected: 'song-1' / Actual: 'song-2'`, current seek
+  `Expected: 'completed' / Actual: 'failed'` (seek, Play and Pause), and paused
+  failover `Expected: 'song-2' / Actual: 'song-1'`.
+  Six mutations were killed: post-classification invalidation, missing seek
+  reload, departed-only revision capture, ordinary transport rejection, missing
+  shutdown wait, and the new-seek eligibility check. Cold-load retry/deadline
+  controls keep their existing bounds; the shutdown wait has a separate
+  ordinary-recovery regression.
+  After restricting reload to a fresh seek that was not waiting on a load,
+  39 P1/retry/deadline/intent cases pass, as do all nine final reviewer probes.
+  Scoped analysis reports the same 30 existing infos for the four checked files,
+  no added findings and no errors/warnings. Final navigation, handler helper,
+  playback lane and transport-trace suites passed together:
+  `09:03 +962: All tests passed!` (foreground, 4 GiB cap, concurrency 1;
+  zero OOM kills). The full gate and native runtime certification remain with
+  the orchestrator.
+  Review r3, 2026-10-27: removing a classified cut releases recovery's native
+  pause on the surviving queue after acknowledgement, with the latest intent
+  and only while the captured player/load/seek remain owned. Shared cleanup
+  covers every recovery return; newer work and quiet stops keep ownership.
+  The committed red regression reported `Expected: <true> / Actual: <false>`
+  in four cases, with both Pause controls passing. All six cases now pass,
+  including delayed acknowledgement and unchanged source-load counts.
+  Three mutations were killed: disabled release, ignored latest intent, and
+  omitted acknowledgement wait. P1 rows plus the r1/r2 reviewer copies pass:
+  `00:53 +130: All tests passed!`. The complete four-file P1 set passes:
+  `08:58 +968: All tests passed!` (foreground, 4 GiB cap, concurrency 1;
+  zero OOM kills). Scoped analysis retains the same 30 infos, no added findings
+  or errors/warnings. Item-14 trace fields remain intact; the full gate and
+  native/audible certification remain with the orchestrator.
+- [ ] Issue #86, P2 Android repeat-boundary policy (triage 06, 07, 09) —
+  R5 implementation on `fix/android-repeat-boundary`, 2026-10-27; R4 review found
+  no blockers. Orchestrator full quality gate, hosted CI, Linux smoke and Android
+  runtime acceptance remain pending. R1/R2 repaired delivered-pause policy changes,
+  app-thread-first delivery and post-scrub re-arming. R3 captures the current UID
+  for fresh recovery after current-occurrence removal, restores paused policy
+  refresh (`|| !playRequested`, which was not redundant), and resumes an Off
+  boundary on the last item when native state is not ENDED. A truly ENDED Off
+  engine still publishes completion. F1 (R5 review): that
+  completion now restores native `playWhenReady` to the requested play intent
+  (a user pause stays paused), so a seek restart after it plays; bridge suites are
+  61 tests. Current-removal d1/d1b, paused-removal d3,
+  Off-after-scrub d2 and U6/C4/K4/L3 gap fixtures are committed in the existing
+  callback suite. First failures on `c167f8783`: d1/d3
+  `expected:<[0@0]> but was:<[]>`, d2 `expected:<1> but was:<0>`, and the pure
+  fixture `OFF must resume the last item when the engine is not ENDED`.
+  The original narrow R2 implementation sweep killed 18/22 adapted bridge
+  mutations. The broader reviewer R2 matrix had 31 failing/49 variants and 18
+  survivors (three rows were candidate fixes), plus 17/17 pure mutations killed;
+  that evidence did not establish coverage of every callback/owner-clear guard.
+  R3's adapted fast sweep kills 38/49 bridge mutations: the 46 non-fix
+  reviewer variants plus inverse mutations of the three fixes. All seven target
+  mutations (U6/C4/K4/L3 and the inverse fixes) die; 17/17 pure mutations die too.
+  The eleven R3 bridge survivors included two observable gaps, S4 (late end
+  after Pause) and K3 (Pause/scrub/Play loses the scrub), as well as redundant
+  predicates and error/load cleanup. R4 commits the reviewer's S4/K3 probes and
+  the Off-completion flag-reset probe. R4 replaced the missing-Handler exception
+  seam with an inert default-returning Handler stub, making scheduling return
+  normally and exercising callback tails and completed-state assertions.
+  A failing-first seam test reported `expected:<2> but was:<1>` on R3. R5 replaces
+  inferred posts with a host-only Handler queue that captures actual runnables
+  and executes their lambdas, including captured UID/revision. Its test first
+  failed with `capture the Runnable actually passed to Handler.post` on R4.
+  Both post mutants now die: deleting `handler.post` fails 29 cases and capturing
+  `revision + 1` fails 23, including the new direct Runnable test in each.
+  R5 passes all 72 app JVM tests (59 repeat bridge cases) under the 6 GiB cap;
+  the four R4 target mutants remain killed. Real Looper scheduling and native
+  timing still require runtime evidence.
+  R4's four target bridge mutants all die: K3, S4, the Off-completion reset and
+  scheduling's success return (the last now fails four completion assertions).
+  Foreground 6 GiB-capped R4 checks pass: 58 repeat bridge tests (47 callback
+  cases and 11 boundary/scan cases), five related recovery/error tests, and
+  11 changelog/release-note tests. Dart formatting and shell syntax pass too.
+  R3 also passed 97 repeat decisions, 13 retry and equalizer fixtures, and
+  11 changelog/release-note tests.
+  Dart formatting, shell syntax, CI YAML wiring and the runner contract checks
+  pass. The bounded runner and its hermetic contract are wired into `check.sh`
+  immediately after the pure fixtures and into the new
+  required CI `native` job. The runner uses a ten-minute timeout, one worker,
+  bounded JVM memory and no persistent daemon, APK install or device. R4 pins
+  all actions in the native job by full SHA and requires nonzero executed-test
+  counts in both named suites from Gradle XML. R5's contract uses only Python's
+  stdlib to check the maintained workflow layout and fails closed on unsupported
+  forms. Eighteen committed variants reject suppressed/removed/commented CI and
+  check.sh steps, conditional skips and step/job error suppression, including
+  the contract's own step. `python3 -S` proves no site-package dependency.
+  The old contract accepted all eight negative wiring variants (`contract accepted 8/8 broken gates`); R4 rejects them all.
+  R3 execution of the supplied model reports one failing seed in 8,000
+  (4927): removing a current Repeat One stream into a READY successor can still
+  require explicit Play, whether streamed or local, as on base. A Play reusing a
+  pending post can itself be lost if the current occurrence is removed before
+  the post runs in the same main-looper turn. Owned Repeat All removal of the
+  playing last song can start item 1 instead of item 0 (also on base). Paused
+  queue edits preserve the legacy ENDED rewind only without a retained boundary
+  UID; with one retained they can complete under Off and advance on the next Play.
+  Pre-delivery Pause/Play can advance under Repeat One,
+  and a pre-delivery seek can still restart under One/All; the Off form now
+  resumes the current position when not ENDED. These limits are documented,
+  alongside the narrower non-current last-stream-removal continuation guarantee.
+  The fixture records actual Handler posts and runs their captured lambdas after
+  the callback returns, without an Android Looper or native playback thread.
+  No emulator, harness, VM, analyzer or `./tool/check.sh` ran here; the orchestrator owns runtime/full-gate
+  checks. AI implementation/verification: Codex gpt-6.1-sol; local commits only,
+  no push, PR or Fable model use. The legacy empty-playlist fallback is unchanged.
+- [ ] Issue #86, item 14 Android Ogg/Opus cut splice — `fix/ogg-cut-splice`:
+  continues unknown-length Android Opus transcodes through the existing
+  `LockCachingAudioSource` and `OggOpusSplicer`. Round 2 fixes pre-listen cancel
+  publication, disposal/connect cancellation, original-error/tail fallback,
+  unsupported frame durations, the 255-segment page limit and incomplete
+  continuation EOF publication. Round 2b allows six seconds for continuation
+  setup (connect plus headers) below Media3's eight-second loopback read
+  timeout; body progress uses the normal configured source deadline (30 seconds
+  by default). Rewritten bytes already delivered cannot be rolled back after
+  a later failure.
+  Test-first cancel reproduction: `Expected: false`, `Actual: <true>`,
+  `a cancelled download must not publish a cache file`.
+  Round 2b regressions failed first for 2.5-second startup and 1.5-second body
+  gaps (`Expected: null`, `Actual: HttpException`) and observed the old setup
+  deadline at 1.025 seconds. Both delay cases now splice; exceeding six seconds
+  preserves the original cut error object and withheld bytes. Focused splicer,
+  lock-cache, resolver suites: `00:14 +149: All tests passed!`; harness
+  self-checks: `Ran 51 tests`, `OK` (all foreground, 6 GiB cap). Prior round 2
+  mutation recheck: splicer 26/26 killed; wiring 15/17 killed. Round 3 closes the
+  observable mid-continuation cancel trace gap previously classified as a
+  redundant guard; the old empty-page refusal mutation was retired because
+  valid empty pages pass through.
+  Round 3 restores whole-file caching after remove/clear/replace for plain and
+  opted-in sources, and after player disposal for plain sources. Only opted-in
+  sources are cancelled by the private player-disposal hook. Cancellation now
+  disarms the six-second setup timer; a fake setup clock replaces the wall-time
+  deadline assertion. Data-less EOS pages retain the delivered granule and EOS
+  without duplicating a marker already delivered. Missing EOS at a complete
+  page boundary refuses, deletes the partial file and preserves the original
+  error and stack. Test-first removal evidence: `Expected: empty`,
+  `Actual: [_Exception:Exception: Download cancelled]`; EOS evidence:
+  `Expected: an object with length of <2>`, `Which: has length of <1>`; setup
+  timer evidence: `Expected: <0>`, `Actual: <1>`. Final focused splicer,
+  lock-cache and resolver run: `00:14 +161: All tests passed!` (6 GiB cap, no OOM
+  kills). Targeted review mutants N4, M6, M2b, M3, W1 and S10b are killed (6/6);
+  the full 71-mutant review set was not rerun. Changed Dart formatting and
+  `git diff --check` pass.
+  Round 4 preserves mixed-duration packets before end trim, including when the
+  continuation's first audio page is EOS, by calibrating the decoded granule
+  base from the original stream. Cut-after-EOS falls back without requesting or
+  appending continuation audio; failed attempt 2 resets its own drop count.
+  First failing trim lines: `Expected: [[144, 1], [152, 2]]`,
+  `Actual: [[152, 2]]`; telemetry: `Expected: <0>`, `Actual: <55>`.
+  New assertions cover mapped/serial-rewritten empty EOS, emission guards,
+  paused plain-player disposal and pre-listen sink/state cleanup. Focused
+  splicer, lock-cache and resolver suites: `00:14 +170: All tests passed!`;
+  regenerated review seeds 9145, 9517 and 10451 all preserve every packet,
+  final granules, CRCs and a single EOS. The mid-packet-page fallback limit is
+  now explicit in the architecture section. Targeted D3, D10, D11, D12, D16
+  and D20 mutations are killed (6/7 total). D18 survives because the shared
+  `_startFetch` error cleanup also clears `_downloading`; public state and sink
+  closure are explicitly asserted. The full review mutation set was not rerun.
+  Harness gates now require a base reload, use a cut-cell frozen median,
+  enforce decoded length parity within 20 ms, and reserve `cut5` for Android.
+  Remaining: final Android base-vs-fix runtime evidence and `check.sh` from the
+  coordinator; both are explicitly prohibited for this implementation task
+  while its independently owned harness run is active.
+- [ ] Issue #86, item 13b Android next-song warm — `fix/android-next-warm`: at
+  current-song completion `_syncSidecarChain` starts the next song's own
+  lock-cache source with the vendored `prefetch()` (no replay buffer); one source
+  per cache file across rebuilds and duplicates, paused during a live range fetch,
+  cancelled on dispose, radio, gate close and queue edits; Android now gates the
+  `repeat` next-song metrics. Remaining: Android harness proof at the final HEAD.
+- [ ] Issue #86, item 13 prefetch check and tune — `fix/prefetch-13`: desktop
+  next-song warm chained on the sidecar downloader, shared next-song helper
+  (Repeat One/All, shuffle) for the Android stale/priority logic, eviction keeps
+  current and next song, "Prefetch the next song on mobile data" setting (on by
+  default, confirmation when turned off, schema 106→107), and `repeat/chain_end`
+  harness metrics. Round 3: pair-scoped retries, missing-file refill and saved-queue
+  startup eviction protection; 17 focused handler tests pass, including three
+  failures before these fixes and a tick-only retry that fails on round-1 code.
+  Linux isolated-fixture calibration (`build/harness/20261025T065152Z`) proves
+  next-song warming: base/fix minimum lead 0.02/14.62 s, bytes
+  ≤540,672/3,454,317, seek rate 0/1; no recovery or anomaly entries in
+  `chain_end`. The calibration exposed a healthy wrap hidden by a loading
+  cursor; a self-check reproduces it and the oracle now compares ready samples.
+  Gates: 6 s / 1 MiB / 0.75. Final `./tool/check.sh` passed (9,472 tests,
+  one skipped); `python3 tool/playback_harness_test.py` passed 30 tests.
+  Runtime control used the authenticated queue, repeat, seek and status APIs
+  against clean Linux fixture profiles; both `chain_end` reports have no
+  recovery or anomaly entries. Audio was muted; no new visible UI was changed.
+  Android evidence and the setting dialog screenshots remain with the coordinator.
+  Round 4: clear the warm pair and retry state before refilling a deleted
+  current sidecar. With prefetch enabled and a warm held in flight, the regression
+  fails on `c69a81bf5` (missing the second song-1 request) and verifies immediate
+  re-arming after refill. All 17 focused prefetch tests pass. Round-4 gates:
+  `11:29 +9472 ~1: All tests passed!`, `[check] All checks passed.` (one run);
+  `python3 tool/playback_harness_test.py`: 30 tests, OK.
+  Runtime A/B belongs to the separate runner; not run
+  in this implementation round. Legacy shuffle null-rank startup protection
+  (P3) is deferred because maintenance reads song-only rows, not saved ranks.
+  Round 5: apply file backpressure to the sidecar; the new regression first
+  measured 4,194,304 queued bytes against a 65,536-byte chunk budget. The
+  37-test downloader suite passes. Seek oracles now share a bounded,
+  occurrence/offset-aware native clock-blip check; persistent and slow resets
+  remain failures. R4 seek_back/seek_burst trace replay reproduced the false
+  kinds before the repair. Unchanged-code A/A (`build/harness/20261025T103346Z`)
+  passes seek, crossfade (1.70/1.69 s frozen median) and stress-drag
+  (50.878/83.012 ms max frame gap). Its memory slope fails at 16.569/-1.868
+  MiB/drag while post-GC resident PSS improves to 340.435/438.669 MiB:
+  captured swap/file-backed residency establishes measurement noise, not
+  next-song traffic in the single-song soak. Performance budgets stay unchanged.
+  Final quality gate (one run): `10:20 +9472 ~1 -1`; the sidecar-disabled
+  300-song paused-next unshuffle invariant fails, then passes in isolation.
+  All earlier check stages pass; the full-suite gate remains failed.
+  `python3 tool/playback_harness_test.py`: 34 tests, OK. The 17 focused
+  prefetch handler tests also pass. Independent review remains with the coordinator.
+  The first committed five-scenario run (`build/harness/20261025T111609Z`)
+  passes seek and all prefetch-readiness gates (14.89 s / 3,454,317 bytes / 1).
+  A native zero-clock blip at 294.4 s also fools the offset-repeat driver
+  into marking an early wrap. Three more failing-first assertions cover
+  offset/plain repeat drivers and repeat-fill counting; wrap candidates now
+  use the shared blip confirmation. All 37 harness self-checks pass.
 - [x] Playback runtime harness — 2026-10-25: `tool/playback_harness.py` (list, map, ab)
   on the `tool/live_seek_stress.py` engine; diagnostics `queue-edit`, `quality`,
   `queue {shuffle,startIndex}`, `rawSeekBack` and a no-op-unless-diagnostics

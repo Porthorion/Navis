@@ -215,6 +215,9 @@ class RollingCacheSidecarDownloader {
                 );
               }
               sink.add(chunk);
+              // Do not queue the response in memory while storage falls behind.
+              await sink.flush();
+              if (!_isCurrent(generation)) break;
               received += chunk.length;
               _activeReceivedBytes = received;
               if (retries > 0 && received - retryResetBytes >= 256 * 1024) {

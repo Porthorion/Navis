@@ -3791,7 +3791,9 @@ Before starting any download, `UpdateService.canApplyUpdate(mode)` checks for
 user-writable. Unknown package owners always return false. Missing elevation
 shows the package-manager instructions. Exit 126 returns the dialog to confirm
 silently; exit 127, or 11 (the root script found no `apt-get`/`dnf`), shows the
-package-manager instructions. Installer stderr is
+package-manager instructions. While the privileged installer runs, the
+dialog reads "Installing the update. This can take a minute." for Debian/RPM modes
+(other desktop modes keep "Applying update…"). Installer stderr is
 logged before mapping these codes, since commands inside the root script can
 also return 126/127. A root-side integrity mismatch keeps Retry visible so the
 artifact can be downloaded and verified again; other installer failures show
@@ -4054,6 +4056,52 @@ queue is still loading, the Play waits and restarts recovery once that load
 completes; only an error-free event that is not idle clears the failure. Song and station state remain buffering while waiting, preserving OS
 transport controls.
 
+On Android, a cut Opus transcode that the lock-cache download is receiving
+(an unknown-length `OggS` body) is spliced instead of failing. The vendored
+`LockCachingAudioSource` takes a `continuationUri` callback; the resolver sets
+it only on Android for an Opus transcode on a server with `timeOffset` support,
+using the same URI builder as the offset stream. On an origin error or a body-progress
+timeout the source requests `timeOffset = floor((lastGranule - preSkip)/48000) - 1`
+(one second of decoder pre-roll) and feeds that body through `OggOpusSplicer`
+into the same `.part` and client fan-out: it forwards only complete pages, drops
+the continuation's OpusHead/OpusTags pages, rewrites serial, page sequence,
+granule and CRC, and drops packets that end at or before the delivered granule.
+A successful splice gives the player one stream without a song reload; a short
+buffer can still rebuffer. Repacking splits at packet boundaries to respect
+Ogg's 255-segment page limit. Packet durations must divide a whole second
+exactly: 60/80/120 ms layouts are refused rather than overlapped. A last delivered
+page ending mid-packet cannot continue and falls back to the original error
+path; this can occur with larger page sizes/high bitrates. End trimming changes
+only the final granule, preserving shorter packets before the trimmed tail.
+A cut after EOS never requests another continuation.
+At most two continuations per fetch. Playlist removal, clearing and replacement
+keep whole-file caching for both plain and opted-in sources. Player disposal
+cancels opted-in splicing sources; plain sources retain the base whole-file
+caching semantics. Range requests are cancelled in either case. Explicit
+cancellation races connect and headers, disarms the setup timer, and produces
+no failed-splice trace. Each attempt resets its dropped-packet count before
+connecting, including failed setup attempts. Continuation connect plus headers share a six-second
+deadline, allowing measured Navidrome
+startup while staying below Media3's eight-second loopback read timeout.
+Continuation body progress uses the source's normal `bodyProgressTimeout`
+(30 seconds by default, honoring shorter configured deadlines). A clean
+continuation EOF must include complete packets and an EOS page, even when HTTP
+closes cleanly at a page boundary; otherwise it refuses, deletes the partial
+file, and reports the original cut error and stack. A data-less EOS page is
+rewritten with the delivered granule; an EOS already delivered is not repeated.
+A cut before the first audio page, a header mismatch or an unplaceable packet
+uses the plain failure cleanup (`.part` deleted). Until rewritten audio has
+been delivered, fallback forwards the withheld original tail before surfacing
+the original cut's error object and stack. Once rewritten audio is delivered,
+that prefix cannot be rolled back or followed by the original partial page;
+a later failure keeps the delivered prefix and still surfaces the original
+cut error. Cancellation during pre-listen file I/O discards the partial file
+and never publishes progress 1.0. Media3 never checks serial or
+sequence after the first headers, which is why the splice is a same-stream
+rewrite and not a chained stream. Each non-cancelled attempt reports an
+`oggSplice` transport trace event. Other formats, known-length responses and desktop (mpv reads the
+origin directly) keep exact-position recovery.
+
 On desktop, a native auto-advance (including Repeat One) or final-item
 completion can hide a cut transcode as a clean EOF. Navis compares the departed
 occurrence's last backend position with its authoritative `MediaItem.duration`.
@@ -4068,10 +4116,19 @@ source occurrence, its source metadata and last backend position. Artwork
 refreshes can replace `MediaItem` copies without changing that occurrence;
 duplicated songs remain distinct native sources. Queue edits, replacements and
 explicit navigation invalidate the capture, including delayed discontinuities
-whose previous backend event predates the edit. Detection requires the queue
-lane to be idle; a cut during background tail release, trim or fill keeps normal
-EOF behavior. Tail fill/release can also make the index listener return before
-capturing the occurrence, leaving a later departure unclassified.
+whose previous backend event predates the edit. A cut during queue tail release,
+trim or fill retains the source occurrence and departure position while that
+lane finishes. Recovery then rechecks the source identity, load generation
+and seek ownership before reopening. An append that preserves the classified
+occurrence does not cancel recovery; an edit or selection that retired it
+cannot reopen it. When cancellation retires recovery, shared cleanup waits for
+its native pause acknowledgement and releases the pause on the surviving source
+only while its player, load and seek ownership remain current. The latest Pause
+keeps it paused; newer work and a quietly stopped failed source keep ownership.
+Metadata stays with the departed occurrence throughout the wait. Native source
+tags supply occurrence metadata when a background mutation temporarily leads the
+Dart mirror; completion is still classified while that mismatch suppresses ordinary
+player events. New background releases and trims wait for the reopen.
 On classification the native player pauses before source resolution, and the
 departed occurrence keeps metadata authority and its existing scrobble/history
 session. Successor index events cannot publish a new session, Now Playing or
@@ -4087,9 +4144,11 @@ honours the latest intent. Once its source is ready, Play resumes it normally
 while seek settlement runs.
 A newer seek or skip takes over from the reopen; if a seek arrives while the
 departed occurrence is resolving, that occurrence loads before the newer seek
-applies. A Pause only changes the intent the reopen lands with. A failed or unbuilt reopen retains failover ownership after deferred
-Play/Pause commands, using the latest explicit play intent. It uses the existing
-bounded silent failover; a failed final song stops quietly until Play reloads it.
+applies. If the older reopen fails, the newer seek retains the departed
+occurrence until its own source is ready. A Pause only changes the intent the
+reopen lands with. A failed or unbuilt reopen retains failover ownership after
+deferred Play/Pause commands, using the latest explicit play intent. It uses
+the existing bounded silent failover; a failed final song stops quietly until Play reloads it.
 If native loading already replaced the playlist with the failed song alone,
 recovery keeps that song materialised and defers its original neighbours.
 The logical order and current index therefore still select the failed occurrence;
@@ -4492,11 +4551,51 @@ Cache & Storage does not look idle before registration. Desktop partial-byte
 diagnostics read the active sidecar attempt's received byte count, including
 its generation-specific partial write. A generation-scoped terminal callback
 clears activity on success, cancellation, or failure; an older attempt finishing
-cleanup cannot clear a newer attempt's activity. Every desktop source is
+cleanup cannot clear a newer attempt's activity. The response waits for the file
+writer between chunks, so slow storage backpressures HTTP instead of queuing
+audio in memory. Every desktop source is
 a direct stream, so the resolver attaches the sidecar path even when a caller
 asks for no lock caching (seek recovery, crossfade decks, songs whose
 lock-cached start failed); otherwise a recovery reload cancelled the download
 already running for the song.
+
+**Next-song warm.** Once the current song is on disk (its sidecar or lock-cache
+download completed, or it plays from a permanent or rolling file),
+`_syncSidecarChain` starts the song that plays next: on desktop with the single
+sidecar downloader, on Android with `prefetch()` on the next song's existing
+`LockCachingAudioSource` (no response, so no replay buffer; ExoPlayer's later
+request joins the running download, `_lockCacheWarmSongId`; one source per cache
+file: a rebuilt queue reuses the registered source (`_runningLockCacheSource`), a
+first entry per file keeps it and a repeat of the song, in the batch or already in the
+player, gets the plain non-downloading stream form (`_shareLockCacheSources`; one
+source instance never sits at two playlist positions) and the
+registry holds the source the player holds once a batch is applied; the warm pauses while the current song's Fast Seeking
+range fetch is live; no source, such as a downloaded, fully cached or
+deferred-tail song, is no warm). Its
+completed file is available to normal cache-first resolution and seek recovery.
+`_rollingCacheNextSongId`
+defines "next" for this and for the Android stale-download and priority logic:
+the logical (shuffled) play order, the current song under Repeat One (nothing
+to warm), and the first song when Repeat All wraps. The warm runs at most once
+per current-to-next pair (a warm that ended without a file is retried after
+`sidecarChainRetryDelay` for that pair only), is never restarted by re-publishing
+the finished current song while its file still exists. Refilling a deleted
+current file clears the pair and retry state before cancelling its warm, so
+the warm restarts immediately after the refill. A warm is cancelled when a
+skip, queue edit or shuffle makes it
+neither current nor next or when the gate closes (setting turned off, link
+cellular or metered, offline); when the warmed song becomes current
+`start` sees the same song and path and continues the download. A next song
+that is already a permanent or rolling file, a radio station, a missing stream
+URI and the deferred queue tail do nothing. `PlaybackRuntimeSettings
+.nextSongPrefetchAllowed` gates it: the **Prefetch the next song on mobile
+data** setting (Playback, on by default, `app_settings.prefetch_next_on_mobile_data`,
+schema 107) allows it on cellular or metered connections (`networkTypeProvider`,
+native metered signal); turning it off asks for confirmation. The current song
+is unaffected. `RollingCacheManager.enforceBudget(keepSongIds:)` never evicts
+the current or next song, including when the budget is lowered in Cache &
+Storage (`rollingCacheProtectedSongIds`). Startup maintenance reads the saved
+queue in play order to protect its current and next song before restoration.
 
 On Linux and Windows, **Fast Seeking** (on by default) can bridge a remote
 lossless original with an Opus 256 kbps stream opened at the requested
@@ -4519,8 +4618,15 @@ release the pause gate. Diagnostics expose `fastSeekBridge` (`format`,
 `offsetMs`) and `sidecar` (`paused`, `bytesPerSecond`) without stream URLs.
 If a remote recovery bridge reopen fails, recovery checks again for a completed
 original before rebuilding the lossless stream at the song position without an
-offset or bridge metadata. Only a failed original recovery proceeds to the
-existing silent song failover.
+offset or bridge metadata. Remote bridge recovery gives that fallback sole
+ownership of the original load, avoiding an additional restoration open. Its
+request path and the `remote_retry.recoveryPath` diagnostic identify
+`completedFile` or `original`, rather than the rejected bridge. Only a failed
+original recovery proceeds to the existing silent song failover. An unbuilt
+original rebuild also fails over when it still owns the failed queued song.
+Play/Pause preserve that request's failover ownership, and Pause lands on the
+next playable song paused. Newer seeks, selections and a removed occurrence
+retire the request.
 
 libmpv therefore opens the credential-bearing `stream.view` URL (and radio
 stream URLs) itself. Its built-in ytdl hook would retry any http(s) URL that
@@ -4601,9 +4707,12 @@ the current index for Repeat One, or index zero at the last item for Repeat All.
 `STATE_ENDED` is an idempotent fallback and does not publish `completed` during
 an owned repeat. A command revision consumes each boundary once and invalidates
 pending work on Pause (even if native playback already paused at the boundary),
-Stop/disposal, seek/selection, playlist replacement, item transition or loop
-mode change. The boundary tracks the timeline window UID of the queue occurrence:
-appends, inserts and moves preserve it while that occurrence remains current.
+Stop/disposal, seek/selection, playlist replacement or item transition.
+Loop-mode changes retain an already owned pause and apply the latest requested
+mode when consuming it. Each scheduled action captures the current timeline
+window UID; the retained pause-policy UID only signals a former owned pause.
+Appends, inserts and moves preserve the captured UID while its occurrence
+remains current.
 Repeat One restarts at its current index; Repeat All checks again that it is
 still last before wrapping. If an append or move makes the paused boundary
 non-last before the posted callback runs, the same guarded decision resumes
@@ -4613,14 +4722,59 @@ now non-last boundary rather than rejecting it on the new last-item policy.
 If native playback has already reached `STATE_ENDED`, the guarded action seeks
 to the newly appended next item before resuming; setting PlayWhenReady alone
 cannot leave ENDED. Timeline changes and the ENDED callback share this recovery.
-Boundary ownership is captured when scheduling, allowing that pause to be released even
-if timeline updates change current eligibility. A seek during a pending boundary
-consumes the old restart and resumes at the requested position for both modes,
-only while Play remains requested. Removing or replacing that occurrence cancels
-both the pending restart and the paused boundary retained for explicit Play. Playback
-resumes only while Play is still requested. Item/timeline changes and source
-replacement re-evaluate eligibility and the last-item pause policy, so an append
-while playing enables auto-advance and a removal can make the current item last.
+The UID of the occurrence whose end-pause was enabled is retained while native
+playback is paused. An app-thread mode change or root-playlist removal can
+instead arrive while `getPlayWhenReady()` still reports true, clearing that
+policy snapshot before the native pause is delivered. The end-of-item reason
+therefore arms a valid current boundary independently of eligibility; ENDED with
+Play requested but native PlayWhenReady false also schedules recovery. An empty
+timeline has no current UID and still publishes completion. Both orders release
+the obsolete pause after a mode change or removal of the last eligible stream
+elsewhere in the playlist, while the paused occurrence remains current. A post
+captured for an old UID cannot restart its replacement. If the current occurrence
+is removed while the engine remains ENDED, recovery captures the new current UID
+instead of adopting the removed occurrence's stale pause-policy UID. This lets a
+remaining streamed item restart, or Repeat All wrap a remaining file-only queue.
+Before consumption, native repeat and pause-at-end policy are recomputed from
+the current playlist. Switching Off resumes a non-last boundary (or advances to
+its successor if already ENDED). At the last item, Off resumes without seeking
+when the engine is not ENDED, including after a scrub followed by a late end
+reason; it publishes completion only when the engine is truly ENDED, without
+scheduling another boundary. A stale ENDED listener callback while Play
+is requested and the engine is no longer ENDED does not publish `completed`,
+including on file-only queues. Late end reasons after resume cannot re-arm it.
+
+A seek after a boundary has been captured consumes the old restart and resumes
+at the requested position for both modes, only while Play remains requested.
+An ordinary in-item seek re-evaluates loop policy after seeking, so it re-arms
+the pause-policy UID even without a media-item transition or PlayWhenReady
+change. Removing or replacing a captured boundary occurrence cancels both the
+post and the paused boundary retained for explicit Play. A Repeat One removal
+that leaves any successor already READY, streamed or local, can still need
+explicit Play; no fresh ENDED recovery is available in that case. This also
+occurs on the original implementation. An explicit Play that reuses a pending
+post can itself be lost if the current occurrence is removed before that post
+runs: two commands in one main-looper turn leave the READY engine paused.
+Under owned Repeat All, removing the playing last song can start item 1 rather
+than item 0: Media3 selects item 0 and reports ENDED, which the bridge interprets
+as item 0 ending. This also predates the boundary fixes.
+
+Paused queue edits refresh the pause-policy snapshot. The legacy paused-ENDED
+rewind still applies when no boundary UID is retained; with a retained boundary,
+mode and queue changes can instead leave the engine ENDED, publish completion
+under Off, and make the next Play advance to an appended song rather than replay.
+Item/timeline changes and source replacement re-evaluate
+eligibility and the last-item pause policy, so an append while playing enables auto-advance and removal can make
+the current item last.
+
+Two pre-delivery races remain: Pause then Play before any native boundary signal
+can resume into the next song under Repeat One, and a seek made before a delayed
+end reason can be overwritten by a restart at zero under Repeat One/All. The Off
+form previously left the last item paused; it now resumes its current position
+when native state is not ENDED, rather than restarting or staying paused. The
+app-visible state does not distinguish the former from an ordinary in-item Pause/Play, or the latter
+from a fresh EOF after seeking. These cases need native signal identity/timing
+rather than treating every armed pause policy as an already reached boundary.
 
 The native tail event followed by zero preserves just_audio's existing
 same-index `autoAdvance` event. Its pairwise detector checks a backwards jump
@@ -5005,13 +5159,22 @@ inserted behind the old one and the old one removed (never the current song),
 in FIFO order with user edits, so a later Previous, wrap or crossfade starts it
 at 0. Landing or handing over onto an entry that beat its repair reopens it from
 the start, and a crossfade is not started into one. If the final pause or stop times out, the player
-is replaced through the timeout-recovery path so Play reloads on a fresh one. Native timeout recovery and failed seeks log
+is replaced through the timeout-recovery path so Play reloads on a fresh one.
+Play during the final bounded halt records intent and re-arms the same song at
+its retained position after shutdown; a later Pause cancels that resume. A
+current seek reloads the still-selected failed source at its newer target after
+shutdown, using the latest Play/Pause intent. It prefers a completed local copy
+and otherwise uses the existing original/offset rebuild and landing path. An
+older halt cannot mark a newer selection failed. While recovery still owns
+that occurrence, a timed-out halt finishes only on the retired player. Native timeout recovery and failed seeks log
 diagnostics without emitting user notices; automatic recovery needs no user
 action. Mobile exhausted requests suppress automatic stream retries until
 another explicit transport/selection request, or until the song has played on
-normally for five seconds past where the seek failed, preventing a failed seek
-from later restarting or skipping the song without leaving a later, unrelated
-stall unrecovered.
+normally for `healthyPlayback` (five seconds by default) past where the seek
+failed, preventing a failed seek from later restarting or skipping the song
+without leaving a later, unrelated
+stall unrecovered. This suppression uses position distance past the failed seek;
+failover renewal separately counts ready backend advancement as described above.
 Diagnostics expose `seek` generation,
 requested position, pending flag, stage, outcome and recovery count, with a bounded
 `seekEvents` history. On desktop a load's initial position is applied by mpv

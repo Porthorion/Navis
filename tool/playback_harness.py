@@ -51,9 +51,11 @@ class InfraError(RuntimeError):
 # cases/reps are the --full set (calibration, release checks); quick/qreps (default 1) the default one. Both go to the
 # engine matrix. areas are the code paths that make `map` pick the scenario; budget is the measured wall-clock minutes
 # of one variant's runs, (quick, full) -- an A/B run takes twice that plus builds.
+# memory-soak calibration (same-code A/A, 3 reps, 2026-10-25, Pss+SwapPss): post-GC total base 436.8/471.0/527.4, fix 544.2/580.8/595.7 MiB
+# (medians 471.0 vs 580.8; worst pairing 158.9), so the total gets base + 192; slope medians 4.867 vs 1.864 pass max(base, 0) * 1.25 + 1.5.
 # Checks: (metric, '<=', limit) absolute on the fix | (metric, 'base+', add) fix <= base + add |
-# (metric, 'base*', factor, add) | (metric, 'nonew') fix has no violation kind the base lacks |
-# (metric, 'stall') fix max <= 50 or not worse than base | (metric, 'true') | (metric, 'nonempty').
+# (metric, 'base*', factor, add) | (metric, 'base-positive*', factor, add) clamps the base at zero | (metric, 'nonew') fix has no violation kind the base lacks |
+# (metric, 'stall') fix max <= 50 or not worse than base (Linux: >50 ms count <= base + 3) | (metric, 'true') | (metric, 'nonempty').
 
 HANDLER = ['lib/src/features/player/data/navis_audio_handler*.dart', 'lib/src/features/player/data/playback_source_resolver.dart',
            'lib/src/features/cache/data/rolling_cache_sidecar_downloader.dart', 'third_party/just_audio*/**']
@@ -80,15 +82,21 @@ SCENARIOS = {
         vm=True, quick_env={'NAVIS_LIVE_SEEK_SOAK_DRAGS': '10', 'NAVIS_LIVE_SEEK_SOAK_IDLE_S': '60'},
         areas=['lib/src/features/player/presentation/*seek_bar*.dart', 'lib/src/utils/diagnostics_presentation_controller.dart',
                'lib/src/features/player/data/seek_preview_request.dart'] + HANDLER,
-        checks=[('slopeMiBPerDrag', 'base*', 1.25, 1.5), ('postGcPssMiB', 'base+', 32), ('postGcHeapMiB', 'base+', 8)]),
+        checks=[('slopeMiBPerDrag', 'base-positive*', 1.25, 1.5), ('postGcPssSwapMiB', 'base+', 192), ('postGcHeapMiB', 'base+', 8)]),
     'repeat': dict(
         cases='offset_repeat_one,base_repeat_one,repeat_one_fill,chain_end,chain_end_all,repeat_switch_off,hold_off,hold_all,'
               'q7_append_200',
         quick='offset_repeat_one,repeat_one_fill,chain_end,q7_append_200',
-        qualities='opus128', throttle='wan6000', reps=3, budget=(8, 60), args=[],
+        # 30x transcodes let current + next complete within chain_end's 25 s window.
+        qualities='opus128', throttle='wan6000', reps=3, budget=(8, 60), args=['--transcode-speed', '30'],
         areas=HANDLER + CROSSFADE + QUEUE + ['lib/src/features/player/data/navis_playback_rules.dart',
-                                             '**/ProgressiveRepeat.java', '**/AudioPlayer.java'],
-        checks=[('kinds', 'nonew'), ('violations', 'base+', 3), ('frozenMedianS', 'base+', 0.1)]),
+                                             '**/ProgressiveRepeat.java', '**/AudioPlayer.java',
+                                             'lib/src/features/cache/data/**'],
+        checks=[('kinds', 'nonew'), ('violations', 'base+', 3), ('frozenMedianS', 'base+', 0.1),
+                # Linux cold: 0.02 s / <=540672 B / 0; warm: 14.62 s / 3454317 B / 1.
+                # Keep margin below the warm result and well above a handover GET.
+                ('nextRequestLeadMinS', '>=', 6.0), ('nextBytesAtHandoverMin', '>=', 1048576),
+                ('nextSeekLocalRate', '>=', 0.75)]),
     'crossfade': dict(
         cases='crossfade_end,skip_next,skip_prev', quick='crossfade_end,skip_next,skip_prev',
         qualities='opus128', throttle='none', reps=3, budget=(1, 3),
@@ -113,7 +121,12 @@ SCENARIOS = {
         areas=QUEUE,
         checks=[('violations', '<=', 0)]),
 }
-ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'queue-edit')
+# Checks that only the Android build can answer, added to a scenario's own. Item 14 (Ogg cut splice): after an origin cut the
+# fix reloads nothing, shows no player error, sends exactly one continuation request per cut, and the final cache file decodes
+# clean and joins within the rms bound (the base line shows its reloads for comparison; the base must be >= 1 to prove the cut bites).
+ANDROID_CHECKS = {'cut-recovery': [('reloadsAfterCut', '<=', 0), ('playerErrorsAfterCut', '<=', 0), ('spliceFrozenMedianS', '<=', 1.0),
+                                   ('spliceRequestsOk', 'true'), ('spliceFileOk', 'true'), ('joinRmsMax', '<=', 0.005)]}
+ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'queue-edit', 'cut-recovery')
 PLAYER_FALLBACK = 'lib/src/features/player/**'
 
 
@@ -185,13 +198,36 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
         soaks = [r['metrics']['soak'] for r in rows if 'soak' in r['metrics']]
         if soaks:
             mib = 1024
-            out.update(slopeMiBPerDrag=_med(_ols_slope([d['pssKiB'] / mib for d in soak['drags']]) for soak in soaks),
+            # Missing kernel data in even one repetition must not disappear into a median.
+            drags_valid = all(len(soak['drags']) >= 2 and all(d.get(k) is not None for d in soak['drags']
+                              for k in ('pssKiB', 'swapPssKiB')) for soak in soaks)
+            gc_valid = all(soak['afterGc'].get(k) is not None for soak in soaks for k in ('pssKiB', 'swapPssKiB'))
+            out.update(slopeMiBPerDrag=_med(_ols_slope([(d['pssKiB'] + d['swapPssKiB']) / mib for d in soak['drags']])
+                                           for soak in soaks) if drags_valid else None,
+                       postGcPssSwapMiB=_med((soak['afterGc']['pssKiB'] + soak['afterGc']['swapPssKiB']) / mib
+                                            for soak in soaks) if gc_valid else None,
                        postGcPssMiB=_med(soak['afterGc']['pssKiB'] / mib for soak in soaks),
                        postGcHeapMiB=_med(soak['afterGc']['heapB'] / mib / mib for soak in soaks))
+    elif scenario == 'repeat':
+        cells = [r['metrics'] for r in rows if 'nextRequestLeadS' in r['metrics']]
+        # Worst boundary, not the median: a boundary whose next song was never fetched counts as cold (-1 s), and no
+        # cell at all is missing data (None), never a pass.
+        leads = [-1.0 if v is None else v for m in cells for v in m['nextRequestLeadS']]
+        local = [v for m in cells for v in m['nextSeekLocal']]
+        sizes = [v for m in cells for v in m['nextBytesAtHandover']]
+        out.update(nextRequestLeadMinS=min(leads) if leads else None, nextBytesAtHandoverMin=min(sizes) if sizes else None,
+                   nextSeekLocalRate=round(sum(local) / len(local), 2) if local else None)
     elif scenario == 'cut-recovery':
         out['recoveryMedianS'] = _med((r['metrics'].get('cutVerdict') or {}).get('resumedAfterS') or r['metrics'].get('maxFrozenS')
                                       for r in rows)
         out['progressLoss'] = hard.count('progressLoss')
+        cut_rows = [r for r in rows if 'spliceCheck' in r['metrics']]
+        checks = [r['metrics']['spliceCheck'] for r in cut_rows]
+        if checks:  # Android only: the Ogg cut splice (1.5.1 item 14)
+            out.update(spliceFrozenMedianS=_med(r['metrics'].get('maxFrozenS') for r in cut_rows),
+                       reloadsAfterCut=sum(len(c['reloads']) for c in checks), playerErrorsAfterCut=sum(len(c['playerErrors']) for c in checks),
+                       spliceRequestsOk=all(c['requestsOk'] for c in checks), spliceFileOk=all(c['file']['ok'] for c in checks),
+                       joinRmsMax=max([c['file'].get('maxWindowRms') or 0 for c in checks]))
     elif scenario == 'local-seek':
         errors = [e for r in rows for e in (r['metrics'].get('localSeek') or {}).get('errorsMs', [])]
         out['landingErrorMaxMs'] = max(errors) if errors else None
@@ -212,12 +248,18 @@ def _fmt(value) -> str:
 
 # A software-rendered guest janks in bursts (A/A: >50 ms counts of 1 vs 46, maxima 149 vs 188 ms), so Android's stall rule is wide.
 ANDROID_STALL = (3, 100)
+# Linux: same-code A/As (2026-10-25) failed the old max-vs-base rule in 3 of 5 runs: fix max/over50 204.0/1 vs base 20.6/0,
+# 353.8/2 vs 93.9/2, base 83.0/12 vs fix 50.9/2, and 50.2/1 vs 33.7/0 on the release comparison. Single-frame outliers
+# swing the max by 100s of ms, so the max gets a wide absolute allowance (max(base max, 50) + 320 ms: 204 and 354 ms pass,
+# multi-second freezes fail) and the >50 ms count is held to base + 1 (worst same-code gap +1); p95 stays gated.
+LINUX_STALL_COUNT_SLACK = 1
+LINUX_STALL_MAX_SLACK_MS = 320
 
 
 def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> list[tuple[bool, str]]:
     """PASS/FAIL lines of one scenario from the metrics of its base and fix variants."""
     lines = []
-    for check in [('caseErrors', 'clean')] + SCENARIOS[scenario]['checks']:
+    for check in [('caseErrors', 'clean')] + SCENARIOS[scenario]['checks'] + (ANDROID_CHECKS.get(scenario, []) if platform == 'android' else []):
         name, kind, *args = check
         f, b = fix.get(name), base.get(name)
         if kind == 'clean':  # a harness or app error in a cell is never a zero
@@ -237,15 +279,31 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
             ok, limit = False, 'metric missing in the base run'
         elif kind == 'base+':
             ok, limit = f <= b + args[0], f'<= base + {_fmt(args[0])}'
+        elif kind == 'base-positive*':
+            ok, limit = f <= max(b, 0) * args[0] + args[1], f'<= max(base, 0) * {_fmt(args[0])} + {_fmt(args[1])}'
         elif kind == 'base*':
             ok, limit = f <= b * args[0] + args[1], f'<= base * {_fmt(args[0])} + {_fmt(args[1])}'
         elif kind == 'stall':
-            factor, slack = ANDROID_STALL if platform == 'android' else (1, 0)
-            ok = f['max'] <= 50 or (f['max'] <= b['max'] * factor + slack and f['over50'] <= b['over50'] * factor + slack)
-            limit = f'max <= 50 ms or (max and >50 ms count <= base * {_fmt(factor)} + {_fmt(slack)})'
+            if platform == 'android':
+                factor, slack = ANDROID_STALL
+                ok = f['max'] <= 50 or (f['max'] <= b['max'] * factor + slack and f['over50'] <= b['over50'] * factor + slack)
+                limit = f'max <= 50 ms or (max and >50 ms count <= base * {_fmt(factor)} + {_fmt(slack)})'
+            else:
+                ok = f['max'] <= 50 or (f['over50'] <= b['over50'] + LINUX_STALL_COUNT_SLACK
+                                        and f['max'] <= max(b['max'], 50) + LINUX_STALL_MAX_SLACK_MS)
+                limit = (f'max <= 50 ms or (>50 ms count <= base + {LINUX_STALL_COUNT_SLACK} '
+                         f'and max <= max(base max, 50) + {LINUX_STALL_MAX_SLACK_MS} ms)')
         else:
             raise ValueError(check)
         lines.append((ok, f"{'PASS' if ok else 'FAIL'} {scenario} {name}: fix={_fmt(f)} base={_fmt(b)} limit={limit}"))
+    if scenario == 'cut-recovery' and platform == 'android':
+        observed = base.get('reloadsAfterCut')
+        ok = observed is not None and observed >= 1
+        lines.append((ok, f"{'PASS' if ok else 'FAIL'} cut-recovery baseCutObserved: base={_fmt(observed)} "
+                          'limit=base reloadsAfterCut >= 1 (otherwise comparison is vacuous)'))
+    if scenario == 'memory-soak':
+        lines.append((True, f"INFO {scenario} postGcPssMiB: fix={_fmt(fix.get('postGcPssMiB'))} "
+                            f"base={_fmt(base.get('postGcPssMiB'))} (resident only; not gated)"))
     return lines
 
 
@@ -508,16 +566,21 @@ def engine(args: list[str], env: dict, out: Path, extra_env: dict, timeout: int,
                               cwd=PROJECT, env=full, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
 
 
-def plan(name: str, full: bool, reps: int | None) -> tuple[str, int, int]:
+def plan(name: str, full: bool, reps: int | None, platform: str = 'linux') -> tuple[str, int, int]:
     """(cases, reps, budget minutes) of a scenario in the quick or full set."""
     spec = SCENARIOS[name]
-    return (spec['cases'], reps or spec['reps'], spec['budget'][1]) if full else (spec['quick'], reps or spec.get('qreps', 1), spec['budget'][0])
+    cases, repetitions, budget = ((spec['cases'], reps or spec['reps'], spec['budget'][1]) if full
+                                  else (spec['quick'], reps or spec.get('qreps', 1), spec['budget'][0]))
+    if name == 'cut-recovery' and full and platform == 'android':
+        cases += ',cut5'
+        budget = 37
+    return cases, repetitions, budget
 
 
 def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict, serial: str | None, apk: Path | None,
                  full: bool, reps: int | None, real: bool) -> tuple[list[dict], float]:
     spec = SCENARIOS[name]
-    cases, reps, budget = plan(name, full, reps)
+    cases, reps, budget = plan(name, full, reps, platform)
     args = ['--cases', cases, '--qualities', spec['qualities'], '--throttles', spec['throttle'], '--reps', str(reps), *spec['args']]
     extra, env = ({} if full else dict(spec.get('quick_env', {}))), dict(display_env)
     if serial:

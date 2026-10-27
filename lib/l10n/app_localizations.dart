@@ -1536,6 +1536,36 @@ abstract class AppLocalizations {
   /// **'Seeking ahead in a lossless song that is still downloading plays a high-quality compressed stream right away. Lossless returns on the next play.'**
   String get playbackSettingsFastSeekingSubtitle;
 
+  /// No description provided for @playbackSettingsPrefetchNextTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Prefetch the next song on mobile data'**
+  String get playbackSettingsPrefetchNextTitle;
+
+  /// No description provided for @playbackSettingsPrefetchNextSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Download the next song ahead of time even on mobile data or a metered connection, so the song change is seamless.'**
+  String get playbackSettingsPrefetchNextSubtitle;
+
+  /// No description provided for @playbackSettingsPrefetchNextOffTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off prefetching?'**
+  String get playbackSettingsPrefetchNextOffTitle;
+
+  /// No description provided for @playbackSettingsPrefetchNextOffMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback will feel worse on mobile data: the next song starts slower, and seeking right after a song change may wait on the network.'**
+  String get playbackSettingsPrefetchNextOffMessage;
+
+  /// No description provided for @playbackSettingsPrefetchNextOffConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Turn off'**
+  String get playbackSettingsPrefetchNextOffConfirm;
+
   /// No description provided for @playbackSettingsGaplessTitle.
   ///
   /// In en, this message translates to:
@@ -7018,6 +7048,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Applying update…'**
   String get updateApplying;
+
+  /// Shown in the update dialog while the Linux package manager (apt or dnf) installs a downloaded deb/rpm update, including while the system authentication prompt is open.
+  ///
+  /// In en, this message translates to:
+  /// **'Installing the update. This can take a minute.'**
+  String get updateInstallingPackage;
 
   /// No description provided for @updateNoWriteAccess.
   ///
