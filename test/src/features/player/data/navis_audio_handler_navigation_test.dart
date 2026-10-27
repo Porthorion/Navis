@@ -10935,7 +10935,7 @@ void main() {
                 directory.path,
                 'navis_art_v2_${PlaybackArtCache.fileKey('cut-cover')}.jpg',
               ),
-            ).writeAsBytes([1, 2, 3]);
+            ).writeAsBytes([0xFF, 0xD8, 0xFF, 1]);
             late NavisDatabase database;
             final (handler, player) = await setup(
               onDatabase: (value) => database = value,
