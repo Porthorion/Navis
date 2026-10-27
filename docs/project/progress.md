@@ -161,6 +161,14 @@ Last updated: 2026-10-27
   download reproduced `PathNotFoundException` at the rename; the vendored fetch now
   fails cleanly. Focused: navigation_test 878 pass, lock_caching 60, follower 4.
   No `./tool/check.sh`, harness, emulator or runtime pass ran (host busy).
+  Pre-merge review r2 (Opus) fixes, 2026-10-28: F1 an evicted song's re-download
+  was unregistered and a new occurrence became a second writer on the same `.part`
+  (failing: registry `Expected: true Actual: <false>`; idle writer `Expected:
+  LockCacheFollowerSource, Actual: LockCachingAudioSource`); now `onDownloadStart`
+  re-registers it and `_heldLockCacheWriters` supplies the leader. F2 requests
+  queued while a download finishes hung (`Expected: <0> Actual: <6>`); now served
+  from the published file. F3 the failed-publication reset is atomic and resets
+  progress (`Expected: <0> Actual: <2048>`).
 - [ ] Issue #86, item 13b Android next-song warm — `fix/android-next-warm`: at
   current-song completion `_syncSidecarChain` starts the next song's own
   lock-cache source with the vendored `prefetch()` (no replay buffer); one source

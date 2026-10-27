@@ -4559,7 +4559,11 @@ player, gets its own `LockCacheFollowerSource` (`_shareLockCacheSources`; a
 completed file first, joins the running download and never fetches the origin itself;
 one source instance never sits at two playlist positions, and disposing an occurrence
 never touches the writer; if the writer's cache file is evicted after completion, the next
-request, from the writer or a repeat, downloads it again through the same writer) and the
+request, from the writer or a repeat, downloads it again through the same writer, which
+re-registers itself through `onDownloadStart`; a new occurrence takes its leader from the
+registry or else the writer the player holds for that cache path, `_heldLockCacheWriters`,
+so it never becomes a second writer; a request that arrives while a download is finishing
+is answered from the completed file) and the
 registry holds the source the player holds as soon as the native call returns, before any
 cross-fade deck mirror (`_releaseTail`, `_applyMaterialisedInsert`, `_fillQueueBatch`; known limit: if the writer's native insert fails in the one-by-one fallback while its
 repeat is inserted, the repeat downloads through an unobserved writer (needs a batch
