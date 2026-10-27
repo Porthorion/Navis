@@ -487,6 +487,15 @@ class RepeatFillDuration(unittest.TestCase):
             self.play(2000, [])
         self.assertEqual(self.run.violations, [{'oracle': 'caseError'}])
 
+    def test_a_three_second_fixture_song_reported_as_2_99_s_is_still_observable(self):
+        self.assertEqual(engine.REPEAT_FILL_MIN_MS, 2500)
+        for dur in (2990, 2500):
+            run, _, _ = self.play(dur, [])  # no abort, no caseError
+            self.assertEqual(run.violations, [], dur)
+            self.assertLess(run.observe.call_args[0][0], 2 * dur / 1000)  # still before a second loop
+        with self.assertRaises(engine.CaseAbort):
+            self.play(2400, [])
+
 
 class RepeatClockBlip(unittest.TestCase):
     def fixture(self):
