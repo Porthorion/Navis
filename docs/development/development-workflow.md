@@ -16,8 +16,8 @@ What it does:
 - resolves root and owned Flutter packages plus CargoKit development dependencies
 
 The local quality gate also requires Python 3.11+ and NumPy for the playback
-PCM/oracle self-checks (`tool/bootstrap.sh` checks that NumPy imports and prints
-the install hint). Install NumPy using your system package manager, or use
+PCM/oracle self-checks (`tool/bootstrap.sh` warns with the install hint when NumPy
+does not import; check.sh itself fails loudly). Install NumPy using your system package manager, or use
 an ignored virtual environment before running `./tool/check.sh`:
 
 ```bash
@@ -1461,7 +1461,7 @@ original command exit when both fail. It removes no captured logs.
 The gate holds `/tmp/navis-heavy.lock` and `~/.cache/navis-harness/lock`
 (plus `NAVIS_HARNESS_CACHE/lock` when configured elsewhere) for the entire invocation. Direct
 check.sh and A/B callers take the same pair (direct `ab` passes the descriptors to
-its build, engine and bootstrap commands, as the gate does). Busy jobs fail fast with the lock
+its build, engine, bootstrap, KWin and emulator children, as the gate does). Busy jobs fail fast with the lock
 owner PID and evidence pointer when written by these tools; legacy owners may
 require `lslocks`. Never poll or launch replacements while an owner is active.
 Children inherit descriptors; nesting verifies inode/device identity, exclusive

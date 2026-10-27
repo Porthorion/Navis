@@ -185,7 +185,8 @@ Linux and Android steps are recorded as `not-run` ("skipped: check <status>") an
 the gate keeps check's status (`failed`/exit 1, `blocked`/exit 2), never passed. A command that dies of a signal (for example an OOM SIGKILL) is reported
 with its exact negative exit and "command killed by signal N", without an owner
 traceback. Direct `ab` holds the heavy-lock descriptors across its build, engine
-and bootstrap commands, so a killed holder keeps the lock while any of them runs.
+and bootstrap commands and the headless KWin and emulator children, so a killed
+holder keeps the lock while any of them runs.
 
 `gate.json` / `gate-summary.md` retain command vectors, actual command exits,
 step exits/statuses and log/evidence pointers. A reused platform has no new command
