@@ -99,6 +99,11 @@ android {
         }
     }
 
+    testOptions {
+        // Android calls outside the test Handler queue remain inert in host JVM tests.
+        unitTests.isReturnDefaultValues = true
+    }
+
     buildTypes {
         debug {
             // Optional debug-only sidecar install path for device testing.

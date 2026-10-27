@@ -183,6 +183,21 @@ Checks performed:
 - Native EQ response/PCM and progressive HTTP retry/repeat fixtures
   (`tool/equalizer_native_test.sh`), using an
   available JDK or the Android Studio JDK selected by `ANDROID_STUDIO_JDK`
+- Android repeat bridge suites (`tool/android_repeat_native_test.sh`) and their
+  hermetic runner contract (`tool/android_repeat_runner_test.sh`), immediately
+  after the pure fixtures. Bootstrap, JDK 21, Android SDK 37, Python 3 (stdlib only)
+  and GNU `timeout` are required. Run `flutter precache --android` once if the Flutter
+  wrapper cache is missing. The runner generates only missing ignored wrapper
+  files, uses the pinned Gradle distribution, one worker, in-process Kotlin and
+  a bounded 2 GiB Gradle heap / 768 MiB metaspace / 256 MiB code cache. It selects
+  both `JustAudioRepeat*Test` JVM suites with no device or APK installation;
+  timeout is ten minutes plus a ten-second kill grace, with no persistent daemon.
+  Result XML must report nonzero executed tests and no failures in each suite;
+  the runner prints their count, including for up-to-date results. The observed
+  clean-checkout run peaks near 3.5 GiB; allow that host-memory headroom.
+  `ANDROID_STUDIO_JDK` selects an alternate JDK, and the existing
+  `NAVIS_FLUTTER_SDK` override can select the Flutter SDK. The same command runs
+  in CI's separate Android `native` job; it does not prove native audio timing
 - Last.fm key masking (`tool/lastfm_key_defines_test.sh`) and the release
   artifact secret scan (`tool/scan_artifact_secret_test.sh`), with a fake key
   and synthetic artifacts
