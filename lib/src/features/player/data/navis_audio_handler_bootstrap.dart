@@ -119,6 +119,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
   Future<String?> Function(MediaItem)? fetchWindowsArtwork,
   bool Function(MediaItem)? readWindowsArtworkAllowed,
   CoverArtHttpFileService? playbackArtworkFileService,
+  AppLocalizations Function()? readLocalizations,
 }) {
   final cached = _audioHandlerInitCache;
   if (cached != null && !cached.invalidated) {
@@ -186,6 +187,7 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
             .then((packageName) async {
               await PlaybackArtCache.initializeKey();
               return initNavisAudioServiceHandler(
+                readLocalizations: readLocalizations,
                 // Never AudioService's default cache, which would fetch any
                 // published URL, a refused redirect target included.
                 cacheManager: readSystemArtworkCacheManager(),
@@ -234,14 +236,17 @@ initNavisAudioServiceHandler({
   required RealTimeProjectionAudioHandler Function() builder,
   required BaseCacheManager cacheManager,
   Duration configureTimeout = const Duration(seconds: 5),
+  AppLocalizations Function()? readLocalizations,
 }) async {
+  final l10n =
+      (readLocalizations ?? () => resolveNotificationLocalizations(null))();
   // audio_service owns process-wide callbacks and may only be initialized once.
   final handler = await (_audioServiceInitialization ??= AudioService.init(
     builder: SwitchAudioHandler.new,
     cacheManager: cacheManager,
     config: AudioServiceConfig(
       androidNotificationChannelId: 'playback',
-      androidNotificationChannelName: 'Playback',
+      androidNotificationChannelName: l10n.notificationPlaybackChannelName,
       androidNotificationIcon: 'drawable/ic_stat_navis_light',
       androidNotificationOngoing: false,
       androidStopForegroundOnPause: false,

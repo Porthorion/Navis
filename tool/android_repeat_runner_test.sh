@@ -101,7 +101,7 @@ def validate(check, workflow):
     assert len(needs) == 1 and "native" in [name.strip() for name in needs[0].split(",")], "CI aggregate must require native"
     assert not re.search(r"^\s*(?:-\s+)?[\"']?continue-on-error[\"']?\s*:", ci, re.M)
     assert re.findall(r"^\s*(?:-\s+)?[\"']?if[\"']?\s*:.*$", ci, re.M) == ["    if: always()"]
-    gate = ' && '.join(f'test "${{{{ needs.{name}.result }}}}" = success' for name in ("static", "test", "native"))
+    gate = ' && '.join(f'test "${{{{ needs.{name}.result }}}}" = success' for name in ("static", "test", "tooling", "native"))
     assert re.findall(r"^      - run: (.+)$", ci, re.M) == [gate], "CI aggregate must enforce each job's success"
 
 validate(check, workflow)

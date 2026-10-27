@@ -1010,66 +1010,45 @@ Last updated: 2026-10-27
   eleven edited Dart files unchanged; final scoped analysis exits 0 with no
   errors or warnings and 25 informational findings mapped to unchanged HEAD
   lines. The complete diff passes `git diff --check`.
-- [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
-  (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
-  runtime probes, independent review and `./tool/check.sh`): native repeat-one
-  is replaced by repeat-off plus pause-at-end only for progressive HTTP VOD;
-  the same item restarts at native zero with command-revision cancellation and
-  no terminal completion. Radio's default-retry opt-out, local/asset sources,
-  HLS/DASH and repeat-all remain native. The existing Dart offset-loop handler
-  clears an offset source with one reload; no parallel Dart repeat mechanism
-  was introduced. The JVM regression first failed with `AssertionError:
-  progressive repeat one must disable native preloading of itself`; all
-  equalizer fixtures, 12 retry fixtures and 21 repeat fixtures now pass via
-  `./tool/equalizer_native_test.sh`. Two plain-stream unknown-duration Dart
-  cases first failed (`00:00 +19 -2`); fixing the pairwise detector's reversed
-  subtraction makes all 21 `position_offset_test.dart` cases pass. The
-  handler regression covers middle/last offset items and exactly one reload.
-  The combined `flutter test --concurrency=4 --timeout 60s` run of
-  `position_offset_test.dart` and `navis_audio_handler_navigation_test.dart`
-  passed `05:22 +580: All tests passed!`, including repeat-one crossfade and
-  timeline cases. Bootstrap ran once; edited non-vendored Dart files pass
-  formatting and the complete diff passes `git diff --check`. No app, emulator
-  or VM was launched; Android
-  compilation/runtime, analyzer and the full gate remain with the coordinator.
-  Review round 1 fixes: boundary ownership now uses the timeline window UID,
-  so appends/inserts/moves retain a pending restart or paused boundary while
-  the same occurrence stays current; removal/replacement cancels it, and the
-  runnable seeks its current index. Removed redundant loop-policy updates from
-  Play/Pause. The insert-before fixture first failed with `AssertionError:
-  inserting before the boundary item restarts at its shifted index`; the JVM
-  harness now passes all equalizer fixtures, 12 retry fixtures and 26 repeat
-  fixtures. The same two-file targeted Dart command above passed
-  `05:19 +580: All tests passed!`. Architecture, vendored change notes and the
-  existing release-note entry were updated. The complete diff passes
-  `git diff --check`. No app, emulator, VM, Android build, analyzer or
-  `./tool/check.sh` was run for this round, per the assigned validation scope.
-- [ ] Issue #86, unknown-length Android stall replay — partial: 2026-10-20
-  (`fix/stall-replay`): Media3 progressive load errors with unknown HTTP length
+- [x] Shared server identity URL canonicalisation — 2026-10-19
+  (`refactor/server-identity-url`): retained-profile comparison and Android
+  WorkManager profile keys now use `canonicalServerIdentityUrl`. Recorded three
+  existing profile hashes and passed their pinned assertions before extraction;
+  the new helper suite failed first because the helper did not exist. After
+  extraction, all 65 tests across the helper, background scheduler, background
+  entrypoint and server repository suites pass with `flutter test --concurrency=4`.
+  Scoped `flutter analyze` reports no issues across all five touched Dart files;
+  bootstrap completed once. Neither old helper name occurs in `docs/`.
+  Full gate, app runtime and emulators were explicitly excluded by the task's
+  host-memory constraints. No user-visible behavior or persisted-key change.
+- [x] Notification channel l10n and server URL tests — 2026-10-19
+  (`fix/notification-l10n-url-tests`): the `playback`, `downloads` and
+  `library_sync_silent` Android channels (bootstrap and audio_service) take
+  their names and descriptions from l10n, honoring the in-app language
+  override; IDs, importance and silence flags are pinned by test. Added
+  `server_url_validation_test.dart`, pinning loopback and remote http handling.
+  Targeted `flutter test` runs only; `./tool/check.sh` remains pending.
+- [x] Issue #86, transcode offset seek — 2026-10-20 (PR #96,
+  `fix/transcode-offset-seek`): `streamUrl` `timeOffset`, the `transcodeOffset`
+  capability, a vendored just_audio `positionOffset` translation layer, an
+  offset resolver source with a full-URI sidecar, and the handler seek branch
+  with its edge-case tests (`docs/plans/Transcode_Offset_Seek_Plan.md`).
+  `./tool/check.sh` passed; runtime pass with `tool/live_seek_stress.py` on
+  Linux and the Android emulator against the live server.
+- [x] Issue #86, Android progressive HTTP repeat-one rewind — 2026-10-20 (PR #100,
+  `fix/repeat-one-rewind`): progressive HTTP VOD repeat-one runs native
+  repeat-off plus pause-at-end and restarts the same item (window-UID owned) at
+  the boundary; radio, local, HLS/DASH and repeat-all stay native. JVM
+  `ProgressiveRepeatTest` fixtures run in `./tool/equalizer_native_test.sh`.
+  `./tool/check.sh` passed (`+8903`); Android emulator and Linux runtime pass
+  with `tool/live_seek_stress.py`. Trade-off: the loop point is not gapless.
+- [x] Issue #86, unknown-length Android stall replay — 2026-10-20 (PR #98,
+  `fix/stall-replay`): Media3 progressive load errors with unknown HTTP length
   become fatal instead of restarting at byte zero; sized/ranged sources and
   radio retain native retries. Handler recovery prefers the completed cache,
-  then reuses transcode-offset seeking at the current song time, with the seek
-  lane, cancellation, Play/Pause intent and existing one-retry budget. An error
-  at the known end advances without a reload. The initial handler run failed
-  four new regressions (`05:14 +550 -4`); the pure JVM framing fixture first
-  failed on chunked playback and then passed all 11 cases. The end-of-song
-  regression also failed before its advance guard. Broader validation exposed
-  two existing Play/rearm regressions; distinguishing automatic recovery from
-  a user seek fixed both. The focused rerun passed `00:03 +15`; the final
-  `flutter test --concurrency=4 --timeout 60s` run of
-  `navis_audio_handler_navigation_test.dart`, `position_offset_test.dart` and
-  `lock_caching_audio_source_test.dart` passed `05:14 +583: All tests passed!`.
-  All nine edited Dart files pass the formatter check; the complete diff passes
-  `git diff --check`. Coordinator retains the emulator stall probe,
-  runtime loop, independent review and `./tool/check.sh`; no app, emulator or
-  VM was launched for this implementation task.
-- [ ] Issue #86, transcode offset seek — partial: 2026-10-20
-  (`fix/transcode-offset-seek`, remaining: orchestrator runtime pass with
-  `tool/live_seek_stress.py` on Linux and the Android emulator): `streamUrl`
-  `timeOffset`, the `transcodeOffset` capability, a vendored just_audio
-  `positionOffset` translation layer, an offset resolver source with a
-  full-URI sidecar, and the handler seek branch with its edge-case tests
-  (`docs/plans/Transcode_Offset_Seek_Plan.md`).
+  then transcode-offset seeking at the current song time, within the existing
+  retry budget. `./tool/check.sh` passed; emulator stall probe resumed in place
+  twice with no progress lost.
 - [x] Issue #86, abort interrupted audio proxy responses — 2026-10-20
   (`fix/proxy-download-error`): stream and header-forwarding proxies abort
   origin body errors instead of sending clean EOF or entering HTTP/0.9 fallback
@@ -4095,3 +4074,24 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   limits, the new harness was not run: no builds, publication, SSH, containers,
   app launches, emulators or full gate. R1–R9 runtime acceptance remains open;
   the active plan stays under `docs/plans/` until that evidence exists.
+# Validation evidence workflow — 2026-10-26 (in progress)
+
+- Branch `chore/validation-evidence` extends the existing playback harness and
+  check command. The coverage inventory retains 118 Linux and 73 Android cells
+  per variant (382 A/B cells); no matrix or threshold reduction.
+- Builders reported 60 harness and 20 gate checks passing before independent
+  review. Review found nested-timeout cleanup, contradictory report verdicts
+  and missing local NumPy setup guidance. The fixes passed ten focused evidence
+  checks and 21 gate checks, including real nested-session cleanup probes.
+- Full `check.sh`, Linux and Android runtime validation are assigned to one
+  owner and remain pending. Self-check results do not certify playback runtime.
+- 2026-10-27: four review rounds (three Sonnet, one Opus) closed with all
+  findings fixed; harness and gate self-checks pass (64 + 37, hermetic). A real
+  Linux smoke, `ab queue-edit --platform linux --base github/dev` on 05f7e58a5
+  against 3e5bf9e06, exited 0 with `RESULT PASS` (3 + 3 cells, 0 case errors,
+  0 violations) and finalized `evidence.json` (`status: passed`, 68 artifacts)
+  under `build/harness/20261027T181142.198691Z/`. The full gate and Android
+  runtime runs stay at the final release validation step.
+  See [plan](../plans/validation-evidence-workflow.md) and
+  [coverage map](../development/playback-validation-coverage.md).
+

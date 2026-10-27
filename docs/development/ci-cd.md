@@ -9,7 +9,8 @@ Releases are built and published locally with `tool/release.sh`; `tool/check.sh`
   [setup-java](https://github.com/actions/setup-java) and the runner image's
   preinstalled Android SDK (`sdkmanager` adds platform 37); the job has a
   15-minute deadline and requires no emulator or secrets.
-- `ci`: waits for all three and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
+- `tooling`: the playback harness and validation gate Python suites plus Bash syntax checks (see [Playback tooling](#playback-tooling-and-final-fixture-evidence)).
+- `ci`: waits for all four and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
 
 Windows media-session changes additionally require the Windows-only isolated
 GMTC validation command described in `docs/development/development-workflow.md`:
@@ -1052,3 +1053,37 @@ Memory-soak self-checks cover swap-out with a flat `Pss + SwapPss` total,
 identical negative slopes, real growth and missing kernel fields in either
 variant, including a single incomplete repetition. The harness gates the total
 from `smaps_rollup`; resident PSS is informational and Dart heap stays gated.
+
+## Playback tooling and final fixture evidence
+
+Local `./tool/check.sh` retains every captured step log in a unique
+`build/check/run-*` directory and propagates both command and tee failures.
+It now includes `python3 tool/playback_harness_test.py` and
+`python3 tool/validation_gate_test.py`; existing checks remain required.
+CI's focused `tooling` job runs these two Python suites (NumPy for PCM oracle
+self-checks) plus Bash syntax checks. The aggregate `ci` job requires it. This
+adds no duplicate Flutter suite and starts no runtime matrix, build or emulator.
+
+Before: run check.sh, Linux `ab --all --full`, then Android `ab --all --full`
+separately. After: `python3 tool/playback_harness.py gate --base github/release/1.5`.
+See the [exact commands, deadlines, locks and handoff protocol](development-workflow.md#final-fixture-gate-and-ownership).
+The gate retains all 382 A/B fixture cells, per-step logs and machine/human
+summaries. Missing platforms, incomplete evidence, changed candidates, capture
+failures and timeouts never pass. Explicit reuse requires exact source/base,
+Flutter/configuration/environment, full-platform cells and intact artifacts;
+no automatic reuse or substitute run is inferred.
+
+Exit 0 establishes only the quality gate and the complete Linux/Android fixture
+matrices. The [coverage map](playback-validation-coverage.md) keeps standalone
+diagnostics, native service tests, OS controls, live-server and applicable
+physical/manual acceptance outstanding. Independent reviewers assess those
+artifacts and gaps; fixture evidence cannot certify whole playback acceptance.
+Task C owns actual heavy execution and runtime acceptance for this workflow.
+
+Bounded-command cleanup uses Linux child-subreapers and pidfds, retaining inherited
+locks through descendant reaping. Focused real subprocess tests in
+`tool/validation_gate_test.py ProcessCleanup` cover nested separate sessions,
+TERM-resistant descendants, an already-exited parent, timeout and cancellation,
+original error retention, lock retention and an unrelated surviving control.
+These small tests do not establish app/emulator cleanup or platform acceptance.
+See the [workflow cleanup contract and limitations](development-workflow.md#final-fixture-gate-and-ownership).

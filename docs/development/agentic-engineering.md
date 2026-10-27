@@ -86,6 +86,22 @@ Documentation-only changes normally need link/path/command validation rather
 than the Flutter suite. State plainly what was not run and why; never describe
 unexecuted validation as passing.
 
+### Playback validation ownership and evidence
+
+Use the [final fixture gate and handoff protocol](development-workflow.md#final-fixture-gate-and-ownership)
+for final playback fixture validation: `python3 tool/playback_harness.py gate --base github/release/1.5`.
+The builder freezes the candidate, one validation owner runs the gate, and an
+independent reviewer inspects/verifies its retained evidence. Reuse exact-state
+artifacts instead of rerunning merely for possession. Rerun for concrete source,
+base, Flutter/configuration/environment, artifact, timeout or coverage changes;
+record the reason. Cancel a predecessor and confirm terminal state before any
+replacement, including automatically resumed tasks; use unique run/scratch
+directories. Fail-fast lock contention is an ownership problem, not a polling
+instruction. Fixture success does not close the applicable standalone, native,
+OS-control, live-server, physical-device or manual requirements in the
+[coverage map](playback-validation-coverage.md). Keep outstanding requirements
+explicit; a boolean declaration is not external acceptance evidence.
+
 ### 5. Review before handoff
 
 Review the complete diff as another engineer would: scope, behavior, edge and

@@ -28,6 +28,7 @@ import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/diagnostics_provider_counter.dart';
 import 'package:navis/src/utils/notifications/notification_bootstrap.dart';
+import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/utils/sync_diagnostics_server.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -121,7 +122,11 @@ Future<void> _runNavis() async {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     AppLogger.info('Edge-to-edge mode enabled.');
 
-    await NotificationBootstrap.initialize();
+    await NotificationBootstrap.initialize(
+      readLocalizations: () => resolveNotificationLocalizations(
+        rootContainer.read(appLocaleProvider),
+      ),
+    );
 
     final app = UncontrolledProviderScope(
       container: rootContainer,

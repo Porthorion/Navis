@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Re-exec with inherited, verified ownership; direct callers and the full gate coordinate.
+if [[ "${1:-}" != --locked-check ]]; then
+  mkdir -p build/check
+  check_evidence="$(mktemp -d build/check/run-XXXXXXXX)"
+  echo "[check] retained logs: ${check_evidence}"
+  exec python3 "$(dirname "${BASH_SOURCE[0]}")/heavy_lock.py" --owner "${check_evidence}" bash "$0" --locked-check "${check_evidence}"
+fi
+shift
+tmp_log_dir="${1:?missing check evidence directory}"
+shift
+# The marker only prevents recursion; this wrapper verifies the actual inherited locks.
+python3 "$(dirname "${BASH_SOURCE[0]}")/heavy_lock.py" --verify
+
 # shellcheck source=tool/lib/check_test_log.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib/check_test_log.sh"
 
@@ -17,33 +30,16 @@ if [[ "${tmp_available_kb}" -lt "${min_tmp_kb}" ]]; then
   exit 1
 fi
 
+step_number=0
 run_step() {
   local label="$1"
   shift
-  local start_seconds="${SECONDS}"
-  echo "[check] $label"
-  "$@"
-  local elapsed=$((SECONDS - start_seconds))
-  echo "[check] $label completed in ${elapsed}s"
+  step_number=$((step_number + 1))
+  run_step_capture "$label" "${tmp_log_dir}/step-${step_number}.log" "$@"
 }
 
-run_step_capture() {
-  local label="$1"
-  local log_file="$2"
-  shift 2
-  local start_seconds="${SECONDS}"
-  echo "[check] $label"
-  set +e
-  "$@" 2>&1 | tee "$log_file"
-  local status="${PIPESTATUS[0]}"
-  set -e
-  local elapsed=$((SECONDS - start_seconds))
-  echo "[check] $label completed in ${elapsed}s"
-  if [[ "${status}" -ne 0 ]]; then
-    echo "[check] $label failed. See ${log_file} for details." >&2
-    exit "${status}"
-  fi
-}
+# shellcheck source=tool/lib/check_capture.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib/check_capture.sh"
 
 assert_no_blocking_warnings() {
   local log_file="$1"
@@ -64,6 +60,8 @@ assert_no_blocking_warnings() {
   done
 }
 
+run_step "playback harness tooling" python3 tool/playback_harness_test.py
+run_step "heavy ownership and capture" python3 tool/validation_gate_test.py
 run_step "test log guard" ./tool/check_test_log_test.sh
 run_step "linux desktop entry" ./tool/linux_desktop_entry_test.sh
 run_step "release tag guard" ./tool/release_tag_guard_test.sh
@@ -82,9 +80,6 @@ run_step "analyze" flutter analyze --no-fatal-infos
 run_step "dead code" dart run tool/dead_code_check.dart
 # custom_lint is temporarily disabled pending analyzer/riverpod_lint compatibility
 # run_step "custom lint" dart run custom_lint
-
-tmp_log_dir="$(mktemp -d)"
-trap 'rm -rf "${tmp_log_dir}"' EXIT
 
 run_step_capture \
   "migration tests (expanded)" \

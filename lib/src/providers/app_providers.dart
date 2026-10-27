@@ -1347,6 +1347,8 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       readServerHost: () => ref.mounted ? ref.read(serverHostProvider) : null,
     );
     final handler = await initNavisAudioHandler(
+      readLocalizations: () =>
+          resolveNotificationLocalizations(ref.read(appLocaleProvider)),
       reconcileNetwork: () => ref.read(networkReconciliationProvider)(),
       checkDeviceConnected: () => ref.read(deviceConnectionCheckProvider)(),
       recoveredNetwork: recoveredNetwork.stream,

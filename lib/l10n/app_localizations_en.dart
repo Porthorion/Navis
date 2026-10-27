@@ -6189,6 +6189,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationLibraryScanStageIdle => 'Waiting to scan';
 
   @override
+  String get notificationPlaybackChannelName => 'Playback';
+
+  @override
+  String get notificationPlaybackChannelDescription =>
+      'Media playback controls and status';
+
+  @override
   String get notificationDownloadsChannelName => 'Downloads';
 
   @override

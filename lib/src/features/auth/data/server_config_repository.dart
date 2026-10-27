@@ -5,6 +5,7 @@ import 'package:navis/src/database/daos/server_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
+import 'package:navis/src/features/auth/domain/server_identity_url.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
 
 enum RetainedServerMatch { none, same, different }
@@ -256,28 +257,9 @@ class ServerConfigRepository {
     String rightUrl,
     String rightUsername,
   ) {
-    return _normalizeServerUrl(leftUrl) == _normalizeServerUrl(rightUrl) &&
+    return canonicalServerIdentityUrl(leftUrl) ==
+            canonicalServerIdentityUrl(rightUrl) &&
         leftUsername.trim() == rightUsername.trim();
-  }
-
-  String _normalizeServerUrl(String value) {
-    final trimmed = value.trim();
-    final uri = Uri.tryParse(trimmed);
-    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
-      return trimmed.replaceFirst(RegExp(r'/+$'), '');
-    }
-    final path = uri.path == '/'
-        ? ''
-        : uri.path.replaceFirst(RegExp(r'/+$'), '');
-    final defaultPort =
-        (uri.scheme.toLowerCase() == 'https' && uri.port == 443) ||
-        (uri.scheme.toLowerCase() == 'http' && uri.port == 80);
-    return Uri(
-      scheme: uri.scheme.toLowerCase(),
-      host: uri.host.toLowerCase(),
-      port: defaultPort ? null : (uri.hasPort ? uri.port : null),
-      path: path,
-    ).toString();
   }
 
   String? _mergeCapabilities(String? retained, String? probed) {
