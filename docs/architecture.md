@@ -4117,10 +4117,19 @@ source occurrence, its source metadata and last backend position. Artwork
 refreshes can replace `MediaItem` copies without changing that occurrence;
 duplicated songs remain distinct native sources. Queue edits, replacements and
 explicit navigation invalidate the capture, including delayed discontinuities
-whose previous backend event predates the edit. Detection requires the queue
-lane to be idle; a cut during background tail release, trim or fill keeps normal
-EOF behavior. Tail fill/release can also make the index listener return before
-capturing the occurrence, leaving a later departure unclassified.
+whose previous backend event predates the edit. A cut during queue tail release,
+trim or fill retains the source occurrence and departure position while that
+lane finishes. Recovery then rechecks the source identity, load generation
+and seek ownership before reopening. An append that preserves the classified
+occurrence does not cancel recovery; an edit or selection that retired it
+cannot reopen it. When cancellation retires recovery, shared cleanup waits for
+its native pause acknowledgement and releases the pause on the surviving source
+only while its player, load and seek ownership remain current. The latest Pause
+keeps it paused; newer work and a quietly stopped failed source keep ownership.
+Metadata stays with the departed occurrence throughout the wait. Native source
+tags supply occurrence metadata when a background mutation temporarily leads the
+Dart mirror; completion is still classified while that mismatch suppresses ordinary
+player events. New background releases and trims wait for the reopen.
 On classification the native player pauses before source resolution, and the
 departed occurrence keeps metadata authority and its existing scrobble/history
 session. Successor index events cannot publish a new session, Now Playing or
@@ -4136,9 +4145,11 @@ honours the latest intent. Once its source is ready, Play resumes it normally
 while seek settlement runs.
 A newer seek or skip takes over from the reopen; if a seek arrives while the
 departed occurrence is resolving, that occurrence loads before the newer seek
-applies. A Pause only changes the intent the reopen lands with. A failed or unbuilt reopen retains failover ownership after deferred
-Play/Pause commands, using the latest explicit play intent. It uses the existing
-bounded silent failover; a failed final song stops quietly until Play reloads it.
+applies. If the older reopen fails, the newer seek retains the departed
+occurrence until its own source is ready. A Pause only changes the intent the
+reopen lands with. A failed or unbuilt reopen retains failover ownership after
+deferred Play/Pause commands, using the latest explicit play intent. It uses
+the existing bounded silent failover; a failed final song stops quietly until Play reloads it.
 If native loading already replaced the playlist with the failed song alone,
 recovery keeps that song materialised and defers its original neighbours.
 The logical order and current index therefore still select the failed occurrence;
@@ -4608,8 +4619,15 @@ release the pause gate. Diagnostics expose `fastSeekBridge` (`format`,
 `offsetMs`) and `sidecar` (`paused`, `bytesPerSecond`) without stream URLs.
 If a remote recovery bridge reopen fails, recovery checks again for a completed
 original before rebuilding the lossless stream at the song position without an
-offset or bridge metadata. Only a failed original recovery proceeds to the
-existing silent song failover.
+offset or bridge metadata. Remote bridge recovery gives that fallback sole
+ownership of the original load, avoiding an additional restoration open. Its
+request path and the `remote_retry.recoveryPath` diagnostic identify
+`completedFile` or `original`, rather than the rejected bridge. Only a failed
+original recovery proceeds to the existing silent song failover. An unbuilt
+original rebuild also fails over when it still owns the failed queued song.
+Play/Pause preserve that request's failover ownership, and Pause lands on the
+next playable song paused. Newer seeks, selections and a removed occurrence
+retire the request.
 
 libmpv therefore opens the credential-bearing `stream.view` URL (and radio
 stream URLs) itself. Its built-in ytdl hook would retry any http(s) URL that
@@ -5142,13 +5160,22 @@ inserted behind the old one and the old one removed (never the current song),
 in FIFO order with user edits, so a later Previous, wrap or crossfade starts it
 at 0. Landing or handing over onto an entry that beat its repair reopens it from
 the start, and a crossfade is not started into one. If the final pause or stop times out, the player
-is replaced through the timeout-recovery path so Play reloads on a fresh one. Native timeout recovery and failed seeks log
+is replaced through the timeout-recovery path so Play reloads on a fresh one.
+Play during the final bounded halt records intent and re-arms the same song at
+its retained position after shutdown; a later Pause cancels that resume. A
+current seek reloads the still-selected failed source at its newer target after
+shutdown, using the latest Play/Pause intent. It prefers a completed local copy
+and otherwise uses the existing original/offset rebuild and landing path. An
+older halt cannot mark a newer selection failed. While recovery still owns
+that occurrence, a timed-out halt finishes only on the retired player. Native timeout recovery and failed seeks log
 diagnostics without emitting user notices; automatic recovery needs no user
 action. Mobile exhausted requests suppress automatic stream retries until
 another explicit transport/selection request, or until the song has played on
-normally for five seconds past where the seek failed, preventing a failed seek
-from later restarting or skipping the song without leaving a later, unrelated
-stall unrecovered.
+normally for `healthyPlayback` (five seconds by default) past where the seek
+failed, preventing a failed seek from later restarting or skipping the song
+without leaving a later, unrelated
+stall unrecovered. This suppression uses position distance past the failed seek;
+failover renewal separately counts ready backend advancement as described above.
 Diagnostics expose `seek` generation,
 requested position, pending flag, stage, outcome and recovery count, with a bounded
 `seekEvents` history. On desktop a load's initial position is applied by mpv
