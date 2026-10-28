@@ -20,6 +20,16 @@ Last updated: 2026-10-28
   `Actual: [(song-1, true)]` for the withheld next-song publish; `test/src/features/player/data/`
   1312/1312 pass). Fix on `fix/crossfade-long-swap`; harness rerun
   (`crossfade_long_end`) remains with the orchestrator.
+- [x] 1.5.1 (#86), mobile in-app volume slider removed — 2026-10-28
+  (branch `fix/mobile-volume-removal`). The Now Playing settings sheet shows the
+  volume row only on a desktop runtime; no other mobile surface had a volume
+  control. Mobile never restored a saved volume (`hydrate`/persistence are
+  desktop-only, existing test "mobile volume remains session-only"), so the
+  effective mobile volume is always 1.0 with no migration. Evidence:
+  `now_playing_screen_adaptive_test.dart` mobile-sheet tests failed first
+  (`Expected: no matching candidates ... Found 1 widget with type "Slider"`),
+  now 40/40 pass; desktop sheet keeps its slider (new test); 320x844 golden
+  regenerated without the volume row.
 - [ ] Issue #151, no album art over Bluetooth AVRCP since 1.4.0 — 2026-10-28
   (branch `fix/bt-album-art`, merged with `github/release/1.5`). `forSystem`
   publishes the `content://` URI only when `artCacheFile` (or the cache path)
@@ -241,6 +251,36 @@ Last updated: 2026-10-28
   Remaining: final Android base-vs-fix runtime evidence and `check.sh` from the
   coordinator; both are explicitly prohibited for this implementation task
   while its independently owned harness run is active.
+- [ ] Issue #86, P3 lock-cache duplicate occurrences (triage 19-22) —
+  `fix/lock-cache-occurrences`, 2026-10-28, local commits only. Row 21: `audit`
+  now fails one instance at two queue positions (`atTwoPositions`); a merged
+  identity mutant of `_shareLockCacheSources` dies in 3 tests. Row 22:
+  `debugPrepareReplacementSources` and a failed-far-jump restore test kill both
+  `replacesQueue: true` deletions (the `_prepareQueueItems` one only via the
+  rebuild test: no reachable flow rebuilds with a held writer; the seek-recovery
+  rebuild uses neither flag). Row 20: `_releaseTail` and `_applyMaterialisedInsert`
+  observe right after the native commit; the release mirror uses the bounded
+  `_mirrorInsertOnDeck`. Failing before: registered source `Expected: true Actual:
+  <false>` while the deck add hangs. Row 19: a repeat is a `LockCacheFollowerSource`
+  delegating to the one writer; before, a repeat read `Expected: <1> Actual: <2>`
+  origin fetches. `.part` race: removing the partial file under a finishing
+  download reproduced `PathNotFoundException` at the rename; the vendored fetch now
+  fails cleanly. Focused: navigation_test 878 pass, lock_caching 60, follower 4.
+  No `./tool/check.sh`, harness, emulator or runtime pass ran (host busy).
+  Pre-merge review r2 (Opus) fixes, 2026-10-28: F1 an evicted song's re-download
+  was unregistered and a new occurrence became a second writer on the same `.part`
+  (failing: registry `Expected: true Actual: <false>`; idle writer `Expected:
+  LockCacheFollowerSource, Actual: LockCachingAudioSource`); now `onDownloadStart`
+  re-registers it and `_heldLockCacheWriters` supplies the leader. F2 requests
+  queued while a download finishes hung (`Expected: <0> Actual: <6>`); now served
+  from the published file. F3 the failed-publication reset is atomic and resets
+  progress (`Expected: <0> Actual: <2048>`).
+  Review r3 fixes: G1 a rebuild onto an idle evicted writer replayed its 1.0
+  progress as a completion (`Expected: true Actual: <false>` for the registry);
+  the listener now ignores 100% while the cache file is missing. G2 a player
+  recovery clears the retired sources' `onDownloadStart` (`Expected: null Actual:
+  <Closure: () => void>`). Nit: requests queued during the publish-failure
+  reset's await now fail after it.
 - [x] Issue #86, item 14 follow-up: overlapped continuation EOS —
   `fix/ogg-overlapped-eos` (from `release/1.5`): when the original delivered its
   final audio page but lost the separate empty EOS page, the continuation's EOS

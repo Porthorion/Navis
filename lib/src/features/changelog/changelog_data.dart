@@ -137,6 +137,13 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Android and iOS: the in-app volume slider is gone from the player '
+        'settings. Playback always runs at full app volume, so nothing can '
+        'stay quietly turned down; use the volume buttons on your phone. Desktop '
+        'keeps all its volume controls.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Android: album art shows again on Bluetooth and car displays, which '
         'had shown only the title and artist since 1.4.0.',
         type: ChangelogEntryType.fix,
@@ -194,6 +201,14 @@ const List<ChangelogVersion> changelogs = [
         'turning Repeat Off also releases that pause. Removing the current '
         'song can still leave playback paused. Seeking or pressing Pause then '
         'Play just as a song ends can still restart it or skip to the next song.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android: a song queued twice no longer downloads twice or loses its '
+        'cached copy. The repeat plays from the first copy, so seeking and '
+        'offline playback behave the same for both. A queue release or insert '
+        'with crossfade on no longer leaves its songs unregistered while the '
+        'crossfade deck catches up.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

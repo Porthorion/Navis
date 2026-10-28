@@ -222,3 +222,32 @@ cleanup and cancels the whole-file download only for opted-in sources; public
 setup timer and emits no failed-splice trace. Null keeps the plain fetch path.
 `cancelDownload()` closes the HTTP client before awaiting subscription cancel.
 The Navis resolver enables this hook on Android only.
+
+When the finishing whole-file download finds its `.part` file gone (cleanup, or
+another writer's rename) and no completed cache file exists, it fails like a cut
+instead of throwing from the stream callback: pending and in-progress requests
+fail, `_response` resets, `isDownloading` clears and a later request downloads
+again. A completed cache file already in place counts as done.
+
+A request or `prefetch()` that finds the cache file missing while no download is
+running discards the finished download's stale `_response` (and resets progress to
+0), so a completed file deleted by cache eviction or clearing is downloaded again
+instead of leaving the request queued forever. A running fetch is kept (one
+writer), and an existing cache file is still served first.
+
+`LockCachingAudioSource.onDownloadStart` is called each time a whole-file download
+starts, including the restart after a finished download's cache file was deleted
+(`_discardFinishedFetch`). The Navis handler re-registers the source's progress
+observer there, so the re-download is a registered running download again
+(stale-download cancel, priority pause, rolling-cache completion).
+
+Requests queued while a download finishes (after the dispatcher stopped, during the
+flush and publication of the cache file) are served from the completed file once it
+is published; if publishing fails they get that error and the fetch resets.
+
+The failed-publication reset (removed `.part`) clears `_response` and `_downloading`
+together after its last await and resets progress to 0, as `_abortDownload` does.
+
+The failed-publication reset fails the requests still queued after its last await
+(not before), so a request queued during that await is not left waiting. Owners
+that retire a source clear `onDownloadStart` so it cannot re-register afterwards.

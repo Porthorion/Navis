@@ -18,6 +18,7 @@ import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -92,6 +93,7 @@ Future<void> _pumpNowPlaying(
   ThemeData? theme,
   bool settle = true,
   AppNoticeController? notices,
+  bool desktopRuntime = false,
 }) async {
   await tester.pumpWidget(
     UncontrolledProviderScope(
@@ -110,11 +112,15 @@ Future<void> _pumpNowPlaying(
               ? child!
               : AppNoticeScope(notifier: notices, child: child!),
         ),
-        home: Scaffold(
-          body: NowPlayingScreen(
-            wideEmbeddedMode: wideEmbeddedMode,
-            compactWideLandscapeMode: compactWideLandscapeMode,
-            onCollapse: _noopCollapse,
+        home: _maybeDesktopScope(
+          tester,
+          desktopRuntime,
+          Scaffold(
+            body: NowPlayingScreen(
+              wideEmbeddedMode: wideEmbeddedMode,
+              compactWideLandscapeMode: compactWideLandscapeMode,
+              onCollapse: _noopCollapse,
+            ),
           ),
         ),
       ),
@@ -128,6 +134,24 @@ Future<void> _pumpNowPlaying(
 }
 
 void _noopCollapse() {}
+
+/// Marks the screen as running in the desktop shell, as the real app does.
+Widget _maybeDesktopScope(WidgetTester tester, bool desktop, Widget child) =>
+    desktop
+    ? AdaptiveContextScope(
+        adaptiveContext: resolveAdaptiveContext(
+          desktopRuntime: true,
+          viewportSize: tester.view.physicalSize,
+          safePadding: EdgeInsets.zero,
+        ),
+        child: child,
+      )
+    : child;
+
+final _sheetVolumeSlider = find.descendant(
+  of: find.byKey(const ValueKey('nowPlayingSettingsSheet')),
+  matching: find.byType(Slider),
+);
 
 void main() {
   testWidgets('Server Mix starts from a remote song with a library copy', (
@@ -864,6 +888,7 @@ void main() {
       Size size = const Size(390, 844),
       ThemeData? theme,
       TextScaler? textScaler,
+      bool desktopRuntime = false,
     }) async {
       setAdaptiveTestViewport(tester, size);
       final container = _createContainer(
@@ -891,6 +916,7 @@ void main() {
         platform: TargetPlatform.android,
         theme: theme,
         textScaler: textScaler,
+        desktopRuntime: desktopRuntime,
       );
       await tester.tap(find.byKey(const ValueKey('nowPlayingSettingsAction')));
       await tester.pumpAndSettle();
@@ -938,8 +964,9 @@ void main() {
         );
         expect(find.byType(EqQuickCard), findsNothing);
         expect(find.byKey(const ValueKey('equalizerEntryPoint')), findsNothing);
-        // The rest of the sheet is untouched.
-        expect(find.text('100%'), findsOneWidget);
+        // Phones keep system volume only: no in-app volume row.
+        expect(_sheetVolumeSlider, findsNothing);
+        expect(find.text('100%'), findsNothing);
         expect(tester.takeException(), isNull);
       }, skip: !sqliteAvailable);
     }
@@ -956,9 +983,11 @@ void main() {
         await openSheet(
           tester,
           eqSupported: false,
+          desktopRuntime: true,
           theme: buildLightTheme(Colors.indigo),
           textScaler: TextScaler.linear(scale),
         );
+        expect(_sheetVolumeSlider, findsOneWidget);
 
         final paragraph = tester.renderObject<RenderParagraph>(
           find.text('100%'),
@@ -973,6 +1002,14 @@ void main() {
         expect(tester.takeException(), isNull);
       }, skip: !sqliteAvailable);
     }
+
+    testWidgets('a desktop runtime keeps the volume slider in the sheet', (
+      tester,
+    ) async {
+      await openSheet(tester, eqSupported: false, desktopRuntime: true);
+      expect(_sheetVolumeSlider, findsOneWidget);
+      expect(find.text('100%'), findsOneWidget);
+    }, skip: !sqliteAvailable);
 
     testWidgets('Speed & Pitch opens after the settings sheet closes', (
       tester,

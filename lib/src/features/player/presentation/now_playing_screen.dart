@@ -575,6 +575,9 @@ void _showNowPlayingSettingsSheet(
   String? fullscreenLyricsSongId,
   String? fullscreenLyricsTitle,
 }) {
+  // Phones have system volume, buttons and per-app volume; only desktop keeps
+  // an in-app volume control.
+  final showVolume = resolveAdaptiveContextFor(context).desktopRuntime;
   final action = showModalBottomSheet<_SettingsSheetAction>(
     context: context,
     useRootNavigator: true,
@@ -588,7 +591,9 @@ void _showNowPlayingSettingsSheet(
       snap: true,
       builder: (_, scrollController) => Consumer(
         builder: (_, sheetRef, _) {
-          final sheetVolume = sheetRef.watch(playbackVolumeProvider);
+          final sheetVolume = showVolume
+              ? sheetRef.watch(playbackVolumeProvider)
+              : 1.0;
           return ValueListenableBuilder<bool>(
             valueListenable: transportQuickActionsShown,
             builder: (_, quickActionsShown, _) => SafeArea(
@@ -598,44 +603,48 @@ void _showNowPlayingSettingsSheet(
                 controller: scrollController,
                 padding: const EdgeInsets.only(bottom: 12),
                 children: <Widget>[
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                    child: Row(
-                      children: <Widget>[
-                        Icon(
-                          sheetVolume <= 0.01
-                              ? Icons.volume_off_rounded
-                              : sheetVolume < 0.5
-                              ? Icons.volume_down_rounded
-                              : Icons.volume_up_rounded,
-                          size: 22,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Slider(
-                            value: sheetVolume,
-                            min: 0,
-                            max: 1,
-                            onChanged: (v) {
-                              unawaited(
+                  if (showVolume) ...<Widget>[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                      child: Row(
+                        children: <Widget>[
+                          Icon(
+                            sheetVolume <= 0.01
+                                ? Icons.volume_off_rounded
+                                : sheetVolume < 0.5
+                                ? Icons.volume_down_rounded
+                                : Icons.volume_up_rounded,
+                            size: 22,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Slider(
+                              value: sheetVolume,
+                              min: 0,
+                              max: 1,
+                              onChanged: (v) {
+                                unawaited(
+                                  sheetRef
+                                      .read(playbackVolumeProvider.notifier)
+                                      .setVolume(v),
+                                );
+                              },
+                              onChangeEnd: (v) => unawaited(
                                 sheetRef
                                     .read(playbackVolumeProvider.notifier)
-                                    .setVolume(v),
-                              );
-                            },
-                            onChangeEnd: (v) => unawaited(
-                              sheetRef
-                                  .read(playbackVolumeProvider.notifier)
-                                  .setVolume(v, persistImmediately: true),
+                                    .setVolume(v, persistImmediately: true),
+                              ),
                             ),
                           ),
-                        ),
-                        _VolumePercentLabel(volume: sheetVolume),
-                      ],
+                          _VolumePercentLabel(volume: sheetVolume),
+                        ],
+                      ),
                     ),
-                  ),
-                  const Divider(height: 1),
+                    const Divider(height: 1),
+                  ],
                   ..._nowPlayingSettingsItems(
                     context,
                     sheetRef,
