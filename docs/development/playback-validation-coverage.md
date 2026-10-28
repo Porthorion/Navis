@@ -161,7 +161,7 @@ evidence. No Flutter/runtime acceptance is claimed by tooling self-checks.
 
 ## Task A focused verification
 
-`python3 tool/playback_harness_test.py`: 79 tests passed (and `python3 tool/validation_gate_test.py`: 45), including
+`python3 tool/playback_harness_test.py`: 80 tests passed (and `python3 tool/validation_gate_test.py`: 45), including
 retained threshold/oracle probes and new deterministic failure, partial-report,
 timeout, interruption, build-exit, exact-cell, stale-source/environment/config,
 artifact and successful-finalization checks. Python byte-compilation,

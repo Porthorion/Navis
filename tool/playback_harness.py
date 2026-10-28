@@ -231,7 +231,8 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
             out.update(spliceFrozenMedianS=_med(r['metrics'].get('maxFrozenS') for r in cut_rows),
                        reloadsAfterCut=sum(len(c['reloads']) for c in checks),
                        # Evidence that the injected cuts bit, whichever way the build recovers (reload before #163, splice since).
-                       cutsObserved=min(len(c['reloads']) + len(c.get('timeOffsetRequests', [])) + len(c.get('spliceEvents', [])) for c in checks),  # every cut row, not the pool playerErrorsAfterCut=sum(len(c['playerErrors']) for c in checks),
+                       cutsObserved=min(len(c['reloads']) + len(c.get('timeOffsetRequests', [])) + len(c.get('spliceEvents', [])) for c in checks),  # every cut row, not the pool
+                       playerErrorsAfterCut=sum(len(c['playerErrors']) for c in checks),
                        spliceRequestsOk=all(c['requestsOk'] for c in checks), spliceFileOk=all(c['file']['ok'] for c in checks),
                        joinRmsMax=max([c['file'].get('maxWindowRms') or 0 for c in checks]))
     elif scenario == 'local-seek':

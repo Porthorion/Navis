@@ -123,6 +123,20 @@ class Thresholds(unittest.TestCase):
             info = engine.splice_check(run, env, 's', 5.0, 1000, 1, set())
         self.assertEqual([e['timeOffset'] for e in info['spliceEvents']], [2])
 
+    def test_real_android_cut_row_yields_every_gated_splice_metric(self):
+        # Trimmed from the fix run build/harness/20261028T004939.200516Z (cut40 opus128 slow1500 rep 0): that run reported
+        # playerErrorsAfterCut=None because a comment swallowed it inside metrics().
+        row = {'case': 'cut40', 'quality': 'opus128', 'throttle': 'slow1500', 'rep': 0, 'passed': True, 'violations': [], 'latencyS': None,
+               'metrics': {'maxFrozenS': 0.28, 'spliceCheck': {
+                   'reloads': [], 'playerErrors': [], 'timeOffsetRequests': ['94'],
+                   'spliceEvents': [{'timeOffset': 94, 'dropped': 100, 'attempt': 1, 'result': 'ok'}], 'requestsOk': True,
+                   'cacheViolations': [], 'file': {'decodeExit': 0, 'decodeStderr': '', 'lenDiffS': 0.0, 'maxWindowRms': 0.0, 'ok': True}}}}
+        metrics = h.metrics('cut-recovery', [row])
+        for check in h.ANDROID_CHECKS['cut-recovery']:
+            self.assertIsNotNone(metrics.get(check[0]), check[0])
+        self.assertEqual((metrics['playerErrorsAfterCut'], metrics['cutsObserved']), (0, 2))
+        self.assertTrue(all(ok for ok, _ in h.evaluate('cut-recovery', metrics, metrics, 'android')))
+
     def test_cuts_observed_counts_continuation_requests_events_and_reloads(self):
         def row(**check):
             return {'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0, 'spliceCheck': {

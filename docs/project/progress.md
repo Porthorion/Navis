@@ -4203,8 +4203,8 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   base splices, so every A/B reported RESULT FAIL): it requires `cutsObserved >= 1`
   (continuation requests + splice events + reloads after the cut). Still fails when
   no cut was observed. 76 harness + 44 gate self-checks, hermetic.
-- Review round 2: boot wait clears its bad-state clock after 10 s of a steady
+- Review round 2 (a stray comment in `metrics()` dropped `playerErrorsAfterCut`; a real-report-shaped self-check now guards every gated splice metric; the Android cut smoke showed `cutsObserved` 2 on base and fix): boot wait clears its bad-state clock after 10 s of a steady
   `device` state (a late blip on a slow boot no longer fails; flapping still does),
   `repeat_one_fill` minimum 2500 ms (named constant), `cutsObserved` is the minimum
-  over cut cells with `spliceEvents` limited to the cut window. 79 harness + 45 gate
+  over cut cells with `spliceEvents` limited to the cut window. 80 harness + 45 gate
   self-checks, hermetic.
