@@ -1975,16 +1975,21 @@ void main() {
       'radio that started without Last.fm: ${entry.key.name} notice',
       (tester) async {
         setAdaptiveTestViewport(tester, const Size(1000, 420));
-        final radioDatabase = createTestDatabase();
-        addTearDown(radioDatabase.close);
-        await radioDatabase.libraryDao.upsertSongs(<SongsTableCompanion>[
-          SongsTableCompanion.insert(id: 'song-1', title: 'One'),
+        // The shared database: remove the radio candidate afterwards so later
+        // tests still see an empty library.
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'radio-song', title: 'One'),
         ]);
+        addTearDown(
+          () => (database.delete(
+            database.songsTable,
+          )..where((song) => song.id.equals('radio-song'))).go(),
+        );
         final notices = AppNoticeController();
         addTearDown(notices.dispose);
         await _pumpHomeWithAppSettings(
           tester,
-          database: radioDatabase,
+          database: database,
           notices: notices,
           overrides: <Override>[
             personalRadioProvider.overrideWith(
