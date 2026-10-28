@@ -301,7 +301,7 @@ extension _NavisPersistence on NavisAudioHandler {
     _shuffleEnabled ? schema.ShuffleMode.all : schema.ShuffleMode.off,
     includePosition
         ? (_restoredQueueIndex == null
-                  ? _player.position
+                  ? _transportPosition
                   : _restoredQueuePosition)
               .inMilliseconds
         : _snapshot.position.inMilliseconds,
