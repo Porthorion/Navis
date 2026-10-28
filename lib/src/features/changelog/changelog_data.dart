@@ -159,6 +159,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Desktop: skipping from the middle of a song no longer jumps back to '
+        'the previous song.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On Android, Ogg/Opus transcodes can recover a mid-song connection '
         'cut without reloading the song: Navis joins a continuation to the '
         'audio already buffered.',
