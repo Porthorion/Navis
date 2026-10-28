@@ -50,8 +50,14 @@ Future<T> _duringChunkYield<T>(
 }
 
 class _CountingLastFmApiClient extends LastFmApiClient {
-  new() : super(apiKey: 'test-key');
+  new([
+    this.result = const LastFmTrackFetchResult(
+      outcome: LastFmFetchOutcome.noResults,
+      tracks: <LastFmTrackRecommendation>[],
+    ),
+  ]) : super(apiKey: 'test-key');
 
+  final LastFmTrackFetchResult result;
   int similarTrackCalls = 0;
 
   @override
@@ -61,10 +67,7 @@ class _CountingLastFmApiClient extends LastFmApiClient {
     int limit = 20,
   }) async {
     similarTrackCalls++;
-    return const LastFmTrackFetchResult(
-      outcome: LastFmFetchOutcome.noResults,
-      tracks: <LastFmTrackRecommendation>[],
-    );
+    return result;
   }
 }
 
@@ -470,7 +473,11 @@ void main() {
   );
 
   group('Last.fm integration gates', () {
-    Future<_CountingLastFmApiClient> runRadio(IntegrationPolicy policy) async {
+    Future<RecommendationBatch> radioBatchWith(
+      LastFmTrackFetchResult result, {
+      IntegrationPolicy policy = const IntegrationPolicy(lastFmVerified: true),
+      bool withClient = true,
+    }) async {
       final database = createTestDatabase();
       addTearDown(database.close);
       await database.libraryDao.upsertSongs(<SongsTableCompanion>[
@@ -485,7 +492,101 @@ void main() {
           cancelToken: any(named: 'cancelToken'),
         ),
       ).thenAnswer((_) async => const <Song>[]);
-      final lastFm = _CountingLastFmApiClient();
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+            subsonicApiProvider.overrideWithValue(api),
+            lastFmApiClientProvider.overrideWithValue(
+              withClient ? _CountingLastFmApiClient(result) : null,
+            ),
+            integrationPolicyProvider.overrideWithValue(policy),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+      return container
+          .read(recommendationServiceProvider)
+          .personalRadio(const RadioFilters(), excludedIds: const <String>{});
+    }
+
+    LastFmTrackFetchResult failure(
+      LastFmFetchOutcome outcome, {
+      int? code,
+      int? status,
+    }) => LastFmTrackFetchResult(
+      outcome: outcome,
+      tracks: const <LastFmTrackRecommendation>[],
+      apiErrorCode: code,
+      statusCode: status,
+    );
+
+    test('a rejected key still plays radio and reports invalidKey', () async {
+      final batch = await radioBatchWith(
+        failure(LastFmFetchOutcome.apiError, code: 10),
+      );
+      expect(batch.songs, isNotEmpty);
+      expect(batch.issue, RecommendationIssue.none);
+      expect(batch.lastFmIssue, RecommendationIssue.invalidKey);
+    }, skip: !sqliteAvailable);
+
+    // One test database per test, like runRadio below: several open at
+    // once trip drift's multiple-instances warning (a check.sh blocker).
+    test('no Last.fm key at all stays silent', () async {
+      final batch = await radioBatchWith(
+        failure(LastFmFetchOutcome.apiError, code: 10),
+        withClient: false,
+      );
+      expect(batch.songs, isNotEmpty);
+      expect(batch.lastFmIssue, RecommendationIssue.none);
+    }, skip: !sqliteAvailable);
+
+    for (final entry in <String, (LastFmTrackFetchResult, IntegrationPolicy)>{
+      'a rate limit': (
+        failure(LastFmFetchOutcome.apiError, status: 429),
+        const IntegrationPolicy(lastFmVerified: true),
+      ),
+      'a network failure': (
+        failure(LastFmFetchOutcome.networkError),
+        const IntegrationPolicy(lastFmVerified: true),
+      ),
+      'an empty answer': (
+        failure(LastFmFetchOutcome.noResults),
+        const IntegrationPolicy(lastFmVerified: true),
+      ),
+      'switched-off Last.fm': (
+        failure(LastFmFetchOutcome.apiError, code: 10),
+        const IntegrationPolicy(),
+      ),
+    }.entries) {
+      test('${entry.key} stays silent', () async {
+        final (result, policy) = entry.value;
+        expect(
+          (await radioBatchWith(result, policy: policy)).lastFmIssue,
+          RecommendationIssue.none,
+        );
+      }, skip: !sqliteAvailable);
+    }
+
+    Future<RecommendationBatch> runRadioWith(
+      LastFmApiClient lastFm,
+      IntegrationPolicy policy,
+    ) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        for (var i = 0; i < 6; i++)
+          SongsTableCompanion.insert(id: 'song-$i', title: 'Title $i'),
+      ]);
+      final api = _MockSubsonicApiClient();
+      when(
+        () => api.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async => const <Song>[]);
       final container = ProviderContainer(
         overrides: withTestDatabase(
           database,
@@ -498,9 +599,14 @@ void main() {
         ),
       );
       addTearDown(container.dispose);
-      await container
+      return container
           .read(recommendationServiceProvider)
           .personalRadio(const RadioFilters(), excludedIds: const <String>{});
+    }
+
+    Future<_CountingLastFmApiClient> runRadio(IntegrationPolicy policy) async {
+      final lastFm = _CountingLastFmApiClient();
+      await runRadioWith(lastFm, policy);
       return lastFm;
     }
 
@@ -531,6 +637,15 @@ void main() {
         expect((await runRadio(entry.value)).similarTrackCalls, 0);
       }, skip: !sqliteAvailable);
     }
+
+    test('a seed with no artist is not a rejected key', () async {
+      final batch = await runRadioWith(
+        LastFmApiClient(apiKey: 'test-key'),
+        const IntegrationPolicy(lastFmVerified: true),
+      );
+      expect(batch.songs, isNotEmpty);
+      expect(batch.lastFmIssue, RecommendationIssue.none);
+    }, skip: !sqliteAvailable);
 
     test('radio fill is not blocked by the Same Vibes switch', () async {
       expect(

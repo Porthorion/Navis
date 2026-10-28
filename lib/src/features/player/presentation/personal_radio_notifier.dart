@@ -30,10 +30,17 @@ class PersonalRadioState {
 }
 
 class RadioStartResult {
-  const new({required this.insertedCount, required this.issue});
+  const new({
+    required this.insertedCount,
+    required this.issue,
+    this.lastFmIssue = RecommendationIssue.none,
+  });
 
   final int insertedCount;
   final RecommendationIssue issue;
+
+  /// See [RecommendationBatch.lastFmIssue]; set only on a successful start.
+  final RecommendationIssue lastFmIssue;
 
   bool get succeeded => insertedCount > 0;
 }
@@ -198,6 +205,7 @@ class PersonalRadioNotifier extends Notifier<PersonalRadioState> {
       return RadioStartResult(
         insertedCount: inserted,
         issue: RecommendationIssue.none,
+        lastFmIssue: batch.lastFmIssue,
       );
     } on Object {
       if (coordinator.owns(session)) {

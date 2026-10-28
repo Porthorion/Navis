@@ -130,6 +130,17 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Rematching a weekly playlist now shows how far it has got, such as '
+        '"Matching 3 of 12", instead of a bare spinner.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Instant Radio now tells you when Last.fm rejected your API key. The '
+        'radio still plays from your server and library; rate limits and '
+        'network hiccups stay silent.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Crossfade on long songs now ends before the song does: the fade '
         'shortens when preparing the next song takes time, the song and '
         'position no longer jump a few seconds when it completes, and the '
