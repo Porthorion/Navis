@@ -4001,6 +4001,7 @@ def case_crossfade_end(run: Run, env):
 # P5 / triage row 28: cross-fading out of a LONG song (the 1-8 s fixture songs above cannot see it).
 XFADE_LONG_MIN_S = 180           # both songs at least this long (fixture tracks 2+ are 300 s)
 XFADE_LONG_LEAD_MS = 10000       # seek the first song to this long before its end
+XFADE_NOSEEK_S = (100, 200)      # no-seek variant: the first song's length range (the fixture's 120 s track)
 XFADE_LONG_AFTER_SWAP_S = 6.0    # keep sampling this long after the incoming song is current
 XFADE_JUMP_MS = 1500             # (a) forward step between samples of one song
 XFADE_BACKSTEP_MS = 300          # (a) backwards step (native clock jitter stays well below this)
@@ -4065,28 +4066,34 @@ def oracle_crossfade_long(run: Run, ids: list[str], fade_ms: int, saved=None, af
     return out
 
 
-def case_crossfade_long_end(run: Run, env):
-    """Cross-fade out of a long song: two songs of >= 3 min, the first seeked to 10 s before its end; the swap and the
-    seconds after it are sampled densely (displayed/native position, outgoing/incoming player, phases), then the saved
-    transport position is read from the profile database."""
-    songs = env.backend.fresh_songs(2, min_s=XFADE_LONG_MIN_S)
+def crossfade_long_case(run: Run, env, seek: bool):
+    """Shared body of the long-song cross-fade cases: the swap and the seconds after it are sampled densely
+    (displayed/native position, outgoing/incoming player, phases), then the saved transport position is read from the profile database."""
+    if seek:
+        songs = env.backend.fresh_songs(2, min_s=XFADE_LONG_MIN_S)
+    else:  # the album's first track is the fixture's 120 s song: played from 0, no seek, no offset stream
+        ids = env.backend.fresh_album()[:2]
+        songs = [{'id': i, 'duration': song_info(run, i)[0]} for i in ids]
     ids = [s['id'] for s in songs]
     run.songs = songs
-    if any(s.get('duration', 0) < XFADE_LONG_MIN_S for s in songs):
-        run.violations.append(violation('caseError', run.now(), f'fixture songs shorter than {XFADE_LONG_MIN_S} s: {songs}', run))
-        raise CaseAbort('no long songs')
+    if (seek and any(s.get('duration', 0) < XFADE_LONG_MIN_S for s in songs)) or (
+            not seek and not XFADE_NOSEEK_S[0] <= songs[0]['duration'] <= XFADE_NOSEEK_S[1]):
+        run.violations.append(violation('caseError', run.now(), f'fixture songs do not fit the case: {songs}', run))
+        raise CaseAbort('no suitable songs')
     rec = start_queue(run, ids)
     await_audio(run, rec, ids[0])
-    seek_ms = int(songs[0]['duration']) * 1000 - XFADE_LONG_LEAD_MS
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-        seek = issue_seek(run, pool, seek_ms)
-        landing = landed(run, seek)
-        finish_futures(run)
-    if landing is None:
-        run.violations.append(violation('seekNoLand', seek['t'], f'no landing at {seek_ms} ms', run))
-        raise CaseAbort('seek did not land')
+    landing, seek_ms = None, None
+    if seek:
+        seek_ms = int(songs[0]['duration']) * 1000 - XFADE_LONG_LEAD_MS
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            issued = issue_seek(run, pool, seek_ms)
+            landing = landed(run, issued)
+            finish_futures(run)
+        if landing is None:
+            run.violations.append(violation('seekNoLand', issued['t'], f'no landing at {seek_ms} ms', run))
+            raise CaseAbort('seek did not land')
     moved = run.until(lambda s: s['songId'] == ids[1] and s['proc'] == 'ready' and s['playing'],
-                      XFADE_LONG_LEAD_MS / 1000 + run.deadlines['advance'])
+                      (XFADE_LONG_LEAD_MS if seek else songs[0]['duration'] * 1000) / 1000 + run.deadlines['advance'])
     if moved is None:
         run.violations.append(violation('chainNoHandover', run.now(), 'the long song never handed over to the next', run))
         raise CaseAbort('no handover')
@@ -4095,13 +4102,22 @@ def case_crossfade_long_end(run: Run, env):
     saved = persisted_queue(run.app)
     after = run.last()
     run.metrics['xfadeLong'] = {
-        'seekMs': seek_ms, 'landedAt': landing['t'], 'swapAt': moved['t'], 'saved': {k: saved.get(k) for k in ('index', 'positionMs')},
-        'displayedMs': [_xfade_shown(before), _xfade_shown(after)],
+        'seeked': seek, 'seekMs': seek_ms, 'landedAt': landing and landing['t'], 'swapAt': moved['t'],
+        'saved': {k: saved.get(k) for k in ('index', 'positionMs')}, 'displayedMs': [_xfade_shown(before), _xfade_shown(after)],
         'window': [[s['t'], s['songId'], s['pos'], s['uiPos'], (s['cf'] or {}).get('active'),
                     ((s['cf'] or {}).get('outgoing') or {}).get('positionMs'), ((s['cf'] or {}).get('incoming') or {}).get('positionMs')]
-                   for s in run.samples if landing['t'] <= s['t'] <= moved['t'] + 3]}
+                   for s in run.samples if moved['t'] - 15 <= s['t'] <= moved['t'] + 3]}
     run.checks.append(lambda: oracle_crossfade_long(run, ids, CROSSFADE_S * 1000, saved, after))
 
+
+def case_crossfade_long_end(run: Run, env):
+    """Cross-fade out of a long song: two songs of >= 3 min, the first seeked to 10 s before its end."""
+    crossfade_long_case(run, env, seek=True)
+
+
+def case_crossfade_long_noseek(run: Run, env):
+    """The same swap without a seek (a 120 s song played from 0 into a 300 s one): shows whether the overrun depends on the seek."""
+    crossfade_long_case(run, env, seek=False)
 
 def start_player_overlay(run: Run):
     run.app.api('/v1/presentation/player-overlay', {'surface': 'nowPlaying', 'visible': True, 'settle': False})
@@ -4357,7 +4373,7 @@ CASE_FUNCS = {
     'shuffle_toggle': case_shuffle_toggle,
     'queue_playnext_add': queue_case(edit_play_next_add),
     'queue_reorder': queue_case(edit_reorder),
-    'crossfade_end': case_crossfade_end, 'crossfade_long_end': case_crossfade_long_end, 'stress_drag': case_stress_drag, 'stress_flick': case_stress_flick,
+    'crossfade_end': case_crossfade_end, 'crossfade_long_end': case_crossfade_long_end, 'crossfade_long_noseek': case_crossfade_long_noseek, 'stress_drag': case_stress_drag, 'stress_flick': case_stress_flick,
     'mem_soak': case_mem_soak, 'local_seek': case_local_seek,
     'q7_append_200': q7_append_case(200), 'q7_append_after5': q7_append_case(-5),
 }

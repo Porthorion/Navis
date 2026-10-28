@@ -208,7 +208,7 @@ class Gate(unittest.TestCase):
             self.assertEqual(config, h.full_config(platform, 'resolved-base', 'Flutter pinned'))
             self.assertEqual(config['names'], [n for n in h.SCENARIOS if platform == 'linux' or n in h.ANDROID_SCENARIOS])
             cells = sum(len(h.expected_cells(n, True, None, platform)) for n in config['names'])
-            self.assertEqual(cells, 121 if platform == 'linux' else 85)
+            self.assertEqual(cells, 124 if platform == 'linux' else 88)
         self.assertIn('Whole playback acceptance: outstanding', summary)
         self.assertTrue(all(v['status'] == 'outstanding' for v in record['external'].values()))
 

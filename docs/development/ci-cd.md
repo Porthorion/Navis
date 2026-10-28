@@ -1077,7 +1077,7 @@ adds no duplicate Flutter suite and starts no runtime matrix, build or emulator.
 Before: run check.sh, Linux `ab --all --full`, then Android `ab --all --full`
 separately. After: `python3 tool/playback_harness.py gate --base github/release/1.5`.
 See the [exact commands, deadlines, locks and handoff protocol](development-workflow.md#final-fixture-gate-and-ownership).
-The gate retains all 412 A/B fixture cells, per-step logs and machine/human
+The gate retains all 424 A/B fixture cells, per-step logs and machine/human
 summaries. Missing platforms, incomplete evidence, changed candidates, capture
 failures and timeouts never pass. Explicit reuse requires exact source/base,
 Flutter/configuration/environment, full-platform cells and intact artifacts;

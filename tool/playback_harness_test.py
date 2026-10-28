@@ -972,8 +972,8 @@ class InfraErrors(unittest.TestCase):
 
 class DurableEvidence(unittest.TestCase):
     def test_full_counts(self):
-        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'linux')) for n in h.SCENARIOS), 121)
-        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'android')) for n in h.ANDROID_SCENARIOS), 85)
+        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'linux')) for n in h.SCENARIOS), 124)
+        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'android')) for n in h.ANDROID_SCENARIOS), 88)
 
     def test_exact_cells(self):
         expected = h.expected_cells('queue-edit', False, None, 'linux')
