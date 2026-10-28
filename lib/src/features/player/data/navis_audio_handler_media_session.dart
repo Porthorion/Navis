@@ -343,6 +343,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       // this event.
       if (_outgoingAdvancedMidFade) {
         _crossfadeIndexSuppressed = true;
+        _jumpToIncomingVolume();
         unawaited(_completeCrossfade());
         return;
       }

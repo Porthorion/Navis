@@ -22,6 +22,23 @@ extension _NavisCrossfade on NavisAudioHandler {
       identical(_player, _crossfadeOutgoing?.deck) &&
       _player.currentIndex == _crossfadeTargetIndex;
 
+  /// Silences the outgoing deck and brings the incoming one to full volume
+  /// before the hand-over awaits anything: the outgoing deck is playing the
+  /// next song, and the early hand-over stopped the ramp mid-way.
+  void _jumpToIncomingVolume() {
+    final target = _replayGainVolumeFor(
+      _queueItems.elementAtOrNull(_crossfadeTargetIndex ?? _queueItems.length),
+    );
+    void log(Object error, StackTrace stack) => AppLogger.warning(
+      'Cross-fade early volume write failed: $error\n$stack',
+    );
+    unawaited(_setVolumeIfChanged(_player, 0).catchError(log));
+    final incoming = _crossfadePlayer;
+    if (incoming != null) {
+      unawaited(_setVolumeIfChanged(incoming, target).catchError(log));
+    }
+  }
+
   /// The position to show and save. While the outgoing deck has advanced
   /// mid-fade, its own position belongs to the next song (about 0), so the
   /// outgoing song stays at its end until the hand-over.

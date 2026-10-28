@@ -15093,6 +15093,21 @@ void main() {
               fade(handler)['active'] == false,
         );
       });
+
+      test('mutes the outgoing deck before any hand-over await', () async {
+        final (handler, player, incoming, _) = await midFade();
+        final hold = Completer<void>();
+        incoming.volumeHold = hold;
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(player.volume, 0, reason: 'no second copy of song-1');
+        hold.complete();
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+      });
     });
 
     test(
