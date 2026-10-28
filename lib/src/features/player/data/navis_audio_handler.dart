@@ -3077,7 +3077,11 @@ class NavisAudioHandler extends BaseAudioHandler
     await _ready;
     _userVolume = volume.clamp(0.0, 1.0);
     if (_isCrossfading) {
-      final progress = _crossfadeFadeStartedAt == null
+      // The outgoing deck is playing the next song: keep it muted and the
+      // incoming deck at full volume until the hand-over completes.
+      final progress = _outgoingAdvancedMidFade
+          ? 1.0
+          : _crossfadeFadeStartedAt == null
           ? 0.0
           : (DateTime.now()
                         .difference(_crossfadeFadeStartedAt!)

@@ -15277,6 +15277,27 @@ void main() {
         );
       });
 
+      test(
+        'a volume change inside the hand-over keeps the outgoing mute',
+        () async {
+          final (handler, player, incoming, _) = await midFade();
+          final hold = Completer<void>();
+          incoming.volumeHold = hold;
+          player.finishCurrentTrack();
+          await pumpEventQueue();
+          unawaited(handler.setVolume(0.8));
+          await pumpEventQueue();
+          expect(player.volume, 0, reason: 'song-1 must not come back');
+          hold.complete();
+          await waitForFade(
+            () =>
+                identical(handler.debugActivePlayer, incoming) &&
+                fade(handler)['active'] == false,
+          );
+          expect(incoming.volume, closeTo(0.8, 0.001));
+        },
+      );
+
       test('a volume change follows the shortened ramp', () async {
         final (handler, player, _) = await crossfading(2);
         await handler.replaceQueue(ids(2), expandMatchFlows: false);
