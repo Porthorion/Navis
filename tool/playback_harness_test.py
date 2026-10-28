@@ -103,6 +103,40 @@ class Thresholds(unittest.TestCase):
         lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 0, 'cutsObserved': 2}, {}, 'android')
         self.assertTrue(all(ok for ok, line in lines if 'baseCutObserved' in line))
 
+    def test_cuts_observed_must_hold_for_every_cut_row_not_the_pool(self):
+        def row(requests):
+            return {'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0, 'spliceCheck': {
+                'reloads': [], 'playerErrors': [], 'requestsOk': True, 'timeOffsetRequests': requests, 'spliceEvents': [],
+                'file': {'ok': True, 'maxWindowRms': 0.001}}}}
+        self.assertEqual(h.metrics('cut-recovery', [row([1]), row([])])['cutsObserved'], 0)  # one row missed its cut
+        self.assertEqual(h.metrics('cut-recovery', [row([1]), row([5, 6])])['cutsObserved'], 1)
+
+    def test_splice_events_outside_the_cut_window_are_not_evidence(self):
+        trace = [{'atMs': 500, 'kind': 'oggSplice', 'timeOffset': 1, 'attempt': 0},       # before the cut
+                 {'atMs': 1500, 'kind': 'oggSplice', 'timeOffset': 2, 'attempt': 0}]       # inside the window
+        run = Mock(trace=trace, proxy_mark=0, quality='opus128')
+        run.app.run = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__('shutil').rmtree(run.app.run, ignore_errors=True))
+        env = Mock()
+        env.proxy.log = []
+        with patch.object(engine, 'oracle_cache_integrity', return_value=[]):
+            info = engine.splice_check(run, env, 's', 5.0, 1000, 1, set())
+        self.assertEqual([e['timeOffset'] for e in info['spliceEvents']], [2])
+
+    def test_real_android_cut_row_yields_every_gated_splice_metric(self):
+        # Trimmed from the fix run build/harness/20261028T004939.200516Z (cut40 opus128 slow1500 rep 0): that run reported
+        # playerErrorsAfterCut=None because a comment swallowed it inside metrics().
+        row = {'case': 'cut40', 'quality': 'opus128', 'throttle': 'slow1500', 'rep': 0, 'passed': True, 'violations': [], 'latencyS': None,
+               'metrics': {'maxFrozenS': 0.28, 'spliceCheck': {
+                   'reloads': [], 'playerErrors': [], 'timeOffsetRequests': ['94'],
+                   'spliceEvents': [{'timeOffset': 94, 'dropped': 100, 'attempt': 1, 'result': 'ok'}], 'requestsOk': True,
+                   'cacheViolations': [], 'file': {'decodeExit': 0, 'decodeStderr': '', 'lenDiffS': 0.0, 'maxWindowRms': 0.0, 'ok': True}}}}
+        metrics = h.metrics('cut-recovery', [row])
+        for check in h.ANDROID_CHECKS['cut-recovery']:
+            self.assertIsNotNone(metrics.get(check[0]), check[0])
+        self.assertEqual((metrics['playerErrorsAfterCut'], metrics['cutsObserved']), (0, 2))
+        self.assertTrue(all(ok for ok, _ in h.evaluate('cut-recovery', metrics, metrics, 'android')))
+
     def test_cuts_observed_counts_continuation_requests_events_and_reloads(self):
         def row(**check):
             return {'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0, 'spliceCheck': {
@@ -572,6 +606,15 @@ class RepeatFillDuration(unittest.TestCase):
         with self.assertRaises(engine.CaseAbort):
             self.play(2000, [])
         self.assertEqual(self.run.violations, [{'oracle': 'caseError'}])
+
+    def test_a_three_second_fixture_song_reported_as_2_99_s_is_still_observable(self):
+        self.assertEqual(engine.REPEAT_FILL_MIN_MS, 2500)
+        for dur in (2990, 2500):
+            run, _, _ = self.play(dur, [])  # no abort, no caseError
+            self.assertEqual(run.violations, [], dur)
+            self.assertLess(run.observe.call_args[0][0], 2 * dur / 1000)  # still before a second loop
+        with self.assertRaises(engine.CaseAbort):
+            self.play(2400, [])
 
 
 class RepeatClockBlip(unittest.TestCase):

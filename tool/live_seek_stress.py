@@ -2879,6 +2879,9 @@ def case_repeat_switch_off(run: Run, env):
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=2))
 
 
+REPEAT_FILL_MIN_MS = 2500  # shortest song with room for one observable loop; a 3 s fixture song can report 2.99 s
+
+
 def repeat_wrap_bounds(dur_ms: int) -> tuple[int, int]:
     """(a wrap starts after this position, ends before that one) for a song of [dur_ms]: the last 4 s and first 3 s of a long song,
     at most half the song each, so the two windows never overlap (plain progress on a 5 s song would otherwise count as a wrap)."""
@@ -2906,7 +2909,7 @@ def case_repeat_one_fill(run: Run, env):
             run.violations.append(violation('caseError', run.now(), 'song 1 duration never became known', run))
             raise CaseAbort('song 1 duration never became known')
         dur = known['dur']
-    if dur < 3000:
+    if dur < REPEAT_FILL_MIN_MS:
         run.violations.append(violation('caseError', run.now(), f'song 1 is {dur} ms: too short to observe one loop', run))
         raise CaseAbort(f'song 1 is {dur} ms: too short to observe one loop')
     seek_ms = max(0, dur - 8000)
@@ -3048,7 +3051,7 @@ def splice_check(run: Run, env, song_id: str, duration_s: float, cut_device_ms: 
                or (e['kind'] == 'sourceResolved' and e.get('timeOffset'))]
     errors = [e['errorCode'] for e in window if e['kind'] == 'playerState' and e.get('errorCode')]
     requests = [r['timeOffset'] for r in env.proxy.log[run.proxy_mark:] if r['id'] == song_id and r.get('timeOffset')]
-    events = [{k: e.get(k) for k in ('timeOffset', 'dropped', 'attempt', 'result')} for e in run.trace if e['kind'] == 'oggSplice']
+    events = [{k: e.get(k) for k in ('timeOffset', 'dropped', 'attempt', 'result')} for e in window if e['kind'] == 'oggSplice']
     info = {'reloads': reloads, 'playerErrors': errors, 'timeOffsetRequests': requests, 'spliceEvents': events,
             'requestsOk': len(requests) == cuts and [str(e['timeOffset']) for e in events if e['attempt'] is not None][:cuts] == requests[:cuts]}
     violations = oracle_cache_integrity(run, song_id, duration_s, rolling_before, run.quality)
