@@ -83,6 +83,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
   }
 
   NavisResolvedQueueMetadata _resolveCurrentQueueMetadata() {
+    // Until the hand-over, the outgoing song stays the current one.
+    if (_outgoingAdvancedMidFade) return _crossfadeOutgoing!.from;
     final departed = _prematureTranscodeDeparture?.item;
     if (departed != null) {
       final index = _departedQueueIndex(departed);

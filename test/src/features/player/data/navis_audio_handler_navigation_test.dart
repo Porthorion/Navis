@@ -15004,6 +15004,67 @@ void main() {
       expect(fade(handler)['active'], isFalse);
     });
 
+    test(
+      'the outgoing deck advancing mid-fade does not drive the display',
+      () async {
+        final (handler, player, _) = await crossfading(3);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        final shown = <(String?, bool)>[];
+        final sub = handler.snapshotStream.listen(
+          (s) => shown.add((
+            s.currentSongId,
+            identical(handler.debugActivePlayer, player),
+          )),
+        );
+        addTearDown(sub.cancel);
+        player.simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 6);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playing && incoming.volume > 0);
+        expect(handler.currentMediaItem?.id, 'song-0');
+        // The outgoing deck runs out and gapless-advances into song 1.
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(
+          shown,
+          isNot(contains(('song-1', true))),
+          reason: 'the outgoing deck must not publish the next song',
+        );
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+        expect(handler.currentMediaItem?.id, 'song-1');
+        expect(handler.snapshot.currentIndex, 1);
+        expect(player.playing, isFalse, reason: 'no second copy of song 1');
+        expect(incoming.playing, isTrue);
+      },
+    );
+
+    test(
+      'an outgoing advance with the incoming deck unready falls back',
+      () async {
+        final (handler, player, _) = await crossfading(3);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        incoming.ignorePlay = true;
+        player.simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 6);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playRequested);
+        player.finishCurrentTrack();
+        await waitForFade(() => fade(handler)['active'] == false);
+        await pumpEventQueue();
+        // The suppressed index event is replayed when the fade is abandoned.
+        expect(handler.debugActivePlayer, same(player));
+        expect(handler.currentMediaItem?.id, 'song-1');
+        expect(handler.snapshot.currentIndex, 1);
+        expect(player.playing, isTrue);
+      },
+    );
+
     test('self-crossfade retries after a native wrap during prewarm', () async {
       final (handler, player, _) = await crossfading(2);
       await handler.replaceQueue(ids(2), expandMatchFlows: false);

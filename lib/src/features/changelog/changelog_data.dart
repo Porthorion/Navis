@@ -130,6 +130,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Crossfade on long songs now ends before the song does: the fade '
+        'shortens when preparing the next song takes time, the song and '
+        'position no longer jump a few seconds when it completes, and the '
+        'outgoing song can no longer start the next one underneath it.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Play during a final playback failure now resumes the same song after '
         'shutdown, while a newer seek keeps its target and a later Pause stays '
         'paused. Desktop cut recovery keeps the song and your latest seek '

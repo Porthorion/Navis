@@ -14,6 +14,14 @@ extension _NavisCrossfade on NavisAudioHandler {
       _desiredLoopMode == LoopMode.one &&
       _crossfadeTargetIndex == _player.currentIndex;
 
+  /// The fading-out deck has gapless-advanced into the song the incoming deck
+  /// is already playing. Its index and position are not the audible ones.
+  bool get _outgoingAdvancedMidFade =>
+      _isCrossfading &&
+      _desiredLoopMode != LoopMode.one &&
+      identical(_player, _crossfadeOutgoing?.deck) &&
+      _player.currentIndex == _crossfadeTargetIndex;
+
   /// Returns the effective queue index of the next track, accounting for
   /// shuffle and loop modes. Returns `null` when there is no next track.
   int? _getNextEffectiveIndex() {
@@ -61,8 +69,10 @@ extension _NavisCrossfade on NavisAudioHandler {
     _crossfadeLocalOnlyDeck = !_readRuntimeSettings().crossfadeAllowStreaming;
     _isCrossfading = true;
     _crossfadeHandoffInProgress = false;
+    _crossfadeIndexSuppressed = false;
     _crossfadeTargetIndex = nextIndex;
     final from = _resolveCurrentQueueMetadata();
+    _crossfadeOutgoing = (deck: _player, from: from);
     final fromPosition = _player.position;
     final sessionToken = ++_crossfadeSessionToken;
     _crossfadeActiveTransitionId = sessionToken;
@@ -552,6 +562,7 @@ extension _NavisCrossfade on NavisAudioHandler {
       if (!stillWanted()) return;
       _player = incomingPlayer;
       _crossfadePlayer = outgoingPlayer;
+      _crossfadeIndexSuppressed = false;
       if (_crossfadeLocalOnlyDeck && handoffTargetIndex != null) {
         final incomingItem = incomingPlayer.sequence[handoffTargetIndex].tag;
         if (incomingItem is MediaItem) {
@@ -632,6 +643,7 @@ extension _NavisCrossfade on NavisAudioHandler {
       if (_crossfadeSessionToken == completionToken) {
         _isCrossfading = false;
         _crossfadeHandoffInProgress = false;
+        _crossfadeIndexSuppressed = false;
         // A release skipped during the fade can run now.
         scheduleMicrotask(_maybeReleaseTail);
         _crossfadeTargetIndex = null;
@@ -710,6 +722,22 @@ extension _NavisCrossfade on NavisAudioHandler {
             );
           }),
     );
+
+    if (_crossfadeIndexSuppressed) {
+      // The outgoing deck stayed active and has moved on to the next song.
+      _crossfadeIndexSuppressed = false;
+      final resolved = _resolveCurrentQueueMetadata();
+      final item = resolved.mediaItem;
+      if (item != null) {
+        _setCurrentMediaItem(item);
+        _updateScrobbleSession(item, currentIndex: resolved.currentIndex);
+        _applyReplayGainVolume();
+        _broadcastPlaybackState();
+        _emitSnapshot();
+        _scheduleTransportPersistence(context: 'crossfade canceled index');
+        _maybeReleaseTail();
+      }
+    }
   }
 
   Future<void> _prepareInactiveDeckForCrossfade({

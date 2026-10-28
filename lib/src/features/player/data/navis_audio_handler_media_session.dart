@@ -338,6 +338,14 @@ extension _NavisMediaSession on NavisAudioHandler {
           index != wiredPlayer.currentIndex) {
         return;
       }
+      // The display stays on the outgoing song (see [_resolveCurrentQueueMetadata]):
+      // hand over to the incoming deck now, and let a failed hand-over replay
+      // this event.
+      if (_outgoingAdvancedMidFade) {
+        _crossfadeIndexSuppressed = true;
+        unawaited(_completeCrossfade());
+        return;
+      }
       _anomalies.index(index);
       if (_transportTrace.enabled) {
         final nativeSongId = index == null || index >= _player.sequence.length

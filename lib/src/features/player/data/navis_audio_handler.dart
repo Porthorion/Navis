@@ -581,6 +581,13 @@ class NavisAudioHandler extends BaseAudioHandler
   Timer? _crossfadeFallbackTimer;
   bool _isCrossfading = false;
   bool _crossfadeHandoffInProgress = false;
+
+  /// The deck fading out and the song it was playing when the fade began.
+  ({AudioPlayer deck, NavisResolvedQueueMetadata from})? _crossfadeOutgoing;
+
+  /// The index event of the outgoing deck's mid-fade advance was withheld from
+  /// the UI; a cancelled fade replays it.
+  bool _crossfadeIndexSuppressed = false;
   Future<void>? _crossfadeCompletionFuture;
   StreamSubscription<Duration>? _crossfadePositionSub;
   int _crossfadeSessionToken = 0;

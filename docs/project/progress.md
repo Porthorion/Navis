@@ -14,6 +14,12 @@ Last updated: 2026-10-28
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #86 P5, long-song crossfade overrun and display snap — 2026-10-28
+  (evidence: `navis_audio_handler_navigation_test.dart` "cross-fade deck" cases
+  failed first with `Actual: Duration:<0:03:03.603687>` vs the 3:00 song end and
+  `Actual: [(song-1, true)]` for the withheld next-song publish; `test/src/features/player/data/`
+  1312/1312 pass). Fix on `fix/crossfade-long-swap`; harness rerun
+  (`crossfade_long_end`) remains with the orchestrator.
 - [x] Issue #109 (1.5.1 P6), Linux package install wait copy — 2026-10-28
   (evidence: `update_dialog_test.dart` linuxDeb/linuxRpm apply cases failed first
   with `Found 0 widgets with text "Installing the update. This can take a minute."`;
