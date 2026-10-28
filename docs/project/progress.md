@@ -21,7 +21,11 @@ Last updated: 2026-10-28
   lease loss is `deferred`/`leaseHeld`, not `failed`/`unknownFailure`.
   Failing-first: DAO stall heartbeat `Expected: true Actual: <false>`;
   coordinator `Expected: SyncSafeReason.leaseHeld Actual: SyncSafeReason.meteredPolicy`;
-  engine `Expected: LibrarySyncStatus.deferred Actual: LibrarySyncStatus.failed`.
+  engine `Expected: LibrarySyncStatus.deferred Actual: LibrarySyncStatus.failed`;
+  fence expired-untaken write threw `SyncLeaseLostException` at `lockAndCheck`.
+  A real takeover still ends in the coordinator's existing `leaseHeld` catch (the
+  engine's ledger write in its catch is fenced too); the fix for #105 is the
+  ownership-only check.
 - [x] Issue #86 P5, long-song crossfade overrun and display snap — 2026-10-28
   (evidence: `navis_audio_handler_navigation_test.dart` "cross-fade deck" cases
   failed first with `Actual: Duration:<0:03:03.603687>` vs the 3:00 song end and
