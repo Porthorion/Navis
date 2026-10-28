@@ -151,6 +151,14 @@ class _LastFmIssueRadio extends PersonalRadioNotifier {
   );
 }
 
+class _RematchProgress extends ListenBrainzPlaylistRematchProgress {
+  @override
+  Map<String, ({int done, int total})> build() =>
+      const <String, ({int done, int total})>{
+        'weekly-jams': (done: 2, total: 5),
+      };
+}
+
 class _AutoAdvancePreference extends Notifier<bool> {
   @override
   bool build() => true;
@@ -1145,6 +1153,47 @@ void main() {
     final matching = find.text('Matching');
     expect(matching, findsOneWidget);
     expect(find.text('Match'), findsNothing);
+  });
+
+  testWidgets('weekly detail shows how far the rematch has got', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 900));
+    const playlist = ListenBrainzDiscoverPlaylist(
+      playlist: ListenBrainzPlaylist(
+        identifier: 'jams',
+        title: 'Weekly Jams for alice',
+        sourcePatch: 'weekly-jams',
+        tracks: <ListenBrainzPlaylistTrack>[
+          ListenBrainzPlaylistTrack(title: 'Unavailable track'),
+        ],
+      ),
+      recommendations: <ListenBrainzResolvedRecommendation>[
+        ListenBrainzResolvedRecommendation(
+          track: ListenBrainzPlaylistTrack(title: 'Unavailable track'),
+          status: ListenBrainzRecommendationMatchStatus.unmatched,
+        ),
+      ],
+    );
+
+    await _pumpWeeklyDetail(
+      tester,
+      playlists: Stream<List<ListenBrainzDiscoverPlaylist>>.value(
+        const <ListenBrainzDiscoverPlaylist>[playlist],
+      ),
+      overrides: <Override>[
+        listenBrainzPlaylistRematchControllerProvider.overrideWith(
+          _MatchingRematchController.new,
+        ),
+        listenBrainzPlaylistRematchProgressProvider.overrideWith(
+          _RematchProgress.new,
+        ),
+      ],
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(find.text('Matching 2 of 5'), findsOneWidget);
   });
 
   group('update tile', () {

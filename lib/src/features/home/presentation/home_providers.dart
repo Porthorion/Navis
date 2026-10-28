@@ -589,8 +589,17 @@ class ListenBrainzPlaylistRematchController extends Notifier<Set<String>> {
       throw StateError('ListenBrainz playlist is already matching.');
     }
     state = <String>{...state, sourcePatch};
+    final progress = ref.read(
+      listenBrainzPlaylistRematchProgressProvider.notifier,
+    );
     try {
-      final matched = await _rematchListenBrainzPlaylist(ref, playlist);
+      final matched = await _rematchListenBrainzPlaylist(
+        ref,
+        playlist,
+        onProgress: (done, total) {
+          if (ref.mounted) progress.report(sourcePatch, done, total);
+        },
+      );
       _listenBrainzDiscoverLastVisible = _replaceListenBrainzPlaylist(
         _listenBrainzDiscoverLastVisible,
         matched,
@@ -602,10 +611,31 @@ class ListenBrainzPlaylistRematchController extends Notifier<Set<String>> {
       ref.invalidate(listenBrainzDiscoverStreamProvider);
       return matched;
     } finally {
+      if (ref.mounted) progress.clear(sourcePatch);
       state = <String>{...state}..remove(sourcePatch);
     }
   }
 }
+
+/// How many of a playlist's server searches a running rematch has finished,
+/// by source patch. Absent while nothing is known (plain "Matching").
+class ListenBrainzPlaylistRematchProgress
+    extends Notifier<Map<String, ({int done, int total})>> {
+  @override
+  Map<String, ({int done, int total})> build() =>
+      const <String, ({int done, int total})>{};
+
+  void report(String sourcePatch, int done, int total) =>
+      state = {...state, sourcePatch: (done: done, total: total)};
+
+  void clear(String sourcePatch) => state = {...state}..remove(sourcePatch);
+}
+
+final listenBrainzPlaylistRematchProgressProvider =
+    NotifierProvider<
+      ListenBrainzPlaylistRematchProgress,
+      Map<String, ({int done, int total})>
+    >(ListenBrainzPlaylistRematchProgress.new);
 
 final listenBrainzPlaylistRematchControllerProvider =
     NotifierProvider<ListenBrainzPlaylistRematchController, Set<String>>(
@@ -1252,8 +1282,9 @@ final listenBrainzDiscoverProvider =
 
 Future<ListenBrainzDiscoverPlaylist> _rematchListenBrainzPlaylist(
   Ref ref,
-  ListenBrainzDiscoverPlaylist existing,
-) async {
+  ListenBrainzDiscoverPlaylist existing, {
+  void Function(int done, int total)? onProgress,
+}) async {
   final settings =
       ref.read(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
@@ -1314,6 +1345,7 @@ Future<ListenBrainzDiscoverPlaylist> _rematchListenBrainzPlaylist(
     emitProgressiveUpdates: false,
     allowCachedMatches: false,
     recheckRemote: true,
+    onProgress: onProgress,
   )) {
     resolved = updated.single;
   }
@@ -1490,6 +1522,7 @@ _resolveListenBrainzTrackSearchMisses({
   required bool emitProgressiveUpdates,
   bool allowCachedMatches = true,
   bool recheckRemote = false,
+  void Function(int done, int total)? onProgress,
 }) async* {
   var current = playlists
       .map(
@@ -1565,12 +1598,15 @@ _resolveListenBrainzTrackSearchMisses({
 
   var completionsSinceYield = 0;
   final hadSearchWork = nextTaskId > 0;
+  final totalTasks = nextTaskId;
+  if (hadSearchWork) onProgress?.call(0, totalTasks);
   while (pending.isNotEmpty) {
     final completed = await Future.any(pending.values);
     final removedTask = pending.remove(completed.taskId);
     if (removedTask == null) {
       continue;
     }
+    onProgress?.call(totalTasks - pending.length, totalTasks);
     final playlist = current[completed.playlistIndex];
     final recommendations = playlist.recommendations.toList(growable: true);
     recommendations[completed.recommendationIndex] = completed.recommendation;

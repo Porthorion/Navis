@@ -14,6 +14,16 @@ Last updated: 2026-10-28
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #112 leftover, weekly rematch n of total — 2026-10-28
+  (branch `fix/failure-copy-leftovers`, ledger #86). The rematch loop
+  (`_resolveListenBrainzTrackSearchMisses`) now takes an `onProgress` callback
+  that reports finished server searches; `ListenBrainzPlaylistRematchController`
+  writes them to `listenBrainzPlaylistRematchProgressProvider` (a separate map,
+  so the controller's `Set<String>` state is unchanged) and the weekly detail
+  label shows `weeklyPlaylistMatchingProgress` ("Matching 3 of 12"). The count
+  is searches, not tracks: tracks matched locally need none. One new ARB string
+  (`cacheSettingsPrecachingProgress` precedent). Evidence: the new tests failed
+  to compile on `Undefined name 'listenBrainzPlaylistRematchProgressProvider'`.
 - [x] Issue #111 leftovers (radio), Last.fm key rejection or rate limit — 2026-10-28
   (branch `fix/failure-copy-leftovers`, ledger #86). The typed issue was lost
   in `personalRadio`, which read only `_lastFmMatches(...).songs` and then fell

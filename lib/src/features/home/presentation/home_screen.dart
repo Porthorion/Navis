@@ -539,6 +539,18 @@ class _ListenBrainzWeeklyDetailContentState
   String get _playlistSourcePatch =>
       playlist.playlist.sourcePatch?.trim() ?? '';
 
+  /// "Matching", with how far the server searches have got once known.
+  String _matchingLabel(AppLocalizations l10n) {
+    final progress = ref.watch(
+      listenBrainzPlaylistRematchProgressProvider.select(
+        (all) => all[_playlistSourcePatch],
+      ),
+    );
+    return progress == null
+        ? l10n.weeklyPlaylistMatching
+        : l10n.weeklyPlaylistMatchingProgress(progress.done, progress.total);
+  }
+
   bool get _playlistIsMatching {
     final sourcePatch = _playlistSourcePatch;
     return sourcePatch.isNotEmpty &&
@@ -585,7 +597,7 @@ class _ListenBrainzWeeklyDetailContentState
           ),
           IconButton(
             tooltip: _playlistIsMatching
-                ? l10n.weeklyPlaylistMatching
+                ? _matchingLabel(l10n)
                 : l10n.weeklyPlaylistMatchAction,
             icon: _playlistIsMatching
                 ? const SizedBox.square(
@@ -635,7 +647,7 @@ class _ListenBrainzWeeklyDetailContentState
               : const Icon(Icons.sync_rounded),
           label: Text(
             _playlistIsMatching
-                ? l10n.weeklyPlaylistMatching
+                ? _matchingLabel(l10n)
                 : l10n.weeklyPlaylistMatchAction,
           ),
         ),

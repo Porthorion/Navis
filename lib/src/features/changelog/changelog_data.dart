@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Rematching a weekly playlist now shows how far it has got, such as '
+        '"Matching 3 of 12", instead of a bare spinner.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Instant Radio now tells you when Last.fm rejected your API key or is '
         'limiting requests. The radio still plays from your server and '
         'library; network hiccups stay silent.',
