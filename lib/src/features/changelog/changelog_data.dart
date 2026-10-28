@@ -190,6 +190,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Android: a song queued twice no longer downloads twice or loses its '
+        'cached copy. The repeat plays from the first copy, so seeking and '
+        'offline playback behave the same for both. A queue release or insert '
+        'with crossfade on no longer leaves its songs unregistered while the '
+        'crossfade deck catches up.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Android seeks beyond a partial download give playback bandwidth '
         'priority, close abandoned range requests and keep waiting while data '
         'arrives. Changing a seek target keeps the cache, and abandoned ranges '

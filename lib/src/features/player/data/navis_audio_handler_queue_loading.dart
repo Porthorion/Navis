@@ -275,6 +275,9 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // The abandoned player disposes every source it held, which detaches a
     // reused one from the new player: the reload builds fresh sources.
     for (final entry in _lockCacheSources.entries.toList()) {
+      // A retired source must not take the registry slot back by restarting a
+      // download (onDownloadStart); the rebuilt queue builds fresh sources.
+      entry.value.source.onDownloadStart = null;
       if (!identical(entry.value.source, retiredSource)) {
         await entry.value.source.cancelDownload();
       }
@@ -787,38 +790,69 @@ extension _NavisQueueLoading on NavisAudioHandler {
   /// or not its download has started: a second source on the same `.part`
   /// would start a second overlapping origin download, and the next-song warm
   /// targets the registered one. Completion, error and teardown unregister it;
-  /// a cancelled source stays usable (a later request downloads again).
+  /// a cancelled source stays usable (a later request downloads again). A
+  /// writer the player holds counts too when it is no longer registered.
   IndexedAudioSource? _runningLockCacheSource(ResolvedPlaybackSource source) {
     final path = source.cachedFilePath;
     if (source.kind != PlaybackSourceKind.lockCachedStream || path == null) {
       return null;
     }
-    return _lockCacheSources[path]?.source;
+    return _lockCacheSources[path]?.source ?? _heldLockCacheWriters()[path];
   }
 
-  /// A cache file has one writer and one player entry: the first entry per
-  /// file, counting the sources the player already holds unless [replacesQueue],
-  /// keeps its lock-cache source; later entries of the same song get the plain
-  /// stream form (the one the cross-fade deck uses), which does not download.
-  /// One source instance never sits at two playlist positions: just_audio
-  /// derives the native id from the source, and an adjacent repeat of an id is
-  /// not seen as an auto-advance.
+  /// The lock-cache writers the player holds, by cache file path, whether or
+  /// not they are registered (a finished download is not, yet a deleted cache
+  /// file makes its writer download again). A repeat occurrence in the
+  /// playlist stands for its writer. Read from the playlist and the queue
+  /// items, which line up while no edit is in flight.
+  // ignore: experimental_member_use, reason: as above.
+  Map<String, LockCachingAudioSource> _heldLockCacheWriters() {
+    final sequence = _player.sequence;
+    if (sequence.length != _queueItems.length) return const {};
+    return {
+      for (var i = 0; i < sequence.length; i++)
+        if (_queueItems[i].extras?['cachedFilePath'] case final String path)
+          if (switch (sequence[i]) {
+                // ignore: experimental_member_use, reason: as above.
+                final LockCachingAudioSource writer => writer,
+                LockCacheFollowerSource(:final leader) => leader,
+                _ => null,
+              }
+              case final writer?)
+            path: writer,
+    };
+  }
+
+  /// A cache file has one writer: the first entry per file, counting the
+  /// sources the player already holds unless [replacesQueue], keeps its
+  /// lock-cache source. Later entries of the same song get their own
+  /// [LockCacheFollowerSource] on that writer, which serves the completed file,
+  /// joins the running download and shares its range answer, so a repeat never
+  /// fetches the origin itself. One source instance never sits at two playlist
+  /// positions: just_audio derives the native id from the source, and an
+  /// adjacent repeat of an id is not seen as an auto-advance.
   void _shareLockCacheSources(
     List<_PreparedQueueItem> prepared, {
     bool replacesQueue = false,
   }) {
-    final seen = <String>{
+    // ignore: experimental_member_use, reason: as above.
+    final leaders = <String, LockCachingAudioSource>{
+      if (!replacesQueue) ..._heldLockCacheWriters(),
       if (!replacesQueue)
         for (final entry in _lockCacheSources.entries)
           if (_player.sequence.any((s) => identical(s, entry.value.source)))
-            entry.key,
+            entry.key: entry.value.source,
     };
     for (final item in prepared) {
       final path = item.source.cachedFilePath;
+      final held = item.audioSource;
       // ignore: experimental_member_use, reason: as above.
-      if (path == null || item.audioSource is! LockCachingAudioSource) continue;
-      if (!seen.add(path)) {
-        item.audioSource = item.source.asClonedAudioSource(tag: item.mediaItem);
+      if (path == null || held is! LockCachingAudioSource) continue;
+      final leader = leaders[path];
+      if (leader == null) {
+        leaders[path] = held;
+      } else {
+        item.audioSource = LockCacheFollowerSource(leader, tag: item.mediaItem);
       }
     }
   }

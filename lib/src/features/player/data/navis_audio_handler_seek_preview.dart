@@ -64,12 +64,7 @@ extension _NavisSeekPreview on NavisAudioHandler {
           final source = index == null
               ? null
               : _player.sequence.elementAtOrNull(index);
-          final ranges =
-              originSupportsRanges ??
-              // ignore: experimental_member_use, reason: Read the existing origin capability without starting a request.
-              (source is LockCachingAudioSource
-                  ? source.originSupportsRangeRequests
-                  : true);
+          final ranges = originSupportsRanges ?? lockCacheOriginRanges(source);
           if (ranges == null) return _SeekPlan.offsetPendingRanges;
           if (!ranges) return _SeekPlan.offset;
         } else if (_isDesktopRuntime) {

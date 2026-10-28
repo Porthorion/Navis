@@ -327,6 +327,7 @@ extension _NavisNavigation on NavisAudioHandler {
             // Navis uses the vendored lock-cache primitive for remote sources.
             // ignore: experimental_member_use
             LockCachingAudioSource(:final uri) => uri,
+            LockCacheFollowerSource(:final leader) => leader.uri,
             _ => null,
           };
           final coldRemote =
