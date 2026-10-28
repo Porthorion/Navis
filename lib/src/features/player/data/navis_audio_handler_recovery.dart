@@ -484,6 +484,12 @@ extension _NavisRecovery on NavisAudioHandler {
     _transcodeEndInvalidatedAt = DateTime.now();
   }
 
+  /// A committed source can finish while its lane still restores neighbours.
+  /// A user navigation owns the lane and supersedes the departed song, whose
+  /// end is never a cut.
+  bool get _backgroundQueueWork =>
+      !_queueLane.isIdle && _navigationInFlightRevision == null;
+
   void _captureTranscodeEndOccurrence({bool indexEvent = false}) {
     if (!_isDesktopRuntime || _prematureTranscodeDeparture != null) return;
     final event = _player.playbackEvent;
@@ -493,7 +499,7 @@ extension _NavisRecovery on NavisAudioHandler {
     if (index == null ||
         event.processingState == ProcessingState.completed ||
         (invalidated != null && !event.updateTime.isAfter(invalidated)) ||
-        (!matchingQueue && (!indexEvent || _queueLane.isIdle))) {
+        (!matchingQueue && (!indexEvent || !_backgroundQueueWork))) {
       return;
     }
     final source = _player.sequence.elementAtOrNull(index);
@@ -532,8 +538,7 @@ extension _NavisRecovery on NavisAudioHandler {
   bool _retryPrematureTranscodeEnd(PlaybackEvent previousEvent) {
     final occurrence = _transcodeEndOccurrence;
     final index = previousEvent.currentIndex;
-    // A committed source can finish while its lane still restores neighbours.
-    final backgroundQueueWork = !_queueLane.isIdle;
+    final backgroundQueueWork = _backgroundQueueWork;
     if (!_isDesktopRuntime ||
         _disposeHandlerStarted ||
         (_isLoading && !backgroundQueueWork) ||

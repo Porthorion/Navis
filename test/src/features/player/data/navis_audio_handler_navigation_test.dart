@@ -12198,6 +12198,198 @@ void main() {
         expect(player.sourceLoads, loads);
       });
 
+      // P7: the departed song's end during a user navigation is superseded by
+      // it, even though the navigate lane is busy and the load flag is set.
+      for (final command in ['next', 'previous', 'select']) {
+        {
+          test('a $command skip held in the lane ignores the departed '
+              "song's end", () async {
+            final (handler, player) = await setup();
+            player.simulatedPosition = const Duration(seconds: 2);
+            final loads = player.sourceLoads;
+            final target = command == 'next' ? 'song-2' : 'song-0';
+            player
+              ..seekGate = Completer<void>()
+              ..seekEntered = Completer<void>();
+            final gate = player.seekGate!;
+            addTearDown(() {
+              if (!gate.isCompleted) gate.complete();
+            });
+            final navigation = switch (command) {
+              'next' => handler.skipToNext(),
+              'previous' => handler.skipToPrevious(),
+              _ => handler.playFromIndex(0),
+            };
+            await player.seekEntered!.future.timeout(
+              const Duration(seconds: 3),
+            );
+
+            // Any event the departed player emits after the skip began
+            // re-captures its occurrence; its end then looks like a cut.
+            player._events.add(player.playbackEvent);
+            await pumpEventQueue(times: 20);
+            player.finishCurrentTrack(endPosition: const Duration(seconds: 2));
+            await pumpEventQueue(times: 50);
+            gate.complete();
+            await navigation;
+            await drain(handler);
+
+            expect(
+              player.sourceLoads,
+              loads,
+              reason: 'the departed song must not be reloaded',
+            );
+            expect(handler.snapshot.currentSongId, target);
+            expect(current(player).positionOffset, Duration.zero);
+          });
+        }
+      }
+
+      test('a real cut on the skip target right after the skip still '
+          'retries', () async {
+        final (handler, player) = await setup();
+        await handler.skipToNext();
+        await drain(handler);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        final loads = player.sourceLoads;
+
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => player.sourceLoads > loads);
+        await drain(handler);
+
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(current(player).positionOffset, const Duration(seconds: 47));
+      });
+
+      test('a skip cancelled before it ran does not disable cut recovery '
+          'during later queue work', () async {
+        final (handler, player) = await setup();
+        final append = Completer<void>();
+        final appendEntered = Completer<void>();
+        player
+          ..appendGate = append
+          ..appendEntered = appendEntered;
+        addTearDown(() {
+          if (!append.isCompleted) append.complete();
+        });
+        // The replacement below retires this edit.
+        final editing = handler
+            .addToQueue(['song-0'], expandMatchFlows: false)
+            .then<void>((_) {}, onError: (Object _) {});
+        await appendEntered.future.timeout(const Duration(seconds: 3));
+        // Queued behind the held edit, then cancelled before its callback ran.
+        await handler.skipToNext();
+        final replacing = handler.replaceQueue(
+          ['song-0', 'song-1', 'song-2'],
+          startIndex: 1,
+          expandMatchFlows: false,
+        );
+        append.complete();
+        await Future.wait([editing, replacing]);
+        await drain(handler);
+        await handler.play();
+        player.simulatedDuration = const Duration(seconds: 47);
+
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..afterAppendGate = gate
+          ..afterAppendEntered = entered;
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        final loading = handler.replaceQueue(
+          ['song-0', 'song-1', 'song-2'],
+          startIndex: 1,
+          expandMatchFlows: false,
+        );
+        await entered.future.timeout(const Duration(seconds: 3));
+        final more = handler.addToQueue(['song-0'], expandMatchFlows: false);
+        await pumpEventQueue(times: 20);
+        player.finishCurrentTrack(
+          endPosition: const Duration(milliseconds: 47750),
+        );
+        await pumpEventQueue(times: 20);
+        gate.complete();
+        await Future.wait([loading, more]);
+        await drain(handler);
+
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(current(player).positionOffset, const Duration(seconds: 47));
+      });
+
+      test(
+        'a lagging departed end during later queue work is ignored',
+        () async {
+          final (handler, player) = await setup();
+          player.simulatedPosition = const Duration(seconds: 2);
+          player
+            ..seekGate = Completer<void>()
+            ..seekEntered = Completer<void>();
+          final seek = player.seekGate!;
+          addTearDown(() {
+            if (!seek.isCompleted) seek.complete();
+          });
+          final navigation = handler.skipToNext();
+          await player.seekEntered!.future.timeout(const Duration(seconds: 3));
+          player._events.add(player.playbackEvent);
+          await pumpEventQueue(times: 20);
+          final stale = player.playbackEvent;
+          seek.complete();
+          await navigation;
+          await drain(handler);
+          final loads = player.sourceLoads;
+
+          final append = Completer<void>();
+          final appendEntered = Completer<void>();
+          player
+            ..appendGate = append
+            ..appendEntered = appendEntered;
+          addTearDown(() {
+            if (!append.isCompleted) append.complete();
+          });
+          final editing = handler.addToQueue([
+            'song-0',
+          ], expandMatchFlows: false);
+          await appendEntered.future.timeout(const Duration(seconds: 3));
+          player._discontinuities.add(
+            PositionDiscontinuity(
+              PositionDiscontinuityReason.autoAdvance,
+              stale,
+              player.playbackEvent,
+            ),
+          );
+          await pumpEventQueue(times: 50);
+          append.complete();
+          await editing;
+          await drain(handler);
+
+          expect(player.sourceLoads, loads);
+          expect(handler.snapshot.currentSongId, 'song-2');
+        },
+      );
+
+      test('a stale departed end after the skip finished is ignored', () async {
+        final (handler, player) = await setup();
+        player.simulatedPosition = const Duration(seconds: 2);
+        final stale = player.playbackEvent;
+        await handler.skipToNext();
+        await drain(handler);
+        final loads = player.sourceLoads;
+
+        player._discontinuities.add(
+          PositionDiscontinuity(
+            PositionDiscontinuityReason.autoAdvance,
+            stale,
+            player.playbackEvent,
+          ),
+        );
+        await drain(handler);
+
+        expect(player.sourceLoads, loads);
+        expect(handler.snapshot.currentSongId, 'song-2');
+      });
+
       test(
         'Repeat One resumes the cut rather than restarting at zero',
         () async {

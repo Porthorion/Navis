@@ -4,10 +4,13 @@ import 'package:navis/src/features/settings/data/update_check_store.dart';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/routing/home_activity_scope.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/features/player/data/recommendation_service.dart';
+import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -129,6 +132,31 @@ class _PendingRefreshLibrarySyncController extends LibrarySyncController {
 class _MatchingRematchController extends ListenBrainzPlaylistRematchController {
   @override
   Set<String> build() => const <String>{'weekly-jams'};
+}
+
+class _LastFmIssueRadio extends PersonalRadioNotifier {
+  _LastFmIssueRadio(this.lastFmIssue);
+
+  final RecommendationIssue lastFmIssue;
+
+  @override
+  Future<RadioStartResult> start({
+    RadioFilters filters = const RadioFilters(),
+    bool autoPlay = true,
+    bool Function()? isCurrent,
+  }) async => RadioStartResult(
+    insertedCount: 3,
+    issue: RecommendationIssue.none,
+    lastFmIssue: lastFmIssue,
+  );
+}
+
+class _RematchProgress extends ListenBrainzPlaylistRematchProgress {
+  @override
+  Map<String, ({int done, int total})> build() =>
+      const <String, ({int done, int total})>{
+        'weekly-jams': (done: 2, total: 5),
+      };
 }
 
 class _AutoAdvancePreference extends Notifier<bool> {
@@ -816,6 +844,7 @@ Future<void> _pumpHomeWithAppSettings(
   List<SongsTableData> recentlyPlayedSongs = const <SongsTableData>[],
   List<Override> overrides = const <Override>[],
   TextScaler? textScaler,
+  AppNoticeController? notices,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -885,7 +914,9 @@ Future<void> _pumpHomeWithAppSettings(
         builder: (ctx, child) => MediaQuery(
           data: MediaQuery.of(ctx)
               .copyWith(disableAnimations: true, textScaler: textScaler),
-          child: child!,
+          child: notices == null
+              ? child!
+              : AppNoticeScope(notifier: notices, child: child!),
         ),
         home: const HomeScreen(),
       ),
@@ -1122,6 +1153,47 @@ void main() {
     final matching = find.text('Matching');
     expect(matching, findsOneWidget);
     expect(find.text('Match'), findsNothing);
+  });
+
+  testWidgets('weekly detail shows how far the rematch has got', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 900));
+    const playlist = ListenBrainzDiscoverPlaylist(
+      playlist: ListenBrainzPlaylist(
+        identifier: 'jams',
+        title: 'Weekly Jams for alice',
+        sourcePatch: 'weekly-jams',
+        tracks: <ListenBrainzPlaylistTrack>[
+          ListenBrainzPlaylistTrack(title: 'Unavailable track'),
+        ],
+      ),
+      recommendations: <ListenBrainzResolvedRecommendation>[
+        ListenBrainzResolvedRecommendation(
+          track: ListenBrainzPlaylistTrack(title: 'Unavailable track'),
+          status: ListenBrainzRecommendationMatchStatus.unmatched,
+        ),
+      ],
+    );
+
+    await _pumpWeeklyDetail(
+      tester,
+      playlists: Stream<List<ListenBrainzDiscoverPlaylist>>.value(
+        const <ListenBrainzDiscoverPlaylist>[playlist],
+      ),
+      overrides: <Override>[
+        listenBrainzPlaylistRematchControllerProvider.overrideWith(
+          _MatchingRematchController.new,
+        ),
+        listenBrainzPlaylistRematchProgressProvider.overrideWith(
+          _RematchProgress.new,
+        ),
+      ],
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 120));
+
+    expect(find.text('Matching 2 of 5'), findsOneWidget);
   });
 
   group('update tile', () {
@@ -1893,6 +1965,59 @@ void main() {
     expect(find.byKey(mobileActionRow), findsOneWidget);
     expect(find.byKey(compactWideHeaderRow), findsNothing);
   });
+
+  for (final entry in <RecommendationIssue, String?>{
+    RecommendationIssue.invalidKey:
+        'Last.fm rejected the API key. Update it in Settings and retry.',
+    RecommendationIssue.rateLimited: null,
+  }.entries) {
+    testWidgets(
+      'radio that started without Last.fm: ${entry.key.name} notice',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(1000, 420));
+        // The shared database (a second NavisDatabase trips drift's warning).
+        // Cleanup runs in `finally`, so a failed expectation still dismisses
+        // the notice timer, unmounts Home and removes the radio candidate
+        // before the next test instead of hanging the suite.
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'radio-song', title: 'One'),
+        ]);
+        final notices = AppNoticeController();
+        try {
+          await _pumpHomeWithAppSettings(
+            tester,
+            database: database,
+            notices: notices,
+            overrides: <Override>[
+              personalRadioProvider.overrideWith(
+                () => _LastFmIssueRadio(entry.key),
+              ),
+            ],
+          );
+          await tester.pump(const Duration(milliseconds: 200));
+
+          await tester.tap(find.byIcon(Icons.radio_rounded));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 200));
+
+          expect(notices.notice?.message, entry.value);
+          expect(
+            notices.notice?.level,
+            entry.value == null ? null : AppNoticeLevel.error,
+          );
+        } finally {
+          notices.dispose();
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await tester.runAsync(
+            () => (database.delete(
+              database.songsTable,
+            )..where((song) => song.id.equals('radio-song'))).go(),
+          );
+        }
+      },
+    );
+  }
 
   testWidgets('compact-wide home actions toggle filters and disable radio', (
     tester,

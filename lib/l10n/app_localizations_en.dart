@@ -1299,6 +1299,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get weeklyPlaylistMatching => 'Matching';
 
   @override
+  String weeklyPlaylistMatchingProgress(int done, int total) {
+    return 'Matching $done of $total';
+  }
+
+  @override
   String get weeklyPlaylistSearchAction => 'Search';
 
   @override

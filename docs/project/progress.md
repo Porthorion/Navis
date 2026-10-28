@@ -29,6 +29,30 @@ Last updated: 2026-10-28
   LibrarySyncStatus.deferred` (engine test "a lease heartbeat/release that times
   out on the writer lock neither cancels nor fails the run"); the unreleased
   lease expires through its TTL.
+- [x] Issue #112 leftover, weekly rematch n of total — 2026-10-28
+  (branch `fix/failure-copy-leftovers`, ledger #86). The rematch loop
+  (`_resolveListenBrainzTrackSearchMisses`) now takes an `onProgress` callback
+  that reports finished server searches; `ListenBrainzPlaylistRematchController`
+  writes them to `listenBrainzPlaylistRematchProgressProvider` (a separate map,
+  so the controller's `Set<String>` state is unchanged) and the weekly detail
+  label shows `weeklyPlaylistMatchingProgress` ("Matching 3 of 12"). The count
+  is searches, not tracks: tracks matched locally need none. One new ARB string
+  (`cacheSettingsPrecachingProgress` precedent). Evidence: the new tests failed
+  to compile on `Undefined name 'listenBrainzPlaylistRematchProgressProvider'`.
+- [x] Issue #111 leftovers (radio), Last.fm key rejection — 2026-10-28
+  (branch `fix/failure-copy-leftovers`, ledger #86). The typed issue was lost
+  in `personalRadio`, which read only `_lastFmMatches(...).songs` and then fell
+  back to server/library songs, so a start never failed with it. The batch now
+  carries `lastFmIssue` (invalidKey only; no client at all stays silent) through
+  `RadioStartResult`, and Home shows the existing Same Vibes invalid-key string at Same Vibes'
+  error level after a successful start; retry, queue-end auto-radio and
+  diagnostics starts stay silent about Last.fm (rateLimited stays silent: owner decision,
+  nothing to act on). Verified unreachable and left unchanged:
+  Instant Mix (`serverMix` never calls Last.fm) and Last.fm key save
+  (`validateApiKey` already folds network errors into its inline message).
+  Evidence: `recommendation_service_test` and `personal_radio_notifier_test`
+  failed to compile on `lastFmIssue`; home test `Expected: 'Last.fm rejected the
+  API key...' Actual: <null>`.
 - [x] Issue #86 P5, long-song crossfade overrun and display snap — 2026-10-28
   (evidence: `navis_audio_handler_navigation_test.dart` "cross-fade deck" cases
   failed first with `Actual: Duration:<0:03:03.603687>` vs the 3:00 song end and
@@ -67,6 +91,15 @@ Last updated: 2026-10-28
   focused update dialog + changelog tests 39/39 pass; fresh review found no blockers).
   Debian/RPM applying state shows the new localized copy; other modes keep
   "Applying update…".
+- [x] Issue #86 P7, desktop skip snapped back to the departed transcoded song —
+  2026-10-28 (`fix/skip-premature-eof`). P1's lane-busy relaxation treated the
+  departed song's autoAdvance discontinuity during a user skip as a premature
+  transcode EOF and reloaded it at its old offset. Fixed by limiting the
+  relaxation to `!_queueLane.isIdle && _navigationInFlightRevision == null`
+  (`_backgroundQueueWork`). Evidence: three new skip tests (next, previous,
+  select) failed first with `Expected: <1> Actual: <2>` source loads; the
+  premature transcode EOF group passes 78/78. Android is unaffected
+  (`_isDesktopRuntime` gate). Runtime A/B pending with the orchestrator.
 - [ ] Issue #86 P1, recovery intent and fallback (triage 01–05, 15–18) —
   implementation complete on `fix/recovery-intent`, 2026-10-26; integrated
   runtime certification and `tool/check.sh` remain with the orchestrator.

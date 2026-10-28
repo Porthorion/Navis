@@ -4121,7 +4121,19 @@ duplicated songs remain distinct native sources. Queue edits, replacements and
 explicit navigation invalidate the capture, including delayed discontinuities
 whose previous backend event predates the edit. A cut during queue tail release,
 trim or fill retains the source occurrence and departure position while that
-lane finishes. Recovery then rechecks the source identity, load generation
+lane finishes. That allowance applies to background queue work only: while a
+navigation is in flight (`_navigationInFlightRevision`) the busy lane and
+load flag belong to it, so the departed song's end or index event is never a
+premature cut and is not reopened. The flag covers every
+`_applyNavigationDecision` path, not only user skips: natural tail
+continuation, the shuffle next pass and the failover skip, plus the queue
+rebuild of a far jump. During those paths and during `_releaseTail`, a real cut
+on the new song advances instead of being retried, as before the allowance. The
+flag is cleared when the navigation ends or is cancelled before it runs. A
+lagging departed end after that is refused because the target's occurrence has
+replaced the captured one (the seek's index event, or `_completeQueueLoad`'s
+capture), so its source no longer matches the departed index. A real cut on the new target after
+the skip still retries. Recovery then rechecks the source identity, load generation
 and seek ownership before reopening. An append that preserves the classified
 occurrence does not cancel recovery; an edit or selection that retired it
 cannot reopen it. When cancellation retires recovery, shared cleanup waits for
