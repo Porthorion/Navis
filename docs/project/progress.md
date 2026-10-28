@@ -14,6 +14,21 @@ Last updated: 2026-10-28
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #105 (1.5.1, #86), sync lease liveness — 2026-10-28
+  (branch `fix/sync-lease-liveness`). Heartbeat and `SyncWriteFence.lockAndCheck`
+  now match on the owner token only (like `checkBeforeCommit`), so a DB stall
+  past the TTL without a takeover no longer cancels/fails the run. Failing-first:
+  DAO stall heartbeat `Expected: true Actual: <false>`; fence expired-untaken
+  write threw `SyncLeaseLostException` at `lockAndCheck`. A real takeover ends
+  through the coordinator's catch as `deferred`/`leaseHeld` with
+  `failureCategory` null (engine test "a real mid-run takeover stops the run
+  cleanly"); a cross-connection takeover waits for an open owner transaction.
+  Round 2: a heartbeat or release that times out on the writer lock
+  (`isDatabaseLockTimeout`) no longer cancels or fails the run. Failing-first:
+  heartbeat `Actual: LibrarySyncStatus.cancelled`, release `Actual:
+  LibrarySyncStatus.deferred` (engine test "a lease heartbeat/release that times
+  out on the writer lock neither cancels nor fails the run"); the unreleased
+  lease expires through its TTL.
 - [x] Issue #112 leftover, weekly rematch n of total — 2026-10-28
   (branch `fix/failure-copy-leftovers`, ledger #86). The rematch loop
   (`_resolveListenBrainzTrackSearchMisses`) now takes an `onProgress` callback

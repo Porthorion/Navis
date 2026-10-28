@@ -506,6 +506,10 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
     });
   }
 
+  /// Ownership, not expiry, is liveness: a takeover is one UPSERT under the
+  /// writer lock that replaces the token, so a still-matching token means
+  /// nobody took the lease over, even if a local stall outlasted the TTL.
+  /// Renewing here re-arms the TTL for the same owner.
   Future<bool> heartbeatExecutionLease({
     required int serverId,
     required String ownerToken,
@@ -517,14 +521,13 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
       '''
       UPDATE library_sync_execution_lease
       SET heartbeat_at = ?, expires_at = ?
-      WHERE server_id = ? AND owner_token = ? AND expires_at > ?;
+      WHERE server_id = ? AND owner_token = ?;
       ''',
       variables: <Variable<Object>>[
         Variable.withDateTime(timestamp),
         Variable.withDateTime(timestamp.add(ttl)),
         Variable.withInt(serverId),
         Variable.withString(ownerToken),
-        Variable.withDateTime(timestamp),
       ],
       updates: {librarySyncExecutionLeaseTable},
     );

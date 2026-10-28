@@ -1719,9 +1719,10 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         error: error,
       );
       if (error is SyncLeaseLostException) {
-        // The coordinator's own handler never sees this error because the
-        // engine owns the run boundary; capture the current lease holder so
-        // the lost-lease race is explainable from persisted evidence.
+        // Record who holds the lease. After a real takeover this ledger
+        // write is fenced too and throws SyncLeaseLostException, which ends
+        // the run through the coordinator's catch (deferred, leaseHeld,
+        // failureCategory null); that catch records the ledger row instead.
         final holder = await _database.librarySyncDao.getExecutionLease(
           serverConfig.id ?? 0,
         );
