@@ -104,7 +104,7 @@ SCENARIOS = {
     'crossfade': dict(
         cases='crossfade_end,skip_next,skip_prev,crossfade_long_end,crossfade_long_noseek',
         quick='crossfade_end,skip_next,skip_prev,crossfade_long_end,crossfade_long_noseek',  # noseek plays a whole 120 s song (~2 min)
-        qualities='opus128', throttle='none', reps=3, budget=(4, 9),
+        qualities='opus128', throttle='none', reps=3, budget=(4, 12),
         args=['--crossfade-s', '4'],
         areas=CROSSFADE,
         checks=[('violations', '<=', 0), ('frozenMedianS', 'base+', 0.1)]),

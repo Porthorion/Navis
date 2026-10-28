@@ -435,6 +435,20 @@ class CrossfadeLongOracle(unittest.TestCase):
         self.assertEqual(self.names(self.swap(jump)), ['xfadeJump'])
         self.assertEqual(self.names(self.swap(back)), ['xfadeJump'])
 
+    def test_a_sampling_gap_is_not_a_jump(self):
+        """The API poll can stall (adb, UI isolate): a 2 s gap with a matching 2 s position step is real-time playback."""
+        def gap(rows):
+            for r in rows[120:]:
+                r['t'] += 1.9
+                r['pos'] += 1900
+                r['uiPos'] += 1900
+        self.assertEqual(self.names(self.swap(gap)), [])
+        def gap_jump(rows):
+            gap(rows)
+            for r in rows[140:]:
+                r['pos'] += 2000
+        self.assertIn('xfadeJump', self.names(self.swap(gap_jump)))
+
     def test_freeze(self):
         def freeze(rows):
             for r in rows[60:90]:
@@ -445,16 +459,26 @@ class CrossfadeLongOracle(unittest.TestCase):
                 r['pos'] = rows[60]['pos']
         self.assertNotIn('xfadeFrozen', self.names(self.swap(short_freeze)))
 
-    def test_buffering_during_the_fade_counts_as_frozen(self):
+    @staticmethod
+    def real_freeze(rows):
         """Real rows, fix r0 @13.22-14.62: the song flips to B, the display holds 0 for 1.5 s with proc=buffering, playing=True, cf active."""
-        def real(rows):
-            for r in rows[100:156]:
-                r.update(proc='buffering', pos=0, uiPos=0, cf={'active': True})
-            for r in rows[156:]:
-                r.update(cf={'active': True})
-            for i, r in enumerate(rows[100:], 0):
-                r['t'] = 13.222 + i * 0.03  # dense enough: > 1.5 s of buffering
-        run = type('R', (), {'samples': self.swap(real), 'actions': [], 'trace': [], 'metrics': {}})()
+        for r in rows[100:156]:
+            r.update(proc='buffering', pos=0, uiPos=0, cf={'active': True})
+        for r in rows[156:]:
+            r.update(cf={'active': True})
+        for i, r in enumerate(rows[100:], 0):
+            r['t'] = 13.222 + i * 0.03  # dense enough: > 1.5 s of buffering
+
+    def test_buffering_during_the_fade_counts_as_frozen(self):
+        run = type('R', (), {'samples': self.swap(self.real_freeze), 'actions': [], 'trace': [], 'metrics': {}})()
+        found = [v for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE) if v['oracle'] == 'xfadeFrozen']
+        self.assertTrue(found)
+
+    def test_start_action_does_not_mask_the_freeze(self):
+        """A 'start' never gets a 'ret' (start_queue sets one only for issue_seek), so its 15 s window hid the whole
+        swap window; only seeks and navigations may mask."""
+        run = type('R', (), {'samples': self.swap(self.real_freeze), 'actions': [{'kind': 'start', 't': 0.5}],
+                             'trace': [], 'metrics': {}})()
         found = [v for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE) if v['oracle'] == 'xfadeFrozen']
         self.assertTrue(found)
 

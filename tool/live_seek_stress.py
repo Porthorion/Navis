@@ -1022,7 +1022,9 @@ class CaseAbort(Exception):
 def active_transport_ms(transport: list, offset: int, player_position) -> int | None:
     """Native position of the active player. mediaKitTransport holds every native player (the cross-fade deck and the
     retired outgoing one too) in no fixed order and without ids: take the entry whose song time is closest to the
-    handler's own player position."""
+    handler's own player position. This sets `pos` for every scenario on every platform, not only cross-fade: with more
+    than one entry `pos` is always the entry nearest playerPositionMs + offset (the one global offset is also applied to
+    a retired deck), so a non-cross-fade oracle comparing native with handler position sees the active deck."""
     if not transport:
         return None
     if player_position is None or len(transport) == 1:
@@ -4026,7 +4028,8 @@ def oracle_crossfade_long(run: Run, ids: list[str], fade_ms: int, saved=None, af
         for i in range(1, len(samples)):
             a, b = samples[i - 1], samples[i]
             if not (a['songId'] and a['songId'] == b['songId'] and a['idx'] == b['idx'] and a.get(key) is not None
-                    and b.get(key) is not None and a['playing'] and b['playing']) or _requested_at(run, b['t']):
+                    and b.get(key) is not None and a['playing'] and b['playing']) or _requested_at(
+                    run, b['t'], kinds=('seek', 'jump', 'next', 'prev')):  # a 'start' has no 'ret' and would mask the swap
                 frozen_from, reported_freeze = None, False
                 continue
             # A cross-fade hands over while the outgoing deck re-buffers the next song: the user still hears
@@ -4037,7 +4040,8 @@ def oracle_crossfade_long(run: Run, ids: list[str], fade_ms: int, saved=None, af
                 frozen_from, reported_freeze = None, False
                 continue
             step = b[key] - a[key]
-            if ready and (step > XFADE_JUMP_MS or step < -XFADE_BACKSTEP_MS) and not reported_jump \
+            dt = b['t'] - a['t']
+            if ready and (step - dt * 1000 > XFADE_JUMP_MS or step < -XFADE_BACKSTEP_MS) and not reported_jump \
                     and not (key == 'pos' and is_position_blip(samples, i)):
                 reported_jump = True
                 out.append(violation('xfadeJump', b['t'], f"{key} {a[key]} -> {b[key]} on {b['songId']} "

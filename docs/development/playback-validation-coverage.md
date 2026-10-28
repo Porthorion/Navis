@@ -27,7 +27,12 @@ All current qualities/throttles are singleton dimensions. Counts below are
 | **Total** | **40 / 28** | | **124** | **88** | **248 Linux + 176 Android A/B cells** |
 
 `crossfade_long_end` and `crossfade_long_noseek` (P5, reproduction only; the second plays a 120 s song from 0 into a 300 s one, no seek, ~2 min) raise `xfadeJump`, `xfadeFrozen`, `xfadeLateStart` and `xfadePersistMismatch`
-(constants `XFADE_*` in `tool/live_seek_stress.py`); it is expected to fail on an affected build until the app fix lands. An Android crossfade run seeds `crossfade_enabled=1` and the duration into the emulator profile (`android_seed_edits`).
+(constants `XFADE_*` in `tool/live_seek_stress.py`); it is expected to fail on an affected build until the app fix lands. `crossfade_long_noseek` only discriminates on Android (Linux base passes it in every run so far) although it costs ~2 min per rep. Until P7 (#183) is in the candidate, Linux `skip_next`/`skip_prev` fail `skipNoAdvance` on both the base and the fix, so the crossfade scenario's `violations <= 0` gate also fails on Linux for that reason. An Android crossfade run seeds `crossfade_enabled=1` and the duration into the emulator profile (`android_seed_edits`).
+
+For every scenario and platform (not only cross-fade), the sampled `pos` is the
+`mediaKitTransport` entry nearest `playerPositionMs + offset`
+(`active_transport_ms`), so a native-vs-handler position comparison sees the
+active deck and the single global offset is also applied to a retired deck.
 
 Exact retained case lists, assertions and tolerances live in `SCENARIOS`,
 `ANDROID_CHECKS`, `plan`, `evaluate`, and engine case/oracle functions. No case,
