@@ -578,7 +578,9 @@ RecommendationIssue lastFmRecommendationIssue(LastFmTrackFetchResult result) =>
     switch (result.outcome) {
       LastFmFetchOutcome.success => RecommendationIssue.none,
       LastFmFetchOutcome.noResults => RecommendationIssue.empty,
-      LastFmFetchOutcome.notConfigured => RecommendationIssue.invalidKey,
+      // Also returned for a seed with no artist or title, which is no reason
+      // to show the user "Last.fm rejected the API key".
+      LastFmFetchOutcome.notConfigured => RecommendationIssue.empty,
       LastFmFetchOutcome.networkError => RecommendationIssue.networkFailure,
       LastFmFetchOutcome.apiError when result.apiErrorCode == 6 =>
         RecommendationIssue.empty,
