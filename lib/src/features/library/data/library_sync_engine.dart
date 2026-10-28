@@ -1719,9 +1719,10 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         error: error,
       );
       if (error is SyncLeaseLostException) {
-        // The coordinator's own handler never sees this error because the
-        // engine owns the run boundary; capture the current lease holder so
-        // the lost-lease race is explainable from persisted evidence.
+        // Record who holds the lease. After a real takeover this ledger
+        // write is fenced too and throws SyncLeaseLostException, which ends
+        // the run through the coordinator's catch (deferred, leaseHeld,
+        // failureCategory null); that catch records the ledger row instead.
         final holder = await _database.librarySyncDao.getExecutionLease(
           serverConfig.id ?? 0,
         );
@@ -1740,23 +1741,6 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
                   },
           },
         );
-        // Another run really took the lease over (ownership is the liveness
-        // condition), so this run's work was fenced and safely rolled back.
-        // That is contention, not a failure: defer so the coordinator
-        // requeues the work, counts no failure and shows no notice.
-        AppLogger.warning(
-          'Library sync lease lost at stage=${state.stage}; deferring.',
-        );
-        final deferred = _terminal(
-          state.copyWith(failureCategory: 'leaseLost'),
-          metrics,
-          error,
-          status: LibrarySyncStatus.deferred,
-          errorMessage: 'Sync paused; another sync run took over.',
-        );
-        onProgress?.call(deferred);
-        _logSyncSummary(state: deferred, metrics: metrics);
-        return deferred;
       }
       await _persistFailureDiagnosticsBestEffort(
         metrics,

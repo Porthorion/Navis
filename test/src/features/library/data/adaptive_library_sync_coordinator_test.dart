@@ -617,45 +617,6 @@ void main() {
   );
 
   test(
-    'a lease-lost engine run is a leaseHeld deferral, not an unknown failure',
-    () async {
-      final lost = AdaptiveLibrarySyncCoordinator(
-        executor: StubSyncPlanExecutor(
-          (plan, {onProgress}) async => LibrarySyncState(
-            status: LibrarySyncStatus.deferred,
-            stage: LibrarySyncStage.completed,
-            failureCategory: 'leaseLost',
-            completedAt: DateTime.utc(2026, 8, 4),
-          ),
-        ),
-        database: database,
-        serverConfigRepository: repository,
-        networkType: NetworkType.wifi,
-        staleAfter: const Duration(hours: 1),
-        readHasActivePlayback: () => false,
-      );
-
-      final result = await lost.requestSync(
-        const LibrarySyncRequest(
-          origin: SyncRunOrigin.settingsRepair,
-          intent: SyncRunIntent.repairLibrary,
-        ),
-      );
-
-      expect(result.status, LibrarySyncStatus.deferred);
-      final run = (await database.librarySyncDao.getRecentSyncRunHistory(1))
-          .singleWhere((entry) => entry.requestId == result.runRequestId);
-      expect(run.outcome, SyncRunOutcomeKind.deferred);
-      expect(run.reason, SyncSafeReason.leaseHeld);
-      expect(
-        (await database.librarySyncDao.getOrCreateState(1)).failureStreak,
-        0,
-      );
-    },
-    skip: !sqliteAvailable,
-  );
-
-  test(
     'cooldown deferral records a typed durable outcome without dispatching',
     () async {
       await database.librarySyncDao.writeState(

@@ -13,13 +13,13 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/api/sync_request_scope.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
-import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/test_database.dart';
@@ -194,21 +194,78 @@ void main() {
       await database.close();
     });
 
-    test('a lost lease defers as leaseLost instead of failing', () async {
-      await saveSession();
-      final serverId = (await serverConfigRepository.getActiveServer())!.id!;
-      api.getArtistsError = const SyncLeaseLostException();
+    test(
+      'a real mid-run takeover stops the run cleanly as leaseHeld',
+      () async {
+        await saveSession();
+        final serverId = (await serverConfigRepository.getActiveServer())!.id!;
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.artistsCompleter = Completer<List<Artist>>();
+        final coordinator = AdaptiveLibrarySyncCoordinator(
+          executor: engine,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          staleAfter: const Duration(hours: 1),
+          readHasActivePlayback: () => false,
+        );
+        final run = coordinator.requestSync(
+          const LibrarySyncRequest(
+            origin: SyncRunOrigin.settingsRepair,
+            intent: SyncRunIntent.repairLibrary,
+          ),
+        );
+        while (!api.calls.contains('getArtists')) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        // A second runner takes the lease over (its clock is past expiry).
+        expect(
+          await database.librarySyncDao.acquireExecutionLease(
+            serverId: serverId,
+            ownerToken: 'second-runner',
+            ownerKind: 'foreground',
+            now: DateTime.now().toUtc().add(const Duration(days: 1)),
+            ttl: const Duration(days: 2),
+          ),
+          isTrue,
+        );
+        api.artistsCompleter!.complete(api.artists);
+        final result = await run;
 
-      final state = await engine.executeSyncPlan(
-        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-      );
-
-      expect(state.status, LibrarySyncStatus.deferred);
-      expect(state.failureCategory, 'leaseLost');
-      final ledger = await database.librarySyncDao
-          .getRecentOperationLedgerEntries(serverId);
-      expect(ledger.map((e) => e.operation), contains('executionLeaseLost'));
-    }, skip: !sqliteAvailable);
+        expect(result.status, LibrarySyncStatus.deferred);
+        expect(result.planReason, 'leaseHeld');
+        expect(result.failureCategory, isNull);
+        final history = await database.librarySyncDao.getRecentSyncRunHistory(
+          serverId,
+        );
+        // The takeover recovered this run's attempt, so the replaced owner
+        // records no outcome of its own, and never a failure.
+        expect(
+          history.where(
+            (entry) =>
+                entry.outcome == SyncRunOutcomeKind.failed ||
+                entry.reason == SyncSafeReason.unknownFailure,
+          ),
+          isEmpty,
+        );
+        final state = await database.librarySyncDao.getOrCreateState(serverId);
+        expect(state.failureStreak, 0);
+        // The fenced run wrote nothing after the takeover.
+        expect(await database.select(database.artistsTable).get(), isEmpty);
+        expect(
+          (await database.librarySyncDao.getExecutionLease(serverId))
+              ?.ownerToken,
+          'second-runner',
+        );
+        final ledger = await database.librarySyncDao
+            .getRecentOperationLedgerEntries(serverId);
+        expect(
+          ledger.where((e) => e.operation == 'executionLeaseLost'),
+          hasLength(1),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
 
     for (final (name, playing, manual, expected) in [
       ('paused automatic', false, false, LibrarySyncStatus.succeeded),
