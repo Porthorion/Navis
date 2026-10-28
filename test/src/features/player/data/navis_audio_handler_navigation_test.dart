@@ -6457,6 +6457,7 @@ void main() {
             for (var i = 0; i < ids.length; i++)
               // ignore: experimental_member_use, reason: the lock-cache source.
               if (ids[i] == 'song-1' &&
+                  // ignore: experimental_member_use, reason: the lock-cache source.
                   s.player.audioSources[i] is LockCachingAudioSource)
                 s.player.audioSources[i],
           ];
@@ -6712,6 +6713,7 @@ void main() {
           for (var i = 0; i < ids.length; i++)
             // ignore: experimental_member_use, reason: the lock-cache source.
             if (ids[i] == id &&
+                // ignore: experimental_member_use, reason: the lock-cache source.
                 player.audioSources[i] is LockCachingAudioSource)
               i,
         ];

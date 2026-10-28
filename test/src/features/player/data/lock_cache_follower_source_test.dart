@@ -6,7 +6,7 @@ import 'package:navis/src/features/player/data/lock_cache_follower_source.dart';
 
 // ignore: experimental_member_use, reason: a writer stand-in that records what reaches it.
 class _Leader extends LockCachingAudioSource {
-  new(File file, {this.ranges})
+  new(File file)
     : super(Uri.parse('https://fixture.invalid/song?id=a'), cacheFile: file);
   final requested = <(int?, int?)>[];
   var cancels = 0;
@@ -17,6 +17,7 @@ class _Leader extends LockCachingAudioSource {
   // ignore: experimental_member_use, reason: the proxy response contract.
   Future<StreamAudioResponse> request([int? start, int? end]) async {
     requested.add((start, end));
+    // ignore: experimental_member_use, reason: the proxy response contract.
     return StreamAudioResponse(
       sourceLength: 4,
       contentLength: 4,
