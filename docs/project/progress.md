@@ -17,15 +17,12 @@ Last updated: 2026-10-28
 - [x] Issue #105 (1.5.1, #86), sync lease liveness — 2026-10-28
   (branch `fix/sync-lease-liveness`). Heartbeat and `SyncWriteFence.lockAndCheck`
   now match on the owner token only (like `checkBeforeCommit`), so a DB stall
-  past the TTL without a takeover no longer cancels/fails the run; a real
-  lease loss is `deferred`/`leaseHeld`, not `failed`/`unknownFailure`.
-  Failing-first: DAO stall heartbeat `Expected: true Actual: <false>`;
-  coordinator `Expected: SyncSafeReason.leaseHeld Actual: SyncSafeReason.meteredPolicy`;
-  engine `Expected: LibrarySyncStatus.deferred Actual: LibrarySyncStatus.failed`;
-  fence expired-untaken write threw `SyncLeaseLostException` at `lockAndCheck`.
-  A real takeover still ends in the coordinator's existing `leaseHeld` catch (the
-  engine's ledger write in its catch is fenced too); the fix for #105 is the
-  ownership-only check.
+  past the TTL without a takeover no longer cancels/fails the run. Failing-first:
+  DAO stall heartbeat `Expected: true Actual: <false>`; fence expired-untaken
+  write threw `SyncLeaseLostException` at `lockAndCheck`. A real takeover ends
+  through the coordinator's catch as `deferred`/`leaseHeld` with
+  `failureCategory` null (engine test "a real mid-run takeover stops the run
+  cleanly"); a cross-connection takeover waits for an open owner transaction.
 - [x] Issue #86 P5, long-song crossfade overrun and display snap — 2026-10-28
   (evidence: `navis_audio_handler_navigation_test.dart` "cross-fade deck" cases
   failed first with `Actual: Duration:<0:03:03.603687>` vs the 3:00 song end and

@@ -7150,8 +7150,10 @@ takeover is one UPSERT under the writer lock that replaces the token, so after
 it the old owner's next heartbeat or write sees a foreign token and fails. A
 local stall (slow disk, busy DB) that outlasts the TTL without a takeover
 therefore no longer cancels or fails the run. A run whose lease really was taken
-over ends `deferred` with reason `leaseHeld` (engine `failureCategory`
-`leaseLost`), requeues its work, counts no failure and shows no notice.
+over ends through the coordinator's `SyncLeaseLostException` catch (the
+engine's own ledger write is fenced too, so the exception escapes it):
+`deferred` with reason `leaseHeld` and `failureCategory` null. The work is
+requeued, no failure is counted and nothing is shown.
 
 Ownership and hand-off. A live lease blocks every other acquirer except one
 case: a `foreground` acquirer takes over a live `androidWorker` lease (the SQL
