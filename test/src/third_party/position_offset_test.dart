@@ -55,6 +55,66 @@ void main() {
     );
   });
 
+  group('header proxy routing (user agent set)', () {
+    Future<Map<Object?, Object?>> loadedSource(
+      Uri uri, {
+      Map<String, String>? headers,
+      String? userAgent,
+    }) async {
+      final player = AudioPlayer(
+        userAgent: userAgent,
+        activateAudioSession: (active) async => true,
+      );
+      addTearDown(player.dispose);
+      await player.setAudioSource(AudioSource.uri(uri, headers: headers));
+      final playlist =
+          native.player.loads.last.audioSourceMessage
+              as platform.ConcatenatingAudioSourceMessage;
+      return playlist.children.single.toMap();
+    }
+
+    const agent = 'NavisTest/1.0';
+
+    test('a content:// download is never routed through the proxy', () async {
+      final source = await loadedSource(
+        Uri.parse('content://tree/primary%3AMusic/document/a.opus'),
+        userAgent: agent,
+      );
+      expect(source['uri'], 'content://tree/primary%3AMusic/document/a.opus');
+    });
+
+    test('file:// stays direct and http(s) is still proxied', () async {
+      final file = await loadedSource(
+        Uri.parse('file:///music/a.opus'),
+        userAgent: agent,
+      );
+      expect(file['uri'], 'file:///music/a.opus');
+      for (final url in [
+        'https://music.example.invalid/a',
+        'HTTP://x.invalid/a',
+      ]) {
+        final source = await loadedSource(Uri.parse(url), userAgent: agent);
+        expect(source['uri'], startsWith('http://127.0.0.1:'), reason: url);
+      }
+    });
+
+    test('http with headers and no user agent is still proxied', () async {
+      final source = await loadedSource(
+        Uri.parse('https://music.example.invalid/a'),
+        headers: {'X-Test': '1'},
+      );
+      expect(source['uri'], startsWith('http://127.0.0.1:'));
+    });
+
+    test('content:// with headers and no user agent stays direct', () async {
+      final source = await loadedSource(
+        Uri.parse('content://tree/doc/a.opus'),
+        headers: {'X-Test': '1'},
+      );
+      expect(source['uri'], 'content://tree/doc/a.opus');
+    });
+  });
+
   test('inbound position, buffered and duration gain the offset', () async {
     final player = newPlayer();
     await player.setAudioSource(offsetSource());
