@@ -537,25 +537,30 @@ void main() {
       expect(batch.lastFmIssue, RecommendationIssue.rateLimited);
     }, skip: !sqliteAvailable);
 
-    test('transient, empty and switched-off Last.fm stay silent', () async {
-      expect(
-        (await radioBatchWith(failure(LastFmFetchOutcome.networkError)))
-            .lastFmIssue,
-        RecommendationIssue.none,
-      );
-      expect(
-        (await radioBatchWith(failure(LastFmFetchOutcome.noResults)))
-            .lastFmIssue,
-        RecommendationIssue.none,
-      );
-      expect(
-        (await radioBatchWith(
-          failure(LastFmFetchOutcome.apiError, code: 10),
-          policy: const IntegrationPolicy(),
-        )).lastFmIssue,
-        RecommendationIssue.none,
-      );
-    }, skip: !sqliteAvailable);
+    // One test database per test, like runRadio below: several open at
+    // once trip drift's multiple-instances warning (a check.sh blocker).
+    for (final entry in <String, (LastFmTrackFetchResult, IntegrationPolicy)>{
+      'a network failure': (
+        failure(LastFmFetchOutcome.networkError),
+        const IntegrationPolicy(lastFmVerified: true),
+      ),
+      'an empty answer': (
+        failure(LastFmFetchOutcome.noResults),
+        const IntegrationPolicy(lastFmVerified: true),
+      ),
+      'switched-off Last.fm': (
+        failure(LastFmFetchOutcome.apiError, code: 10),
+        const IntegrationPolicy(),
+      ),
+    }.entries) {
+      test('${entry.key} stays silent', () async {
+        final (result, policy) = entry.value;
+        expect(
+          (await radioBatchWith(result, policy: policy)).lastFmIssue,
+          RecommendationIssue.none,
+        );
+      }, skip: !sqliteAvailable);
+    }
 
     Future<_CountingLastFmApiClient> runRadio(IntegrationPolicy policy) async {
       final database = createTestDatabase();
