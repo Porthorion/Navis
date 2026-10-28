@@ -14957,6 +14957,53 @@ void main() {
       expect(handler.debugActivePlayer, same(incoming));
     });
 
+    test('a slow prewarm shortens the ramp to end by the song end', () async {
+      final (handler, player, _) = await crossfading(2);
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      incoming
+        ..loadGate = release
+        ..loadEntered = entered;
+      // 2 s before the end of a 3 min song: the 5 s fade cannot fit.
+      player
+        ..simulateProgress = true
+        ..simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 2);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      await entered.future.timeout(const Duration(seconds: 1));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      release.complete();
+      await waitForFade(
+        () =>
+            identical(handler.debugActivePlayer, incoming) &&
+            fade(handler)['active'] == false,
+      );
+      expect(
+        player.position,
+        lessThanOrEqualTo(const Duration(minutes: 3)),
+        reason: 'the ramp must end before the outgoing song does',
+      );
+      expect(incoming.playing, isTrue);
+    });
+
+    test('with under half a second left the song advances gaplessly', () async {
+      final (handler, player, _) = await crossfading(2);
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      player.simulatedPosition =
+          const Duration(minutes: 3) - const Duration(milliseconds: 300);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      await waitForFade(() => fade(handler)['active'] == false);
+      expect(handler.debugActivePlayer, same(player));
+      expect(incoming.playing, isFalse);
+      expect(fade(handler)['phases'], containsPair('too_late', 1));
+      // No retry loop for this occurrence.
+      handler.debugCheckCrossfadeTrigger(player.position);
+      expect(fade(handler)['active'], isFalse);
+    });
+
     test('self-crossfade retries after a native wrap during prewarm', () async {
       final (handler, player, _) = await crossfading(2);
       await handler.replaceQueue(ids(2), expandMatchFlows: false);

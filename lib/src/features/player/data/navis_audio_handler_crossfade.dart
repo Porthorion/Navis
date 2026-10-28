@@ -1,5 +1,10 @@
 part of 'navis_audio_handler.dart';
 
+// The ramp ends this long before the outgoing song, and is not worth starting
+// when it would be shorter than the minimum.
+const int _crossfadeEndMarginMs = 100;
+const int _crossfadeMinRampMs = 500;
+
 extension _NavisCrossfade on NavisAudioHandler {
   AudioPlayer _newCrossfadePlayer() =>
       _crossfadePlayerFactory?.call() ?? _buildBaseAudioPlayer();
@@ -89,7 +94,8 @@ extension _NavisCrossfade on NavisAudioHandler {
           ? _effectivePlaybackDuration(from.mediaItem) -
                 _player.position -
                 Duration(seconds: _crossfadeDurationSeconds)
-          : delayBeforeFade;
+          // The outgoing song kept playing while the deck prepared.
+          : delayBeforeFade - prewarmStopwatch.elapsed;
       if (fadeDelay > Duration.zero) {
         AppLogger.debug(
           'Cross-fade prewarm ready: delaying fade start by '
@@ -246,6 +252,7 @@ extension _NavisCrossfade on NavisAudioHandler {
     required int sessionToken,
   }) {
     final fadeDurationMs = _crossfadeDurationSeconds * 1000;
+    var rampMs = fadeDurationMs;
     DateTime? startTime;
     var applying = false;
     _crossfadeFadeTimer?.cancel();
@@ -274,10 +281,28 @@ extension _NavisCrossfade on NavisAudioHandler {
       }
       applying = true;
       try {
+        if (startTime == null) {
+          // Prewarm and start latency eat into the lead: end the ramp before
+          // the outgoing song does, or fall back to the gapless advance.
+          final remainingMs =
+              (_effectivePlaybackDuration(
+                        _resolveCurrentQueueMetadata().mediaItem,
+                      ) -
+                      _player.position)
+                  .inMilliseconds;
+          rampMs = math.min(
+            fadeDurationMs,
+            remainingMs - _crossfadeEndMarginMs,
+          );
+          if (rampMs < _crossfadeMinRampMs) {
+            _crossfadeTooLate(nextIndex, sessionToken);
+            return;
+          }
+        }
         startTime ??= DateTime.now();
         _crossfadeFadeStartedAt = startTime;
         final elapsed = DateTime.now().difference(startTime!).inMilliseconds;
-        final progress = (elapsed / fadeDurationMs).clamp(0.0, 1.0);
+        final progress = (elapsed / rampMs).clamp(0.0, 1.0);
         if (!_player.playing && progress < 1) {
           throw StateError('Outgoing deck stopped before the fade ended.');
         }
@@ -322,6 +347,31 @@ extension _NavisCrossfade on NavisAudioHandler {
         applying = false;
       }
     });
+  }
+
+  /// Too little of the outgoing song is left for an audible ramp: continue
+  /// gaplessly. Not retried for this occurrence (a repeat-one wrap retries).
+  void _crossfadeTooLate(int nextIndex, int sessionToken) {
+    final from = _resolveCurrentQueueMetadata();
+    if (!_isRepeatOneCrossfade &&
+        from.currentIndex != null &&
+        from.mediaItem != null) {
+      _crossfadeFailedFrom = (
+        index: from.currentIndex!,
+        songId: from.mediaItem!.id,
+      );
+    }
+    AppLogger.debug(
+      'Cross-fade too late for the remaining song; continuing gaplessly '
+      '(target=$nextIndex token=$sessionToken).',
+    );
+    _emitCrossfadeMetric(
+      transitionId: sessionToken,
+      targetIndex: nextIndex,
+      phase: 'too_late',
+      fallbackReason: 'too_late',
+    );
+    _cancelCrossfade();
   }
 
   Future<void> _finalizeCrossfadeAfterFade({
