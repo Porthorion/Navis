@@ -4540,7 +4540,13 @@ Desktop volume follows a parallel local-settings path:
 3. Slider changes apply immediately and persist after a short coalescing delay;
    drag completion and mute changes flush deterministically.
 4. The next desktop launch restores the exact level, including zero, while
-   mobile starts at the session default and does not persist volume.
+   mobile starts at 100%: `hydrate` and persistence are desktop-only, so a saved
+   `app_settings` volume below 1.0 is never applied on Android or iOS. Mobile
+   has no in-app volume control (system volume, buttons and per-app volume
+   only): the Now Playing settings sheet shows its volume row only when
+   `resolveAdaptiveContextFor(context).desktopRuntime` is true, and the
+   transport and mini-player volume controls are desktop-only. Crossfade,
+   ReplayGain and ducking scale relative to that 1.0 user volume.
 
 Linux, Windows, and macOS play remote audio via direct HTTPS (Range-seekable
 through media_kit/libmpv) and fill the rolling cache with a sidecar download to
