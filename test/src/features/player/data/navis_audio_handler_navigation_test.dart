@@ -636,6 +636,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   bool failVolume = false;
   Completer<void>? volumeGate;
   Completer<void>? volumeEntered;
+
+  /// Every volume write waits for this, as a slow native write would.
+  Completer<void>? volumeHold;
   Completer<void>? listenerCancelGate;
   Completer<void>? listenerCancelEntered;
   String? failAppendSongId;
@@ -810,6 +813,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> setVolume(double value) async {
+    await volumeHold?.future;
     final gate = volumeGate;
     if (gate != null) {
       volumeGate = null;
@@ -15042,6 +15046,54 @@ void main() {
         expect(incoming.playing, isTrue);
       },
     );
+
+    group('the outgoing deck advancing mid-fade', () {
+      final nearEnd = const Duration(minutes: 3) - const Duration(seconds: 6);
+
+      Future<
+        (
+          NavisAudioHandler,
+          _ControllableAudioPlayer,
+          _ControllableAudioPlayer,
+          NavisDatabase,
+        )
+      >
+      midFade() async {
+        final (handler, player, database) = await crossfading(3);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        player.simulatedPosition = nearEnd;
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playing && incoming.volume > 0.2);
+        return (handler, player, incoming, database);
+      }
+
+      test('keeps the saved and shown position on the outgoing song', () async {
+        final (handler, player, incoming, database) = await midFade();
+        final hold = Completer<void>();
+        // A slow native write keeps the hand-over open: the widest window.
+        incoming.volumeHold = hold;
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(identical(handler.debugActivePlayer, player), isTrue);
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(
+          handler.snapshot.position,
+          greaterThan(const Duration(minutes: 2)),
+          reason: 'song-0 must not be shown at the next song\'s ~0',
+        );
+        await handler.debugFlushQueuePersistence();
+        final saved = (await database.playQueueDao.getQueueState())!;
+        expect(saved.currentIndex, 0);
+        expect(saved.positionMs, greaterThan(120000));
+        hold.complete();
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+      });
+    });
 
     test(
       'an outgoing advance with the incoming deck unready falls back',

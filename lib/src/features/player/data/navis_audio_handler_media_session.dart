@@ -836,7 +836,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           ? _restoredQueuePosition
           : pending
           ? Duration.zero
-          : _player.position,
+          : _transportPosition,
       bufferedPosition: pending ? Duration.zero : _player.bufferedPosition,
       speed: _player.speed,
       queueIndex: _radioStation == null
@@ -1044,7 +1044,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           : _mapProcessingState(_player.processingState),
       position: _restoredQueueIndex != null
           ? _restoredQueuePosition
-          : _player.position,
+          : _transportPosition,
       duration: _effectivePlaybackDuration(currentItem),
       bufferedPosition: _player.bufferedPosition,
       shuffleMode: _shuffleEnabled

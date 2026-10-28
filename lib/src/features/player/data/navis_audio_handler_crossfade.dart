@@ -22,6 +22,13 @@ extension _NavisCrossfade on NavisAudioHandler {
       identical(_player, _crossfadeOutgoing?.deck) &&
       _player.currentIndex == _crossfadeTargetIndex;
 
+  /// The position to show and save. While the outgoing deck has advanced
+  /// mid-fade, its own position belongs to the next song (about 0), so the
+  /// outgoing song stays at its end until the hand-over.
+  Duration get _transportPosition => _outgoingAdvancedMidFade
+      ? _effectivePlaybackDuration(_crossfadeOutgoing!.from.mediaItem)
+      : _player.position;
+
   /// Returns the effective queue index of the next track, accounting for
   /// shuffle and loop modes. Returns `null` when there is no next track.
   int? _getNextEffectiveIndex() {
