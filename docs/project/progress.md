@@ -20,6 +20,22 @@ Last updated: 2026-10-28
   `Actual: [(song-1, true)]` for the withheld next-song publish; `test/src/features/player/data/`
   1312/1312 pass). Fix on `fix/crossfade-long-swap`; harness rerun
   (`crossfade_long_end`) remains with the orchestrator.
+- [ ] Issue #151, no album art over Bluetooth AVRCP since 1.4.0 — 2026-10-28
+  (branch `fix/bt-album-art`, merged with `github/release/1.5`). `forSystem`
+  publishes the `content://` URI only when `artCacheFile` (or the cache path)
+  names an existing file with a JPEG/PNG/WebP header and hands the session that
+  file; otherwise it withholds the URI and a bad `artCacheFile`.
+  `PlaybackArtCache.cachedPath` drops entries whose file is gone; the handler
+  re-fetches and re-emits a stale `artCacheFile` (review r2: final item had no
+  art, now content URI + file after exactly one download); a file without an image
+  signature (error page from an older build) is never reused and is downloaded
+  again (the transport already rejects non-image bodies); AVIF/HEIC/TIFF stay
+  cached but unpublished; lists stat each
+  cover once. Art downscale
+  is 256 so the 512 px covers decode at 256 px. Evidence: new tests failed first
+  (`Expected: null Actual: Uri:<content://a.artwork/cover/..>`; `Expected:
+  <256> Actual: <512>`); focused art tests 37/37 pass. Emulator could not
+  reproduce the base failure; the real-car check stays with the owner.
 - [x] Issue #109 (1.5.1 P6), Linux package install wait copy — 2026-10-28
   (evidence: `update_dialog_test.dart` linuxDeb/linuxRpm apply cases failed first
   with `Found 0 widgets with text "Installing the update. This can take a minute."`;

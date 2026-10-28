@@ -25,6 +25,8 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
+import 'package:navis/src/features/player/data/system_media_art.dart'
+    show imageExtensionForBytes;
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:path/path.dart' as p;
@@ -126,12 +128,53 @@ class PlaybackArtCache {
 
   /// The local file of [coverArtId]'s cover once this cache has it on disk,
   /// without downloading; `null` otherwise.
-  String? cachedPath(String coverArtId) => _mem[coverArtId];
+  ///
+  /// An entry whose file has gone (Android may clear the cache directory) is
+  /// dropped, so the next fetch rewrites it and is a fresh update.
+  String? cachedPath(String coverArtId) {
+    final path = _mem[coverArtId];
+    if (path != null && !File(path).existsSync()) {
+      _mem.remove(coverArtId);
+      return null;
+    }
+    return path;
+  }
+
+  /// The first 32 bytes of [path], or `null` when it cannot be read.
+  static List<int>? _head(String path) {
+    RandomAccessFile? file;
+    try {
+      file = File(path).openSync();
+      return file.readSync(32);
+    } on FileSystemException {
+      return null;
+    } finally {
+      file?.closeSync();
+    }
+  }
+
+  /// Whether [path] is a file that starts like an image `BitmapFactory`
+  /// decodes (see [imageExtensionForBytes]). Reads only the first 32 bytes;
+  /// cheap enough for each publish.
+  static bool isImageFile(String path) {
+    final head = _head(path);
+    return head != null && imageExtensionForBytes(head) != null;
+  }
+
+  /// Whether [path] starts like an image the transport accepts
+  /// ([looksLikeImagePayload], which also covers AVIF, HEIC and TIFF), so an
+  /// error page saved by an older build is never reused. [isImageFile] is
+  /// stricter: only its formats are published to the system.
+  static bool _isUsableCover(String path) {
+    final head = _head(path);
+    return head != null && looksLikeImagePayload(head);
+  }
 
   /// Returns the local file path for [coverArtId], downloading from [artUri]
   /// on the first call. Returns `null` if the download fails.
   Future<String?> getOrFetch(String coverArtId, Uri artUri) {
-    if (_mem.containsKey(coverArtId)) return Future.value(_mem[coverArtId]);
+    final cached = cachedPath(coverArtId);
+    if (cached != null) return Future.value(cached);
 
     final existing = _pending[coverArtId];
     if (existing != null) return existing.future;
@@ -166,7 +209,9 @@ class PlaybackArtCache {
       // ignore: avoid_slow_async_io
       if (await file.exists()) {
         final length = await file.length();
-        if (length > 0) {
+        // A non-image file (a captive-portal page saved by an older build)
+        // is replaced, never reused.
+        if (length > 0 && _isUsableCover(file.path)) {
           _mem[coverArtId] = file.path;
           AppLogger.debug(
             'PlaybackArtCache: art for $coverArtId → ${file.path} (disk cache)',
@@ -220,6 +265,7 @@ class PlaybackArtCache {
           await sink.close().catchError((Object _) {});
         }
         written = await partial.length();
+        // The transport rejects non-image bodies before they reach here.
         if (written > 0) await partial.rename(file.path);
       } finally {
         // Keep metadata access asynchronous so storage latency cannot stall UI.

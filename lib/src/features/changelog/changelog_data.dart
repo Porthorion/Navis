@@ -131,9 +131,11 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       ChangelogEntry(
         'Crossfade on long songs now ends before the song does: the fade '
-        'shortens when preparing the next song takes time, the song and '
-        'position no longer jump a few seconds when it completes, and the '
-        'outgoing song can no longer start the next one underneath it.',
+            'shortens when preparing the next song takes time, the song and '
+            'position no longer jump a few seconds when it completes, and the '
+            'outgoing song can no longer start the next one underneath it.',
+        'Android: album art shows again on Bluetooth and car displays, which '
+            'had shown only the title and artist since 1.4.0.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
