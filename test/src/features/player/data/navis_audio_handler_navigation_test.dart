@@ -15108,6 +15108,22 @@ void main() {
               fade(handler)['active'] == false,
         );
       });
+
+      test('a volume change follows the shortened ramp', () async {
+        final (handler, player, _) = await crossfading(2);
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        // 2 s left: the 5 s fade shortens to about 1.9 s.
+        player
+          ..simulateProgress = true
+          ..simulatedPosition =
+              const Duration(minutes: 3) - const Duration(seconds: 2);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playing && incoming.volume > 0.5);
+        await handler.setVolume(1);
+        expect(player.volume, lessThan(0.55));
+        expect(incoming.volume, greaterThan(0.45));
+      });
     });
 
     test(

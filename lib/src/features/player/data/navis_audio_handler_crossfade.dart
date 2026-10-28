@@ -94,6 +94,7 @@ extension _NavisCrossfade on NavisAudioHandler {
     _isCrossfading = true;
     _crossfadeHandoffInProgress = false;
     _crossfadeIndexSuppressed = false;
+    _crossfadeRampMs = 0;
     _crossfadeTargetIndex = nextIndex;
     final from = _resolveCurrentQueueMetadata();
     _crossfadeOutgoing = (deck: _player, from: from);
@@ -332,6 +333,7 @@ extension _NavisCrossfade on NavisAudioHandler {
             _crossfadeTooLate(nextIndex, sessionToken);
             return;
           }
+          _crossfadeRampMs = rampMs;
         }
         startTime ??= DateTime.now();
         _crossfadeFadeStartedAt = startTime;

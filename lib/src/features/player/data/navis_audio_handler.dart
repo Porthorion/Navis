@@ -588,6 +588,10 @@ class NavisAudioHandler extends BaseAudioHandler
   /// The index event of the outgoing deck's mid-fade advance was withheld from
   /// the UI; a cancelled fade replays it.
   bool _crossfadeIndexSuppressed = false;
+
+  /// Length of the running ramp: the configured fade, or less when the
+  /// outgoing song had less time left.
+  int _crossfadeRampMs = 0;
   Future<void>? _crossfadeCompletionFuture;
   StreamSubscription<Duration>? _crossfadePositionSub;
   int _crossfadeSessionToken = 0;
@@ -3078,7 +3082,9 @@ class NavisAudioHandler extends BaseAudioHandler
           : (DateTime.now()
                         .difference(_crossfadeFadeStartedAt!)
                         .inMilliseconds /
-                    (_crossfadeDurationSeconds * 1000))
+                    (_crossfadeRampMs > 0
+                        ? _crossfadeRampMs
+                        : _crossfadeDurationSeconds * 1000))
                 .clamp(0.0, 1.0);
       await _player.setVolume(
         _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem) *
