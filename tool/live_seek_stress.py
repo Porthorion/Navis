@@ -4007,7 +4007,8 @@ XFADE_BACKSTEP_MS = 300          # (a) backwards step (native clock jitter stays
 XFADE_FREEZE_S = 1.5             # (b) position unchanged this long while playing and ready
 XFADE_FREEZE_EPS_MS = 50         # (b) a step smaller than this counts as unchanged
 XFADE_START_SLACK_MS = 1500      # (c) incoming first position <= fade + this
-XFADE_PERSIST_MS = 2000          # (d) saved vs displayed position
+XFADE_PERSIST_LAG_S = 15.5       # (d) saves are events plus a 15 s timer (+ 250 ms debounce): a save may be this old
+XFADE_PERSIST_SLACK_MS = 1000    # (d) tolerance around the displayed positions the save could have captured
 
 
 def _xfade_shown(s):
@@ -4015,7 +4016,7 @@ def _xfade_shown(s):
     return s['uiPos'] if s.get('uiPos') is not None else s['pos']
 
 
-def oracle_crossfade_long(run: Run, ids: list[str], fade_ms: int, saved=None, before=None, after=None) -> list[dict]:
+def oracle_crossfade_long(run: Run, ids: list[str], fade_ms: int, saved=None, after=None) -> list[dict]:
     """(a) a displayed or native position jump or backwards step inside one song, (b) a frozen position while playing,
     (c) the incoming song not starting near 0, (d) the saved position disagreeing with the displayed one after the swap."""
     out, samples = [], run.samples
@@ -4052,12 +4053,15 @@ def oracle_crossfade_long(run: Run, ids: list[str], fade_ms: int, saved=None, be
     if first and first['pos'] > fade_ms + XFADE_START_SLACK_MS:
         out.append(violation('xfadeLateStart', first['t'], f"incoming song first ready at {first['pos']} ms "
                              f"(limit {fade_ms} + {XFADE_START_SLACK_MS})", run))
-    if saved and before and after and _xfade_shown(before) is not None and _xfade_shown(after) is not None:
-        low, high = sorted((_xfade_shown(before), _xfade_shown(after)))
-        gap = max(0, low - (saved.get('positionMs') or 0), (saved.get('positionMs') or 0) - high)
-        if gap > XFADE_PERSIST_MS or saved.get('index') != 1:
-            out.append(violation('xfadePersistMismatch', after['t'], f"saved index {saved.get('index')} position {saved.get('positionMs')} ms "
-                                 f"vs displayed {low}..{high} ms on {after['songId']}", run))
+    if saved and first and after and _xfade_shown(after) is not None:
+        # The save was taken at some moment within the last XFADE_PERSIST_LAG_S before the read, but not before the swap.
+        since = max(first['t'], after['t'] - XFADE_PERSIST_LAG_S)
+        shown = [_xfade_shown(s) for s in samples if s['songId'] == ids[1] and s['t'] >= since and _xfade_shown(s) is not None]
+        low, high = min(shown, default=_xfade_shown(after)), max(shown + [_xfade_shown(after)])
+        position = saved.get('positionMs') or 0
+        if saved.get('index') != 1 or not low - XFADE_PERSIST_SLACK_MS <= position <= high + XFADE_PERSIST_SLACK_MS:
+            out.append(violation('xfadePersistMismatch', after['t'], f"saved index {saved.get('index')} position {position} ms, "
+                                 f"displayed {low}..{high} ms since t={since:.1f} on {after['songId']}", run))
     return out
 
 
@@ -4096,7 +4100,7 @@ def case_crossfade_long_end(run: Run, env):
         'window': [[s['t'], s['songId'], s['pos'], s['uiPos'], (s['cf'] or {}).get('active'),
                     ((s['cf'] or {}).get('outgoing') or {}).get('positionMs'), ((s['cf'] or {}).get('incoming') or {}).get('positionMs')]
                    for s in run.samples if landing['t'] <= s['t'] <= moved['t'] + 3]}
-    run.checks.append(lambda: oracle_crossfade_long(run, ids, CROSSFADE_S * 1000, saved, before, after))
+    run.checks.append(lambda: oracle_crossfade_long(run, ids, CROSSFADE_S * 1000, saved, after))
 
 
 def start_player_overlay(run: Run):

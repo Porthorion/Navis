@@ -420,8 +420,7 @@ class CrossfadeLongOracle(unittest.TestCase):
 
     def names(self, rows, saved=None):
         run = type('R', (), {'samples': rows, 'actions': [], 'trace': [], 'metrics': {}})()
-        before, after = rows[-2], rows[-1]
-        return [v['oracle'] for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE, saved, before, after)]
+        return [v['oracle'] for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE, saved, rows[-1])]
 
     def test_clean_swap_passes(self):
         self.assertEqual(self.names(self.swap(), {'index': 1, 'positionMs': 9800}), [])
@@ -475,11 +474,24 @@ class CrossfadeLongOracle(unittest.TestCase):
                 r['uiPos'] += 20000
         self.assertIn('xfadeLateStart', self.names(self.swap(late)))
 
-    def test_persisted_mismatch(self):
+    def test_persisted_position_follows_the_save_design(self):
+        """Saves are events (the handoff 250 ms after the swap) plus a 15 s timer. Real P5 rows: saved 4366-4370 ms read 5.5 s
+        after the swap while 9546 ms was shown is correct; a wrong index or another song's position is not."""
         end = self.swap()[-1]['pos']
-        self.assertEqual(self.names(self.swap(), {'index': 1, 'positionMs': end - 2500}), ['xfadePersistMismatch'])
-        self.assertEqual(self.names(self.swap(), {'index': 0, 'positionMs': end}), ['xfadePersistMismatch'])
-        self.assertEqual(self.names(self.swap(), {'index': 1, 'positionMs': end - 1500}), [])
+        for saved in ({'index': 1, 'positionMs': 4368}, {'index': 1, 'positionMs': end - 2500}, {'index': 1, 'positionMs': end}):
+            self.assertEqual(self.names(self.swap(), saved), [], saved)
+        for saved in ({'index': 0, 'positionMs': 4975},               # base r1: saved the outgoing song's index
+                      {'index': 1, 'positionMs': 299000},             # outgoing song's position under the incoming index
+                      {'index': 1, 'positionMs': 2000},               # older than the swap
+                      {'index': 1, 'positionMs': end + 5000}):        # ahead of the display
+            self.assertEqual(self.names(self.swap(), saved), ['xfadePersistMismatch'], saved)
+
+    def test_a_save_older_than_the_timer_period_must_have_been_refreshed(self):
+        rows = self.swap()  # the swap is at t=20 s; the read at t=40 s, so a save from the swap (4100 ms) is 20 s old
+        run = type('R', (), {'samples': rows, 'actions': [], 'trace': [], 'metrics': {}})()
+        after = dict(rows[-1], t=40.0)
+        stale = engine.oracle_crossfade_long(run, self.IDS, self.FADE, {'index': 1, 'positionMs': 4100}, after)
+        self.assertEqual([v['oracle'] for v in stale], ['xfadePersistMismatch'])
 
     def test_seek_in_flight_is_not_a_jump(self):
         rows = self.swap(lambda r: [x.update(uiPos=x['uiPos'] + 5000) for x in r[30:]])
