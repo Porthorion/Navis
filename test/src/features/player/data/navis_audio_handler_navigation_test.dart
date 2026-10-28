@@ -12257,6 +12257,114 @@ void main() {
         expect(current(player).positionOffset, const Duration(seconds: 47));
       });
 
+      test('a skip cancelled before it ran does not disable cut recovery '
+          'during later queue work', () async {
+        final (handler, player) = await setup();
+        final append = Completer<void>();
+        final appendEntered = Completer<void>();
+        player
+          ..appendGate = append
+          ..appendEntered = appendEntered;
+        addTearDown(() {
+          if (!append.isCompleted) append.complete();
+        });
+        // The replacement below retires this edit.
+        final editing = handler
+            .addToQueue(['song-0'], expandMatchFlows: false)
+            .then<void>((_) {}, onError: (Object _) {});
+        await appendEntered.future.timeout(const Duration(seconds: 3));
+        // Queued behind the held edit, then cancelled before its callback ran.
+        await handler.skipToNext();
+        final replacing = handler.replaceQueue(
+          ['song-0', 'song-1', 'song-2'],
+          startIndex: 1,
+          expandMatchFlows: false,
+        );
+        append.complete();
+        await Future.wait([editing, replacing]);
+        await drain(handler);
+        await handler.play();
+        player.simulatedDuration = const Duration(seconds: 47);
+
+        final gate = Completer<void>();
+        final entered = Completer<void>();
+        player
+          ..afterAppendGate = gate
+          ..afterAppendEntered = entered;
+        addTearDown(() {
+          if (!gate.isCompleted) gate.complete();
+        });
+        final loading = handler.replaceQueue(
+          ['song-0', 'song-1', 'song-2'],
+          startIndex: 1,
+          expandMatchFlows: false,
+        );
+        await entered.future.timeout(const Duration(seconds: 3));
+        final more = handler.addToQueue(['song-0'], expandMatchFlows: false);
+        await pumpEventQueue(times: 20);
+        player.finishCurrentTrack(
+          endPosition: const Duration(milliseconds: 47750),
+        );
+        await pumpEventQueue(times: 20);
+        gate.complete();
+        await Future.wait([loading, more]);
+        await drain(handler);
+
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(current(player).positionOffset, const Duration(seconds: 47));
+      });
+
+      test(
+        'a lagging departed end during later queue work is ignored',
+        () async {
+          final (handler, player) = await setup();
+          player.simulatedPosition = const Duration(seconds: 2);
+          player
+            ..seekGate = Completer<void>()
+            ..seekEntered = Completer<void>();
+          final seek = player.seekGate!;
+          addTearDown(() {
+            if (!seek.isCompleted) seek.complete();
+          });
+          final navigation = handler.skipToNext();
+          await player.seekEntered!.future.timeout(const Duration(seconds: 3));
+          player._events.add(player.playbackEvent);
+          await pumpEventQueue(times: 20);
+          final stale = player.playbackEvent;
+          seek.complete();
+          await navigation;
+          await drain(handler);
+          final loads = player.sourceLoads;
+
+          final append = Completer<void>();
+          final appendEntered = Completer<void>();
+          player
+            ..appendGate = append
+            ..appendEntered = appendEntered;
+          addTearDown(() {
+            if (!append.isCompleted) append.complete();
+          });
+          final editing = handler.addToQueue([
+            'song-0',
+          ], expandMatchFlows: false);
+          await appendEntered.future.timeout(const Duration(seconds: 3));
+          player._discontinuities.add(
+            PositionDiscontinuity(
+              PositionDiscontinuityReason.autoAdvance,
+              stale,
+              player.playbackEvent,
+            ),
+          );
+          await pumpEventQueue(times: 50);
+          append.complete();
+          await editing;
+          await drain(handler);
+
+          expect(player.sourceLoads, loads);
+          expect(handler.snapshot.currentSongId, 'song-2');
+        },
+      );
+
       test('a stale departed end after the skip finished is ignored', () async {
         final (handler, player) = await setup();
         player.simulatedPosition = const Duration(seconds: 2);

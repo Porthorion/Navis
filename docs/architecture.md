@@ -4124,7 +4124,11 @@ trim or fill retains the source occurrence and departure position while that
 lane finishes. That allowance applies to background queue work only: while a
 user navigation is in flight (`_navigationInFlightRevision`) the busy lane and
 load flag belong to the skip, so the departed song's end or index event is
-never a premature cut and is not reopened. A real cut on the new target after
+never a premature cut and is not reopened. The flag also covers the queue
+rebuild of a far jump, and it is cleared when the navigation ends or is
+cancelled before it runs. A lagging departed end after that is refused because
+the target's own index event has replaced the captured occurrence, so its source
+no longer matches the departed index. A real cut on the new target after
 the skip still retries. Recovery then rechecks the source identity, load generation
 and seek ownership before reopening. An append that preserves the classified
 occurrence does not cancel recovery; an edit or selection that retired it
