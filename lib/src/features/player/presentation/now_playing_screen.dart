@@ -583,11 +583,13 @@ void _showNowPlayingSettingsSheet(
     useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
-    // Sized to its content and capped like the quick panels; longer content
+    // Sized to its content, capped at 92% of the screen height; longer content
     // scrolls inside the cap.
-    constraints: BoxConstraints(
-      maxHeight: MediaQuery.sizeOf(context).height * 0.92,
-    ),
+    // Keeps the theme's width cap (M3 default 640) on wide windows.
+    constraints:
+        (Theme.of(context).bottomSheetTheme.constraints ??
+                const BoxConstraints(maxWidth: 640))
+            .copyWith(maxHeight: MediaQuery.sizeOf(context).height * 0.92),
     builder: (sheetContext) => Consumer(
       builder: (_, sheetRef, _) {
         final sheetVolume = showVolume
@@ -600,6 +602,9 @@ void _showNowPlayingSettingsSheet(
             child: ListView(
               key: const ValueKey<String>('nowPlayingSettingsSheet'),
               shrinkWrap: true,
+              // Not primary: with content that fits, a body drag moves the sheet
+              // (swipe to dismiss) instead of being claimed by the list.
+              primary: false,
               padding: const EdgeInsets.only(bottom: 12),
               children: <Widget>[
                 if (showVolume) ...<Widget>[

@@ -889,10 +889,25 @@ void main() {
       ThemeData? theme,
       TextScaler? textScaler,
       bool desktopRuntime = false,
+      bool withSong = false,
     }) async {
       setAdaptiveTestViewport(tester, size);
       final container = _createContainer(
         overrides: [
+          // A real current song adds the song rows (rating, download, ...).
+          if (withSong)
+            songByIdProvider.overrideWith(
+              (ref, id) => Stream<SongsTableData?>.value(
+                const SongsTableData(
+                  id: 'song-1',
+                  title: 'Fixture song',
+                  artistName: 'Fixture artist',
+                  albumName: 'Fixture album',
+                  isProvisional: false,
+                  isExternal: false,
+                ),
+              ),
+            ),
           eqCapabilitiesProvider.overrideWithValue(
             eqSupported ? EqCapabilities.available : EqCapabilities.unavailable,
           ),
@@ -1008,7 +1023,12 @@ void main() {
     for (final desktop in [false, true]) {
       testWidgets('the sheet is only as tall as its content '
           '(desktop runtime: $desktop)', (tester) async {
-        await openSheet(tester, eqSupported: false, desktopRuntime: desktop);
+        await openSheet(
+          tester,
+          eqSupported: false,
+          desktopRuntime: desktop,
+          withSong: true,
+        );
         final sheet = tester.getRect(find.byType(BottomSheet));
         final scrollable = tester.state<ScrollableState>(
           find
@@ -1026,6 +1046,47 @@ void main() {
         expect(tester.takeException(), isNull);
       }, skip: !sqliteAvailable);
     }
+
+    testWidgets('a wide desktop window keeps the sheet at 640 px, centred', (
+      tester,
+    ) async {
+      await openSheet(
+        tester,
+        eqSupported: false,
+        desktopRuntime: true,
+        withSong: true,
+        size: const Size(900, 800),
+      );
+      // The BottomSheet widget itself spans the window; its content is capped.
+      final sheet = tester.getRect(sheetList);
+      expect(sheet.width, 640);
+      expect(sheet.center.dx, closeTo(450, 0.5));
+    }, skip: !sqliteAvailable);
+
+    testWidgets('dragging the body down dismisses a sheet whose content fits', (
+      tester,
+    ) async {
+      await openSheet(tester, eqSupported: false, withSong: true);
+      await tester.drag(
+        find.descendant(of: sheetList, matching: find.byType(ListTile)).first,
+        const Offset(0, 400),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
+    }, skip: !sqliteAvailable);
+
+    testWidgets('dragging overflowing content scrolls it without dismissing', (
+      tester,
+    ) async {
+      await openSheet(tester, eqSupported: true, size: const Size(320, 480));
+      final scrollable = tester.state<ScrollableState>(
+        find.descendant(of: sheetList, matching: find.byType(Scrollable)).first,
+      );
+      await tester.drag(sheetList, const Offset(0, -150));
+      await tester.pumpAndSettle();
+      expect(scrollable.position.pixels, greaterThan(0));
+      expect(find.byType(BottomSheet), findsOneWidget);
+    }, skip: !sqliteAvailable);
 
     testWidgets('a short screen caps the sheet and scrolls its content', (
       tester,
