@@ -15188,9 +15188,16 @@ void main() {
           NavisDatabase,
         )
       >
-      midFade() async {
-        final (handler, player, database) = await crossfading(3);
-        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+      midFade({bool positionStreams = false, int startIndex = 0}) async {
+        final (handler, player, database) = await crossfading(
+          3,
+          positionStreams: positionStreams,
+        );
+        await handler.replaceQueue(
+          ids(3),
+          startIndex: startIndex,
+          expandMatchFlows: false,
+        );
         final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
         player.simulatedPosition = nearEnd;
         handler.debugCheckCrossfadeTrigger(player.position);
@@ -15231,6 +15238,37 @@ void main() {
         player.finishCurrentTrack();
         await pumpEventQueue();
         expect(player.volume, 0, reason: 'no second copy of song-1');
+        hold.complete();
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+      });
+
+      test('the position stream never shows the next song at 0', () async {
+        final (handler, player, incoming, _) = await midFade(
+          positionStreams: true,
+        );
+        final seen = <Duration>[];
+        final sub = handler.positionStream.listen(seen.add);
+        addTearDown(sub.cancel);
+        final hold = Completer<void>();
+        incoming.volumeHold = hold;
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        seen.clear();
+        for (var i = 0; i < 3; i++) {
+          player.emitPlayerEvent();
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        }
+        expect(identical(handler.debugActivePlayer, player), isTrue);
+        expect(seen, isNotEmpty);
+        expect(
+          seen.every((p) => p > const Duration(minutes: 2)),
+          isTrue,
+          reason: 'saw $seen',
+        );
         hold.complete();
         await waitForFade(
           () =>

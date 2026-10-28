@@ -486,7 +486,10 @@ extension _NavisMediaSession on NavisAudioHandler {
         .listen((position) {
           if (!identical(_player, wiredPlayer)) return;
           if (!_positionController.isClosed) {
-            _positionController.add(position);
+            // The outgoing deck now plays the next song from ~0 mid-hand-over.
+            _positionController.add(
+              _outgoingAdvancedMidFade ? _transportPosition : position,
+            );
             _lastPositionEmitAt = DateTime.now();
           }
           _captureTranscodeEndOccurrence();
