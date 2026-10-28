@@ -52,6 +52,15 @@ Last updated: 2026-10-28
   focused update dialog + changelog tests 39/39 pass; fresh review found no blockers).
   Debian/RPM applying state shows the new localized copy; other modes keep
   "Applying update…".
+- [x] Issue #86 P7, desktop skip snapped back to the departed transcoded song —
+  2026-10-28 (`fix/skip-premature-eof`). P1's lane-busy relaxation treated the
+  departed song's autoAdvance discontinuity during a user skip as a premature
+  transcode EOF and reloaded it at its old offset. Fixed by limiting the
+  relaxation to `!_queueLane.isIdle && _navigationInFlightRevision == null`
+  (`_backgroundQueueWork`). Evidence: three new skip tests (next, previous,
+  select) failed first with `Expected: <1> Actual: <2>` source loads; the
+  premature transcode EOF group passes 78/78. Android is unaffected
+  (`_isDesktopRuntime` gate). Runtime A/B pending with the orchestrator.
 - [ ] Issue #86 P1, recovery intent and fallback (triage 01–05, 15–18) —
   implementation complete on `fix/recovery-intent`, 2026-10-26; integrated
   runtime certification and `tool/check.sh` remain with the orchestrator.
