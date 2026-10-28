@@ -442,7 +442,7 @@ class DiagnosticsPresentationController {
     return boundary;
   }
 
-  /// Opens only the phone Now Playing settings sheet (volume and Sound)
+  /// Opens only the phone Now Playing settings sheet (Sound)
   /// through its production button.
   Future<void> openNowPlayingSettingsSheet() async {
     final root = _boundaryElement();
