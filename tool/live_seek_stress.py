@@ -4023,11 +4023,13 @@ def oracle_crossfade_long(run: Run, ids: list[str], fade_ms: int, saved=None, af
     """(a) a displayed or native position jump or backwards step inside one song, (b) a frozen position while playing,
     (c) the incoming song not starting near 0, (d) the saved position disagreeing with the displayed one after the swap."""
     out, samples = [], run.samples
+    # Start-up is not a hand-over: with 'start' no longer masking, check only from the first audio on (as max_frozen_s).
+    first_audio = next((s['t'] for s in samples if s['pos'] and s['playing']), None)
     for key in ('pos', 'uiPos'):
         frozen_from, reported_freeze, reported_jump = None, False, False
         for i in range(1, len(samples)):
             a, b = samples[i - 1], samples[i]
-            if not (a['songId'] and a['songId'] == b['songId'] and a['idx'] == b['idx'] and a.get(key) is not None
+            if first_audio is None or a['t'] < first_audio or not (a['songId'] and a['songId'] == b['songId'] and a['idx'] == b['idx'] and a.get(key) is not None
                     and b.get(key) is not None and a['playing'] and b['playing']) or _requested_at(
                     run, b['t'], kinds=('seek', 'jump', 'next', 'prev')):  # a 'start' has no 'ret' and would mask the swap
                 frozen_from, reported_freeze = None, False

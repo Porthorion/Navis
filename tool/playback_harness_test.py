@@ -482,6 +482,14 @@ class CrossfadeLongOracle(unittest.TestCase):
         found = [v for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE) if v['oracle'] == 'xfadeFrozen']
         self.assertTrue(found)
 
+    def test_start_up_before_first_audio_is_not_a_freeze(self):
+        """'start' no longer masks, so a position pinned at 0 while the app already reports playing must not count."""
+        rows = self.swap()
+        pre = [dict(rows[0], t=round(rows[0]['t'] - 3 + i * 0.1, 3), pos=0, uiPos=0) for i in range(30)]
+        run = type('R', (), {'samples': pre + rows, 'actions': [{'kind': 'start', 't': pre[0]['t']}],
+                             'trace': [], 'metrics': {}})()
+        self.assertNotIn('xfadeFrozen', [v['oracle'] for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE)])
+
     def test_buffering_outside_a_fade_is_not_a_freeze(self):
         def stall(rows):
             for r in rows[100:156]:
