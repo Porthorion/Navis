@@ -488,6 +488,29 @@ class AndroidCrossfadeSeed(unittest.TestCase):
         self.assertIn('crossfade', h.ANDROID_SCENARIOS)
 
 
+class ActivePlayerPosition(unittest.TestCase):
+    """Artefact 1: mediaKitTransport lists every native player in no fixed order; `pos` must follow the active one.
+    Numbers are real rows of the 2026-10-28 repro (fix rep 0 and rep 2); the transport list order is reconstructed."""
+    @staticmethod
+    def ingest(transport, pp, offset=0):
+        import time
+        run = object.__new__(engine.Run)
+        run.t0, run.w0, run.samples, run.trace, run._trace_seq = time.monotonic(), time.time(), [], [], 0
+        run.ingest({'songId': 's', 'currentIndex': 1, 'playerPositionMs': pp, 'positionOffsetMs': offset, 'processingState': 'ready',
+                    'native': {'mediaKitTransport': [{'positionMs': t} for t in transport]}})
+        return run.samples[0]['pos']
+
+    def test_retired_outgoing_player_listed_first(self):  # fix r0 @15.12: pos stuck 416 while the active player is at 4085
+        self.assertEqual(self.ingest([416, 4085], 4085), 4085)
+
+    def test_fresh_incoming_deck_listed_first_with_offset(self):  # fix r2 @7.82: pos 290000 (= 0 + offset) while the song is at 294315
+        self.assertEqual(self.ingest([0, 4315], 294315, 290000), 294315)
+
+    def test_single_player_and_missing_player_position_unchanged(self):
+        self.assertEqual(self.ingest([1200], 1190), 1200)
+        self.assertEqual(self.ingest([416, 4085], None), 416)
+
+
 class RepeatFillOracle(unittest.TestCase):
     def test_loading_cursor_between_end_and_restart_does_not_hide_wrap(self):
         first = {'songId': 'a', 'dur': 300000}

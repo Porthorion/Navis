@@ -1019,6 +1019,17 @@ class CaseAbort(Exception):
     """The case cannot continue (for example the song never started)."""
 
 
+def active_transport_ms(transport: list, offset: int, player_position) -> int | None:
+    """Native position of the active player. mediaKitTransport holds every native player (the cross-fade deck and the
+    retired outgoing one too) in no fixed order and without ids: take the entry whose song time is closest to the
+    handler's own player position."""
+    if not transport:
+        return None
+    if player_position is None or len(transport) == 1:
+        return transport[0].get('positionMs')
+    return min(transport, key=lambda e: abs((e.get('positionMs') or 0) + offset - player_position)).get('positionMs')
+
+
 class Run:
     """One case execution: samples, trace, harness actions and verdicts."""
 
@@ -1058,7 +1069,7 @@ class Run:
     def ingest(self, state: dict):
         native = state.get('native') or {}
         transport = native.get('mediaKitTransport') or []
-        position = (transport[0].get('positionMs') if transport else None)
+        position = active_transport_ms(transport, state.get('positionOffsetMs') or 0, state.get('playerPositionMs'))
         # An offset transcode (1.5.1) plays from native 0: the transport reports
         # time inside the stream, so add the source's positionOffset to get song time.
         offset = state.get('positionOffsetMs') or 0
