@@ -1502,6 +1502,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       LibrarySyncStatus.running => SyncRunOutcomeKind.failed,
     };
     final reason = switch (kind) {
+      SyncRunOutcomeKind.deferred when result.failureCategory == 'leaseLost' =>
+        SyncSafeReason.leaseHeld,
       SyncRunOutcomeKind.deferred
           when result.failureCategory?.endsWith('Budget') == true =>
         SyncSafeReason.responseBudgetExceeded,

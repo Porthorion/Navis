@@ -1740,6 +1740,23 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
                   },
           },
         );
+        // Another run really took the lease over (ownership is the liveness
+        // condition), so this run's work was fenced and safely rolled back.
+        // That is contention, not a failure: defer so the coordinator
+        // requeues the work, counts no failure and shows no notice.
+        AppLogger.warning(
+          'Library sync lease lost at stage=${state.stage}; deferring.',
+        );
+        final deferred = _terminal(
+          state.copyWith(failureCategory: 'leaseLost'),
+          metrics,
+          error,
+          status: LibrarySyncStatus.deferred,
+          errorMessage: 'Sync paused; another sync run took over.',
+        );
+        onProgress?.call(deferred);
+        _logSyncSummary(state: deferred, metrics: metrics);
+        return deferred;
       }
       await _persistFailureDiagnosticsBestEffort(
         metrics,
