@@ -4198,3 +4198,42 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   See [plan](../plans/validation-evidence-workflow.md) and
   [coverage map](../development/playback-validation-coverage.md).
 
+# Playback harness reliability (1.5.1 P4, ledger #86) — 2026-10-28 (in progress)
+
+- Branch `fix/harness-reliability`. Emulator boot wait: a guest that logs "Boot
+  completed" while adb stays `unauthorized`/`offline` now gets one reconnect at 40 s
+  and an `InfraError` at 90 s instead of spinning to the 240 s timeout; `cmd_ab`
+  replaces a guest that failed to boot once (`run_guest_scenario`). Hermetic
+  self-checks only (fake adb and clock); no emulator or harness run.
+- Rows 24/29 (order bias): base and fix repetitions now alternate per repetition
+  (`schedule`: base r1, fix r1, fix r2, base r2, ...), one engine invocation per
+  repetition (`live_seek_stress.py --rep-start`), merged by `merge_reps` into the
+  unchanged per-variant evidence record. Inventory, cell counts and thresholds
+  untouched; recalibration stays a separate, evidence-based step. Layout is per
+  platform: Linux interleaves per repetition; Android keeps one fresh guest per
+  variant and scenario (all repetitions, 2 boots per scenario as before) and
+  alternates the first variant per scenario (`android_schedule`, ABBA). A
+  self-check pins the Android order and that a full A/B starts 2 guests per scenario.
+- Row 26 (`repeat_one_fill`): waits for the backend duration instead of choosing
+  0, uses disjoint wrap windows (`repeat_wrap_bounds`) and an observation that
+  ends before a second loop; fixtures for zero duration at start, a true 5 s loop
+  and the 300 s case. Row 25 (partial emulator acquisition) already fixed; its
+  self-check still passes. Row 27 (Linux cut-recovery) stays open: needs runtime
+  evidence. Self-checks only (hermetic), no harness or emulator run.
+- Review round 1 fixes (all self-check first): Linux repetitions draw their own
+  fixture songs (`Random(86 + rep)` via `--rep-start`; base and fix still match per
+  rep, Android unchanged); `repeat_one_fill` aborts record a `caseError`; the boot
+  wait keeps its first-bad clock (flapping adb still ends at ~90 s) and a failed
+  `adb -s <serial> reconnect` is an `InfraError` (no serial-less fallback); the
+  Linux first variant also alternates by scenario position (quick runs); the
+  `repeat_one_fill` window ends relative to the observed landing; merged report row
+  ids are `<rep>-<id>` with `repDir`. 75 harness + 44 gate self-checks, hermetic.
+- Android cut-recovery `baseCutObserved` no longer needs a base reload (the current
+  base splices, so every A/B reported RESULT FAIL): it requires `cutsObserved >= 1`
+  (continuation requests + splice events + reloads after the cut). Still fails when
+  no cut was observed. 76 harness + 44 gate self-checks, hermetic.
+- Review round 2 (a stray comment in `metrics()` dropped `playerErrorsAfterCut`; a real-report-shaped self-check now guards every gated splice metric; the Android cut smoke showed `cutsObserved` 2 on base and fix): boot wait clears its bad-state clock after 10 s of a steady
+  `device` state (a late blip on a slow boot no longer fails; flapping still does),
+  `repeat_one_fill` minimum 2500 ms (named constant), `cutsObserved` is the minimum
+  over cut cells with `spliceEvents` limited to the cut window. 80 harness + 45 gate
+  self-checks, hermetic.

@@ -1685,11 +1685,11 @@ class FixtureBackend:
     short_groups = True  # has albums/artists whose songs all end within seconds
     credentials = {'username': 'diagnostics', 'password': 'synthetic-seek-fixture'}
 
-    def __init__(self, upstream_url, library, handler):
+    def __init__(self, upstream_url, library, handler, rep_start=0):
         self.upstream, self.library, self.handler = upstream_url, library, handler
         self.credentials = {**self.credentials, 'url': upstream_url}
         self.used: set[str] = set()
-        self.rng = random.Random(86)
+        self.rng = random.Random(86 + rep_start)  # a repetition run alone (--rep-start) draws its own songs, not the first rep's again
         self.server = type('Catalog', (), {'call': lambda _, method, **params: {'song': library.songs[params['id']]}})()  # getSong only
 
     def _take(self, songs):
@@ -2871,10 +2871,21 @@ def case_repeat_switch_off(run: Run, env):
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=2))
 
 
+REPEAT_FILL_MIN_MS = 2500  # shortest song with room for one observable loop; a 3 s fixture song can report 2.99 s
+
+
+def repeat_wrap_bounds(dur_ms: int) -> tuple[int, int]:
+    """(a wrap starts after this position, ends before that one) for a song of [dur_ms]: the last 4 s and first 3 s of a long song,
+    at most half the song each, so the two windows never overlap (plain progress on a 5 s song would otherwise count as a wrap)."""
+    half = dur_ms // 2
+    return dur_ms - min(4000, half), min(3000, half)
+
+
 def case_repeat_one_fill(run: Run, env):
     """Repeat-one with the background queue fill still running at the song end: an artist shuffle
-    (a large queue), song 1 seeked to its last 8 s straight away; it must restart exactly once, on the
-    same index, and never advance."""
+    (a large queue), song 1 seeked to its last 8 s straight away (the whole song when it is shorter); it must restart
+    exactly once, on the same index, and never advance. The song's duration comes from the backend once it is known (never 0),
+    and the observation ends before a second loop could start."""
     run.metrics['repeatOne'] = True
     artist, ids = env.backend.fresh_artist()
     run.songs = [{'id': i} for i in ids]
@@ -2884,11 +2895,25 @@ def case_repeat_one_fill(run: Run, env):
     run.app.api('/v1/artists/playback', {'command': 'prepare', 'artistId': artist, 'action': 'shuffle'}, timeout=60)
     first = await_audio(run, rec)
     dur = first['dur'] or run.last()['dur'] or 0
+    if not dur:  # the duration can still be unknown right at the start: wait for the backend's value, never guess
+        known = run.until(lambda s: s['songId'] == first['songId'] and (s['dur'] or 0) > 0, 30)
+        if known is None:  # an abort alone would record a pass: the cell has no verdict, so it fails
+            run.violations.append(violation('caseError', run.now(), 'song 1 duration never became known', run))
+            raise CaseAbort('song 1 duration never became known')
+        dur = known['dur']
+    if dur < REPEAT_FILL_MIN_MS:
+        run.violations.append(violation('caseError', run.now(), f'song 1 is {dur} ms: too short to observe one loop', run))
+        raise CaseAbort(f'song 1 is {dur} ms: too short to observe one loop')
+    seek_ms = max(0, dur - 8000)
+    observe_s = (dur - seek_ms) / 1000 + min(17.0, dur / 2000)  # to the end, then at most half a song (17 s of a long one): no second loop
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
-        seek = issue_seek(run, pool, max(0, dur - 8000))
-        landed(run, seek)
+        seek = issue_seek(run, pool, seek_ms)
+        landing = landed(run, seek)
         finish_futures(run)
-    run.observe(25.0)
+    # The window ends observe_s after the observed landing, not after the API call returned: a slow return on a 3-5 s song
+    # must not let a second loop in.
+    run.observe(max(0.5, (landing['t'] if landing else run.now()) + observe_s - run.now()))
+    end_from, start_to = repeat_wrap_bounds(dur)
 
     def check():
         out = []
@@ -2897,11 +2922,11 @@ def case_repeat_one_fill(run: Run, env):
         ready = [x for x in same if x['proc'] == 'ready']
         wraps = [(a, b) for i, (a, b) in enumerate(zip(ready, ready[1:]), 1)
                  if a['songId'] == b['songId'] == first['songId'] and a['idx'] == b['idx']
-                 and a['pos'] > dur - 4000 and b['pos'] < 3000 and not is_position_blip(ready, i)]
+                 and a['pos'] > end_from and b['pos'] < start_to and not is_position_blip(ready, i)]
         run.metrics['wraps'] = [{'t': round(b['t'], 1), 'from': a['pos'], 'to': b['pos'], 'mat': b['mat'], 'deferred': b['deferred'],
                                  'qlen': b['qlen']} for a, b in wraps]
         if len(wraps) != 1:
-            out.append(violation('repeatOneRestartCount', seek['t'], f"{len(wraps)} restarts of song 1 in 25 s (expected 1)", run))
+            out.append(violation('repeatOneRestartCount', seek['t'], f"{len(wraps)} restarts of song 1 in {observe_s:g} s (expected 1)", run))
         moved = next((x for x in same if x['songId'] != first['songId']), None)
         if moved:
             out.append(violation('repeatOneAdvanced', moved['t'], f"advanced to {moved['songId']} under repeat-one", run))
@@ -3018,7 +3043,7 @@ def splice_check(run: Run, env, song_id: str, duration_s: float, cut_device_ms: 
                or (e['kind'] == 'sourceResolved' and e.get('timeOffset'))]
     errors = [e['errorCode'] for e in window if e['kind'] == 'playerState' and e.get('errorCode')]
     requests = [r['timeOffset'] for r in env.proxy.log[run.proxy_mark:] if r['id'] == song_id and r.get('timeOffset')]
-    events = [{k: e.get(k) for k in ('timeOffset', 'dropped', 'attempt', 'result')} for e in run.trace if e['kind'] == 'oggSplice']
+    events = [{k: e.get(k) for k in ('timeOffset', 'dropped', 'attempt', 'result')} for e in window if e['kind'] == 'oggSplice']
     info = {'reloads': reloads, 'playerErrors': errors, 'timeOffsetRequests': requests, 'spliceEvents': events,
             'requestsOk': len(requests) == cuts and [str(e['timeOffset']) for e in events if e['attempt'] is not None][:cuts] == requests[:cuts]}
     violations = oracle_cache_integrity(run, song_id, duration_s, rolling_before, run.quality)
@@ -4221,6 +4246,11 @@ PROFILES = {
 REPEATED_CASES = {'shuffle_album', 'shuffle_artist', 'shuffle_album_natural', 'shuffle_artist_natural'}  # --shuffle-reps times each
 
 
+def matrix_reps(case: str, reps: int, shuffle_reps: int, start: int = 0) -> range:
+    """Repetition numbers of a case; --rep-start lets the harness run one repetition of a cell at its own index."""
+    return range(start, start + (shuffle_reps if case in REPEATED_CASES and shuffle_reps else reps))
+
+
 def set_quality(app, quality: str):
     fmt, kbps = QUALITIES[quality]
     setting = {'format': fmt, 'maxBitRate': kbps}
@@ -4430,7 +4460,7 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
         fixture_server, handler = fixture_tool.start_transcoding_server(
             library, speed=args.transcode_speed, advertise_offset=not args.no_transcode_offset,
             static=args.fixture_static_transcode)
-        backend = FixtureBackend(f'http://127.0.0.1:{fixture_server.server_port}', library, handler)
+        backend = FixtureBackend(f'http://127.0.0.1:{fixture_server.server_port}', library, handler, args.rep_start)
     else:
         backend = LiveBackend(credentials, Server(credentials))
     proxy = ThrottledProxy(backend.upstream, 0, 0, chunked=args.proxy_chunked, jsonl=run_dir / 'proxy.jsonl')
@@ -4507,7 +4537,7 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
             for quality in profile['qualities']:
                 set_quality(app, quality)
                 for case in profile['cases']:
-                    for rep in range(args.shuffle_reps if case in REPEATED_CASES and args.shuffle_reps else reps):
+                    for rep in matrix_reps(case, reps, args.shuffle_reps, args.rep_start):
                         if (case, quality, throttle, rep) in finished:
                             continue
                         serial += 1
@@ -4563,6 +4593,8 @@ def main() -> int:
     parser.add_argument('--qualities', help='matrix qualities, e.g. original,opus128')
     parser.add_argument('--throttles', help='matrix throttles: none,wan6000,slow1500')
     parser.add_argument('--reps', type=int, help='repetitions per matrix cell')
+    parser.add_argument('--rep-start', type=int, default=0,
+                        help='number the repetitions from this index (the harness runs one repetition per invocation)')
     parser.add_argument('--shuffle-reps', type=int, default=0,
                         help='repetitions for the shuffle cases (default: --reps)')
     parser.add_argument('--resume-from', type=Path,

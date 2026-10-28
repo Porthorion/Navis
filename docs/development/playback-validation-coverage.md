@@ -75,8 +75,23 @@ fixture case or from a mocked orchestration test.
 Each A/B invocation writes `build/harness/<UTC-microsecond-stamp>/evidence.json`
 before build/preflight work. Atomic replacement leaves an incomplete record on
 abrupt termination; graceful failure/interrupt records its type and exit 2.
-Selected variants start as `not-run`; attempts retain their own evidence/logs
-under `<base|fix>/<scenario>/attempt-N/`. A retry cannot borrow a prior report.
+Selected variants start as `not-run`. Linux repetitions run interleaved, not variant by
+variant: base r1, fix r1, fix r2, base r2, base r3, fix r3, ... (the first variant
+swaps on every other pair counting the scenario position too, so quick runs alternate across scenarios, and host drift and run order hit both equally; an A/A
+uses the same schedule). Each repetition is its own engine invocation numbered at
+its own index (the fixture backend seeds its song draws with `86 + rep`, so
+repetitions see different songs while base and fix see the same ones for a rep) and keeps its attempts' evidence/logs under
+`<base|fix>/<scenario>/rep-R/attempt-N/` (a repeated emulator boot or dead guest
+is a new attempt; a retry cannot borrow a prior report). After the last
+repetition, or when the run stops part way, they merge into the one record the
+verifier and gate read, `<base|fix>/<scenario>/attempt-1/` (all cells in matrix
+order, one `report.json` whose row ids are prefixed with the repetition (`<rep>-<id>`, with `repDir` pointing at its `rep-R/attempt-N` directory, whose `runs/*/traces` hold the trace files), one concatenated log; `incomplete` unless every
+repetition completed). Android keeps one fresh guest per variant and scenario
+(2 boots per scenario, as before) that runs all of the variant's repetitions in
+one engine invocation, with that record directly in `attempt-N/`; order bias is
+spread by alternating the first variant per scenario (base first for scenario 1,
+fix first for scenario 2, ...). Cell inventory, repetition counts and thresholds
+are unchanged by either layout.
 Reports from failed/timed-out attempts are retained, with observed partial cells
 when readable. Timeout never becomes a passing comparison.
 
@@ -146,7 +161,7 @@ evidence. No Flutter/runtime acceptance is claimed by tooling self-checks.
 
 ## Task A focused verification
 
-`python3 tool/playback_harness_test.py`: 64 tests passed (and `python3 tool/validation_gate_test.py`: 37), including
+`python3 tool/playback_harness_test.py`: 80 tests passed (and `python3 tool/validation_gate_test.py`: 45), including
 retained threshold/oracle probes and new deterministic failure, partial-report,
 timeout, interruption, build-exit, exact-cell, stale-source/environment/config,
 artifact and successful-finalization checks. Python byte-compilation,

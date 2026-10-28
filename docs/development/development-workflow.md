@@ -1637,8 +1637,9 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   because some cases are red on release/1.5 (see the PR); a new violation kind
   is always a FAIL.
 
-  Android cut-splice comparisons require at least one base `reloadsAfterCut`;
-  a missing or zero count fails `baseCutObserved` as a vacuous comparison. The
+  Android cut-splice comparisons require at least one base `cutsObserved` in
+  every cut cell (continuation requests, splice events or reloads inside the cut
+  window: a splicing base has no reloads); a missing or zero count fails `baseCutObserved` as a vacuous comparison. The
   one-second frozen-median limit uses only cells containing `spliceCheck`, so
   unrelated scenario cases cannot dilute a stalled splice. File validation
   gates both RMS (0.005) and absolute decoded length difference (20 ms).
@@ -1699,11 +1700,15 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   the downloads folder before and after, starts a headless `kwin_wayland
   --virtual` (Linux) or a disposable 3072 MiB, 2-core AVD cloned from
   `NAVIS_HARNESS_AVD` (default `Pixel_9_Pro_XL`; a fresh guest per scenario and variant), and
-  stops only the processes it started. Android runs `stress-drag`,
+  stops only the processes it started. The boot wait polls `adb get-state` as well as `sys.boot_completed`: a guest
+  whose adb stays `unauthorized`/`offline` gets one `adb -s <serial> reconnect` after 40 s
+  and an `InfraError` naming the state 90 s after the first bad poll (a completed boot, or 10 s of an uninterrupted `device` state, clears that clock; a failed `adb -s <serial> reconnect` is an `InfraError`, never a serial-less reconnect). A guest that fails to boot is removed with its clone and replaced once;
+  each boot attempt keeps its own `attempt-N/emulator.log`. Android runs `stress-drag`,
   `memory-soak`, `repeat`, `cut-recovery` and `queue-edit` (other selected scenarios print `SKIP <scenario>: linux-only`; if none is left the tool exits 2, run `--platform linux`); its heartbeat numbers come from a
   software-rendered guest and are noisier, hence the wider Android tolerances
-  recorded in the PR. Outputs: `build/harness/<stamp>/{base,fix}/<scenario>/`
-  (engine `report.json`, traces, app logs), `comparison.json`, `summary.md`.
+  recorded in the PR. On Linux base and fix repetitions alternate (base r1, fix r1, fix r2, base r2, ...); on Android, where a guest boot costs minutes, each variant runs all its repetitions on one guest and the first variant alternates per scenario (base, then fix, ...), so run order cannot bias every comparison the same way.
+  Outputs: `build/harness/<stamp>/{base,fix}/<scenario>/`
+  (Linux: per-repetition `rep-R/attempt-N/` engine reports, traces, app logs, merged `attempt-1/report.json`; Android: `attempt-N/`), `comparison.json`, `summary.md`.
 - **Self-check.** `python3 tool/playback_harness_test.py` covers the threshold
   evaluation, the code-area map, the cache key and the exit-2 paths without
   building anything. Production hooks (the `transportTrace` ring and the

@@ -41,6 +41,8 @@ DOWNLOADS = Path.home() / 'Downloads' / 'Navis_Downloads'
 SOURCE_AVD = os.environ.get('NAVIS_HARNESS_AVD', 'Pixel_9_Pro_XL')
 ANDROID_HOME = Path(os.environ.get('ANDROID_HOME', Path.home() / 'Android' / 'Sdk'))
 GUEST_MIB = 3072
+BOOT_ADB_STABLE_S = 10  # a continuous device state this long ends an unauthorized/offline episode
+BOOT_ADB_RECONNECT_S, BOOT_ADB_GIVE_UP_S = 40, 90  # seconds adb may stay unauthorized/offline before a reconnect / InfraError
 DEFAULT_BASE = 'github/release/1.5'
 MEMORY_MAX = '8G'
 
@@ -227,7 +229,10 @@ def metrics(scenario: str, rows: list[dict]) -> dict:
         checks = [r['metrics']['spliceCheck'] for r in cut_rows]
         if checks:  # Android only: the Ogg cut splice (1.5.1 item 14)
             out.update(spliceFrozenMedianS=_med(r['metrics'].get('maxFrozenS') for r in cut_rows),
-                       reloadsAfterCut=sum(len(c['reloads']) for c in checks), playerErrorsAfterCut=sum(len(c['playerErrors']) for c in checks),
+                       reloadsAfterCut=sum(len(c['reloads']) for c in checks),
+                       # Evidence that the injected cuts bit, whichever way the build recovers (reload before #163, splice since).
+                       cutsObserved=min(len(c['reloads']) + len(c.get('timeOffsetRequests', [])) + len(c.get('spliceEvents', [])) for c in checks),  # every cut row, not the pool
+                       playerErrorsAfterCut=sum(len(c['playerErrors']) for c in checks),
                        spliceRequestsOk=all(c['requestsOk'] for c in checks), spliceFileOk=all(c['file']['ok'] for c in checks),
                        joinRmsMax=max([c['file'].get('maxWindowRms') or 0 for c in checks]))
     elif scenario == 'local-seek':
@@ -299,10 +304,10 @@ def evaluate(scenario: str, base: dict, fix: dict, platform: str = 'linux') -> l
             raise ValueError(check)
         lines.append((ok, f"{'PASS' if ok else 'FAIL'} {scenario} {name}: fix={_fmt(f)} base={_fmt(b)} limit={limit}"))
     if scenario == 'cut-recovery' and platform == 'android':
-        observed = base.get('reloadsAfterCut')
+        observed = base.get('cutsObserved')
         ok = observed is not None and observed >= 1
         lines.append((ok, f"{'PASS' if ok else 'FAIL'} cut-recovery baseCutObserved: base={_fmt(observed)} "
-                          'limit=base reloadsAfterCut >= 1 (otherwise comparison is vacuous)'))
+                          'limit=base cutsObserved >= 1: continuation requests, splice events or reloads after the cut (otherwise comparison is vacuous)'))
     if scenario == 'memory-soak':
         lines.append((True, f"INFO {scenario} postGcPssMiB: fix={_fmt(fix.get('postGcPssMiB'))} "
                             f"base={_fmt(base.get('postGcPssMiB'))} (resident only; not gated)"))
@@ -808,6 +813,48 @@ class Emulator:
         except subprocess.TimeoutExpired as error:
             raise InfraError(f'adb shell {shell[0]} timed out after {timeout}s') from error
 
+    def _adb_state(self) -> str:
+        """`adb get-state`: device, unauthorized, offline, or unknown (no device yet). Newer adb prints the state of a
+        refused device on stderr with exit 1."""
+        try:
+            done = run(self.adb + ['get-state'], timeout=15)
+        except subprocess.TimeoutExpired as error:
+            raise InfraError('adb get-state timed out after 15s') from error
+        text = (done.stdout + done.stderr).lower()
+        return next((s for s in ('unauthorized', 'offline') if s in text), 'device' if done.stdout.strip() == 'device' else 'unknown')
+
+    def _wait_boot(self):
+        """Waits for sys.boot_completed. A guest can finish booting while adb stays unauthorized/offline (67 such polls in
+        one emulator.log): after BOOT_ADB_RECONNECT_S in that state reconnect once, after BOOT_ADB_GIVE_UP_S since the first bad
+        poll give up. The clock survives a reconnect making the device vanish for a few polls, and a flapping adb still ends in the
+        state-naming error; it is cleared by a completed boot or by BOOT_ADB_STABLE_S of an uninterrupted device state."""
+        deadline, bad_since, device_since, reconnected = time.monotonic() + 240, None, None, False
+        while time.monotonic() < deadline:
+            if self.proc.poll() is not None:
+                raise InfraError(f'emulator exited with {self.proc.returncode} (see {self.out / "emulator.log"})')
+            state = self._adb_state()
+            device_since = (device_since if device_since is not None else time.monotonic()) if state == 'device' else None
+            if state == 'device':
+                if device_since is not None and time.monotonic() - device_since >= BOOT_ADB_STABLE_S:
+                    bad_since = None  # a blip after a stable device state is a new episode, not the old one
+                if self._adb('getprop', 'sys.boot_completed', timeout=15).stdout.strip() == '1':
+                    return
+            elif state in ('unauthorized', 'offline'):
+                bad_since = bad_since if bad_since is not None else time.monotonic()
+                stuck = time.monotonic() - bad_since
+                if stuck >= BOOT_ADB_GIVE_UP_S:
+                    raise InfraError(f'emulator adb stayed {state} for {round(stuck)} s (see {self.out / "emulator.log"})')
+                if stuck >= BOOT_ADB_RECONNECT_S and not reconnected:
+                    reconnected = True
+                    try:  # scoped to this serial: a serial-less reconnect would also reset other emulators on the shared adb server
+                        failed = run(self.adb + ['reconnect'], timeout=30).returncode
+                    except subprocess.TimeoutExpired:
+                        failed = 'timed out'
+                    if failed:
+                        raise InfraError(f'emulator adb stayed {state} and `adb reconnect` failed ({failed})')
+            time.sleep(2)
+        raise InfraError('emulator boot timed out')
+
     def _acquire(self) -> str:
         self.check()
         values = dict(line.split('=', 1) for line in (self.home / f'{SOURCE_AVD}.avd' / 'config.ini').read_text().splitlines() if '=' in line)
@@ -831,15 +878,7 @@ class Emulator:
              '-partition-size', '4096'],
             stdout=(self.out / 'emulator.log').open('w'), stderr=subprocess.STDOUT, start_new_session=True,
             pass_fds=held_fds())
-        deadline = time.monotonic() + 240
-        while time.monotonic() < deadline:
-            if self.proc.poll() is not None:
-                raise InfraError(f'emulator exited with {self.proc.returncode} (see {self.out / "emulator.log"})')
-            if self._adb('getprop', 'sys.boot_completed', timeout=15).stdout.strip() == '1':
-                break
-            time.sleep(2)
-        else:
-            raise InfraError('emulator boot timed out')
+        self._wait_boot()
         for setting in (['settings', 'put', 'system', 'screen_off_timeout', '2147483647'], ['svc', 'power', 'stayon', 'true']):
             self._adb(*setting, timeout=30)
         time.sleep(40)  # a fresh image keeps doing first-boot work after boot_completed
@@ -920,10 +959,14 @@ def plan(name: str, full: bool, reps: int | None, platform: str = 'linux') -> tu
 
 
 def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict, serial: str | None, apk: Path | None,
-                 full: bool, reps: int | None, real: bool) -> tuple[list[dict], float]:
+                 full: bool, reps: int | None, real: bool, rep: int | None = None) -> tuple[list[dict], float]:
+    """Runs a scenario's matrix, or only repetition [rep] of every cell (one engine invocation per repetition, numbered at its own index)."""
     spec = SCENARIOS[name]
     cases, reps, budget = plan(name, full, reps, platform)
-    args = ['--cases', cases, '--qualities', spec['qualities'], '--throttles', spec['throttle'], '--reps', str(reps), *spec['args']]
+    if rep is not None and not 0 <= rep < reps:
+        raise InfraError(f'repetition {rep} outside 0..{reps - 1}')
+    args = ['--cases', cases, '--qualities', spec['qualities'], '--throttles', spec['throttle'],
+            *(['--reps', '1', '--rep-start', str(rep)] if rep is not None else ['--reps', str(reps)]), *spec['args']]
     extra, env = ({} if full else dict(spec.get('quick_env', {}))), dict(display_env)
     if serial:
         args += ['--android', serial]
@@ -939,7 +982,7 @@ def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict,
             raise InfraError(f'--real needs {credentials} with mode 600')
         args += ['--credentials', str(credentials)]
     started = time.monotonic()
-    record = {'status': 'running', 'expected': expected_cells(name, full, reps, platform),
+    record = {'status': 'running', 'expected': [c for c in expected_cells(name, full, reps, platform) if rep is None or c[3] == rep],
               'observed': [], 'exitCode': None, 'log': str(variant_dir / (name + '.log'))}
     variant_dir.mkdir(parents=True, exist_ok=True)
     write_evidence(variant_dir, record)
@@ -1013,6 +1056,90 @@ def select_scenarios(args, announce=True) -> list[str]:
     return names
 
 
+def run_guest_scenario(label: str, name: str, platform: str, folder: Path, step_dir: Path, display_env: dict, seed: Path | None,
+                       candidate: dict, full: bool, reps: int | None, real: bool, rep: int | None = None) -> tuple[list[dict], float]:
+    """One scenario run (or one repetition of it) of the build in [folder], evidence under [step_dir]/attempt-N. Android gets a fresh guest per run: the
+    emulator's GPU translator has crashed (qemu core dump) minutes into a session, and a wiped guest starts both variants from
+    the same state. A guest that fails to boot (Emulator.__enter__ has already removed it and its clone) or dies during the run
+    is replaced once."""
+    for attempt in (1, 2):
+        attempt_dir = step_dir / f'attempt-{attempt}'
+        attempt_dir.mkdir(parents=True, exist_ok=True)
+        booted, why = False, ''
+        try:
+            with ExitStack() as guest:
+                emulator = Emulator(attempt_dir) if platform == 'android' else None
+                serial = guest.enter_context(emulator) if emulator else None
+                booted = True
+                apk = artifact_of('android', folder) if serial else None
+                if candidate_identity() != candidate:
+                    raise InfraError('candidate changed before scenario')
+                activate(folder, platform, seed)
+                try:
+                    return run_scenario(name, platform, attempt_dir, display_env, serial, apk, full, reps, real, rep)
+                except InfraError:
+                    if not (emulator is not None and attempt == 1 and emulator.proc.poll() is not None):
+                        raise
+                    why = 'the emulator died'
+        except InfraError:
+            if booted or attempt == 2 or platform != 'android':
+                raise
+            why = 'the emulator failed to boot'
+        print(f'{label}: {why}, repeating once', flush=True)
+    raise AssertionError('unreachable')  # attempt 2 returns or raises
+
+
+def schedule(names: list[str], reps_of) -> list[tuple[str, str, int]]:
+    """(variant, scenario, repetition) in run order. Base and fix alternate repetition by repetition, so host drift (swap, heat,
+    first-run effects) lands on both, and the first variant swaps on every other pair, counting the scenario's position too (quick runs have one pair),
+    so it cannot always be the one that runs first."""
+    return [(variant, name, rep) for index, name in enumerate(names) for rep in range(reps_of(name))
+            for variant in (('base', 'fix') if (rep + index) % 2 == 0 else ('fix', 'base'))]
+
+
+def android_schedule(names: list[str]) -> list[tuple[str, str, None]]:
+    """Android: one fresh guest per variant and scenario running all its repetitions (a boot costs minutes), so the order bias is
+    spread across scenarios instead: base first for scenario 1, fix first for scenario 2, and so on."""
+    return [(variant, name, None) for i, name in enumerate(names) for variant in (('base', 'fix') if i % 2 == 0 else ('fix', 'base'))]
+
+
+def whole_scenario_rows(step_dir: Path) -> list[dict]:
+    """Rows of a scenario run in one engine invocation (Android): <step_dir>/attempt-N is already the evidence record."""
+    done = [json.loads(p.read_text()) for p in sorted(step_dir.glob('attempt-*/evidence.json'))]
+    done = [d for d in done if d['status'] == 'complete']
+    return json.loads(Path(done[-1]['report']).read_text())['results'] if done else []
+
+
+def merge_reps(name: str, platform: str, step_dir: Path, full: bool, reps: int) -> list[dict]:
+    """Writes the one evidence record of a variant's scenario, <step_dir>/attempt-1 (what verify_evidence and the gate read),
+    from the repetitions run in <step_dir>/rep-R/attempt-N: all cells of the scenario in matrix order, one report, one log.
+    Incomplete unless every repetition completed. Returns the merged rows."""
+    parts, dirs = {}, {}
+    for path in sorted(step_dir.glob('rep-*/attempt-*/evidence.json')):  # a later attempt of a repetition wins
+        part = json.loads(path.read_text())
+        if part['status'] == 'complete':
+            parts[int(path.parent.parent.name.split('-')[1])], dirs[int(path.parent.parent.name.split('-')[1])] = part, path.parent
+    expected = expected_cells(name, full, reps, platform)
+    order = {tuple(cell): i for i, cell in enumerate(expected)}
+    # Every invocation numbers its rows from 1 and names its trace files by that id: prefix the repetition and point at its directory.
+    rows = sorted(({**row, 'id': f'{rep}-{row["id"]}', 'repDir': str(dirs[rep])} if 'id' in row else row
+                   for rep, part in sorted(parts.items()) for row in json.loads(Path(part['report']).read_text())['results']),
+                  key=lambda r: order[(r['case'], r['quality'], r['throttle'], r['rep'])])
+    merged = step_dir / 'attempt-1'
+    merged.mkdir(exist_ok=True)
+    complete = set(parts) == set(range(reps))
+    code = (0 if all(r['passed'] for r in rows) else 1) if complete else None
+    record = {'status': 'complete' if complete else 'incomplete', 'expected': expected, 'observed': observed_cells(rows, code),
+              'exitCode': code, 'log': str(merged / f'{name}.log'), 'repetitions': {str(r): p['log'] for r, p in sorted(parts.items())},
+              'seconds': round(sum(p['seconds'] for p in parts.values()), 1)}
+    (merged / f'{name}.log').write_text(''.join(f'== repetition {r}: {p["log"]}\n{Path(p["log"]).read_text()}' for r, p in sorted(parts.items())))
+    if complete:
+        (merged / 'report.json').write_text(json.dumps({'results': rows}))
+        record['report'] = str(merged / 'report.json')
+    write_evidence(merged, record)
+    return rows
+
+
 def _cmd_ab(args, out: Path, evidence: dict) -> int:
     names = select_scenarios(args, announce=False)  # main() validated, and announced the skips, before the lock
     platform = args.platform
@@ -1058,36 +1185,26 @@ def _cmd_ab(args, out: Path, evidence: dict) -> int:
     with ExitStack() as stack:
         display_env = stack.enter_context(Display(out))
         seed = seed_android(base_sha, flutter, display_env, out) if platform == 'android' else None
-        for variant, folder in (('base', base_dir), ('fix', fix_dir)):
-            for name in names:
-                for attempt in (1, 2):
-                    # A fresh guest per scenario: the emulator's GPU translator has crashed (qemu core dump) minutes into
-                    # a session, and a wiped guest starts both variants from the same state. A run that lost its guest
-                    # is repeated once.
-                    retry = False
-                    with ExitStack() as guest:
-                        emulator = Emulator(out) if platform == 'android' else None
-                        serial = guest.enter_context(emulator) if emulator else None
-                        apk = artifact_of('android', folder) if serial else None
-                        if candidate_identity() != evidence['candidate']:
-                            raise InfraError('candidate changed before scenario')
-                        activate(folder, platform, seed)
-                        try:
-                            rows, seconds = run_scenario(name, platform, out / variant / name / f'attempt-{attempt}', display_env, serial, apk,
-                                                         args.full, args.reps, args.real)
-                        except InfraError:
-                            retry = emulator is not None and attempt == 1 and emulator.proc.poll() is not None
-                            if not retry:
-                                raise
-                    if retry:
-                        print(f'{variant} {name}: the emulator died, repeating once', flush=True)
-                        continue
-                    break
+        folders = {'base': base_dir, 'fix': fix_dir}
+        reps_of = lambda name: plan(name, args.full, args.reps, platform)[1]
+        steps = schedule(names, reps_of) if platform == 'linux' else android_schedule(names)
+        rows_of = {}
+        try:
+            for variant, name, rep in steps:
+                label = f'{variant} {name}' + (f' repetition {rep + 1}/{reps_of(name)}' if rep is not None else '')
+                step_dir = out / variant / name / (f'rep-{rep}' if rep is not None else '')
+                rows, seconds = run_guest_scenario(label, name, platform, folders[variant], step_dir, display_env, seed,
+                                                   evidence['candidate'], args.full, args.reps, args.real, rep)
                 if variant == 'base' and invalid_cells(rows):
                     raise InfraError(f'base {name} is not a valid comparison: {invalid_cells(rows)} (logs: {out / variant / name})')
-                results[(variant, name)] = metrics(name, rows)
-                timings[(variant, name)] = seconds
-                print(f'{variant} {name}: {len(rows)} cells in {seconds} s', flush=True)
+                timings[(variant, name)] = timings.get((variant, name), 0) + seconds
+                print(f'{label}: {len(rows)} cells in {seconds} s', flush=True)
+        finally:  # the variant's evidence is merged even when the run stopped part way: incomplete, never missing
+            for variant, name in dict.fromkeys((v, n) for v, n, _ in steps):
+                if (out / variant / name).is_dir():
+                    rows_of[(variant, name)] = (merge_reps(name, platform, out / variant / name, args.full, reps_of(name))
+                                                if platform == 'linux' else whole_scenario_rows(out / variant / name))
+    results = {key: metrics(key[1], rows) for key, rows in rows_of.items()}
     after = downloads_snapshot()
     if after != before:
         raise InfraError(f'{DOWNLOADS} changed during the run (before/after in {out})')

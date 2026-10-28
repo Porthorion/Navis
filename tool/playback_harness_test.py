@@ -85,7 +85,7 @@ class Thresholds(unittest.TestCase):
 
     def test_cut_recovery_splice_checks_are_android_only(self):
         base = {'caseErrors': 0, 'violations': 0, 'kinds': [], 'progressLoss': 0, 'recoveryMedianS': 5.0, 'frozenMedianS': 6.0,
-                'reloadsAfterCut': 3}
+                'reloadsAfterCut': 0, 'cutsObserved': 3}  # the current base splices instead of reloading
         fix = {**base, 'frozenMedianS': 0.0, 'spliceFrozenMedianS': 0.0, 'recoveryMedianS': 0.0, 'reloadsAfterCut': 0, 'playerErrorsAfterCut': 0,
                'spliceRequestsOk': True, 'spliceFileOk': True, 'joinRmsMax': 0.001}
         self.assertTrue(all(ok for ok, _ in h.evaluate('cut-recovery', base, fix, 'android')))
@@ -95,10 +95,56 @@ class Thresholds(unittest.TestCase):
         # Linux has no splice: those metrics are neither required nor checked.
         self.assertEqual(len(h.evaluate('cut-recovery', base, fix)), len(h.evaluate('cut-recovery', base, fix, 'android')) - 7)
 
-    def test_cut_base_without_reload_is_a_failed_comparison(self):
-        for reloads in (None, 0):
-            lines = h.evaluate('cut-recovery', {'reloadsAfterCut': reloads}, {}, 'android')
-            self.assertTrue(any(not ok and 'baseCutObserved' in line for ok, line in lines))
+    def test_cut_base_without_an_observed_cut_is_a_failed_comparison(self):
+        for observed in (None, 0):
+            lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 0, 'cutsObserved': observed}, {}, 'android')
+            self.assertTrue(any(not ok and 'baseCutObserved' in line for ok, line in lines), observed)
+        # A base that splices has no reloads, but its continuation requests/events prove the cut bit.
+        lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 0, 'cutsObserved': 2}, {}, 'android')
+        self.assertTrue(all(ok for ok, line in lines if 'baseCutObserved' in line))
+
+    def test_cuts_observed_must_hold_for_every_cut_row_not_the_pool(self):
+        def row(requests):
+            return {'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0, 'spliceCheck': {
+                'reloads': [], 'playerErrors': [], 'requestsOk': True, 'timeOffsetRequests': requests, 'spliceEvents': [],
+                'file': {'ok': True, 'maxWindowRms': 0.001}}}}
+        self.assertEqual(h.metrics('cut-recovery', [row([1]), row([])])['cutsObserved'], 0)  # one row missed its cut
+        self.assertEqual(h.metrics('cut-recovery', [row([1]), row([5, 6])])['cutsObserved'], 1)
+
+    def test_splice_events_outside_the_cut_window_are_not_evidence(self):
+        trace = [{'atMs': 500, 'kind': 'oggSplice', 'timeOffset': 1, 'attempt': 0},       # before the cut
+                 {'atMs': 1500, 'kind': 'oggSplice', 'timeOffset': 2, 'attempt': 0}]       # inside the window
+        run = Mock(trace=trace, proxy_mark=0, quality='opus128')
+        run.app.run = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__('shutil').rmtree(run.app.run, ignore_errors=True))
+        env = Mock()
+        env.proxy.log = []
+        with patch.object(engine, 'oracle_cache_integrity', return_value=[]):
+            info = engine.splice_check(run, env, 's', 5.0, 1000, 1, set())
+        self.assertEqual([e['timeOffset'] for e in info['spliceEvents']], [2])
+
+    def test_real_android_cut_row_yields_every_gated_splice_metric(self):
+        # Trimmed from the fix run build/harness/20261028T004939.200516Z (cut40 opus128 slow1500 rep 0): that run reported
+        # playerErrorsAfterCut=None because a comment swallowed it inside metrics().
+        row = {'case': 'cut40', 'quality': 'opus128', 'throttle': 'slow1500', 'rep': 0, 'passed': True, 'violations': [], 'latencyS': None,
+               'metrics': {'maxFrozenS': 0.28, 'spliceCheck': {
+                   'reloads': [], 'playerErrors': [], 'timeOffsetRequests': ['94'],
+                   'spliceEvents': [{'timeOffset': 94, 'dropped': 100, 'attempt': 1, 'result': 'ok'}], 'requestsOk': True,
+                   'cacheViolations': [], 'file': {'decodeExit': 0, 'decodeStderr': '', 'lenDiffS': 0.0, 'maxWindowRms': 0.0, 'ok': True}}}}
+        metrics = h.metrics('cut-recovery', [row])
+        for check in h.ANDROID_CHECKS['cut-recovery']:
+            self.assertIsNotNone(metrics.get(check[0]), check[0])
+        self.assertEqual((metrics['playerErrorsAfterCut'], metrics['cutsObserved']), (0, 2))
+        self.assertTrue(all(ok for ok, _ in h.evaluate('cut-recovery', metrics, metrics, 'android')))
+
+    def test_cuts_observed_counts_continuation_requests_events_and_reloads(self):
+        def row(**check):
+            return {'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0, 'spliceCheck': {
+                'reloads': [], 'playerErrors': [], 'requestsOk': True, 'timeOffsetRequests': [], 'spliceEvents': [],
+                'file': {'ok': True, 'maxWindowRms': 0.001}, **check}}}
+        self.assertEqual(h.metrics('cut-recovery', [row(timeOffsetRequests=[120], spliceEvents=[{}])])['cutsObserved'], 2)
+        self.assertEqual(h.metrics('cut-recovery', [row(reloads=['setAudioSources'])])['cutsObserved'], 1)
+        self.assertEqual(h.metrics('cut-recovery', [row(), row()])['cutsObserved'], 0)
 
     def test_splice_frozen_median_uses_only_cut_rows(self):
         rows = [{'violations': [], 'latencyS': None, 'metrics': {'maxFrozenS': 0}} for _ in range(7)]
@@ -107,7 +153,7 @@ class Thresholds(unittest.TestCase):
                                           'file': {'ok': True, 'maxWindowRms': 0.001, 'lenDiffS': 0}}}})
         metrics = h.metrics('cut-recovery', rows)
         self.assertEqual(metrics['spliceFrozenMedianS'], 5)
-        lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 1}, metrics, 'android')
+        lines = h.evaluate('cut-recovery', {'reloadsAfterCut': 0, 'cutsObserved': 1}, metrics, 'android')
         self.assertTrue(any(not ok and 'spliceFrozenMedianS' in line for ok, line in lines))
 
     def test_cut5_is_android_full_only(self):
@@ -364,12 +410,13 @@ class RepeatFillOracle(unittest.TestCase):
                    for t, pos, proc in [(10.9, 299541, 'ready'), (11.0, 292001, 'loading'),
                                         (11.1, 0, 'ready'), (11.2, 100, 'ready')]]
         run = Mock(metrics={}, samples=samples, checks=[])
+        run.now.return_value = 0.0
         env = Mock()
         env.backend.fresh_artist.return_value = ('artist', ['a', 'b'])
         with contextlib.ExitStack() as stack:
             stack.enter_context(patch.object(engine, 'await_audio', return_value=first))
             stack.enter_context(patch.object(engine, 'issue_seek', return_value={'t': 0}))
-            stack.enter_context(patch.object(engine, 'landed'))
+            stack.enter_context(patch.object(engine, 'landed', return_value={'t': 0.0}))
             stack.enter_context(patch.object(engine, 'finish_futures'))
             stack.enter_context(patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}))
             engine.case_repeat_one_fill(run, env)
@@ -385,6 +432,103 @@ class RepeatFillOracle(unittest.TestCase):
                 run.samples = variant
                 self.assertEqual(run.checks[0](), [{'oracle': 'repeatOneRestartCount'}])
                 self.assertEqual(len(run.metrics['wraps']), count)
+
+
+class FixtureRepetitionSeed(unittest.TestCase):
+    """M1: a repetition run as its own engine invocation (--rep-start) must not replay the previous repetition's songs."""
+
+    @staticmethod
+    def draw(rep_start):
+        songs = [{'id': f's{i}', 'duration': 200, 'track': 2} for i in range(60)]
+        library = Mock(duplicates={})
+        library.sorted_songs.return_value = songs
+        backend = engine.FixtureBackend('http://x', library, Mock(), rep_start=rep_start)
+        return [s['id'] for s in backend.fresh_songs(5)]
+
+    def test_reps_draw_different_songs_and_the_same_rep_draws_the_same_for_both_variants(self):
+        draws = [self.draw(rep) for rep in range(3)]
+        self.assertEqual(len({tuple(d) for d in draws}), 3)
+        self.assertEqual(self.draw(1), self.draw(1))  # base and fix each start their own backend at the same rep
+        self.assertEqual(self.draw(0), [s for s in self.draw(0)])
+        library = Mock(duplicates={})
+        library.sorted_songs.return_value = [{'id': f's{i}', 'duration': 200, 'track': 2} for i in range(60)]
+        legacy = engine.FixtureBackend('http://x', library, Mock())  # one invocation (Android) keeps its seed
+        self.assertEqual([s['id'] for s in legacy.fresh_songs(5)], self.draw(0))
+
+
+class RepeatFillDuration(unittest.TestCase):
+    """Row 26: repeat_one_fill needs a known duration, disjoint wrap windows and exactly one intended loop."""
+
+    @staticmethod
+    def sample(t, pos, dur):
+        return {'t': t, 'pos': pos, 'proc': 'ready', 'songId': 'a', 'idx': 0, 'mat': 1, 'deferred': 0, 'qlen': 15, 'dur': dur}
+
+    def play(self, first_dur, samples, known=None, land_t=0.0, now=0.0):
+        """Runs case_repeat_one_fill; returns (run, issue_seek mock, violations of the check)."""
+        first = {'songId': 'a', 'dur': first_dur}
+        run = self.run = Mock(metrics={}, samples=samples, checks=[], violations=[])
+        run.last.return_value = {'dur': first_dur}
+        run.until.return_value = known
+        run.now.return_value = now
+        env = Mock()
+        env.backend.fresh_artist.return_value = ('artist', ['a', 'b'])
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(engine, 'await_audio', return_value=first))
+            seek = stack.enter_context(patch.object(engine, 'issue_seek', return_value={'t': 0}))
+            stack.enter_context(patch.object(engine, 'landed', return_value=None if land_t is None else {'t': land_t}))
+            stack.enter_context(patch.object(engine, 'finish_futures'))
+            stack.enter_context(patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}))
+            engine.case_repeat_one_fill(run, env)
+            return run, seek, run.checks[0]()
+
+    def test_zero_duration_at_start_waits_for_the_known_duration(self):
+        run, seek, out = self.play(0, [self.sample(10.9, 299541, 300000), self.sample(11.1, 0, 300000), self.sample(11.2, 100, 300000)],
+                                   known={'dur': 300000})
+        self.assertEqual(seek.call_args[0][2], 292000)  # never a seek to 0 because the duration was not known yet
+        self.assertEqual(run.observe.call_args[0][0], 25.0)
+        self.assertEqual(out, [])
+        with self.assertRaises(engine.CaseAbort):
+            self.play(0, [], known=None)  # the duration never became known: no verdict from a made-up 0
+        self.assertEqual(self.run.violations, [{'oracle': 'caseError'}])  # and the aborted cell is a recorded failure, not a pass
+
+    def test_true_five_second_loop_counts_exactly_one_restart(self):
+        positions = lambda end: [self.sample(round(i * 0.1, 1), (i * 100) % 5000, 5000) for i in range(int(end * 10))]
+        run, seek, out = self.play(5000, positions(7.5))
+        self.assertEqual(seek.call_args[0][2], 0)
+        self.assertEqual(run.observe.call_args[0][0], 7.5)  # a second loop would start at 10 s
+        self.assertEqual(out, [])
+        self.assertEqual(len(run.metrics['wraps']), 1)
+        run, _, out = self.play(5000, positions(12.0))  # a window that holds two loops must not pass as one
+        self.assertEqual(out, [{'oracle': 'repeatOneRestartCount'}])
+        self.assertEqual(len(run.metrics['wraps']), 2)
+        run, _, out = self.play(5000, positions(4.9))  # and a real missing restart still fails
+        self.assertEqual(out, [{'oracle': 'repeatOneRestartCount'}])
+
+    def test_observation_is_measured_from_the_observed_landing(self):
+        # the second loop of a 5 s song starts 10 s after the landing: a slow landing/API return must not push the window past it
+        run, _, _ = self.play(5000, [], land_t=1.0, now=3.0)
+        self.assertEqual(run.observe.call_args[0][0], 5.5)  # lands at 1.0 s, window ends 7.5 s later, 3.0 s are already spent
+        run, _, _ = self.play(5000, [], land_t=None, now=3.0)  # never observed landing: the full window from now
+        self.assertEqual(run.observe.call_args[0][0], 7.5)
+
+    def test_wrap_windows_are_disjoint_per_duration_and_clips_too_short_to_loop_abort(self):
+        self.assertEqual(engine.repeat_wrap_bounds(300000), (296000, 3000))
+        self.assertEqual(engine.repeat_wrap_bounds(5000), (2500, 2500))
+        for dur in (3000, 5000, 8000, 300000):
+            end_from, start_to = engine.repeat_wrap_bounds(dur)
+            self.assertLessEqual(start_to, end_from)
+        with self.assertRaises(engine.CaseAbort):
+            self.play(2000, [])
+        self.assertEqual(self.run.violations, [{'oracle': 'caseError'}])
+
+    def test_a_three_second_fixture_song_reported_as_2_99_s_is_still_observable(self):
+        self.assertEqual(engine.REPEAT_FILL_MIN_MS, 2500)
+        for dur in (2990, 2500):
+            run, _, _ = self.play(dur, [])  # no abort, no caseError
+            self.assertEqual(run.violations, [], dur)
+            self.assertLess(run.observe.call_args[0][0], 2 * dur / 1000)  # still before a second loop
+        with self.assertRaises(engine.CaseAbort):
+            self.play(2400, [])
 
 
 class RepeatClockBlip(unittest.TestCase):
@@ -430,6 +574,150 @@ class RepeatClockBlip(unittest.TestCase):
                 patch.object(engine, 'violation', side_effect=lambda kind, *args: {'oracle': kind}):
             engine.case_base_repeat_one(run, env)
         self.assertEqual(run.violations, [{'oracle': 'baselineNoLoop'}])
+
+
+class PairedRepetitions(unittest.TestCase):
+    """Rows 24/29: base and fix alternate rep by rep (first variant swapping on every other pair), one merged
+    evidence record per variant and scenario, thresholds and cell counts unchanged."""
+
+    def test_schedule_alternates_pairs_and_swaps_the_first_variant(self):
+        steps = h.schedule(['seek', 'crossfade'], lambda name: 3)
+        self.assertEqual(steps[:6], [('base', 'seek', 0), ('fix', 'seek', 0), ('fix', 'seek', 1),
+                                     ('base', 'seek', 1), ('base', 'seek', 2), ('fix', 'seek', 2)])
+        self.assertEqual(steps[6:8], [('fix', 'crossfade', 0), ('base', 'crossfade', 0)])  # the second scenario starts with the other variant
+        quick = h.schedule(['a', 'b', 'c'], lambda name: 1)  # reps=1 (the default quick run) still alternates across scenarios
+        self.assertEqual([v for v, _, _ in quick], ['base', 'fix', 'fix', 'base', 'base', 'fix'])
+        self.assertEqual(len(steps), len(set(steps)), 'every (variant, scenario, rep) exactly once')
+        self.assertEqual(h.schedule(['seek'], lambda name: 1), [('base', 'seek', 0), ('fix', 'seek', 0)])
+
+    def test_engine_runs_one_rep_at_its_own_index(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            seen = []
+            def fake_engine(args, env, folder, extra, timeout, label):
+                seen.append(args)
+                (folder / f'{label}.log').write_text('log')
+                run = folder / 'runs' / f'stamp-{label}'
+                run.mkdir(parents=True)
+                rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={}, violations=[], latencyS=None, passed=True)
+                        for c in h.expected_cells('queue-edit', False, 3, 'linux') if c[3] == 2]
+                (run / 'report.json').write_text(json.dumps({'results': rows}))
+                return Mock(returncode=0)
+            with patch.object(h, 'engine', side_effect=fake_engine):
+                rows, _ = h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, 3, False, rep=2)
+            self.assertEqual({r['rep'] for r in rows}, {2})
+            args = seen[0]
+            self.assertEqual(args[args.index('--reps') + 1], '1')
+            self.assertEqual(args[args.index('--rep-start') + 1], '2')
+            self.assertEqual({tuple(c) for c in json.loads((out / 'evidence.json').read_text())['expected']},
+                             {tuple(c) for c in h.expected_cells('queue-edit', False, 3, 'linux') if c[3] == 2})
+
+    def test_engine_rep_numbers_start_at_the_requested_index(self):
+        self.assertEqual(list(engine.matrix_reps('seek_far', 3, 0, 0)), [0, 1, 2])
+        self.assertEqual(list(engine.matrix_reps('seek_far', 1, 0, 2)), [2])
+        self.assertEqual(list(engine.matrix_reps('shuffle_album', 3, 2, 1)), [1, 2])
+
+    def ab(self, fail_at=None, reps=3, platform='linux', scenarios=('queue-edit',), full=False, guests=None):
+        """Runs cmd_ab for queue-edit on Linux against a fake engine; returns (exit/exception, evidence dir, calls)."""
+        import argparse
+        import json
+        calls = []
+        root_ctx = tempfile.TemporaryDirectory()
+        self.addCleanup(root_ctx.cleanup)
+        root = Path(root_ctx.name)
+        artifact = root / 'bundle'
+        artifact.write_text('bundle')
+        def scenario(name, platform, variant_dir, display_env, serial, apk, full, nreps, real, rep=None):
+            parts = variant_dir.parts
+            calls.append((parts[-4], parts[-3], int(parts[-2].split('-')[1])) if parts[-2].startswith('rep-')
+                         else (parts[-3], parts[-2], None))
+            if fail_at is not None and len(calls) == fail_at:
+                raise h.InfraError('engine died')
+            variant_dir.mkdir(parents=True, exist_ok=True)
+            cells = [c for c in h.expected_cells(name, full, nreps, platform) if rep is None or c[3] == rep]
+            rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), id=i, metrics={}, violations=[], latencyS=None, passed=True)
+                    for i, c in enumerate(cells, 1)]  # the engine numbers rows from 1 in every invocation
+            (variant_dir / f'{name}.log').write_text(f'engine log {parts[-4]} rep {rep}')
+            report = variant_dir / 'report.json'
+            report.write_text(json.dumps({'results': rows}))
+            h.write_evidence(variant_dir, {'status': 'complete', 'exitCode': 0, 'expected': cells, 'observed': cells, 'seconds': 1.0,
+                                           'log': str(variant_dir / f'{name}.log'), 'report': str(report)})
+            return rows, 1.0
+        identity = {'head': 'headsha', 'sha256': 'a'}
+        def git(*a, **k):
+            return 'headsha' if a[:2] == ('rev-parse', 'HEAD') else ('basesha' if a[0] == 'rev-parse' else '')
+        args = argparse.Namespace(fn=h.cmd_ab, command='ab', scenarios=list(scenarios), map=False, all=False, platform=platform,
+                                  base='ref', base_range='r...HEAD', full=full, reps=reps, real=False, output=str(root / 'out'))
+        class Guest:  # a fake Emulator that only counts boots
+            def __init__(self, out):
+                guests.append(out) if guests is not None else None
+                self.proc = Mock(poll=Mock(return_value=None))
+            def check(self): pass
+            def __enter__(self): return 'emulator-5620'
+            def __exit__(self, *_): pass
+        with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', return_value=identity), \
+                patch.object(h, 'Emulator', Guest), patch.object(h, 'seed_android', return_value=root), \
+                patch.object(h, 'environment_identity', return_value={}), patch.object(h, 'heavy_lock', return_value=contextlib.nullcontext(())), \
+                patch.object(h, 'git', side_effect=git), patch.object(h, 'run', return_value=Mock(returncode=0)), \
+                patch.object(h, 'flutter_version', return_value='Flutter test'), patch.object(h, 'downloads_snapshot', return_value={}), \
+                patch.object(h, 'base_build', return_value=(root, 'cached')), patch.object(h, 'fix_build', return_value=root), \
+                patch.object(h, 'artifact_of', return_value=artifact), patch.object(h, 'activate'), \
+                patch.object(h, 'Display', return_value=contextlib.nullcontext({})), patch.object(h, 'run_scenario', side_effect=scenario), \
+                contextlib.redirect_stdout(io.StringIO()):
+            try:
+                code = h.cmd_ab(args)
+            except h.InfraError as error:
+                code = error
+        return code, root / 'out', calls
+
+    def test_ab_interleaves_and_keeps_one_verified_evidence_record_per_variant(self):
+        import json
+        code, out, calls = self.ab()
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, h.schedule(['queue-edit'], lambda name: 3))
+        record = json.loads((out / 'evidence.json').read_text())
+        self.assertEqual(record['status'], 'passed')  # cmd_ab verifies the merged records before it promotes a pass
+        cells = h.expected_cells('queue-edit', False, 3, 'linux')
+        for variant in ('base', 'fix'):
+            merged = record['variants'][f'{variant}/queue-edit']
+            self.assertEqual((merged['status'], merged['exitCode'], merged['expected'], merged['observed']), ('complete', 0, cells, cells))
+            merged_rows = json.loads(Path(merged['report']).read_text())['results']
+            self.assertEqual(len(merged_rows), len(cells))
+            ids = [r['id'] for r in merged_rows]
+            self.assertEqual(len(set(ids)), len(ids), 'row ids stay unique across repetitions (trace files are named by id)')
+            self.assertTrue(all(r['repDir'].endswith(f"rep-{r['rep']}/attempt-1") for r in merged_rows))
+            self.assertEqual(Path(merged['log']).read_text().count('engine log'), 3)
+
+    def test_android_runs_one_guest_per_variant_and_scenario_with_alternating_first_variant(self):
+        import json
+        guests = []
+        names = ('queue-edit', 'stress-drag', 'repeat')
+        with patch.object(h, 'evaluate', return_value=[(True, 'ok')]):  # these rows carry no metrics; thresholds are not under test
+            code, out, calls = self.ab(platform='android', scenarios=names, full=True, reps=None, guests=guests)
+        self.assertEqual(code, 0)
+        self.assertEqual(calls, [('base', 'queue-edit', None), ('fix', 'queue-edit', None), ('fix', 'stress-drag', None),
+                                 ('base', 'stress-drag', None), ('base', 'repeat', None), ('fix', 'repeat', None)])
+        guests = [g for g in guests if g != Path('.')]  # _cmd_ab builds one Emulator only to check the tools exist
+        self.assertEqual(len(guests), 2 * len(names), 'a full Android A/B starts exactly 2 guests per scenario')
+        self.assertEqual(h.android_schedule(['a', 'b']), [('base', 'a', None), ('fix', 'a', None), ('fix', 'b', None), ('base', 'b', None)])
+        record = json.loads((out / 'evidence.json').read_text())
+        self.assertEqual(record['status'], 'passed')  # the unmerged per-scenario evidence verifies like the Linux merged one
+        for name in names:
+            cells = h.expected_cells(name, True, None, 'android')
+            for variant in ('base', 'fix'):
+                merged = record['variants'][f'{variant}/{name}']
+                self.assertEqual((merged['status'], merged['observed']), ('complete', cells))
+
+    def test_ab_failure_midway_leaves_incomplete_evidence_for_started_variants(self):
+        import json
+        code, out, calls = self.ab(fail_at=3)
+        self.assertIsInstance(code, h.InfraError)
+        record = json.loads((out / 'evidence.json').read_text())
+        self.assertNotEqual(record['status'], 'passed')
+        base = record['variants']['base/queue-edit']
+        self.assertEqual((base['status'], len(base['observed'])), ('incomplete', 3))
+        self.assertEqual(record['variants']['fix/queue-edit']['status'], 'incomplete')
 
 
 class CodeAreaMap(unittest.TestCase):
