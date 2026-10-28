@@ -114,6 +114,47 @@ class _FailingTargetSyncApi extends FakeLibrarySyncApi {
   }) async => Error.throwWithStackTrace(error, StackTrace.current);
 }
 
+/// Fails execution-lease heartbeats or releases with SQLITE_BUSY, the error a
+/// writer lock held past the busy handler produces.
+class _LeaseLockTimeouts extends QueryInterceptor {
+  bool heartbeat = false;
+  bool release = false;
+  int heartbeatFailures = 0;
+  int releaseFailures = 0;
+
+  static Never _busy() => throw SqliteException(
+    extendedResultCode: 5,
+    message: 'database is locked',
+  );
+
+  @override
+  Future<int> runUpdate(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) {
+    if (heartbeat && statement.contains('SET heartbeat_at')) {
+      heartbeatFailures++;
+      _busy();
+    }
+    return executor.runUpdate(statement, args);
+  }
+
+  @override
+  Future<int> runDelete(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) {
+    if (release &&
+        statement.contains('DELETE FROM "library_sync_execution_lease"')) {
+      releaseFailures++;
+      _busy();
+    }
+    return executor.runDelete(statement, args);
+  }
+}
+
 void main() {
   group('DriftLibrarySyncEngine', () {
     late NavisDatabase database;
@@ -266,6 +307,70 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    for (final release in [false, true]) {
+      test('a lease ${release ? 'release' : 'heartbeat'} that times out on the '
+          'writer lock neither cancels nor fails the run', () async {
+        await database.close();
+        // The release is armed only once the run holds its lease: the
+        // recovery lease taken before it is released too, and a lease left
+        // behind would defer the run.
+        final timeouts = _LeaseLockTimeouts()..heartbeat = !release;
+        database = NavisDatabase(
+          NativeDatabase.memory().interceptWith(timeouts),
+        );
+        serverConfigRepository = ServerConfigRepository(
+          database,
+          credentials: credentials,
+        );
+        await saveSession();
+        final serverId = (await serverConfigRepository.getActiveServer())!.id!;
+        api.artistsCompleter = Completer<List<Artist>>();
+        final coordinator = AdaptiveLibrarySyncCoordinator(
+          executor: serialDriftEngine(
+            api: api,
+            database: database,
+            repository: serverConfigRepository,
+          ),
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          staleAfter: const Duration(hours: 1),
+          readHasActivePlayback: () => false,
+          executionLeaseTtl: const Duration(seconds: 30),
+          executionLeaseHeartbeatInterval: const Duration(milliseconds: 50),
+        );
+        final run = coordinator.requestSync(
+          const LibrarySyncRequest(
+            origin: SyncRunOrigin.settingsRepair,
+            intent: SyncRunIntent.repairLibrary,
+          ),
+        );
+        while (!api.calls.contains('getArtists')) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        timeouts.release = release;
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        expect(timeouts.heartbeatFailures > 0, !release);
+        api.artistsCompleter!.complete(api.artists);
+        final result = await run;
+
+        expect(
+          result.status,
+          anyOf(LibrarySyncStatus.succeeded, LibrarySyncStatus.partial),
+        );
+        expect(result.failureCategory, isNull);
+        expect(timeouts.releaseFailures > 0, release);
+        if (release) {
+          // The lease is left to expire; the next acquire after its TTL
+          // takes it over and recovers.
+          expect(
+            await database.librarySyncDao.getExecutionLease(serverId),
+            isNotNull,
+          );
+        }
+      }, skip: !sqliteAvailable);
+    }
 
     for (final (name, playing, manual, expected) in [
       ('paused automatic', false, false, LibrarySyncStatus.succeeded),

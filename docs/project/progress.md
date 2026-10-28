@@ -23,6 +23,12 @@ Last updated: 2026-10-28
   through the coordinator's catch as `deferred`/`leaseHeld` with
   `failureCategory` null (engine test "a real mid-run takeover stops the run
   cleanly"); a cross-connection takeover waits for an open owner transaction.
+  Round 2: a heartbeat or release that times out on the writer lock
+  (`isDatabaseLockTimeout`) no longer cancels or fails the run. Failing-first:
+  heartbeat `Actual: LibrarySyncStatus.cancelled`, release `Actual:
+  LibrarySyncStatus.deferred` (engine test "a lease heartbeat/release that times
+  out on the writer lock neither cancels nor fails the run"); the unreleased
+  lease expires through its TTL.
 - [x] Issue #86 P5, long-song crossfade overrun and display snap — 2026-10-28
   (evidence: `navis_audio_handler_navigation_test.dart` "cross-fade deck" cases
   failed first with `Actual: Duration:<0:03:03.603687>` vs the 3:00 song end and

@@ -7153,7 +7153,12 @@ therefore no longer cancels or fails the run. A run whose lease really was taken
 over ends through the coordinator's `SyncLeaseLostException` catch (the
 engine's own ledger write is fenced too, so the exception escapes it):
 `deferred` with reason `leaseHeld` and `failureCategory` null. The work is
-requeued, no failure is counted and nothing is shown.
+requeued, no failure is counted and nothing is shown. A heartbeat or release
+that times out on the writer lock (`isDatabaseLockTimeout`) proves nothing about
+ownership: the heartbeat skips that beat (the fence still checks the lease on
+every write) and the release leaves the lease to expire through its TTL, so
+neither cancels the run nor replaces its result or error. Any other heartbeat
+error or a clean "not owner" still cancels, and other release errors propagate.
 
 Ownership and hand-off. A live lease blocks every other acquirer except one
 case: a `foreground` acquirer takes over a live `androidWorker` lease (the SQL
