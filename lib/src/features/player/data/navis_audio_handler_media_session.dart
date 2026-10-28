@@ -352,6 +352,15 @@ extension _NavisMediaSession on NavisAudioHandler {
           index != wiredPlayer.currentIndex) {
         return;
       }
+      // The display stays on the outgoing song (see [_resolveCurrentQueueMetadata]):
+      // hand over to the incoming deck now, and let a failed hand-over replay
+      // this event.
+      if (_outgoingAdvancedMidFade) {
+        _crossfadeIndexSuppressed = true;
+        _jumpToIncomingVolume();
+        unawaited(_completeCrossfade());
+        return;
+      }
       _anomalies.index(index);
       if (_transportTrace.enabled) {
         final nativeSongId = index == null || index >= _player.sequence.length
@@ -477,7 +486,10 @@ extension _NavisMediaSession on NavisAudioHandler {
         .listen((position) {
           if (!identical(_player, wiredPlayer)) return;
           if (!_positionController.isClosed) {
-            _positionController.add(position);
+            // The outgoing deck now plays the next song from ~0 mid-hand-over.
+            _positionController.add(
+              _outgoingAdvancedMidFade ? _transportPosition : position,
+            );
             _lastPositionEmitAt = DateTime.now();
           }
           _captureTranscodeEndOccurrence();
@@ -842,7 +854,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           ? _restoredQueuePosition
           : pending
           ? Duration.zero
-          : _player.position,
+          : _transportPosition,
       bufferedPosition: pending ? Duration.zero : _player.bufferedPosition,
       speed: _player.speed,
       queueIndex: _radioStation == null
@@ -1050,7 +1062,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           : _mapProcessingState(_player.processingState),
       position: _restoredQueueIndex != null
           ? _restoredQueuePosition
-          : _player.position,
+          : _transportPosition,
       duration: _effectivePlaybackDuration(currentItem),
       bufferedPosition: _player.bufferedPosition,
       shuffleMode: _shuffleEnabled

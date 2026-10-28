@@ -1,5 +1,10 @@
 part of 'navis_audio_handler.dart';
 
+// The ramp ends this long before the outgoing song, and is not worth starting
+// when it would be shorter than the minimum.
+const int _crossfadeEndMarginMs = 100;
+const int _crossfadeMinRampMs = 500;
+
 extension _NavisCrossfade on NavisAudioHandler {
   AudioPlayer _newCrossfadePlayer() =>
       _crossfadePlayerFactory?.call() ?? _buildBaseAudioPlayer();
@@ -8,6 +13,38 @@ extension _NavisCrossfade on NavisAudioHandler {
       _isCrossfading &&
       _desiredLoopMode == LoopMode.one &&
       _crossfadeTargetIndex == _player.currentIndex;
+
+  /// The fading-out deck has gapless-advanced into the song the incoming deck
+  /// is already playing. Its index and position are not the audible ones.
+  bool get _outgoingAdvancedMidFade =>
+      _isCrossfading &&
+      _desiredLoopMode != LoopMode.one &&
+      identical(_player, _crossfadeOutgoing?.deck) &&
+      _player.currentIndex == _crossfadeTargetIndex;
+
+  /// Silences the outgoing deck and brings the incoming one to full volume
+  /// before the hand-over awaits anything: the outgoing deck is playing the
+  /// next song, and the early hand-over stopped the ramp mid-way.
+  void _jumpToIncomingVolume() {
+    final target = _replayGainVolumeFor(
+      _queueItems.elementAtOrNull(_crossfadeTargetIndex ?? _queueItems.length),
+    );
+    void log(Object error, StackTrace stack) => AppLogger.warning(
+      'Cross-fade early volume write failed: $error\n$stack',
+    );
+    unawaited(_setVolumeIfChanged(_player, 0).catchError(log));
+    final incoming = _crossfadePlayer;
+    if (incoming != null) {
+      unawaited(_setVolumeIfChanged(incoming, target).catchError(log));
+    }
+  }
+
+  /// The position to show and save. While the outgoing deck has advanced
+  /// mid-fade, its own position belongs to the next song (about 0), so the
+  /// outgoing song stays at its end until the hand-over.
+  Duration get _transportPosition => _outgoingAdvancedMidFade
+      ? _effectivePlaybackDuration(_crossfadeOutgoing!.from.mediaItem)
+      : _player.position;
 
   /// Returns the effective queue index of the next track, accounting for
   /// shuffle and loop modes. Returns `null` when there is no next track.
@@ -56,8 +93,11 @@ extension _NavisCrossfade on NavisAudioHandler {
     _crossfadeLocalOnlyDeck = !_readRuntimeSettings().crossfadeAllowStreaming;
     _isCrossfading = true;
     _crossfadeHandoffInProgress = false;
+    _crossfadeIndexSuppressed = false;
+    _crossfadeRampMs = 0;
     _crossfadeTargetIndex = nextIndex;
     final from = _resolveCurrentQueueMetadata();
+    _crossfadeOutgoing = (deck: _player, from: from);
     final fromPosition = _player.position;
     final sessionToken = ++_crossfadeSessionToken;
     _crossfadeActiveTransitionId = sessionToken;
@@ -89,7 +129,8 @@ extension _NavisCrossfade on NavisAudioHandler {
           ? _effectivePlaybackDuration(from.mediaItem) -
                 _player.position -
                 Duration(seconds: _crossfadeDurationSeconds)
-          : delayBeforeFade;
+          // The outgoing song kept playing while the deck prepared.
+          : delayBeforeFade - prewarmStopwatch.elapsed;
       if (fadeDelay > Duration.zero) {
         AppLogger.debug(
           'Cross-fade prewarm ready: delaying fade start by '
@@ -246,6 +287,7 @@ extension _NavisCrossfade on NavisAudioHandler {
     required int sessionToken,
   }) {
     final fadeDurationMs = _crossfadeDurationSeconds * 1000;
+    var rampMs = fadeDurationMs;
     DateTime? startTime;
     var applying = false;
     _crossfadeFadeTimer?.cancel();
@@ -274,10 +316,40 @@ extension _NavisCrossfade on NavisAudioHandler {
       }
       applying = true;
       try {
+        if (startTime == null) {
+          // Prewarm and start latency eat into the lead: end the ramp before
+          // the outgoing song does, or fall back to the gapless advance.
+          final remainingMs =
+              (_effectivePlaybackDuration(
+                        _resolveCurrentQueueMetadata().mediaItem,
+                      ) -
+                      _player.position)
+                  .inMilliseconds;
+          rampMs = math.min(
+            fadeDurationMs,
+            remainingMs - _crossfadeEndMarginMs,
+          );
+          // The ramp must also end before a short incoming song does, or the
+          // deck advances past it while the ramp still runs (unknown: skip).
+          final incomingMs = resolveEffectivePlaybackDuration(
+            isRadioMode: false,
+            mediaDuration: _queueItems.elementAtOrNull(nextIndex)?.duration,
+            playerDuration: cfPlayer.duration,
+          ).inMilliseconds;
+          final tooShortIncoming =
+              incomingMs > 0 &&
+              incomingMs - cfPlayer.position.inMilliseconds <
+                  rampMs + _crossfadeEndMarginMs;
+          if (rampMs < _crossfadeMinRampMs || tooShortIncoming) {
+            _crossfadeTooLate(nextIndex, sessionToken);
+            return;
+          }
+          _crossfadeRampMs = rampMs;
+        }
         startTime ??= DateTime.now();
         _crossfadeFadeStartedAt = startTime;
         final elapsed = DateTime.now().difference(startTime!).inMilliseconds;
-        final progress = (elapsed / fadeDurationMs).clamp(0.0, 1.0);
+        final progress = (elapsed / rampMs).clamp(0.0, 1.0);
         if (!_player.playing && progress < 1) {
           throw StateError('Outgoing deck stopped before the fade ended.');
         }
@@ -322,6 +394,31 @@ extension _NavisCrossfade on NavisAudioHandler {
         applying = false;
       }
     });
+  }
+
+  /// Too little of the outgoing song is left for an audible ramp: continue
+  /// gaplessly. Not retried for this occurrence (a repeat-one wrap retries).
+  void _crossfadeTooLate(int nextIndex, int sessionToken) {
+    final from = _resolveCurrentQueueMetadata();
+    if (!_isRepeatOneCrossfade &&
+        from.currentIndex != null &&
+        from.mediaItem != null) {
+      _crossfadeFailedFrom = (
+        index: from.currentIndex!,
+        songId: from.mediaItem!.id,
+      );
+    }
+    AppLogger.debug(
+      'Cross-fade too late for the remaining song; continuing gaplessly '
+      '(target=$nextIndex token=$sessionToken).',
+    );
+    _emitCrossfadeMetric(
+      transitionId: sessionToken,
+      targetIndex: nextIndex,
+      phase: 'too_late',
+      fallbackReason: 'too_late',
+    );
+    _cancelCrossfade();
   }
 
   Future<void> _finalizeCrossfadeAfterFade({
@@ -391,11 +488,8 @@ extension _NavisCrossfade on NavisAudioHandler {
         'Cross-fade complete: degraded to gapless on main player '
         '(index=${_player.currentIndex}).',
       );
-      _isCrossfading = false;
-      _crossfadeTargetIndex = null;
-      _crossfadeActiveTransitionId = null;
-      _crossfadePrewarmLatencyMs = null;
-      _crossfadeFadeStartedAt = null;
+      // The cancel path also replays a withheld outgoing index event.
+      _cancelCrossfade();
       _applyReplayGainVolume(forceDuringCrossfade: true);
       return;
     }
@@ -502,6 +596,7 @@ extension _NavisCrossfade on NavisAudioHandler {
       if (!stillWanted()) return;
       _player = incomingPlayer;
       _crossfadePlayer = outgoingPlayer;
+      _crossfadeIndexSuppressed = false;
       if (_crossfadeLocalOnlyDeck && handoffTargetIndex != null) {
         final incomingItem = incomingPlayer.sequence[handoffTargetIndex].tag;
         if (incomingItem is MediaItem) {
@@ -582,6 +677,7 @@ extension _NavisCrossfade on NavisAudioHandler {
       if (_crossfadeSessionToken == completionToken) {
         _isCrossfading = false;
         _crossfadeHandoffInProgress = false;
+        _crossfadeIndexSuppressed = false;
         // A release skipped during the fade can run now.
         scheduleMicrotask(_maybeReleaseTail);
         _crossfadeTargetIndex = null;
@@ -660,6 +756,22 @@ extension _NavisCrossfade on NavisAudioHandler {
             );
           }),
     );
+
+    if (_crossfadeIndexSuppressed) {
+      // The outgoing deck stayed active and has moved on to the next song.
+      _crossfadeIndexSuppressed = false;
+      final resolved = _resolveCurrentQueueMetadata();
+      final item = resolved.mediaItem;
+      if (item != null) {
+        _setCurrentMediaItem(item);
+        _updateScrobbleSession(item, currentIndex: resolved.currentIndex);
+        _applyReplayGainVolume();
+        _broadcastPlaybackState();
+        _emitSnapshot();
+        _scheduleTransportPersistence(context: 'crossfade canceled index');
+        _maybeReleaseTail();
+      }
+    }
   }
 
   Future<void> _prepareInactiveDeckForCrossfade({

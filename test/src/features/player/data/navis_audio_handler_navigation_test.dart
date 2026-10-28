@@ -713,6 +713,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   bool failVolume = false;
   Completer<void>? volumeGate;
   Completer<void>? volumeEntered;
+
+  /// Every volume write waits for this, as a slow native write would.
+  Completer<void>? volumeHold;
   Completer<void>? listenerCancelGate;
   Completer<void>? listenerCancelEntered;
   String? failAppendSongId;
@@ -887,6 +890,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> setVolume(double value) async {
+    await volumeHold?.future;
     final gate = volumeGate;
     if (gate != null) {
       volumeGate = null;
@@ -15905,6 +15909,316 @@ void main() {
       await handler.debugCompleteCrossfade();
       expect(handler.debugActivePlayer, same(incoming));
     });
+
+    test('a slow prewarm shortens the ramp to end by the song end', () async {
+      final (handler, player, _) = await crossfading(2);
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      incoming
+        ..loadGate = release
+        ..loadEntered = entered;
+      // 2 s before the end of a 3 min song: the 5 s fade cannot fit.
+      player
+        ..simulateProgress = true
+        ..simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 2);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      await entered.future.timeout(const Duration(seconds: 1));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      release.complete();
+      await waitForFade(
+        () =>
+            identical(handler.debugActivePlayer, incoming) &&
+            fade(handler)['active'] == false,
+      );
+      expect(
+        player.position,
+        lessThanOrEqualTo(const Duration(minutes: 3)),
+        reason: 'the ramp must end before the outgoing song does',
+      );
+      expect(incoming.playing, isTrue);
+    });
+
+    test('with under half a second left the song advances gaplessly', () async {
+      final (handler, player, _) = await crossfading(2);
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      player.simulatedPosition =
+          const Duration(minutes: 3) - const Duration(milliseconds: 300);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      await waitForFade(() => fade(handler)['active'] == false);
+      expect(handler.debugActivePlayer, same(player));
+      expect(incoming.playing, isFalse);
+      expect(fade(handler)['phases'], containsPair('too_late', 1));
+      // No retry loop for this occurrence.
+      handler.debugCheckCrossfadeTrigger(player.position);
+      expect(fade(handler)['active'], isFalse);
+    });
+
+    test(
+      'the outgoing deck advancing mid-fade does not drive the display',
+      () async {
+        final (handler, player, _) = await crossfading(3);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        final shown = <(String?, bool)>[];
+        final sub = handler.snapshotStream.listen(
+          (s) => shown.add((
+            s.currentSongId,
+            identical(handler.debugActivePlayer, player),
+          )),
+        );
+        addTearDown(sub.cancel);
+        player.simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 6);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playing && incoming.volume > 0);
+        expect(handler.currentMediaItem?.id, 'song-0');
+        // The outgoing deck runs out and gapless-advances into song 1.
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(
+          shown,
+          isNot(contains(('song-1', true))),
+          reason: 'the outgoing deck must not publish the next song',
+        );
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+        expect(handler.currentMediaItem?.id, 'song-1');
+        expect(handler.snapshot.currentIndex, 1);
+        expect(player.playing, isFalse, reason: 'no second copy of song 1');
+        expect(incoming.playing, isTrue);
+      },
+    );
+
+    group('an incoming song too short for the ramp', () {
+      // The outgoing song has 6 s left, so the ramp is the full 5 s.
+      Future<
+        (NavisAudioHandler, _ControllableAudioPlayer, _ControllableAudioPlayer)
+      >
+      shortIncoming(Duration duration) async {
+        final (handler, player, _) = await crossfading(3);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        incoming.simulatedDuration = duration;
+        player.simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 6);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        return (handler, player, incoming);
+      }
+
+      test('below ramp plus margin advances gaplessly', () async {
+        final (handler, player, incoming) = await shortIncoming(
+          const Duration(milliseconds: 5099),
+        );
+        await waitForFade(() => fade(handler)['active'] == false);
+        expect(handler.debugActivePlayer, same(player));
+        expect(incoming.playing, isFalse);
+        expect(fade(handler)['phases'], containsPair('too_late', 1));
+      });
+
+      test('exactly ramp plus margin still crossfades', () async {
+        final (handler, player, incoming) = await shortIncoming(
+          const Duration(milliseconds: 5100),
+        );
+        await waitForFade(() => incoming.playing && incoming.volume > 0);
+        expect(fade(handler)['active'], isTrue);
+        expect(fade(handler)['phases'], isNot(contains('too_late')));
+        await handler.debugCompleteCrossfade();
+        expect(handler.debugActivePlayer, same(incoming));
+        expect(player.playing, isFalse);
+      });
+
+      test('an unknown incoming duration keeps the full ramp', () async {
+        final (handler, _, incoming) = await shortIncoming(Duration.zero);
+        await waitForFade(() => incoming.playing && incoming.volume > 0);
+        expect(fade(handler)['phases'], isNot(contains('too_late')));
+        await handler.debugCompleteCrossfade();
+        expect(handler.debugActivePlayer, same(incoming));
+      });
+    });
+
+    group('the outgoing deck advancing mid-fade', () {
+      final nearEnd = const Duration(minutes: 3) - const Duration(seconds: 6);
+
+      Future<
+        (
+          NavisAudioHandler,
+          _ControllableAudioPlayer,
+          _ControllableAudioPlayer,
+          NavisDatabase,
+        )
+      >
+      midFade({bool positionStreams = false, int startIndex = 0}) async {
+        final (handler, player, database) = await crossfading(
+          3,
+          positionStreams: positionStreams,
+        );
+        await handler.replaceQueue(
+          ids(3),
+          startIndex: startIndex,
+          expandMatchFlows: false,
+        );
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        player.simulatedPosition = nearEnd;
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playing && incoming.volume > 0.2);
+        return (handler, player, incoming, database);
+      }
+
+      test('keeps the saved and shown position on the outgoing song', () async {
+        final (handler, player, incoming, database) = await midFade();
+        final hold = Completer<void>();
+        // A slow native write keeps the hand-over open: the widest window.
+        incoming.volumeHold = hold;
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(identical(handler.debugActivePlayer, player), isTrue);
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(
+          handler.snapshot.position,
+          greaterThan(const Duration(minutes: 2)),
+          reason: 'song-0 must not be shown at the next song\'s ~0',
+        );
+        await handler.debugFlushQueuePersistence();
+        final saved = (await database.playQueueDao.getQueueState())!;
+        expect(saved.currentIndex, 0);
+        expect(saved.positionMs, greaterThan(120000));
+        hold.complete();
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+      });
+
+      test('mutes the outgoing deck before any hand-over await', () async {
+        final (handler, player, incoming, _) = await midFade();
+        final hold = Completer<void>();
+        incoming.volumeHold = hold;
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(player.volume, 0, reason: 'no second copy of song-1');
+        hold.complete();
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+      });
+
+      test('the position stream never shows the next song at 0', () async {
+        final (handler, player, incoming, _) = await midFade(
+          positionStreams: true,
+        );
+        final seen = <Duration>[];
+        final sub = handler.positionStream.listen(seen.add);
+        addTearDown(sub.cancel);
+        final hold = Completer<void>();
+        incoming.volumeHold = hold;
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        seen.clear();
+        for (var i = 0; i < 3; i++) {
+          player.emitPlayerEvent();
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        }
+        expect(identical(handler.debugActivePlayer, player), isTrue);
+        expect(seen, isNotEmpty);
+        expect(
+          seen.every((p) => p > const Duration(minutes: 2)),
+          isTrue,
+          reason: 'saw $seen',
+        );
+        hold.complete();
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+      });
+
+      test(
+        'a volume change inside the hand-over keeps the outgoing mute',
+        () async {
+          final (handler, player, incoming, _) = await midFade();
+          final hold = Completer<void>();
+          incoming.volumeHold = hold;
+          player.finishCurrentTrack();
+          await pumpEventQueue();
+          unawaited(handler.setVolume(0.8));
+          await pumpEventQueue();
+          expect(player.volume, 0, reason: 'song-1 must not come back');
+          hold.complete();
+          await waitForFade(
+            () =>
+                identical(handler.debugActivePlayer, incoming) &&
+                fade(handler)['active'] == false,
+          );
+          expect(incoming.volume, closeTo(0.8, 0.001));
+        },
+      );
+
+      test(
+        'previous inside the hand-over restarts the outgoing song',
+        () async {
+          final (handler, player, incoming, _) = await midFade(startIndex: 1);
+          final hold = Completer<void>();
+          incoming.volumeHold = hold;
+          player.finishCurrentTrack();
+          await pumpEventQueue();
+          await handler.skipToPrevious();
+          await pumpEventQueue();
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(player.index, 1, reason: 'a restart, not the previous song');
+          hold.complete();
+          await pumpEventQueue();
+        },
+      );
+
+      test('a volume change follows the shortened ramp', () async {
+        final (handler, player, _) = await crossfading(2);
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        // 2 s left: the 5 s fade shortens to about 1.9 s.
+        player
+          ..simulateProgress = true
+          ..simulatedPosition =
+              const Duration(minutes: 3) - const Duration(seconds: 2);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playing && incoming.volume > 0.5);
+        await handler.setVolume(1);
+        expect(player.volume, lessThan(0.55));
+        expect(incoming.volume, greaterThan(0.45));
+      });
+    });
+
+    test(
+      'an outgoing advance with the incoming deck unready falls back',
+      () async {
+        final (handler, player, _) = await crossfading(3);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        incoming.ignorePlay = true;
+        player.simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 6);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playRequested);
+        player.finishCurrentTrack();
+        await waitForFade(() => fade(handler)['active'] == false);
+        await pumpEventQueue();
+        // The suppressed index event is replayed when the fade is abandoned.
+        expect(handler.debugActivePlayer, same(player));
+        expect(handler.currentMediaItem?.id, 'song-1');
+        expect(handler.snapshot.currentIndex, 1);
+        expect(player.playing, isTrue);
+      },
+    );
 
     test('self-crossfade retries after a native wrap during prewarm', () async {
       final (handler, player, _) = await crossfading(2);

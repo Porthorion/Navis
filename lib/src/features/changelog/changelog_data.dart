@@ -130,6 +130,20 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Crossfade on long songs now ends before the song does: the fade '
+        'shortens when preparing the next song takes time, the song and '
+        'position no longer jump a few seconds when it completes, and the '
+        'outgoing song can no longer start the next one underneath it.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android and iOS: the in-app volume slider is gone from the player '
+        'settings. Playback always runs at full app volume, so nothing can '
+        'stay quietly turned down; use the volume buttons on your phone. Desktop '
+        'keeps all its volume controls.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Android: album art shows again on Bluetooth and car displays, which '
         'had shown only the title and artist since 1.4.0.',
         type: ChangelogEntryType.fix,
