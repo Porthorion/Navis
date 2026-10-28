@@ -38,6 +38,8 @@ class SyncWriteFence {
   Future<void> lockAndCheck(QueryExecutor executor) async {
     // The no-op update acquires SQLite's writer lock before validating the
     // token. Another connection cannot replace the owner until this commit.
+    // Ownership alone is liveness (as in [checkBeforeCommit]): an expired
+    // lease nobody took over still belongs to this owner.
     // A renewal TTL extends the lease under the same lock so a long
     // transaction cannot expire out from under its live owner.
     final renewTo = renewalTtl == null
@@ -47,14 +49,8 @@ class SyncWriteFence {
       'UPDATE library_sync_execution_lease '
       'SET owner_token = owner_token, '
       '    expires_at = CASE WHEN ? IS NULL THEN expires_at ELSE ? END '
-      'WHERE server_id = ? AND owner_token = ? AND expires_at > ?',
-      [
-        renewTo,
-        renewTo,
-        serverId,
-        ownerToken,
-        now().millisecondsSinceEpoch ~/ 1000,
-      ],
+      'WHERE server_id = ? AND owner_token = ?',
+      [renewTo, renewTo, serverId, ownerToken],
     );
     if (matched != 1) throw const SyncLeaseLostException();
   }
