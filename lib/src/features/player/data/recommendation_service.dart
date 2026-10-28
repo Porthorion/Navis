@@ -44,9 +44,10 @@ class RecommendationBatch {
   final RecommendationSource source;
   final RecommendationIssue issue;
 
-  /// Why Last.fm gave nothing although radio still found songs elsewhere:
-  /// only [RecommendationIssue.invalidKey] and [RecommendationIssue.rateLimited]
-  /// (the user can act on or wait out those); transient failures stay silent.
+  /// [RecommendationIssue.invalidKey] when Last.fm rejected the user's key
+  /// although radio still found songs elsewhere; otherwise none. Only a
+  /// rejected key needs the user, so rate limits and other failures stay
+  /// silent.
   final RecommendationIssue lastFmIssue;
 }
 
@@ -429,8 +430,7 @@ class RecommendationService {
           count: wantedRelated - related.length,
           identities: identities,
         );
-        if (lastFm.issue == RecommendationIssue.invalidKey ||
-            lastFm.issue == RecommendationIssue.rateLimited) {
+        if (lastFm.issue == RecommendationIssue.invalidKey) {
           lastFmIssue = lastFm.issue;
         }
         _addEligible(
@@ -482,10 +482,11 @@ class RecommendationService {
     }
     final client = _ref.read(lastFmApiClientProvider);
     if (client == null) {
+      // No key at all is nothing the user got wrong: fall back silently.
       return const RecommendationBatch(
         songs: <Song>[],
         source: RecommendationSource.lastFm,
-        issue: RecommendationIssue.invalidKey,
+        issue: RecommendationIssue.empty,
       );
     }
     final result = await client.getSimilarTracksResult(

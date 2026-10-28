@@ -476,6 +476,7 @@ void main() {
     Future<RecommendationBatch> radioBatchWith(
       LastFmTrackFetchResult result, {
       IntegrationPolicy policy = const IntegrationPolicy(lastFmVerified: true),
+      bool withClient = true,
     }) async {
       final database = createTestDatabase();
       addTearDown(database.close);
@@ -498,7 +499,7 @@ void main() {
             networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
             subsonicApiProvider.overrideWithValue(api),
             lastFmApiClientProvider.overrideWithValue(
-              _CountingLastFmApiClient(result),
+              withClient ? _CountingLastFmApiClient(result) : null,
             ),
             integrationPolicyProvider.overrideWithValue(policy),
           ],
@@ -530,16 +531,22 @@ void main() {
       expect(batch.lastFmIssue, RecommendationIssue.invalidKey);
     }, skip: !sqliteAvailable);
 
-    test('a rate limit reports rateLimited', () async {
-      final batch = await radioBatchWith(
-        failure(LastFmFetchOutcome.apiError, status: 429),
-      );
-      expect(batch.lastFmIssue, RecommendationIssue.rateLimited);
-    }, skip: !sqliteAvailable);
-
     // One test database per test, like runRadio below: several open at
     // once trip drift's multiple-instances warning (a check.sh blocker).
+    test('no Last.fm key at all stays silent', () async {
+      final batch = await radioBatchWith(
+        failure(LastFmFetchOutcome.apiError, code: 10),
+        withClient: false,
+      );
+      expect(batch.songs, isNotEmpty);
+      expect(batch.lastFmIssue, RecommendationIssue.none);
+    }, skip: !sqliteAvailable);
+
     for (final entry in <String, (LastFmTrackFetchResult, IntegrationPolicy)>{
+      'a rate limit': (
+        failure(LastFmFetchOutcome.apiError, status: 429),
+        const IntegrationPolicy(lastFmVerified: true),
+      ),
       'a network failure': (
         failure(LastFmFetchOutcome.networkError),
         const IntegrationPolicy(lastFmVerified: true),

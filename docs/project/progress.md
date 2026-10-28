@@ -28,9 +28,10 @@ Last updated: 2026-10-28
   (branch `fix/failure-copy-leftovers`, ledger #86). The typed issue was lost
   in `personalRadio`, which read only `_lastFmMatches(...).songs` and then fell
   back to server/library songs, so a start never failed with it. The batch now
-  carries `lastFmIssue` (invalidKey/rateLimited) through
-  `RadioStartResult`, and Home shows the existing Same Vibes invalid-key string as an info
-  notice after a successful start (rateLimited stays silent: owner decision,
+  carries `lastFmIssue` (invalidKey only; no client at all stays silent) through
+  `RadioStartResult`, and Home shows the existing Same Vibes invalid-key string at Same Vibes'
+  error level after a successful start; retry, queue-end auto-radio and
+  diagnostics starts stay silent about Last.fm (rateLimited stays silent: owner decision,
   nothing to act on). Verified unreachable and left unchanged:
   Instant Mix (`serverMix` never calls Last.fm) and Last.fm key save
   (`validateApiKey` already folds network errors into its inline message).

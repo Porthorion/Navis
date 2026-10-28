@@ -1975,40 +1975,46 @@ void main() {
       'radio that started without Last.fm: ${entry.key.name} notice',
       (tester) async {
         setAdaptiveTestViewport(tester, const Size(1000, 420));
-        // The shared database: remove the radio candidate afterwards so later
-        // tests still see an empty library.
+        // The shared database (a second NavisDatabase trips drift's warning).
+        // Cleanup runs in `finally`, so a failed expectation still dismisses
+        // the notice timer, unmounts Home and removes the radio candidate
+        // before the next test instead of hanging the suite.
         await database.libraryDao.upsertSongs(<SongsTableCompanion>[
           SongsTableCompanion.insert(id: 'radio-song', title: 'One'),
         ]);
-        addTearDown(
-          () => (database.delete(
-            database.songsTable,
-          )..where((song) => song.id.equals('radio-song'))).go(),
-        );
         final notices = AppNoticeController();
-        addTearDown(notices.dispose);
-        await _pumpHomeWithAppSettings(
-          tester,
-          database: database,
-          notices: notices,
-          overrides: <Override>[
-            personalRadioProvider.overrideWith(
-              () => _LastFmIssueRadio(entry.key),
-            ),
-          ],
-        );
-        await tester.pump(const Duration(milliseconds: 200));
+        try {
+          await _pumpHomeWithAppSettings(
+            tester,
+            database: database,
+            notices: notices,
+            overrides: <Override>[
+              personalRadioProvider.overrideWith(
+                () => _LastFmIssueRadio(entry.key),
+              ),
+            ],
+          );
+          await tester.pump(const Duration(milliseconds: 200));
 
-        await tester.tap(find.byIcon(Icons.radio_rounded));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 200));
+          await tester.tap(find.byIcon(Icons.radio_rounded));
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 200));
 
-        expect(notices.notice?.message, entry.value);
-        expect(
-          notices.notice?.level,
-          entry.value == null ? null : AppNoticeLevel.info,
-        );
-        notices.dismiss();
+          expect(notices.notice?.message, entry.value);
+          expect(
+            notices.notice?.level,
+            entry.value == null ? null : AppNoticeLevel.error,
+          );
+        } finally {
+          notices.dispose();
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pump();
+          await tester.runAsync(
+            () => (database.delete(
+              database.songsTable,
+            )..where((song) => song.id.equals('radio-song'))).go(),
+          );
+        }
       },
     );
   }

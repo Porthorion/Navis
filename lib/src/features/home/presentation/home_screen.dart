@@ -4564,17 +4564,15 @@ class _HomeActionRow extends ConsumerWidget {
       if (!context.mounted) return;
       if (result.succeeded) {
         expandPlayer();
-        // Radio plays on without Last.fm; say so only when the user can act (a
-        // rate limit just has to be waited out, so it stays silent).
-        final lastFmMessage = switch (result.lastFmIssue) {
-          RecommendationIssue.invalidKey => l10n.sameVibesInvalidKey,
-          _ => null,
-        };
-        if (lastFmMessage != null) {
+        // Radio plays on without Last.fm; only a rejected key needs the user.
+        // Rate limits, and the retry, queue-end auto-radio and diagnostics
+        // starts, deliberately stay silent about Last.fm (self-healing).
+        if (result.lastFmIssue == RecommendationIssue.invalidKey) {
+          // Same level and duration as the Same Vibes notice (app_shell).
           showAppNotice(
             context,
-            message: lastFmMessage,
-            level: AppNoticeLevel.info,
+            message: l10n.sameVibesInvalidKey,
+            level: AppNoticeLevel.error,
           );
         }
       } else {
