@@ -145,6 +145,104 @@ void main() {
   });
 
   test(
+    'an expired lease nobody took over still lets its owner write',
+    () async {
+      now = now.add(const Duration(minutes: 5));
+      await fence.run(
+        () => database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'late', title: 'Late'),
+        ]),
+      );
+      expect((await database.libraryDao.getSongById('late'))?.title, 'Late');
+
+      // A real takeover (after expiry) still fences the old owner out.
+      expect(
+        await database.librarySyncDao.acquireExecutionLease(
+          serverId: 1,
+          ownerToken: 'second-owner',
+          ownerKind: 'foreground',
+          now: now.add(const Duration(minutes: 5)),
+          ttl: const Duration(minutes: 1),
+        ),
+        isTrue,
+      );
+      await expectLater(
+        fence.run(
+          () => database.libraryDao.upsertSongs([
+            SongsTableCompanion.insert(id: 'stale', title: 'Stale'),
+          ]),
+        ),
+        throwsA(isA<SyncLeaseLostException>()),
+      );
+      expect(await database.libraryDao.getSongById('stale'), isNull);
+    },
+  );
+
+  test('an expired owner holding the write lock refuses a cross-connection takeover', () async {
+    // Expired, nobody took over yet. The upsert is acquireExecutionLease's
+    // takeover statement, run from another connection.
+    now = now.add(const Duration(minutes: 5));
+    final nowSec = now.millisecondsSinceEpoch ~/ 1000;
+    void takeOver() => otherConnection.execute(
+      """
+        INSERT INTO library_sync_execution_lease
+          (server_id, owner_token, owner_kind, started_at, heartbeat_at, expires_at)
+        VALUES (1, 'second-owner', 'foreground', ?, ?, ?)
+        ON CONFLICT(server_id) DO UPDATE SET
+          owner_token = excluded.owner_token,
+          owner_kind = excluded.owner_kind,
+          heartbeat_at = excluded.heartbeat_at,
+          expires_at = excluded.expires_at
+        WHERE library_sync_execution_lease.expires_at <= ?
+        """,
+      [nowSec, nowSec, nowSec + 3600, nowSec],
+    );
+    otherConnection.execute('PRAGMA busy_timeout = 0');
+    Object? busy;
+    await fence.run(
+      () => database.transaction(() async {
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'a', title: 'A'),
+        ]);
+        try {
+          takeOver();
+        } on SqliteException catch (error) {
+          busy = error;
+        }
+        await database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'b', title: 'B'),
+        ]);
+      }),
+    );
+    expect(busy, isNotNull, reason: 'takeover must wait for the write lock');
+    expect((await database.libraryDao.getSongById('b'))?.title, 'B');
+
+    takeOver();
+    await expectLater(
+      fence.run(
+        () => database.libraryDao.upsertSongs([
+          SongsTableCompanion.insert(id: 'c', title: 'C'),
+        ]),
+      ),
+      throwsA(isA<SyncLeaseLostException>()),
+    );
+    expect(
+      await database.librarySyncDao.heartbeatExecutionLease(
+        serverId: 1,
+        ownerToken: 'first-owner',
+        now: now,
+        ttl: const Duration(minutes: 1),
+      ),
+      isFalse,
+    );
+    expect(
+      (await database.librarySyncDao.getExecutionLease(1))?.ownerToken,
+      'second-owner',
+    );
+    expect(await database.libraryDao.getSongById('c'), isNull);
+  });
+
+  test(
     'a renewal TTL extends the lease under the transaction write lock',
     () async {
       final renewingFence = SyncWriteFence(

@@ -1251,7 +1251,11 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                     now: _now(),
                     ttl: _executionLeaseTtl,
                   )
-                  .catchError((Object _) => false)
+                  // A busy writer lock says nothing about ownership: the write
+                  // fence checks the lease on every write and the next beat
+                  // retries. Any other error fails closed. The handler's bool
+                  // return is the ownership flag (true = keep running).
+                  .catchError(isDatabaseLockTimeout)
                   .then((owned) {
                     if (!owned && leaseActive) cancelSync();
                   }),
@@ -1268,10 +1272,16 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     } finally {
       leaseActive = false;
       timer?.cancel();
-      await _database.librarySyncDao.releaseExecutionLease(
-        serverId: serverId,
-        ownerToken: ownerToken,
-      );
+      try {
+        await _database.librarySyncDao.releaseExecutionLease(
+          serverId: serverId,
+          ownerToken: ownerToken,
+        );
+      } on Object catch (error) {
+        // A busy writer lock must not replace the run's result or error; the
+        // lease expires through its TTL.
+        if (!isDatabaseLockTimeout(error)) rethrow;
+      }
     }
   }
 

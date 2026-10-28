@@ -7148,13 +7148,33 @@ the publication transaction; it excludes final ledger/commit overhead.
 Sync execution uses a per-server lease for catalog and targeted writes. An opaque,
 non-reused owner token is carried through the execution's async scope. The SQL
 interceptor validates it while acquiring SQLite's writer lock before mutation,
-and checks ownership/expiry again before transaction commit. This covers DAO
+and checks ownership again before transaction commit. This covers DAO
 batches, custom statements, hidden candidates, publication and durable progress;
 a late response from a replaced owner cannot publish. Nested writes roll back
 with their outer transaction. Recovery and provider-reset writes use the same
 fence. Heartbeat loss also cancels transport. Ordinary playback and local user
 edits execute outside the sync scope. This uses the existing lease schema; token
 equality plus the database writer lock provides fencing without a new counter.
+Ownership, not expiry, is liveness for the owner: the heartbeat, the fence's
+lock check and the commit check all match on the token alone, and the heartbeat
+and the fence's renewal re-arm `expires_at`. Expiry only gates *takeover*: a
+takeover is one UPSERT under the writer lock that replaces the token, so after
+it the old owner's next heartbeat or write sees a foreign token and fails. A
+local stall (slow disk, busy DB) that outlasts the TTL without a takeover
+therefore no longer cancels or fails the run. A run whose lease really was taken
+over ends through the coordinator's `SyncLeaseLostException` catch (the
+engine's own ledger write is fenced too, so the exception escapes it):
+`deferred` with reason `leaseHeld` and `failureCategory` null. The work is
+requeued, no failure is counted and nothing is shown. A heartbeat or release
+that times out on the writer lock (`isDatabaseLockTimeout`) proves nothing about
+ownership: the heartbeat skips that beat (the fence still checks the lease on
+every write) and the release leaves the lease to expire through its TTL, so
+neither cancels the run nor replaces its result or error. A swallowed release
+timeout leaves the lease held until its TTL (10 min by default,
+`_defaultExecutionLeaseTtl`), so the next run, including a manual repair,
+reports `deferred`/`leaseHeld` until then; the automatic path reschedules after
+lease expiry. Any other heartbeat error or a clean "not owner" still cancels,
+and other release errors propagate.
 
 Ownership and hand-off. A live lease blocks every other acquirer except one
 case: a `foreground` acquirer takes over a live `androidWorker` lease (the SQL

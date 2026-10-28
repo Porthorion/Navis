@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Library sync no longer fails with an unknown error when the device '
+        'is briefly busy; it carries on, or resumes on its own.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Rematching a weekly playlist now shows how far it has got, such as '
         '"Matching 3 of 12", instead of a bare spinner.',
         type: ChangelogEntryType.fix,

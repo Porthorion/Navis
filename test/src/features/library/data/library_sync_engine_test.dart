@@ -19,6 +19,7 @@ import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/test_database.dart';
@@ -113,6 +114,49 @@ class _FailingTargetSyncApi extends FakeLibrarySyncApi {
   }) async => Error.throwWithStackTrace(error, StackTrace.current);
 }
 
+/// Fails execution-lease heartbeats or releases with a configurable SQLite
+/// error (SQLITE_BUSY by default), the error a writer lock held past the busy
+/// handler produces.
+class _LeaseLockTimeouts extends QueryInterceptor {
+  bool heartbeat = false;
+  bool release = false;
+  int resultCode = 5;
+  int heartbeatFailures = 0;
+  int releaseFailures = 0;
+
+  Never _fail() => throw SqliteException(
+    extendedResultCode: resultCode,
+    message: resultCode == 5 ? 'database is locked' : 'SQL logic error',
+  );
+
+  @override
+  Future<int> runUpdate(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) {
+    if (heartbeat && statement.contains('SET heartbeat_at')) {
+      heartbeatFailures++;
+      _fail();
+    }
+    return executor.runUpdate(statement, args);
+  }
+
+  @override
+  Future<int> runDelete(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) {
+    if (release &&
+        statement.contains('DELETE FROM "library_sync_execution_lease"')) {
+      releaseFailures++;
+      _fail();
+    }
+    return executor.runDelete(statement, args);
+  }
+}
+
 void main() {
   group('DriftLibrarySyncEngine', () {
     late NavisDatabase database;
@@ -192,6 +236,166 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    test(
+      'a real mid-run takeover stops the run cleanly as leaseHeld',
+      () async {
+        await saveSession();
+        final serverId = (await serverConfigRepository.getActiveServer())!.id!;
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        api.artistsCompleter = Completer<List<Artist>>();
+        final coordinator = AdaptiveLibrarySyncCoordinator(
+          executor: engine,
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          staleAfter: const Duration(hours: 1),
+          readHasActivePlayback: () => false,
+        );
+        final run = coordinator.requestSync(
+          const LibrarySyncRequest(
+            origin: SyncRunOrigin.settingsRepair,
+            intent: SyncRunIntent.repairLibrary,
+          ),
+        );
+        while (!api.calls.contains('getArtists')) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        // A second runner takes the lease over (its clock is past expiry).
+        expect(
+          await database.librarySyncDao.acquireExecutionLease(
+            serverId: serverId,
+            ownerToken: 'second-runner',
+            ownerKind: 'foreground',
+            now: DateTime.now().toUtc().add(const Duration(days: 1)),
+            ttl: const Duration(days: 2),
+          ),
+          isTrue,
+        );
+        api.artistsCompleter!.complete(api.artists);
+        final result = await run;
+
+        expect(result.status, LibrarySyncStatus.deferred);
+        expect(result.planReason, 'leaseHeld');
+        expect(result.failureCategory, isNull);
+        final history = await database.librarySyncDao.getRecentSyncRunHistory(
+          serverId,
+        );
+        // The takeover recovered this run's attempt, so the replaced owner
+        // records no outcome of its own, and never a failure.
+        expect(
+          history.where(
+            (entry) =>
+                entry.outcome == SyncRunOutcomeKind.failed ||
+                entry.reason == SyncSafeReason.unknownFailure,
+          ),
+          isEmpty,
+        );
+        final state = await database.librarySyncDao.getOrCreateState(serverId);
+        expect(state.failureStreak, 0);
+        // The fenced run wrote nothing after the takeover.
+        expect(await database.select(database.artistsTable).get(), isEmpty);
+        expect(
+          (await database.librarySyncDao.getExecutionLease(serverId))
+              ?.ownerToken,
+          'second-runner',
+        );
+        final ledger = await database.librarySyncDao
+            .getRecentOperationLedgerEntries(serverId);
+        expect(
+          ledger.where((e) => e.operation == 'executionLeaseLost'),
+          hasLength(1),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    for (final (release, resultCode) in [(false, 5), (true, 5), (false, 1)]) {
+      final lockTimeout = resultCode == 5;
+      final kind = release ? 'release' : 'heartbeat';
+      final outcome = lockTimeout
+          ? 'that times out on the writer lock neither cancels nor fails the run'
+          : 'that fails with a non-lock error cancels the run';
+      test('a lease $kind $outcome', () async {
+        await database.close();
+        // The release is armed only once the run holds its lease: the
+        // recovery lease taken before it is released too, and a lease left
+        // behind would defer the run.
+        final timeouts = _LeaseLockTimeouts()
+          ..heartbeat = !release
+          ..resultCode = resultCode;
+        database = NavisDatabase(
+          NativeDatabase.memory().interceptWith(timeouts),
+        );
+        serverConfigRepository = ServerConfigRepository(
+          database,
+          credentials: credentials,
+        );
+        await saveSession();
+        final serverId = (await serverConfigRepository.getActiveServer())!.id!;
+        api.artistsCompleter = Completer<List<Artist>>();
+        final coordinator = AdaptiveLibrarySyncCoordinator(
+          executor: serialDriftEngine(
+            api: api,
+            database: database,
+            repository: serverConfigRepository,
+          ),
+          database: database,
+          serverConfigRepository: serverConfigRepository,
+          networkType: NetworkType.wifi,
+          staleAfter: const Duration(hours: 1),
+          readHasActivePlayback: () => false,
+          executionLeaseTtl: const Duration(seconds: 30),
+          executionLeaseHeartbeatInterval: const Duration(milliseconds: 50),
+        );
+        final run = coordinator.requestSync(
+          const LibrarySyncRequest(
+            origin: SyncRunOrigin.settingsRepair,
+            intent: SyncRunIntent.repairLibrary,
+          ),
+        );
+        while (!api.calls.contains('getArtists')) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        timeouts.release = release;
+        if (release) {
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+        } else {
+          // Wait on the observed failure, not a fixed delay: the heartbeat
+          // interval and the scheduler can both lag on a loaded host.
+          final deadline = DateTime.now().add(const Duration(seconds: 5));
+          while (timeouts.heartbeatFailures == 0 &&
+              DateTime.now().isBefore(deadline)) {
+            await Future<void>.delayed(const Duration(milliseconds: 5));
+          }
+        }
+        api.artistsCompleter!.complete(api.artists);
+        final result = await run;
+
+        if (lockTimeout) {
+          expect(timeouts.heartbeatFailures > 0, !release);
+          expect(
+            result.status,
+            anyOf(LibrarySyncStatus.succeeded, LibrarySyncStatus.partial),
+          );
+          expect(result.failureCategory, isNull);
+          expect(timeouts.releaseFailures > 0, release);
+          if (release) {
+            // The swallowed release failure leaves the lease row behind
+            // until its TTL; this only asserts that it survived the run.
+            // TTL takeover is covered by 'a real mid-run takeover stops the
+            // run cleanly as leaseHeld'.
+            expect(
+              await database.librarySyncDao.getExecutionLease(serverId),
+              isNotNull,
+            );
+          }
+        } else {
+          expect(result.status, LibrarySyncStatus.cancelled);
+          expect(timeouts.heartbeatFailures, greaterThan(0));
+        }
+      }, skip: !sqliteAvailable);
+    }
 
     for (final (name, playing, manual, expected) in [
       ('paused automatic', false, false, LibrarySyncStatus.succeeded),
