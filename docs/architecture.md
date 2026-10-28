@@ -7157,8 +7157,12 @@ requeued, no failure is counted and nothing is shown. A heartbeat or release
 that times out on the writer lock (`isDatabaseLockTimeout`) proves nothing about
 ownership: the heartbeat skips that beat (the fence still checks the lease on
 every write) and the release leaves the lease to expire through its TTL, so
-neither cancels the run nor replaces its result or error. Any other heartbeat
-error or a clean "not owner" still cancels, and other release errors propagate.
+neither cancels the run nor replaces its result or error. A swallowed release
+timeout leaves the lease held until its TTL (10 min by default,
+`_defaultExecutionLeaseTtl`), so the next run, including a manual repair,
+reports `deferred`/`leaseHeld` until then; the automatic path reschedules after
+lease expiry. Any other heartbeat error or a clean "not owner" still cancels,
+and other release errors propagate.
 
 Ownership and hand-off. A live lease blocks every other acquirer except one
 case: a `foreground` acquirer takes over a live `androidWorker` lease (the SQL

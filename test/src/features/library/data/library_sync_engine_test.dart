@@ -114,17 +114,19 @@ class _FailingTargetSyncApi extends FakeLibrarySyncApi {
   }) async => Error.throwWithStackTrace(error, StackTrace.current);
 }
 
-/// Fails execution-lease heartbeats or releases with SQLITE_BUSY, the error a
-/// writer lock held past the busy handler produces.
+/// Fails execution-lease heartbeats or releases with a configurable SQLite
+/// error (SQLITE_BUSY by default), the error a writer lock held past the busy
+/// handler produces.
 class _LeaseLockTimeouts extends QueryInterceptor {
   bool heartbeat = false;
   bool release = false;
+  int resultCode = 5;
   int heartbeatFailures = 0;
   int releaseFailures = 0;
 
-  static Never _busy() => throw SqliteException(
-    extendedResultCode: 5,
-    message: 'database is locked',
+  Never _fail() => throw SqliteException(
+    extendedResultCode: resultCode,
+    message: resultCode == 5 ? 'database is locked' : 'SQL logic error',
   );
 
   @override
@@ -135,7 +137,7 @@ class _LeaseLockTimeouts extends QueryInterceptor {
   ) {
     if (heartbeat && statement.contains('SET heartbeat_at')) {
       heartbeatFailures++;
-      _busy();
+      _fail();
     }
     return executor.runUpdate(statement, args);
   }
@@ -149,7 +151,7 @@ class _LeaseLockTimeouts extends QueryInterceptor {
     if (release &&
         statement.contains('DELETE FROM "library_sync_execution_lease"')) {
       releaseFailures++;
-      _busy();
+      _fail();
     }
     return executor.runDelete(statement, args);
   }
@@ -308,14 +310,20 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    for (final release in [false, true]) {
-      test('a lease ${release ? 'release' : 'heartbeat'} that times out on the '
-          'writer lock neither cancels nor fails the run', () async {
+    for (final (release, resultCode) in [(false, 5), (true, 5), (false, 1)]) {
+      final lockTimeout = resultCode == 5;
+      final kind = release ? 'release' : 'heartbeat';
+      final outcome = lockTimeout
+          ? 'that times out on the writer lock neither cancels nor fails the run'
+          : 'that fails with a non-lock error cancels the run';
+      test('a lease $kind $outcome', () async {
         await database.close();
         // The release is armed only once the run holds its lease: the
         // recovery lease taken before it is released too, and a lease left
         // behind would defer the run.
-        final timeouts = _LeaseLockTimeouts()..heartbeat = !release;
+        final timeouts = _LeaseLockTimeouts()
+          ..heartbeat = !release
+          ..resultCode = resultCode;
         database = NavisDatabase(
           NativeDatabase.memory().interceptWith(timeouts),
         );
@@ -350,24 +358,41 @@ void main() {
           await Future<void>.delayed(const Duration(milliseconds: 5));
         }
         timeouts.release = release;
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-        expect(timeouts.heartbeatFailures > 0, !release);
+        if (release) {
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+        } else {
+          // Wait on the observed failure, not a fixed delay: the heartbeat
+          // interval and the scheduler can both lag on a loaded host.
+          final deadline = DateTime.now().add(const Duration(seconds: 5));
+          while (timeouts.heartbeatFailures == 0 &&
+              DateTime.now().isBefore(deadline)) {
+            await Future<void>.delayed(const Duration(milliseconds: 5));
+          }
+        }
         api.artistsCompleter!.complete(api.artists);
         final result = await run;
 
-        expect(
-          result.status,
-          anyOf(LibrarySyncStatus.succeeded, LibrarySyncStatus.partial),
-        );
-        expect(result.failureCategory, isNull);
-        expect(timeouts.releaseFailures > 0, release);
-        if (release) {
-          // The lease is left to expire; the next acquire after its TTL
-          // takes it over and recovers.
+        if (lockTimeout) {
+          expect(timeouts.heartbeatFailures > 0, !release);
           expect(
-            await database.librarySyncDao.getExecutionLease(serverId),
-            isNotNull,
+            result.status,
+            anyOf(LibrarySyncStatus.succeeded, LibrarySyncStatus.partial),
           );
+          expect(result.failureCategory, isNull);
+          expect(timeouts.releaseFailures > 0, release);
+          if (release) {
+            // The swallowed release failure leaves the lease row behind
+            // until its TTL; this only asserts that it survived the run.
+            // TTL takeover is covered by 'a real mid-run takeover stops the
+            // run cleanly as leaseHeld'.
+            expect(
+              await database.librarySyncDao.getExecutionLease(serverId),
+              isNotNull,
+            );
+          }
+        } else {
+          expect(result.status, LibrarySyncStatus.cancelled);
+          expect(timeouts.heartbeatFailures, greaterThan(0));
         }
       }, skip: !sqliteAvailable);
     }

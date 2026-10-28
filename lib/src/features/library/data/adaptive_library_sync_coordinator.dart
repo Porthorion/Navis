@@ -1253,7 +1253,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                   )
                   // A busy writer lock says nothing about ownership: the write
                   // fence checks the lease on every write and the next beat
-                  // retries. Any other error fails closed.
+                  // retries. Any other error fails closed. The handler's bool
+                  // return is the ownership flag (true = keep running).
                   .catchError(isDatabaseLockTimeout)
                   .then((owned) {
                     if (!owned && leaseActive) cancelSync();
