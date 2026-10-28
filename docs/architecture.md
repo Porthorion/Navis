@@ -4570,9 +4570,20 @@ sidecar downloader, on Android with `prefetch()` on the next song's existing
 request joins the running download, `_lockCacheWarmSongId`; one source per cache
 file: a rebuilt queue reuses the registered source (`_runningLockCacheSource`), a
 first entry per file keeps it and a repeat of the song, in the batch or already in the
-player, gets the plain non-downloading stream form (`_shareLockCacheSources`; one
-source instance never sits at two playlist positions) and the
-registry holds the source the player holds once a batch is applied; the warm pauses while the current song's Fast Seeking
+player, gets its own `LockCacheFollowerSource` (`_shareLockCacheSources`; a
+`StreamAudioSource` with its own id whose `request` delegates to the writer, so it reads the
+completed file first, joins the running download and never fetches the origin itself;
+one source instance never sits at two playlist positions, and disposing an occurrence
+never touches the writer; if the writer's cache file is evicted after completion, the next
+request, from the writer or a repeat, downloads it again through the same writer, which
+re-registers itself through `onDownloadStart`; a new occurrence takes its leader from the
+registry or else the writer the player holds for that cache path, `_heldLockCacheWriters`,
+so it never becomes a second writer; a request that arrives while a download is finishing
+is answered from the completed file) and the
+registry holds the source the player holds as soon as the native call returns, before any
+cross-fade deck mirror (`_releaseTail`, `_applyMaterialisedInsert`, `_fillQueueBatch`; known limit: if the writer's native insert fails in the one-by-one fallback while its
+repeat is inserted, the repeat downloads through an unobserved writer (needs a batch
+failure plus a duplicate in the same batch); the warm pauses while the current song's Fast Seeking
 range fetch is live; no source, such as a downloaded, fully cached or
 deferred-tail song, is no warm). Its
 completed file is available to normal cache-first resolution and seek recovery.
@@ -5399,7 +5410,8 @@ in-flight retry instead of restoring twice. `queueRestoreRetries` counts
 retries that ran. A seek beyond the downloaded part of an Android
 lock-cached song is native when the origin answered the download with byte-range
 support (`LockCachingAudioSource.originSupportsRangeRequests`, a Navis addition
-to the vendored just_audio): the source fetches that range itself. A linear
+to the vendored just_audio; `lockCacheOriginRanges` gives both seek planners the
+writer's answer for a repeat occurrence too): the source fetches that range itself. A linear
 origin, such as a Navidrome transcode on a transcode-cache miss (`200`,
 `Accept-Ranges: none`), makes the source serve every request from the start of
 the song, and ExoPlayer treats a stream of unknown length as unseekable, so a

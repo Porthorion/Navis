@@ -46,6 +46,7 @@ import 'package:navis/src/features/player/data/playback_navigation_intent.dart';
 import 'package:navis/src/features/player/data/playback_startup_trace.dart';
 import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
+import 'package:navis/src/features/player/data/lock_cache_follower_source.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/seek_preview_request.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
@@ -226,6 +227,19 @@ class NavisAudioHandler extends BaseAudioHandler
   // ignore: experimental_member_use, reason: as above.
   LockCachingAudioSource? debugRegisteredLockCacheSource(String songId) =>
       _lockCacheSourceOfSong(songId);
+
+  /// The player sources a full queue rebuild of [songIds] would hold, without
+  /// applying them (tests pin that a held registered source stays the writer).
+  @visibleForTesting
+  Future<List<AudioSource>> debugPrepareReplacementSources(
+    List<String> songIds,
+  ) async => [
+    for (final item in await _prepareQueueItems(
+      await _libraryDao.getSongsByIds(songIds),
+      preferLockCaching: true,
+    ))
+      item.audioSource,
+  ];
 
   @visibleForTesting
   bool get debugSeekTraceInstalled => _lastSeek?.onStage != null;
@@ -1039,25 +1053,22 @@ class NavisAudioHandler extends BaseAudioHandler
         songId: prepared.first.song.id,
         cancelAfterSuccess: false,
       );
+      // The append is committed: register what the player holds before
+      // anything can wait (the deck mirror), as a queue fill does.
+      _observeLockCacheForPrepared(prepared);
+      final at = _queueItems.length;
       // Move the page from the tail to the materialised queue in one step,
       // so no snapshot sees it in both.
       _queueItems.addAll(prepared.map((item) => item.mediaItem));
       _deferredTail.removeRange(0, take);
       if (deckInSync) {
-        try {
-          await inactiveDeck.addAudioSources(
-            prepared
-                .map(
-                  (item) =>
-                      item.source.asClonedAudioSource(tag: item.mediaItem),
-                )
-                .toList(growable: false),
-          );
-        } on Object catch (error) {
-          AppLogger.debug('Deferred queue deck mirror failed: $error');
-        }
+        await _mirrorInsertOnDeck(
+          inactiveDeck,
+          prepared,
+          at: at,
+          operation: 'release deferred queue',
+        );
       }
-      _observeLockCacheForPrepared(prepared);
     }
     final dropped = take - prepared.length;
     _reportDroppedSongs(<String>[
