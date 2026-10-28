@@ -402,6 +402,181 @@ class PositionBlip(unittest.TestCase):
                 self.assertEqual([v['oracle'] for v in engine.oracle_progress_loss(run)], ['progressLoss'])
 
 
+class CrossfadeLongOracle(unittest.TestCase):
+    """P5 oracles (synthetic samples): a clean swap passes, each defect is reported by name."""
+    IDS = ['a', 'b']
+    FADE = 4000
+
+    @staticmethod
+    def swap(mutate=None):
+        rows = []
+        for i in range(160):  # 16 s at 10 Hz: the last 10 s of song a (0..99), then song b from 0 (100..)
+            song, pos = ('a', 290000 + i * 100) if i < 100 else ('b', (i - 100) * 100 + 4000)
+            rows.append({'t': 10 + i * 0.1, 'songId': song, 'idx': 0 if song == 'a' else 1, 'pos': pos, 'uiPos': pos,
+                         'playing': True, 'proc': 'ready', 'dur': 300000, 'off': 0, 'cf': {}})
+        if mutate:
+            mutate(rows)
+        return rows
+
+    def names(self, rows, saved=None):
+        run = type('R', (), {'samples': rows, 'actions': [], 'trace': [], 'metrics': {}})()
+        return [v['oracle'] for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE, saved, rows[-1])]
+
+    def test_clean_swap_passes(self):
+        self.assertEqual(self.names(self.swap(), {'index': 1, 'positionMs': 9800}), [])
+
+    def test_jump_and_backstep(self):
+        def jump(rows):
+            for r in rows[50:]:
+                r['uiPos'] += 3000
+        def back(rows):
+            for r in rows[50:]:
+                r['pos'] -= 1000
+        self.assertEqual(self.names(self.swap(jump)), ['xfadeJump'])
+        self.assertEqual(self.names(self.swap(back)), ['xfadeJump'])
+
+    def test_a_sampling_gap_is_not_a_jump(self):
+        """The API poll can stall (adb, UI isolate): a 2 s gap with a matching 2 s position step is real-time playback."""
+        def gap(rows):
+            for r in rows[120:]:
+                r['t'] += 1.9
+                r['pos'] += 1900
+                r['uiPos'] += 1900
+        self.assertEqual(self.names(self.swap(gap)), [])
+        def gap_jump(rows):
+            gap(rows)
+            for r in rows[140:]:
+                r['pos'] += 2000
+        self.assertIn('xfadeJump', self.names(self.swap(gap_jump)))
+
+    def test_freeze(self):
+        def freeze(rows):
+            for r in rows[60:90]:
+                r['pos'] = rows[60]['pos']
+        self.assertEqual(self.names(self.swap(freeze)), ['xfadeFrozen', 'xfadeJump'])  # the unfreeze is a 3 s step
+        def short_freeze(rows):
+            for r in rows[60:70]:
+                r['pos'] = rows[60]['pos']
+        self.assertNotIn('xfadeFrozen', self.names(self.swap(short_freeze)))
+
+    @staticmethod
+    def real_freeze(rows):
+        """Real rows, fix r0 @13.22-14.62: the song flips to B, the display holds 0 for 1.5 s with proc=buffering, playing=True, cf active."""
+        for r in rows[100:156]:
+            r.update(proc='buffering', pos=0, uiPos=0, cf={'active': True})
+        for r in rows[156:]:
+            r.update(cf={'active': True})
+        for i, r in enumerate(rows[100:], 0):
+            r['t'] = 13.222 + i * 0.03  # dense enough: > 1.5 s of buffering
+
+    def test_buffering_during_the_fade_counts_as_frozen(self):
+        run = type('R', (), {'samples': self.swap(self.real_freeze), 'actions': [], 'trace': [], 'metrics': {}})()
+        found = [v for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE) if v['oracle'] == 'xfadeFrozen']
+        self.assertTrue(found)
+
+    def test_start_action_does_not_mask_the_freeze(self):
+        """A 'start' never gets a 'ret' (start_queue sets one only for issue_seek), so its 15 s window hid the whole
+        swap window; only seeks and navigations may mask."""
+        run = type('R', (), {'samples': self.swap(self.real_freeze), 'actions': [{'kind': 'start', 't': 0.5}],
+                             'trace': [], 'metrics': {}})()
+        found = [v for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE) if v['oracle'] == 'xfadeFrozen']
+        self.assertTrue(found)
+
+    def test_start_up_before_first_audio_is_not_a_freeze(self):
+        """'start' no longer masks, so a position pinned at 0 while the app already reports playing must not count."""
+        rows = self.swap()
+        pre = [dict(rows[0], t=round(rows[0]['t'] - 3 + i * 0.1, 3), pos=0, uiPos=0) for i in range(30)]
+        run = type('R', (), {'samples': pre + rows, 'actions': [{'kind': 'start', 't': pre[0]['t']}],
+                             'trace': [], 'metrics': {}})()
+        self.assertNotIn('xfadeFrozen', [v['oracle'] for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE)])
+
+    def test_buffering_outside_a_fade_is_not_a_freeze(self):
+        def stall(rows):
+            for r in rows[100:156]:
+                r.update(proc='buffering', pos=0, uiPos=0)
+            for i, r in enumerate(rows[100:], 0):
+                r['t'] = 13.222 + i * 0.03
+        run = type('R', (), {'samples': self.swap(stall), 'actions': [], 'trace': [], 'metrics': {}})()
+        self.assertNotIn('xfadeFrozen', [v['oracle'] for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE)])
+
+    def test_late_incoming_start(self):
+        def late(rows):
+            for r in rows[100:]:
+                r['pos'] += 20000
+                r['uiPos'] += 20000
+        self.assertIn('xfadeLateStart', self.names(self.swap(late)))
+
+    def test_persisted_position_follows_the_save_design(self):
+        """Saves are events (the handoff 250 ms after the swap) plus a 15 s timer. Real P5 rows: saved 4366-4370 ms read 5.5 s
+        after the swap while 9546 ms was shown is correct; a wrong index or another song's position is not."""
+        end = self.swap()[-1]['pos']
+        for saved in ({'index': 1, 'positionMs': 4368}, {'index': 1, 'positionMs': end - 2500}, {'index': 1, 'positionMs': end}):
+            self.assertEqual(self.names(self.swap(), saved), [], saved)
+        for saved in ({'index': 0, 'positionMs': 4975},               # base r1: saved the outgoing song's index
+                      {'index': 1, 'positionMs': 299000},             # outgoing song's position under the incoming index
+                      {'index': 1, 'positionMs': 2000},               # older than the swap
+                      {'index': 1, 'positionMs': end + 5000}):        # ahead of the display
+            self.assertEqual(self.names(self.swap(), saved), ['xfadePersistMismatch'], saved)
+
+    def test_a_save_older_than_the_timer_period_must_have_been_refreshed(self):
+        rows = self.swap()  # the swap is at t=20 s; the read at t=40 s, so a save from the swap (4100 ms) is 20 s old
+        run = type('R', (), {'samples': rows, 'actions': [], 'trace': [], 'metrics': {}})()
+        after = dict(rows[-1], t=40.0)
+        stale = engine.oracle_crossfade_long(run, self.IDS, self.FADE, {'index': 1, 'positionMs': 4100}, after)
+        self.assertEqual([v['oracle'] for v in stale], ['xfadePersistMismatch'])
+
+    def test_seek_in_flight_is_not_a_jump(self):
+        rows = self.swap(lambda r: [x.update(uiPos=x['uiPos'] + 5000) for x in r[30:]])
+        run = type('R', (), {'samples': rows, 'actions': [{'kind': 'seek', 't': 12.9, 'ret': 13.1}], 'trace': [], 'metrics': {}})()
+        self.assertEqual(engine.oracle_crossfade_long(run, self.IDS, self.FADE), [])
+
+
+class AndroidCrossfadeSeed(unittest.TestCase):
+    """An Android crossfade run seeds crossfade_enabled and the duration into the emulator profile (not crossfadeOff)."""
+    def seeded(self, fade_s):
+        import sqlite3
+        db = sqlite3.connect(':memory:')
+        db.executescript("CREATE TABLE server_config(url TEXT); INSERT INTO server_config VALUES('x');"
+                         "CREATE TABLE app_settings(rolling_cache_budget_mb INT, crossfade_enabled INT DEFAULT 0, "
+                         "crossfade_duration_seconds INT DEFAULT 5, gapless_enabled INT DEFAULT 0); INSERT INTO app_settings(rolling_cache_budget_mb) VALUES(1);"
+                         "CREATE TABLE play_queue(id INT); CREATE TABLE play_queue_items(id INT);")
+        with patch.object(engine, 'CROSSFADE_S', fade_s):
+            engine.android_seed_edits(db, 'http://127.0.0.1:1')
+        return db.execute('SELECT crossfade_enabled, crossfade_duration_seconds, gapless_enabled, rolling_cache_budget_mb FROM app_settings').fetchone()
+
+    def test_crossfade_run_seeds_enabled_and_duration(self):
+        self.assertEqual(self.seeded(4), (1, 4, 1, 160))
+
+    def test_other_runs_keep_the_seed_settings(self):
+        self.assertEqual(self.seeded(0), (0, 5, 0, 160))
+
+    def test_crossfade_is_an_android_scenario(self):
+        self.assertIn('crossfade', h.ANDROID_SCENARIOS)
+
+
+class ActivePlayerPosition(unittest.TestCase):
+    """Artefact 1: mediaKitTransport lists every native player in no fixed order; `pos` must follow the active one.
+    Numbers are real rows of the 2026-10-28 repro (fix rep 0 and rep 2); the transport list order is reconstructed."""
+    @staticmethod
+    def ingest(transport, pp, offset=0):
+        import time
+        run = object.__new__(engine.Run)
+        run.t0, run.w0, run.samples, run.trace, run._trace_seq = time.monotonic(), time.time(), [], [], 0
+        run.ingest({'songId': 's', 'currentIndex': 1, 'playerPositionMs': pp, 'positionOffsetMs': offset, 'processingState': 'ready',
+                    'native': {'mediaKitTransport': [{'positionMs': t} for t in transport]}})
+        return run.samples[0]['pos']
+
+    def test_retired_outgoing_player_listed_first(self):  # fix r0 @15.12: pos stuck 416 while the active player is at 4085
+        self.assertEqual(self.ingest([416, 4085], 4085), 4085)
+
+    def test_fresh_incoming_deck_listed_first_with_offset(self):  # fix r2 @7.82: pos 290000 (= 0 + offset) while the song is at 294315
+        self.assertEqual(self.ingest([0, 4315], 294315, 290000), 294315)
+
+    def test_single_player_and_missing_player_position_unchanged(self):
+        self.assertEqual(self.ingest([1200], 1190), 1200)
+        self.assertEqual(self.ingest([416, 4085], None), 416)
+
+
 class RepeatFillOracle(unittest.TestCase):
     def test_loading_cursor_between_end_and_restart_does_not_hide_wrap(self):
         first = {'songId': 'a', 'dur': 300000}
@@ -829,8 +1004,8 @@ class InfraErrors(unittest.TestCase):
 
 class DurableEvidence(unittest.TestCase):
     def test_full_counts(self):
-        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'linux')) for n in h.SCENARIOS), 118)
-        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'android')) for n in h.ANDROID_SCENARIOS), 73)
+        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'linux')) for n in h.SCENARIOS), 124)
+        self.assertEqual(sum(len(h.expected_cells(n, True, None, 'android')) for n in h.ANDROID_SCENARIOS), 88)
 
     def test_exact_cells(self):
         expected = h.expected_cells('queue-edit', False, None, 'linux')

@@ -1480,7 +1480,7 @@ setsid bash -c 'trap : TERM; echo $$ > build/harness/launch-'$stamp'.pid
 
 It runs check.sh, Linux, then Android serially; Android is required by this
 fixture gate. A missing SDK/AVD is blocked, never successful or silently skipped.
-It preserves all **118 Linux + 73 Android cells per variant (382 A/B cells)**,
+It preserves all **124 Linux + 88 Android cells per variant (424 A/B cells)**,
 assertions and tolerances. `--map`, quick runs and repetition overrides remain
 iteration tools, not substitutes. No calibration/threshold work is included.
 See the [coverage map](playback-validation-coverage.md) for requirements beyond
@@ -1622,7 +1622,7 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   | `stress-drag` | held slider drag: preview sockets, GETs, heartbeat, release latency |
   | `memory-soak` | PSS + SwapPss slope and post-GC total, plus Dart heap over 20 drags and an idle window |
   | `repeat` | Repeat One/All wraps, append at the queue end, next-song readiness and network-free seeks at handover (`chain_end`; gated on Linux and Android) |
-  | `crossfade` | hand-off under a 4 s cross-fade, skips |
+  | `crossfade` | hand-off under a 4 s cross-fade, skips, long-song swap (`crossfade_long_end`, `crossfade_long_noseek`) |
   | `cut-recovery` | origin cuts, dead sources, cold seeks; on Android also the Ogg cut splice (`cut40`, `cut40x2`, `cut5`: only the first body is cut, then no reload or player error, one continuation request per cut, final cache file decodes clean within the join rms and 20 ms length bounds; `cut5` is Android-only) |
   | `local-seek` | seeks in a downloaded or fully cached file |
   | `queue-edit` | queue edits during a fill |

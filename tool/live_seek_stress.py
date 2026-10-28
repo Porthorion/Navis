@@ -423,6 +423,20 @@ def point_profile_at(url: str):
             (1 if CROSSFADE_S else 0, CROSSFADE_S or 5))
 
 
+def android_seed_edits(copy, server_url: str):
+    """Edits to the emulator's seed copy of the Linux profile: server, rolling-cache budget, empty queue, and the
+    cross-fade the run asks for (the same UPDATE point_profile_at gives the Linux profile)."""
+    copy.execute('UPDATE server_config SET url = ?', (server_url,))
+    # Keep streamed FLAC from filling the emulator's data partition
+    # (the phone AVD has only ~500 MB free; a full disk cascades
+    # into player and API failures).
+    copy.execute('UPDATE app_settings SET rolling_cache_budget_mb=160')
+    copy.execute('DELETE FROM play_queue_items')
+    copy.execute('DELETE FROM play_queue')
+    if CROSSFADE_S:
+        copy.execute('UPDATE app_settings SET crossfade_enabled = 1, crossfade_duration_seconds = ?, gapless_enabled = 1', (CROSSFADE_S,))
+
+
 class App:
     def __init__(self, run: Path, platform: str):
         self.run = run
@@ -524,13 +538,7 @@ class AndroidApp(App):
             # The backup inherits WAL mode; edits would then stay in a -wal
             # file that is never pushed.
             copy.execute('PRAGMA journal_mode=DELETE')
-            copy.execute('UPDATE server_config SET url = ?', (server_url,))
-            # Keep streamed FLAC from filling the emulator's data partition
-            # (the phone AVD has only ~500 MB free; a full disk cascades
-            # into player and API failures).
-            copy.execute('UPDATE app_settings SET rolling_cache_budget_mb=160')
-            copy.execute('DELETE FROM play_queue_items')
-            copy.execute('DELETE FROM play_queue')
+            android_seed_edits(copy, server_url)
             copy.commit()
         finally:
             copy.close()
@@ -1011,6 +1019,19 @@ class CaseAbort(Exception):
     """The case cannot continue (for example the song never started)."""
 
 
+def active_transport_ms(transport: list, offset: int, player_position) -> int | None:
+    """Native position of the active player. mediaKitTransport holds every native player (the cross-fade deck and the
+    retired outgoing one too) in no fixed order and without ids: take the entry whose song time is closest to the
+    handler's own player position. This sets `pos` for every scenario on every platform, not only cross-fade: with more
+    than one entry `pos` is always the entry nearest playerPositionMs + offset (the one global offset is also applied to
+    a retired deck), so a non-cross-fade oracle comparing native with handler position sees the active deck."""
+    if not transport:
+        return None
+    if player_position is None or len(transport) == 1:
+        return transport[0].get('positionMs')
+    return min(transport, key=lambda e: abs((e.get('positionMs') or 0) + offset - player_position)).get('positionMs')
+
+
 class Run:
     """One case execution: samples, trace, harness actions and verdicts."""
 
@@ -1050,7 +1071,7 @@ class Run:
     def ingest(self, state: dict):
         native = state.get('native') or {}
         transport = native.get('mediaKitTransport') or []
-        position = (transport[0].get('positionMs') if transport else None)
+        position = active_transport_ms(transport, state.get('positionOffsetMs') or 0, state.get('playerPositionMs'))
         # An offset transcode (1.5.1) plays from native 0: the transport reports
         # time inside the stream, so add the source's positionOffset to get song time.
         offset = state.get('positionOffsetMs') or 0
@@ -1096,7 +1117,7 @@ class Run:
             'off': offset, 'pp': state.get('playerPositionMs'),
             'bridge': state.get('fastSeekBridge'), 'sidecar': state.get('sidecar'),
             'media': native.get('mediaKitCurrent'),
-            'cf': {k: (state.get('crossfade') or {}).get(k) for k in ('enabled', 'active', 'disabledReason', 'lastFailure', 'phases')},
+            'cf': {k: (state.get('crossfade') or {}).get(k) for k in ('enabled', 'active', 'disabledReason', 'lastFailure', 'phases', 'outgoing', 'incoming')},
         }
         self.samples.append(sample)
         for entry in state.get('transportTrace') or []:
@@ -3488,11 +3509,11 @@ def persisted_queue(app) -> dict:
                 shutil.copy(ROOT / name, tmp / name)
         db = sqlite3.connect(f'file:{tmp / "navis.sqlite"}?mode=ro', uri=True)
         try:
-            row = db.execute('SELECT shuffle_mode, current_index FROM play_queue ORDER BY id LIMIT 1').fetchone()
+            row = db.execute('SELECT shuffle_mode, current_index, position_ms FROM play_queue ORDER BY id LIMIT 1').fetchone()
             items = db.execute('SELECT song_id, original_order FROM play_queue_items ORDER BY sort_order').fetchall()
         finally:
             db.close()
-        return {'mode': row[0] if row else None, 'index': row[1] if row else None,
+        return {'mode': row[0] if row else None, 'index': row[1] if row else None, 'positionMs': row[2] if row else None,
                 'ids': [i[0] for i in items], 'ranks': [i[1] for i in items]}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -3979,6 +4000,131 @@ def case_crossfade_end(run: Run, env):
     run.checks.append(lambda: oracle_sequence(run, ids, minimum=len(ids)))
 
 
+# P5 / triage row 28: cross-fading out of a LONG song (the 1-8 s fixture songs above cannot see it).
+XFADE_LONG_MIN_S = 180           # both songs at least this long (fixture tracks 2+ are 300 s)
+XFADE_LONG_LEAD_MS = 10000       # seek the first song to this long before its end
+XFADE_NOSEEK_S = (100, 200)      # no-seek variant: the first song's length range (the fixture's 120 s track)
+XFADE_LONG_AFTER_SWAP_S = 6.0    # keep sampling this long after the incoming song is current
+XFADE_JUMP_MS = 1500             # (a) forward step between samples of one song
+XFADE_BACKSTEP_MS = 300          # (a) backwards step (native clock jitter stays well below this)
+XFADE_FREEZE_S = 1.5             # (b) position unchanged this long while playing and ready
+XFADE_FREEZE_EPS_MS = 50         # (b) a step smaller than this counts as unchanged
+XFADE_START_SLACK_MS = 1500      # (c) incoming first position <= fade + this
+XFADE_PERSIST_LAG_S = 15.5       # (d) saves are events plus a 15 s timer (+ 250 ms debounce): a save may be this old
+XFADE_PERSIST_SLACK_MS = 1000    # (d) tolerance around the displayed positions the save could have captured
+
+
+def _xfade_shown(s):
+    """The position the user sees: the UI stream when sampled, else the transport position."""
+    return s['uiPos'] if s.get('uiPos') is not None else s['pos']
+
+
+def oracle_crossfade_long(run: Run, ids: list[str], fade_ms: int, saved=None, after=None) -> list[dict]:
+    """(a) a displayed or native position jump or backwards step inside one song, (b) a frozen position while playing,
+    (c) the incoming song not starting near 0, (d) the saved position disagreeing with the displayed one after the swap."""
+    out, samples = [], run.samples
+    # Start-up is not a hand-over: with 'start' no longer masking, check only from the first audio on (as max_frozen_s).
+    first_audio = next((s['t'] for s in samples if s['pos'] and s['playing']), None)
+    for key in ('pos', 'uiPos'):
+        frozen_from, reported_freeze, reported_jump = None, False, False
+        for i in range(1, len(samples)):
+            a, b = samples[i - 1], samples[i]
+            if first_audio is None or a['t'] < first_audio or not (a['songId'] and a['songId'] == b['songId'] and a['idx'] == b['idx'] and a.get(key) is not None
+                    and b.get(key) is not None and a['playing'] and b['playing']) or _requested_at(
+                    run, b['t'], kinds=('seek', 'jump', 'next', 'prev')):  # a 'start' has no 'ret' and would mask the swap
+                frozen_from, reported_freeze = None, False
+                continue
+            # A cross-fade hands over while the outgoing deck re-buffers the next song: the user still hears
+            # the incoming deck, so `buffering` while playing is a frozen display there, not a legitimate stall.
+            fading = bool((a.get('cf') or {}).get('active') or (b.get('cf') or {}).get('active'))
+            ready = a['proc'] == b['proc'] == 'ready'
+            if not (ready or (fading and a['proc'] in ('ready', 'buffering') and b['proc'] in ('ready', 'buffering'))):
+                frozen_from, reported_freeze = None, False
+                continue
+            step = b[key] - a[key]
+            dt = b['t'] - a['t']
+            if ready and (step - dt * 1000 > XFADE_JUMP_MS or step < -XFADE_BACKSTEP_MS) and not reported_jump \
+                    and not (key == 'pos' and is_position_blip(samples, i)):
+                reported_jump = True
+                out.append(violation('xfadeJump', b['t'], f"{key} {a[key]} -> {b[key]} on {b['songId']} "
+                                     f"(limit +{XFADE_JUMP_MS} / -{XFADE_BACKSTEP_MS} ms)", run))
+            if abs(step) > XFADE_FREEZE_EPS_MS:
+                frozen_from, reported_freeze = None, False
+                continue
+            frozen_from = a['t'] if frozen_from is None else frozen_from
+            if b['t'] - frozen_from > XFADE_FREEZE_S and not reported_freeze:
+                reported_freeze = True
+                out.append(violation('xfadeFrozen', b['t'], f"{key} stuck at {b[key]} on {b['songId']} for "
+                                     f"{b['t'] - frozen_from:.1f} s while playing", run))
+    first = next((s for s in samples if len(ids) > 1 and s['songId'] == ids[1] and s['proc'] == 'ready' and s['pos'] is not None), None)
+    if first and first['pos'] > fade_ms + XFADE_START_SLACK_MS:
+        out.append(violation('xfadeLateStart', first['t'], f"incoming song first ready at {first['pos']} ms "
+                             f"(limit {fade_ms} + {XFADE_START_SLACK_MS})", run))
+    if saved and first and after and _xfade_shown(after) is not None:
+        # The save was taken at some moment within the last XFADE_PERSIST_LAG_S before the read, but not before the swap.
+        since = max(first['t'], after['t'] - XFADE_PERSIST_LAG_S)
+        shown = [_xfade_shown(s) for s in samples if s['songId'] == ids[1] and s['t'] >= since and _xfade_shown(s) is not None]
+        low, high = min(shown, default=_xfade_shown(after)), max(shown + [_xfade_shown(after)])
+        position = saved.get('positionMs') or 0
+        if saved.get('index') != 1 or not low - XFADE_PERSIST_SLACK_MS <= position <= high + XFADE_PERSIST_SLACK_MS:
+            out.append(violation('xfadePersistMismatch', after['t'], f"saved index {saved.get('index')} position {position} ms, "
+                                 f"displayed {low}..{high} ms since t={since:.1f} on {after['songId']}", run))
+    return out
+
+
+def crossfade_long_case(run: Run, env, seek: bool):
+    """Shared body of the long-song cross-fade cases: the swap and the seconds after it are sampled densely
+    (displayed/native position, outgoing/incoming player, phases), then the saved transport position is read from the profile database."""
+    if seek:
+        songs = env.backend.fresh_songs(2, min_s=XFADE_LONG_MIN_S)
+    else:  # the album's first track is the fixture's 120 s song: played from 0, no seek, no offset stream
+        ids = env.backend.fresh_album()[:2]
+        songs = [{'id': i, 'duration': song_info(run, i)[0]} for i in ids]
+    ids = [s['id'] for s in songs]
+    run.songs = songs
+    if (seek and any(s.get('duration', 0) < XFADE_LONG_MIN_S for s in songs)) or (
+            not seek and not XFADE_NOSEEK_S[0] <= songs[0]['duration'] <= XFADE_NOSEEK_S[1]):
+        run.violations.append(violation('caseError', run.now(), f'fixture songs do not fit the case: {songs}', run))
+        raise CaseAbort('no suitable songs')
+    rec = start_queue(run, ids)
+    await_audio(run, rec, ids[0])
+    landing, seek_ms = None, None
+    if seek:
+        seek_ms = int(songs[0]['duration']) * 1000 - XFADE_LONG_LEAD_MS
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            issued = issue_seek(run, pool, seek_ms)
+            landing = landed(run, issued)
+            finish_futures(run)
+        if landing is None:
+            run.violations.append(violation('seekNoLand', issued['t'], f'no landing at {seek_ms} ms', run))
+            raise CaseAbort('seek did not land')
+    moved = run.until(lambda s: s['songId'] == ids[1] and s['proc'] == 'ready' and s['playing'],
+                      (XFADE_LONG_LEAD_MS if seek else songs[0]['duration'] * 1000) / 1000 + run.deadlines['advance'])
+    if moved is None:
+        run.violations.append(violation('chainNoHandover', run.now(), 'the long song never handed over to the next', run))
+        raise CaseAbort('no handover')
+    run.observe(XFADE_LONG_AFTER_SWAP_S)
+    before = run.last()
+    saved = persisted_queue(run.app)
+    after = run.last()
+    run.metrics['xfadeLong'] = {
+        'seeked': seek, 'seekMs': seek_ms, 'landedAt': landing and landing['t'], 'swapAt': moved['t'],
+        'saved': {k: saved.get(k) for k in ('index', 'positionMs')}, 'displayedMs': [_xfade_shown(before), _xfade_shown(after)],
+        'window': [[s['t'], s['songId'], s['pos'], s['uiPos'], (s['cf'] or {}).get('active'),
+                    ((s['cf'] or {}).get('outgoing') or {}).get('positionMs'), ((s['cf'] or {}).get('incoming') or {}).get('positionMs')]
+                   for s in run.samples if moved['t'] - 15 <= s['t'] <= moved['t'] + 3]}
+    run.checks.append(lambda: oracle_crossfade_long(run, ids, CROSSFADE_S * 1000, saved, after))
+
+
+def case_crossfade_long_end(run: Run, env):
+    """Cross-fade out of a long song: two songs of >= 3 min, the first seeked to 10 s before its end."""
+    crossfade_long_case(run, env, seek=True)
+
+
+def case_crossfade_long_noseek(run: Run, env):
+    """The same swap without a seek (a 120 s song played from 0 into a 300 s one): shows whether the overrun depends on the seek."""
+    crossfade_long_case(run, env, seek=False)
+
 def start_player_overlay(run: Run):
     run.app.api('/v1/presentation/player-overlay', {'surface': 'nowPlaying', 'visible': True, 'settle': False})
     run.app.api('/v1/presentation/dismiss-popup', {})
@@ -4233,7 +4379,7 @@ CASE_FUNCS = {
     'shuffle_toggle': case_shuffle_toggle,
     'queue_playnext_add': queue_case(edit_play_next_add),
     'queue_reorder': queue_case(edit_reorder),
-    'crossfade_end': case_crossfade_end, 'stress_drag': case_stress_drag, 'stress_flick': case_stress_flick,
+    'crossfade_end': case_crossfade_end, 'crossfade_long_end': case_crossfade_long_end, 'crossfade_long_noseek': case_crossfade_long_noseek, 'stress_drag': case_stress_drag, 'stress_flick': case_stress_flick,
     'mem_soak': case_mem_soak, 'local_seek': case_local_seek,
     'q7_append_200': q7_append_case(200), 'q7_append_after5': q7_append_case(-5),
 }

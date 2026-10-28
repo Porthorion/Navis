@@ -102,8 +102,9 @@ SCENARIOS = {
                 ('nextRequestLeadMinS', '>=', 6.0), ('nextBytesAtHandoverMin', '>=', 1048576),
                 ('nextSeekLocalRate', '>=', 0.75)]),
     'crossfade': dict(
-        cases='crossfade_end,skip_next,skip_prev', quick='crossfade_end,skip_next,skip_prev',
-        qualities='opus128', throttle='none', reps=3, budget=(1, 3),
+        cases='crossfade_end,skip_next,skip_prev,crossfade_long_end,crossfade_long_noseek',
+        quick='crossfade_end,skip_next,skip_prev,crossfade_long_end,crossfade_long_noseek',  # noseek plays a whole 120 s song (~2 min)
+        qualities='opus128', throttle='none', reps=3, budget=(4, 12),
         args=['--crossfade-s', '4'],
         areas=CROSSFADE,
         checks=[('violations', '<=', 0), ('frozenMedianS', 'base+', 0.1)]),
@@ -130,7 +131,7 @@ SCENARIOS = {
 # clean and joins within the rms bound (the base line shows its reloads for comparison; the base must be >= 1 to prove the cut bites).
 ANDROID_CHECKS = {'cut-recovery': [('reloadsAfterCut', '<=', 0), ('playerErrorsAfterCut', '<=', 0), ('spliceFrozenMedianS', '<=', 1.0),
                                    ('spliceRequestsOk', 'true'), ('spliceFileOk', 'true'), ('joinRmsMax', '<=', 0.005)]}
-ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'queue-edit', 'cut-recovery')
+ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'crossfade', 'queue-edit', 'cut-recovery')
 PLAYER_FALLBACK = 'lib/src/features/player/**'
 
 
