@@ -542,6 +542,13 @@
   "weeklyPlaylistNoTracksYet": "No Tracks Yet",
   "weeklyPlaylistReady": "Ready",
   "weeklyPlaylistMatching": "Matching",
+  "weeklyPlaylistMatchingProgress": "Matching {done} of {total}",
+  "@weeklyPlaylistMatchingProgress": {
+    "placeholders": {
+      "done": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
   "weeklyPlaylistSearchAction": "Search",
   "weeklyPlaylistAmbiguousMatch": "Ambiguous Match",
   "weeklyPlaylistTrackUnavailable": "Not available on your server",

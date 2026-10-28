@@ -1908,6 +1908,12 @@ abstract class AppLocalizations {
   /// **'Matching'**
   String get weeklyPlaylistMatching;
 
+  /// No description provided for @weeklyPlaylistMatchingProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Matching {done} of {total}'**
+  String weeklyPlaylistMatchingProgress(int done, int total);
+
   /// No description provided for @weeklyPlaylistSearchAction.
   ///
   /// In en, this message translates to:

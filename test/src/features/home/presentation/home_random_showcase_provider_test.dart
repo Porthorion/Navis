@@ -1588,6 +1588,78 @@ void main() {
     expect(cachedRecommendation['song'], isNotNull);
   });
 
+  test('manual rematch reports n of total and clears when done', () async {
+    final database = createTestDatabase();
+    final fakeApi = _FakeDiscoveryApiClient({});
+    const titles = <String>['One', 'Two', 'Three'];
+    final fakeListenBrainz = _FakeListenBrainzApiClient(
+      playlists: const <ListenBrainzPlaylist>[],
+      recommendationPlaylists: const <ListenBrainzPlaylist>[
+        ListenBrainzPlaylist(
+          identifier: 'jams',
+          title: 'Weekly Jams',
+          sourcePatch: 'weekly-jams',
+          tracks: <ListenBrainzPlaylistTrack>[],
+        ),
+      ],
+      detailsById: <String, ListenBrainzPlaylist>{
+        'jams': ListenBrainzPlaylist(
+          identifier: 'jams',
+          title: 'Weekly Jams',
+          sourcePatch: 'weekly-jams',
+          tracks: <ListenBrainzPlaylistTrack>[
+            for (final title in titles)
+              ListenBrainzPlaylistTrack(title: title, creator: 'Artist'),
+          ],
+        ),
+      },
+    );
+    final container = ProviderContainer(
+      overrides: withHomeShowcaseTestOverrides(
+        database,
+        overrides: <Override>[
+          networkTypeProvider.overrideWith((ref) => NetworkType.wifi),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                listenBrainzScrobblingEnabled: true,
+                listenBrainzTokenValid: true,
+                listenBrainzUserName: 'alice',
+              ),
+            ),
+          ),
+          externalScrobbleCredentialStoreProvider.overrideWithValue(
+            const _FakeExternalScrobbleCredentialStore('token'),
+          ),
+          listenBrainzApiClientProvider.overrideWithValue(fakeListenBrainz),
+          subsonicApiProvider.overrideWithValue(fakeApi),
+        ],
+      ),
+    );
+    addTearDown(() async {
+      container.dispose();
+      await pumpEventQueue();
+      await database.close();
+    });
+    final initial = await container.read(listenBrainzDiscoverProvider.future);
+    final seen = <({int done, int total})?>[];
+    container.listen(listenBrainzPlaylistRematchProgressProvider, (_, next) {
+      seen.add(next['weekly-jams']);
+    });
+
+    await container
+        .read(listenBrainzPlaylistRematchControllerProvider.notifier)
+        .rematch(initial.single);
+
+    expect(seen.first, (done: 0, total: 3));
+    expect(seen.whereType<({int done, int total})>().last, (done: 3, total: 3));
+    expect(seen.last, isNull);
+    expect(
+      container.read(listenBrainzPlaylistRematchProgressProvider),
+      isEmpty,
+    );
+  });
+
   test('manual rematch with an unreadable token fails retryably', () async {
     final database = createTestDatabase();
     final container = ProviderContainer(
@@ -1633,6 +1705,10 @@ void main() {
       throwsA(isA<CredentialReadException>()),
     );
     expect(controller.isMatching('weekly-jams'), isFalse);
+    expect(
+      container.read(listenBrainzPlaylistRematchProgressProvider),
+      isEmpty,
+    );
   });
 
   test('cached weekly playlists emit before remote futures complete', () async {

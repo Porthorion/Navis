@@ -37,11 +37,18 @@ class RecommendationBatch {
     required this.songs,
     required this.source,
     this.issue = RecommendationIssue.none,
+    this.lastFmIssue = RecommendationIssue.none,
   });
 
   final List<Song> songs;
   final RecommendationSource source;
   final RecommendationIssue issue;
+
+  /// [RecommendationIssue.invalidKey] when Last.fm rejected the user's key
+  /// although radio still found songs elsewhere; otherwise none. Only a
+  /// rejected key needs the user, so rate limits and other failures stay
+  /// silent.
+  final RecommendationIssue lastFmIssue;
 }
 
 class RadioFilters {
@@ -406,6 +413,7 @@ class RecommendationService {
     final wantedRelated = (count * 0.7).round();
     final related = <Song>[];
     var source = RecommendationSource.localTaste;
+    var lastFmIssue = RecommendationIssue.none;
     if (_ref.read(networkTypeProvider) != NetworkType.offline) {
       final server = await serverMix(
         seed.id,
@@ -422,6 +430,9 @@ class RecommendationService {
           count: wantedRelated - related.length,
           identities: identities,
         );
+        if (lastFm.issue == RecommendationIssue.invalidKey) {
+          lastFmIssue = lastFm.issue;
+        }
         _addEligible(
           related,
           lastFm.songs,
@@ -449,6 +460,7 @@ class RecommendationService {
       issue: chosen.isEmpty
           ? RecommendationIssue.empty
           : RecommendationIssue.none,
+      lastFmIssue: lastFmIssue,
     );
   }
 
@@ -470,10 +482,11 @@ class RecommendationService {
     }
     final client = _ref.read(lastFmApiClientProvider);
     if (client == null) {
+      // No key at all is nothing the user got wrong: fall back silently.
       return const RecommendationBatch(
         songs: <Song>[],
         source: RecommendationSource.lastFm,
-        issue: RecommendationIssue.invalidKey,
+        issue: RecommendationIssue.empty,
       );
     }
     final result = await client.getSimilarTracksResult(
@@ -565,7 +578,9 @@ RecommendationIssue lastFmRecommendationIssue(LastFmTrackFetchResult result) =>
     switch (result.outcome) {
       LastFmFetchOutcome.success => RecommendationIssue.none,
       LastFmFetchOutcome.noResults => RecommendationIssue.empty,
-      LastFmFetchOutcome.notConfigured => RecommendationIssue.invalidKey,
+      // Also returned for a seed with no artist or title, which is no reason
+      // to show the user "Last.fm rejected the API key".
+      LastFmFetchOutcome.notConfigured => RecommendationIssue.empty,
       LastFmFetchOutcome.networkError => RecommendationIssue.networkFailure,
       LastFmFetchOutcome.apiError when result.apiErrorCode == 6 =>
         RecommendationIssue.empty,
