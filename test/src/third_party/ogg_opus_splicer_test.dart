@@ -522,27 +522,35 @@ void main() {
     expect(tail.single.crcOk, isTrue);
   });
 
-  test('lost sync is refused and a wholly overlapped EOS emits nothing', () {
-    final s = OggOpusSplicer();
-    s.forward([
-      ..._headers(),
-      ..._page(96000, [
-        [152, 0],
-      ]),
-    ]);
-    s.beginContinuation(0);
-    expect(
-      s.splice([
+  test(
+    'lost sync is refused and a wholly overlapped EOS emits only an empty EOS',
+    () {
+      final s = OggOpusSplicer();
+      s.forward([
+        ..._headers(),
+        ..._page(96000, [
+          [152, 0],
+        ]),
+      ]);
+      s.beginContinuation(0);
+      final out = s.splice([
         ..._headers(),
         ..._page(960, [
           [152, 0],
         ], flags: 4),
-      ]),
-      isEmpty,
-    );
-    expect(s.resumeSeconds, 1);
-    expect(() => s.splice([0, 0, 0, 0]), throwsFormatException);
-  });
+      ]);
+      // No audio is new, but the stream still ends: one data-less EOS page.
+      expect(out.length, 27);
+      expect(out[5], 4);
+      expect(
+        ByteData.sublistView(Uint8List.fromList(out))
+            .getInt64(6, Endian.little),
+        96000,
+      );
+      expect(s.resumeSeconds, 1);
+      expect(() => s.splice([0, 0, 0, 0]), throwsFormatException);
+    },
+  );
 
   test('a channel mismatch is refused', () {
     final s = OggOpusSplicer();
@@ -608,6 +616,135 @@ void main() {
     expect(ByteData.sublistView(d).getInt64(6, Endian.little), 1700);
     expect(ByteData.sublistView(d).getUint32(18, Endian.little), 4);
     expect(s.droppedPackets, 2);
+    expect(s.continuationComplete, isTrue);
+  });
+
+  test('a wholly overlapped audio EOS page still terminates an original that lost its empty EOS', () {
+    final originalPages = pagesOf(full);
+    final finalStart = originalPages[originalPages.length - 2].end;
+    final last = Uint8List.fromList(full.sublist(finalStart));
+    last[5] &= ~4;
+    last.fillRange(22, 26, 0);
+    ByteData.sublistView(last).setUint32(22, _crc(last), Endian.little);
+    // The original delivered its final audio page; its separate empty EOS
+    // page (never appended here) was lost to the cut.
+    final origin = [...full.take(finalStart), ...last];
+
+    final s = OggOpusSplicer();
+    final head = s.forward(origin);
+    expect(s.canContinue, isTrue);
+    s.beginContinuation(1);
+    final tail = s.splice(from2);
+    expect(s.continuationComplete, isTrue);
+    final stitched = pagesOf([...head, ...tail]);
+    final audio = stitched.skip(2).expand((p) => p.packets).length;
+    expect(audio, originalPages.skip(2).expand((p) => p.packets).length);
+    expect(stitched.every((p) => p.crcOk), isTrue);
+    expect(stitched.where((p) => p.flags & 4 != 0), hasLength(1));
+    final eos = stitched.last;
+    expect(eos.flags & 4, 4);
+    expect(eos.packets, isEmpty);
+    expect(eos.serial, stitched.first.serial);
+    expect(eos.seq, stitched[stitched.length - 2].seq + 1);
+    expect(eos.granule, stitched[stitched.length - 2].granule);
+    expect(tail.length, 27);
+  });
+
+  test('a wholly overlapped EOS adds no second EOS once one was emitted', () {
+    final s = OggOpusSplicer();
+    s.forward([
+      ..._headers(),
+      ..._page(1700, [
+        [152, 0],
+        [152, 1],
+      ]),
+    ]);
+    s.beginContinuation(0);
+    final out = s.splice([
+      ..._headers(serial: 84),
+      ..._page(960, [
+        [152, 0],
+      ]),
+      // Fresh audio plus EOS emits the EOS itself; the empty EOS that follows
+      // (wholly overlapped by definition) must not be doubled.
+      ..._page(
+        3620,
+        [
+          [152, 0],
+          [152, 1],
+        ],
+        flags: 4,
+        serial: 84,
+        seq: 3,
+      ),
+      ..._page(3620, [], flags: 4, serial: 84, seq: 4),
+    ]);
+    final pages = pagesOf(out);
+    expect(pages.where((p) => p.flags & 4 != 0), hasLength(1));
+    expect(pages.every((p) => p.crcOk), isTrue);
+    expect(s.continuationComplete, isTrue);
+  });
+
+  test('a partially overlapped EOS page keeps only its new packets', () {
+    final s = OggOpusSplicer();
+    s.forward([
+      ..._headers(),
+      ..._page(960, [
+        [152, 0],
+      ]),
+    ]);
+    s.beginContinuation(0);
+    final pages = pagesOf(
+      s.splice([
+        ..._headers(serial: 84),
+        ..._page(
+          1920,
+          [
+            [152, 0],
+            [152, 1],
+          ],
+          flags: 4,
+          serial: 84,
+        ),
+      ]),
+    );
+    expect(s.droppedPackets, 1);
+    expect(pages, hasLength(1));
+    expect(pages.single.packets, hasLength(1));
+    expect(pages.single.flags & 4, 4);
+    expect(pages.single.granule, 1920);
+    expect(pages.single.crcOk, isTrue);
+    expect(s.continuationComplete, isTrue);
+  });
+
+  test('a continuation EOS page with only new packets is unchanged', () {
+    final s = OggOpusSplicer();
+    s.forward([
+      ..._headers(),
+      ..._page(960, [
+        [152, 0],
+      ]),
+    ]);
+    s.beginContinuation(0);
+    final pages = pagesOf(
+      s.splice([
+        ..._headers(serial: 84),
+        ..._page(
+          2880,
+          [
+            [152, 0],
+            [152, 1],
+          ],
+          flags: 4,
+          serial: 84,
+        ),
+      ]),
+    );
+    expect(s.droppedPackets, 0);
+    expect(pages, hasLength(1));
+    expect(pages.single.packets, hasLength(2));
+    expect(pages.single.flags & 4, 4);
+    expect(pages.single.granule, 2880);
     expect(s.continuationComplete, isTrue);
   });
 }

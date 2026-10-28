@@ -199,7 +199,10 @@ page within 255 segments; durations that do not divide a second (including
 A clean continuation EOF requires complete packets and an EOS page, including
 at an otherwise complete page boundary. Missing EOS refuses the continuation,
 deletes the partial file, and reports the original cut error and stack. An empty
-EOS page is preserved with the original serial and mapped granule. Mixed packet
+EOS page is preserved with the original serial and mapped granule. A wholly
+overlapped continuation page that carries EOS (the original lost its empty EOS
+page after delivering the final audio) emits one empty EOS page at the delivered
+granule unless EOS was already emitted. Mixed packet
 durations retain every needed packet before end trim. Packet ends use the
 original stream's decoded granule base; the final granule retains the trim. A cut after EOS cannot start a continuation. Pages ending
 mid-packet fall back instead of splicing. Each attempt resets its dropped count
