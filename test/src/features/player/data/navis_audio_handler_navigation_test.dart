@@ -15298,6 +15298,23 @@ void main() {
         },
       );
 
+      test(
+        'previous inside the hand-over restarts the outgoing song',
+        () async {
+          final (handler, player, incoming, _) = await midFade(startIndex: 1);
+          final hold = Completer<void>();
+          incoming.volumeHold = hold;
+          player.finishCurrentTrack();
+          await pumpEventQueue();
+          await handler.skipToPrevious();
+          await pumpEventQueue();
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(player.index, 1, reason: 'a restart, not the previous song');
+          hold.complete();
+          await pumpEventQueue();
+        },
+      );
+
       test('a volume change follows the shortened ramp', () async {
         final (handler, player, _) = await crossfading(2);
         await handler.replaceQueue(ids(2), expandMatchFlows: false);

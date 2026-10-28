@@ -5726,7 +5726,7 @@ and saved position stay at the outgoing song's end meanwhile
 (`_transportPosition`), so the display switches to the incoming deck's
 position without a jump and the retired deck never plays a second copy.
 `setVolume` during a fade scales by the stored ramp length (`_crossfadeRampMs`),
-not the configured duration. A hand-over that fails (incoming
+not the configured duration. Inside the hand-over window the position stream, `setVolume` (outgoing stays 0, incoming full) and the previous-track decision all use the held outgoing state. A hand-over that fails (incoming
 deck not ready) cancels the fade and replays the withheld index event.
 
 The play lifetime Future is observed for failures without awaiting playback
