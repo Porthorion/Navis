@@ -15177,6 +15177,53 @@ void main() {
       },
     );
 
+    group('an incoming song too short for the ramp', () {
+      // The outgoing song has 6 s left, so the ramp is the full 5 s.
+      Future<
+        (NavisAudioHandler, _ControllableAudioPlayer, _ControllableAudioPlayer)
+      >
+      shortIncoming(Duration duration) async {
+        final (handler, player, _) = await crossfading(3);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        incoming.simulatedDuration = duration;
+        player.simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 6);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        return (handler, player, incoming);
+      }
+
+      test('below ramp plus margin advances gaplessly', () async {
+        final (handler, player, incoming) = await shortIncoming(
+          const Duration(milliseconds: 5099),
+        );
+        await waitForFade(() => fade(handler)['active'] == false);
+        expect(handler.debugActivePlayer, same(player));
+        expect(incoming.playing, isFalse);
+        expect(fade(handler)['phases'], containsPair('too_late', 1));
+      });
+
+      test('exactly ramp plus margin still crossfades', () async {
+        final (handler, player, incoming) = await shortIncoming(
+          const Duration(milliseconds: 5100),
+        );
+        await waitForFade(() => incoming.playing && incoming.volume > 0);
+        expect(fade(handler)['active'], isTrue);
+        expect(fade(handler)['phases'], isNot(contains('too_late')));
+        await handler.debugCompleteCrossfade();
+        expect(handler.debugActivePlayer, same(incoming));
+        expect(player.playing, isFalse);
+      });
+
+      test('an unknown incoming duration keeps the full ramp', () async {
+        final (handler, _, incoming) = await shortIncoming(Duration.zero);
+        await waitForFade(() => incoming.playing && incoming.volume > 0);
+        expect(fade(handler)['phases'], isNot(contains('too_late')));
+        await handler.debugCompleteCrossfade();
+        expect(handler.debugActivePlayer, same(incoming));
+      });
+    });
+
     group('the outgoing deck advancing mid-fade', () {
       final nearEnd = const Duration(minutes: 3) - const Duration(seconds: 6);
 

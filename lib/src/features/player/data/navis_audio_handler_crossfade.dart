@@ -329,7 +329,18 @@ extension _NavisCrossfade on NavisAudioHandler {
             fadeDurationMs,
             remainingMs - _crossfadeEndMarginMs,
           );
-          if (rampMs < _crossfadeMinRampMs) {
+          // The ramp must also end before a short incoming song does, or the
+          // deck advances past it while the ramp still runs (unknown: skip).
+          final incomingMs = resolveEffectivePlaybackDuration(
+            isRadioMode: false,
+            mediaDuration: _queueItems.elementAtOrNull(nextIndex)?.duration,
+            playerDuration: cfPlayer.duration,
+          ).inMilliseconds;
+          final tooShortIncoming =
+              incomingMs > 0 &&
+              incomingMs - cfPlayer.position.inMilliseconds <
+                  rampMs + _crossfadeEndMarginMs;
+          if (rampMs < _crossfadeMinRampMs || tooShortIncoming) {
             _crossfadeTooLate(nextIndex, sessionToken);
             return;
           }

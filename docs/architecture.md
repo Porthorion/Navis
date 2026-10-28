@@ -5714,7 +5714,7 @@ unchanged; a setting-disabled fade reports `disabledReason=setting`.
 Long-song overrun guard: the pre-fade delay is computed at trigger time, so
 `_startCrossfade` subtracts the prewarm time from it. When the incoming deck is
 ready the fade loop measures what is left of the outgoing song and shortens the
-ramp to end 100 ms before it; under 500 ms it records `too_late`, cancels the
+ramp to end 100 ms before it; under 500 ms, or when the incoming song (known duration) cannot hold the ramp plus the margin, it records `too_late`, cancels the
 deck and lets the song advance gaplessly (marked like a failed fade, so it is
 not retried for that occurrence; Repeat One retries after the wrap). If the
 outgoing deck still gapless-advances into the incoming song mid-fade
