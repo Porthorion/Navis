@@ -155,8 +155,9 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Android and iOS: the in-app volume slider is gone from the player '
         'settings. Playback always runs at full app volume, so nothing can '
-        'stay quietly turned down; use the volume buttons on your phone. Desktop '
-        'keeps all its volume controls.',
+        'stay quietly turned down; use the volume buttons on your phone, and the '
+        'settings sheet now fits its content instead of leaving empty space. '
+        'Desktop keeps all its volume controls.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

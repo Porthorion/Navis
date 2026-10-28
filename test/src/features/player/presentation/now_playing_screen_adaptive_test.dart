@@ -1003,6 +1003,44 @@ void main() {
       }, skip: !sqliteAvailable);
     }
 
+    final sheetList = find.byKey(const ValueKey('nowPlayingSettingsSheet'));
+
+    for (final desktop in [false, true]) {
+      testWidgets('the sheet is only as tall as its content '
+          '(desktop runtime: $desktop)', (tester) async {
+        await openSheet(tester, eqSupported: false, desktopRuntime: desktop);
+        final sheet = tester.getRect(find.byType(BottomSheet));
+        final scrollable = tester.state<ScrollableState>(
+          find
+              .descendant(of: sheetList, matching: find.byType(Scrollable))
+              .first,
+        );
+        // Everything fits, so nothing scrolls and no empty band sits below
+        // the last item (only the bottom padding and safe area remain).
+        expect(scrollable.position.maxScrollExtent, 0);
+        final lastItem = tester.getRect(
+          find.descendant(of: sheetList, matching: find.byType(ListTile)).last,
+        );
+        expect(sheet.bottom - lastItem.bottom, lessThan(40));
+        expect(sheet.height, lessThan(844 * 0.62));
+        expect(tester.takeException(), isNull);
+      }, skip: !sqliteAvailable);
+    }
+
+    testWidgets('a short screen caps the sheet and scrolls its content', (
+      tester,
+    ) async {
+      // Narrow phones list Sound with the inline equalizer, the tallest case.
+      await openSheet(tester, eqSupported: true, size: const Size(320, 480));
+      final sheet = tester.getRect(find.byType(BottomSheet));
+      expect(sheet.height, lessThanOrEqualTo(480 * 0.92 + 0.5));
+      final scrollable = tester.state<ScrollableState>(
+        find.descendant(of: sheetList, matching: find.byType(Scrollable)).first,
+      );
+      expect(scrollable.position.maxScrollExtent, greaterThan(0));
+      expect(tester.takeException(), isNull);
+    }, skip: !sqliteAvailable);
+
     testWidgets('a desktop runtime keeps the volume slider in the sheet', (
       tester,
     ) async {
