@@ -597,6 +597,17 @@ class NavisAudioHandler extends BaseAudioHandler
   Timer? _crossfadeFallbackTimer;
   bool _isCrossfading = false;
   bool _crossfadeHandoffInProgress = false;
+
+  /// The deck fading out and the song it was playing when the fade began.
+  ({AudioPlayer deck, NavisResolvedQueueMetadata from})? _crossfadeOutgoing;
+
+  /// The index event of the outgoing deck's mid-fade advance was withheld from
+  /// the UI; a cancelled fade replays it.
+  bool _crossfadeIndexSuppressed = false;
+
+  /// Length of the running ramp: the configured fade, or less when the
+  /// outgoing song had less time left.
+  int _crossfadeRampMs = 0;
   Future<void>? _crossfadeCompletionFuture;
   StreamSubscription<Duration>? _crossfadePositionSub;
   int _crossfadeSessionToken = 0;
@@ -3079,12 +3090,18 @@ class NavisAudioHandler extends BaseAudioHandler
     await _ready;
     _userVolume = volume.clamp(0.0, 1.0);
     if (_isCrossfading) {
-      final progress = _crossfadeFadeStartedAt == null
+      // The outgoing deck is playing the next song: keep it muted and the
+      // incoming deck at full volume until the hand-over completes.
+      final progress = _outgoingAdvancedMidFade
+          ? 1.0
+          : _crossfadeFadeStartedAt == null
           ? 0.0
           : (DateTime.now()
                         .difference(_crossfadeFadeStartedAt!)
                         .inMilliseconds /
-                    (_crossfadeDurationSeconds * 1000))
+                    (_crossfadeRampMs > 0
+                        ? _crossfadeRampMs
+                        : _crossfadeDurationSeconds * 1000))
                 .clamp(0.0, 1.0);
       await _player.setVolume(
         _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem) *

@@ -5729,6 +5729,24 @@ target keeps the ordinary single-deck transition and
 reports `crossfade.disabledReason=cellular`. Cellular gapless/preload policy is
 unchanged; a setting-disabled fade reports `disabledReason=setting`.
 
+Long-song overrun guard: the pre-fade delay is computed at trigger time, so
+`_startCrossfade` subtracts the prewarm time from it. When the incoming deck is
+ready the fade loop measures what is left of the outgoing song and shortens the
+ramp to end 100 ms before it; under 500 ms, or when the incoming song (known duration) cannot hold the ramp plus the margin, it records `too_late`, cancels the
+deck and lets the song advance gaplessly (marked like a failed fade, so it is
+not retried for that occurrence; Repeat One retries after the wrap). If the
+outgoing deck still gapless-advances into the incoming song mid-fade
+(`_outgoingAdvancedMidFade`), `_resolveCurrentQueueMetadata` keeps returning the
+outgoing song (so snapshot, media session and position stay on it), the index
+listener skips the event, sets the outgoing deck to 0 and the incoming deck to
+full volume before any await, and completes the hand-over at once. The shown
+and saved position stay at the outgoing song's end meanwhile
+(`_transportPosition`), so the display switches to the incoming deck's
+position without a jump and the retired deck never plays a second copy.
+`setVolume` during a fade scales by the stored ramp length (`_crossfadeRampMs`),
+not the configured duration. Inside the hand-over window the position stream, `setVolume` (outgoing stays 0, incoming full) and the previous-track decision all use the held outgoing state. A hand-over that fails (incoming
+deck not ready) cancels the fade and replays the withheld index event.
+
 The play lifetime Future is observed for failures without awaiting playback
 completion. The existing fade timer waits for incoming `playing` and `ready`
 before reducing the outgoing volume, serializes and awaits volume writes, and
