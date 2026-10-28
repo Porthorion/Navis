@@ -5700,9 +5700,13 @@ not retried for that occurrence; Repeat One retries after the wrap). If the
 outgoing deck still gapless-advances into the incoming song mid-fade
 (`_outgoingAdvancedMidFade`), `_resolveCurrentQueueMetadata` keeps returning the
 outgoing song (so snapshot, media session and position stay on it), the index
-listener skips the event and completes the hand-over at once, so the display
-switches to the incoming deck's position without a jump and the retired deck
-is paused before it can play a second copy. A hand-over that fails (incoming
+listener skips the event, sets the outgoing deck to 0 and the incoming deck to
+full volume before any await, and completes the hand-over at once. The shown
+and saved position stay at the outgoing song's end meanwhile
+(`_transportPosition`), so the display switches to the incoming deck's
+position without a jump and the retired deck never plays a second copy.
+`setVolume` during a fade scales by the stored ramp length (`_crossfadeRampMs`),
+not the configured duration. A hand-over that fails (incoming
 deck not ready) cancels the fade and replays the withheld index event.
 
 The play lifetime Future is observed for failures without awaiting playback

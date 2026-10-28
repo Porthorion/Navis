@@ -477,11 +477,8 @@ extension _NavisCrossfade on NavisAudioHandler {
         'Cross-fade complete: degraded to gapless on main player '
         '(index=${_player.currentIndex}).',
       );
-      _isCrossfading = false;
-      _crossfadeTargetIndex = null;
-      _crossfadeActiveTransitionId = null;
-      _crossfadePrewarmLatencyMs = null;
-      _crossfadeFadeStartedAt = null;
+      // The cancel path also replays a withheld outgoing index event.
+      _cancelCrossfade();
       _applyReplayGainVolume(forceDuringCrossfade: true);
       return;
     }
