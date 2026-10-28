@@ -487,9 +487,18 @@ extension _NavisNavigation on NavisAudioHandler {
         }
       }
     });
+    // A navigation cancelled before its callback ran never reaches the
+    // finally above and would leave the lane's background allowance off.
     // Intent was admitted synchronously above. Awaiting queue fill here would
     // make every button press wait for unrelated playlist insertion work.
-    unawaited(work);
+    // Errors still reach the zone handler through this one chain.
+    unawaited(
+      work.whenComplete(() {
+        if (_navigationInFlightRevision == decision.revision) {
+          _navigationInFlightRevision = null;
+        }
+      }),
+    );
     return Future<void>.value();
   }
 
