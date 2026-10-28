@@ -14,6 +14,16 @@ Last updated: 2026-10-28
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] 1.5.1 (#86), mobile in-app volume slider removed — 2026-10-28
+  (branch `fix/mobile-volume-removal`). The Now Playing settings sheet shows the
+  volume row only on a desktop runtime; no other mobile surface had a volume
+  control. Mobile never restored a saved volume (`hydrate`/persistence are
+  desktop-only, existing test "mobile volume remains session-only"), so the
+  effective mobile volume is always 1.0 with no migration. Evidence:
+  `now_playing_screen_adaptive_test.dart` mobile-sheet tests failed first
+  (`Expected: no matching candidates ... Found 1 widget with type "Slider"`),
+  now 40/40 pass; desktop sheet keeps its slider (new test); 320x844 golden
+  regenerated without the volume row.
 - [ ] Issue #151, no album art over Bluetooth AVRCP since 1.4.0 — 2026-10-28
   (branch `fix/bt-album-art`, merged with `github/release/1.5`). `forSystem`
   publishes the `content://` URI only when `artCacheFile` (or the cache path)
