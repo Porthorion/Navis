@@ -125,6 +125,36 @@ void main() {
     );
   }
 
+  test('a successful start carries the Last.fm issue to the caller', () async {
+    final service = _MockRecommendationService();
+    when(
+      () => service.personalRadio(
+        any(),
+        excludedIds: any(named: 'excludedIds'),
+        count: any(named: 'count'),
+        cancelToken: any(named: 'cancelToken'),
+      ),
+    ).thenAnswer(
+      (_) async => const RecommendationBatch(
+        songs: <Song>[Song(id: 'a', title: 'A')],
+        source: RecommendationSource.localTaste,
+        lastFmIssue: RecommendationIssue.invalidKey,
+      ),
+    );
+    final snapshots = NotifierProvider<_SnapshotController, PlaybackSnapshot>(
+      _SnapshotController.new,
+    );
+    final container = makeContainer(service, snapshots);
+    addTearDown(container.dispose);
+    container.listen(personalRadioProvider, (_, _) {});
+    container.read(snapshots.notifier).setQueue(<String>['old']);
+
+    final result = await container.read(personalRadioProvider.notifier).start();
+
+    expect(result.succeeded, isTrue);
+    expect(result.lastFmIssue, RecommendationIssue.invalidKey);
+  });
+
   test('empty start preserves the previous queue', () async {
     final service = _MockRecommendationService();
     when(

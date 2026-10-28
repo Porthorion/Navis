@@ -14,6 +14,18 @@ Last updated: 2026-10-28
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #111 leftovers (radio), Last.fm key rejection or rate limit — 2026-10-28
+  (branch `fix/failure-copy-leftovers`, ledger #86). The typed issue was lost
+  in `personalRadio`, which read only `_lastFmMatches(...).songs` and then fell
+  back to server/library songs, so a start never failed with it. The batch now
+  carries `lastFmIssue` (only invalidKey/rateLimited) through
+  `RadioStartResult`, and Home shows the existing Same Vibes strings as an info
+  notice after a successful start. Verified unreachable and left unchanged:
+  Instant Mix (`serverMix` never calls Last.fm) and Last.fm key save
+  (`validateApiKey` already folds network errors into its inline message).
+  Evidence: `recommendation_service_test` and `personal_radio_notifier_test`
+  failed to compile on `lastFmIssue`; home test `Expected: 'Last.fm rejected the
+  API key...' Actual: <null>`.
 - [x] Issue #86 P5, long-song crossfade overrun and display snap — 2026-10-28
   (evidence: `navis_audio_handler_navigation_test.dart` "cross-fade deck" cases
   failed first with `Actual: Duration:<0:03:03.603687>` vs the 3:00 song end and

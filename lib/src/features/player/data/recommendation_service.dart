@@ -37,11 +37,17 @@ class RecommendationBatch {
     required this.songs,
     required this.source,
     this.issue = RecommendationIssue.none,
+    this.lastFmIssue = RecommendationIssue.none,
   });
 
   final List<Song> songs;
   final RecommendationSource source;
   final RecommendationIssue issue;
+
+  /// Why Last.fm gave nothing although radio still found songs elsewhere:
+  /// only [RecommendationIssue.invalidKey] and [RecommendationIssue.rateLimited]
+  /// (the user can act on or wait out those); transient failures stay silent.
+  final RecommendationIssue lastFmIssue;
 }
 
 class RadioFilters {
@@ -406,6 +412,7 @@ class RecommendationService {
     final wantedRelated = (count * 0.7).round();
     final related = <Song>[];
     var source = RecommendationSource.localTaste;
+    var lastFmIssue = RecommendationIssue.none;
     if (_ref.read(networkTypeProvider) != NetworkType.offline) {
       final server = await serverMix(
         seed.id,
@@ -422,6 +429,10 @@ class RecommendationService {
           count: wantedRelated - related.length,
           identities: identities,
         );
+        if (lastFm.issue == RecommendationIssue.invalidKey ||
+            lastFm.issue == RecommendationIssue.rateLimited) {
+          lastFmIssue = lastFm.issue;
+        }
         _addEligible(
           related,
           lastFm.songs,
@@ -449,6 +460,7 @@ class RecommendationService {
       issue: chosen.isEmpty
           ? RecommendationIssue.empty
           : RecommendationIssue.none,
+      lastFmIssue: lastFmIssue,
     );
   }
 

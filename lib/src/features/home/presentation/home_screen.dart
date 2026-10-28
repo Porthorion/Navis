@@ -4552,6 +4552,19 @@ class _HomeActionRow extends ConsumerWidget {
       if (!context.mounted) return;
       if (result.succeeded) {
         expandPlayer();
+        // Radio plays on without Last.fm; say so only when the user can act.
+        final lastFmMessage = switch (result.lastFmIssue) {
+          RecommendationIssue.invalidKey => l10n.sameVibesInvalidKey,
+          RecommendationIssue.rateLimited => l10n.sameVibesRateLimited,
+          _ => null,
+        };
+        if (lastFmMessage != null) {
+          showAppNotice(
+            context,
+            message: lastFmMessage,
+            level: AppNoticeLevel.info,
+          );
+        }
       } else {
         showAppNotice(
           context,

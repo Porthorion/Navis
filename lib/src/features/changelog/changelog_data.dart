@@ -130,6 +130,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Instant Radio now tells you when Last.fm rejected your API key or is '
+        'limiting requests. The radio still plays from your server and '
+        'library; network hiccups stay silent.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Crossfade on long songs now ends before the song does: the fade '
         'shortens when preparing the next song takes time, the song and '
         'position no longer jump a few seconds when it completes, and the '
