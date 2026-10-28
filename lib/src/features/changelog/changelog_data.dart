@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Android: album art shows again on Bluetooth and car displays, which '
+        'had shown only the title and artist since 1.4.0.',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Play during a final playback failure now resumes the same song after '
         'shutdown, while a newer seek keeps its target and a later Pause stays '
         'paused. Desktop cut recovery keeps the song and your latest seek '

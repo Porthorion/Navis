@@ -24,6 +24,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
+import 'package:navis/src/features/player/data/android_system_art.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -363,6 +364,37 @@ class _NoopScrobbleService extends Fake implements ScrobbleService {
     submissions.add(songId);
     submissionSessions.add(sessionKey);
   }
+}
+
+class _JpegResponse implements FileServiceResponse {
+  @override
+  Stream<List<int>> get content =>
+      Stream.value(<int>[0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  @override
+  int? get contentLength => 12;
+  @override
+  int get statusCode => 200;
+  @override
+  DateTime get validTill => DateTime.now().add(const Duration(days: 1));
+  @override
+  String? get eTag => null;
+  @override
+  String get fileExtension => '.jpg';
+}
+
+class _JpegArtworkService extends Fake implements CoverArtHttpFileService {
+  int gets = 0;
+  @override
+  Future<FileServiceResponse> get(
+    String url, {
+    Map<String, String>? headers,
+  }) async {
+    gets++;
+    return _JpegResponse();
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
 
 class _TeardownArtworkService extends Fake implements CoverArtHttpFileService {
@@ -5355,6 +5387,104 @@ void main() {
       await second.$1.replaceQueue(['song-0'], expandMatchFlows: false);
       await initializations.last.service.pause();
       expect(second.$2.playing, isFalse);
+    },
+  );
+
+  test(
+    'a cleared cover file is downloaded once and republished with art',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-stale-art-',
+      );
+      const channel = MethodChannel('plugins.flutter.io/path_provider');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (_) async => directory.path);
+      PlaybackArtCache.resetKeyForTesting();
+      addTearDown(() async {
+        messenger.setMockMethodCallHandler(channel, null);
+        PlaybackArtCache.resetKeyForTesting();
+      });
+      await PlaybackArtCache.initializeKey(supportDirectory: directory);
+      final art = _JpegArtworkService();
+      final (handler, _, database) = await createHandler(
+        directory,
+        3,
+        sidecarStreams: true,
+        artworkFileService: art,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+      });
+      await database.libraryDao.upsertSongs([
+        for (final id in ['song-0', 'song-1', 'song-2'])
+          SongsTableCompanion.insert(
+            id: id,
+            title: id,
+            duration: const Value(300),
+            coverArt: Value('cover-$id'),
+          ),
+      ]);
+      final projection = RealTimeProjectionAudioHandler(
+        handler,
+        systemArt: AndroidSystemArt(
+          authority: 'app.test.artwork',
+          fetch: handler.cacheSystemArtwork,
+          cachedPath: handler.cachedSystemArtwork,
+        ),
+      );
+      addTearDown(projection.dispose);
+      final published = <MediaItem?>[];
+      final sub = projection.mediaItem.listen(published.add);
+      addTearDown(sub.cancel);
+
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-2'],
+        startIndex: 0,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      for (
+        var i = 0;
+        i < 300 &&
+            !(published.isNotEmpty &&
+                published.last?.artUri?.scheme == 'content');
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(published.last?.artUri?.scheme, 'content');
+      final file = File(published.last!.extras!['artCacheFile']! as String);
+      expect(file.existsSync(), isTrue);
+
+      // Move to song-1 and wait for its art, then delete song-0's file (Android
+      // clears cacheDir) and come back to song-0.
+      await handler.skipToQueueItem(1);
+      await settleQueue(handler);
+      for (
+        var i = 0;
+        i < 300 &&
+            !(published.last?.id == 'song-1' &&
+                published.last?.artUri?.scheme == 'content');
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      file.deleteSync();
+      final getsBefore = art.gets;
+      await handler.skipToQueueItem(0);
+      await settleQueue(handler);
+      await pumpEventQueue(times: 200);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await pumpEventQueue(times: 200);
+      expect(art.gets - getsBefore, 1);
+      expect(file.existsSync(), isTrue);
+      final last = projection.mediaItem.value!;
+      expect(last.id, 'song-0');
+      expect(last.artUri?.scheme, 'content');
+      expect(last.extras?['artCacheFile'], file.path);
     },
   );
 
@@ -10805,7 +10935,7 @@ void main() {
                 directory.path,
                 'navis_art_v2_${PlaybackArtCache.fileKey('cut-cover')}.jpg',
               ),
-            ).writeAsBytes([1, 2, 3]);
+            ).writeAsBytes([0xFF, 0xD8, 0xFF, 1]);
             late NavisDatabase database;
             final (handler, player) = await setup(
               onDatabase: (value) => database = value,
