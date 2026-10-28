@@ -446,6 +446,28 @@ class CrossfadeLongOracle(unittest.TestCase):
                 r['pos'] = rows[60]['pos']
         self.assertNotIn('xfadeFrozen', self.names(self.swap(short_freeze)))
 
+    def test_buffering_during_the_fade_counts_as_frozen(self):
+        """Real rows, fix r0 @13.22-14.62: the song flips to B, the display holds 0 for 1.5 s with proc=buffering, playing=True, cf active."""
+        def real(rows):
+            for r in rows[100:156]:
+                r.update(proc='buffering', pos=0, uiPos=0, cf={'active': True})
+            for r in rows[156:]:
+                r.update(cf={'active': True})
+            for i, r in enumerate(rows[100:], 0):
+                r['t'] = 13.222 + i * 0.03  # dense enough: > 1.5 s of buffering
+        run = type('R', (), {'samples': self.swap(real), 'actions': [], 'trace': [], 'metrics': {}})()
+        found = [v for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE) if v['oracle'] == 'xfadeFrozen']
+        self.assertTrue(found)
+
+    def test_buffering_outside_a_fade_is_not_a_freeze(self):
+        def stall(rows):
+            for r in rows[100:156]:
+                r.update(proc='buffering', pos=0, uiPos=0)
+            for i, r in enumerate(rows[100:], 0):
+                r['t'] = 13.222 + i * 0.03
+        run = type('R', (), {'samples': self.swap(stall), 'actions': [], 'trace': [], 'metrics': {}})()
+        self.assertNotIn('xfadeFrozen', [v['oracle'] for v in engine.oracle_crossfade_long(run, self.IDS, self.FADE)])
+
     def test_late_incoming_start(self):
         def late(rows):
             for r in rows[100:]:

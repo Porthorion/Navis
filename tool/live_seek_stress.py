@@ -4024,12 +4024,18 @@ def oracle_crossfade_long(run: Run, ids: list[str], fade_ms: int, saved=None, be
         for i in range(1, len(samples)):
             a, b = samples[i - 1], samples[i]
             if not (a['songId'] and a['songId'] == b['songId'] and a['idx'] == b['idx'] and a.get(key) is not None
-                    and b.get(key) is not None and a['playing'] and b['playing'] and a['proc'] == b['proc'] == 'ready') \
-                    or _requested_at(run, b['t']):
+                    and b.get(key) is not None and a['playing'] and b['playing']) or _requested_at(run, b['t']):
+                frozen_from, reported_freeze = None, False
+                continue
+            # A cross-fade hands over while the outgoing deck re-buffers the next song: the user still hears
+            # the incoming deck, so `buffering` while playing is a frozen display there, not a legitimate stall.
+            fading = bool((a.get('cf') or {}).get('active') or (b.get('cf') or {}).get('active'))
+            ready = a['proc'] == b['proc'] == 'ready'
+            if not (ready or (fading and a['proc'] in ('ready', 'buffering') and b['proc'] in ('ready', 'buffering'))):
                 frozen_from, reported_freeze = None, False
                 continue
             step = b[key] - a[key]
-            if (step > XFADE_JUMP_MS or step < -XFADE_BACKSTEP_MS) and not reported_jump \
+            if ready and (step > XFADE_JUMP_MS or step < -XFADE_BACKSTEP_MS) and not reported_jump \
                     and not (key == 'pos' and is_position_blip(samples, i)):
                 reported_jump = True
                 out.append(violation('xfadeJump', b['t'], f"{key} {a[key]} -> {b[key]} on {b['songId']} "
