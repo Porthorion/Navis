@@ -135,9 +135,9 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Instant Radio now tells you when Last.fm rejected your API key or is '
-        'limiting requests. The radio still plays from your server and '
-        'library; network hiccups stay silent.',
+        'Instant Radio now tells you when Last.fm rejected your API key. The '
+        'radio still plays from your server and library; rate limits and '
+        'network hiccups stay silent.',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

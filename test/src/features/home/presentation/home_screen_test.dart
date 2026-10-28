@@ -1966,14 +1966,13 @@ void main() {
     expect(find.byKey(compactWideHeaderRow), findsNothing);
   });
 
-  for (final entry in <RecommendationIssue, String>{
+  for (final entry in <RecommendationIssue, String?>{
     RecommendationIssue.invalidKey:
         'Last.fm rejected the API key. Update it in Settings and retry.',
-    RecommendationIssue.rateLimited:
-        'Last.fm is limiting requests. Try again later.',
+    RecommendationIssue.rateLimited: null,
   }.entries) {
     testWidgets(
-      'radio that started but could not use Last.fm says ${entry.key.name}',
+      'radio that started without Last.fm: ${entry.key.name} notice',
       (tester) async {
         setAdaptiveTestViewport(tester, const Size(1000, 420));
         final radioDatabase = createTestDatabase();
@@ -2000,7 +1999,10 @@ void main() {
         await tester.pump(const Duration(milliseconds: 200));
 
         expect(notices.notice?.message, entry.value);
-        expect(notices.notice?.level, AppNoticeLevel.info);
+        expect(
+          notices.notice?.level,
+          entry.value == null ? null : AppNoticeLevel.info,
+        );
         notices.dismiss();
       },
     );

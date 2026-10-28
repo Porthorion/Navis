@@ -24,13 +24,14 @@ Last updated: 2026-10-28
   is searches, not tracks: tracks matched locally need none. One new ARB string
   (`cacheSettingsPrecachingProgress` precedent). Evidence: the new tests failed
   to compile on `Undefined name 'listenBrainzPlaylistRematchProgressProvider'`.
-- [x] Issue #111 leftovers (radio), Last.fm key rejection or rate limit — 2026-10-28
+- [x] Issue #111 leftovers (radio), Last.fm key rejection — 2026-10-28
   (branch `fix/failure-copy-leftovers`, ledger #86). The typed issue was lost
   in `personalRadio`, which read only `_lastFmMatches(...).songs` and then fell
   back to server/library songs, so a start never failed with it. The batch now
-  carries `lastFmIssue` (only invalidKey/rateLimited) through
-  `RadioStartResult`, and Home shows the existing Same Vibes strings as an info
-  notice after a successful start. Verified unreachable and left unchanged:
+  carries `lastFmIssue` (invalidKey/rateLimited) through
+  `RadioStartResult`, and Home shows the existing Same Vibes invalid-key string as an info
+  notice after a successful start (rateLimited stays silent: owner decision,
+  nothing to act on). Verified unreachable and left unchanged:
   Instant Mix (`serverMix` never calls Last.fm) and Last.fm key save
   (`validateApiKey` already folds network errors into its inline message).
   Evidence: `recommendation_service_test` and `personal_radio_notifier_test`
