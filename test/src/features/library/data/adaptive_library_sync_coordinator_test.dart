@@ -643,9 +643,8 @@ void main() {
       );
 
       expect(result.status, LibrarySyncStatus.deferred);
-      final run = (await database.librarySyncDao.getRecentSyncRunHistory(
-        1,
-      )).singleWhere((entry) => entry.requestId == result.runRequestId);
+      final run = (await database.librarySyncDao.getRecentSyncRunHistory(1))
+          .singleWhere((entry) => entry.requestId == result.runRequestId);
       expect(run.outcome, SyncRunOutcomeKind.deferred);
       expect(run.reason, SyncSafeReason.leaseHeld);
       expect(

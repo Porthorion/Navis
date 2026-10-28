@@ -144,36 +144,39 @@ void main() {
     );
   });
 
-  test('an expired lease nobody took over still lets its owner write', () async {
-    now = now.add(const Duration(minutes: 5));
-    await fence.run(
-      () => database.libraryDao.upsertSongs([
-        SongsTableCompanion.insert(id: 'late', title: 'Late'),
-      ]),
-    );
-    expect((await database.libraryDao.getSongById('late'))?.title, 'Late');
-
-    // A real takeover (after expiry) still fences the old owner out.
-    expect(
-      await database.librarySyncDao.acquireExecutionLease(
-        serverId: 1,
-        ownerToken: 'second-owner',
-        ownerKind: 'foreground',
-        now: now.add(const Duration(minutes: 5)),
-        ttl: const Duration(minutes: 1),
-      ),
-      isTrue,
-    );
-    await expectLater(
-      fence.run(
+  test(
+    'an expired lease nobody took over still lets its owner write',
+    () async {
+      now = now.add(const Duration(minutes: 5));
+      await fence.run(
         () => database.libraryDao.upsertSongs([
-          SongsTableCompanion.insert(id: 'stale', title: 'Stale'),
+          SongsTableCompanion.insert(id: 'late', title: 'Late'),
         ]),
-      ),
-      throwsA(isA<SyncLeaseLostException>()),
-    );
-    expect(await database.libraryDao.getSongById('stale'), isNull);
-  });
+      );
+      expect((await database.libraryDao.getSongById('late'))?.title, 'Late');
+
+      // A real takeover (after expiry) still fences the old owner out.
+      expect(
+        await database.librarySyncDao.acquireExecutionLease(
+          serverId: 1,
+          ownerToken: 'second-owner',
+          ownerKind: 'foreground',
+          now: now.add(const Duration(minutes: 5)),
+          ttl: const Duration(minutes: 1),
+        ),
+        isTrue,
+      );
+      await expectLater(
+        fence.run(
+          () => database.libraryDao.upsertSongs([
+            SongsTableCompanion.insert(id: 'stale', title: 'Stale'),
+          ]),
+        ),
+        throwsA(isA<SyncLeaseLostException>()),
+      );
+      expect(await database.libraryDao.getSongById('stale'), isNull);
+    },
+  );
 
   test(
     'a renewal TTL extends the lease under the transaction write lock',
