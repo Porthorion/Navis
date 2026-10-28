@@ -12194,6 +12194,90 @@ void main() {
         expect(player.sourceLoads, loads);
       });
 
+      // P7: the departed song's end during a user navigation is superseded by
+      // it, even though the navigate lane is busy and the load flag is set.
+      for (final command in ['next', 'previous', 'select']) {
+        {
+          test('a $command skip held in the lane ignores the departed '
+              "song's end", () async {
+            final (handler, player) = await setup();
+            player.simulatedPosition = const Duration(seconds: 2);
+            final loads = player.sourceLoads;
+            final target = command == 'next' ? 'song-2' : 'song-0';
+            player
+              ..seekGate = Completer<void>()
+              ..seekEntered = Completer<void>();
+            final gate = player.seekGate!;
+            addTearDown(() {
+              if (!gate.isCompleted) gate.complete();
+            });
+            final navigation = switch (command) {
+              'next' => handler.skipToNext(),
+              'previous' => handler.skipToPrevious(),
+              _ => handler.playFromIndex(0),
+            };
+            await player.seekEntered!.future.timeout(
+              const Duration(seconds: 3),
+            );
+
+            // Any event the departed player emits after the skip began
+            // re-captures its occurrence; its end then looks like a cut.
+            player._events.add(player.playbackEvent);
+            await pumpEventQueue(times: 20);
+            player.finishCurrentTrack(endPosition: const Duration(seconds: 2));
+            await pumpEventQueue(times: 50);
+            gate.complete();
+            await navigation;
+            await drain(handler);
+
+            expect(
+              player.sourceLoads,
+              loads,
+              reason: 'the departed song must not be reloaded',
+            );
+            expect(handler.snapshot.currentSongId, target);
+            expect(current(player).positionOffset, Duration.zero);
+          });
+        }
+      }
+
+      test('a real cut on the skip target right after the skip still '
+          'retries', () async {
+        final (handler, player) = await setup();
+        await handler.skipToNext();
+        await drain(handler);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        final loads = player.sourceLoads;
+
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => player.sourceLoads > loads);
+        await drain(handler);
+
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(current(player).positionOffset, const Duration(seconds: 47));
+      });
+
+      test('a stale departed end after the skip finished is ignored', () async {
+        final (handler, player) = await setup();
+        player.simulatedPosition = const Duration(seconds: 2);
+        final stale = player.playbackEvent;
+        await handler.skipToNext();
+        await drain(handler);
+        final loads = player.sourceLoads;
+
+        player._discontinuities.add(
+          PositionDiscontinuity(
+            PositionDiscontinuityReason.autoAdvance,
+            stale,
+            player.playbackEvent,
+          ),
+        );
+        await drain(handler);
+
+        expect(player.sourceLoads, loads);
+        expect(handler.snapshot.currentSongId, 'song-2');
+      });
+
       test(
         'Repeat One resumes the cut rather than restarting at zero',
         () async {
