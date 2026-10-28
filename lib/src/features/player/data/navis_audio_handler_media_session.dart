@@ -81,8 +81,12 @@ extension _NavisMediaSession on NavisAudioHandler {
     if (coverArtId == null || artUri == null) return;
     // Skip non-HTTP schemes (file://, content://, etc. — already handled).
     if (artUri.scheme != 'http' && artUri.scheme != 'https') return;
-    // artCacheFile is already injected — no need to download again.
-    if ((trigger.extras?['artCacheFile'] as String?) != null) return;
+    // artCacheFile is already injected and still on disk — no need to
+    // download again. A path whose file is gone (Android may clear the cache
+    // directory) is fetched again and the item re-emitted, even though the
+    // path string stays the same.
+    final staleFile = trigger.extras?['artCacheFile'] as String?;
+    if (staleFile != null && PlaybackArtCache.isImageFile(staleFile)) return;
 
     AppLogger.debug(
       '_updateArtCacheFile: requesting art cache for '
@@ -102,7 +106,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     // currentIndexStream events deliver the art-cached version.
     for (var i = 0; i < _queueItems.length; i++) {
       if (_queueItems[i].id == trigger.id &&
-          (_queueItems[i].extras?['artCacheFile'] as String?) == null) {
+          _needsArtFile(_queueItems[i], staleFile)) {
         _queueItems.replaceAt(i, withArtCache(_queueItems[i]));
       }
     }
@@ -111,7 +115,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     final current = _currentMediaItem;
     if (current == null || current.id != trigger.id) return;
     // Guard: skip if a concurrent call already injected artCacheFile.
-    if ((current.extras?['artCacheFile'] as String?) != null) return;
+    if (!_needsArtFile(current, staleFile)) return;
 
     // Re-emit the current item with artCacheFile in extras.
     // audio_service's HTTP-path listener will call
@@ -122,6 +126,16 @@ extension _NavisMediaSession on NavisAudioHandler {
     final updated = withArtCache(current);
     _currentMediaItem = updated;
     mediaItem.add(updated);
+  }
+
+  /// Whether [item] still needs `artCacheFile` injected: it has none, its
+  /// file is gone or not an image, or it names [staleFile], which was just
+  /// downloaded again and must be republished.
+  static bool _needsArtFile(MediaItem item, String? staleFile) {
+    final file = item.extras?['artCacheFile'] as String?;
+    return file == null ||
+        file == staleFile ||
+        !PlaybackArtCache.isImageFile(file);
   }
 
   void _wireAudioSession(AudioSession session) {
@@ -338,6 +352,15 @@ extension _NavisMediaSession on NavisAudioHandler {
           index != wiredPlayer.currentIndex) {
         return;
       }
+      // The display stays on the outgoing song (see [_resolveCurrentQueueMetadata]):
+      // hand over to the incoming deck now, and let a failed hand-over replay
+      // this event.
+      if (_outgoingAdvancedMidFade) {
+        _crossfadeIndexSuppressed = true;
+        _jumpToIncomingVolume();
+        unawaited(_completeCrossfade());
+        return;
+      }
       _anomalies.index(index);
       if (_transportTrace.enabled) {
         final nativeSongId = index == null || index >= _player.sequence.length
@@ -463,7 +486,10 @@ extension _NavisMediaSession on NavisAudioHandler {
         .listen((position) {
           if (!identical(_player, wiredPlayer)) return;
           if (!_positionController.isClosed) {
-            _positionController.add(position);
+            // The outgoing deck now plays the next song from ~0 mid-hand-over.
+            _positionController.add(
+              _outgoingAdvancedMidFade ? _transportPosition : position,
+            );
             _lastPositionEmitAt = DateTime.now();
           }
           _captureTranscodeEndOccurrence();
@@ -828,7 +854,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           ? _restoredQueuePosition
           : pending
           ? Duration.zero
-          : _player.position,
+          : _transportPosition,
       bufferedPosition: pending ? Duration.zero : _player.bufferedPosition,
       speed: _player.speed,
       queueIndex: _radioStation == null
@@ -1036,7 +1062,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           : _mapProcessingState(_player.processingState),
       position: _restoredQueueIndex != null
           ? _restoredQueuePosition
-          : _player.position,
+          : _transportPosition,
       duration: _effectivePlaybackDuration(currentItem),
       bufferedPosition: _player.bufferedPosition,
       shuffleMode: _shuffleEnabled

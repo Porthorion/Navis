@@ -48,6 +48,7 @@ import 'package:navis/src/features/player/data/playback_navigation_intent.dart';
 import 'package:navis/src/features/player/data/playback_startup_trace.dart';
 import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/data/listenbrainz_feedback_service.dart';
+import 'package:navis/src/features/player/data/lock_cache_follower_source.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/seek_preview_request.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
@@ -228,6 +229,19 @@ class NavisAudioHandler extends BaseAudioHandler
   // ignore: experimental_member_use, reason: as above.
   LockCachingAudioSource? debugRegisteredLockCacheSource(String songId) =>
       _lockCacheSourceOfSong(songId);
+
+  /// The player sources a full queue rebuild of [songIds] would hold, without
+  /// applying them (tests pin that a held registered source stays the writer).
+  @visibleForTesting
+  Future<List<AudioSource>> debugPrepareReplacementSources(
+    List<String> songIds,
+  ) async => [
+    for (final item in await _prepareQueueItems(
+      await _libraryDao.getSongsByIds(songIds),
+      preferLockCaching: true,
+    ))
+      item.audioSource,
+  ];
 
   @visibleForTesting
   bool get debugSeekTraceInstalled => _lastSeek?.onStage != null;
@@ -583,6 +597,17 @@ class NavisAudioHandler extends BaseAudioHandler
   Timer? _crossfadeFallbackTimer;
   bool _isCrossfading = false;
   bool _crossfadeHandoffInProgress = false;
+
+  /// The deck fading out and the song it was playing when the fade began.
+  ({AudioPlayer deck, NavisResolvedQueueMetadata from})? _crossfadeOutgoing;
+
+  /// The index event of the outgoing deck's mid-fade advance was withheld from
+  /// the UI; a cancelled fade replays it.
+  bool _crossfadeIndexSuppressed = false;
+
+  /// Length of the running ramp: the configured fade, or less when the
+  /// outgoing song had less time left.
+  int _crossfadeRampMs = 0;
   Future<void>? _crossfadeCompletionFuture;
   StreamSubscription<Duration>? _crossfadePositionSub;
   int _crossfadeSessionToken = 0;
@@ -1041,25 +1066,22 @@ class NavisAudioHandler extends BaseAudioHandler
         songId: prepared.first.song.id,
         cancelAfterSuccess: false,
       );
+      // The append is committed: register what the player holds before
+      // anything can wait (the deck mirror), as a queue fill does.
+      _observeLockCacheForPrepared(prepared);
+      final at = _queueItems.length;
       // Move the page from the tail to the materialised queue in one step,
       // so no snapshot sees it in both.
       _queueItems.addAll(prepared.map((item) => item.mediaItem));
       _deferredTail.removeRange(0, take);
       if (deckInSync) {
-        try {
-          await inactiveDeck.addAudioSources(
-            prepared
-                .map(
-                  (item) =>
-                      item.source.asClonedAudioSource(tag: item.mediaItem),
-                )
-                .toList(growable: false),
-          );
-        } on Object catch (error) {
-          AppLogger.debug('Deferred queue deck mirror failed: $error');
-        }
+        await _mirrorInsertOnDeck(
+          inactiveDeck,
+          prepared,
+          at: at,
+          operation: 'release deferred queue',
+        );
       }
-      _observeLockCacheForPrepared(prepared);
     }
     final dropped = take - prepared.length;
     _reportDroppedSongs(<String>[
@@ -3068,12 +3090,18 @@ class NavisAudioHandler extends BaseAudioHandler
     await _ready;
     _userVolume = volume.clamp(0.0, 1.0);
     if (_isCrossfading) {
-      final progress = _crossfadeFadeStartedAt == null
+      // The outgoing deck is playing the next song: keep it muted and the
+      // incoming deck at full volume until the hand-over completes.
+      final progress = _outgoingAdvancedMidFade
+          ? 1.0
+          : _crossfadeFadeStartedAt == null
           ? 0.0
           : (DateTime.now()
                         .difference(_crossfadeFadeStartedAt!)
                         .inMilliseconds /
-                    (_crossfadeDurationSeconds * 1000))
+                    (_crossfadeRampMs > 0
+                        ? _crossfadeRampMs
+                        : _crossfadeDurationSeconds * 1000))
                 .clamp(0.0, 1.0);
       await _player.setVolume(
         _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem) *

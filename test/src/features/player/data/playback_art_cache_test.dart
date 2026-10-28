@@ -311,6 +311,117 @@ void main() {
     expect(cache.cachedPath('al-1'), path);
   });
 
+  test('a cached entry whose file is gone is dropped and refetched', () async {
+    final temp = await Directory.systemTemp.createTemp('navis-art-cache-');
+    const channel = MethodChannel('plugins.flutter.io/path_provider');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async => temp.path);
+    addTearDown(() async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+      await temp.delete(recursive: true);
+    });
+    final stored = File('${temp.path}/stored-cover.jpg')
+      ..writeAsBytesSync(<int>[0xFF, 0xD8, 0xFF, 1, 2]);
+    final cache = PlaybackArtCache(readPermanentArtwork: (id) async => stored);
+    final path = (await cache.getOrFetch(
+      'al-1',
+      Uri.parse('http://127.0.0.1:9/art'),
+    ))!;
+    expect(cache.cachedPath('al-1'), path);
+
+    // Android may clear the cache directory while the process lives.
+    File(path).deleteSync();
+    expect(cache.cachedPath('al-1'), isNull);
+    expect(
+      await cache.getOrFetch('al-1', Uri.parse('http://127.0.0.1:9/art')),
+      path,
+    );
+    expect(File(path).existsSync(), isTrue);
+    expect(cache.cachedPath('al-1'), path);
+  });
+
+  for (final entry in <String, List<int>>{
+    'html': '<html>captive portal</html>'.codeUnits,
+    'whitespace': '\n\n  \n'.codeUnits,
+    'Forbidden': 'Forbidden'.codeUnits,
+    'cloudflare 1010': 'error code: 1010'.codeUnits,
+    'json array': '[1,2]'.codeUnits,
+    'BOM and html': [0xEF, 0xBB, 0xBF, ...'<html>x</html>'.codeUnits],
+  }.entries) {
+    test('a ${entry.key} file at the cover path is downloaded again', () async {
+      final temp = await _tempCacheDir();
+      var requests = 0;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        requests++;
+        request.response.headers.contentType = ContentType('image', 'jpeg');
+        request.response.add(<int>[0xff, 0xd8, 0xff, 1, 2, 3]);
+        await request.response.close();
+      });
+      await PlaybackArtCache.initializeKey(supportDirectory: temp);
+      final cover = File(
+        '${temp.path}/navis_art_v2_${PlaybackArtCache.fileKey('al-1')}.jpg',
+      )..writeAsBytesSync(entry.value);
+
+      final path = await PlaybackArtCache().getOrFetch(
+        'al-1',
+        Uri.parse('http://127.0.0.1:${server.port}/art'),
+      );
+
+      expect(path, cover.path);
+      expect(requests, 1);
+      expect(PlaybackArtCache.isImageFile(cover.path), isTrue);
+    });
+  }
+
+  test('an AVIF file at the cover path is reused', () async {
+    final temp = await _tempCacheDir();
+    await PlaybackArtCache.initializeKey(supportDirectory: temp);
+    final avif = <int>[0, 0, 0, 16, ...'ftypavif'.codeUnits, 0, 0, 0, 0];
+    final cover = File(
+      '${temp.path}/navis_art_v2_${PlaybackArtCache.fileKey('al-1')}.jpg',
+    )..writeAsBytesSync(avif);
+
+    // Port 9 is closed: a download would fail.
+    final path = await PlaybackArtCache().getOrFetch(
+      'al-1',
+      Uri.parse('http://127.0.0.1:9/art'),
+    );
+
+    expect(path, cover.path);
+    expect(cover.readAsBytesSync(), avif);
+  });
+
+  test('isImageFile accepts JPEG, PNG and WebP headers only', () async {
+    final dir = await Directory.systemTemp.createTemp('navis-art-magic-');
+    addTearDown(() => dir.delete(recursive: true));
+    String file(String name, List<int> bytes) =>
+        (File('${dir.path}/$name')..writeAsBytesSync(bytes)).path;
+    expect(
+      PlaybackArtCache.isImageFile(file('a', [0xFF, 0xD8, 0xFF, 0])),
+      isTrue,
+    );
+    expect(
+      PlaybackArtCache.isImageFile(file('b', [0x89, 0x50, 0x4E, 0x47, 1])),
+      isTrue,
+    );
+    expect(
+      PlaybackArtCache.isImageFile(
+        file('c', [...'RIFF'.codeUnits, 1, 2, 3, 4, ...'WEBP'.codeUnits]),
+      ),
+      isTrue,
+    );
+    expect(
+      PlaybackArtCache.isImageFile(file('d', '<html>nope'.codeUnits)),
+      isFalse,
+    );
+    expect(PlaybackArtCache.isImageFile(file('e', const [])), isFalse);
+    expect(PlaybackArtCache.isImageFile('${dir.path}/missing'), isFalse);
+    expect(PlaybackArtCache.isImageFile(dir.path), isFalse);
+  });
+
   test('a durable cover that cannot be copied leaves nothing behind', () async {
     final temp = await _tempCacheDir();
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);

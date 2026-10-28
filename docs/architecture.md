@@ -4540,7 +4540,13 @@ Desktop volume follows a parallel local-settings path:
 3. Slider changes apply immediately and persist after a short coalescing delay;
    drag completion and mute changes flush deterministically.
 4. The next desktop launch restores the exact level, including zero, while
-   mobile starts at the session default and does not persist volume.
+   mobile starts at 100%: `hydrate` and persistence are desktop-only, so a saved
+   `app_settings` volume below 1.0 is never applied on Android or iOS. Mobile
+   has no in-app volume control (system volume, buttons and per-app volume
+   only): the Now Playing settings sheet shows its volume row only when
+   `resolveAdaptiveContextFor(context).desktopRuntime` is true, and the
+   transport and mini-player volume controls are desktop-only. Crossfade,
+   ReplayGain and ducking scale relative to that 1.0 user volume.
 
 Linux, Windows, and macOS play remote audio via direct HTTPS (Range-seekable
 through media_kit/libmpv) and fill the rolling cache with a sidecar download to
@@ -4570,9 +4576,20 @@ sidecar downloader, on Android with `prefetch()` on the next song's existing
 request joins the running download, `_lockCacheWarmSongId`; one source per cache
 file: a rebuilt queue reuses the registered source (`_runningLockCacheSource`), a
 first entry per file keeps it and a repeat of the song, in the batch or already in the
-player, gets the plain non-downloading stream form (`_shareLockCacheSources`; one
-source instance never sits at two playlist positions) and the
-registry holds the source the player holds once a batch is applied; the warm pauses while the current song's Fast Seeking
+player, gets its own `LockCacheFollowerSource` (`_shareLockCacheSources`; a
+`StreamAudioSource` with its own id whose `request` delegates to the writer, so it reads the
+completed file first, joins the running download and never fetches the origin itself;
+one source instance never sits at two playlist positions, and disposing an occurrence
+never touches the writer; if the writer's cache file is evicted after completion, the next
+request, from the writer or a repeat, downloads it again through the same writer, which
+re-registers itself through `onDownloadStart`; a new occurrence takes its leader from the
+registry or else the writer the player holds for that cache path, `_heldLockCacheWriters`,
+so it never becomes a second writer; a request that arrives while a download is finishing
+is answered from the completed file) and the
+registry holds the source the player holds as soon as the native call returns, before any
+cross-fade deck mirror (`_releaseTail`, `_applyMaterialisedInsert`, `_fillQueueBatch`; known limit: if the writer's native insert fails in the one-by-one fallback while its
+repeat is inserted, the repeat downloads through an unobserved writer (needs a batch
+failure plus a duplicate in the same batch); the warm pauses while the current song's Fast Seeking
 range fetch is live; no source, such as a downloaded, fully cached or
 deferred-tail song, is no warm). Its
 completed file is available to normal cache-first resolution and seek recovery.
@@ -5399,7 +5416,8 @@ in-flight retry instead of restoring twice. `queueRestoreRetries` counts
 retries that ran. A seek beyond the downloaded part of an Android
 lock-cached song is native when the origin answered the download with byte-range
 support (`LockCachingAudioSource.originSupportsRangeRequests`, a Navis addition
-to the vendored just_audio): the source fetches that range itself. A linear
+to the vendored just_audio; `lockCacheOriginRanges` gives both seek planners the
+writer's answer for a repeat occurrence too): the source fetches that range itself. A linear
 origin, such as a Navidrome transcode on a transcode-cache miss (`200`,
 `Accept-Ranges: none`), makes the source serve every request from the start of
 the song, and ExoPlayer treats a stream of unknown length as unseekable, so a
@@ -5592,8 +5610,28 @@ secret persisted in app support storage and loaded before media-service setup.
 The provider accepts exactly 32 lowercase hex characters, so other apps cannot
 probe known cover IDs. Old cache filenames are ignored through a `navis_art_v2_` file prefix. Android
 Auto can open these URIs from its own process. The content URI is published only once the cover
-is on disk (the item carries `artCacheFile`, or `PlaybackArtCache.cachedPath`
-knows it); until then the item has no art and the download starts. A URI the
+is an image file on disk: `AndroidSystemArt.forSystem` takes the item's
+`artCacheFile` or `PlaybackArtCache.cachedPath`, requires that the file exists
+and starts with a JPEG, PNG or WebP header (`PlaybackArtCache.isImageFile`,
+a stat plus a 32-byte read on each publish), and adds `artCacheFile` to the
+published item so audio_service decodes the bitmap. A missing path, an empty
+string or a non-image file withholds the URI (and the bad `artCacheFile`), and
+`cachedPath` drops an in-memory entry whose file has gone so the next fetch
+rewrites it. `NavisAudioHandler._updateArtCacheFile` counts an
+`artCacheFile` as present only while that file is an image, otherwise it
+fetches again and re-emits the item (even at the same path) so the projection
+republishes the bitmap. `PlaybackArtCache` reuses an existing cover file only
+if it starts with an image signature (`looksLikeImagePayload`, the cover
+transport's check, so an error page saved by an older build is downloaded
+again; the transport itself already rejects non-image bodies). AVIF, HEIC and
+TIFF covers are cached but never published to the system item (only JPEG, PNG,
+GIF, WebP and BMP are); covers are requested at 512 px, so servers normally
+return JPEG or PNG. Lists check each cover ID once per build. Until then the item has no art and the download starts. The
+session bitmap is decoded with `AudioServiceConfig.artDownscaleWidth/Height`
+of 256 (`AndroidSystemArt.artDownscaleSize`): audio_service halves sampling
+only while the result stays at or above that size, so the 512 px covers Navis
+fetches decode at 256 px (512 would leave them unscaled; a 768 px permanent
+copy decodes at 384 px). A URI the
 provider cannot open yet made audio_service store empty
 `METADATA_KEY_ALBUM_ART`, and the following update with the bitmap kept the
 same URI, which Bluetooth AVRCP (Android 14+) treats as unchanged and
@@ -5690,6 +5728,24 @@ the outgoing deck, and token checks reject late preparation results. A remote
 target keeps the ordinary single-deck transition and
 reports `crossfade.disabledReason=cellular`. Cellular gapless/preload policy is
 unchanged; a setting-disabled fade reports `disabledReason=setting`.
+
+Long-song overrun guard: the pre-fade delay is computed at trigger time, so
+`_startCrossfade` subtracts the prewarm time from it. When the incoming deck is
+ready the fade loop measures what is left of the outgoing song and shortens the
+ramp to end 100 ms before it; under 500 ms, or when the incoming song (known duration) cannot hold the ramp plus the margin, it records `too_late`, cancels the
+deck and lets the song advance gaplessly (marked like a failed fade, so it is
+not retried for that occurrence; Repeat One retries after the wrap). If the
+outgoing deck still gapless-advances into the incoming song mid-fade
+(`_outgoingAdvancedMidFade`), `_resolveCurrentQueueMetadata` keeps returning the
+outgoing song (so snapshot, media session and position stay on it), the index
+listener skips the event, sets the outgoing deck to 0 and the incoming deck to
+full volume before any await, and completes the hand-over at once. The shown
+and saved position stay at the outgoing song's end meanwhile
+(`_transportPosition`), so the display switches to the incoming deck's
+position without a jump and the retired deck never plays a second copy.
+`setVolume` during a fade scales by the stored ramp length (`_crossfadeRampMs`),
+not the configured duration. Inside the hand-over window the position stream, `setVolume` (outgoing stays 0, incoming full) and the previous-track decision all use the held outgoing state. A hand-over that fails (incoming
+deck not ready) cancels the fade and replays the withheld index event.
 
 The play lifetime Future is observed for failures without awaiting playback
 completion. The existing fade timer waits for incoming `playing` and `ready`

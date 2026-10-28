@@ -24,6 +24,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart' show MethodChannel;
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
+import 'package:navis/src/features/player/data/android_system_art.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -56,6 +57,7 @@ import 'package:navis/src/features/player/data/recommendation_service.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/data/navis_shuffle_order.dart';
+import 'package:navis/src/features/player/data/lock_cache_follower_source.dart';
 import 'package:navis/src/features/player/data/playback_source_resolver.dart';
 import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/data/real_time_projection_audio_handler.dart';
@@ -330,6 +332,50 @@ class _RangeCacheResolver extends _GatedSourceResolver {
   }
 }
 
+/// Lock-cached streams of a server transcode (what the seek planners check).
+class _TranscodedLockResolver extends _GatedSourceResolver {
+  new(super.delegate);
+  @override
+  Future<ResolvedPlaybackSource> resolveForSong(
+    SongsTableData song, {
+    bool preferLockCaching = true,
+    bool allowStreaming = true,
+    Duration? transcodeOffset,
+    bool fastSeekBridge = false,
+  }) async {
+    final source = await super.resolveForSong(
+      song,
+      preferLockCaching: preferLockCaching,
+      allowStreaming: allowStreaming,
+      transcodeOffset: transcodeOffset,
+      fastSeekBridge: fastSeekBridge,
+    );
+    if (transcodeOffset != null &&
+        source.kind == PlaybackSourceKind.directStream) {
+      // The seek preview's transcode that starts at the offset.
+      return ResolvedPlaybackSource.directStream(
+        songId: song.id,
+        uri: source.uri!.replace(
+          queryParameters: {
+            ...source.uri!.queryParameters,
+            'timeOffset': '${transcodeOffset.inSeconds}',
+          },
+        ),
+        metadata: const ResolvedPlaybackMetadata(isTranscoded: true),
+        positionOffset: Duration(seconds: transcodeOffset.inSeconds),
+      );
+    }
+    if (source.kind != PlaybackSourceKind.lockCachedStream) return source;
+    return ResolvedPlaybackSource.lockCachedStream(
+      songId: song.id,
+      lockCachingStreamUri: source.lockCachingStreamUri!,
+      lockCachingAudioSource: source.lockCachingAudioSource!,
+      cachedFilePath: source.cachedFilePath!,
+      metadata: const ResolvedPlaybackMetadata(isTranscoded: true),
+    );
+  }
+}
+
 class _NoopScrobbleService extends Fake implements ScrobbleService {
   final nowPlaying = <String>[];
   final submissions = <String>[];
@@ -363,6 +409,37 @@ class _NoopScrobbleService extends Fake implements ScrobbleService {
     submissions.add(songId);
     submissionSessions.add(sessionKey);
   }
+}
+
+class _JpegResponse implements FileServiceResponse {
+  @override
+  Stream<List<int>> get content =>
+      Stream.value(<int>[0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  @override
+  int? get contentLength => 12;
+  @override
+  int get statusCode => 200;
+  @override
+  DateTime get validTill => DateTime.now().add(const Duration(days: 1));
+  @override
+  String? get eTag => null;
+  @override
+  String get fileExtension => '.jpg';
+}
+
+class _JpegArtworkService extends Fake implements CoverArtHttpFileService {
+  int gets = 0;
+  @override
+  Future<FileServiceResponse> get(
+    String url, {
+    Map<String, String>? headers,
+  }) async {
+    gets++;
+    return _JpegResponse();
+  }
+
+  @override
+  void close({bool force = false}) {}
 }
 
 class _TeardownArtworkService extends Fake implements CoverArtHttpFileService {
@@ -636,6 +713,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   bool failVolume = false;
   Completer<void>? volumeGate;
   Completer<void>? volumeEntered;
+
+  /// Every volume write waits for this, as a slow native write would.
+  Completer<void>? volumeHold;
   Completer<void>? listenerCancelGate;
   Completer<void>? listenerCancelEntered;
   String? failAppendSongId;
@@ -810,6 +890,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> setVolume(double value) async {
+    await volumeHold?.future;
     final gate = volumeGate;
     if (gate != null) {
       volumeGate = null;
@@ -5359,6 +5440,104 @@ void main() {
   );
 
   test(
+    'a cleared cover file is downloaded once and republished with art',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-stale-art-',
+      );
+      const channel = MethodChannel('plugins.flutter.io/path_provider');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(channel, (_) async => directory.path);
+      PlaybackArtCache.resetKeyForTesting();
+      addTearDown(() async {
+        messenger.setMockMethodCallHandler(channel, null);
+        PlaybackArtCache.resetKeyForTesting();
+      });
+      await PlaybackArtCache.initializeKey(supportDirectory: directory);
+      final art = _JpegArtworkService();
+      final (handler, _, database) = await createHandler(
+        directory,
+        3,
+        sidecarStreams: true,
+        artworkFileService: art,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+      });
+      await database.libraryDao.upsertSongs([
+        for (final id in ['song-0', 'song-1', 'song-2'])
+          SongsTableCompanion.insert(
+            id: id,
+            title: id,
+            duration: const Value(300),
+            coverArt: Value('cover-$id'),
+          ),
+      ]);
+      final projection = RealTimeProjectionAudioHandler(
+        handler,
+        systemArt: AndroidSystemArt(
+          authority: 'app.test.artwork',
+          fetch: handler.cacheSystemArtwork,
+          cachedPath: handler.cachedSystemArtwork,
+        ),
+      );
+      addTearDown(projection.dispose);
+      final published = <MediaItem?>[];
+      final sub = projection.mediaItem.listen(published.add);
+      addTearDown(sub.cancel);
+
+      await handler.replaceQueue(
+        ['song-0', 'song-1', 'song-2'],
+        startIndex: 0,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      await handler.play();
+      for (
+        var i = 0;
+        i < 300 &&
+            !(published.isNotEmpty &&
+                published.last?.artUri?.scheme == 'content');
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      expect(published.last?.artUri?.scheme, 'content');
+      final file = File(published.last!.extras!['artCacheFile']! as String);
+      expect(file.existsSync(), isTrue);
+
+      // Move to song-1 and wait for its art, then delete song-0's file (Android
+      // clears cacheDir) and come back to song-0.
+      await handler.skipToQueueItem(1);
+      await settleQueue(handler);
+      for (
+        var i = 0;
+        i < 300 &&
+            !(published.last?.id == 'song-1' &&
+                published.last?.artUri?.scheme == 'content');
+        i++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      file.deleteSync();
+      final getsBefore = art.gets;
+      await handler.skipToQueueItem(0);
+      await settleQueue(handler);
+      await pumpEventQueue(times: 200);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      await pumpEventQueue(times: 200);
+      expect(art.gets - getsBefore, 1);
+      expect(file.existsSync(), isTrue);
+      final last = projection.mediaItem.value!;
+      expect(last.id, 'song-0');
+      expect(last.artUri?.scheme, 'content');
+      expect(last.extras?['artCacheFile'], file.path);
+    },
+  );
+
+  test(
     'begin then dispose closes all handler streams and browse parents',
     () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -5860,6 +6039,13 @@ void main() {
       bool build = true,
       NavisQueueWindow window = const NavisQueueWindow(),
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
+      bool crossfade = false,
+      bool supportsTranscodeOffset = false,
+      // Songs whose second and later downloads stop half-way until the gate.
+      Set<String> holdLater = const <String>{},
+      Completer<void>? laterGate,
+      List<_ControllableAudioPlayer>? rebuiltPlayers,
+      NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     }) async {
       final previousHttp = HttpOverrides.current;
       HttpOverrides.global = null;
@@ -5893,7 +6079,12 @@ void main() {
             await Future<void>.delayed(const Duration(milliseconds: 100));
             return;
           }
-          if (silent.contains(id)) {
+          if (holdLater.contains(id) && nth > 1) {
+            request.response.add(List<int>.filled(size ~/ 2, 1));
+            await request.response.flush();
+            await laterGate?.future;
+            request.response.add(List<int>.filled(size ~/ 2, 1));
+          } else if (silent.contains(id)) {
             // Headers only: the warm has reported no progress yet.
             await request.response.flush();
             await release.future;
@@ -5930,6 +6121,10 @@ void main() {
         sidecarDownloader: downloader,
         wrapResolver: wrap,
         queueWindow: window,
+        crossfade: crossfade,
+        supportsTranscodeOffset: supportsTranscodeOffset,
+        timeouts: timeouts,
+        rebuiltPlayers: rebuiltPlayers,
         cacheSongs: false,
         positionStreams: true,
         readApiClient: () => api,
@@ -6275,14 +6470,325 @@ void main() {
       },
     );
 
+    // What the native player does with an occurrence: a stream source is read
+    // through its proxy request, a plain URI source is fetched from its origin.
+    Future<int> readOccurrence(_ControllableAudioPlayer p, int i) async {
+      final source = p.audioSources[i];
+      // ignore: experimental_member_use, reason: the proxy request contract.
+      if (source is StreamAudioSource) {
+        final response = await source.request();
+        await drain(response);
+        return response.contentLength ?? -1;
+      }
+      final client = HttpClient();
+      try {
+        final response = await (await client.getUrl(
+          (source as UriAudioSource).uri,
+        )).close();
+        return (await response.fold<int>(0, (n, chunk) => n + chunk.length));
+      } finally {
+        client.close(force: true);
+      }
+    }
+
+    test(
+      'a repeat occurrence of a completed song reads the cache file',
+      () async {
+        final s = await serveQueue(3, ids: ['song-0', 'song-1', 'song-1']);
+        ticks(s.player);
+        final leader = sourceAt(s.player, 1);
+        await drain(await leader.request());
+        final file = await leader.cacheFile;
+        await until(() => file.existsSync());
+        expect(count(s.requests, 'song-1'), 1);
+        expect(await readOccurrence(s.player, 2), size);
+        // The completed file is served: the origin is not asked again.
+        expect(count(s.requests, 'song-1'), 1);
+        // ignore: experimental_member_use, reason: the proxy request contract.
+        expect(s.player.audioSources[2], isA<StreamAudioSource>());
+      },
+    );
+
+    test('a repeat occurrence joins the leader download', () async {
+      final s = await serveQueue(
+        3,
+        hold: {'song-1'},
+        ids: ['song-0', 'song-1', 'song-1'],
+      );
+      ticks(s.player);
+      final leader = sourceAt(s.player, 1);
+      final first = leader.request();
+      await until(() => s.requests.contains('song-1') && leader.isDownloading);
+      final reading = readOccurrence(s.player, 2);
+      await pumpEventQueue();
+      s.release.complete();
+      expect(await reading, size);
+      await drain(await first);
+      await settle();
+      expect(count(s.requests, 'song-1'), 1);
+      expect(s.maxActive['song-1'], 1);
+    });
+
+    // The cache file of a completed song is evicted while the song is queued:
+    // the held writer downloads it again, registered like any running download,
+    // and a new occurrence follows it instead of becoming a second writer.
+    for (final edit in ['addToQueue', 'playNext', 'replaceQueue']) {
+      test(
+        'an evicted song re-downloads through its held writer, $edit',
+        () async {
+          final gate = Completer<void>();
+          addTearDown(() {
+            if (!gate.isCompleted) gate.complete();
+          });
+          final s = await serveQueue(
+            3,
+            ids: ['song-0', 'song-1', 'song-1'],
+            holdLater: {'song-1'},
+            laterGate: gate,
+          );
+          ticks(s.player);
+          final leader = sourceAt(s.player, 1);
+          await drain(await leader.request());
+          final file = await leader.cacheFile;
+          await until(() => file.existsSync());
+          await until(
+            () => s.handler.debugRegisteredLockCacheSource('song-1') == null,
+          );
+          file.deleteSync();
+          final reading = leader.request();
+          await until(() => leader.isDownloading);
+          expect(
+            identical(
+              s.handler.debugRegisteredLockCacheSource('song-1'),
+              leader,
+            ),
+            isTrue,
+            reason: 'the re-download must be registered again',
+          );
+          switch (edit) {
+            case 'addToQueue':
+              await s.handler.addToQueue(['song-1'], expandMatchFlows: false);
+            case 'playNext':
+              await s.handler.playNext(['song-1'], expandMatchFlows: false);
+            default:
+              await s.handler.replaceQueue([
+                'song-0',
+                'song-1',
+                'song-1',
+                'song-1',
+              ], expandMatchFlows: false);
+          }
+          await settleQueue(s.handler);
+          expect(
+            identical(
+              s.handler.debugRegisteredLockCacheSource('song-1'),
+              leader,
+            ),
+            isTrue,
+          );
+          final ids = [for (final m in s.handler.queue.value) m.id];
+          final writers = [
+            for (var i = 0; i < ids.length; i++)
+              // ignore: experimental_member_use, reason: the lock-cache source.
+              if (ids[i] == 'song-1' &&
+                  // ignore: experimental_member_use, reason: the lock-cache source.
+                  s.player.audioSources[i] is LockCachingAudioSource)
+                s.player.audioSources[i],
+          ];
+          expect(writers, hasLength(1));
+          expect(identical(writers.single, leader), isTrue);
+          for (var i = 0; i < ids.length; i++) {
+            if (ids[i] == 'song-1' &&
+                !identical(s.player.audioSources[i], leader)) {
+              expect(s.player.audioSources[i], isA<LockCacheFollowerSource>());
+            }
+          }
+          final last = ids.lastIndexOf('song-1');
+          final second = readOccurrence(s.player, last);
+          gate.complete();
+          await second;
+          await drain(await reading);
+          await settle();
+          // One origin download, then one re-download: never a second writer.
+          expect(count(s.requests, 'song-1'), 2);
+          expect(s.maxActive['song-1'], 1);
+          // The re-download completed through the progress observer, so the
+          // rolling cache registered the file and the registry entry is gone.
+          await until(
+            () => s.handler.debugRegisteredLockCacheSource('song-1') == null,
+          );
+          expect(file.existsSync(), isTrue);
+        },
+      );
+    }
+
+    test(
+      'a new occurrence of an evicted song follows its idle held writer',
+      () async {
+        final s = await serveQueue(3, ids: ['song-0', 'song-1', 'song-1']);
+        ticks(s.player);
+        final leader = sourceAt(s.player, 1);
+        await drain(await leader.request());
+        final file = await leader.cacheFile;
+        await until(() => file.existsSync());
+        await until(
+          () => s.handler.debugRegisteredLockCacheSource('song-1') == null,
+        );
+        file.deleteSync();
+        await s.handler.addToQueue(['song-1'], expandMatchFlows: false);
+        await settleQueue(s.handler);
+        final added = s.player.audioSources.last;
+        expect(added, isA<LockCacheFollowerSource>());
+        expect(
+          identical((added as LockCacheFollowerSource).leader, leader),
+          isTrue,
+        );
+        await readOccurrence(s.player, s.player.audioSources.length - 1);
+        await settle();
+        expect(count(s.requests, 'song-1'), 2);
+        expect(s.maxActive['song-1'], 1);
+      },
+    );
+
+    test('a rebuild onto an idle evicted writer does not replay its completion', () async {
+      final gate = Completer<void>();
+      addTearDown(() {
+        if (!gate.isCompleted) gate.complete();
+      });
+      final s = await serveQueue(
+        4,
+        ids: ['song-0', 'song-1', 'song-1', 'song-2'],
+        holdLater: {'song-1'},
+        laterGate: gate,
+      );
+      ticks(s.player);
+      final leader = sourceAt(s.player, 1);
+      await drain(await leader.request());
+      final file = await leader.cacheFile;
+      await until(() => file.existsSync());
+      await until(
+        () => s.handler.debugRegisteredLockCacheSource('song-1') == null,
+      );
+      await s.handler.skipToQueueItem(3);
+      await settleQueue(s.handler);
+      await settle();
+      file.deleteSync();
+      await s.handler.replaceQueue(
+        ['song-1', 'song-0', 'song-1'],
+        startIndex: 0,
+        expandMatchFlows: false,
+      );
+      await settleQueue(s.handler);
+      await settle();
+      expect(identical(s.player.audioSources[0], leader), isTrue);
+      // The file is gone: the stale 1.0 the progress stream replays is not a
+      // completion, so the writer stays registered and the buffer is not full.
+      expect(
+        identical(s.handler.debugRegisteredLockCacheSource('song-1'), leader),
+        isTrue,
+      );
+      expect(
+        s.handler.bufferState.bufferedPosition,
+        lessThan(const Duration(minutes: 3)),
+      );
+    });
+
+    test('a source retired by a player recovery no longer re-registers', () async {
+      final s = await serveQueue(
+        3,
+        hold: {'song-1'},
+        ids: ['song-0', 'song-1', 'song-1'],
+        rebuiltPlayers: <_ControllableAudioPlayer>[],
+        timeouts: const NavisPlaybackTimeouts(
+          load: Duration(milliseconds: 150),
+          reset: Duration(milliseconds: 150),
+        ),
+      );
+      ticks(s.player);
+      final leader = sourceAt(s.player, 1);
+      expect(leader.onDownloadStart, isNotNull);
+      s.player.hang.add('insertAudioSources');
+      await expectLater(
+        s.handler.playNext(['song-0'], expandMatchFlows: false),
+        throwsA(isA<PlaybackLoadTimeoutException>()),
+      );
+      // Recovery unregistered the retired writer; a retry of its fetch must not
+      // take the registry slot back from the rebuilt queue's source.
+      expect(s.handler.debugRegisteredLockCacheSource('song-1'), isNot(leader));
+      expect(leader.onDownloadStart, isNull);
+      s.release.complete();
+    });
+
+    test('a repeat occurrence plays on after its leader is removed', () async {
+      final s = await serveQueue(
+        3,
+        hold: {'song-1'},
+        ids: ['song-0', 'song-1', 'song-1'],
+      );
+      ticks(s.player);
+      final leader = sourceAt(s.player, 1);
+      final first = leader.request();
+      await until(() => s.requests.contains('song-1') && leader.isDownloading);
+      await s.handler.removeQueueItemAt(1);
+      await settleQueue(s.handler);
+      expect(s.player.audioSources, hasLength(2));
+      final reading = readOccurrence(s.player, 1);
+      await pumpEventQueue();
+      s.release.complete();
+      expect(await reading, size);
+      await drain(await first);
+      await settle();
+      expect(count(s.requests, 'song-1'), 1);
+      expect(s.maxActive['song-1'], 1);
+    });
+
+    // The planner asks whether the origin serves ranges; a repeat occurrence
+    // answers with its leader's origin, not with "a plain source: yes".
+    for (final onRepeat in [false, true]) {
+      test(
+        'the seek planner uses the leader range support'
+        ' (playing the ${onRepeat ? 'repeat' : 'first'} occurrence)',
+        () async {
+          final s = await serveQueue(
+            3,
+            hold: {'song-1'},
+            ids: ['song-0', 'song-1', 'song-1'],
+            supportsTranscodeOffset: true,
+            wrap: (base) => _TranscodedLockResolver(base),
+          );
+          ticks(s.player);
+          final leader = sourceAt(s.player, 1);
+          final first = leader.request();
+          await until(() => leader.originSupportsRangeRequests == false);
+          s.player.moveTo(onRepeat ? 2 : 1);
+          await pumpEventQueue();
+          await s.handler.previewSeek(const Duration(seconds: 150));
+          // The origin (no Accept-Ranges) cannot serve the native seek: the
+          // planner opens a transcode at the offset instead.
+          expect(
+            s.handler.collectPlaybackDiagnostics()['seekPreview'],
+            isNotNull,
+          );
+          s.handler.cancelSeekPreview();
+          s.release.complete();
+          await drain(await first);
+          await settle();
+        },
+      );
+    }
+
     // Per player index: 'reg' when the player holds the registered source of
     // that song, else 'DIFF'/'UNREG'; plus how many instances each song has.
     String audit(NavisAudioHandler handler, _ControllableAudioPlayer player) {
       final ids = [for (final m in handler.queue.value) m.id];
       final instances = <String, Set<int>>{};
       var bad = 0;
+      // One source instance at two playlist positions merges their native ids
+      // (any kind of source, so a follower is held to it as well).
+      final positions = <int, List<int>>{};
       for (var i = 0; i < player.audioSources.length; i++) {
         final s = player.audioSources[i];
+        (positions[identityHashCode(s)] ??= <int>[]).add(i);
         // ignore: experimental_member_use, reason: the lock-cache source.
         if (s is! LockCachingAudioSource) continue;
         final id = ids[i];
@@ -6293,10 +6799,14 @@ void main() {
         for (final e in instances.entries)
           if (e.value.length > 1) e.key,
       ];
-      return 'bad=$bad multiInstance=$multi';
+      final shared = [
+        for (final p in positions.values)
+          if (p.length > 1) p,
+      ];
+      return 'bad=$bad multiInstance=$multi atTwoPositions=$shared';
     }
 
-    const oneInstance = 'bad=0 multiInstance=[]';
+    const oneInstance = 'bad=0 multiInstance=[] atTwoPositions=[]';
 
     test(
       'addToQueue and playNext duplicates keep one registered source',
@@ -6318,6 +6828,188 @@ void main() {
         await settleQueue(s.handler);
         expect(audit(s.handler, s.player), oneInstance);
         await settle();
+      },
+    );
+
+    // Each occurrence of a song is its own source instance (the native id
+    // derives from it), with one lock-cache writer per song.
+    void expectOccurrences(
+      NavisAudioHandler handler,
+      _ControllableAudioPlayer player,
+      List<String> ids,
+    ) {
+      expect([for (final m in handler.queue.value) m.id], ids);
+      expect(player.audioSources, hasLength(ids.length));
+      expect(player.audioSources.toSet(), hasLength(ids.length));
+      expect(audit(handler, player), oneInstance);
+      for (final id in ids.toSet()) {
+        final writers = [
+          for (var i = 0; i < ids.length; i++)
+            // ignore: experimental_member_use, reason: the lock-cache source.
+            if (ids[i] == id &&
+                // ignore: experimental_member_use, reason: the lock-cache source.
+                player.audioSources[i] is LockCachingAudioSource)
+              i,
+        ];
+        expect(writers.length, lessThanOrEqualTo(1), reason: id);
+      }
+    }
+
+    test('addToQueue of a queued song adds its own occurrence', () async {
+      final s = await serveQueue(
+        2,
+        hold: {'song-1'},
+        ids: ['song-0', 'song-1'],
+      );
+      ticks(s.player);
+      await s.handler.addToQueue(['song-1', 'song-1'], expandMatchFlows: false);
+      await settleQueue(s.handler);
+      expectOccurrences(s.handler, s.player, [
+        'song-0',
+        'song-1',
+        'song-1',
+        'song-1',
+      ]);
+      await settle();
+    });
+
+    test(
+      'playNext of the playing and a queued song adds occurrences',
+      () async {
+        final s = await serveQueue(
+          2,
+          hold: {'song-1'},
+          ids: ['song-0', 'song-1'],
+        );
+        ticks(s.player);
+        await s.handler.playNext(['song-0', 'song-1'], expandMatchFlows: false);
+        await settleQueue(s.handler);
+        expectOccurrences(s.handler, s.player, [
+          'song-0',
+          'song-0',
+          'song-1',
+          'song-1',
+        ]);
+        await settle();
+      },
+    );
+
+    // A full queue rebuild while the registered source is held (the flag on
+    // _prepareQueueItems/_reloadQueueAfterTimeout): the held source stays the
+    // song's one writer at its first occurrence, the repeat is its own
+    // instance, and nothing downloads twice.
+    Future<void> expectHeldLeaderSurvives(
+      ({
+        NavisAudioHandler handler,
+        _ControllableAudioPlayer player,
+        int port,
+        Map<String, int> maxActive,
+        List<String> requests,
+        Completer<void> release,
+        List<bool> gate,
+      })
+      s,
+      // ignore: experimental_member_use, reason: the lock-cache source.
+      LockCachingAudioSource leader,
+      List<String> ids, {
+      // A jump away cancels the unfinished warm (a later request downloads
+      // again), so only a rebuild that stays put downloads exactly once.
+      bool downloadsOnce = true,
+    }) async {
+      await settleQueue(s.handler);
+      expect(
+        identical(s.handler.debugRegisteredLockCacheSource('song-1'), leader),
+        isTrue,
+      );
+      expect(
+        identical(s.player.audioSources[ids.indexOf('song-1')], leader),
+        isTrue,
+      );
+      expectOccurrences(s.handler, s.player, ids);
+      s.release.complete();
+      await drain(await leader.request());
+      await settle();
+      if (downloadsOnce) {
+        expect(count(s.requests, 'song-1'), 1);
+        expect(s.maxActive['song-1'], 1);
+      }
+    }
+
+    test(
+      'a queue rebuilt while the registered source is held keeps it',
+      () async {
+        const ids = ['song-0', 'song-1', 'song-1'];
+        final s = await serveQueue(3, hold: {'song-1'}, ids: ids);
+        ticks(s.player);
+        final leader = sourceAt(s.player, 1);
+        await playCurrent(s.player);
+        await until(
+          () => s.requests.contains('song-1') && leader.isDownloading,
+        );
+        await s.handler.replaceQueue(ids, expandMatchFlows: false);
+        await expectHeldLeaderSurvives(s, leader, ids);
+      },
+    );
+
+    test('a rebuild prepared while the source is held keeps it', () async {
+      const ids = ['song-0', 'song-1', 'song-1'];
+      final s = await serveQueue(3, hold: {'song-1'}, ids: ids);
+      ticks(s.player);
+      final leader = sourceAt(s.player, 1);
+      await playCurrent(s.player);
+      await until(() => s.requests.contains('song-1') && leader.isDownloading);
+      // The rebuild replaces the whole queue: the player's own copy of the
+      // registered source is not a reason to demote its first occurrence.
+      final sources = await s.handler.debugPrepareReplacementSources(ids);
+      expect(identical(sources[1], leader), isTrue);
+      // ignore: experimental_member_use, reason: the lock-cache source.
+      expect(sources[2], isNot(isA<LockCachingAudioSource>()));
+      expect(sources.toSet(), hasLength(ids.length));
+      s.release.complete();
+      await settle();
+    });
+
+    test(
+      'a queue restored after a failed far jump keeps the held source',
+      () async {
+        final ids = [
+          'song-0',
+          'song-1',
+          'song-1',
+          for (var i = 3; i < 60; i++) 'song-$i',
+        ];
+        final s = await serveQueue(
+          60,
+          hold: {'song-1'},
+          ids: ids,
+          window: const NavisQueueWindow(
+            deferThreshold: 16,
+            ahead: 8,
+            lowWater: 3,
+            page: 8,
+            nearJump: 16,
+          ),
+        );
+        ticks(s.player);
+        final leader = sourceAt(s.player, 1);
+        await playCurrent(s.player);
+        await until(
+          () => s.requests.contains('song-1') && leader.isDownloading,
+        );
+        s.player.failLoadSongId = 'song-50';
+        await s.handler.playFromIndex(50);
+        await until(
+          () =>
+              s.handler.snapshot.lastFailedSongId == 'song-50' &&
+              !s.handler.snapshot.isLoading,
+        );
+        s.player.failLoadSongId = null;
+        await expectHeldLeaderSurvives(
+          s,
+          leader,
+          ids.take(9).toList(),
+          downloadsOnce: false,
+        );
       },
     );
 
@@ -6345,6 +7037,73 @@ void main() {
         await settleQueue(s.handler);
         expect(audit(s.handler, s.player), oneInstance);
         await settle();
+      },
+    );
+
+    test(
+      'a released tail is registered while its deck mirror is blocked',
+      () async {
+        final s = await serveQueue(
+          4,
+          hold: {'song-2'},
+          ids: ['song-0', 'song-1', 'song-2', 'song-2', 'song-3', 'song-2'],
+          crossfade: true,
+          timeouts: const NavisPlaybackTimeouts(reset: Duration(seconds: 3)),
+          window: const NavisQueueWindow(
+            deferThreshold: 3,
+            ahead: 1,
+            lowWater: 1,
+            page: 4,
+            nearJump: 5,
+            behind: 1,
+            trimSlack: 1,
+          ),
+        );
+        ticks(s.player);
+        await s.handler.debugStartCrossfade();
+        final deck = s.handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        deck.hang.add('addAudioSources');
+        unawaited(s.handler.skipToNext().catchError((Object _) {}));
+        await until(() => s.player.audioSources.length == 6);
+        // The native append is committed: the source the player holds must be
+        // the registered one now, not once the (still blocked) mirror ends.
+        await until(
+          () => identical(
+            s.handler.debugRegisteredLockCacheSource('song-2'),
+            s.player.audioSources[2],
+          ),
+        );
+        s.release.complete();
+      },
+    );
+
+    test(
+      'an inserted song is registered while its deck mirror is blocked',
+      () async {
+        final s = await serveQueue(
+          3,
+          hold: {'song-2'},
+          ids: ['song-0', 'song-1'],
+          crossfade: true,
+          timeouts: const NavisPlaybackTimeouts(reset: Duration(seconds: 4)),
+        );
+        ticks(s.player);
+        await s.handler.debugStartCrossfade();
+        final deck = s.handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        deck.hang.add('addAudioSources');
+        unawaited(
+          s.handler
+              .addToQueue(['song-2'], expandMatchFlows: false)
+              .catchError((Object _) {}),
+        );
+        await until(() => s.player.audioSources.length == 3);
+        await until(
+          () => identical(
+            s.handler.debugRegisteredLockCacheSource('song-2'),
+            s.player.audioSources[2],
+          ),
+        );
+        s.release.complete();
       },
     );
 
@@ -6577,7 +7336,9 @@ void main() {
         sources['song-0']!.activeRange = true;
         player.emitBuffered(const Duration(seconds: 2));
         await pumpEventQueue();
-        // The main download of song-0 finishes; its range fetch stays open.
+        // The main download of song-0 finishes (its file is published); its
+        // range fetch stays open.
+        File('${directory.path}/0.mp3').writeAsBytesSync([1]);
         sources['song-0']!.progress.add(1.0);
         await pumpEventQueue();
         player.emitBuffered(const Duration(seconds: 3));
@@ -10805,7 +11566,7 @@ void main() {
                 directory.path,
                 'navis_art_v2_${PlaybackArtCache.fileKey('cut-cover')}.jpg',
               ),
-            ).writeAsBytes([1, 2, 3]);
+            ).writeAsBytes([0xFF, 0xD8, 0xFF, 1]);
             late NavisDatabase database;
             final (handler, player) = await setup(
               onDatabase: (value) => database = value,
@@ -14956,6 +15717,316 @@ void main() {
       await handler.debugCompleteCrossfade();
       expect(handler.debugActivePlayer, same(incoming));
     });
+
+    test('a slow prewarm shortens the ramp to end by the song end', () async {
+      final (handler, player, _) = await crossfading(2);
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      final entered = Completer<void>();
+      final release = Completer<void>();
+      incoming
+        ..loadGate = release
+        ..loadEntered = entered;
+      // 2 s before the end of a 3 min song: the 5 s fade cannot fit.
+      player
+        ..simulateProgress = true
+        ..simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 2);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      await entered.future.timeout(const Duration(seconds: 1));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      release.complete();
+      await waitForFade(
+        () =>
+            identical(handler.debugActivePlayer, incoming) &&
+            fade(handler)['active'] == false,
+      );
+      expect(
+        player.position,
+        lessThanOrEqualTo(const Duration(minutes: 3)),
+        reason: 'the ramp must end before the outgoing song does',
+      );
+      expect(incoming.playing, isTrue);
+    });
+
+    test('with under half a second left the song advances gaplessly', () async {
+      final (handler, player, _) = await crossfading(2);
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      player.simulatedPosition =
+          const Duration(minutes: 3) - const Duration(milliseconds: 300);
+      handler.debugCheckCrossfadeTrigger(player.position);
+      await waitForFade(() => fade(handler)['active'] == false);
+      expect(handler.debugActivePlayer, same(player));
+      expect(incoming.playing, isFalse);
+      expect(fade(handler)['phases'], containsPair('too_late', 1));
+      // No retry loop for this occurrence.
+      handler.debugCheckCrossfadeTrigger(player.position);
+      expect(fade(handler)['active'], isFalse);
+    });
+
+    test(
+      'the outgoing deck advancing mid-fade does not drive the display',
+      () async {
+        final (handler, player, _) = await crossfading(3);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        final shown = <(String?, bool)>[];
+        final sub = handler.snapshotStream.listen(
+          (s) => shown.add((
+            s.currentSongId,
+            identical(handler.debugActivePlayer, player),
+          )),
+        );
+        addTearDown(sub.cancel);
+        player.simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 6);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playing && incoming.volume > 0);
+        expect(handler.currentMediaItem?.id, 'song-0');
+        // The outgoing deck runs out and gapless-advances into song 1.
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(
+          shown,
+          isNot(contains(('song-1', true))),
+          reason: 'the outgoing deck must not publish the next song',
+        );
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+        expect(handler.currentMediaItem?.id, 'song-1');
+        expect(handler.snapshot.currentIndex, 1);
+        expect(player.playing, isFalse, reason: 'no second copy of song 1');
+        expect(incoming.playing, isTrue);
+      },
+    );
+
+    group('an incoming song too short for the ramp', () {
+      // The outgoing song has 6 s left, so the ramp is the full 5 s.
+      Future<
+        (NavisAudioHandler, _ControllableAudioPlayer, _ControllableAudioPlayer)
+      >
+      shortIncoming(Duration duration) async {
+        final (handler, player, _) = await crossfading(3);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        incoming.simulatedDuration = duration;
+        player.simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 6);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        return (handler, player, incoming);
+      }
+
+      test('below ramp plus margin advances gaplessly', () async {
+        final (handler, player, incoming) = await shortIncoming(
+          const Duration(milliseconds: 5099),
+        );
+        await waitForFade(() => fade(handler)['active'] == false);
+        expect(handler.debugActivePlayer, same(player));
+        expect(incoming.playing, isFalse);
+        expect(fade(handler)['phases'], containsPair('too_late', 1));
+      });
+
+      test('exactly ramp plus margin still crossfades', () async {
+        final (handler, player, incoming) = await shortIncoming(
+          const Duration(milliseconds: 5100),
+        );
+        await waitForFade(() => incoming.playing && incoming.volume > 0);
+        expect(fade(handler)['active'], isTrue);
+        expect(fade(handler)['phases'], isNot(contains('too_late')));
+        await handler.debugCompleteCrossfade();
+        expect(handler.debugActivePlayer, same(incoming));
+        expect(player.playing, isFalse);
+      });
+
+      test('an unknown incoming duration keeps the full ramp', () async {
+        final (handler, _, incoming) = await shortIncoming(Duration.zero);
+        await waitForFade(() => incoming.playing && incoming.volume > 0);
+        expect(fade(handler)['phases'], isNot(contains('too_late')));
+        await handler.debugCompleteCrossfade();
+        expect(handler.debugActivePlayer, same(incoming));
+      });
+    });
+
+    group('the outgoing deck advancing mid-fade', () {
+      final nearEnd = const Duration(minutes: 3) - const Duration(seconds: 6);
+
+      Future<
+        (
+          NavisAudioHandler,
+          _ControllableAudioPlayer,
+          _ControllableAudioPlayer,
+          NavisDatabase,
+        )
+      >
+      midFade({bool positionStreams = false, int startIndex = 0}) async {
+        final (handler, player, database) = await crossfading(
+          3,
+          positionStreams: positionStreams,
+        );
+        await handler.replaceQueue(
+          ids(3),
+          startIndex: startIndex,
+          expandMatchFlows: false,
+        );
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        player.simulatedPosition = nearEnd;
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playing && incoming.volume > 0.2);
+        return (handler, player, incoming, database);
+      }
+
+      test('keeps the saved and shown position on the outgoing song', () async {
+        final (handler, player, incoming, database) = await midFade();
+        final hold = Completer<void>();
+        // A slow native write keeps the hand-over open: the widest window.
+        incoming.volumeHold = hold;
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(identical(handler.debugActivePlayer, player), isTrue);
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(
+          handler.snapshot.position,
+          greaterThan(const Duration(minutes: 2)),
+          reason: 'song-0 must not be shown at the next song\'s ~0',
+        );
+        await handler.debugFlushQueuePersistence();
+        final saved = (await database.playQueueDao.getQueueState())!;
+        expect(saved.currentIndex, 0);
+        expect(saved.positionMs, greaterThan(120000));
+        hold.complete();
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+      });
+
+      test('mutes the outgoing deck before any hand-over await', () async {
+        final (handler, player, incoming, _) = await midFade();
+        final hold = Completer<void>();
+        incoming.volumeHold = hold;
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        expect(player.volume, 0, reason: 'no second copy of song-1');
+        hold.complete();
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+      });
+
+      test('the position stream never shows the next song at 0', () async {
+        final (handler, player, incoming, _) = await midFade(
+          positionStreams: true,
+        );
+        final seen = <Duration>[];
+        final sub = handler.positionStream.listen(seen.add);
+        addTearDown(sub.cancel);
+        final hold = Completer<void>();
+        incoming.volumeHold = hold;
+        player.finishCurrentTrack();
+        await pumpEventQueue();
+        seen.clear();
+        for (var i = 0; i < 3; i++) {
+          player.emitPlayerEvent();
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+        }
+        expect(identical(handler.debugActivePlayer, player), isTrue);
+        expect(seen, isNotEmpty);
+        expect(
+          seen.every((p) => p > const Duration(minutes: 2)),
+          isTrue,
+          reason: 'saw $seen',
+        );
+        hold.complete();
+        await waitForFade(
+          () =>
+              identical(handler.debugActivePlayer, incoming) &&
+              fade(handler)['active'] == false,
+        );
+      });
+
+      test(
+        'a volume change inside the hand-over keeps the outgoing mute',
+        () async {
+          final (handler, player, incoming, _) = await midFade();
+          final hold = Completer<void>();
+          incoming.volumeHold = hold;
+          player.finishCurrentTrack();
+          await pumpEventQueue();
+          unawaited(handler.setVolume(0.8));
+          await pumpEventQueue();
+          expect(player.volume, 0, reason: 'song-1 must not come back');
+          hold.complete();
+          await waitForFade(
+            () =>
+                identical(handler.debugActivePlayer, incoming) &&
+                fade(handler)['active'] == false,
+          );
+          expect(incoming.volume, closeTo(0.8, 0.001));
+        },
+      );
+
+      test(
+        'previous inside the hand-over restarts the outgoing song',
+        () async {
+          final (handler, player, incoming, _) = await midFade(startIndex: 1);
+          final hold = Completer<void>();
+          incoming.volumeHold = hold;
+          player.finishCurrentTrack();
+          await pumpEventQueue();
+          await handler.skipToPrevious();
+          await pumpEventQueue();
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(player.index, 1, reason: 'a restart, not the previous song');
+          hold.complete();
+          await pumpEventQueue();
+        },
+      );
+
+      test('a volume change follows the shortened ramp', () async {
+        final (handler, player, _) = await crossfading(2);
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        // 2 s left: the 5 s fade shortens to about 1.9 s.
+        player
+          ..simulateProgress = true
+          ..simulatedPosition =
+              const Duration(minutes: 3) - const Duration(seconds: 2);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playing && incoming.volume > 0.5);
+        await handler.setVolume(1);
+        expect(player.volume, lessThan(0.55));
+        expect(incoming.volume, greaterThan(0.45));
+      });
+    });
+
+    test(
+      'an outgoing advance with the incoming deck unready falls back',
+      () async {
+        final (handler, player, _) = await crossfading(3);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        incoming.ignorePlay = true;
+        player.simulatedPosition =
+            const Duration(minutes: 3) - const Duration(seconds: 6);
+        handler.debugCheckCrossfadeTrigger(player.position);
+        await waitForFade(() => incoming.playRequested);
+        player.finishCurrentTrack();
+        await waitForFade(() => fade(handler)['active'] == false);
+        await pumpEventQueue();
+        // The suppressed index event is replayed when the fade is abandoned.
+        expect(handler.debugActivePlayer, same(player));
+        expect(handler.currentMediaItem?.id, 'song-1');
+        expect(handler.snapshot.currentIndex, 1);
+        expect(player.playing, isTrue);
+      },
+    );
 
     test('self-crossfade retries after a native wrap during prewarm', () async {
       final (handler, player, _) = await crossfading(2);

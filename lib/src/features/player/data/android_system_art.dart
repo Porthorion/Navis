@@ -27,7 +27,9 @@ typedef SystemArtLookup = String? Function(String coverArtId);
 /// already allowed) is passed through; a `file:` URI, which URI-based clients
 /// cannot open, is dropped.
 ///
-/// The content URI is published only once the cover is on disk; until then
+/// The content URI is published only once the cover is an image file on disk
+/// (checked on each publish: a cleared cache directory or a bad download
+/// withholds it); until then
 /// the item has no art and the download is started. A URI the provider
 /// cannot open yet makes audio_service put empty `METADATA_KEY_ALBUM_ART`
 /// into the session, and the later update with the real bitmap keeps the
@@ -46,6 +48,12 @@ class AndroidSystemArt {
   final SystemArtFetch _fetch;
   final SystemArtLookup _cachedPath;
 
+  /// `AudioServiceConfig.artDownscaleWidth/Height`. audio_service halves the
+  /// sampling only while the result stays at or above this size. Covers are
+  /// fetched at 512 px, so 256 decodes them at 256 px for AVRCP; 512 would
+  /// leave them at 512.
+  static const artDownscaleSize = 256;
+
   static const _prefetchConcurrency = 6;
 
   /// Browse lists are answered after this long even if covers are still
@@ -61,7 +69,14 @@ class AndroidSystemArt {
 
   /// [item] as the system may see it. With [prefetch] the cover download
   /// starts (or joins one in progress) when the cover is not cached yet.
-  MediaItem forSystem(MediaItem item, {bool prefetch = false}) {
+  ///
+  /// [resolved] memoises the image file found per cover ID, so a list of songs
+  /// sharing covers stats each file once.
+  MediaItem forSystem(
+    MediaItem item, {
+    bool prefetch = false,
+    Map<String, String?>? resolved,
+  }) {
     final artUri = item.artUri;
     // An app-private file cannot be opened from another process.
     if (artUri != null && artUri.scheme == 'file') {
@@ -70,9 +85,31 @@ class AndroidSystemArt {
     final coverArtId = _credentialedCoverId(artUri);
     if (coverArtId == null) return item;
     if (coverArtId.isEmpty) return item.copyWith(artUri: null);
-    if (!_isCached(item, coverArtId)) {
+    // audio_service decodes ALBUM_ART only from `artCacheFile`; a content URI
+    // without a readable image there stores an empty bitmap that Bluetooth
+    // never replaces. So the URI goes out only with a real image file.
+    final extraFile = item.extras?['artCacheFile'];
+    String? findFile() {
+      if (extraFile is String && PlaybackArtCache.isImageFile(extraFile)) {
+        return extraFile;
+      }
+      final cached = _cachedPath(coverArtId);
+      return cached != null && PlaybackArtCache.isImageFile(cached)
+          ? cached
+          : null;
+    }
+
+    final file = resolved == null
+        ? findFile()
+        : resolved.putIfAbsent(coverArtId, findFile);
+    if (file == null) {
       if (prefetch) unawaited(_fetch(coverArtId, artUri!));
-      return item.copyWith(artUri: null);
+      return item.copyWith(
+        artUri: null,
+        extras: extraFile == null
+            ? item.extras
+            : (Map<String, dynamic>.of(item.extras!)..remove('artCacheFile')),
+      );
     }
     return item.copyWith(
       artUri: Uri(
@@ -80,13 +117,11 @@ class AndroidSystemArt {
         host: authority,
         pathSegments: <String>['cover', PlaybackArtCache.fileKey(coverArtId)],
       ),
+      extras: file == extraFile
+          ? item.extras
+          : <String, dynamic>{...?item.extras, 'artCacheFile': file},
     );
   }
-
-  /// NavisAudioHandler adds `artCacheFile` to the current item once its
-  /// cover is on disk; other items are looked up in the cover cache.
-  bool _isCached(MediaItem item, String coverArtId) =>
-      item.extras?['artCacheFile'] is String || _cachedPath(coverArtId) != null;
 
   /// [items] as the system may see them, once their covers are cached or
   /// [budget] has passed. Covers still downloading are left out.
@@ -106,7 +141,10 @@ class AndroidSystemArt {
       final downloads = _downloadAll(pending);
       await Future.any(<Future<void>>[downloads, Future<void>.delayed(budget)]);
     }
-    return <MediaItem>[for (final item in items) forSystem(item)];
+    final resolved = <String, String?>{};
+    return <MediaItem>[
+      for (final item in items) forSystem(item, resolved: resolved),
+    ];
   }
 
   Future<void> _downloadAll(List<(String, Uri)> covers) async {

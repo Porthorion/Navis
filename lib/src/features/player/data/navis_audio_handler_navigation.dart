@@ -50,7 +50,7 @@ extension _NavisNavigation on NavisAudioHandler {
       confirmedIndex: confirmedIndex,
       confirmedPosition: _restoredQueueIndex != null
           ? _restoredQueuePosition
-          : _player.position,
+          : _transportPosition,
       effectiveOrder: effectiveOrder,
       // The user's mode: the native loop is off while songs are deferred.
       loopAll: _desiredLoopMode == LoopMode.all,
@@ -327,6 +327,7 @@ extension _NavisNavigation on NavisAudioHandler {
             // Navis uses the vendored lock-cache primitive for remote sources.
             // ignore: experimental_member_use
             LockCachingAudioSource(:final uri) => uri,
+            LockCacheFollowerSource(:final leader) => leader.uri,
             _ => null,
           };
           final coldRemote =
