@@ -101,7 +101,7 @@ String coverArtFeatureCacheKey(String featureKey, String url) =>
 /// True when the payload head carries a known image signature (JPEG, PNG,
 /// GIF, WebP, BMP, ICO, TIFF, AVIF and HEIC/HEIF). Content types are untrusted:
 /// some servers answer missing artwork with HTTP 200 and a non-image body.
-bool _looksLikeImagePayload(List<int> head) {
+bool looksLikeImagePayload(List<int> head) {
   if (head.length >= 2 && head[0] == 0xFF && head[1] == 0xD8) {
     return true; // JPEG (SOI)
   }
@@ -943,7 +943,7 @@ class _CoverArtHttpFileServiceResponse implements FileServiceResponse {
           )) {
         if (!inspectedHead) {
           inspectedHead = true;
-          headIsImage = _looksLikeImagePayload(chunk);
+          headIsImage = looksLikeImagePayload(chunk);
           headIsErrorDocument =
               !headIsImage && looksLikeSubsonicErrorDocument(chunk);
         }

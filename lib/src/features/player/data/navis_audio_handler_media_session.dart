@@ -81,8 +81,12 @@ extension _NavisMediaSession on NavisAudioHandler {
     if (coverArtId == null || artUri == null) return;
     // Skip non-HTTP schemes (file://, content://, etc. — already handled).
     if (artUri.scheme != 'http' && artUri.scheme != 'https') return;
-    // artCacheFile is already injected — no need to download again.
-    if ((trigger.extras?['artCacheFile'] as String?) != null) return;
+    // artCacheFile is already injected and still on disk — no need to
+    // download again. A path whose file is gone (Android may clear the cache
+    // directory) is fetched again and the item re-emitted, even though the
+    // path string stays the same.
+    final staleFile = trigger.extras?['artCacheFile'] as String?;
+    if (staleFile != null && PlaybackArtCache.isImageFile(staleFile)) return;
 
     AppLogger.debug(
       '_updateArtCacheFile: requesting art cache for '
@@ -102,7 +106,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     // currentIndexStream events deliver the art-cached version.
     for (var i = 0; i < _queueItems.length; i++) {
       if (_queueItems[i].id == trigger.id &&
-          (_queueItems[i].extras?['artCacheFile'] as String?) == null) {
+          _needsArtFile(_queueItems[i], staleFile)) {
         _queueItems.replaceAt(i, withArtCache(_queueItems[i]));
       }
     }
@@ -111,7 +115,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     final current = _currentMediaItem;
     if (current == null || current.id != trigger.id) return;
     // Guard: skip if a concurrent call already injected artCacheFile.
-    if ((current.extras?['artCacheFile'] as String?) != null) return;
+    if (!_needsArtFile(current, staleFile)) return;
 
     // Re-emit the current item with artCacheFile in extras.
     // audio_service's HTTP-path listener will call
@@ -122,6 +126,16 @@ extension _NavisMediaSession on NavisAudioHandler {
     final updated = withArtCache(current);
     _currentMediaItem = updated;
     mediaItem.add(updated);
+  }
+
+  /// Whether [item] still needs `artCacheFile` injected: it has none, its
+  /// file is gone or not an image, or it names [staleFile], which was just
+  /// downloaded again and must be republished.
+  static bool _needsArtFile(MediaItem item, String? staleFile) {
+    final file = item.extras?['artCacheFile'] as String?;
+    return file == null ||
+        file == staleFile ||
+        !PlaybackArtCache.isImageFile(file);
   }
 
   void _wireAudioSession(AudioSession session) {
