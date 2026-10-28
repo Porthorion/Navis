@@ -14,6 +14,14 @@ Last updated: 2026-10-28
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #105 (1.5.1, #86), sync lease liveness — 2026-10-28
+  (branch `fix/sync-lease-liveness`). Heartbeat and `SyncWriteFence.lockAndCheck`
+  now match on the owner token only (like `checkBeforeCommit`), so a DB stall
+  past the TTL without a takeover no longer cancels/fails the run; a real
+  lease loss is `deferred`/`leaseHeld`, not `failed`/`unknownFailure`.
+  Failing-first: DAO stall heartbeat `Expected: true Actual: <false>`;
+  coordinator `Expected: SyncSafeReason.leaseHeld Actual: SyncSafeReason.meteredPolicy`;
+  engine `Expected: LibrarySyncStatus.deferred Actual: LibrarySyncStatus.failed`.
 - [x] Issue #86 P5, long-song crossfade overrun and display snap — 2026-10-28
   (evidence: `navis_audio_handler_navigation_test.dart` "cross-fade deck" cases
   failed first with `Actual: Duration:<0:03:03.603687>` vs the 3:00 song end and
