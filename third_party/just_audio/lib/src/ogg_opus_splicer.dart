@@ -201,15 +201,7 @@ class OggOpusSplicer {
       }
     }
     if (audio.isEmpty) {
-      if (!_emittedEos &&
-          page.segments.isEmpty &&
-          page.flags & 4 != 0 &&
-          _packetIndex >= 2 &&
-          _partial.isEmpty) {
-        _emittedEos = true;
-        return _buildPage(_serial, ++_sequence, _granule, 4, const []);
-      }
-      return null;
+      return page.segments.isEmpty ? _emptyEosFor(page) : null;
     }
     if (page.granule < 0) throw const FormatException('audio without granule');
     // Map the page granule into the delivered stream's granule space, then
@@ -241,7 +233,7 @@ class OggOpusSplicer {
         droppedPackets++;
       }
     }
-    if (kept.isEmpty) return null;
+    if (kept.isEmpty) return _emptyEosFor(page);
     if (page.flags & 4 != 0) _emittedEos = true;
     final out = BytesBuilder(copy: false);
     var first = 0;
@@ -266,6 +258,20 @@ class OggOpusSplicer {
     }
     _granule = mappedGranule;
     return out.takeBytes();
+  }
+
+  /// A data-less EOS page at the delivered granule when [page] carries EOS
+  /// but none of its audio is new (a wholly overlapped final page, or a bare
+  /// EOS page) and the delivered stream has not ended yet; otherwise null.
+  Uint8List? _emptyEosFor(_Page page) {
+    if (_emittedEos ||
+        page.flags & 4 == 0 ||
+        _packetIndex < 2 ||
+        _partial.isNotEmpty) {
+      return null;
+    }
+    _emittedEos = true;
+    return _buildPage(_serial, ++_sequence, _granule, 4, const []);
   }
 
   void _append(List<int> chunk) {

@@ -235,6 +235,19 @@ Last updated: 2026-10-28
   Remaining: final Android base-vs-fix runtime evidence and `check.sh` from the
   coordinator; both are explicitly prohibited for this implementation task
   while its independently owned harness run is active.
+- [x] Issue #86, item 14 follow-up: overlapped continuation EOS —
+  `fix/ogg-overlapped-eos` (from `release/1.5`): when the original delivered its
+  final audio page but lost the separate empty EOS page, the continuation's EOS
+  rode on a wholly overlapped page that was dropped, so the cache file had no
+  EOS marker although `continuationComplete` was true. `OggOpusSplicer` now
+  emits one empty EOS page (original serial, next sequence, delivered granule)
+  for any wholly overlapped page carrying EOS when none was emitted yet, via the
+  shared `_emptyEosFor`. Failing-first: `Expected: an object with length of <1>`,
+  `Which: has length of <0>`. New tests cover the lost-empty-EOS case, no
+  duplicate EOS, partially overlapped and fully new EOS pages; the older
+  synthetic wholly-overlapped-EOS test now expects the empty EOS page. Focused
+  splicer, lock-cache splice and source suites: all passed (128). No harness,
+  emulator or `./tool/check.sh` ran.
 - [ ] Issue #86, item 13b Android next-song warm — `fix/android-next-warm`: at
   current-song completion `_syncSidecarChain` starts the next song's own
   lock-cache source with the vendored `prefetch()` (no replay buffer); one source
