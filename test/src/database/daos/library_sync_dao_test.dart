@@ -875,6 +875,43 @@ void main() {
     expect(await database.librarySyncDao.getExecutionLease(1), isNull);
   }, skip: !sqliteAvailable);
 
+  test('heartbeat after a stall past the TTL renews an untaken lease', () async {
+    final now = DateTime.utc(2026, 8, 12, 10);
+    const ttl = Duration(seconds: 1);
+    Future<bool> acquire(String token, DateTime at) =>
+        database.librarySyncDao.acquireExecutionLease(
+          serverId: 1,
+          ownerToken: token,
+          ownerKind: 'foreground',
+          now: at,
+          ttl: ttl,
+        );
+    Future<bool> beat(String token, DateTime at) =>
+        database.librarySyncDao.heartbeatExecutionLease(
+          serverId: 1,
+          ownerToken: token,
+          now: at,
+          ttl: ttl,
+        );
+    expect(await acquire('owner-a', now), isTrue);
+
+    final stalled = now.add(const Duration(seconds: 2));
+    expect(await beat('owner-b', stalled), isFalse);
+    expect(await beat('owner-a', stalled), isTrue);
+    expect(
+      (await database.librarySyncDao.getExecutionLease(1))!.expiresAt
+          .toUtc(),
+      stalled.add(ttl),
+    );
+
+    // Once the renewed lease expires and another run takes it over, the old
+    // owner is fenced out.
+    final later = stalled.add(const Duration(seconds: 2));
+    expect(await acquire('owner-b', later), isTrue);
+    expect(await beat('owner-a', later.add(const Duration(seconds: 1))), isFalse);
+    expect(await beat('owner-b', later.add(const Duration(seconds: 1))), isTrue);
+  }, skip: !sqliteAvailable);
+
   test(
     'discarding an awaiting repair candidate keeps the committed catalog',
     () async {

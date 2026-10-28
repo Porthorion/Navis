@@ -13,6 +13,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/api/sync_request_scope.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
@@ -192,6 +193,22 @@ void main() {
     tearDown(() async {
       await database.close();
     });
+
+    test('a lost lease defers as leaseLost instead of failing', () async {
+      await saveSession();
+      final serverId = (await serverConfigRepository.getActiveServer())!.id!;
+      api.getArtistsError = const SyncLeaseLostException();
+
+      final state = await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+
+      expect(state.status, LibrarySyncStatus.deferred);
+      expect(state.failureCategory, 'leaseLost');
+      final ledger = await database.librarySyncDao
+          .getRecentOperationLedgerEntries(serverId);
+      expect(ledger.map((e) => e.operation), contains('executionLeaseLost'));
+    }, skip: !sqliteAvailable);
 
     for (final (name, playing, manual, expected) in [
       ('paused automatic', false, false, LibrarySyncStatus.succeeded),
