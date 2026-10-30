@@ -205,24 +205,17 @@ class LastFmApiClient {
         );
       }
       if (data['error'] != null) {
-        final code = switch (data['error']) {
-          final int value => value,
-          final num value => value.toInt(),
-          final String value => int.tryParse(value),
-          _ => null,
-        };
-        return LastFmApiKeyValidationResult(
-          valid: false,
-          message: data['message']?.toString() ?? 'Last.fm rejected this key.',
-          apiErrorCode: code,
-          statusCode: response.statusCode,
-        );
+        return _rejectedKeyResult(data, response.statusCode);
       }
       return LastFmApiKeyValidationResult(
         valid: true,
         statusCode: response.statusCode,
       );
     } on DioException catch (error) {
+      final payload = _errorPayload(error);
+      if (payload != null) {
+        return _rejectedKeyResult(payload, error.response?.statusCode);
+      }
       return LastFmApiKeyValidationResult(
         valid: false,
         message: error.response?.statusCode == 429
@@ -236,6 +229,33 @@ class LastFmApiClient {
         message: 'Last.fm returned an unreadable response.',
       );
     }
+  }
+
+  /// The Last.fm error body of a failed response, if it carries one. Dio turns
+  /// a 403 from an invalid API key into a [DioException], but Last.fm still
+  /// says why in the JSON payload.
+  static Map<String, dynamic>? _errorPayload(DioException error) {
+    final data = error.response?.data;
+    if (data is! Map || data['error'] == null) return null;
+    return data.map((key, value) => MapEntry(key.toString(), value));
+  }
+
+  static LastFmApiKeyValidationResult _rejectedKeyResult(
+    Map<String, dynamic> data,
+    int? statusCode,
+  ) {
+    final code = switch (data['error']) {
+      final int value => value,
+      final num value => value.toInt(),
+      final String value => int.tryParse(value),
+      _ => null,
+    };
+    return LastFmApiKeyValidationResult(
+      valid: false,
+      message: data['message']?.toString() ?? 'Last.fm rejected this key.',
+      apiErrorCode: code,
+      statusCode: statusCode,
+    );
   }
 
   // ponytail: concurrent seeds each run their own fan-out (no single-flight),
@@ -318,6 +338,32 @@ class LastFmApiClient {
   /// Last.fm's "Track not found".
   static const _trackNotFoundErrorCode = 6;
 
+  LastFmTrackFetchResult _apiErrorResult(
+    Map<String, dynamic> data, {
+    required int? statusCode,
+    required String artist,
+    required String track,
+  }) {
+    final apiErrorCode = switch (data['error']) {
+      final int code => code,
+      final num code => code.toInt(),
+      _ => null,
+    };
+    final message = data['message']?.toString();
+    AppLogger.debug(
+      'LastFm diagnostics: api error code=$apiErrorCode '
+      'message=$message artist="$artist" '
+      'track="$track"',
+    );
+    return LastFmTrackFetchResult(
+      outcome: LastFmFetchOutcome.apiError,
+      tracks: const <LastFmTrackRecommendation>[],
+      statusCode: statusCode,
+      apiErrorCode: apiErrorCode,
+      message: message,
+    );
+  }
+
   /// One `track.getSimilar` request, with no cache or fallback.
   Future<LastFmTrackFetchResult> _fetchTrackSimilar(
     String normalizedArtist,
@@ -353,23 +399,11 @@ class LastFmApiClient {
 
       // Last.fm error payloads are soft-fail for recommendation flows.
       if (data['error'] != null) {
-        final apiErrorCode = switch (data['error']) {
-          final int code => code,
-          final num code => code.toInt(),
-          _ => null,
-        };
-        final message = data['message']?.toString();
-        AppLogger.debug(
-          'LastFm diagnostics: api error code=$apiErrorCode '
-          'message=$message artist="$normalizedArtist" '
-          'track="$normalizedTrack"',
-        );
-        return LastFmTrackFetchResult(
-          outcome: LastFmFetchOutcome.apiError,
-          tracks: const <LastFmTrackRecommendation>[],
+        return _apiErrorResult(
+          data,
           statusCode: response.statusCode,
-          apiErrorCode: apiErrorCode,
-          message: message,
+          artist: normalizedArtist,
+          track: normalizedTrack,
         );
       }
 
@@ -402,6 +436,15 @@ class LastFmApiClient {
         statusCode: response.statusCode,
       );
     } on DioException catch (error) {
+      final payload = _errorPayload(error);
+      if (payload != null) {
+        return _apiErrorResult(
+          payload,
+          statusCode: error.response?.statusCode,
+          artist: normalizedArtist,
+          track: normalizedTrack,
+        );
+      }
       final statusCode = error.response?.statusCode;
       AppLogger.debug(
         'LastFm diagnostics: network error type=${error.type.name} '
