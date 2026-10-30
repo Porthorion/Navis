@@ -130,150 +130,104 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
-        'Instant Radio now says when Last.fm rejected your API key, while '
-        'rate limits and network hiccups stay silent; Same Vibes and '
-        'Personal Radio use Last.fm for far more songs again, mixing from '
-        'the best-known tracks of similar artists when it has no similar '
-        'tracks for a song',
-        type: ChangelogEntryType.fix,
+        'Random Albums is an optional new Home section (Settings › '
+        'Appearance)',
+        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Library sync no longer fails with an unknown error when the device '
-        'is briefly busy; it carries on, or resumes on its own',
-        type: ChangelogEntryType.fix,
+        'The next song downloads as soon as the current one is saved, '
+        'so song changes and the first seeks after them start without '
+        'waiting. Playback settings has a new "Prefetch the next song '
+        'on mobile data" switch, on by default',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Android and iOS: the in-app volume slider is gone from the player '
-        'settings, so playback always runs at full app volume and nothing can '
-        'stay quietly turned down; use the volume buttons on your phone. The '
-        'settings sheet now fits its content. Desktop keeps all its volume '
-        'controls',
+        'Seeking is faster: transcoded songs jump straight to the new '
+        'position on servers that support it, and streams start opening '
+        'while you hold the thumb during a drag. On Linux and Windows, '
+        'Fast Seeking plays an Opus stream when you seek past a '
+        'lossless download on a slow connection, then returns to '
+        'lossless; turn it off in Playback settings',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'The seek bar shows exactly how much of a song is downloaded '
+        'and buffered, including after seeking past the download',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Playback recovers from network stalls and connection cuts at '
+        'the position you were at, instead of replaying the song, '
+        'skipping it or treating it as finished. If songs really cannot '
+        'play, Navis stops quietly instead of skipping through the '
+        'queue',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Android: Repeat All and Repeat One no longer restart or rewind '
-        'streamed songs just before they finish, and changing repeat mode, '
-        'adding songs or removing another streamed song at the end of a song '
-        'keeps playback moving; seeking after the player pauses at a song’s '
-        'end keeps your position, and turning Repeat Off releases that pause',
+        'streamed songs just before they end, seeking past a partial '
+        'download keeps playing on slow connections, and a song queued '
+        'twice downloads only once',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Android: seeking beyond a partial download gives playback bandwidth '
-        'priority, closes abandoned range requests and keeps waiting while '
-        'data arrives; changing a seek target keeps the cache, and a larger '
-        'forward buffer helps ride out brief network blips. Ogg/Opus '
-        'transcodes can recover a mid-song connection cut by joining a '
-        'continuation to the audio already buffered, and a song queued twice '
-        'no longer downloads twice or loses its cached copy',
+        'Android: album art shows again on Bluetooth and car displays, '
+        'missing since 1.4.0',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Android: transcoded songs resume at the current position after a '
-        'network stall or disconnect instead of replaying or skipping to the '
-        'next song, including after a later stall in the same song, and no '
-        'longer replay after the stream finishes',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Android: album art shows again on Bluetooth and car displays, which '
-        'had shown only the title and artist since 1.4.0',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Desktop: cut recovery keeps the song and your latest seek during '
-        'queue fills, queued appends or a failed reopen, and a cut transcode '
-        'retries at its last position instead of treating it as the end, '
-        'including with Repeat One and on the last song in the queue; a '
-        'failed recovery skips quietly or stops at the queue end, honoring '
-        'your latest Play or Pause',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Desktop: seek waits are bounded and stuck positions recover on '
-        'their own, slow song starts keep loading while data arrives '
-        '(including when you seek before the first load finishes), and a seek '
-        'that cannot reload continues to the next song; stopping quietly '
-        'replaces skipping through the queue when several songs in a row '
-        'cannot play. Skipping from the middle of a song no longer jumps '
-        'back to the previous song, and quick search keeps all its filter '
+        'Desktop: skipping from the middle of a song no longer jumps '
+        'back to the previous song, and quick search keeps its filter '
         'chips on one line',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Fast Seeking on Linux and Windows plays an Opus 256 kbps stream when '
-        'you seek beyond a lossless download on a slow connection; the '
-        'original keeps downloading, seeking back into the downloaded part or '
-        'playing the song again returns to lossless, and failures fall back '
-        'to the original stream or a completed local copy. Turn it off in '
-        'Playback settings',
+        'Crossfade on long songs now finishes with the song, without '
+        'the position jumping or the next song starting underneath it',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Seeking in a transcoded song now jumps straight to the new position '
-        'on servers that support it, instead of waiting for the download, and '
-        'seeking starts sooner when you pause the thumb while dragging: '
-        'eligible transcoded and Fast Seeking streams open before you let go, '
-        'with playback keeping its place',
+        'Play always plays in order and Shuffle shuffles; the shuffle '
+        'button still shuffles or restores the queue at any time',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'The seek bar shows how much of a song is already downloaded, and for '
-        'Opus, Vorbis and FLAC the buffered line is read from the downloaded '
-        'file instead of being estimated from the bitrate; after seeking past '
-        'the download, only the part the player has loaded is drawn',
+        'Android and iOS: the in-app volume slider is gone, so playback '
+        'can no longer stay quietly turned down; use your phone’s '
+        'volume buttons. The player settings sheet now fits its '
+        'content. Desktop keeps its volume controls',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Instant Radio tells you when Last.fm rejects your API key, and '
+        'Same Vibes and Personal Radio find Last.fm matches for far '
+        'more songs by drawing on similar artists',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Library sync carries on, or resumes by itself, when the device '
+        'is briefly busy instead of failing with an unknown error',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Adding an album or several songs to a playlist works again on '
+        'Navidrome 0.64, and Navis names any songs that could not be '
+        'added',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Long tasks show their progress, such as "Matching 3 of 12" for '
+        'a weekly playlist, and a failed relink or "Check now" in About '
+        'says what went wrong',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'The next song downloads as soon as the current one is saved, so song '
-        'changes and the first seeks after them start without waiting on the '
-        'network; Playback settings has a new "Prefetch the next song on '
-        'mobile data" switch, on by default',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Play now always plays in order; Shuffle shuffles. The shuffle button '
-        'still shuffles or restores the current queue at any time',
+        'Linux: in-app updates install Debian and Fedora packages after '
+        'a system authentication prompt, and AUR and other '
+        'package-managed installs show instructions. This works from '
+        'the first update after 1.5.1, so update from 1.5.0 manually or '
+        'through your package manager',
         type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Crossfade on long songs now ends before the song does: the fade '
-        'shortens when preparing the next song takes time, the song and '
-        'position no longer jump when it completes, and the outgoing song '
-        'cannot start the next one underneath it',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Adding an album or several songs to a server playlist works again on '
-        'Navidrome 0.64, which silently ignored multi-song adds; Navis checks '
-        'the result and names songs that could not be added',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Navis now tells you what happened: clearing a cache, importing '
-        'manually matched downloads and matching a weekly playlist say what '
-        'they are doing while they run, such as "Matching 3 of 12"; relinking '
-        'an unavailable song that '
-        'fails says so instead of calling the selection out of date; and a '
-        'failed "Check now" in About reports instead of staying silent',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Linux: in-app updates for Debian and Fedora packages work with a '
-        'system authentication prompt and say "Installing the update. This '
-        'can take a minute." while the package manager works, while AUR and '
-        'other package-managed installs show package-manager instructions. '
-        'Automatic installation works from the first update after 1.5.1; '
-        '1.5.0 users update to 1.5.1 manually or through their package '
-        'manager. Cancelling installation or reopening the update dialog '
-        'reuses the verified download, checking the file again before '
-        'retrying',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Random Albums is an optional new Home section (Settings › '
-        'Appearance)',
-        type: ChangelogEntryType.newFeature,
       ),
     ],
     specialThanks: ['To Tas for the theming and color suggestions.'],
