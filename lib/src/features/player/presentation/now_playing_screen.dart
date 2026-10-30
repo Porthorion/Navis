@@ -602,8 +602,9 @@ void _showNowPlayingSettingsSheet(
             child: ListView(
               key: const ValueKey<String>('nowPlayingSettingsSheet'),
               shrinkWrap: true,
-              // Not primary: with content that fits, a body drag moves the sheet
-              // (swipe to dismiss) instead of being claimed by the list.
+              // Content that fits has no scroll extent, so the default physics
+              // refuse the drag and a body drag dismisses the sheet. Physics that
+              // always scroll (AlwaysScrollableScrollPhysics) would break that.
               primary: false,
               padding: const EdgeInsets.only(bottom: 12),
               children: <Widget>[
