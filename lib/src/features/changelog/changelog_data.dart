@@ -130,241 +130,153 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.1',
     entries: [
       ChangelogEntry(
+        'Instant Radio now says when Last.fm rejected your API key, while '
+        'rate limits and network hiccups stay silent; Same Vibes and '
+        'Personal Radio use Last.fm for far more songs again, mixing from '
+        'the best-known tracks of similar artists when it has no similar '
+        'tracks for a song',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Library sync no longer fails with an unknown error when the device '
-        'is briefly busy; it carries on, or resumes on its own.',
+        'is briefly busy; it carries on, or resumes on its own',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Rematching a weekly playlist now shows how far it has got, such as '
-        '"Matching 3 of 12", instead of a bare spinner.',
+        'Android and iOS: the in-app volume slider is gone from the player '
+        'settings, so playback always runs at full app volume and nothing can '
+        'stay quietly turned down; use the volume buttons on your phone. The '
+        'settings sheet now fits its content. Desktop keeps all its volume '
+        'controls',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Instant Radio now tells you when Last.fm rejected your API key. The '
-        'radio still plays from your server and library; rate limits and '
-        'network hiccups stay silent.',
+        'Android: Repeat All and Repeat One no longer restart or rewind '
+        'streamed songs just before they finish, and changing repeat mode, '
+        'adding songs or removing another streamed song at the end of a song '
+        'keeps playback moving; seeking after the player pauses at a song’s '
+        'end keeps your position, and turning Repeat Off releases that pause',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android: seeking beyond a partial download gives playback bandwidth '
+        'priority, closes abandoned range requests and keeps waiting while '
+        'data arrives; changing a seek target keeps the cache, and a larger '
+        'forward buffer helps ride out brief network blips. Ogg/Opus '
+        'transcodes can recover a mid-song connection cut by joining a '
+        'continuation to the audio already buffered, and a song queued twice '
+        'no longer downloads twice or loses its cached copy',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android: transcoded songs resume at the current position after a '
+        'network stall or disconnect instead of replaying or skipping to the '
+        'next song, including after a later stall in the same song, and no '
+        'longer replay after the stream finishes',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Android: album art shows again on Bluetooth and car displays, which '
+        'had shown only the title and artist since 1.4.0',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Desktop: cut recovery keeps the song and your latest seek during '
+        'queue fills, queued appends or a failed reopen, and a cut transcode '
+        'retries at its last position instead of treating it as the end, '
+        'including with Repeat One and on the last song in the queue; a '
+        'failed recovery skips quietly or stops at the queue end, honoring '
+        'your latest Play or Pause',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Desktop: seek waits are bounded and stuck positions recover on '
+        'their own, slow song starts keep loading while data arrives '
+        '(including when you seek before the first load finishes), and a seek '
+        'that cannot reload continues to the next song; stopping quietly '
+        'replaces skipping through the queue when several songs in a row '
+        'cannot play. Skipping from the middle of a song no longer jumps '
+        'back to the previous song, and quick search keeps all its filter '
+        'chips on one line',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Fast Seeking on Linux and Windows plays an Opus 256 kbps stream when '
+        'you seek beyond a lossless download on a slow connection; the '
+        'original keeps downloading, seeking back into the downloaded part or '
+        'playing the song again returns to lossless, and failures fall back '
+        'to the original stream or a completed local copy. Turn it off in '
+        'Playback settings',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Seeking in a transcoded song now jumps straight to the new position '
+        'on servers that support it, instead of waiting for the download, and '
+        'seeking starts sooner when you pause the thumb while dragging: '
+        'eligible transcoded and Fast Seeking streams open before you let go, '
+        'with playback keeping its place',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The seek bar shows how much of a song is already downloaded, and for '
+        'Opus, Vorbis and FLAC the buffered line is read from the downloaded '
+        'file instead of being estimated from the bitrate; after seeking past '
+        'the download, only the part the player has loaded is drawn',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'The next song downloads as soon as the current one is saved, so song '
+        'changes and the first seeks after them start without waiting on the '
+        'network; Playback settings has a new "Prefetch the next song on '
+        'mobile data" switch, on by default',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Play now always plays in order; Shuffle shuffles. The shuffle button '
+        'still shuffles or restores the current queue at any time',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Crossfade on long songs now ends before the song does: the fade '
         'shortens when preparing the next song takes time, the song and '
-        'position no longer jump a few seconds when it completes, and the '
-        'outgoing song can no longer start the next one underneath it.',
+        'position no longer jump when it completes, and the outgoing song '
+        'cannot start the next one underneath it',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Android and iOS: the in-app volume slider is gone from the player '
-        'settings. Playback always runs at full app volume, so nothing can '
-        'stay quietly turned down; use the volume buttons on your phone, and the '
-        'settings sheet now fits its content instead of leaving empty space. '
-        'Desktop keeps all its volume controls.',
+        'Adding an album or several songs to a server playlist works again on '
+        'Navidrome 0.64, which silently ignored multi-song adds; Navis checks '
+        'the result and names songs that could not be added',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Android: album art shows again on Bluetooth and car displays, which '
-        'had shown only the title and artist since 1.4.0.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Play during a final playback failure now resumes the same song after '
-        'shutdown, while a newer seek keeps its target and a later Pause stays '
-        'paused. Desktop cut recovery keeps the song and your latest seek '
-        'during queue fills, queued appends or a failed reopen. Removing the '
-        'cut song preserves Play/Pause for the remaining queue. Pausing a '
-        'failed reload lets failover select the next song paused, and a '
-        'rejected Fast Seeking bridge opens the original only once.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Desktop: skipping from the middle of a song no longer jumps back to '
-        'the previous song.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'On Android, Ogg/Opus transcodes can recover a mid-song connection '
-        'cut without reloading the song: Navis joins a continuation to the '
-        'audio already buffered.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Adding an album or several songs to a server playlist now works on '
-        'Navidrome 0.64, which silently ignored multi-song adds. Navis '
-        'verifies the result and reports songs that could not be added.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The next song now downloads as soon as the current one is '
-        'saved, so song changes and the first seeks after them start without '
-        'waiting on the network. Playback settings has a new "Prefetch the '
-        'next song on mobile data" switch (on by default). Failed warms no longer '
-        'delay unrelated songs, and refilling a deleted current file immediately '
-        're-arms the next download; startup keeps the saved current and next cache files. '
-        'Background downloads keep memory bounded on slow storage.',
-      ),
-      ChangelogEntry(
-        'Desktop quick search keeps all its filter chips on one line.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Keep drag-seek streams reconnectable after native probes and network cuts, '
-        'and preserve preview adoption during queue navigation.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Seeking starts sooner when you pause the thumb while dragging: '
-        'eligible transcoded and Fast Seeking streams open before release. '
-        'Playback keeps its place until you let go.',
-      ),
-      ChangelogEntry(
-        'Android: Repeat All no longer restarts streamed songs just before '
-        'they finish. Changing repeat mode, adding songs or removing another '
-        'streamed song at the end of a song keeps playback moving. Seeking '
-        'after the player pauses at a song’s end keeps the chosen position; '
-        'turning Repeat Off also releases that pause. Removing the current '
-        'song can still leave playback paused. Seeking or pressing Pause then '
-        'Play just as a song ends can still restart it or skip to the next song.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Android: a song queued twice no longer downloads twice or loses its '
-        'cached copy. The repeat plays from the first copy, so seeking and '
-        'offline playback behave the same for both. A queue release or insert '
-        'with crossfade on no longer leaves its songs unregistered while the '
-        'crossfade deck catches up.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Android seeks beyond a partial download give playback bandwidth '
-        'priority, close abandoned range requests and keep waiting while data '
-        'arrives. Changing a seek target keeps the cache, and abandoned ranges '
-        'close even while the server is silent. A larger forward buffer helps '
-        'ride out brief network blips. Seek recovery clears the retired '
-        'download’s caching status.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Desktop playback retries a cut transcode at its last song position '
-        'instead of treating it as the end, including Repeat One and the last '
-        'song in a queue, when the server supports transcode offsets. Recovery '
-        'keeps the current listening session and silences the next song while '
-        'reopening, including after artwork refreshes, Play commands or audio-focus '
-        'resume during recovery. Failed recovery still skips quietly or stops at '
-        'the queue end, honoring the latest Play or Pause. A failed final-song '
-        'reopen preserves the queue and Play retries that song where it stopped; '
-        'queue edits keep their normal playback behavior.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Desktop rolling-cache downloads of originals resume after connection '
-        'cuts when the server supports byte ranges, preserving the downloaded '
-        'prefix and keeping Fast Seeking available. Continuations must retain '
-        'the original validator when supplied, and temporary TLS reconnect '
-        'failures use the same bounded retries.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fast Seeking on Linux and Windows plays an Opus 256 kbps stream when '
-        'seeking beyond a lossless download on a slow connection. The original '
-        'keeps downloading; seek back into the downloaded part or play the '
-        'song again to return to lossless. Bridge failures fall back to the '
-        'original stream or completed local copy, including downloads that '
-        'finish during recovery. Pausing always lets the original download '
-        'continue. Disable it in Playback settings.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Play now always plays in order; Shuffle shuffles. The shuffle button '
-        'still shuffles or restores the current queue at any time.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Same Vibes and Personal Radio use Last.fm for far more songs again: '
-        'when Last.fm has no similar tracks for a song, Navis now mixes from '
-        'the best-known tracks of similar artists instead of falling back to '
-        'the server',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Bound desktop seek waits and recover stuck positions automatically; '
-        'keep slow song starts loading while data arrives, including when '
-        'seeking before the first load finishes, and continue to the next song '
-        'if a seek recovery cannot reload the stream. Retry slow cold seeks '
-        'with a fresh source, recover silently, and keep the final stopped '
-        'song available to Play again. Stop quietly instead of skipping '
-        'through the queue when several songs in a row cannot play',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fix Repeat One silently rewinding streamed songs before the end '
-        'on Android and stalling when the queue fills in the background',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Resume transcoded songs at the current position after a network stall '
-        'or disconnect instead of replaying them or skipping to the next song, '
-        'again after a later stall in the same song, and play a song you '
-        'return to from its start',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Fix in-app Linux updates for Debian and Fedora packages with a system '
-        'authentication prompt; AUR and other package-managed installs show '
-        'package-manager instructions. Automatic installation works from the '
-        'first update after 1.5.1; 1.5.0 users update to 1.5.1 manually or '
-        'through their package manager.',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Linux package updates now say "Installing the update. This can take '
-        'a minute." while the package manager works, instead of a bare '
-        '"Applying update…".',
-      ),
-      ChangelogEntry(
-        'Show the seek bar buffered line exactly: for Opus, Vorbis and FLAC '
-        'the cached part is read from the downloaded file instead of being '
-        'estimated from the bitrate, and after seeking past the download the '
-        'part the player has loaded is drawn on its own instead of filling '
-        'the gap behind it',
+        'Navis now tells you what happened: clearing a cache, importing '
+        'manually matched downloads and matching a weekly playlist say what '
+        'they are doing while they run, such as "Matching 3 of 12"; relinking '
+        'an unavailable song that '
+        'fails says so instead of calling the selection out of date; and a '
+        'failed "Check now" in About reports instead of staying silent',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Reuse the verified update download after cancelling installation or '
-        'reopening the update dialog, checking the file again before retrying',
+        'Linux: in-app updates for Debian and Fedora packages work with a '
+        'system authentication prompt and say "Installing the update. This '
+        'can take a minute." while the package manager works, while AUR and '
+        'other package-managed installs show package-manager instructions. '
+        'Automatic installation works from the first update after 1.5.1; '
+        '1.5.0 users update to 1.5.1 manually or through their package '
+        'manager. Cancelling installation or reopening the update dialog '
+        'reuses the verified download, checking the file again before '
+        'retrying',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Fix transcoded songs replaying after the stream finishes on Android',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Add an optional Random Albums section to Home (Settings › Appearance)',
+        'Random Albums is an optional new Home section (Settings › '
+        'Appearance)',
         type: ChangelogEntryType.newFeature,
       ),
-      ChangelogEntry(
-        'Seeking in a transcoded song now jumps straight to the new position '
-        'on servers that support it, instead of waiting for the download',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Show a clear message when relinking an unavailable song fails, '
-        'instead of saying the selection is out of date',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Clearing a cache, importing manually matched downloads and matching '
-        'a weekly playlist now say what they are doing while they run',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Report a failed "Check now" in About instead of staying silent',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The seek bar now shows how much of a song is already downloaded, '
-        'instead of stopping short after a seek',
-        type: ChangelogEntryType.fix,
-      ),
     ],
+    specialThanks: ['To Tas for the theming and color suggestions.'],
   ),
   ChangelogVersion(
     version: '1.5.0',
