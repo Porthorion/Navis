@@ -583,112 +583,109 @@ void _showNowPlayingSettingsSheet(
     useRootNavigator: true,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (sheetContext) => DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.62,
-      minChildSize: 0.4,
-      maxChildSize: 0.92,
-      snap: true,
-      builder: (_, scrollController) => Consumer(
-        builder: (_, sheetRef, _) {
-          final sheetVolume = showVolume
-              ? sheetRef.watch(playbackVolumeProvider)
-              : 1.0;
-          return ValueListenableBuilder<bool>(
-            valueListenable: transportQuickActionsShown,
-            builder: (_, quickActionsShown, _) => SafeArea(
-              top: false,
-              child: ListView(
-                key: const ValueKey<String>('nowPlayingSettingsSheet'),
-                controller: scrollController,
-                padding: const EdgeInsets.only(bottom: 12),
-                children: <Widget>[
-                  if (showVolume) ...<Widget>[
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                      child: Row(
-                        children: <Widget>[
-                          Icon(
-                            sheetVolume <= 0.01
-                                ? Icons.volume_off_rounded
-                                : sheetVolume < 0.5
-                                ? Icons.volume_down_rounded
-                                : Icons.volume_up_rounded,
-                            size: 22,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Slider(
-                              value: sheetVolume,
-                              min: 0,
-                              max: 1,
-                              onChanged: (v) {
-                                unawaited(
-                                  sheetRef
-                                      .read(playbackVolumeProvider.notifier)
-                                      .setVolume(v),
-                                );
-                              },
-                              onChangeEnd: (v) => unawaited(
+    // Sized to its content, capped at 92% of the screen height; longer content
+    // scrolls inside the cap.
+    // Keeps the theme's width cap (M3 default 640) on wide windows.
+    constraints:
+        (Theme.of(context).bottomSheetTheme.constraints ??
+                const BoxConstraints(maxWidth: 640))
+            .copyWith(maxHeight: MediaQuery.sizeOf(context).height * 0.92),
+    builder: (sheetContext) => Consumer(
+      builder: (_, sheetRef, _) {
+        final sheetVolume = showVolume
+            ? sheetRef.watch(playbackVolumeProvider)
+            : 1.0;
+        return ValueListenableBuilder<bool>(
+          valueListenable: transportQuickActionsShown,
+          builder: (_, quickActionsShown, _) => SafeArea(
+            top: false,
+            child: ListView(
+              key: const ValueKey<String>('nowPlayingSettingsSheet'),
+              shrinkWrap: true,
+              // Content that fits has no scroll extent, so the default physics
+              // refuse the drag and a body drag dismisses the sheet. Physics that
+              // always scroll (AlwaysScrollableScrollPhysics) would break that.
+              primary: false,
+              padding: const EdgeInsets.only(bottom: 12),
+              children: <Widget>[
+                if (showVolume) ...<Widget>[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    child: Row(
+                      children: <Widget>[
+                        Icon(
+                          sheetVolume <= 0.01
+                              ? Icons.volume_off_rounded
+                              : sheetVolume < 0.5
+                              ? Icons.volume_down_rounded
+                              : Icons.volume_up_rounded,
+                          size: 22,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Slider(
+                            value: sheetVolume,
+                            min: 0,
+                            max: 1,
+                            onChanged: (v) {
+                              unawaited(
                                 sheetRef
                                     .read(playbackVolumeProvider.notifier)
-                                    .setVolume(v, persistImmediately: true),
-                              ),
+                                    .setVolume(v),
+                              );
+                            },
+                            onChangeEnd: (v) => unawaited(
+                              sheetRef
+                                  .read(playbackVolumeProvider.notifier)
+                                  .setVolume(v, persistImmediately: true),
                             ),
                           ),
-                          _VolumePercentLabel(volume: sheetVolume),
-                        ],
-                      ),
+                        ),
+                        _VolumePercentLabel(volume: sheetVolume),
+                      ],
                     ),
-                    const Divider(height: 1),
-                  ],
-                  ..._nowPlayingSettingsItems(
-                    context,
-                    sheetRef,
-                    actionRef: ref,
-                    showSound: !quickActionsShown,
-                    song: song,
-                    // The Speed & Pitch sheet opens once this one has closed,
-                    // so two sheets never animate at the same time.
-                    onOpenSpeedPitch: (_) =>
-                        Navigator.of(sheetContext)
-                            .pop(_SettingsSheetAction.speedPitch),
-                    onOpenEqualizerFullPage: () =>
-                        Navigator.of(sheetContext)
-                            .pop(_SettingsSheetAction.openEqualizer),
-                    equalizerCardPadding: const EdgeInsets.fromLTRB(
-                      12,
-                      4,
-                      12,
-                      8,
-                    ),
-                    dimRemoteRatingTile: false,
-                    onOpenFullscreenLyrics:
-                        fullscreenLyricsSongId != null &&
-                            fullscreenLyricsTitle != null
-                        ? () {
-                            Navigator.of(sheetContext).pop();
-                            unawaited(
-                              _openFullscreenLyricsRoute(
-                                context,
-                                fullscreenLyricsSongId,
-                                fullscreenLyricsTitle,
-                              ),
-                            );
-                          }
-                        : null,
-                    beforeNavigate: () => Navigator.of(sheetContext).pop(),
-                    beforeAction: () => Navigator.of(sheetContext).pop(),
                   ),
+                  const Divider(height: 1),
                 ],
-              ),
+                ..._nowPlayingSettingsItems(
+                  context,
+                  sheetRef,
+                  actionRef: ref,
+                  showSound: !quickActionsShown,
+                  song: song,
+                  // The Speed & Pitch sheet opens once this one has closed,
+                  // so two sheets never animate at the same time.
+                  onOpenSpeedPitch: (_) =>
+                      Navigator.of(sheetContext)
+                          .pop(_SettingsSheetAction.speedPitch),
+                  onOpenEqualizerFullPage: () =>
+                      Navigator.of(sheetContext)
+                          .pop(_SettingsSheetAction.openEqualizer),
+                  equalizerCardPadding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                  dimRemoteRatingTile: false,
+                  onOpenFullscreenLyrics:
+                      fullscreenLyricsSongId != null &&
+                          fullscreenLyricsTitle != null
+                      ? () {
+                          Navigator.of(sheetContext).pop();
+                          unawaited(
+                            _openFullscreenLyricsRoute(
+                              context,
+                              fullscreenLyricsSongId,
+                              fullscreenLyricsTitle,
+                            ),
+                          );
+                        }
+                      : null,
+                  beforeNavigate: () => Navigator.of(sheetContext).pop(),
+                  beforeAction: () => Navigator.of(sheetContext).pop(),
+                ),
+              ],
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     ),
   );
   unawaited(

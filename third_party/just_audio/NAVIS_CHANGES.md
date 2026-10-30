@@ -251,3 +251,9 @@ together after its last await and resets progress to 0, as `_abortDownload` does
 The failed-publication reset fails the requests still queued after its last await
 (not before), so a request queued during that await is not left waiting. Owners
 that retire a source clear `onDownloadStart` so it cannot re-register afterwards.
+
+`UriAudioSource._onLoad` sends a source through the loopback header proxy only for
+`http` and `https` URIs. Upstream proxied every non-`file` scheme once a user agent
+or headers were set, so a Navis `content://` (Android SAF) download reached
+`HttpClient.getUrl` ("Unsupported scheme 'content'") and ExoPlayer failed with
+"unexpected end of stream". `content://`, `file://` and `asset` sources load directly.
