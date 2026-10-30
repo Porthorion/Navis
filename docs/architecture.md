@@ -4440,8 +4440,9 @@ section, but only while the transport row has no EQ and Speed buttons
 (`_TransportControls` reports this through `quickActionsShown`, so the sheet
 never repeats buttons that sit right above it); unsupported backends keep the
 disabled `EqualizerEntry` explanation in that section. Settings › Playback has
-no Equalizer entry; Settings › Equalizer is the only one. The settings sheet is a draggable
-`DraggableScrollableSheet` and returns a follow-up action, so Speed & Pitch or
+no Equalizer entry; Settings › Equalizer is the only one. The settings sheet is a modal bottom
+sheet that sizes to its content (capped at 92% of the screen height, scrolling
+beyond that, theme width cap kept) and returns a follow-up action, so Speed & Pitch or
 the Equalizer page opens only after it has closed.
 
 `NavService.openEqualizer` records whether Now Playing was expanded or Mini
