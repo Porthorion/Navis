@@ -311,6 +311,130 @@ void main() {
     expect(result.tracks, isEmpty);
   });
 
+  test('reports apiError for a 403 error payload', () async {
+    final dio = _MockDio();
+    when(
+      () => dio.get<Map<String, dynamic>>(
+        any(),
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/2.0'),
+        type: DioExceptionType.badResponse,
+        response: Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/2.0'),
+          statusCode: 403,
+          data: <String, dynamic>{'error': 10, 'message': 'Invalid API key'},
+        ),
+      ),
+    );
+
+    final result = await LastFmApiClient(
+      apiKey: 'key',
+      dio: dio,
+    ).getSimilarTracksResult(artist: 'Artist', track: 'Track');
+
+    expect(result.outcome, LastFmFetchOutcome.apiError);
+    expect(result.apiErrorCode, 10);
+    expect(result.statusCode, 403);
+    expect(result.message, 'Invalid API key');
+    expect(result.tracks, isEmpty);
+  });
+
+  test('keeps networkError for a non-map error body', () async {
+    final dio = _MockDio();
+    when(
+      () => dio.get<Map<String, dynamic>>(
+        any(),
+        queryParameters: any(named: 'queryParameters'),
+      ),
+    ).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/2.0'),
+        type: DioExceptionType.badResponse,
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: '/2.0'),
+          statusCode: 503,
+          data: 'Service Unavailable',
+        ),
+      ),
+    );
+
+    final result = await LastFmApiClient(
+      apiKey: 'key',
+      dio: dio,
+    ).getSimilarTracksResult(artist: 'Artist', track: 'Track');
+
+    expect(result.outcome, LastFmFetchOutcome.networkError);
+    expect(result.statusCode, 503);
+    expect(result.tracks, isEmpty);
+  });
+
+  test('validateApiKey reports a 403 error payload', () async {
+    final dio = _MockDio();
+    when(
+      () => dio.get<Map<String, dynamic>>(
+        any(),
+        queryParameters: any(named: 'queryParameters'),
+        options: any(named: 'options'),
+      ),
+    ).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/2.0'),
+        type: DioExceptionType.badResponse,
+        response: Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/2.0'),
+          statusCode: 403,
+          data: <String, dynamic>{'error': 10, 'message': 'Invalid API key'},
+        ),
+      ),
+    );
+
+    final result = await LastFmApiClient(
+      apiKey: 'key',
+      dio: dio,
+    ).validateApiKey();
+
+    expect(result.valid, isFalse);
+    expect(result.apiErrorCode, 10);
+    expect(result.statusCode, 403);
+    expect(result.message, 'Invalid API key');
+  });
+
+  test('validateApiKey keeps the rate-limit message for a 429', () async {
+    final dio = _MockDio();
+    when(
+      () => dio.get<Map<String, dynamic>>(
+        any(),
+        queryParameters: any(named: 'queryParameters'),
+        options: any(named: 'options'),
+      ),
+    ).thenThrow(
+      DioException(
+        requestOptions: RequestOptions(path: '/2.0'),
+        type: DioExceptionType.badResponse,
+        response: Response<Map<String, dynamic>>(
+          requestOptions: RequestOptions(path: '/2.0'),
+          statusCode: 429,
+        ),
+      ),
+    );
+
+    final result = await LastFmApiClient(
+      apiKey: 'key',
+      dio: dio,
+    ).validateApiKey();
+
+    expect(result.valid, isFalse);
+    expect(result.apiErrorCode, isNull);
+    expect(result.statusCode, 429);
+    expect(
+      result.message,
+      'Last.fm is rate limiting validation. Try again later.',
+    );
+  });
+
   test('returns empty list when client is not configured', () async {
     final client = LastFmApiClient(apiKey: '');
     final fetched = await client.getSimilarTracksResult(
