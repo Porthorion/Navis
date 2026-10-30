@@ -4440,8 +4440,9 @@ section, but only while the transport row has no EQ and Speed buttons
 (`_TransportControls` reports this through `quickActionsShown`, so the sheet
 never repeats buttons that sit right above it); unsupported backends keep the
 disabled `EqualizerEntry` explanation in that section. Settings › Playback has
-no Equalizer entry; Settings › Equalizer is the only one. The settings sheet is a draggable
-`DraggableScrollableSheet` and returns a follow-up action, so Speed & Pitch or
+no Equalizer entry; Settings › Equalizer is the only one. The settings sheet is a modal bottom
+sheet that sizes to its content (capped at 92% of the screen height, scrolling
+beyond that, theme width cap kept) and returns a follow-up action, so Speed & Pitch or
 the Equalizer page opens only after it has closed.
 
 `NavService.openEqualizer` records whether Now Playing was expanded or Mini
@@ -4565,7 +4566,12 @@ through media_kit/libmpv) and fill the rolling cache with a sidecar download to
 the same quality-keyed path. `LockCachingAudioSource` remains the mobile
 single-pass path; its local byte-stream proxy is not reliably seekable under
 libmpv. Ordinary direct HTTPS playback bypasses just_audio's request-header
-proxy on desktop and passes the Navis user agent to media-kit. A completed
+proxy on desktop and passes the Navis user agent to media-kit. On Android the
+player carries `AppConstants.userAgent`, so the vendored just_audio routes every
+`http(s)` `UriAudioSource` through its loopback header proxy; `content://` (SAF
+downloads), `file://` and `asset` sources are never proxied, because the proxy
+can only fetch http(s) and a `content://` URI through it failed every SAF
+download ("unexpected end of stream"). A completed
 sidecar file is registered once and remains the authoritative cache byte and
 track total. `rollingCacheActivityProvider` reports the in-progress write so
 Cache & Storage does not look idle before registration. Desktop partial-byte
