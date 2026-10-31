@@ -1,0 +1,31 @@
+name: Session links
+
+# Agent session links must never be published. No paths-ignore, so
+# docs-only pull requests are checked too.
+on:
+  pull_request:
+    branches: [dev, main, 'release/**']
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  no-session-links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if { printf '%s\n%s\n' "$TITLE" "$BODY"; git log --format=%B "$BASE..$HEAD"; } \
+              | grep -nE 'claude\.ai/(code/session_|chat/|share/)[A-Za-z0-9_-]|^Claude-Session:'; then
+            echo "::error::Remove the agent session link from the pull request title, body or commit messages."
+            exit 1
+          fi
