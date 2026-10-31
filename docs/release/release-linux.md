@@ -131,7 +131,7 @@ be refreshed for the published artifact), increment `pkgrel` as appropriate,
 and regenerate `.SRCINFO`. Never use `SKIP` for a published binary package.
 
 ```bash
-sha256sum navis-v1.5.0-linux.tar.gz
+sha256sum navis-v<version>-linux.tar.gz
 cd packaging/aur/navis-bin
 makepkg --printsrcinfo > .SRCINFO
 # Test a COPY of the recipe with source replaced by the matching file:// URL:
