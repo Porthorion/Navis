@@ -168,7 +168,8 @@ __pycache__/
 
 # Editors and local agent state
 .vscode/
-.claude/
+.claude/*
+!.claude/settings.json
 
 # libmpv build output (tool/libmpv)
 /out/

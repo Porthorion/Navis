@@ -105,6 +105,9 @@ Applies to every issue, pull request and comment an agent drafts.
   restated diff in the body.
 - Credit substantial agent work with a `Co-Authored-By: <Agent/Model> <noreply@...>`
   commit trailer. Contributor policy: [CONTRIBUTING.md](CONTRIBUTING.md).
+- Never put an agent session link (claude.ai session, chat or share URLs, or
+  a `Claude-Session:` trailer) in commits, pull requests, issues or comments,
+  and no "Generated with" footers. CI fails a pull request that contains one.
 - Features listed in [docs/project/non-goals.md](docs/project/non-goals.md) are
   not planned for now. You may build one when your user asks, but tell them a
   pull request for it is likely to be declined and suggest opening an issue or

@@ -65,7 +65,9 @@ Keep the separate `github` remote: `tool/release.sh --github` pushes to it.
 - Generated files (`make gen`) go in the commit that needs them.
 - Never commit secrets.
 - Agents add a `Co-Authored-By: <Agent/Model> <noreply@...>` trailer
-  ([CONTRIBUTING.md](../../CONTRIBUTING.md#who-gets-credit)).
+  ([CONTRIBUTING.md](../../CONTRIBUTING.md#who-gets-credit)), never a
+  session link (a `Claude-Session:` trailer or any claude.ai session URL). The
+  `Session links` workflow fails pull requests that contain one.
 - Run `./tool/check.sh` before pushing, or at least before marking a pull
   request ready.
 
