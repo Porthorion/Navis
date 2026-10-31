@@ -24,8 +24,13 @@ jobs:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          if { printf '%s\n%s\n' "$TITLE" "$BODY"; git log --format=%B "$BASE..$HEAD"; } \
-              | grep -nE 'claude\.ai/(code/session_|chat/|share/)[A-Za-z0-9_-]|^Claude-Session:'; then
+          # Fail closed: a missing base or head must not turn the check green.
+          if ! log=$(git log --format=%B "$BASE..$HEAD"); then
+            echo "::error::Could not read the pull request commits."
+            exit 1
+          fi
+          if printf '%s\n%s\n%s\n' "$TITLE" "$BODY" "$log" \
+              | grep -niE 'claude\.ai/(code/session_|chat/|share/)[A-Za-z0-9_-]|^Claude-Session:'; then
             echo "::error::Remove the agent session link from the pull request title, body or commit messages."
             exit 1
           fi
