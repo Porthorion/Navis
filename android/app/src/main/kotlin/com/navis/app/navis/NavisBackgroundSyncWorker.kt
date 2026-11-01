@@ -320,8 +320,8 @@ internal enum class BackgroundSyncWorkerDirective { SUCCESS, RETRY, FAILURE }
 
 internal object BackgroundSyncWorkerResultMapper {
     fun directiveFor(category: String?): BackgroundSyncWorkerDirective = when (category) {
-        // Only failures that occurred before the coordinator had a chance to
-        // persist its own cooldown are retried by WorkManager.
+        // Only failures the coordinator wants retried soon are retried by
+        // WorkManager: bootstrap failures and the first lock timeouts.
         "transientFailure" -> BackgroundSyncWorkerDirective.RETRY
         "permanentFailure" -> BackgroundSyncWorkerDirective.FAILURE
         else -> BackgroundSyncWorkerDirective.SUCCESS

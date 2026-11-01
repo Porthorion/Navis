@@ -1193,6 +1193,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (automaticCheckIsDue && result.completedAt != null) {
       if (result.planReason == 'leaseHeld') {
         await _scheduleAfterLeaseExpiry(interval);
+      } else if (result.isSilentFailure) {
+        await _scheduleAfterBusyFailure(interval, result.nextRetryAt);
       } else {
         await _recordAutomaticCheckCompletion(interval);
       }
@@ -1277,6 +1279,30 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
     final next = DateTime.now().toUtc().add(interval);
     await _writeNextAutomaticCheck(serverId, config!, next);
+  }
+
+  /// A lock timeout is contention that usually clears at once: retry at the
+  /// coordinator's retry time, never sooner than 30 s (no spin) or later than
+  /// the normal cadence.
+  Future<void> _scheduleAfterBusyFailure(
+    Duration interval,
+    DateTime? retryAt,
+  ) async {
+    final config = ref.read(serverConfigStateProvider).asData?.value;
+    final serverId = config?.id;
+    if (serverId == null) {
+      return;
+    }
+    final now = DateTime.now().toUtc();
+    final earliest = now.add(const Duration(seconds: 30));
+    final normal = now.add(interval);
+    final wanted = retryAt?.toUtc() ?? earliest;
+    final capped = wanted.isAfter(normal) ? normal : wanted;
+    await _writeNextAutomaticCheck(
+      serverId,
+      config!,
+      capped.isBefore(earliest) ? earliest : capped,
+    );
   }
 
   /// Another engine's lease (possibly orphaned by a killed or frozen worker)

@@ -29,13 +29,12 @@ const _backgroundSyncChannel = MethodChannel('com.navis.app/background_sync');
 /// The worker's own connection waits this long for the writer lock (the app's
 /// is [NavisDatabase.defaultBusyLimit]), so a long foreground write doesn't
 /// fail the pass. Only the worker waits this long; startup and UI never do.
-const backgroundSyncBusyLimit = Duration(seconds: 30);
+const _backgroundSyncBusyLimit = Duration(seconds: 30);
 
-@visibleForTesting
-final backgroundSyncDatabaseOverride = navisDatabaseProvider.overrideWith((
+final _backgroundSyncDatabaseOverride = navisDatabaseProvider.overrideWith((
   ref,
 ) {
-  final database = NavisDatabase.withBusyLimit(backgroundSyncBusyLimit);
+  final database = NavisDatabase.withBusyLimit(_backgroundSyncBusyLimit);
   ref.onDispose(database.close);
   return database;
 });
@@ -88,6 +87,30 @@ Future<Map<String, Object?>> runAndroidBackgroundSyncForTesting({
   credentialsOverride: credentials,
 );
 
+@visibleForTesting
+String backgroundSyncCategoryFor(
+  LibrarySyncState state, {
+  required bool hasActivePlayback,
+}) {
+  if (state.planReason == 'leaseHeld') {
+    return 'leaseHeld';
+  }
+  // WorkManager's retry covers a lock timeout the coordinator will retry
+  // soon (a silent failure stops being silent once the quick retries run
+  // out, so this is bounded).
+  if (state.isSilentFailure) return 'transientFailure';
+  return switch (state.status) {
+    LibrarySyncStatus.succeeded ||
+    LibrarySyncStatus.partial ||
+    LibrarySyncStatus.skipped => 'succeeded',
+    LibrarySyncStatus.deferred =>
+      hasActivePlayback ? 'deferredPlayback' : 'deferredPolicy',
+    LibrarySyncStatus.failed => 'permanentFailure',
+    LibrarySyncStatus.cancelled => 'stoppedBySystem',
+    LibrarySyncStatus.idle || LibrarySyncStatus.running => 'noWorkDue',
+  };
+}
+
 /// Records a worker deferral before network bootstrap while setup owns sync.
 Future<bool> deferAndroidBackgroundSyncForSetup({
   required NavisDatabase database,
@@ -133,7 +156,7 @@ class _HeadlessBackgroundSyncRunner {
         if (databaseOverride != null)
           navisDatabaseProvider.overrideWithValue(databaseOverride)
         else
-          backgroundSyncDatabaseOverride,
+          _backgroundSyncDatabaseOverride,
       ],
     );
     final database = container.read(navisDatabaseProvider);
@@ -269,7 +292,10 @@ class _HeadlessBackgroundSyncRunner {
         const LibrarySyncRequest.automatic(),
       );
       return await finish(
-        _categoryFor(state, hasActivePlayback: tracker.hasActivePlayback),
+        backgroundSyncCategoryFor(
+          state,
+          hasActivePlayback: tracker.hasActivePlayback,
+        ),
         state: state,
       );
     } on SyncCancelledException {
@@ -283,25 +309,6 @@ class _HeadlessBackgroundSyncRunner {
       client?.close(force: true);
       container.dispose();
     }
-  }
-
-  String _categoryFor(
-    LibrarySyncState state, {
-    required bool hasActivePlayback,
-  }) {
-    if (state.planReason == 'leaseHeld') {
-      return 'leaseHeld';
-    }
-    return switch (state.status) {
-      LibrarySyncStatus.succeeded ||
-      LibrarySyncStatus.partial ||
-      LibrarySyncStatus.skipped => 'succeeded',
-      LibrarySyncStatus.deferred =>
-        hasActivePlayback ? 'deferredPlayback' : 'deferredPolicy',
-      LibrarySyncStatus.failed => 'permanentFailure',
-      LibrarySyncStatus.cancelled => 'stoppedBySystem',
-      LibrarySyncStatus.idle || LibrarySyncStatus.running => 'noWorkDue',
-    };
   }
 
   Map<String, Object?> _result(

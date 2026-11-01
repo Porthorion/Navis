@@ -1052,11 +1052,21 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                       ? starredWork.updatedAt
                       : playlistsWork.updatedAt)
                 : persisted.lastAuxiliarySyncedAt;
+            // Past the quick retries a lock timeout is a real failure again:
+            // the state surfaces it, though the ledger keeps databaseBusy.
+            final busy = failed && result.failureCategory == 'databaseBusy';
+            final busyCapped =
+                busy &&
+                !_isQuickBusyRetry(
+                  circuitRelevant
+                      ? persisted.failureStreak + 1
+                      : (activeWork?.attemptCount ?? 0) + 1,
+                );
             final nextRetryAt = circuitRelevant && failed
                 ? _failureRetryAt(
                     persisted.failureStreak + 1,
                     result.nextRetryAt,
-                    busy: result.failureCategory == 'databaseBusy',
+                    busy: busy,
                   )
                 : circuitRelevant
                 ? null
@@ -1112,8 +1122,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                   ? completedAt
                   : persisted.lastCatalogSyncedAt,
               lastAuxiliarySyncedAt: auxiliaryCompletedAt,
+              errorMessage: busyCapped ? librarySyncFailureMessage : null,
               failureCategory: failed
-                  ? (result.failureCategory ?? 'sync')
+                  ? (busyCapped ? 'sync' : result.failureCategory ?? 'sync')
                   : deferred || explicitBudgetPartial
                   ? result.failureCategory
                   : null,
@@ -1636,6 +1647,11 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     );
   }
 
+  // ponytail: the work-row attempt count counts failures since the row was
+  // reactivated, not strictly consecutive ones; a row with older failures gets
+  // fewer quick retries. Reset it in the DAO if that ever matters.
+  bool _isQuickBusyRetry(int attempt) => attempt < 3;
+
   /// The earliest retry after the [attempt]th consecutive failure. A lock
   /// timeout ([busy]) is contention that usually clears at once, so the first
   /// two retry after [databaseBusyRetryDelay]; a database that stays locked
@@ -1645,7 +1661,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     DateTime? serverRetryAt, {
     bool busy = false,
   }) => _laterRetry(
-    busy && attempt < 3
+    busy && _isQuickBusyRetry(attempt)
         ? _now().add(databaseBusyRetryDelay)
         : _cooldownUntil(attempt),
     serverRetryAt,

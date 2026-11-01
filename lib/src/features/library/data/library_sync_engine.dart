@@ -1291,22 +1291,36 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
           _ =>
             _cancelled ? LibrarySyncStatus.cancelled : LibrarySyncStatus.failed,
         };
+    // A writer lock held past the busy wait is contention, not a sync failure:
+    // retry soon and silently (no user-facing text). Both the full-sync catch
+    // and targeted runs end here.
+    final busy =
+        terminalStatus == LibrarySyncStatus.failed &&
+        error != null &&
+        isDatabaseLockTimeout(error);
+    final base = busy
+        ? state.copyWith(
+            failureCategory: 'databaseBusy',
+            nextRetryAt: DateTime.now().add(databaseBusyRetryDelay),
+          )
+        : state;
     return _withMetrics(
-      state.copyWith(
+      base.copyWith(
         status: terminalStatus,
         stage: LibrarySyncStage.completed,
         completedAt: DateTime.now(),
         isHydrating: false,
-        errorMessage:
-            errorMessage ??
-            (terminalStatus == LibrarySyncStatus.cancelled
-                ? 'Sync cancelled.'
-                : error == null
-                ? null
-                : error is SubsonicIncompleteResponseException &&
-                      partialOnIncomplete
-                ? error.message
-                : _toSafeErrorMessage(error)),
+        errorMessage: busy
+            ? ''
+            : errorMessage ??
+                  (terminalStatus == LibrarySyncStatus.cancelled
+                      ? 'Sync cancelled.'
+                      : error == null
+                      ? null
+                      : error is SubsonicIncompleteResponseException &&
+                            partialOnIncomplete
+                      ? error.message
+                      : _toSafeErrorMessage(error)),
       ),
       metrics,
     );
@@ -1746,23 +1760,22 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         metrics,
         clearWhenEmpty: false,
       );
-      AppLogger.error(
-        'Library sync failed at stage=${state.stage} mode=${state.mode}.',
-        error,
-        stackTrace,
-      );
+      if (isDatabaseLockTimeout(error)) {
+        AppLogger.warning(
+          'Library sync hit a database lock timeout at stage=${state.stage} '
+          'mode=${state.mode}; it retries soon.',
+        );
+      } else {
+        AppLogger.error(
+          'Library sync failed at stage=${state.stage} mode=${state.mode}.',
+          error,
+          stackTrace,
+        );
+      }
 
       final transient = _isTransient(error);
-      // A writer lock held past the busy wait is contention, not a sync
-      // failure: retry soon and silently (no user-facing text).
-      final busy = isDatabaseLockTimeout(error);
       final failed = _terminal(
-        busy
-            ? state.copyWith(
-                failureCategory: 'databaseBusy',
-                nextRetryAt: DateTime.now().add(databaseBusyRetryDelay),
-              )
-            : transient
+        transient
             ? state.copyWith(
                 failureCategory: 'transport',
                 nextRetryAt: error is SubsonicApiException
@@ -1773,9 +1786,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         metrics,
         error,
         status: LibrarySyncStatus.failed,
-        errorMessage: busy
-            ? ''
-            : transient
+        errorMessage: transient
             ? 'Server temporarily unavailable. Sync will retry later.'
             : _toSafeErrorMessage(error),
       );
@@ -6267,6 +6278,9 @@ class _AdaptiveHydrationConcurrency {
   }
 }
 
+/// The generic user-facing text for a sync failure without a safer detail.
+const librarySyncFailureMessage = 'Metadata sync failed.';
+
 String _toSafeErrorMessage(Object error) {
   return switch (error) {
     SyncCancelledException() => 'Sync cancelled.',
@@ -6277,6 +6291,6 @@ String _toSafeErrorMessage(Object error) {
     SubsonicConnectionException() =>
       'Connection failed while syncing metadata. Retrying later may help.',
     SubsonicApiException(:final message) => message,
-    _ => 'Metadata sync failed.',
+    _ => librarySyncFailureMessage,
   };
 }

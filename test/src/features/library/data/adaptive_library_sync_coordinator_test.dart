@@ -640,6 +640,7 @@ void main() {
         status: LibrarySyncStatus.failed,
         stage: LibrarySyncStage.completed,
         failureCategory: category,
+        errorMessage: category == 'databaseBusy' ? '' : null,
         nextRetryAt: category == 'databaseBusy'
             ? now.add(const Duration(minutes: 1))
             : null,
@@ -680,7 +681,10 @@ void main() {
 
         expect(reason, SyncSafeReason.databaseBusy);
         expect(state.failureStreak, 1);
-        expect(state.nextEligibleAt?.toUtc(), now.add(const Duration(minutes: 1)));
+        expect(
+          state.nextEligibleAt?.toUtc(),
+          now.add(const Duration(minutes: 1)),
+        );
         expect(work?.notBefore?.toUtc(), now.add(const Duration(minutes: 1)));
       },
       skip: !sqliteAvailable,
@@ -697,7 +701,72 @@ void main() {
         expect(reason, SyncSafeReason.databaseBusy);
         expect(state.failureStreak, 3);
         // _cooldownUntil(3): 15 min x 4.
-        expect(state.nextEligibleAt?.toUtc(), now.add(const Duration(minutes: 60)));
+        expect(
+          state.nextEligibleAt?.toUtc(),
+          now.add(const Duration(minutes: 60)),
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    for (final (streak, silent) in [(0, true), (1, true), (2, false)]) {
+      test('the failure after $streak earlier ones is '
+          '${silent ? 'silent' : 'surfaced'}', () async {
+        await database.librarySyncDao.writeState(
+          LibrarySyncStateTableCompanion(
+            serverId: const Value(1),
+            failureStreak: Value(streak),
+          ),
+        );
+
+        final state = await coordinatorFor(failingWith('databaseBusy'))
+            .requestSync(repair);
+
+        expect(state.isSilentFailure, silent);
+        expect(state.failureCategory, silent ? 'databaseBusy' : 'sync');
+        expect(state.errorMessage, silent ? isEmpty : 'Metadata sync failed.');
+        // The ledger keeps the diagnostic reason either way.
+        final history = await database.librarySyncDao.getRecentSyncRunHistory(
+          1,
+        );
+        expect(
+          history
+              .firstWhere((run) => run.outcome == SyncRunOutcomeKind.failed)
+              .reason,
+          SyncSafeReason.databaseBusy,
+        );
+      }, skip: !sqliteAvailable);
+    }
+
+    test(
+      'a work row with two failed attempts backs off normally on the third',
+      () async {
+        await database.librarySyncDao.enqueueWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.fullRepair.name,
+          priority: 100,
+        );
+        final queued = (await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.fullRepair.name,
+        ))!;
+        for (var i = 0; i < 2; i++) {
+          await database.librarySyncDao.markFailed(
+            queued.id,
+            errorType: 'sync',
+            notBefore: now,
+          );
+        }
+
+        await coordinatorFor(failingWith('databaseBusy')).requestSync(repair);
+
+        final work = await database.librarySyncDao.getWork(
+          serverId: 1,
+          kind: LibrarySyncPlanKind.fullRepair.name,
+        );
+        expect(work?.attemptCount, 3);
+        // _cooldownUntil(3): 15 min x 4.
+        expect(work?.notBefore?.toUtc(), now.add(const Duration(minutes: 60)));
       },
       skip: !sqliteAvailable,
     );
@@ -708,7 +777,10 @@ void main() {
         final (state, work, reason) = await failures(streak: 0, category: null);
 
         expect(reason, SyncSafeReason.unknownFailure);
-        expect(state.nextEligibleAt?.toUtc(), now.add(const Duration(minutes: 15)));
+        expect(
+          state.nextEligibleAt?.toUtc(),
+          now.add(const Duration(minutes: 15)),
+        );
         expect(work?.notBefore?.toUtc(), now.add(const Duration(minutes: 15)));
       },
       skip: !sqliteAvailable,

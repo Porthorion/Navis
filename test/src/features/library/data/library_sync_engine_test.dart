@@ -160,13 +160,14 @@ class _LeaseLockTimeouts extends QueryInterceptor {
 /// Fails catalog writes with SQLITE_BUSY (or another code), the error a writer
 /// lock held past the busy handler produces.
 class _CatalogWriteTimeouts extends QueryInterceptor {
-  new({this.resultCode = 5});
+  new({this.resultCode = 5, this.table = 'artists'});
 
   final int resultCode;
+  final String table;
   int failures = 0;
 
   void _maybeFail(String statement) {
-    if (!statement.contains('artists')) return;
+    if (!statement.contains(table)) return;
     failures++;
     throw SqliteException(
       extendedResultCode: resultCode,
@@ -390,6 +391,45 @@ void main() {
         }
       }, skip: !sqliteAvailable);
     }
+
+    test(
+      'a lock timeout in targeted hydration is silent and retried soon',
+      () async {
+        await database.close();
+        final timeouts = _CatalogWriteTimeouts(table: 'playlists');
+        database = NavisDatabase(
+          NativeDatabase.memory().interceptWith(timeouts),
+        );
+        serverConfigRepository = ServerConfigRepository(
+          database,
+          credentials: credentials,
+        );
+        await saveSession();
+        api.playlists = const <Playlist>[
+          Playlist(id: 'playlist-1', name: 'Favorites', songCount: 2),
+        ];
+        final localEngine = serialDriftEngine(
+          api: api,
+          database: database,
+          repository: serverConfigRepository,
+        );
+
+        final state = await localEngine.executeSyncPlan(
+          syncPlanForTest(
+            LibrarySyncPlanKind.targetedHydration,
+            target: const LibrarySyncTarget.playlistHeaders(),
+          ),
+        );
+
+        expect(timeouts.failures, greaterThan(0));
+        expect(state.status, LibrarySyncStatus.failed);
+        expect(state.failureCategory, 'databaseBusy');
+        expect(state.errorMessage, isEmpty);
+        expect(state.isSilentFailure, isTrue);
+        expect(state.nextRetryAt, isNotNull);
+      },
+      skip: !sqliteAvailable,
+    );
 
     for (final (release, resultCode) in [(false, 5), (true, 5), (false, 1)]) {
       final lockTimeout = resultCode == 5;

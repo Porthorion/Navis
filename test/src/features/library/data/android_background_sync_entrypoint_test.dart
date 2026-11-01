@@ -6,10 +6,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:navis/src/providers/app_providers.dart'
-    show navisDatabaseProvider;
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
@@ -17,6 +14,7 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/android_background_sync.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:sqlite3/sqlite3.dart' show OpenMode, sqlite3;
 
@@ -470,7 +468,7 @@ void main() {
   );
 
   test(
-    'worker database waits past the app 5 s busy bound for the writer lock',
+    'the real worker entrypoint waits past the app 5 s busy bound for the lock',
     () async {
       final support = await Directory.systemTemp.createTemp('navis-support');
       final documents = await Directory.systemTemp.createTemp('navis-docs');
@@ -478,19 +476,27 @@ void main() {
         await support.delete(recursive: true);
         await documents.delete(recursive: true);
       });
+      final file = File('${support.path}/navis.sqlite.sqlite');
+      final seed = createTestDatabase(file: file);
+      await seed.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://example.test',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      await seed.close();
       final previousProvider = PathProviderPlatform.instance;
       PathProviderPlatform.instance = _TempPathProvider(
         support: support,
         documents: documents,
       );
       addTearDown(() => PathProviderPlatform.instance = previousProvider);
-      final container = ProviderContainer(
-        overrides: [backgroundSyncDatabaseOverride],
-      );
-      addTearDown(container.dispose);
-      final database = container.read(navisDatabaseProvider);
-      await database.customSelect('SELECT 1').get();
-      final raw = sqlite3.open('${support.path}/navis.sqlite.sqlite');
+
+      // Another connection holds the writer lock past the app's 5 s bound.
+      // The worker's status row write must wait it out on its own 30 s
+      // connection; removing that wiring from `_run` makes it throw at 5 s.
+      final raw = sqlite3.open(file.path);
       addTearDown(raw.close);
       raw.execute('BEGIN IMMEDIATE');
       unawaited(
@@ -500,16 +506,77 @@ void main() {
         ),
       );
 
-      // The app connection would give up after 5 s with SQLITE_BUSY.
-      await database.customStatement(
-        "INSERT INTO songs (id, title) VALUES ('waited', 'Waited')",
+      final entry = navisBackgroundSyncEntrypoint();
+      await Future<void>.delayed(Duration.zero);
+      const codec = StandardMethodCodec();
+      final response = Completer<Object?>();
+      final stopwatch = Stopwatch()..start();
+      await messenger.handlePlatformMessage(
+        channel.name,
+        codec.encodeMethodCall(
+          const MethodCall('runAutomaticBackgroundSync', <String, Object?>{
+            'profileKey': '00000000000000000000000000000000',
+            'workId': 'a1b2c3',
+            'attemptCount': 0,
+          }),
+        ),
+        (data) => response.complete(codec.decodeEnvelope(data!)),
       );
+      final result = (await response.future)! as Map<Object?, Object?>;
+      stopwatch.stop();
+      final stopped = Completer<void>();
+      await messenger.handlePlatformMessage(
+        channel.name,
+        codec.encodeMethodCall(const MethodCall('shutdown')),
+        (_) => stopped.complete(),
+      );
+      await stopped.future;
+      await entry;
+      channel.setMethodCallHandler(null);
 
-      expect(backgroundSyncBusyLimit, const Duration(seconds: 30));
+      expect(result['category'], isNotNull);
+      expect(stopwatch.elapsed, greaterThan(const Duration(seconds: 5)));
+      final after = sqlite3.open(file.path, mode: OpenMode.readOnly);
+      addTearDown(after.close);
+      expect(
+        after
+            .select(
+              'SELECT COUNT(*) AS c FROM library_sync_state '
+              'WHERE android_worker_result IS NOT NULL',
+            )
+            .first['c'],
+        1,
+      );
     },
     timeout: const Timeout(Duration(seconds: 60)),
     skip: !sqliteAvailable,
   );
+
+  group('worker result category', () {
+    LibrarySyncState failed(String? category) => LibrarySyncState(
+      status: LibrarySyncStatus.failed,
+      stage: LibrarySyncStage.completed,
+      failureCategory: category,
+    );
+
+    test('a silent lock timeout asks WorkManager to retry', () {
+      expect(
+        backgroundSyncCategoryFor(
+          failed('databaseBusy'),
+          hasActivePlayback: false,
+        ),
+        'transientFailure',
+      );
+    });
+
+    test('a failure past the quick retries stays permanent', () {
+      // The coordinator reports category 'sync' once the cap is reached.
+      expect(
+        backgroundSyncCategoryFor(failed('sync'), hasActivePlayback: false),
+        'permanentFailure',
+      );
+    });
+  });
 
   test(
     'background policy tracker refreshes metering during a worker pass',

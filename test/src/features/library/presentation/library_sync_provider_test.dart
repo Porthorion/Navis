@@ -789,6 +789,68 @@ void main() {
       expect(wait, lessThan(const Duration(minutes: 4)));
     });
 
+    for (final (name, retryIn, expected) in [
+      (
+        'a silent busy failure retries at the coordinator retry time',
+        const Duration(minutes: 1),
+        const Duration(minutes: 1),
+      ),
+      (
+        'a silent busy retry is floored at 30 s',
+        const Duration(seconds: 1),
+        const Duration(seconds: 30),
+      ),
+    ]) {
+      test(name, () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: config.id!,
+          nextAutomaticCheckAt: DateTime.now().subtract(
+            const Duration(minutes: 1),
+          ),
+        );
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.failed,
+              stage: LibrarySyncStage.completed,
+              completedAt: DateTime.now(),
+              failureCategory: 'databaseBusy',
+              nextRetryAt: DateTime.now().add(retryIn),
+            );
+          }
+          return _succeeded;
+        });
+        final startedAt = DateTime.now();
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
+        );
+        addTearDown(container.dispose);
+        addTearDown(
+          () => container
+              .read(librarySyncControllerProvider.notifier)
+              .cancelAndWait(),
+        );
+
+        await container
+            .read(librarySyncControllerProvider.notifier)
+            .syncIfStale();
+        final persisted = await database.librarySyncDao.getOrCreateState(
+          config.id!,
+        );
+
+        final wait = persisted.nextAutomaticCheckAt!.difference(startedAt);
+        expect(wait, greaterThan(expected - const Duration(seconds: 5)));
+        expect(wait, lessThan(expected + const Duration(seconds: 5)));
+      });
+    }
+
     test(
       'an app-open automatic check runs while a worker lease is live',
       () async {
