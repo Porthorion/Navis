@@ -307,6 +307,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   Future<void>? _startupSyncTask;
   bool _retryStartupWhenEngineReady = false;
   String? _startupSyncDoneFingerprint;
+
+  /// A busy retry time whose persisting failed. It stands in for the (stale)
+  /// persisted deadline until a successful write or the check it schedules.
+  DateTime? _busyRetryAt;
   String? _sessionFingerprint;
   ServerReachabilityStatus? _lastReachabilityStatus;
   bool _isForeground = true;
@@ -1189,6 +1193,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return state;
     }
 
+    if (automaticCheckIsDue) _busyRetryAt = null;
     final result = await _runSync(
       force: false,
       tolerateUnavailableEngine: true,
@@ -1246,6 +1251,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
           serverId: serverId,
           nextAutomaticCheckAt: next,
         );
+    _busyRetryAt = null;
     if (ref.mounted && _sessionFingerprint == _toSessionFingerprint(config)) {
       state = state.copyWith(
         nextAutomaticCheckAt: next,
@@ -1260,6 +1266,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (serverId == null) {
       return null;
     }
+    final busyRetryAt = _busyRetryAt;
+    if (busyRetryAt != null) return busyRetryAt;
     final dao = ref.read(navisDatabaseProvider).librarySyncDao;
     final persisted = await dao.getOrCreateState(serverId);
     final existing = persisted.nextAutomaticCheckAt;
@@ -1303,6 +1311,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   /// write follows the same contention; the timer is re-armed either way.
   Future<void> _armBusyRetry(int serverId, DateTime at) async {
     final config = ref.read(serverConfigStateProvider).asData?.value;
+    // Set before the first await: the deadline reads must see it even if the
+    // write below fails; a successful write clears it.
+    _busyRetryAt = at;
     try {
       if (config != null) await _writeNextAutomaticCheck(serverId, config, at);
     } on Object catch (error) {
@@ -1664,7 +1675,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     // After the final state is published: the write runs right after a lock
     // timeout and may fail too. The retry then only re-arms the timer.
     if (busyRetryAt != null && serverId != null) {
-      await _armBusyRetry(serverId, busyRetryAt);
+      // Not awaited: the caller already has its result.
+      _trackSyncStateTask(_armBusyRetry(serverId, busyRetryAt));
     }
 
     return shown;

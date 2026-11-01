@@ -80,6 +80,17 @@ final _succeeded = LibrarySyncState(
   completedAt: DateTime.utc(2026, 8, 4),
 );
 
+/// Polls [condition] every 20 ms for up to [timeout] (loaded runners are slow).
+Future<void> _until(
+  bool Function() condition, {
+  Duration timeout = const Duration(seconds: 15),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition() && DateTime.now().isBefore(deadline)) {
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
+}
+
 final _hourlyInterval = <Override>[
   syncIntervalMinutesProvider.overrideWithValue(60),
   syncIntervalDurationProvider.overrideWithValue(const Duration(hours: 1)),
@@ -914,6 +925,14 @@ void main() {
       },
     );
 
+    const failNextCheck =
+        'CREATE TRIGGER fail_next_check BEFORE UPDATE OF '
+        'next_automatic_check_at ON library_sync_state '
+        // Only the near-term retry write fails, not a full-interval deadline.
+        "WHEN NEW.next_automatic_check_at < CAST(strftime('%s', 'now') AS INT) "
+        '+ 600 BEGIN '
+        "SELECT RAISE(ABORT, 'database is locked'); END";
+
     LibrarySyncState busyFailure() => LibrarySyncState(
       status: LibrarySyncStatus.failed,
       stage: LibrarySyncStage.completed,
@@ -926,7 +945,11 @@ void main() {
     /// A container whose next check is 5 h away and whose non-automatic
     /// requests fail busy. The retry floor is shortened for the test.
     Future<(StubLibrarySyncEngine, LibrarySyncController, NavisDatabase, int)>
-    busyForcedRun({List<Override> interval = const <Override>[]}) async {
+    busyForcedRun({
+      List<Override> interval = const <Override>[],
+      Duration deadlineIn = const Duration(hours: 5),
+      List<DateTime>? automaticCalls,
+    }) async {
       final floor = LibrarySyncController.automaticRetryFloor;
       LibrarySyncController.automaticRetryFloor = const Duration(
         milliseconds: 150,
@@ -937,12 +960,14 @@ void main() {
       final config = await _saveAuthenticatedServer(database);
       await database.librarySyncDao.setNextAutomaticCheckAt(
         serverId: config.id!,
-        nextAutomaticCheckAt: DateTime.now().add(const Duration(hours: 5)),
+        nextAutomaticCheckAt: DateTime.now().add(deadlineIn),
       );
-      final engine = StubLibrarySyncEngine(
-        (request, {onProgress}) async =>
-            request.isAutomatic ? _succeeded : busyFailure(),
-      );
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (!request.isAutomatic) return busyFailure();
+        if (automaticCalls == null) return _succeeded;
+        automaticCalls.add(DateTime.now());
+        return busyFailure();
+      });
       final container = _container(
         engine,
         database: database,
@@ -953,34 +978,24 @@ void main() {
       addTearDown(container.dispose);
       final controller = container.read(librarySyncControllerProvider.notifier);
       addTearDown(controller.cancelAndWait);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
       return (engine, controller, database, config.id!);
     }
 
     test('a forced run that fails busy retries in about a minute', () async {
-      final (engine, controller, database, serverId) = await busyForcedRun();
+      final (engine, controller, _, _) = await busyForcedRun();
       final before = engine.automaticRequests.length;
-      final startedAt = DateTime.now();
 
       await controller.syncNow();
-      final wait = (await database.librarySyncDao.getOrCreateState(serverId))
-          .nextAutomaticCheckAt!
-          .difference(startedAt);
-      expect(wait, lessThan(const Duration(seconds: 2)));
+      await _until(() => engine.automaticRequests.length > before);
 
       // The periodic timer was re-armed for the retry, so an automatic check
       // actually runs soon, not at the old 5 h deadline.
-      await Future<void>.delayed(const Duration(milliseconds: 600));
       expect(engine.automaticRequests.length, greaterThan(before));
     });
 
     test('a failing retry write still publishes the final state', () async {
       final (engine, controller, database, _) = await busyForcedRun();
-      await database.customStatement(
-        'CREATE TRIGGER fail_next_check BEFORE UPDATE OF '
-        'next_automatic_check_at ON library_sync_state BEGIN '
-        "SELECT RAISE(ABORT, 'database is locked'); END",
-      );
+      await database.customStatement(failNextCheck);
 
       final result = await controller.syncNow();
 
@@ -993,6 +1008,40 @@ void main() {
       );
       expect(engine.explicitCatalogRequests, isNotEmpty);
     });
+
+    test('a forced run still retries when the retry write fails', () async {
+      final (engine, controller, database, _) = await busyForcedRun();
+      await database.customStatement(failNextCheck);
+      final before = engine.automaticRequests.length;
+
+      await controller.syncNow();
+      await _until(() => engine.automaticRequests.length > before);
+
+      expect(engine.automaticRequests.length, greaterThan(before));
+    });
+
+    test(
+      'an automatic busy pass with a failing write is not re-run at once',
+      () async {
+        final calls = <DateTime>[];
+        final (_, controller, database, _) = await busyForcedRun(
+          deadlineIn: const Duration(minutes: -1),
+          automaticCalls: calls,
+        );
+        await database.customStatement(failNextCheck);
+
+        await controller.syncIfStale();
+        await _until(() => calls.length >= 2);
+
+        // The retry waits for the floor instead of spinning on the stale
+        // persisted deadline.
+        expect(calls.length, greaterThanOrEqualTo(2));
+        expect(
+          calls[1].difference(calls[0]),
+          greaterThan(const Duration(milliseconds: 100)),
+        );
+      },
+    );
 
     test('manual-only mode shows a busy failure as an ordinary one', () async {
       final (_, controller, _, _) = await busyForcedRun(
