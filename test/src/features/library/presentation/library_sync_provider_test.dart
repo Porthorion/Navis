@@ -852,6 +852,160 @@ void main() {
     }
 
     test(
+      'a stale silent failure does not keep rescheduling 30 s checks',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        var calls = 0;
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (!request.isAutomatic) return _succeeded;
+          calls++;
+          return calls == 1
+              ? LibrarySyncState(
+                  status: LibrarySyncStatus.failed,
+                  stage: LibrarySyncStage.completed,
+                  completedAt: DateTime.now(),
+                  failureCategory: 'databaseBusy',
+                  nextRetryAt: DateTime.now().add(const Duration(minutes: 1)),
+                )
+              : LibrarySyncState(
+                  status: LibrarySyncStatus.deferred,
+                  stage: LibrarySyncStage.completed,
+                  completedAt: DateTime.now(),
+                );
+        });
+        final container = _container(
+          engine,
+          database: database,
+          server: config,
+          reachability: ServerReachabilityStatus.offline,
+          interval: _hourlyInterval,
+        );
+        addTearDown(container.dispose);
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+        addTearDown(controller.cancelAndWait);
+
+        for (var i = 0; i < 4; i++) {
+          await database.librarySyncDao.setNextAutomaticCheckAt(
+            serverId: config.id!,
+            nextAutomaticCheckAt: DateTime.now().subtract(
+              const Duration(minutes: 1),
+            ),
+          );
+          final startedAt = DateTime.now();
+          final result = await controller.syncIfStale();
+          final wait = (await database.librarySyncDao.getOrCreateState(
+            config.id!,
+          )).nextAutomaticCheckAt!.difference(startedAt);
+          if (i == 0) {
+            expect(result.isSilentFailure, isTrue);
+            expect(wait, lessThan(const Duration(minutes: 2)));
+          } else {
+            // Only the pass that failed schedules the quick retry.
+            expect(result.isSilentFailure, isFalse);
+            expect(wait, greaterThan(const Duration(minutes: 59)));
+          }
+        }
+      },
+    );
+
+    test('a forced run that fails busy retries in about a minute', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().add(const Duration(hours: 5)),
+      );
+      final engine = StubLibrarySyncEngine(
+        (request, {onProgress}) async => LibrarySyncState(
+          status: LibrarySyncStatus.failed,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+          failureCategory: 'databaseBusy',
+          nextRetryAt: DateTime.now().add(const Duration(minutes: 1)),
+        ),
+      );
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        reachability: ServerReachabilityStatus.offline,
+        interval: _hourlyInterval,
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(librarySyncControllerProvider.notifier);
+      addTearDown(controller.cancelAndWait);
+      final startedAt = DateTime.now();
+
+      await controller.syncNow();
+      final wait = (await database.librarySyncDao.getOrCreateState(config.id!))
+          .nextAutomaticCheckAt!
+          .difference(startedAt);
+
+      expect(wait, greaterThan(const Duration(seconds: 50)));
+      expect(wait, lessThan(const Duration(minutes: 2)));
+    });
+
+    test(
+      'a startup repair that fails busy is retried by the next trigger',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        var networkType = NetworkType.other;
+        final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+          if (request.isAutomatic) {
+            return const LibrarySyncState(
+              status: LibrarySyncStatus.skipped,
+              stage: LibrarySyncStage.completed,
+            );
+          }
+          return LibrarySyncState(
+            status: LibrarySyncStatus.failed,
+            stage: LibrarySyncStage.completed,
+            completedAt: DateTime.now(),
+            failureCategory: 'databaseBusy',
+            nextRetryAt: DateTime.now().add(const Duration(minutes: 1)),
+          );
+        });
+        final container = _container(
+          engine,
+          database: database,
+          server: _exampleServer,
+          extra: [
+            networkTypeProvider.overrideWith((ref) => networkType),
+            requiredLibrarySyncModelVersionProvider.overrideWithValue(
+              'model-v2',
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.read(librarySyncControllerProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(engine.explicitCatalogRequests, [_repairRequest]);
+
+        // Offline and back (not Wi-Fi, which would reset the fingerprint).
+        for (final next in [NetworkType.offline, NetworkType.other]) {
+          networkType = next;
+          container.invalidate(networkTypeProvider);
+          expect(container.read(networkTypeProvider), next);
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+
+        // A silent failure leaves the startup pass unfinished.
+        expect(engine.explicitCatalogRequests, [
+          _repairRequest,
+          _repairRequest,
+        ]);
+        expect(await database.appSettingsDao.getLastFullSyncAppBuild(), isNull);
+      },
+    );
+
+    test(
       'an app-open automatic check runs while a worker lease is live',
       () async {
         final database = createTestDatabase();

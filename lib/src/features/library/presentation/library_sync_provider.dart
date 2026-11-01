@@ -1138,7 +1138,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         result.status == LibrarySyncStatus.succeeded ||
         result.status == LibrarySyncStatus.partial ||
         completedSyncModelRepair ||
-        result.status == LibrarySyncStatus.failed ||
+        // A silent lock timeout leaves the pass unfinished so the next
+        // trigger retries it.
+        (result.status == LibrarySyncStatus.failed &&
+            !result.isSilentFailure) ||
         (!deferFullResyncOnMobile &&
             result.status == LibrarySyncStatus.skipped);
     if (completedStartupPass) {
@@ -1193,9 +1196,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (automaticCheckIsDue && result.completedAt != null) {
       if (result.planReason == 'leaseHeld') {
         await _scheduleAfterLeaseExpiry(interval);
-      } else if (result.isSilentFailure) {
-        await _scheduleAfterBusyFailure(interval, result.nextRetryAt);
-      } else {
+      } else if (!result.isSilentFailure) {
+        // A silent failure already armed its quick retry in _runSyncOnce.
         await _recordAutomaticCheckCompletion(interval);
       }
     }
@@ -1281,9 +1283,19 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     await _writeNextAutomaticCheck(serverId, config!, next);
   }
 
+  /// [wanted] limited to between 30 s from now (so a retry can't spin) and one
+  /// normal interval from now.
+  DateTime _clampNextCheck(DateTime wanted, Duration interval) {
+    final now = DateTime.now().toUtc();
+    final earliest = now.add(const Duration(seconds: 30));
+    final latest = now.add(interval);
+    return wanted.isBefore(earliest)
+        ? earliest
+        : (wanted.isAfter(latest) ? latest : wanted);
+  }
+
   /// A lock timeout is contention that usually clears at once: retry at the
-  /// coordinator's retry time, never sooner than 30 s (no spin) or later than
-  /// the normal cadence.
+  /// coordinator's retry time, within [_clampNextCheck]'s bounds.
   Future<void> _scheduleAfterBusyFailure(
     Duration interval,
     DateTime? retryAt,
@@ -1293,15 +1305,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (serverId == null) {
       return;
     }
-    final now = DateTime.now().toUtc();
-    final earliest = now.add(const Duration(seconds: 30));
-    final normal = now.add(interval);
-    final wanted = retryAt?.toUtc() ?? earliest;
-    final capped = wanted.isAfter(normal) ? normal : wanted;
     await _writeNextAutomaticCheck(
       serverId,
       config!,
-      capped.isBefore(earliest) ? earliest : capped,
+      _clampNextCheck(retryAt?.toUtc() ?? DateTime.now().toUtc(), interval),
     );
   }
 
@@ -1319,19 +1326,19 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         .librarySyncDao
         .getExecutionLease(serverId);
     final now = DateTime.now().toUtc();
-    // The floor stops a spin if the lease is released between the two reads.
-    final earliest = now.add(const Duration(seconds: 30));
-    final normal = now.add(interval);
     final atExpiry = (lease?.expiresAt.toUtc() ?? now).add(
       const Duration(seconds: 5),
     );
     // A live worker's heartbeats keep extending its expiry, so waiting for it
     // could take the whole interval; the app preempts a worker, so retry soon.
-    final next =
-        lease?.ownerKind == 'androidWorker' || atExpiry.isBefore(earliest)
-        ? earliest
-        : (atExpiry.isAfter(normal) ? normal : atExpiry);
-    await _writeNextAutomaticCheck(serverId, config!, next);
+    await _writeNextAutomaticCheck(
+      serverId,
+      config!,
+      _clampNextCheck(
+        lease?.ownerKind == 'androidWorker' ? now : atExpiry,
+        interval,
+      ),
+    );
   }
 
   Future<LibrarySyncState> _runSync({
@@ -1585,12 +1592,21 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final preserveFailure =
         !force &&
         stateBeforeRequest.status == LibrarySyncStatus.failed &&
+        // A silent failure is not shown, so there is nothing to preserve.
+        !stateBeforeRequest.isSilentFailure &&
         (result.status == LibrarySyncStatus.skipped ||
             result.status == LibrarySyncStatus.deferred ||
             result.status == LibrarySyncStatus.cancelled);
     if (preserveFailure) {
       state = stateBeforeRequest;
       return stateBeforeRequest;
+    }
+    // Only this pass's own lock timeout arms the quick retry (a preserved or
+    // joined state never does).
+    final interval = ref.read(syncIntervalDurationProvider);
+    if (result.isSilentFailure && interval != null) {
+      await _scheduleAfterBusyFailure(interval, result.nextRetryAt);
+      if (!ref.mounted) return result;
     }
     // The engine owns catalog result fields, but both deadlines are durable
     // scheduler inputs. Engine results do not carry the automatic deadline,

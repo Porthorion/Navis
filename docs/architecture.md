@@ -337,7 +337,7 @@ list (header, drag handle) move the sheet even when the list is not at the top.
 - The busy wait is per connection: the app's is
   `NavisDatabase.defaultBusyLimit` (5 s), so startup and UI writes never wait
   longer. Android's background sync worker opens its own connection with
-  `NavisDatabase.withBusyLimit` (30 s, `backgroundSyncBusyLimit`) so a long
+  `NavisDatabase.withBusyLimit` (30 s) so a long
   foreground write does not fail its pass. A lock timeout that still escapes
   (full sync or targeted hydration) is contention, not a sync failure. The
   engine reports it as `failed` with `failureCategory: 'databaseBusy'`, no

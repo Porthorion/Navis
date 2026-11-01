@@ -1649,7 +1649,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
 
   // ponytail: the work-row attempt count counts failures since the row was
   // reactivated, not strictly consecutive ones; a row with older failures gets
-  // fewer quick retries. Reset it in the DAO if that ever matters.
+  // fewer quick retries. A target run with no work row counts as attempt 1.
+  // Reset it in the DAO if that ever matters.
   bool _isQuickBusyRetry(int attempt) => attempt < 3;
 
   /// The earliest retry after the [attempt]th consecutive failure. A lock
