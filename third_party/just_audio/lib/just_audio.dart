@@ -3765,10 +3765,27 @@ class LockCachingAudioSource extends StreamAudioSource {
   /// moved on, which on a slow link starves the song now playing.
   Future<void> cancelDownload() async {
     resumeDownload();
+    final response = _response;
     final abort = _abortDownload?.call();
+    if (abort != null) {
+      // Navis: the cancelled fetch is still releasing its partial file and
+      // registry state after the abort returns. Until it has, [request] and
+      // [prefetch] wait instead of joining it and failing with it.
+      Future<void> settled(Future<Object?> f) =>
+          f.then<void>((_) {}, onError: (Object _) {});
+      late final Future<void> unwound;
+      unwound = _unwinding = (() async {
+        await settled(abort);
+        if (response != null) await settled(response);
+        if (identical(_unwinding, unwound)) _unwinding = null;
+      })();
+    }
     await _cancelRangeFetches();
     await abort;
   }
+
+  /// Navis: completes when the fetch cancelled by [cancelDownload] has unwound.
+  Future<void>? _unwinding;
 
   Future<void> Function()? _abortDownload;
 
@@ -4269,6 +4286,10 @@ class LockCachingAudioSource extends StreamAudioSource {
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
     final cancelled = StreamAudioSource.requestCancellation;
+    // Navis: never join a fetch that is being cancelled.
+    while (_unwinding != null) {
+      await _unwinding;
+    }
     final cacheFile = await this.cacheFile;
     if (cacheFile.existsSync()) {
       final sourceLength = cacheFile.lengthSync();
@@ -4301,6 +4322,9 @@ class LockCachingAudioSource extends StreamAudioSource {
   /// no replay buffer holds the body. A later [request] shares the download.
   /// Throws if the download fails; a finished file is a no-op.
   Future<void> prefetch() async {
+    while (_unwinding != null) {
+      await _unwinding;
+    }
     if ((await cacheFile).existsSync()) return;
     _discardFinishedFetch();
     await _startFetch();

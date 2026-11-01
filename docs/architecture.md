@@ -4857,8 +4857,10 @@ had moved on; on a slow link a skipped song's download starved the new song,
 whose first load then timed out. When the current song changes, downloads of
 songs other than the current and next ones are cancelled
 (`LockCachingAudioSource.cancelDownload`, a Navis addition to the vendored
-just_audio) and their partial files discarded; desktop already keeps a single
-sidecar download.
+just_audio) and their partial files discarded; a request for the same song
+arriving meanwhile waits for the cancelled fetch to unwind and starts a fresh
+download instead of failing with it. Desktop already keeps a single sidecar
+download.
 
 While an Android lock-cached song has a live origin range, playback is requested
 and the native forward buffer is under 30 seconds, the current and next songs'
