@@ -6792,7 +6792,15 @@ void main() {
         // ignore: experimental_member_use, reason: the lock-cache source.
         if (s is! LockCachingAudioSource) continue;
         final id = ids[i];
-        if (!identical(s, handler.debugRegisteredLockCacheSource(id))) bad++;
+        // A finished download unregisters (the player keeps its source), and
+        // how soon that happens relative to this audit depends on timing: a
+        // slow runner has the current song's source still held here. Only a
+        // source that is still downloading must be the registered one.
+        final registered = handler.debugRegisteredLockCacheSource(id);
+        if (!identical(s, registered) &&
+            (registered != null || s.isDownloading)) {
+          bad++;
+        }
         (instances[id] ??= <int>{}).add(identityHashCode(s));
       }
       final multi = [
