@@ -222,7 +222,7 @@ final playlistSyncProvider = FutureProvider.autoDispose<void>((ref) async {
         const LibrarySyncTarget.playlistHeaders(),
         requireFresh: true,
       );
-  if (result.status == LibrarySyncStatus.failed) {
+  if (result.status == LibrarySyncStatus.failed && !result.isSilentFailure) {
     throw StateError(result.errorMessage ?? 'Playlist refresh failed.');
   }
 });
@@ -241,7 +241,8 @@ final playlistDetailSyncProvider = FutureProvider.autoDispose
       final result = await ref
           .read(librarySyncControllerProvider.notifier)
           .requestTarget(LibrarySyncTarget.playlist(playlistId));
-      if (result.status == LibrarySyncStatus.failed) {
+      if (result.status == LibrarySyncStatus.failed &&
+          !result.isSilentFailure) {
         throw StateError(result.errorMessage ?? 'Playlist refresh failed.');
       }
     });

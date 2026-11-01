@@ -90,7 +90,8 @@ class _LibrarySyncStatusBannerState extends State<LibrarySyncStatusBanner> {
   Widget build(BuildContext context) {
     final syncState = widget.syncState;
     final l10n = AppLocalizations.of(context)!;
-    if (syncState.status == LibrarySyncStatus.failed) {
+    if (syncState.status == LibrarySyncStatus.failed &&
+        !syncState.isSilentFailure) {
       if (_failureDismissed) {
         return const SizedBox.shrink();
       }
