@@ -73,9 +73,11 @@ const _exampleServer = ServerConfigModel(
 );
 
 /// A completed, successful sync with no other detail.
-const _succeeded = LibrarySyncState(
+// Real results carry completedAt; without it a re-armed timer can spin.
+final _succeeded = LibrarySyncState(
   status: LibrarySyncStatus.succeeded,
   stage: LibrarySyncStage.completed,
+  completedAt: DateTime.utc(2026, 8, 4),
 );
 
 final _hourlyInterval = <Override>[
@@ -912,7 +914,24 @@ void main() {
       },
     );
 
-    test('a forced run that fails busy retries in about a minute', () async {
+    LibrarySyncState busyFailure() => LibrarySyncState(
+      status: LibrarySyncStatus.failed,
+      stage: LibrarySyncStage.completed,
+      completedAt: DateTime.now(),
+      failureCategory: 'databaseBusy',
+      errorMessage: '',
+      nextRetryAt: DateTime.now(),
+    );
+
+    /// A container whose next check is 5 h away and whose non-automatic
+    /// requests fail busy. The retry floor is shortened for the test.
+    Future<(StubLibrarySyncEngine, LibrarySyncController, NavisDatabase, int)>
+    busyForcedRun({List<Override> interval = const <Override>[]}) async {
+      final floor = LibrarySyncController.automaticRetryFloor;
+      LibrarySyncController.automaticRetryFloor = const Duration(
+        milliseconds: 150,
+      );
+      addTearDown(() => LibrarySyncController.automaticRetryFloor = floor);
       final database = createTestDatabase();
       addTearDown(database.close);
       final config = await _saveAuthenticatedServer(database);
@@ -921,33 +940,74 @@ void main() {
         nextAutomaticCheckAt: DateTime.now().add(const Duration(hours: 5)),
       );
       final engine = StubLibrarySyncEngine(
-        (request, {onProgress}) async => LibrarySyncState(
-          status: LibrarySyncStatus.failed,
-          stage: LibrarySyncStage.completed,
-          completedAt: DateTime.now(),
-          failureCategory: 'databaseBusy',
-          nextRetryAt: DateTime.now().add(const Duration(minutes: 1)),
-        ),
+        (request, {onProgress}) async =>
+            request.isAutomatic ? _succeeded : busyFailure(),
       );
       final container = _container(
         engine,
         database: database,
         server: config,
         reachability: ServerReachabilityStatus.offline,
-        interval: _hourlyInterval,
+        interval: interval.isEmpty ? _hourlyInterval : interval,
       );
       addTearDown(container.dispose);
       final controller = container.read(librarySyncControllerProvider.notifier);
       addTearDown(controller.cancelAndWait);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      return (engine, controller, database, config.id!);
+    }
+
+    test('a forced run that fails busy retries in about a minute', () async {
+      final (engine, controller, database, serverId) = await busyForcedRun();
+      final before = engine.automaticRequests.length;
       final startedAt = DateTime.now();
 
       await controller.syncNow();
-      final wait = (await database.librarySyncDao.getOrCreateState(config.id!))
+      final wait = (await database.librarySyncDao.getOrCreateState(serverId))
           .nextAutomaticCheckAt!
           .difference(startedAt);
+      expect(wait, lessThan(const Duration(seconds: 2)));
 
-      expect(wait, greaterThan(const Duration(seconds: 50)));
-      expect(wait, lessThan(const Duration(minutes: 2)));
+      // The periodic timer was re-armed for the retry, so an automatic check
+      // actually runs soon, not at the old 5 h deadline.
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      expect(engine.automaticRequests.length, greaterThan(before));
+    });
+
+    test('a failing retry write still publishes the final state', () async {
+      final (engine, controller, database, _) = await busyForcedRun();
+      await database.customStatement(
+        'CREATE TRIGGER fail_next_check BEFORE UPDATE OF '
+        'next_automatic_check_at ON library_sync_state BEGIN '
+        "SELECT RAISE(ABORT, 'database is locked'); END",
+      );
+
+      final result = await controller.syncNow();
+
+      expect(result.isSilentFailure, isTrue);
+      expect(controller.state.status, LibrarySyncStatus.failed);
+      expect(controller.state.nextAutomaticCheckAt, isNotNull);
+      expect(
+        controller.state.nextAutomaticCheckAt!.difference(DateTime.now()),
+        lessThan(const Duration(seconds: 2)),
+      );
+      expect(engine.explicitCatalogRequests, isNotEmpty);
+    });
+
+    test('manual-only mode shows a busy failure as an ordinary one', () async {
+      final (_, controller, _, _) = await busyForcedRun(
+        interval: [
+          syncIntervalMinutesProvider.overrideWithValue(0),
+          syncIntervalDurationProvider.overrideWithValue(null),
+        ],
+      );
+
+      final result = await controller.syncNow();
+
+      expect(result.isSilentFailure, isFalse);
+      expect(result.failureCategory, 'sync');
+      expect(result.errorMessage, 'Metadata sync failed.');
+      expect(controller.state.isSilentFailure, isFalse);
     });
 
     test(
@@ -975,6 +1035,8 @@ void main() {
           engine,
           database: database,
           server: _exampleServer,
+          // Silent only with an automatic interval; manual-only shows it.
+          interval: _hourlyInterval,
           extra: [
             networkTypeProvider.overrideWith((ref) => networkType),
             requiredLibrarySyncModelVersionProvider.overrideWithValue(
@@ -1909,7 +1971,7 @@ void main() {
       expect(engine.automaticRequests, isEmpty);
       expect(container.read(librarySyncControllerProvider).isRunning, isTrue);
 
-      const completed = _succeeded;
+      final completed = _succeeded;
       completer.complete(completed);
 
       expect(await first, completed);

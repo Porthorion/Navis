@@ -347,7 +347,7 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   retries after one minute: the circuit and work row get that `notBefore`, the
   foreground controller arms the next automatic check at it (30 s floor, never
   past the normal interval), and the Android worker reports `transientFailure`
-  so WorkManager retries. From the third failure on the returned state is an
+  so WorkManager retries. The foreground retry write is best-effort and re-arms the periodic timer. In manual-only mode (no interval) nothing would retry, so a busy failure is shown as an ordinary one. From the third failure on the returned state is an
   ordinary failure (`failureCategory: 'sync'`, generic error text) under the
   normal backoff, while the ledger keeps `databaseBusy`. A history row whose
   reason index this build lacks reads as `unknownFailure`.

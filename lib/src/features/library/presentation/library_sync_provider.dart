@@ -1283,33 +1283,36 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     await _writeNextAutomaticCheck(serverId, config!, next);
   }
 
+  /// How soon a retry may run, so it can't spin.
+  @visibleForTesting
+  static Duration automaticRetryFloor = const Duration(seconds: 30);
+
   /// [wanted] limited to between 30 s from now (so a retry can't spin) and one
   /// normal interval from now.
   DateTime _clampNextCheck(DateTime wanted, Duration interval) {
     final now = DateTime.now().toUtc();
-    final earliest = now.add(const Duration(seconds: 30));
+    final earliest = now.add(automaticRetryFloor);
     final latest = now.add(interval);
     return wanted.isBefore(earliest)
         ? earliest
         : (wanted.isAfter(latest) ? latest : wanted);
   }
 
-  /// A lock timeout is contention that usually clears at once: retry at the
-  /// coordinator's retry time, within [_clampNextCheck]'s bounds.
-  Future<void> _scheduleAfterBusyFailure(
-    Duration interval,
-    DateTime? retryAt,
-  ) async {
+  /// A lock timeout is contention that usually clears at once: persist the
+  /// retry time and re-arm the periodic timer for it. Best-effort, because the
+  /// write follows the same contention; the timer is re-armed either way.
+  Future<void> _armBusyRetry(int serverId, DateTime at) async {
     final config = ref.read(serverConfigStateProvider).asData?.value;
-    final serverId = config?.id;
-    if (serverId == null) {
-      return;
+    try {
+      if (config != null) await _writeNextAutomaticCheck(serverId, config, at);
+    } on Object catch (error) {
+      AppLogger.warning(
+        'Could not persist the sync retry time: ${error.runtimeType}.',
+      );
     }
-    await _writeNextAutomaticCheck(
-      serverId,
-      config!,
-      _clampNextCheck(retryAt?.toUtc() ?? DateTime.now().toUtc(), interval),
-    );
+    if (ref.mounted) {
+      _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider), at: at);
+    }
   }
 
   /// Another engine's lease (possibly orphaned by a killed or frozen worker)
@@ -1602,12 +1605,22 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       return stateBeforeRequest;
     }
     // Only this pass's own lock timeout arms the quick retry (a preserved or
-    // joined state never does).
+    // joined state never does). With no automatic interval nothing would ever
+    // retry, so the user must see it as an ordinary failure.
     final interval = ref.read(syncIntervalDurationProvider);
-    if (result.isSilentFailure && interval != null) {
-      await _scheduleAfterBusyFailure(interval, result.nextRetryAt);
-      if (!ref.mounted) return result;
-    }
+    final silent = result.isSilentFailure;
+    final shown = silent && interval == null
+        ? result.copyWith(
+            failureCategory: 'sync',
+            errorMessage: librarySyncFailureMessage,
+          )
+        : result;
+    final busyRetryAt = silent && interval != null
+        ? _clampNextCheck(
+            result.nextRetryAt?.toUtc() ?? DateTime.now().toUtc(),
+            interval,
+          )
+        : null;
     // The engine owns catalog result fields, but both deadlines are durable
     // scheduler inputs. Engine results do not carry the automatic deadline,
     // and a run can start before the persisted row has been loaded, so the
@@ -1620,22 +1633,25 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
               .librarySyncDao
               .getOrCreateState(serverId);
     if (!ref.mounted) {
-      return result;
+      return shown;
     }
     state = persisted == null
-        ? result.copyWith(nextAutomaticCheckAt: state.nextAutomaticCheckAt)
-        : result.copyWith(
-            nextAutomaticCheckAt: persisted.nextAutomaticCheckAt,
-            clearNextAutomaticCheckAt: persisted.nextAutomaticCheckAt == null,
+        ? shown.copyWith(
+            nextAutomaticCheckAt: busyRetryAt ?? state.nextAutomaticCheckAt,
+          )
+        : shown.copyWith(
+            nextAutomaticCheckAt: busyRetryAt ?? persisted.nextAutomaticCheckAt,
+            clearNextAutomaticCheckAt:
+                busyRetryAt == null && persisted.nextAutomaticCheckAt == null,
             nextRetryAt: persisted.nextEligibleAt,
             clearNextRetryAt: persisted.nextEligibleAt == null,
           );
-    switch (result.status) {
+    switch (shown.status) {
       case LibrarySyncStatus.succeeded:
       case LibrarySyncStatus.partial:
-        unawaited(notifier.showComplete(result));
-      case LibrarySyncStatus.failed when !result.isSilentFailure:
-        unawaited(notifier.showFailed(result));
+        unawaited(notifier.showComplete(shown));
+      case LibrarySyncStatus.failed when !shown.isSilentFailure:
+        unawaited(notifier.showFailed(shown));
       case LibrarySyncStatus.failed:
       case LibrarySyncStatus.skipped:
       case LibrarySyncStatus.deferred:
@@ -1645,8 +1661,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       case LibrarySyncStatus.running:
         break;
     }
+    // After the final state is published: the write runs right after a lock
+    // timeout and may fail too. The retry then only re-arms the timer.
+    if (busyRetryAt != null && serverId != null) {
+      await _armBusyRetry(serverId, busyRetryAt);
+    }
 
-    return result;
+    return shown;
   }
 
   String _toSessionFingerprint(ServerConfigModel config) {
@@ -1979,11 +2000,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
   }
 
-  void _schedulePeriodicSync(int minutes) {
+  void _schedulePeriodicSync(int minutes, {DateTime? at}) {
     _cancelPeriodicSync();
     if (_startupSyncSuppressed) return;
     final epoch = _automaticScheduleEpoch;
-    _trackSyncStateTask(_armAutomaticCheckTimer(minutes, epoch));
+    _trackSyncStateTask(_armAutomaticCheckTimer(minutes, epoch, at: at));
   }
 
   void _trackSyncStateTask(Future<void> action) {
@@ -1995,7 +2016,12 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     unawaited(task);
   }
 
-  Future<void> _armAutomaticCheckTimer(int minutes, int epoch) async {
+  /// Arms the timer for the persisted deadline, or for [at] when given.
+  Future<void> _armAutomaticCheckTimer(
+    int minutes,
+    int epoch, {
+    DateTime? at,
+  }) async {
     final interval = ref.read(syncIntervalDurationProvider);
     if (interval == null || !_isForeground) {
       return; // Manual-only mode or a backgrounded app — no timer.
@@ -2008,7 +2034,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         epoch != _automaticScheduleEpoch) {
       return;
     }
-    final nextCheckAt = await _ensureAutomaticCheckSchedule(interval);
+    final nextCheckAt = at ?? await _ensureAutomaticCheckSchedule(interval);
     if (!ref.mounted || !_isForeground || epoch != _automaticScheduleEpoch) {
       return;
     }
