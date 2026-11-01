@@ -3782,6 +3782,11 @@ class LockCachingAudioSource extends StreamAudioSource {
     }
     await _cancelRangeFetches();
     await abort;
+    // Navis: return only once the cancelled fetch has released its partial
+    // file; callers build fresh sources on the same cache path next.
+    while (_unwinding != null) {
+      await _unwinding;
+    }
   }
 
   /// Navis: completes when the fetch cancelled by [cancelDownload] has unwound.
@@ -4286,10 +4291,14 @@ class LockCachingAudioSource extends StreamAudioSource {
   @override
   Future<StreamAudioResponse> request([int? start, int? end]) async {
     final cancelled = StreamAudioSource.requestCancellation;
+    var gone = false;
+    cancelled?.then((_) => gone = true);
     // Navis: never join a fetch that is being cancelled.
     while (_unwinding != null) {
       await _unwinding;
     }
+    // Navis: the caller left while we waited; do not start a download for it.
+    if (gone) throw StateError('Range request cancelled');
     final cacheFile = await this.cacheFile;
     if (cacheFile.existsSync()) {
       final sourceLength = cacheFile.lengthSync();

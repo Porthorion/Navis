@@ -29,6 +29,10 @@ link.
 A `request()` or `prefetch()` issued after the cancel waits until the cancelled
 fetch has finished unwinding (its partial file gone) and then starts a fresh
 download; it never joins the dying fetch and fails with it.
+`cancelDownload()` itself returns only after that unwind (also when called twice
+or in the header phase), so callers can reuse the cache path at once. A
+`request()` whose proxy cancellation fires while it waits fails with
+`StateError('Range request cancelled')` instead of starting a download.
 
 `LockCachingAudioSource.prefetch()` starts (or joins) the whole-file download
 without creating a response, so no in-progress replay buffer holds the body; a

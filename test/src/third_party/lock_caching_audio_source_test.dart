@@ -1664,6 +1664,80 @@ void main() {
       expect(source.isDownloading, isFalse);
     });
 
+    test('cancelDownload returns only after the header-phase unwind', () async {
+      final body = List<int>.generate(32 * 1024, (i) => i % 251);
+      final (server, _) = await _serve(body, ranges: true);
+      addTearDown(() => server.close(force: true));
+      final cacheFile = File('${directory.path}/unwindheader.mp3');
+      // ignore: experimental_member_use, reason: as above.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/song'),
+        cacheFile: cacheFile,
+      );
+      unawaited(source.prefetch().then((_) {}, onError: (Object _) {}));
+      while (source.originSupportsRangeRequests == null) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      await source.cancelDownload();
+      expect(File('${cacheFile.path}.part').existsSync(), isFalse);
+      expect(source.isDownloading, isFalse);
+    });
+
+    test('a second cancelDownload waits for the body-phase unwind', () async {
+      final body = List<int>.generate(32 * 1024, (i) => i % 251);
+      final (server, _) = await _serve(body, ranges: false);
+      addTearDown(() => server.close(force: true));
+      final cacheFile = File('${directory.path}/unwindtwice.mp3');
+      // ignore: experimental_member_use, reason: as above.
+      final source = LockCachingAudioSource(
+        Uri.parse('http://127.0.0.1:${server.port}/song'),
+        cacheFile: cacheFile,
+      );
+      unawaited(source.prefetch().then((_) {}, onError: (Object _) {}));
+      await until(() => source.downloadedBytes > 0);
+      unawaited(source.cancelDownload());
+      await source.cancelDownload();
+      expect(File('${cacheFile.path}.part').existsSync(), isFalse);
+      expect(source.isDownloading, isFalse);
+    });
+
+    test(
+      'a request cancelled while waiting for the unwind starts no fetch',
+      () async {
+        final body = List<int>.generate(32 * 1024, (i) => i % 251);
+        final (server, downloads) = await _serve(body, ranges: false);
+        addTearDown(() => server.close(force: true));
+        // ignore: experimental_member_use, reason: as above.
+        final source = LockCachingAudioSource(
+          Uri.parse('http://127.0.0.1:${server.port}/song'),
+          cacheFile: File('${directory.path}/gone.mp3'),
+        );
+        unawaited(source.prefetch().then((_) {}, onError: (Object _) {}));
+        await until(() => source.downloadedBytes > 0);
+        unawaited(source.cancelDownload());
+        final gone = Completer<void>();
+        final request = runZoned(
+          source.request,
+          zoneValues: {#proxyRequestCancellation: gone.future},
+        );
+        final failed = expectLater(
+          request,
+          throwsA(
+            isA<StateError>().having(
+              (e) => e.message,
+              'message',
+              'Range request cancelled',
+            ),
+          ),
+        );
+        gone.complete();
+        await failed;
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        expect(downloads, hasLength(1));
+        expect(source.isDownloading, isFalse);
+      },
+    );
+
     test('during the header wait starts a fresh fetch', () async {
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(() => server.close(force: true));
