@@ -26,6 +26,20 @@ import 'package:navis/src/utils/network_usage_meter.dart';
 
 const _backgroundSyncChannel = MethodChannel('com.navis.app/background_sync');
 
+/// The worker's own connection waits this long for the writer lock (the app's
+/// is [NavisDatabase.defaultBusyLimit]), so a long foreground write doesn't
+/// fail the pass. Only the worker waits this long; startup and UI never do.
+const backgroundSyncBusyLimit = Duration(seconds: 30);
+
+@visibleForTesting
+final backgroundSyncDatabaseOverride = navisDatabaseProvider.overrideWith((
+  ref,
+) {
+  final database = NavisDatabase.withBusyLimit(backgroundSyncBusyLimit);
+  ref.onDispose(database.close);
+  return database;
+});
+
 /// Android WorkManager's retained Dart entrypoint. It intentionally creates no
 /// app shell, player, audio handler, notification bootstrap, or diagnostics
 /// HTTP server.
@@ -117,7 +131,9 @@ class _HeadlessBackgroundSyncRunner {
       retry: navisProviderRetry,
       overrides: [
         if (databaseOverride != null)
-          navisDatabaseProvider.overrideWithValue(databaseOverride),
+          navisDatabaseProvider.overrideWithValue(databaseOverride)
+        else
+          backgroundSyncDatabaseOverride,
       ],
     );
     final database = container.read(navisDatabaseProvider);

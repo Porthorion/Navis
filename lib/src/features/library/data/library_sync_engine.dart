@@ -1753,8 +1753,16 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       );
 
       final transient = _isTransient(error);
+      // A writer lock held past the busy wait is contention, not a sync
+      // failure: retry soon and silently (no user-facing text).
+      final busy = isDatabaseLockTimeout(error);
       final failed = _terminal(
-        transient
+        busy
+            ? state.copyWith(
+                failureCategory: 'databaseBusy',
+                nextRetryAt: DateTime.now().add(databaseBusyRetryDelay),
+              )
+            : transient
             ? state.copyWith(
                 failureCategory: 'transport',
                 nextRetryAt: error is SubsonicApiException
@@ -1765,7 +1773,9 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         metrics,
         error,
         status: LibrarySyncStatus.failed,
-        errorMessage: transient
+        errorMessage: busy
+            ? ''
+            : transient
             ? 'Server temporarily unavailable. Sync will retry later.'
             : _toSafeErrorMessage(error),
       );

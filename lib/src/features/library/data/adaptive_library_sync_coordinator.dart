@@ -914,6 +914,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 await _markWorkFailure(
                   activeWork,
                   error.runtimeType.toString(),
+                  busy: isDatabaseLockTimeout(error),
                 );
               }
               await recorder.fail();
@@ -922,7 +923,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 attemptId: durableAttempt.id,
                 outcome: SyncRunOutcome(
                   kind: SyncRunOutcomeKind.failed,
-                  reason: SyncSafeReason.unknownFailure,
+                  reason: isDatabaseLockTimeout(error)
+                      ? SyncSafeReason.databaseBusy
+                      : SyncSafeReason.unknownFailure,
                   requestCount: scope.transportObserved
                       ? scope.requestCount
                       : scope.logicalRequests.values.fold<int>(
@@ -982,6 +985,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                   activeWork,
                   'sync',
                   retryAt: result.nextRetryAt,
+                  busy: result.failureCategory == 'databaseBusy',
                 );
               } else if (status == LibrarySyncStatus.partial &&
                   !_didCommitCatalogCandidate(plan, result)) {
@@ -1049,9 +1053,10 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                       : playlistsWork.updatedAt)
                 : persisted.lastAuxiliarySyncedAt;
             final nextRetryAt = circuitRelevant && failed
-                ? _laterRetry(
-                    _cooldownUntil(persisted.failureStreak + 1),
+                ? _failureRetryAt(
+                    persisted.failureStreak + 1,
                     result.nextRetryAt,
+                    busy: result.failureCategory == 'databaseBusy',
                   )
                 : circuitRelevant
                 ? null
@@ -1531,6 +1536,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         SyncSafeReason.confirmationRequired,
       SyncRunOutcomeKind.failed when result.failureCategory == 'transport' =>
         SyncSafeReason.networkFailure,
+      SyncRunOutcomeKind.failed when result.failureCategory == 'databaseBusy' =>
+        SyncSafeReason.databaseBusy,
       SyncRunOutcomeKind.failed
           when result.failureCategory == 'authentication' =>
         SyncSafeReason.authenticationFailure,
@@ -1620,13 +1627,29 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     LibrarySyncWorkTableData work,
     String errorType, {
     DateTime? retryAt,
+    bool busy = false,
   }) {
     return _database.librarySyncDao.markFailed(
       work.id,
       errorType: errorType,
-      notBefore: _laterRetry(_cooldownUntil(work.attemptCount + 1), retryAt),
+      notBefore: _failureRetryAt(work.attemptCount + 1, retryAt, busy: busy),
     );
   }
+
+  /// The earliest retry after the [attempt]th consecutive failure. A lock
+  /// timeout ([busy]) is contention that usually clears at once, so the first
+  /// two retry after [databaseBusyRetryDelay]; a database that stays locked
+  /// then falls back to the normal backoff instead of looping silently.
+  DateTime _failureRetryAt(
+    int attempt,
+    DateTime? serverRetryAt, {
+    bool busy = false,
+  }) => _laterRetry(
+    busy && attempt < 3
+        ? _now().add(databaseBusyRetryDelay)
+        : _cooldownUntil(attempt),
+    serverRetryAt,
+  );
 
   DateTime _laterRetry(DateTime local, DateTime? server) =>
       server != null && server.isAfter(local) ? server : local;

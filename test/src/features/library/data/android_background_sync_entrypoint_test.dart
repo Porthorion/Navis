@@ -6,7 +6,10 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/providers/app_providers.dart'
+    show navisDatabaseProvider;
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
@@ -463,6 +466,48 @@ void main() {
       );
       expect(statusRows.first['c'], 0);
     },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'worker database waits past the app 5 s busy bound for the writer lock',
+    () async {
+      final support = await Directory.systemTemp.createTemp('navis-support');
+      final documents = await Directory.systemTemp.createTemp('navis-docs');
+      addTearDown(() async {
+        await support.delete(recursive: true);
+        await documents.delete(recursive: true);
+      });
+      final previousProvider = PathProviderPlatform.instance;
+      PathProviderPlatform.instance = _TempPathProvider(
+        support: support,
+        documents: documents,
+      );
+      addTearDown(() => PathProviderPlatform.instance = previousProvider);
+      final container = ProviderContainer(
+        overrides: [backgroundSyncDatabaseOverride],
+      );
+      addTearDown(container.dispose);
+      final database = container.read(navisDatabaseProvider);
+      await database.customSelect('SELECT 1').get();
+      final raw = sqlite3.open('${support.path}/navis.sqlite.sqlite');
+      addTearDown(raw.close);
+      raw.execute('BEGIN IMMEDIATE');
+      unawaited(
+        Future<void>.delayed(
+          const Duration(seconds: 6),
+          () => raw.execute('ROLLBACK'),
+        ),
+      );
+
+      // The app connection would give up after 5 s with SQLITE_BUSY.
+      await database.customStatement(
+        "INSERT INTO songs (id, title) VALUES ('waited', 'Waited')",
+      );
+
+      expect(backgroundSyncBusyLimit, const Duration(seconds: 30));
+    },
+    timeout: const Timeout(Duration(seconds: 60)),
     skip: !sqliteAvailable,
   );
 

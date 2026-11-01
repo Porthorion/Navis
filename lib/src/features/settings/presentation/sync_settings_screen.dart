@@ -46,7 +46,9 @@ class SyncSettingsScreen extends ConsumerWidget {
         androidBackgroundState?.initialCatalogUsableAt;
     final lastChecked = syncState.lastCheckedAt ?? syncState.completedAt;
     final isRunning = syncState.isRunning;
-    final hasFailure = syncState.status == LibrarySyncStatus.failed;
+    final hasFailure =
+        syncState.status == LibrarySyncStatus.failed &&
+        !syncState.isSilentFailure;
     final currentInterval = ref.watch(syncIntervalMinutesProvider);
     final showUpdatesMessaging = _showUpdatesMessaging(syncState);
     final showMobileDataAction =

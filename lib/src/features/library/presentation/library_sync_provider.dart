@@ -1592,8 +1592,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       case LibrarySyncStatus.succeeded:
       case LibrarySyncStatus.partial:
         unawaited(notifier.showComplete(result));
-      case LibrarySyncStatus.failed:
+      case LibrarySyncStatus.failed when !result.isSilentFailure:
         unawaited(notifier.showFailed(result));
+      case LibrarySyncStatus.failed:
       case LibrarySyncStatus.skipped:
       case LibrarySyncStatus.deferred:
       case LibrarySyncStatus.cancelled:
