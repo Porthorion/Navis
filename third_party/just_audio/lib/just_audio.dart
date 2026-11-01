@@ -4297,8 +4297,6 @@ class LockCachingAudioSource extends StreamAudioSource {
     while (_unwinding != null) {
       await _unwinding;
     }
-    // Navis: the caller left while we waited; do not start a download for it.
-    if (gone) throw StateError('Range request cancelled');
     final cacheFile = await this.cacheFile;
     if (cacheFile.existsSync()) {
       final sourceLength = cacheFile.lengthSync();
@@ -4311,6 +4309,8 @@ class LockCachingAudioSource extends StreamAudioSource {
         stream: cacheFile.openRead(start, end).asBroadcastStream(),
       );
     }
+    // Navis: the caller left while we waited; do not start a download for it.
+    if (gone) throw StateError('Range request cancelled');
     _discardFinishedFetch();
     final byteRangeRequest = _StreamingByteRangeRequest(start, end);
     cancelled?.then((_) async {
