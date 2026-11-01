@@ -855,6 +855,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _sessionFingerprint = null;
       state = const LibrarySyncState.idle();
       _priorityAlbumIds.clear();
+      _busyRetryAt = null;
       _resetArtistSession();
       return;
     }
@@ -868,6 +869,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = fingerprint;
       _priorityAlbumIds.clear();
+      _busyRetryAt = null;
       _resetArtistSession();
       state = LibrarySyncState.idle(
         lastSyncedAt: serverConfig.lastSynced,

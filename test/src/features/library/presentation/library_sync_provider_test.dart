@@ -105,13 +105,17 @@ ProviderContainer _container(
   ServerConfigModel? server,
   ServerReachabilityStatus reachability = ServerReachabilityStatus.online,
   List<Override> interval = const <Override>[],
+  List<Override> serverConfig = const <Override>[],
   List<Override> extra = const <Override>[],
 }) {
   return ProviderContainer(
     overrides: [
       if (interval.isEmpty) _manualSyncInterval else ...interval,
       if (database != null) navisDatabaseProvider.overrideWithValue(database),
-      serverConfigStateProvider.overrideWithValue(AsyncData(server)),
+      if (serverConfig.isEmpty)
+        serverConfigStateProvider.overrideWithValue(AsyncData(server))
+      else
+        ...serverConfig,
       serverReachabilityControllerProvider.overrideWith(
         () => StaticReachabilityController(
           ServerReachabilityState(status: reachability),
@@ -944,11 +948,19 @@ void main() {
 
     /// A container whose next check is 5 h away and whose non-automatic
     /// requests fail busy. The retry floor is shortened for the test.
-    Future<(StubLibrarySyncEngine, LibrarySyncController, NavisDatabase, int)>
+    Future<
+      (
+        StubLibrarySyncEngine,
+        LibrarySyncController,
+        NavisDatabase,
+        ProviderContainer,
+      )
+    >
     busyForcedRun({
       List<Override> interval = const <Override>[],
       Duration deadlineIn = const Duration(hours: 5),
       List<DateTime>? automaticCalls,
+      bool mutableServerConfig = false,
     }) async {
       final floor = LibrarySyncController.automaticRetryFloor;
       LibrarySyncController.automaticRetryFloor = const Duration(
@@ -974,11 +986,21 @@ void main() {
         server: config,
         reachability: ServerReachabilityStatus.offline,
         interval: interval.isEmpty ? _hourlyInterval : interval,
+        serverConfig: mutableServerConfig
+            ? [
+                serverConfigStateProvider.overrideWith(
+                  (ref) => ref.watch(_serverConfigSource),
+                ),
+              ]
+            : const <Override>[],
       );
       addTearDown(container.dispose);
+      if (mutableServerConfig) {
+        container.read(_serverConfigSource.notifier).set(AsyncData(config));
+      }
       final controller = container.read(librarySyncControllerProvider.notifier);
       addTearDown(controller.cancelAndWait);
-      return (engine, controller, database, config.id!);
+      return (engine, controller, database, container);
     }
 
     test('a forced run that fails busy retries in about a minute', () async {
@@ -1018,6 +1040,44 @@ void main() {
       await _until(() => engine.automaticRequests.length > before);
 
       expect(engine.automaticRequests.length, greaterThan(before));
+    });
+
+    test('a server change drops the in-memory busy retry', () async {
+      final (engine, controller, database, container) = await busyForcedRun(
+        mutableServerConfig: true,
+      );
+      final config = container.read(serverConfigStateProvider).value!;
+      // Let the initial schedule load before the trigger takes over.
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      // Below the trigger's 10 min window, so the retry write still fails.
+      LibrarySyncController.automaticRetryFloor = const Duration(minutes: 5);
+      await database.customStatement(failNextCheck);
+
+      // The busy retry stays only in memory because its write fails. Let that
+      // failed write settle, then make the new server's deadline due.
+      await controller.syncNow();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await database.customStatement('DROP TRIGGER fail_next_check');
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().subtract(
+          const Duration(minutes: 1),
+        ),
+      );
+
+      container
+          .read(_serverConfigSource.notifier)
+          .set(AsyncData(config.copyWith(username: 'bob')));
+      await _until(
+        () => controller.state.status == LibrarySyncStatus.idle,
+        timeout: const Duration(seconds: 2),
+      );
+
+      await controller.syncIfStale();
+
+      // The old server's retry is 5 min away, but the new server's persisted
+      // deadline is due, so the check must run now.
+      expect(engine.automaticRequests, isNotEmpty);
     });
 
     test(
