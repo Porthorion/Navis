@@ -296,6 +296,14 @@ void main() {
       ),
       isEmpty,
     );
+    // A reason index written by a newer build reads as unknownFailure.
+    await database.customStatement(
+      'UPDATE library_sync_run_outcome SET safe_reason = 999',
+    );
+    expect(
+      (await database.librarySyncDao.getRecentSyncRunHistory(1)).single.reason,
+      SyncSafeReason.unknownFailure,
+    );
     await database.librarySyncDao.writeAttemptTelemetry(attempt.id, {
       'version': 999,
     });

@@ -46,7 +46,9 @@ class SyncSettingsScreen extends ConsumerWidget {
         androidBackgroundState?.initialCatalogUsableAt;
     final lastChecked = syncState.lastCheckedAt ?? syncState.completedAt;
     final isRunning = syncState.isRunning;
-    final hasFailure = syncState.status == LibrarySyncStatus.failed;
+    final hasFailure =
+        syncState.status == LibrarySyncStatus.failed &&
+        !syncState.isSilentFailure;
     final currentInterval = ref.watch(syncIntervalMinutesProvider);
     final showUpdatesMessaging = _showUpdatesMessaging(syncState);
     final showMobileDataAction =
@@ -144,7 +146,7 @@ class SyncSettingsScreen extends ConsumerWidget {
           text: l10n.syncSettingsApplyDuration(syncState.lastApplyDurationMs!),
           key: null,
         ),
-      if (syncState.failureCategory != null)
+      if (syncState.failureCategory != null && !syncState.isSilentFailure)
         (
           text: l10n.syncSettingsDegradation(
             _humanize(syncState.failureCategory!),
@@ -687,6 +689,8 @@ class SyncSettingsScreen extends ConsumerWidget {
   }
 
   String _statusLabel(AppLocalizations l10n, LibrarySyncState state) {
+    // A silent lock timeout is waiting for its retry, not failed.
+    if (state.isSilentFailure) return l10n.syncSettingsStatusDeferred;
     return switch (state.status) {
       LibrarySyncStatus.running => l10n.librarySyncRunning,
       LibrarySyncStatus.succeeded => l10n.syncSettingsStatusSucceeded,
