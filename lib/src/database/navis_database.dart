@@ -153,6 +153,12 @@ class NavisDatabase extends _$NavisDatabase {
   new([QueryExecutor? executor])
     : super(_withSyncWriteFence(executor ?? _openConnection()));
 
+  /// The default database file with a custom busy wait. Android's background
+  /// sync worker uses a longer one than the app's [defaultBusyLimit], so it
+  /// outlasts a long foreground write without delaying startup or UI writes.
+  new withBusyLimit(Duration busyLimit)
+    : this(_openConnection(busyLimit: busyLimit));
+
   new atPath(String databasePath)
     : this(_ReopeningExecutor(() => _openFileConnection(File(databasePath))));
 
@@ -229,8 +235,10 @@ class NavisDatabase extends _$NavisDatabase {
     return executor.interceptWith(SyncWriteFenceInterceptor());
   }
 
-  static QueryExecutor _openConnection() => _ReopeningExecutor(
-    () async => _openFileConnection(await resolveDatabaseFile()),
+  static QueryExecutor _openConnection({
+    Duration busyLimit = defaultBusyLimit,
+  }) => _ReopeningExecutor(
+    () async => _openFileConnection(await resolveDatabaseFile(), busyLimit),
   );
 
   /// Only the app engine migrates. A background engine must not race it, so
@@ -251,16 +259,22 @@ class NavisDatabase extends _$NavisDatabase {
     }
   }
 
-  static QueryExecutor _openFileConnection(File file) {
+  static QueryExecutor _openFileConnection(
+    File file, [
+    Duration busyLimit = defaultBusyLimit,
+  ]) {
     return NativeDatabase.createInBackground(
       file,
-      setup: _configureNativeDatabase,
+      setup: (database) => _configureNativeDatabase(database, busyLimit),
       // WAL lets ordinary reads continue while sync writes its hidden
       // candidate catalog. A second reader keeps interactive queries moving
       // while a large catalog read occupies the first reader.
       readPool: 2,
     );
   }
+
+  /// How long a write waits for another connection's writer lock.
+  static const defaultBusyLimit = Duration(seconds: 5);
 
   static const currentSchemaVersion = 107;
 
@@ -2042,7 +2056,7 @@ FROM scrobble_queue;
   }
 }
 
-void _configureNativeDatabase(Database database) {
+void _configureNativeDatabase(Database database, Duration busyLimit) {
   database.execute('PRAGMA foreign_keys = ON');
   database.execute('PRAGMA journal_mode = WAL');
   // Not PRAGMA busy_timeout: SQLite's own wait sleeps with nanosleep, which the
@@ -2053,7 +2067,7 @@ void _configureNativeDatabase(Database database) {
   database.busyHandler = (count) {
     if (count == 0) busy.reset();
     busy.start();
-    if (busy.elapsed >= const Duration(seconds: 5)) return false;
+    if (busy.elapsed >= busyLimit) return false;
     sleep(const Duration(milliseconds: 10));
     return true;
   };
@@ -2166,6 +2180,9 @@ class _ReopeningExecutor extends QueryExecutor {
     return _delegate.close();
   }
 }
+
+/// Sync's retry delay after a lock timeout, before the normal backoff applies.
+const databaseBusyRetryDelay = Duration(minutes: 1);
 
 bool isDatabaseLockTimeout(Object error) {
   var cause = error;

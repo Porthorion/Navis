@@ -334,6 +334,23 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   unchanged, and the database file is never reset or deleted to recover.
   Failed and recovering attempts are recorded as bounded `databaseOpen`
   startup events.
+- The busy wait is per connection: the app's is
+  `NavisDatabase.defaultBusyLimit` (5 s), so startup and UI writes never wait
+  longer. Android's background sync worker opens its own connection with
+  `NavisDatabase.withBusyLimit` (30 s) so a long
+  foreground write does not fail its pass. A lock timeout that still escapes
+  (full sync or targeted hydration) is contention, not a sync failure. The
+  engine reports it as `failed` with `failureCategory: 'databaseBusy'`, no
+  error text and no banner, home ring, failure notification or "Failed"
+  settings status (`LibrarySyncState.isSilentFailure`); the coordinator records
+  `SyncSafeReason.databaseBusy`. For the first two consecutive failures it
+  retries after one minute: the circuit and work row get that `notBefore`, the
+  foreground controller arms the next automatic check at it (30 s floor, never
+  past the normal interval), and the Android worker reports `transientFailure`
+  so WorkManager retries. The foreground retry write is best-effort and re-arms the periodic timer. In manual-only mode (no interval) nothing would retry, so a busy failure is shown as an ordinary one. From the third failure on the returned state is an
+  ordinary failure (`failureCategory: 'sync'`, generic error text) under the
+  normal backoff, while the ledger keeps `databaseBusy`. A history row whose
+  reason index this build lacks reads as `unknownFailure`.
 - All transactional writes go through `NavisDatabase.transaction`, including
   DAO calls routed by `NavisDaoTransactions`. Drift 2.35 announces nested
   savepoint updates on the root stream store before the outer commit, so WAL

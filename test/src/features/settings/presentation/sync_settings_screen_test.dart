@@ -400,6 +400,34 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  for (final (category, silent) in [('databaseBusy', true), ('sync', false)]) {
+    testWidgets(
+      'a $category failure ${silent ? 'reads as waiting' : 'reads as failed'}',
+      (tester) async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+
+        await _pumpSyncSettings(
+          tester,
+          database,
+          state: LibrarySyncState(
+            status: LibrarySyncStatus.failed,
+            stage: LibrarySyncStage.completed,
+            failureCategory: category,
+            errorMessage: silent ? '' : 'Metadata sync failed.',
+          ),
+        );
+
+        expect(find.text('Last sync failed'), silent ? findsNothing : findsOne);
+        expect(find.text('Sync deferred'), silent ? findsOne : findsNothing);
+        expect(
+          find.textContaining('Degraded domain'),
+          silent ? findsNothing : findsOne,
+        );
+      },
+    );
+  }
+
   testWidgets('phone retains the stacked sync-status reading order', (
     tester,
   ) async {
