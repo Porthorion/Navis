@@ -228,6 +228,12 @@ class NavisAudioHandler extends BaseAudioHandler
   LockCachingAudioSource? debugRegisteredLockCacheSource(String songId) =>
       _lockCacheSourceOfSong(songId);
 
+  /// Whether [songId]'s download finished (tests distinguish the one case a
+  /// source may be held without a registry entry).
+  @visibleForTesting
+  bool debugLockCacheCompleted(String songId) =>
+      _completedCacheSongIds.contains(songId);
+
   /// The player sources a full queue rebuild of [songIds] would hold, without
   /// applying them (tests pin that a held registered source stays the writer).
   @visibleForTesting

@@ -6795,10 +6795,11 @@ void main() {
         // A finished download unregisters (the player keeps its source), and
         // how soon that happens relative to this audit depends on timing: a
         // slow runner has the current song's source still held here. Only a
-        // source that is still downloading must be the registered one.
+        // completed download may be held unregistered; any other unregistered
+        // source (never registered, or failed and removed) is a defect.
         final registered = handler.debugRegisteredLockCacheSource(id);
         if (!identical(s, registered) &&
-            (registered != null || s.isDownloading)) {
+            (registered != null || !handler.debugLockCacheCompleted(id))) {
           bad++;
         }
         (instances[id] ??= <int>{}).add(identityHashCode(s));
