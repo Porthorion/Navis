@@ -903,6 +903,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     ServerConfigModel? config,
     bool enqueueCatchup = false,
   }) async {
+    final generation = _sessionGeneration;
     if (_startupSyncSuppressed ||
         !ref.read(androidBackgroundSyncAvailableProvider)) {
       return;
@@ -936,7 +937,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
     if (!ref.mounted ||
         _startupSyncSuppressed ||
-        _sessionFingerprint != _toSessionFingerprint(active)) {
+        generation != _sessionGeneration) {
       return;
     }
     await ref
@@ -1015,13 +1016,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     if (serverId == null) {
       return;
     }
+    final generation = _sessionGeneration;
     final database = ref.read(navisDatabaseProvider);
     _watchBacklogCounts(database, serverId);
     final persisted = await database.librarySyncDao.getOrCreateState(serverId);
     final pending = await database.librarySyncDao.countPendingWork(serverId);
     if (!ref.mounted ||
         _startupSyncSuppressed ||
-        _sessionFingerprint != _toSessionFingerprint(config) ||
+        generation != _sessionGeneration ||
         state.isRunning) {
       return;
     }
@@ -1179,6 +1181,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }
 
   Future<LibrarySyncState> _runAutomaticCheckIfDue() async {
+    final generation = _sessionGeneration;
     final config = ref.read(serverConfigStateProvider).asData?.value;
     final serverId = config?.id;
     // The controller can be constructed while a session is still being saved
@@ -1212,7 +1215,6 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
 
     if (automaticCheckIsDue) _busyRetryAt = null;
-    final generation = _sessionGeneration;
     final result = await _runSync(
       force: false,
       tolerateUnavailableEngine: true,
@@ -1740,7 +1742,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final throttle = LatestValueThrottle<LibrarySyncState>(
       interval: librarySyncProgressPublishInterval,
       onPublish: (progress) {
-        if (ref.mounted) {
+        // The trailing timer can fire after sign-out reset the controller.
+        if (ref.mounted && generation == _sessionGeneration) {
           // Engine progress never carries the controller-owned automatic
           // deadline; keep it visible while the run is active.
           state = progress.copyWith(

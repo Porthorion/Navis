@@ -328,6 +328,11 @@ class SessionLifecycleService implements SignOutService {
             ? _serverConfigRepository.clear()
             : _serverConfigRepository.signOutKeepData();
       }, timeout: const Duration(seconds: 60));
+      // Again: by now the sync controller has left the old session, so a
+      // run that reposted after the earlier dismiss cannot do it again.
+      await attempt('dismiss sync notification after sign-out', () async {
+        await _dismissSyncProgress?.call();
+      }, timeout: const Duration(seconds: 5));
       await attempt('invalidate session providers', () async {
         _invalidateSessionProviders?.call();
       }, timeout: const Duration(seconds: 5));

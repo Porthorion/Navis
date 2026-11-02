@@ -839,16 +839,23 @@ void main() {
           test(
             'sign-out dismisses the sync progress notification, wipe=$wipe',
             () async {
-              var dismissed = 0;
+              await _seedAuthenticatedData(
+                database,
+                repository,
+                '${tmpDir.path}/unused.mp3',
+              );
+              final passwordAtDismiss = <String?>[];
               service = SessionLifecycleService(
                 credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
                 serverConfigRepository: repository,
                 database: database,
-                dismissSyncProgress: () async => dismissed++,
+                dismissSyncProgress: () async =>
+                    passwordAtDismiss.add(credentials.password),
                 timeoutScale: 0.02,
               );
               await service.signOut(wipeLocalData: wipe);
-              expect(dismissed, 1);
+              // Once early, and once more after the credentials are gone.
+              expect(passwordAtDismiss, ['secret', null]);
             },
             skip: !sqliteAvailable,
           );

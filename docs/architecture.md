@@ -643,8 +643,9 @@ callbacks are guarded and can never skip a step). The sync controller counts
 session generations (bumped at sign-out and on an account switch, not on a
 cancel): an abandoned run, its progress posts, its automatic-check
 rescheduling and a late `cancelAndWait` tail from an earlier generation write
-nothing into the next session, and sign-out dismisses the sync progress
-notification itself (`dismiss sync notification`). Timeouts are silent for the user (no notice).
+nothing into the next session (the progress throttle included), and sign-out
+dismisses the sync progress notification itself, once early and once more
+after the credentials are cleared. Timeouts are silent for the user (no notice).
 The fence step replaces every server's `library_sync_execution_lease` row with
 a sentinel (`owner_kind = 'signout'`, unexpired for 15 minutes, a token no run
 holds). The write fence checks the lease on every write and at commit, so a

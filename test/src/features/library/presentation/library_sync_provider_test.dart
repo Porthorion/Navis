@@ -226,6 +226,8 @@ Future<_ParkedCheck> _parkedCheck(
   final engine = StubLibrarySyncEngine((request, {onProgress}) async {
     if (!request.isAutomatic) return const LibrarySyncState.idle();
     onProgress?.call(running);
+    // A count-only update is held for the throttle's trailing timer.
+    onProgress?.call(running.copyWith(processed: 1, total: 10));
     entered.complete();
     final result = await release.future;
     onProgress?.call(running);
@@ -2060,6 +2062,11 @@ void main() {
         final postedWhileCurrent = parked.notifier.shown;
 
         await parked.changeSession(await _saveServer(database, 'bob'));
+        final afterSignOut = parked.status;
+        // The held progress update's trailing timer fires after the reset.
+        await Future<void>.delayed(librarySyncProgressPublishInterval * 2);
+        expect(afterSignOut, isNot(LibrarySyncStatus.running));
+        expect(parked.status, afterSignOut);
         parked.release.complete(_succeeded);
         await parked.automatic;
 
