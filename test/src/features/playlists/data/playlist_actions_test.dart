@@ -127,11 +127,9 @@ void main() {
   test(
     'all device actions work offline and leave sync and API untouched',
     () async {
-      final database = createTestDatabase();
-      addTearDown(database.close);
       final local = ProviderContainer(
         overrides: withTestDatabase(
-          database,
+          db,
           overrides: [
             subsonicApiProvider.overrideWithValue(api),
             playlistSyncProvider.overrideWith(
@@ -144,7 +142,7 @@ void main() {
         ),
       );
       addTearDown(local.dispose);
-      await database.libraryDao.upsertSongs([
+      await db.libraryDao.upsertSongs([
         SongsTableCompanion.insert(
           id: 'a',
           title: 'A',
@@ -158,7 +156,7 @@ void main() {
       ]);
       final a = local.read(playlistActionsProvider);
       final id = await a.create(' Mix ', ['a', 'a'], onServer: false);
-      final p = (await database.playlistDao.watchPlaylistById(id).first)!;
+      final p = (await db.playlistDao.watchPlaylistById(id).first)!;
       expect(p.name, 'Mix');
       expect(await a.addSongs(p, ['b', 'missing']), (
         added: 1,
@@ -166,49 +164,43 @@ void main() {
         failed: 1,
       ));
       expect(
-        (await database.playlistDao.watchPlaylistSongs(id).first).map(
-          (s) => s.id,
-        ),
+        (await db.playlistDao.watchPlaylistSongs(id).first).map((s) => s.id),
         ['a', 'a', 'b'],
       );
       final ids = ['a', 'a', 'b'];
       await a.reorder(p, ids, 1, 2);
       expect(ids, ['a', 'a', 'b']);
-      await a.removeAt(p, songId: 'a', occurrence: 1);
+      await a.removeAt(p, songId: 'a', occurrence: 1, copies: 2);
       await a.rename(p, ' Renamed ');
-      final updated = (await database.playlistDao.watchPlaylistById(id).first)!;
+      final updated = (await db.playlistDao.watchPlaylistById(id).first)!;
       expect(
         (updated.name, updated.songCount, updated.duration),
         ('Renamed', 2, 15),
       );
       expect(
-        (await database.playlistDao.watchPlaylistSongs(id).first).map(
-          (s) => s.id,
-        ),
+        (await db.playlistDao.watchPlaylistSongs(id).first).map((s) => s.id),
         ['a', 'b'],
       );
       final offline = ProviderContainer(
         overrides: withTestDatabase(
-          database,
+          db,
           overrides: [subsonicApiProvider.overrideWithValue(null)],
         ),
       );
       addTearDown(offline.dispose);
       await offline.read(playlistActionsProvider).rename(p, 'Offline');
       await offline.read(playlistActionsProvider).delete(p);
-      expect(await database.playlistDao.watchPlaylistById(id).first, isNull);
-      expect(await database.playlistDao.watchPlaylistSongs(id).first, isEmpty);
+      expect(await db.playlistDao.watchPlaylistById(id).first, isNull);
+      expect(await db.playlistDao.watchPlaylistSongs(id).first, isEmpty);
       verifyZeroInteractions(api);
     },
     skip: !sqliteAvailable,
   );
 
   test('device playlists skip present ids and edit by occurrence', () async {
-    final database = createTestDatabase();
-    addTearDown(database.close);
-    final local = ProviderContainer(overrides: withTestDatabase(database));
+    final local = ProviderContainer(overrides: withTestDatabase(db));
     addTearDown(local.dispose);
-    await database.libraryDao.upsertSongs([
+    await db.libraryDao.upsertSongs([
       for (final id in ['a', 'b', 'c', 'x'])
         SongsTableCompanion.insert(id: id, title: id),
     ]);
@@ -220,10 +212,9 @@ void main() {
       'c',
       'a',
     ], onServer: false);
-    final p = (await database.playlistDao.watchPlaylistById(id).first)!;
+    final p = (await db.playlistDao.watchPlaylistById(id).first)!;
     Future<List<String>> stored() async => [
-      for (final s in await database.playlistDao.watchPlaylistSongs(id).first)
-        s.id,
+      for (final s in await db.playlistDao.watchPlaylistSongs(id).first) s.id,
     ];
 
     // 'b' is there, 'x' is picked twice: only one 'x' is added.
@@ -234,7 +225,7 @@ void main() {
     ));
     expect(await stored(), ['a', 'b', 'a', 'c', 'a', 'x']);
 
-    await a.removeAt(p, songId: 'a', occurrence: 1);
+    await a.removeAt(p, songId: 'a', occurrence: 1, copies: 3);
     expect(await stored(), ['a', 'b', 'c', 'a', 'x']);
 
     // A list that missed the removal above must not be written back.
@@ -243,6 +234,21 @@ void main() {
       throwsA(isA<PlaylistChangedException>()),
     );
     expect(await stored(), ['a', 'b', 'c', 'a', 'x']);
+
+    // A list that held another number of 'a' than the stored one is refused.
+    await expectLater(
+      a.removeAt(p, songId: 'a', occurrence: 1, copies: 3),
+      throwsA(isA<PlaylistChangedException>()),
+    );
+    expect(await stored(), ['a', 'b', 'c', 'a', 'x']);
+
+    // A repeated tap on the first of two copies keeps the second.
+    await a.removeAt(p, songId: 'a', occurrence: 0, copies: 2);
+    await expectLater(
+      a.removeAt(p, songId: 'a', occurrence: 0, copies: 2),
+      throwsA(isA<PlaylistChangedException>()),
+    );
+    expect(await stored(), ['b', 'c', 'a', 'x']);
   }, skip: !sqliteAvailable);
 
   test('rename and delete call the server and refresh headers', () async {
@@ -533,7 +539,10 @@ void main() {
             await a.addSongs(p, ['a']);
           },
         ),
-        ('remove', (a, p) => a.removeAt(p, songId: 'a', occurrence: 0)),
+        (
+          'remove',
+          (a, p) => a.removeAt(p, songId: 'a', occurrence: 0, copies: 1),
+        ),
         ('reorder', (a, p) => a.reorder(p, ['a', 'b'], 0, 1)),
       ]) {
     test('$label throws server failures to its caller', () async {

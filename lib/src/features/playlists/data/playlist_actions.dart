@@ -23,8 +23,9 @@ typedef PlaylistUploadResult = ({
 /// had them (or the picked list repeated them) and could not add.
 typedef PlaylistAddResult = ({int added, int alreadyThere, int failed});
 
-/// A reorder was made from a list that no longer matches the playlist (another
-/// edit landed meanwhile). Nothing was written; the screen shows the real list.
+/// A reorder or removal was made from a list that no longer matches the
+/// playlist (another edit landed meanwhile). Nothing was written; the screen
+/// shows the real list.
 class PlaylistChangedException implements Exception {
   const new();
 
@@ -395,13 +396,16 @@ class PlaylistActions {
   }
 
   /// Removes one occurrence of [songId]: the [occurrence]-th (0-based) entry
-  /// with that id in the list the caller saw, or the last one if the playlist
-  /// now has fewer. Never removes by position, so a list that moved under the
-  /// caller cannot take another song; a song already gone removes nothing.
+  /// with that id, in a list the caller saw with [copies] of it. Never removes
+  /// by position, so a list that moved under the caller cannot take another
+  /// song; a song already gone removes nothing, and a song whose copies
+  /// changed throws [PlaylistChangedException] without writing, since the
+  /// occurrence no longer names the row the user chose.
   Future<void> removeAt(
     PlaylistsTableData playlist, {
     required String songId,
     required int occurrence,
+    required int copies,
   }) async {
     if (playlist.isLocal) {
       final db = _ref.read(navisDatabaseProvider);
@@ -411,7 +415,7 @@ class PlaylistActions {
               in await db.playlistDao.watchPlaylistSongs(playlist.id).first)
             song.id,
         ];
-        final at = _occurrenceIndex(ids, songId, occurrence);
+        final at = _occurrenceIndex(ids, songId, occurrence, copies);
         if (at < 0) return;
         await db.playlistDao.setLocalPlaylistSongs(
           playlist.id,
@@ -423,7 +427,7 @@ class PlaylistActions {
     final api = _serverApi();
     await _serverEdit(playlist.id, () async {
       final ids = await _entryIds(api, playlist.id);
-      final at = _occurrenceIndex(ids, songId, occurrence);
+      final at = _occurrenceIndex(ids, songId, occurrence, copies);
       if (at < 0) return (result: null, ids: ids);
       // One index per call: Navidrome 0.64 ignores several.
       await api.updatePlaylist(id: playlist.id, songIndexesToRemove: [at]);
@@ -431,10 +435,18 @@ class PlaylistActions {
     });
   }
 
-  /// Index of the [occurrence]-th [songId] in [ids], else the last one, else -1.
-  int _occurrenceIndex(List<String> ids, String songId, int occurrence) {
-    // A missing occurrence was already removed (a stale or repeated tap):
-    // removing another copy would delete one the user kept.
+  /// Index of the [occurrence]-th [songId] in [ids], or -1 when none is left.
+  /// Throws [PlaylistChangedException] when [ids] holds other than [copies]
+  /// of it: another edit or a repeated tap changed which copy is which.
+  int _occurrenceIndex(
+    List<String> ids,
+    String songId,
+    int occurrence,
+    int copies,
+  ) {
+    final fresh = ids.where((id) => id == songId).length;
+    if (fresh == 0) return -1;
+    if (fresh != copies) throw const PlaylistChangedException();
     var seen = 0;
     for (var i = 0; i < ids.length; i++) {
       if (ids[i] == songId && seen++ == occurrence) return i;

@@ -335,6 +335,7 @@ void main() {
           any(),
           songId: any(named: 'songId'),
           occurrence: any(named: 'occurrence'),
+          copies: any(named: 'copies'),
         ),
       ).thenAnswer((_) async {});
       final notices = await _pumpEditableDetail(
@@ -349,8 +350,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove from Playlist'));
       await tester.pumpAndSettle();
-      verify(() => actions.removeAt(any(), songId: 'playlist-2', occurrence: 0))
-          .called(1);
+      verify(
+        () => actions.removeAt(
+          any(),
+          songId: 'playlist-2',
+          occurrence: 0,
+          copies: 1,
+        ),
+      ).called(1);
       expect(notices.notice?.message, 'Track removed');
 
       when(
@@ -358,6 +365,7 @@ void main() {
           any(),
           songId: any(named: 'songId'),
           occurrence: any(named: 'occurrence'),
+          copies: any(named: 'copies'),
         ),
       ).thenThrow(StateError('boom'));
       await tester.longPress(find.text('First song'));

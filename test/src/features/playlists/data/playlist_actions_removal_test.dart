@@ -190,10 +190,10 @@ Future<_Fixture> _open(List<String> ids, {bool hydrating = true}) async {
 void main() {
   test('removing B then C while a pre-removal hydration is in flight ends at [A, D]', () async {
     final f = await _open(['A', 'B', 'C', 'D']);
-    await f.actions.removeAt(_pl, songId: 'B', occurrence: 0);
+    await f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1);
     await pump();
     expect(f.shown, ['A', 'C', 'D'], reason: 'list updated without waiting');
-    await f.actions.removeAt(_pl, songId: 'C', occurrence: 0);
+    await f.actions.removeAt(_pl, songId: 'C', occurrence: 0, copies: 1);
     await f.landHydrations();
     expect(f.server, ['A', 'D']);
     expect(f.shown, ['A', 'D']);
@@ -208,7 +208,7 @@ void main() {
 
   test('removes the chosen occurrence of a duplicated song', () async {
     final f = await _open(['A', 'B', 'A', 'C', 'A'], hydrating: false);
-    await f.actions.removeAt(_pl, songId: 'A', occurrence: 1);
+    await f.actions.removeAt(_pl, songId: 'A', occurrence: 1, copies: 3);
     await pump();
     expect(f.removeCalls, [
       [2],
@@ -219,26 +219,70 @@ void main() {
 
   test('a missing occurrence removes nothing', () async {
     final f = await _open(['A', 'B', 'A'], hydrating: false);
-    await f.actions.removeAt(_pl, songId: 'A', occurrence: 5);
+    await f.actions.removeAt(_pl, songId: 'A', occurrence: 5, copies: 2);
     expect(f.server, ['A', 'B', 'A']);
   }, skip: !sqliteAvailable);
 
   test('removing the same duplicate row twice keeps the other copy', () async {
     final f = await _open(['A', 'B', 'A'], hydrating: false);
-    await Future.wait([
-      f.actions.removeAt(_pl, songId: 'A', occurrence: 1),
-      f.actions.removeAt(_pl, songId: 'A', occurrence: 1),
+    // The second tap comes from the screen that still showed two copies.
+    final results = await Future.wait([
+      f.actions
+          .removeAt(_pl, songId: 'A', occurrence: 1, copies: 2)
+          .then<Object?>((_) => null, onError: (Object e) => e),
+      f.actions
+          .removeAt(_pl, songId: 'A', occurrence: 1, copies: 2)
+          .then<Object?>((_) => null, onError: (Object e) => e),
     ]);
+    expect(results[0], isNull);
+    expect(results[1], isA<PlaylistChangedException>());
     await f.landHydrations();
     expect(f.server, ['A', 'B']);
     expect(f.shown, ['A', 'B']);
   }, skip: !sqliteAvailable);
 
+  test(
+    'a double tap on the first of two copies removes only that copy',
+    () async {
+      final f = await _open(['A', 'B', 'A'], hydrating: false);
+      final first = f.actions.removeAt(
+        _pl,
+        songId: 'A',
+        occurrence: 0,
+        copies: 2,
+      );
+      final repeat = expectLater(
+        f.actions.removeAt(_pl, songId: 'A', occurrence: 0, copies: 2),
+        throwsA(isA<PlaylistChangedException>()),
+      );
+      await first;
+      await repeat;
+      await f.landHydrations();
+      expect(f.server, ['B', 'A']);
+      expect(f.shown, ['B', 'A']);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('a copy removed elsewhere makes a duplicate removal refuse', () async {
+    final f = await _open(['A', 'B', 'A', 'A'], hydrating: false);
+    f.server.removeAt(0);
+    await expectLater(
+      f.actions.removeAt(_pl, songId: 'A', occurrence: 1, copies: 3),
+      throwsA(isA<PlaylistChangedException>()),
+    );
+    expect(f.removeCalls, isEmpty);
+    expect(f.server, ['B', 'A', 'A']);
+    // The edit still refreshes, so the screen shows the real list.
+    await f.landHydrations();
+    expect(f.shown, ['B', 'A', 'A']);
+  }, skip: !sqliteAvailable);
+
   test('two fast removals both land on the chosen songs', () async {
     final f = await _open(['A', 'B', 'C', 'D'], hydrating: false);
     await Future.wait([
-      f.actions.removeAt(_pl, songId: 'B', occurrence: 0),
-      f.actions.removeAt(_pl, songId: 'C', occurrence: 0),
+      f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1),
+      f.actions.removeAt(_pl, songId: 'C', occurrence: 0, copies: 1),
     ]);
     await f.landHydrations();
     expect(f.server, ['A', 'D']);
@@ -249,7 +293,7 @@ void main() {
     final f = await _open(['A', 'B', 'C'], hydrating: false);
     await Future.wait([
       f.actions.addSongs(_pl, ['X']),
-      f.actions.removeAt(_pl, songId: 'B', occurrence: 0),
+      f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1),
     ]);
     await f.landHydrations();
     expect(f.server, ['A', 'C', 'X']);
@@ -259,7 +303,7 @@ void main() {
   test('a song already removed elsewhere removes nothing else', () async {
     final f = await _open(['A', 'B', 'C'], hydrating: false);
     f.server.remove('B');
-    await f.actions.removeAt(_pl, songId: 'B', occurrence: 0);
+    await f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1);
     expect(f.removeCalls, isEmpty);
     expect(f.server, ['A', 'C']);
   }, skip: !sqliteAvailable);
@@ -273,7 +317,7 @@ void main() {
       ),
     ).thenThrow(StateError('boom'));
     await expectLater(
-      f.actions.removeAt(_pl, songId: 'A', occurrence: 0),
+      f.actions.removeAt(_pl, songId: 'A', occurrence: 0, copies: 1),
       throwsStateError,
     );
     expect(f.shown, ['A', 'B']);
@@ -285,7 +329,7 @@ void main() {
     'a reorder from a list that missed a removal throws and writes nothing',
     () async {
       final f = await _open(['A', 'B', 'C', 'D']);
-      await f.actions.removeAt(_pl, songId: 'B', occurrence: 0);
+      await f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1);
       // Only the hydration that started before the removal lands: the screen
       // shows the removed song again.
       f.gates.first.complete();
