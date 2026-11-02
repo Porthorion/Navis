@@ -1074,6 +1074,78 @@ void main() {
       expect(iconCollapsed.dx, 32);
     });
 
+    testWidgets('turning auto-hide off and on leaves the rail closed', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final settings = StreamController<AppSettingsModel>.broadcast();
+      addTearDown(settings.close);
+      const base = AppSettingsModel.defaults();
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          appSettingsProvider.overrideWith((ref) async* {
+            yield base.copyWith(desktopNavbarAutohide: true);
+            yield* settings.stream;
+          }),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      final rail = find.byKey(const ValueKey<String>('desktopAutohideRail'));
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(900, 300));
+      await mouse.moveTo(const Offset(30, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(rail).width, greaterThan(64));
+
+      // Auto-hide off while the pointer is over the rail, then away, then on.
+      settings.add(base.copyWith(desktopNavbarAutohide: false));
+      await tester.pumpAndSettle();
+      await mouse.moveTo(const Offset(900, 300));
+      await tester.pumpAndSettle();
+      settings.add(base.copyWith(desktopNavbarAutohide: true));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+
+      expect(tester.getSize(rail).width, 64);
+    });
+
+    testWidgets('off-strip controls are out of focus and semantics closed', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final back = find.byKey(const ValueKey('desktopHistoryBack'));
+      ExcludeFocus excludeFocus() => tester.widget<ExcludeFocus>(
+        find.ancestor(of: back, matching: find.byType(ExcludeFocus)).first,
+      );
+      ExcludeSemantics excludeSemantics() => tester.widget<ExcludeSemantics>(
+        find.ancestor(of: back, matching: find.byType(ExcludeSemantics)).first,
+      );
+      expect(excludeFocus().excluding, isTrue);
+      expect(excludeSemantics().excluding, isTrue);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(900, 300));
+      await mouse.moveTo(const Offset(30, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+      expect(excludeFocus().excluding, isFalse);
+      expect(excludeSemantics().excluding, isFalse);
+    });
+
     testWidgets('a pointer crossing the strip does not open the rail', (
       tester,
     ) async {

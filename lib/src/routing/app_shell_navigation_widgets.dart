@@ -109,6 +109,7 @@ class _RailSidebar extends ConsumerWidget {
     this.librarySectionsFit,
     this.showHistoryControls = false,
     this.peekStrip = false,
+    this.peekCollapsed = false,
     this.largeTiles = false,
   });
 
@@ -150,6 +151,10 @@ class _RailSidebar extends ConsumerWidget {
   /// lock and the icons sit inside the strip and Back/Forward and the labels
   /// start past it.
   final bool peekStrip;
+
+  /// With [peekStrip], the rail is closed: what lies past the strip is
+  /// clipped away, so it is also kept out of focus and semantics.
+  final bool peekCollapsed;
 
   /// The Large desktop style: bigger labels in 52 px tiles.
   final bool largeTiles;
@@ -201,7 +206,14 @@ class _RailSidebar extends ConsumerWidget {
                 const SizedBox(width: 10),
                 if (onToggleAutohide != null) _autohideButton(context),
                 const SizedBox(width: 24),
-                if (showHistoryControls) const _HistoryButtons(),
+                if (showHistoryControls)
+                  ExcludeFocus(
+                    excluding: peekCollapsed,
+                    child: ExcludeSemantics(
+                      excluding: peekCollapsed,
+                      child: const _HistoryButtons(),
+                    ),
+                  ),
               ],
             )
           else if (showHistoryControls || onToggleAutohide != null)

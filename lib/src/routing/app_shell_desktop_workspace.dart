@@ -114,6 +114,10 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
     }
     if (!widget.navbarAutohide) {
       _collapseTimer?.cancel();
+      _openTimer?.cancel();
+      // The overlay's MouseRegion unmounts without an exit event; forget the
+      // pointer so turning auto-hide on again collapses the rail.
+      _mouseIsOverSidebar = false;
       if (!_sidebarVisible) {
         _setSidebarVisible(true);
       }
@@ -231,6 +235,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
               showLibrarySubNavigation:
                   widget.showLibrarySubNavigation && !autohide,
               peekStrip: peekStrip,
+              peekCollapsed: !_sidebarVisible,
               largeTiles: widget.navbarStyle == 'comfortable',
               allowScrollableRail: widget.allowScrollableRail,
               selectedLibrarySection: widget.selectedLibrarySection,

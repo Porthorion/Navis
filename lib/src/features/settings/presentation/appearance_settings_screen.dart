@@ -1977,9 +1977,9 @@ class _DesktopNavbarSettings extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final selected = (currentStyle == 'compact' || currentStyle == 'icons')
+    final selected = (currentStyle == 'comfortable' || currentStyle == 'icons')
         ? currentStyle
-        : 'comfortable';
+        : 'compact';
 
     final colorStyle = NavisColorStyleData.of(context);
     Widget styleOption({
