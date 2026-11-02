@@ -3,7 +3,7 @@ import 'dart:async';
 
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 
-import 'package:drift/drift.dart' show InsertMode, Value;
+import 'package:drift/drift.dart' show InsertMode, Value, driftRuntimeOptions;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -528,6 +528,12 @@ void main() {
 
       test('an Android worker on its own connection is fenced too', () async {
         final file = File('${tmpDir.path}/worker.sqlite');
+        // Two engines on one file is the point of this test: each has its own
+        // connection, so drift's shared-executor warning does not apply.
+        driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+        addTearDown(
+          () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+        );
         final main = createTestDatabase(file: file);
         final worker = createTestDatabase(file: file);
         addTearDown(() async {
@@ -680,6 +686,12 @@ void main() {
         >
         lockedWorker() async {
           final file = File('${tmpDir.path}/round2.sqlite');
+          // Two engines on one file is the point of this test: each has its own
+          // connection, so drift's shared-executor warning does not apply.
+          driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+          addTearDown(
+            () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+          );
           final main = createTestDatabase(file: file);
           final worker = createTestDatabase(file: file);
           addTearDown(() async {
