@@ -4161,10 +4161,12 @@ On desktop, a native auto-advance (including Repeat One) or final-item
 completion can hide a cut transcode as a clean EOF. Navis compares the departed
 occurrence's last backend position with its authoritative `MediaItem.duration`.
 A remote transcode or offset continuation ending more than 10 seconds early,
-with known metadata duration, no completed local file and server `transcodeOffset`
-support, consumes the same song/transport-generation retry allowance and reopens
-that occurrence at its whole-second song position. Healthy play before the cut
-does not excuse the premature end; the existing healthy-play renewal still
+with known metadata duration and server `transcodeOffset` support, consumes
+the same song/transport-generation retry allowance and reopens that occurrence
+at its whole-second song position, from the completed cache file when the
+sidecar's re-download has already finished (it usually has, since mpv drains
+the cut stream after the sidecar restarts the whole transcode). Healthy play
+before the cut does not excuse the premature end; the existing healthy-play renewal still
 applies after recovery. Native duration and the interpolated desktop clock do
 not establish the departure position. Position/index events capture the native
 source occurrence, its source metadata and last backend position. Artwork
@@ -4909,8 +4911,10 @@ had moved on; on a slow link a skipped song's download starved the new song,
 whose first load then timed out. When the current song changes, downloads of
 songs other than the current and next ones are cancelled
 (`LockCachingAudioSource.cancelDownload`, a Navis addition to the vendored
-just_audio) and their partial files discarded; desktop already keeps a single
-sidecar download.
+just_audio) and their partial files discarded; a request for the same song
+arriving meanwhile waits for the cancelled fetch to unwind and starts a fresh
+download instead of failing with it. Desktop already keeps a single sidecar
+download.
 
 While an Android lock-cached song has a live origin range, playback is requested
 and the native forward buffer is under 30 seconds, the current and next songs'

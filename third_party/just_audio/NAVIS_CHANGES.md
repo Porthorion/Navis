@@ -26,6 +26,15 @@ and in-progress responses fail, the partial file is discarded and the next
 request starts over. Navis cancels downloads of songs the player has moved on
 from, which otherwise ran to completion and starved the current song on a slow
 link.
+A `request()` or `prefetch()` issued after the cancel waits until the cancelled
+fetch has finished unwinding (its partial file gone) and then starts a fresh
+download; it never joins the dying fetch and fails with it.
+`cancelDownload()` itself returns only after that unwind (also when called twice
+or in the header phase), so callers can reuse the cache path at once. (A cancel
+that lands before the fetch has installed its abort, during its first file
+checks, is still not awaited; pre-existing.) A
+`request()` whose proxy cancellation fires while it waits fails with
+`StateError('Range request cancelled')` instead of starting a download.
 
 `LockCachingAudioSource.prefetch()` starts (or joins) the whole-file download
 without creating a response, so no in-progress replay buffer holds the body; a
