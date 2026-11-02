@@ -770,14 +770,14 @@ class PairedRepetitions(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             out = Path(directory)
             seen = []
-            def fake_engine(args, env, folder, extra, timeout, label):
+            def fake_engine(args, env, folder, extra, timeout, label, real=False):
                 seen.append(args)
                 (folder / f'{label}.log').write_text('log')
                 run = folder / 'runs' / f'stamp-{label}'
                 run.mkdir(parents=True)
                 rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={}, violations=[], latencyS=None, passed=True)
                         for c in h.expected_cells('queue-edit', False, 3, 'linux') if c[3] == 2]
-                (run / 'report.json').write_text(json.dumps({'results': rows}))
+                (run / 'report.json').write_text(json.dumps({'server': 'fixture', 'results': rows}))
                 return Mock(returncode=0)
             with patch.object(h, 'engine', side_effect=fake_engine):
                 rows, _ = h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, 3, False, rep=2)
@@ -1089,7 +1089,7 @@ class DurableEvidence(unittest.TestCase):
                             cells[0][0] = 'wrong'
                         rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c),
                                      metrics={}, violations=[], latencyS=None, passed=True) for c in cells]
-                        (folder / 'report.json').write_text('{' if fault == 'malformed' else json.dumps({'results': rows}))
+                        (folder / 'report.json').write_text('{' if fault == 'malformed' else json.dumps({'server': 'fixture', 'results': rows}))
                     if fault == 'timeout-partial':
                         raise subprocess.TimeoutExpired('engine', 1)
                     if fault == 'multiple':
@@ -1119,7 +1119,7 @@ class DurableEvidence(unittest.TestCase):
                     rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={},
                                  violations=[] if passed else [{'oracle': 'stall'}], latencyS=None, passed=passed)
                             for c in h.expected_cells('queue-edit', False, None, 'linux')]
-                    (folder / 'report.json').write_text(json.dumps({'results': rows}))
+                    (folder / 'report.json').write_text(json.dumps({'server': 'fixture', 'results': rows}))
                     return Mock(returncode=code)
                 with patch.object(h, 'engine', side_effect=engine):
                     if allowed:
@@ -1249,6 +1249,128 @@ class DurableEvidence(unittest.TestCase):
             (out / 'evidence.json').write_text('{')
             with self.assertRaises(h.InfraError):
                 h.verify_evidence(out, {}, {}, config)
+
+class RealServer(unittest.TestCase):
+    """--real must reach the live server in every site that assumes the fixture (#200)."""
+
+    def engine_args(self, real, tmp):
+        seen = []
+        credentials = Path(tmp) / 'creds.json'
+        credentials.write_text('{}')
+        credentials.chmod(0o600)
+        with patch.object(h, 'CREDENTIALS', credentials), patch.object(h, 'bounded_command', side_effect=lambda cmd, **k: seen.append(cmd)):
+            h.engine(['--seed-only'], {}, Path(tmp) / 'out', {}, 10, 'x', real=real)
+        return seen[0], credentials
+
+    def test_engine_args_by_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cmd, credentials = self.engine_args(True, tmp)
+            self.assertEqual(cmd[cmd.index('--server') + 1], 'live')
+            self.assertEqual(cmd[cmd.index('--credentials') + 1], str(credentials))
+            self.assertNotIn('--transcode-speed', cmd)
+            cmd, _ = self.engine_args(False, tmp)
+            self.assertEqual(cmd[cmd.index('--server') + 1], 'fixture')
+            self.assertNotIn('--credentials', cmd)
+            self.assertEqual(cmd[cmd.index('--transcode-speed') + 1], '3')
+
+    def test_credentials_must_exist_with_mode_600(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'creds.json'
+            with patch.object(h, 'CREDENTIALS', path):
+                with self.assertRaises(h.InfraError):
+                    h.real_credentials()
+                path.write_text('{}')
+                path.chmod(0o644)
+                with self.assertRaises(h.InfraError):
+                    h.real_credentials()
+                path.chmod(0o600)
+                self.assertEqual(h.real_credentials(), path)
+
+    def run_with_server(self, server, real):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory)
+            def fake_engine(args, env, folder, extra, timeout, label, real=False):
+                (folder / f'{label}.log').write_text('log')
+                run = folder / 'runs' / f'stamp-{label}'
+                run.mkdir(parents=True)
+                rows = [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={}, violations=[], latencyS=None, passed=True)
+                        for c in h.expected_cells('queue-edit', False, 1, 'linux')]
+                (run / 'report.json').write_text(json.dumps({'server': server, 'results': rows}))
+                return Mock(returncode=0)
+            with patch.object(h, 'engine', side_effect=fake_engine):
+                return h.run_scenario('queue-edit', 'linux', out, {}, None, None, False, 1, real)
+
+    def test_report_server_must_match_the_requested_mode(self):
+        self.run_with_server('fixture', False)
+        self.run_with_server('live', True)
+        for server, real in (('fixture', True), ('live', False), (None, True)):
+            with self.subTest(server=server, real=real), self.assertRaises(h.InfraError):
+                self.run_with_server(server, real)
+
+    def names(self, scenarios=(), all=False, map=False, platform='linux', real=True):
+        import argparse
+        args = argparse.Namespace(scenarios=list(scenarios), all=all, map=map, platform=platform, real=real, base_range='r...HEAD')
+        with contextlib.redirect_stdout(io.StringIO()):
+            return h.select_scenarios(args)
+
+    def test_fixture_only_scenarios_are_rejected_before_building(self):
+        with self.assertRaises(h.InfraError) as caught:
+            self.names(['seek', 'repeat', 'cut-recovery'])
+        for word in ('repeat', 'cut-recovery', '--transcode-speed'):
+            self.assertIn(word, str(caught.exception))
+        self.assertNotIn('seek,', str(caught.exception))
+        self.assertEqual(self.names(['seek', 'local-seek']), ['seek', 'local-seek'])
+        self.assertEqual(self.names(['repeat'], real=False), ['repeat'])
+
+    def test_all_under_real_runs_only_the_allowed_scenarios(self):
+        allowed = [n for n in h.SCENARIOS if n not in h.FIXTURE_ONLY]
+        self.assertEqual(self.names(all=True), allowed)
+        self.assertEqual(self.names(all=True, platform='android'), [n for n in allowed if n in h.ANDROID_SCENARIOS])
+        self.assertEqual(self.names(all=True, real=False), list(h.SCENARIOS))
+        with patch.object(h, 'map_files', return_value=(['repeat', 'cut-recovery'], 'x')), patch.object(h, 'git', return_value=''):
+            with self.assertRaises(h.InfraError):
+                self.names(map=True)
+
+    def test_allowed_scenarios_use_no_fixture_only_engine_option(self):
+        fixture_only = ('--transcode-speed', '--no-transcode-offset', '--fixture-', '--cut-', '--proxy-chunked')
+        for name, spec in h.SCENARIOS.items():
+            if name not in h.FIXTURE_ONLY:
+                self.assertFalse([a for a in spec['args'] if a.startswith(fixture_only)], name)
+        for name in h.FIXTURE_ONLY:
+            self.assertIn(name, h.SCENARIOS)
+
+    def test_android_seed_is_a_live_sync_cached_apart_from_the_fixture_seed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            linux = Path(tmp) / 'base-linux'
+            linux.mkdir()
+            data = Path(tmp) / 'data'
+            (data / 'root').mkdir(parents=True)
+            calls = []
+            def fake_engine(args, env, out, extra, timeout, label, real=False):
+                calls.append((args, real))
+                (data / 'root' / 'navis.sqlite').write_text('catalog')
+                return Mock(returncode=0)
+            def fake_activate(folder, platform, seed=None, real=False):
+                calls.append(('activate', real))
+            with patch.object(h, 'DATA', data), patch.object(h, 'base_build', return_value=(linux, 'hit')), \
+                    patch.object(h, 'engine', side_effect=fake_engine), patch.object(h, 'activate', side_effect=fake_activate), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                live = h.seed_android('sha', 'flutter', {}, Path(tmp), real=True)
+                fixture = h.seed_android('sha', 'flutter', {}, Path(tmp), real=False)
+            self.assertNotEqual(live, fixture)
+            self.assertIn('live', live.name)
+            self.assertNotIn('live', fixture.name)
+            self.assertEqual(calls, [('activate', True), (['--seed-only'], True), ('activate', False), (['--seed-only'], False)])
+
+    def test_activate_marks_the_seeded_profile_with_its_server(self):
+        for real, marker in ((True, 'live'), (False, 'fixture')):
+            with tempfile.TemporaryDirectory() as tmp:
+                seed = Path(tmp) / 'seed.sqlite'
+                seed.write_text('catalog')
+                with patch.object(h, 'DATA', Path(tmp) / 'data'):
+                    h.activate(Path(tmp), 'android', seed, real)
+                    self.assertEqual((Path(tmp) / 'data' / 'root' / 'profile-server').read_text(), marker)
 
 
 if __name__ == '__main__':

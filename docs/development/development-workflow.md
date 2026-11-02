@@ -1709,6 +1709,18 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   recorded in the PR. On Linux base and fix repetitions alternate (base r1, fix r1, fix r2, base r2, ...); on Android, where a guest boot costs minutes, each variant runs all its repetitions on one guest and the first variant alternates per scenario (base, then fix, ...), so run order cannot bias every comparison the same way.
   Outputs: `build/harness/<stamp>/{base,fix}/<scenario>/`
   (Linux: per-repetition `rep-R/attempt-N/` engine reports, traces, app logs, merged `attempt-1/report.json`; Android: `attempt-N/`), `comparison.json`, `summary.md`.
+- **Real server (`--real`).** Signs in to the live server with the mode-600
+  `~/.config/navis/perf-credentials.json` (a disposable account; never
+  printed or logged) instead of the fixture: engine runs get `--server live
+  --credentials`, and Android is seeded from a live Linux sync cached apart
+  from the fixture seed. Only scenarios that need no fixture library or
+  transcoder run: `seek`, `stress-drag`, `memory-soak`, `local-seek`
+  (`FIXTURE_ONLY` names the rest and why). Naming a fixture-only scenario
+  exits 2 before any build; `--all`/`--map` skip them (`SKIP <scenario>:
+  fixture-only`) and exit 2 if none is left. Each engine report's `server`
+  must be `live` (`fixture` without `--real`), else the run is an
+  infrastructure error. Real runs are `iteration` evidence, never the gate's.
+  The clone profile and its downloads stay under `~/.cache/navis-harness/run/root`.
 - **Self-check.** `python3 tool/playback_harness_test.py` covers the threshold
   evaluation, the code-area map, the cache key and the exit-2 paths without
   building anything. Production hooks (the `transportTrace` ring and the

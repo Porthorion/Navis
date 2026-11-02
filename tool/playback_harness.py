@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Playback runtime harness: one command builds a base and the working tree, runs the same
-fixture scenarios on both and prints PASS/FAIL per threshold.
+scenarios on both and prints PASS/FAIL per threshold (against the fixture server; --real drives the live one).
 
   tool/playback_harness.py list
   tool/playback_harness.py map [<rev-range>]
   tool/playback_harness.py ab <scenario...|--map|--all> --platform linux|android [--base <ref>] [--real]
 
 The engine is tool/live_seek_stress.py (fixture server, throttling proxy, drivers, oracles); this file only
-holds the scenarios, the base-build cache, the A/B runner and the thresholds. Exit codes: 0 pass,
+holds the scenarios, the base-build cache, the A/B runner and the thresholds.
+--real signs in with the mode-600 ~/.config/navis/perf-credentials.json (a disposable account) and runs only the scenarios
+that do not need the fixture (FIXTURE_ONLY lists the rest); every report must say "server": "live" or the run is an infrastructure error. Exit codes: 0 pass,
 1 a threshold failed, 2 infrastructure error (build, emulator, downloads changed, missing base).
 Usage and the runner brief: docs/development/development-workflow.md, "Playback runtime harness".
 """
@@ -45,6 +47,7 @@ BOOT_ADB_STABLE_S = 10  # a continuous device state this long ends an unauthoriz
 BOOT_ADB_RECONNECT_S, BOOT_ADB_GIVE_UP_S = 40, 90  # seconds adb may stay unauthorized/offline before a reconnect / InfraError
 DEFAULT_BASE = 'github/release/1.5'
 MEMORY_MAX = '8G'
+CREDENTIALS = Path.home() / '.config' / 'navis' / 'perf-credentials.json'  # --real only; mode 600, a disposable account
 
 
 class InfraError(RuntimeError):
@@ -131,6 +134,14 @@ SCENARIOS = {
 # clean and joins within the rms bound (the base line shows its reloads for comparison; the base must be >= 1 to prove the cut bites).
 ANDROID_CHECKS = {'cut-recovery': [('reloadsAfterCut', '<=', 0), ('playerErrorsAfterCut', '<=', 0), ('spliceFrozenMedianS', '<=', 1.0),
                                    ('spliceRequestsOk', 'true'), ('spliceFileOk', 'true'), ('joinRmsMax', '<=', 0.005)]}
+# --real runs the engine against the live server, which has none of the fixture's synthetic library, short-song groups or transcoder,
+# so these scenarios cannot run there: name -> why.
+FIXTURE_ONLY = {
+    'repeat': '--transcode-speed 30 and fixture short songs (q7_append)',
+    'crossfade': 'fixture short-song albums (crossfade_end)',
+    'cut-recovery': 'cut injection on fixture albums and the fixture library (cut40, i9_cut, ...)',
+    'queue-edit': 'fixture short songs (q7_append_after5)',
+}
 ANDROID_SCENARIOS = ('stress-drag', 'memory-soak', 'repeat', 'crossfade', 'queue-edit', 'cut-recovery')
 PLAYER_FALLBACK = 'lib/src/features/player/**'
 
@@ -643,6 +654,12 @@ def artifact_of(platform: str, folder: Path) -> Path:
     return folder / ('app.apk' if platform == 'android' else 'bundle/lib/libapp.so')
 
 
+def real_credentials() -> Path:
+    if not CREDENTIALS.is_file() or CREDENTIALS.stat().st_mode & 0o077:
+        raise InfraError(f'--real needs {CREDENTIALS} with mode 600')
+    return CREDENTIALS
+
+
 def engine_env(extra: dict | None = None) -> dict:
     env = {**os.environ, 'NAVIS_LIVE_SEEK_BASE': str(DATA), 'NAVIS_LIVE_SEEK_SUFFIX': SUFFIX,
            'GRADLE_OPTS': '-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Dorg.gradle.jvmargs=-Xmx4G'}
@@ -651,7 +668,8 @@ def engine_env(extra: dict | None = None) -> dict:
 
 
 def build(tree: Path, platform: str, dest: Path, log: Path):
-    """Builds [tree] with its own engine copy (same dart-defines for every variant) and moves the artifact to [dest]."""
+    """Builds [tree] with its own engine copy (same dart-defines for every variant) and moves the artifact to [dest]. The build is the
+    same for the fixture and the live server (the app reads ROOT/password, which every engine run rewrites), so one cache serves both."""
     DATA.mkdir(parents=True, exist_ok=True)
     shutil.rmtree(dest, ignore_errors=True)
     dest.mkdir(parents=True)
@@ -911,40 +929,43 @@ class Emulator:
 
 # A/B runner ------------------------------------------------------------------------------------------------
 
-def seed_android(base_sha: str, flutter: str, display_env: dict, out: Path):
-    """Android is seeded with a synced Linux catalog; made once per base from the base's cached Linux bundle."""
+def seed_android(base_sha: str, flutter: str, display_env: dict, out: Path, real: bool = False):
+    """Android is seeded with a synced Linux catalog; made once per base from the base's cached Linux bundle. Under --real the catalog
+    is synced from the live server (--seed-only works there too) and cached apart from the fixture seed."""
     linux, note = base_build(base_sha, 'linux', flutter, out)
     print(f'android seed: linux base {note}')
-    seed = linux.parent / f'{linux.name}-seed.sqlite'
+    seed = linux.parent / f'{linux.name}-seed{"-live" if real else ""}.sqlite'
     if not seed.exists():
-        activate(linux, 'linux')
-        done = engine(['--seed-only'], display_env, out / 'seed', {}, timeout=1200, label='seed')
+        activate(linux, 'linux', real=real)
+        done = engine(['--seed-only'], display_env, out / 'seed', {}, timeout=1200, label='seed', real=real)
         if done.returncode or not (DATA / 'root' / 'navis.sqlite').exists():
             raise InfraError('could not seed the Android catalog from a Linux run')
         shutil.copyfile(DATA / 'root' / 'navis.sqlite', seed)
     return seed
 
 
-def activate(folder: Path, platform: str, seed: Path | None = None):
-    """Wipes the data root and points it at [folder]'s build (Linux symlinks the bundle)."""
+def activate(folder: Path, platform: str, seed: Path | None = None, real: bool = False):
+    """Wipes the data root and points it at [folder]'s build (Linux symlinks the bundle). A seed's profile is marked with the server it came from."""
     shutil.rmtree(DATA / 'root', ignore_errors=True)
     (DATA / 'root').mkdir(parents=True)
     if platform == 'linux':
         (DATA / 'root' / 'bundle').symlink_to(folder / 'bundle')
     if seed is not None:
         shutil.copyfile(seed, DATA / 'root' / 'navis.sqlite')
-        (DATA / 'root' / 'profile-server').write_text('fixture')
+        (DATA / 'root' / 'profile-server').write_text('live' if real else 'fixture')
 
 
-def engine(args: list[str], env: dict, out: Path, extra_env: dict, timeout: int, label: str):
+def engine(args: list[str], env: dict, out: Path, extra_env: dict, timeout: int, label: str, real: bool = False):
+    """One engine invocation: the fixture server, or with [real] the live one signed in with the credential file."""
     out.mkdir(parents=True, exist_ok=True)
+    server = ['--server', 'live', '--credentials', str(real_credentials())] if real else ['--server', 'fixture', '--transcode-speed', '3']
     full = {**engine_env(extra_env), **env, 'NAVIS_LIVE_SEEK_RUNS': str(out / 'runs')}
     with (out / f'{label}.log').open('w') as log:
         return bounded_command([sys.executable, '-c',
                                'import os,runpy,signal,sys; signal.signal(signal.SIGTERM,lambda *_:sys.exit(143)); '
                                'sys.argv=sys.argv[1:]; sys.path.insert(0,os.path.dirname(sys.argv[0])); runpy.run_path(sys.argv[0],run_name="__main__")',
-                               str(PROJECT / 'tool' / 'live_seek_stress.py'), '--profile', 'full', '--server', 'fixture',
-                               '--skip-build', '--proxy-chunked', '--transcode-speed', '3', '--label', label, *args],
+                               str(PROJECT / 'tool' / 'live_seek_stress.py'), '--profile', 'full', *server,
+                               '--skip-build', '--proxy-chunked', '--label', label, *args],
                               cwd=PROJECT, env=full, stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
 
 
@@ -977,18 +998,13 @@ def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict,
         if not serial:
             extra.update(FLUTTER_ENGINE_SWITCHES='2', FLUTTER_ENGINE_SWITCH_1='enable-dart-profiling',
                          FLUTTER_ENGINE_SWITCH_2='vm-service-port=0')
-    if real:
-        credentials = Path.home() / '.config' / 'navis' / 'perf-credentials.json'
-        if not credentials.exists() or credentials.stat().st_mode & 0o077:
-            raise InfraError(f'--real needs {credentials} with mode 600')
-        args += ['--credentials', str(credentials)]
     started = time.monotonic()
     record = {'status': 'running', 'expected': [c for c in expected_cells(name, full, reps, platform) if rep is None or c[3] == rep],
               'observed': [], 'exitCode': None, 'log': str(variant_dir / (name + '.log'))}
     variant_dir.mkdir(parents=True, exist_ok=True)
     write_evidence(variant_dir, record)
     try:
-        done = engine(args, env, variant_dir, extra, timeout=budget * 60 * 4 + 600, label=name)
+        done = engine(args, env, variant_dir, extra, timeout=budget * 60 * 4 + 600, label=name, real=real)
         record['exitCode'] = done.returncode
         reports = sorted((variant_dir / 'runs').glob(f'*-{name}/report.json'))
         if done.returncode not in (0, 1) or len(reports) != 1:
@@ -996,7 +1012,11 @@ def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict,
         if not Path(record['log']).is_file():
             raise InfraError('engine log missing')
         record['report'] = str(reports[0])
-        rows = json.loads(reports[0].read_text())['results']
+        report = json.loads(reports[0].read_text())
+        wanted = 'live' if real else 'fixture'
+        if report.get('server') != wanted:  # a --real PASS on fixture data (or the reverse) is not evidence
+            raise InfraError(f'engine {name}: report says server {report.get("server")!r}, expected {wanted!r} ({reports[0]})')
+        rows = report['results']
         record['observed'] = observed_cells(rows, done.returncode)
         validate_cells(record['expected'], record['observed'])
         record['cellStatuses'] = ['passed' if r['passed'] else 'failed' for r in rows]
@@ -1043,6 +1063,16 @@ def select_scenarios(args, announce=True) -> list[str]:
     names = pick_scenarios(args)
     if args.map and not names:
         return names
+    if args.real:
+        rejected = {n: FIXTURE_ONLY[n] for n in names if n in FIXTURE_ONLY}
+        if rejected and not (args.map or args.all):
+            raise InfraError('not available with --real (fixture-only): ' + '; '.join(f'{n}: {why}' for n, why in rejected.items()))
+        for name in rejected if announce else ():
+            print(f'SKIP {name}: fixture-only', flush=True)
+        names = [n for n in names if n not in rejected]
+        if not names:
+            raise InfraError('every selected scenario is fixture-only: run without --real, or pick ' +
+                             ', '.join(n for n in SCENARIOS if n not in FIXTURE_ONLY))
     if args.platform == 'android':
         skipped = [n for n in names if n not in ANDROID_SCENARIOS]
         if skipped and not (args.map or args.all):
@@ -1075,7 +1105,7 @@ def run_guest_scenario(label: str, name: str, platform: str, folder: Path, step_
                 apk = artifact_of('android', folder) if serial else None
                 if candidate_identity() != candidate:
                     raise InfraError('candidate changed before scenario')
-                activate(folder, platform, seed)
+                activate(folder, platform, seed, real)
                 try:
                     return run_scenario(name, platform, attempt_dir, display_env, serial, apk, full, reps, real, rep)
                 except InfraError:
@@ -1148,7 +1178,9 @@ def _cmd_ab(args, out: Path, evidence: dict) -> int:
         print('RESULT NONE: no playback code changed')
         return 0
     evidence['config']['names'] = names
-    evidence['coverage'] = 'full-platform' if (args.all and args.full and args.reps is None and not args.map) else 'iteration'
+    if args.real:
+        real_credentials()  # fail before the builds, not after
+    evidence['coverage'] = 'full-platform' if (args.all and not args.real and args.full and args.reps is None and not args.map) else 'iteration'
     evidence['variants'] = {v + '/' + n: {'status': 'not-run', 'expected': expected_cells(n, args.full, args.reps, platform),
                                         'observed': [], 'exitCode': None} for v in ('base', 'fix') for n in names}
     write_evidence(out, evidence)
@@ -1185,7 +1217,7 @@ def _cmd_ab(args, out: Path, evidence: dict) -> int:
     results, timings = {}, {}
     with ExitStack() as stack:
         display_env = stack.enter_context(Display(out))
-        seed = seed_android(base_sha, flutter, display_env, out) if platform == 'android' else None
+        seed = seed_android(base_sha, flutter, display_env, out, args.real) if platform == 'android' else None
         folders = {'base': base_dir, 'fix': fix_dir}
         reps_of = lambda name: plan(name, args.full, args.reps, platform)[1]
         steps = schedule(names, reps_of) if platform == 'linux' else android_schedule(names)
