@@ -22,6 +22,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/library_sync_fakes.dart';
@@ -166,6 +167,115 @@ final _serverConfigSource =
     NotifierProvider<_ServerConfigSource, AsyncValue<ServerConfigModel?>>(
       _ServerConfigSource.new,
     );
+
+class _RecordingSyncNotifier extends SystemLibrarySyncNotifier {
+  new();
+
+  int shown = 0;
+
+  @override
+  Future<void> showProgress(LibrarySyncState state) async => shown++;
+
+  @override
+  Future<void> dismissProgress() async {}
+}
+
+/// An automatic check parked inside the engine. The run reports `running`
+/// progress once when it starts and once more after [release].
+class _ParkedCheck {
+  new(this.container, this.notifier, this.automatic);
+
+  final ProviderContainer container;
+  final _RecordingSyncNotifier notifier;
+  final Future<LibrarySyncState> automatic;
+  late final Completer<LibrarySyncState> release;
+
+  LibrarySyncController get controller =>
+      container.read(librarySyncControllerProvider.notifier);
+  LibrarySyncStatus get status =>
+      container.read(librarySyncControllerProvider).status;
+
+  /// Lets the new session's background tasks finish before the database
+  /// closes.
+  Future<void> drain() => controller.cancelAndWait();
+
+  /// Sign out, then sign in as [next].
+  Future<void> changeSession(ServerConfigModel next) async {
+    final source = container.read(_serverConfigSource.notifier);
+    source.set(const AsyncData(null));
+    await container.pump();
+    source.set(AsyncData(next));
+    await container.pump();
+  }
+}
+
+Future<_ParkedCheck> _parkedCheck(
+  NavisDatabase database,
+  ServerConfigModel config,
+) async {
+  await database.librarySyncDao.setNextAutomaticCheckAt(
+    serverId: config.id!,
+    nextAutomaticCheckAt: DateTime.now().subtract(const Duration(minutes: 1)),
+  );
+  final entered = Completer<void>();
+  final release = Completer<LibrarySyncState>();
+  const running = LibrarySyncState(
+    status: LibrarySyncStatus.running,
+    stage: LibrarySyncStage.fetchingArtists,
+  );
+  final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+    if (!request.isAutomatic) return const LibrarySyncState.idle();
+    onProgress?.call(running);
+    // A count-only update is held for the throttle's trailing timer.
+    onProgress?.call(running.copyWith(processed: 1, total: 10));
+    entered.complete();
+    final result = await release.future;
+    onProgress?.call(running);
+    return result;
+  });
+  final notifier = _RecordingSyncNotifier();
+  final container = _container(
+    engine,
+    database: database,
+    reachability: ServerReachabilityStatus.offline,
+    interval: _hourlyInterval,
+    serverConfig: [
+      serverConfigStateProvider.overrideWith(
+        (ref) => ref.watch(_serverConfigSource),
+      ),
+    ],
+    extra: [librarySyncNotifierProvider.overrideWithValue(notifier)],
+  );
+  addTearDown(container.dispose);
+  container.read(_serverConfigSource.notifier).set(AsyncData(config));
+  final automatic = container
+      .read(librarySyncControllerProvider.notifier)
+      .syncIfStale();
+  await entered.future;
+  return _ParkedCheck(container, notifier, automatic)..release = release;
+}
+
+Future<ServerConfigModel> _saveServer(
+  NavisDatabase database,
+  String username,
+) async {
+  await database.serverDao.saveServer(
+    ServerConfigTableCompanion.insert(
+      url: 'https://example.com',
+      username: username,
+      apiVersion: '1.16.1',
+      isAuthenticated: const Value(true),
+    ),
+  );
+  final row = (await database.serverDao.getActiveServer())!;
+  return ServerConfigModel(
+    id: row.id,
+    url: row.url,
+    username: row.username,
+    password: 'secret',
+    apiVersion: row.apiVersion,
+  );
+}
 
 Matcher _catalogRequest(SyncRunOrigin origin, SyncRunIntent intent) =>
     isA<LibrarySyncRequest>()
@@ -1885,6 +1995,194 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
       expect(engine.automaticRequests, [_automaticRequest]);
     });
+
+    test('an old run cannot overwrite a same-user re-sign-in', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      final parked = await _parkedCheck(database, config);
+
+      await parked.changeSession(config);
+      final before = parked.status;
+      parked.release.complete(
+        LibrarySyncState(
+          status: LibrarySyncStatus.cancelled,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+        ),
+      );
+      await parked.automatic;
+
+      expect(before, isNot(LibrarySyncStatus.cancelled));
+      expect(parked.status, before);
+      await parked.drain();
+    }, skip: !sqliteAvailable);
+
+    test(
+      'a run started before the config listener ran still lands its result',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        final engine = StubLibrarySyncEngine.returning(_succeeded);
+        final container = _container(
+          engine,
+          database: database,
+          serverConfig: [
+            serverConfigStateProvider.overrideWith(
+              (ref) => ref.watch(_serverConfigSource),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+        final controller = container.read(
+          librarySyncControllerProvider.notifier,
+        );
+
+        container.read(_serverConfigSource.notifier).set(AsyncData(config));
+        final result = await controller.syncNow();
+        await container.pump();
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        expect(
+          container.read(librarySyncControllerProvider).status,
+          LibrarySyncStatus.succeeded,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'an abandoned run posts no progress after the session changed',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        final parked = await _parkedCheck(database, config);
+        final postedWhileCurrent = parked.notifier.shown;
+
+        await parked.changeSession(await _saveServer(database, 'bob'));
+        final afterSignOut = parked.status;
+        // The held progress update's trailing timer fires after the reset.
+        await Future<void>.delayed(librarySyncProgressPublishInterval * 2);
+        expect(afterSignOut, isNot(LibrarySyncStatus.running));
+        expect(parked.status, afterSignOut);
+        parked.release.complete(_succeeded);
+        await parked.automatic;
+
+        expect(postedWhileCurrent, greaterThan(0));
+        expect(parked.notifier.shown, postedWhileCurrent);
+        await parked.drain();
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'an abandoned automatic check cannot reschedule the next session',
+      () async {
+        final database = createTestDatabase();
+        addTearDown(database.close);
+        final config = await _saveAuthenticatedServer(database);
+        final parked = await _parkedCheck(database, config);
+
+        final other = await _saveServer(database, 'bob');
+        await parked.changeSession(other);
+        final before = (await database.librarySyncDao.getOrCreateState(
+          other.id!,
+        )).nextAutomaticCheckAt;
+        parked.release.complete(_succeeded);
+        await parked.automatic;
+
+        expect(
+          (await database.librarySyncDao.getOrCreateState(other.id!))
+              .nextAutomaticCheckAt,
+          before,
+        );
+        await parked.drain();
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('a late cancelAndWait tail leaves the next session alone', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().subtract(
+          const Duration(minutes: 1),
+        ),
+      );
+      final entered = Completer<void>();
+      final release = Completer<LibrarySyncState>();
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          entered.complete();
+          return await release.future;
+        }
+        return const LibrarySyncState.idle();
+      });
+      final container = _container(
+        engine,
+        database: database,
+        reachability: ServerReachabilityStatus.offline,
+        interval: _hourlyInterval,
+        serverConfig: [
+          serverConfigStateProvider.overrideWith(
+            (ref) => ref.watch(_serverConfigSource),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(_serverConfigSource.notifier).set(AsyncData(config));
+      final controller = container.read(librarySyncControllerProvider.notifier);
+      final automatic = controller.syncIfStale();
+      await entered.future;
+
+      // Sign-out abandons the pending cancel after its timeout, clears the
+      // session, and another user signs in.
+      final cancellation = controller.cancelAndWait();
+      await Future<void>.delayed(Duration.zero);
+      container.read(_serverConfigSource.notifier).set(const AsyncData(null));
+      await container.pump();
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://other.example.com',
+          username: 'bob',
+          apiVersion: '1.16.1',
+          isAuthenticated: const Value(true),
+        ),
+      );
+      final other = (await database.serverDao.getActiveServer())!;
+      container
+          .read(_serverConfigSource.notifier)
+          .set(
+            AsyncData(
+              ServerConfigModel(
+                id: other.id,
+                url: other.url,
+                username: other.username,
+                password: 'secret',
+                apiVersion: other.apiVersion,
+              ),
+            ),
+          );
+      await container.pump();
+      final before = container.read(librarySyncControllerProvider).status;
+
+      release.complete(
+        LibrarySyncState(
+          status: LibrarySyncStatus.cancelled,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+        ),
+      );
+      await cancellation;
+      await automatic;
+
+      expect(before, isNot(LibrarySyncStatus.cancelled));
+      expect(container.read(librarySyncControllerProvider).status, before);
+    }, skip: !sqliteAvailable);
 
     test(
       'cancelAndWait drains and suppresses scheduled startup sync',

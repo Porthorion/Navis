@@ -322,6 +322,24 @@ abstract class AppLocalizations {
   /// **'Cancelling and signing out...'**
   String get initialSyncCancelling;
 
+  /// No description provided for @signOutStoppingSync.
+  ///
+  /// In en, this message translates to:
+  /// **'Stopping sync…'**
+  String get signOutStoppingSync;
+
+  /// No description provided for @signOutClearingData.
+  ///
+  /// In en, this message translates to:
+  /// **'Clearing data…'**
+  String get signOutClearingData;
+
+  /// No description provided for @signOutFinishing.
+  ///
+  /// In en, this message translates to:
+  /// **'Signing out…'**
+  String get signOutFinishing;
+
   /// No description provided for @requiredSyncInitialTitle.
   ///
   /// In en, this message translates to:

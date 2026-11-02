@@ -10,6 +10,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/auth/presentation/sign_out_phase_text.dart';
 import 'package:navis/src/features/auth/presentation/server_connection_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_url_validation.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -35,6 +36,7 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final configAsync = ref.watch(serverConfigStateProvider);
+    final transition = ref.watch(sessionTransitionProvider);
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
@@ -105,13 +107,23 @@ class _ServerSettingsScreenState extends ConsumerState<ServerSettingsScreen> {
                   ? null
                   : () => _showSignOutConfirmation(context),
               child: _isSigningOut
-                  ? SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: cs.onError,
-                      ),
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: cs.onError,
+                          ),
+                        ),
+                        if (transition.phaseText(l10n)
+                            case final phase?) ...<Widget>[
+                          const SizedBox(width: 12),
+                          Flexible(child: Text(phase)),
+                        ],
+                      ],
                     )
                   : Text(l10n.serverSettingsSignOut),
             );
