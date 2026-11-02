@@ -4126,10 +4126,12 @@ On desktop, a native auto-advance (including Repeat One) or final-item
 completion can hide a cut transcode as a clean EOF. Navis compares the departed
 occurrence's last backend position with its authoritative `MediaItem.duration`.
 A remote transcode or offset continuation ending more than 10 seconds early,
-with known metadata duration, no completed local file and server `transcodeOffset`
-support, consumes the same song/transport-generation retry allowance and reopens
-that occurrence at its whole-second song position. Healthy play before the cut
-does not excuse the premature end; the existing healthy-play renewal still
+with known metadata duration and server `transcodeOffset` support, consumes
+the same song/transport-generation retry allowance and reopens that occurrence
+at its whole-second song position, from the completed cache file when the
+sidecar's re-download has already finished (it usually has, since mpv drains
+the cut stream after the sidecar restarts the whole transcode). Healthy play
+before the cut does not excuse the premature end; the existing healthy-play renewal still
 applies after recovery. Native duration and the interpolated desktop clock do
 not establish the departure position. Position/index events capture the native
 source occurrence, its source metadata and last backend position. Artwork
