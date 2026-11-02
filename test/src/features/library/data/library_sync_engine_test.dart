@@ -157,6 +157,46 @@ class _LeaseLockTimeouts extends QueryInterceptor {
   }
 }
 
+/// Fails catalog writes with SQLITE_BUSY (or another code), the error a writer
+/// lock held past the busy handler produces.
+class _CatalogWriteTimeouts extends QueryInterceptor {
+  new({this.resultCode = 5, this.table = 'artists'});
+
+  final int resultCode;
+  final String table;
+  int failures = 0;
+
+  void _maybeFail(String statement) {
+    if (!statement.contains(table)) return;
+    failures++;
+    throw SqliteException(
+      extendedResultCode: resultCode,
+      message: resultCode == 5 ? 'database is locked' : 'SQL logic error',
+    );
+  }
+
+  @override
+  Future<int> runInsert(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) {
+    if (statement.startsWith('INSERT')) _maybeFail(statement);
+    return executor.runInsert(statement, args);
+  }
+
+  @override
+  Future<void> runBatched(
+    QueryExecutor executor,
+    BatchedStatements statements,
+  ) {
+    for (final statement in statements.statements) {
+      if (statement.startsWith('INSERT')) _maybeFail(statement);
+    }
+    return executor.runBatched(statements);
+  }
+}
+
 void main() {
   group('DriftLibrarySyncEngine', () {
     late NavisDatabase database;
@@ -306,6 +346,87 @@ void main() {
           ledger.where((e) => e.operation == 'executionLeaseLost'),
           hasLength(1),
         );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    for (final (code, category) in [(5, 'databaseBusy'), (1, null)]) {
+      test('a write failing with SQLite code $code reports '
+          '${category ?? 'a plain failure'}', () async {
+        await database.close();
+        final timeouts = _CatalogWriteTimeouts(resultCode: code);
+        database = NavisDatabase(
+          NativeDatabase.memory().interceptWith(timeouts),
+        );
+        serverConfigRepository = ServerConfigRepository(
+          database,
+          credentials: credentials,
+        );
+        await saveSession();
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist 1'));
+        final localEngine = serialDriftEngine(
+          api: api,
+          database: database,
+          repository: serverConfigRepository,
+        );
+        final before = DateTime.now();
+
+        final state = await localEngine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+
+        expect(timeouts.failures, greaterThan(0));
+        expect(state.status, LibrarySyncStatus.failed);
+        expect(state.failureCategory, category);
+        if (category == null) {
+          expect(state.errorMessage, 'Metadata sync failed.');
+          expect(state.nextRetryAt, isNull);
+        } else {
+          // Silent self-healing: no user-facing text, retry in about a minute.
+          expect(state.errorMessage, isEmpty);
+          expect(
+            state.nextRetryAt!.difference(before).inSeconds,
+            inInclusiveRange(55, 70),
+          );
+        }
+      }, skip: !sqliteAvailable);
+    }
+
+    test(
+      'a lock timeout in targeted hydration is silent and retried soon',
+      () async {
+        await database.close();
+        final timeouts = _CatalogWriteTimeouts(table: 'playlists');
+        database = NavisDatabase(
+          NativeDatabase.memory().interceptWith(timeouts),
+        );
+        serverConfigRepository = ServerConfigRepository(
+          database,
+          credentials: credentials,
+        );
+        await saveSession();
+        api.playlists = const <Playlist>[
+          Playlist(id: 'playlist-1', name: 'Favorites', songCount: 2),
+        ];
+        final localEngine = serialDriftEngine(
+          api: api,
+          database: database,
+          repository: serverConfigRepository,
+        );
+
+        final state = await localEngine.executeSyncPlan(
+          syncPlanForTest(
+            LibrarySyncPlanKind.targetedHydration,
+            target: const LibrarySyncTarget.playlistHeaders(),
+          ),
+        );
+
+        expect(timeouts.failures, greaterThan(0));
+        expect(state.status, LibrarySyncStatus.failed);
+        expect(state.failureCategory, 'databaseBusy');
+        expect(state.errorMessage, isEmpty);
+        expect(state.isSilentFailure, isTrue);
+        expect(state.nextRetryAt, isNotNull);
       },
       skip: !sqliteAvailable,
     );

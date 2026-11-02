@@ -1899,7 +1899,9 @@ class _HomeSyncLogo extends ConsumerWidget {
     final hasDeterminate =
         isRunning && !syncState.fastPathActive && (syncState.total ?? 0) > 0;
     final showFailure =
-        !isRunning && syncState.status == LibrarySyncStatus.failed;
+        !isRunning &&
+        syncState.status == LibrarySyncStatus.failed &&
+        !syncState.isSilentFailure;
     final showBridgeRing =
         showImmediateRefreshRing && !isRunning && !showFailure;
     final showRing = isRunning || showFailure || showBridgeRing;
