@@ -23,7 +23,7 @@ import '../../../../helpers/reachability_fakes.dart';
 import '../../../../helpers/stub_library_sync_engine.dart';
 import '../../../../helpers/test_database.dart';
 
-class _MockApi extends Mock implements SubsonicApiClient {}
+class _MockApi extends Mock implements SubsonicApiClient;
 
 const _server = ServerConfigModel(
   url: 'https://example.com',
@@ -38,7 +38,7 @@ const _pl = PlaylistsTableData(isLocal: false, id: 'p', name: 'Mix');
 /// a silent no-op, and a hydration snapshots the server when it starts and
 /// writes it when its gate opens (a slow `getPlaylist`).
 class _Fixture {
-  _Fixture(this.db, this.server) {
+  new(this.db, this.server) {
     when(
       () => api.updatePlaylist(
         id: 'p',

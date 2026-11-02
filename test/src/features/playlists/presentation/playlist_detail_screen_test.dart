@@ -376,6 +376,7 @@ void main() {
       final notices = await _pumpEditableDetail(
         tester,
         _playlist,
+        viewer: 'navis',
         actions: actions,
       );
 

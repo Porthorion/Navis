@@ -27,6 +27,12 @@ Last updated: 2026-11-02
   Failing-first: add tests `Expected: (added: 1, alreadyThere: 2, failed: 0)
   Actual: 1`; with `requireFresh: false` the stale-hydration test ends
   `['A','B','C','D']` instead of `['A','D']`.
+- [x] Issue #212 B4+B5 (1.5.2), kept upload and ownership — 2026-11-02
+  (branch `fix/playlist-edits`). The kept-device-copy re-upload now uses
+  `replacePlaylistSongs` plus a name-only `updatePlaylist` (empty list cleared
+  by single-index removals); `canEditPlaylist` treats a server playlist with a
+  known owner as not editable while the viewer name is unknown. B2 (album to New
+  playlist) skipped: a probe showed `createPlaylist` with 5 ids is complete.
 - [x] Issue #212 A (1.5.2), playlist song sheet cut off — 2026-11-02
   (branch `fix/playlist-song-sheet`). `_showSongActions` now uses the
   `showSongContextMenu` pattern (`isScrollControlled`, 0.85 height cap,

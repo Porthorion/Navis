@@ -3437,8 +3437,9 @@ works like the weekly playlists. `homeTrendingProvider`
   username through `playlistViewerProvider` (server config, not the API client),
   so it does not depend on an online API.
   `canEditPlaylist` accepts local rows; server rows must not have `readOnly`
-  true, and their owner must match the username ignoring case when both are
-  known. A missing owner or username preserves editable behavior. Own rows
+  true, and their owner must match the username ignoring case. A missing owner stays
+  editable; a known owner with an unknown username (server config not loaded)
+  is not, so other users' playlists never show edit controls. Own rows
   additionally exclude comments starting with `Auto-imported from '`.
   Read-only smart playlists therefore fall under Other. Old Navidrome imports
   with edited comments and imports from servers without `readonly` cannot
