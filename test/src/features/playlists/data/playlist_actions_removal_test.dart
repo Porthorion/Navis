@@ -217,10 +217,21 @@ void main() {
     expect(f.shown, ['A', 'B', 'C', 'A']);
   }, skip: !sqliteAvailable);
 
-  test('fewer occurrences than expected removes the last one', () async {
+  test('a missing occurrence removes nothing', () async {
     final f = await _open(['A', 'B', 'A'], hydrating: false);
     await f.actions.removeAt(_pl, songId: 'A', occurrence: 5);
+    expect(f.server, ['A', 'B', 'A']);
+  }, skip: !sqliteAvailable);
+
+  test('removing the same duplicate row twice keeps the other copy', () async {
+    final f = await _open(['A', 'B', 'A'], hydrating: false);
+    await Future.wait([
+      f.actions.removeAt(_pl, songId: 'A', occurrence: 1),
+      f.actions.removeAt(_pl, songId: 'A', occurrence: 1),
+    ]);
+    await f.landHydrations();
     expect(f.server, ['A', 'B']);
+    expect(f.shown, ['A', 'B']);
   }, skip: !sqliteAvailable);
 
   test('two fast removals both land on the chosen songs', () async {

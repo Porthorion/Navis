@@ -433,14 +433,13 @@ class PlaylistActions {
 
   /// Index of the [occurrence]-th [songId] in [ids], else the last one, else -1.
   int _occurrenceIndex(List<String> ids, String songId, int occurrence) {
+    // A missing occurrence was already removed (a stale or repeated tap):
+    // removing another copy would delete one the user kept.
     var seen = 0;
-    var last = -1;
     for (var i = 0; i < ids.length; i++) {
-      if (ids[i] != songId) continue;
-      if (seen++ == occurrence) return i;
-      last = i;
+      if (ids[i] == songId && seen++ == occurrence) return i;
     }
-    return last;
+    return -1;
   }
 
   /// Stores a server playlist's entries right after an edit. Ids the library
