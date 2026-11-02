@@ -108,6 +108,7 @@ class _RailSidebar extends ConsumerWidget {
     this.onToggleAutohide,
     this.librarySectionsFit,
     this.showHistoryControls = false,
+    this.peekStrip = false,
   });
 
   final List<_ShellDestination> destinations;
@@ -144,11 +145,17 @@ class _RailSidebar extends ConsumerWidget {
   /// Shows desktop Back/Forward history buttons above the destinations.
   final bool showHistoryControls;
 
+  /// Auto-hide: this rail is clipped to a 64 px strip while closed, so the
+  /// lock and the icons sit inside the strip and Back/Forward and the labels
+  /// start past it.
+  final bool peekStrip;
+
   Widget _autohideButton(BuildContext context) {
     return SizedBox(
       width: 32,
       height: 32,
       child: IconButton(
+        key: const ValueKey<String>('desktopNavbarAutohideToggle'),
         icon: Icon(
           navbarAutohide ? Icons.lock_open_rounded : Icons.lock_rounded,
           size: 16,
@@ -181,6 +188,16 @@ class _RailSidebar extends ConsumerWidget {
               children: <Widget>[
                 if (showHistoryControls) const _HistoryButtons(vertical: true),
                 if (onToggleAutohide != null) _autohideButton(context),
+              ],
+            )
+          else if (peekStrip)
+            Row(
+              children: <Widget>[
+                // Centres the lock in the 64 px strip: 4 outer + 2 + 10 + 16.
+                const SizedBox(width: 10),
+                if (onToggleAutohide != null) _autohideButton(context),
+                const SizedBox(width: 24),
+                if (showHistoryControls) const _HistoryButtons(),
               ],
             )
           else if (showHistoryControls || onToggleAutohide != null)
@@ -248,6 +265,7 @@ class _RailSidebar extends ConsumerWidget {
                         onTap: () => onDestinationSelected(i),
                         iconsOnly: iconsOnly,
                         compact: compact,
+                        peekStrip: peekStrip,
                         showBadge: false,
                       ),
                     ),
@@ -337,6 +355,7 @@ class _RailNavTile extends StatelessWidget {
     this.iconsOnly = false,
     this.compact = false,
     this.showBadge = false,
+    this.peekStrip = false,
   });
 
   final _ShellDestination destination;
@@ -345,6 +364,10 @@ class _RailNavTile extends StatelessWidget {
   final bool iconsOnly;
   final bool compact;
   final bool showBadge;
+
+  /// Auto-hide: the icon sits at the centre of the 64 px strip (4 + 2 outer
+  /// rail insets + 14), whatever the style, and the label follows it.
+  final bool peekStrip;
 
   @override
   Widget build(BuildContext context) {
@@ -357,6 +380,8 @@ class _RailNavTile extends StatelessWidget {
     );
     final tilePadding = iconsOnly
         ? const EdgeInsets.symmetric(horizontal: 4, vertical: 12)
+        : peekStrip
+        ? EdgeInsets.symmetric(horizontal: 14, vertical: compact ? 10 : 14)
         : compact
         ? const EdgeInsets.symmetric(horizontal: 12, vertical: 10)
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 14);
@@ -385,7 +410,8 @@ class _RailNavTile extends StatelessWidget {
                 ),
               ),
               if (!iconsOnly) ...<Widget>[
-                const SizedBox(width: 12),
+                // The label starts at the strip's edge: clipped away while closed.
+                SizedBox(width: peekStrip ? 20 : 12),
                 Expanded(
                   child: Text(
                     destination.label,

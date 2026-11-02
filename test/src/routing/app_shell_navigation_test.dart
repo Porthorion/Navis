@@ -40,6 +40,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:navis/src/common_widgets/cover_art_source.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
 import 'package:navis/src/features/player/presentation/now_playing_backdrop.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
@@ -904,18 +905,182 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final sidebar = find.byKey(const ValueKey<String>('desktopSidebarRegion'));
-    expect(sidebar, findsOneWidget);
-    expect(tester.getSize(sidebar).width, 64);
-    expect(
-      find.descendant(of: sidebar, matching: find.text('Home')),
-      findsNothing,
+    final rail = find.byKey(const ValueKey<String>('desktopAutohideRail'));
+    expect(rail, findsOneWidget);
+    expect(tester.getSize(rail).width, 64);
+    final home = find.descendant(
+      of: rail,
+      matching: find.byIcon(Icons.home_rounded),
     );
-    expect(
-      find.descendant(of: sidebar, matching: find.byIcon(Icons.home_rounded)),
-      findsOneWidget,
-    );
+    expect(home, findsOneWidget);
+    // The rail is laid out expanded and clipped: its label exists but lies
+    // beyond the 64 px strip.
+    final label = find.descendant(of: rail, matching: find.text('Home'));
+    expect(tester.getRect(label).left, greaterThanOrEqualTo(64));
     expect(tester.takeException(), isNull);
+  });
+
+  group('desktop sidebar auto-hide overlay', () {
+    Future<ProviderContainer> pumpDesktop(
+      WidgetTester tester, {
+      required bool autohide,
+    }) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final settings = const AppSettingsModel.defaults().copyWith(
+        desktopNavbarAutohide: autohide,
+      );
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          appSettingsProvider.overrideWithValue(AsyncData(settings)),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    final sidebar = find.byKey(const ValueKey<String>('desktopSidebarRegion'));
+    final rail = find.byKey(const ValueKey<String>('desktopAutohideRail'));
+    final page = find.byType(DesktopNavigationPresentationScope);
+
+    testWidgets('hovering expands the rail over a page that does not move', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final pageBefore = tester.getRect(page);
+      expect(pageBefore.left, 65, reason: '64 rail slot + 1 divider, no inset');
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(900, 300));
+      await mouse.moveTo(const Offset(30, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+
+      expect(tester.getSize(rail).width, greaterThan(64));
+      expect(tester.getRect(page), pageBefore);
+      expect(
+        DesktopNavigationPresentationScope.iconsOnlyOf(
+          tester.element(find.byType(StatefulNavigationShell)),
+        ),
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('selecting a destination closes the overlay at once', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(30, 300));
+      await mouse.moveTo(const Offset(31, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(rail).width, greaterThan(64));
+
+      await mouse.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('railNavTile-1'))),
+      );
+      await mouse.down(
+        tester.getCenter(find.byKey(const ValueKey('railNavTile-1'))),
+      );
+      await mouse.up();
+      await tester.pumpAndSettle();
+
+      expect(tester.getSize(rail).width, 64);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('icons stay put between the collapsed and expanded rail', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final icon = find.descendant(
+        of: rail,
+        matching: find.byIcon(Icons.home_rounded),
+      );
+      final lock = find.byKey(const ValueKey('desktopNavbarAutohideToggle'));
+      final iconCollapsed = tester.getCenter(icon);
+      final lockCollapsed = tester.getCenter(lock);
+      expect(tester.getSize(rail).width, 64);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(900, 300));
+      await mouse.moveTo(const Offset(30, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(rail).width, greaterThan(64));
+
+      expect(tester.getCenter(icon), iconCollapsed);
+      expect(tester.getCenter(lock), lockCollapsed);
+      expect(iconCollapsed.dx, 32);
+    });
+
+    testWidgets('a pointer crossing the strip does not open the rail', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(900, 300));
+      await mouse.moveTo(const Offset(30, 300));
+      await tester.pump(const Duration(milliseconds: 60));
+      await mouse.moveTo(const Offset(900, 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(rail).width, 64);
+    });
+
+    testWidgets('the rail keeps its labels while it slides closed', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(30, 300));
+      await mouse.moveTo(const Offset(31, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+      final tile = tester.getCenter(
+        find.byKey(const ValueKey('railNavTile-1')),
+      );
+      await mouse.moveTo(tile);
+      await mouse.down(tile);
+      await mouse.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final label = find.descendant(of: rail, matching: find.text('Home'));
+      // Mid-close the clip is between the strip and the full rail, and the
+      // label is still laid out: it slides out instead of vanishing.
+      expect(tester.getSize(rail).width, greaterThan(64));
+      expect(tester.getSize(rail).width, lessThan(282));
+      expect(label, findsOneWidget);
+
+      await tester.pumpAndSettle();
+      expect(tester.getSize(rail).width, 64);
+      expect(tester.getRect(label).left, greaterThanOrEqualTo(64));
+    });
+
+    testWidgets('stable rails keep their reserved width and page edge', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: false);
+      final railWidth = tester.getSize(sidebar).width;
+      expect(railWidth, greaterThan(64));
+      expect(tester.getRect(page).left, railWidth + 1);
+    });
   });
 
   testWidgets('compact Desktop View keeps the persistent desktop player bar', (

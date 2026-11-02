@@ -1133,9 +1133,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
     final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
-    final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 0.0;
     final desktopRuntime = adaptiveContext.desktopRuntime;
     final desktopMode = adaptiveContext.useDesktopShell;
+    // Home's sections add NavisSpace.md themselves; desktop tops it up to the
+    // page gutter.
+    final compactHorizontalInset = compactWideLandscapeMode
+        ? 10.0
+        : (desktopMode ? NavisSpace.xl - NavisSpace.md : 0.0);
     // Phones get a tighter header (about 40 px less than tablets) so more of
     // You Might Like is visible; tablet portrait keeps the roomier one.
     final phoneHeader = adaptiveLayoutClass == AdaptiveLayoutClass.phoneCompact;

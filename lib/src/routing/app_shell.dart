@@ -1568,7 +1568,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                               desktopViewSize:
                                   _lastDesktopViewSize ?? mediaSize,
                               child: _DesktopWorkspace(
-                                desktopLayoutClass: desktopLayoutClass,
                                 sidebarWidth: desktopSidebarWidth,
                                 navbarStyle: navbarStyle,
                                 navbarAutohide: navbarAutohide,

@@ -143,6 +143,8 @@ class DiagnosticsPresentationController {
     'lyrics': 'desktopPlayerLyricsButton',
     'queue': 'desktopQueueButton',
     'miniPlayer': 'desktopPlayerMiniPlayerButton',
+    // The first rail destination: hovering it opens an auto-hide rail.
+    'rail': 'railNavTile-0',
   };
   static const _tooltipPointerDevice = 904;
   static const libraryActions = {
