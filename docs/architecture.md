@@ -3450,6 +3450,12 @@ works like the weekly playlists. `homeTrendingProvider`
   Creation and rename reject blank trimmed names. Server creation disables
   transport retries because repeating it can create another playlist. Server
   reorder refreshes detail even on failure to revert optimistic UI state.
+- The phone song-actions sheet on the playlist detail screen
+  (`_showSongActions`) is scrollable like `showSongContextMenu`:
+  `isScrollControlled`, `useSafeArea`, a 0.85 x screen-height cap and a
+  `SingleChildScrollView`. Without it the eight rows (song with artist and
+  album) overflowed the 9/16 default cap and "Remove from playlist" fell
+  outside the sheet on phones with a mini player.
 - Device playlists use `local:<uuid>` IDs and `isLocal: true`. The DAO replaces
   their song occurrences in one transaction, preserving duplicates and order,
   skipping IDs absent from `songs`, and recomputing count, duration (missing

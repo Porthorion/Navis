@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-10-28
+Last updated: 2026-11-02
 
 ---
 
@@ -14,6 +14,14 @@ Last updated: 2026-10-28
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #212 A (1.5.2), playlist song sheet cut off — 2026-11-02
+  (branch `fix/playlist-song-sheet`). `_showSongActions` now uses the
+  `showSongContextMenu` pattern (`isScrollControlled`, 0.85 height cap,
+  `SingleChildScrollView`), so Remove is reachable. Failing-first
+  (`playlist_song_sheet_test`): `A RenderFlex overflowed by 60 pixels` (393x851
+  with mini player), 24 px (without), 215 px (360x640, text scale 1.3).
+  Round 2: `useSafeArea: true` keeps the sheet below the status bar (test with a
+  120 dp top inset: sheet top 54 dp without it, >= 120 dp with it).
 - [x] Issue #197 (1.5.2), sync lock timeout — 2026-11-01
   (branch `fix/sync-lock-timeout`). A lock timeout during sync is now transient
   and silent: engine `failureCategory: 'databaseBusy'` (no error text, no
