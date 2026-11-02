@@ -226,7 +226,7 @@ ADRs without reliable evidence. Use the template and status rules in
 - [ ] Runtime loop, screenshot inspection, and clean restart were completed when required.
 - [ ] Security and backward compatibility were considered where applicable.
 - [ ] Active documentation and release notes were updated where applicable.
-- [ ] `docs/project/progress.md` records completion evidence and validation gaps.
+- [ ] `docs/project/progress.md` records completion evidence and validation gaps. Architecture, progress and decision docs are updated once per PR or release, only for lasting changes, not per commit.
 - [ ] Removed/deprecated behavior was historically recorded where applicable.
 - [ ] Generated source was regenerated when required.
 - [ ] The complete diff was reviewed; no unrelated changes or secrets remain.

@@ -2603,7 +2603,11 @@ class NavisAudioHandler extends BaseAudioHandler
         if (identical(_lastSeek, request)) _dropPlayerRangeStart();
         if (identical(_pendingSeek, request)) {
           // A song that still advances is alive: it keeps playing quietly.
-          final shouldFailOver = _isDesktopRuntime && !_playbackAdvancing;
+          // Desktop, or any platform whose failed reload left the player
+          // empty (#203), fails over: nothing is left to keep playing.
+          final shouldFailOver =
+              (_isDesktopRuntime || _player.audioSources.isEmpty) &&
+              !_playbackAdvancing;
           _seekFailureBlocksRecovery = !shouldFailOver;
           _seekFailurePosition = _player.position;
           AppLogger.warning('Seek failed: ${error.runtimeType}\n$stackTrace');
