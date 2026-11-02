@@ -12100,7 +12100,6 @@ void main() {
         'unknown duration',
         'unsupported',
         'original',
-        'completed file',
       ]) {
         test('$gate keeps normal advance', () async {
           final (handler, player) = await setup(
@@ -12108,12 +12107,6 @@ void main() {
             original: gate == 'original',
             duration: gate == 'unknown duration' ? null : 300,
           );
-          if (gate == 'completed file') {
-            final path =
-                handler.currentMediaItem!.extras!['sidecarCacheFilePath']!
-                    as String;
-            await File(path).writeAsBytes([1, 2, 3]);
-          }
           final loads = player.sourceLoads;
           player.finishCurrentTrack(
             endPosition: Duration(seconds: gate == 'near end' ? 290 : 47),
@@ -12124,6 +12117,42 @@ void main() {
           expect(handler.snapshot.currentSongId, 'song-2');
         });
       }
+
+      // A cut stream drains in mpv after the sidecar's full re-download has
+      // already finished, so a completed file must not block the recovery.
+      test('a completed cache file still recovers the cut', () async {
+        late NavisDatabase database;
+        final (handler, player) = await setup(
+          onDatabase: (db) => database = db,
+        );
+        final path =
+            handler.currentMediaItem!.extras!['sidecarCacheFilePath']!
+                as String;
+        await File(path).writeAsBytes(List<int>.filled(64, 1));
+        // The sidecar registers the finished download as a rolling entry.
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: path,
+            fileSize: 64,
+            format: 'opus',
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        final loads = player.sourceLoads;
+
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => player.sourceLoads > loads);
+        await drain(handler);
+
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.sourceLoads, loads + 1);
+        expect(current(player).uri, Uri.file(path));
+        expect(player.position.inSeconds, 47);
+        expect(player.playing, isTrue);
+      });
 
       test(
         'completion uses the backend position instead of its clock',
