@@ -3117,6 +3117,20 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get addToPlaylistAlreadyThere => 'Already in the playlist';
+
+  @override
+  String addToPlaylistSomeAlreadyThere(int added, int existing) {
+    String _temp0 = intl.Intl.pluralLogic(
+      added,
+      locale: localeName,
+      other: '$added songs',
+      one: '1 song',
+    );
+    return 'Added $_temp0 · $existing already in the playlist';
+  }
+
+  @override
   String get addToPlaylistNewPlaylist => 'New Playlist';
 
   @override

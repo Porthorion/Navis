@@ -153,7 +153,7 @@ void main() {
     ]);
   });
 
-  test('unknown username preserves editable ownership', () async {
+  test('unknown username keeps a known owner out of Yours', () async {
     final result = await items(
       container(
         me: null,
@@ -169,7 +169,7 @@ void main() {
         ]),
       ),
     );
-    expect(result.single.section, PlaylistLibrarySection.yours);
+    expect(result.single.section, PlaylistLibrarySection.other);
   });
 
   test('Trending sits right under the weekly playlists', () async {

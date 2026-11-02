@@ -3437,8 +3437,9 @@ works like the weekly playlists. `homeTrendingProvider`
   username through `playlistViewerProvider` (server config, not the API client),
   so it does not depend on an online API.
   `canEditPlaylist` accepts local rows; server rows must not have `readOnly`
-  true, and their owner must match the username ignoring case when both are
-  known. A missing owner or username preserves editable behavior. Own rows
+  true, and their owner must match the username ignoring case. A missing owner stays
+  editable; a known owner with an unknown username (server config not loaded)
+  is not, so other users' playlists never show edit controls. Own rows
   additionally exclude comments starting with `Auto-imported from '`.
   Read-only smart playlists therefore fall under Other. Old Navidrome imports
   with edited comments and imports from servers without `readonly` cannot
@@ -3446,10 +3447,34 @@ works like the weekly playlists. `homeTrendingProvider`
   their own. Each `PlaylistLibraryItem` exposes its section for the Library UI.
 - `PlaylistActions` supplies create/rename/delete/add/remove/reorder methods.
   Device mutations use only `PlaylistDao`; server mutations retain their
-  header/detail sync invalidations and throw when the API is unavailable.
+  header sync invalidations and throw when the API is unavailable.
   Creation and rename reject blank trimmed names. Server creation disables
-  transport retries because repeating it can create another playlist. Server
-  reorder refreshes detail even on failure to revert optimistic UI state.
+  transport retries because repeating it can create another playlist.
+  Server edits of one playlist (add, remove, reorder) run one at a time in
+  order (`_edits`) through one shared tail (`_serverEdit`): on success the
+  resulting list is stored through `PlaylistDao.replacePlaylistSongs`; after
+  success or failure it invalidates `playlistSyncProvider` and starts a
+  `requireFresh` playlist hydration without awaiting it, so it cannot join one
+  that began before the edit and a failed edit still reverts the optimistic
+  UI state. Remove names the song, not a position: the detail screen captures
+  the chosen row's id and its occurrence count when the menu opens, and
+  `removeAt` re-reads the server list inside the chain and removes that
+  occurrence with a single `songIndexToRemove` (Navidrome 0.64 ignores
+  several). The caller also passes how many copies the shown list held: none
+  left removes nothing, and a different count throws
+  `PlaylistChangedException` without writing, so a stale or repeated tap never
+  removes a copy the user kept. Reorder sends
+  the list the screen showed; inside the chain it re-reads the playlist and, if
+  that differs (an add or remove landed meanwhile), throws
+  `PlaylistChangedException` without writing, so a stale list can never
+  resurrect a removed song or drop an added one. Device playlists make the same
+  check against the stored list in one transaction.
+- The phone song-actions sheet on the playlist detail screen
+  (`_showSongActions`) is scrollable like `showSongContextMenu`:
+  `isScrollControlled`, `useSafeArea`, a 0.85 x screen-height cap and a
+  `SingleChildScrollView`. Without it the eight rows (song with artist and
+  album) overflowed the 9/16 default cap and "Remove from playlist" fell
+  outside the sheet on phones with a mini player.
 - Device playlists use `local:<uuid>` IDs and `isLocal: true`. The DAO replaces
   their song occurrences in one transaction, preserving duplicates and order,
   skipping IDs absent from `songs`, and recomputing count, duration (missing
@@ -3507,8 +3532,12 @@ works like the weekly playlists. `homeTrendingProvider`
   the replacement transaction. If changed, both copies remain and a notice says
   "Playlist changed while saving; the device copy was kept". The resolved server
   id remains pending for that device id. Saving again updates that same server
-  playlist with the current device name and ordered entries through
-  `updatePlaylist`, then repeats the snapshot-checked replacement; recovery is
+  playlist with the current device entries through
+  `replacePlaylistSongs` (`createPlaylist` with `playlistId`: exact, duplicates
+  and order kept on Navidrome 0.64.2, which ignores several removal indexes) and
+  the name through a name-only `updatePlaylist`; an empty device list is cleared
+  with single-index removals, last first, because an empty replace is a no-op.
+  It then repeats the snapshot-checked replacement; recovery is
   completed only after the device row is replaced. After replacement, its old `local:<uuid>` id is recorded in
   `playlistMovedToServerProvider`, which an open `PlaylistDetailScreen` follows
   via `NavService.replacePlaylistDetail`. The result carries kept/total counts;
@@ -3531,9 +3560,15 @@ works like the weekly playlists. `homeTrendingProvider`
   `playlistDetailTrackRemoveFailed` or `playlistDetailReorderFailed` instead of
   swallowing the error. The playlist detail screen computes editability once per
   build and hides the drag handle and "Remove from playlist" when it is false.
-  The add-to-playlist sheet lists only editable playlists and treats every song
-  skipped (`addSongs` result) as a failure; its notices use the opening
-  context because the sheet is already closed when the result arrives.
+  The add-to-playlist sheet lists only editable playlists. `addSongs` skips
+  ids the playlist already holds (read from the server just before the add, or
+  the stored rows for a device playlist) and ids repeated in the picked list,
+  and returns `(added, alreadyThere, failed)`; it makes no update call when
+  nothing is new. The sheet reports a total failure (nothing added, some
+  failed) as an error, a partial one as "skipped", and already-there songs as
+  "Added N songs · M already in the playlist" or "Already in the playlist".
+  Its notices use the opening context because the sheet is already closed when
+  the result arrives.
 - `playlistLibraryItemsProvider` adds a `PlaylistLibraryItem.trending` after
   the weekly playlists while the switch is allowed and an account is signed
   in, whatever the chart holds (rows are still loading, or there is no chart
