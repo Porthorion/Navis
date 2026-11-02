@@ -16880,6 +16880,7 @@ void main() {
       bool positionStreams = false,
       int count = 2,
       NavisQueueWindow queueWindow = const NavisQueueWindow(),
+      bool? desktopRuntimeOverride,
     }) async {
       final previousHttp = HttpOverrides.current;
       HttpOverrides.global = null;
@@ -16923,6 +16924,7 @@ void main() {
         count,
         positionStreams: positionStreams,
         queueWindow: queueWindow,
+        desktopRuntimeOverride: desktopRuntimeOverride,
         sidecarStreams: true,
         streamingQuality: transcode
             ? const StreamingQuality(
@@ -18026,6 +18028,66 @@ void main() {
       gate.complete();
       await Future.wait([loading, seeking]);
     });
+
+    // Issue #203 (1): a seek whose recovery reload times out leaves the player
+    // empty. Android keeps the song and fails over to the next one, like desktop.
+    for (final android in [true, false]) {
+      test(
+        'a seek reload that times out keeps the song and fails over (${android ? 'Android' : 'desktop'})',
+        () async {
+          if (android) {
+            debugDefaultTargetPlatformOverride = TargetPlatform.android;
+            addTearDown(() => debugDefaultTargetPlatformOverride = null);
+          }
+          final hung = <String>{};
+          final (handler, player, _) = await fixture(
+            timeouts: quick,
+            count: 3,
+            hungLoadSongs: hung,
+            desktopRuntimeOverride: !android,
+          );
+          await handler.replaceQueue(songIds(3), expandMatchFlows: false);
+          player
+            ..ignoreSeeks = true
+            ..simulateProgress = false
+            ..nativePositionFrozen = true;
+          hung.add('song-0');
+          await handler.seek(const Duration(seconds: 90));
+          await idle(handler);
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(handler.snapshot.queueSongIds, songIds(3));
+        },
+      );
+    }
+
+    test(
+      'a stalled seek on the last song stops quietly and keeps it (Android)',
+      () async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.android;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        final hung = <String>{};
+        final (handler, player, _) = await fixture(
+          timeouts: quick,
+          count: 2,
+          hungLoadSongs: hung,
+          desktopRuntimeOverride: false,
+        );
+        await handler.replaceQueue(
+          songIds(2),
+          startIndex: 1,
+          expandMatchFlows: false,
+        );
+        player
+          ..ignoreSeeks = true
+          ..simulateProgress = false
+          ..nativePositionFrozen = true;
+        hung.add('song-1');
+        await handler.seek(const Duration(seconds: 90));
+        await idle(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(handler.snapshot.playing, isFalse);
+      },
+    );
 
     test('a failover that already moved the queue is not repeated', () async {
       final rebuilt = <_ControllableAudioPlayer>[];

@@ -160,11 +160,13 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _clearPendingLogicalQueue();
     _pendingLogicalQueueSongs = null;
     if (_radioStation == null) {
+      // A failed load that left the player empty keeps the loading song on
+      // every platform (#203), so failover or Play can still act on it.
       final departure = _prematureTranscodeDeparture;
       _setCurrentMediaItem(
         departure != null && !departure.sourceReady
             ? departure.item
-            : _isDesktopRuntime && failed && _player.audioSources.isEmpty
+            : failed && _player.audioSources.isEmpty
             ? _queueItems.where((item) => item.id == loadingSongId).firstOrNull
             : _player.audioSources.isEmpty
             ? null

@@ -15,9 +15,10 @@ The current version and supported SDK constraints live in `pubspec.yaml`.
    [docs/history/removed-features.md](docs/history/removed-features.md).
 5. Select focused validation first. Runtime-affecting work must complete the
    runtime loop in [docs/development/development-workflow.md](docs/development/development-workflow.md).
-6. Update `docs/project/progress.md` with completion evidence. New implementation
-   plans belong in `docs/plans/`; completed plans go in
-   `docs/history/completed-plans/`.
+6. Update `docs/project/progress.md` with completion evidence. Architecture,
+   progress and decision docs are updated once per PR or release, and only for
+   lasting changes, not per commit. New implementation plans belong in
+   `docs/plans/`; completed plans go in `docs/history/completed-plans/`.
 7. Review the complete diff and run `./tool/check.sh` before handoff, except
    for documentation-only changes where proportional validation is sufficient.
 

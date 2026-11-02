@@ -14,6 +14,17 @@ Last updated: 2026-11-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #203 (1) (1.5.2), cold seek stall leaves Android idle — 2026-11-02
+  (branch `fix/cold-seek-stall-idle`). Cause (proven at runtime): a stalled
+  cold seek's reload times out, `_recoverPlayersFromTimeout` leaves an empty
+  player, and `_completeQueueLoad(failed: true)` cleared the current song on
+  Android only (desktop kept it), so nothing recovered. Now a failed load that
+  left the player empty keeps the loading song on every platform, and a seek
+  failure with an empty player fails over like desktop. Harness
+  `cold_seek_stall` now stalls only after the seek's load began (the old gate
+  could pass early and hit the playing song). Failing-first: Android test
+  `Expected: 'song-1' Actual: <null>`. Follow-up: seekEvent `path` reads
+  `direct` with `recoveryAttempts` 0 on the transcode-offset path.
 - [x] Issue #212 B1+B3 (1.5.2), playlist add/remove — 2026-11-02
   (branch `fix/playlist-edits`, stacked on `fix/playlist-song-sheet`). `addSongs`
   skips songs the playlist already holds and returns `(added, alreadyThere,
