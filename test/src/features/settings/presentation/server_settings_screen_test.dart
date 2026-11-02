@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,6 +47,13 @@ class _FakeSignOutService implements SignOutService {
     callCount++;
     lastWipeLocalData = wipeLocalData;
   }
+}
+
+class _GatedSignOutService implements SignOutService {
+  final gate = Completer<void>();
+
+  @override
+  Future<void> signOut({required bool wipeLocalData}) => gate.future;
 }
 
 class _TestServerConfigNotifier extends ServerConfigNotifier {
@@ -252,6 +261,48 @@ void main() {
     expect(find.byType(TextFormField), findsNothing);
     expect(find.text('Current Connection'), findsOneWidget);
     expect(find.text('https://example.com'), findsOneWidget);
+  });
+
+  testWidgets('sign out shows the teardown phase next to the spinner', (
+    tester,
+  ) async {
+    final signOut = _GatedSignOutService();
+    await tester.pumpWidget(
+      _buildTestApp(
+        configNotifier: _TestServerConfigNotifier(initialConfig),
+        connectionService: _FakeServerConnectionService(),
+        signOutService: signOut,
+      ),
+    );
+    await tester.pumpAndSettle();
+    final phase = ProviderScope.containerOf(
+      tester.element(find.byType(ServerSettingsScreen)),
+    ).read(sessionTransitionProvider.notifier);
+
+    await tester.ensureVisible(find.text('Sign Out'));
+    await tester.tap(find.text('Sign Out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sign Out (Keep Local Data)'));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    phase.setTransition(SessionTransition.stoppingSync);
+    await tester.pump();
+    expect(find.text('Stopping sync…'), findsOneWidget);
+
+    phase.setTransition(SessionTransition.clearingData);
+    await tester.pump();
+    expect(find.text('Clearing data…'), findsOneWidget);
+
+    phase.setTransition(SessionTransition.finishing);
+    await tester.pump();
+    expect(find.text('Signing out…'), findsOneWidget);
+
+    signOut.gate.completeError(StateError('fixture'));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Signing out…'), findsNothing);
+    await tester.pumpAndSettle(const Duration(seconds: 10));
   });
 
   testWidgets('sign out dialog presents both options', (tester) async {
