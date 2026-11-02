@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/server_create_recovery.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/library_sync_response_validation.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -15,6 +18,21 @@ typedef PlaylistUploadResult = ({
   int kept,
   int total,
 });
+
+/// Songs [PlaylistActions.addSongs] added, skipped because the playlist already
+/// had them (or the picked list repeated them) and could not add.
+typedef PlaylistAddResult = ({int added, int alreadyThere, int failed});
+
+/// A reorder or removal was made from a list that no longer matches the
+/// playlist (another edit landed meanwhile). Nothing was written; the screen
+/// shows the real list.
+class PlaylistChangedException implements Exception {
+  const new();
+
+  @override
+  String toString() => 'The playlist changed. Try again.';
+}
+
 typedef _UploadSnapshot = ({String name, List<String> songIds});
 
 final playlistActionsProvider = Provider<PlaylistActions>(PlaylistActions.new);
@@ -26,7 +44,7 @@ class PlaylistActions {
   final Ref _ref;
 
   final _uploads = <String, Future<PlaylistUploadResult>>{};
-  final _adds = <String, Future<int>>{};
+  final _edits = <String, Future<Object?>>{};
   final _createRecovery = ServerCreateRecovery<_UploadSnapshot>();
   final _keptUploads = <String>{};
 
@@ -111,14 +129,21 @@ class PlaylistActions {
     );
     var uploadedSnapshot = resolved.snapshot;
     if (_keptUploads.contains(localId)) {
-      final current = await api.getPlaylist(resolved.id);
-      validatePlaylistSnapshot(current, requestedId: resolved.id);
-      await api.updatePlaylist(
-        id: resolved.id,
-        name: snapshot.name,
-        songIndexesToRemove: List.generate(current.entries.length, (i) => i),
-        songIdsToAdd: snapshot.songIds,
-      );
+      // Navidrome 0.64 replaces exactly (duplicates and order kept) but
+      // ignores several removal indexes, and an empty replace is a no-op.
+      if (snapshot.songIds.isEmpty) {
+        final current = await api.getPlaylist(resolved.id);
+        validatePlaylistSnapshot(current, requestedId: resolved.id);
+        for (var i = current.entries.length - 1; i >= 0; i--) {
+          await api.updatePlaylist(id: resolved.id, songIndexesToRemove: [i]);
+        }
+      } else {
+        await api.replacePlaylistSongs(
+          playlistId: resolved.id,
+          songIds: snapshot.songIds,
+        );
+      }
+      await api.updatePlaylist(id: resolved.id, name: snapshot.name);
       uploadedSnapshot = snapshot;
     }
     final actual = await api.getPlaylist(resolved.id);
@@ -196,48 +221,109 @@ class PlaylistActions {
     if (_ref.mounted) _ref.invalidate(playlistSyncProvider);
   }
 
-  /// Returns the number of songs not added (local: unknown ids; server: songs
-  /// the server still lacks after a read-back).
-  Future<int> addSongs(
+  /// Adds the songs the playlist does not hold yet, in the picked order; a
+  /// repeated or present id counts as `alreadyThere`. `failed` counts songs
+  /// that did not land (local: unknown ids; server: still missing after a
+  /// read-back).
+  Future<PlaylistAddResult> addSongs(
     PlaylistsTableData playlist,
     List<String> songIds,
   ) async {
     if (playlist.isLocal) {
       final db = _ref.read(navisDatabaseProvider);
       return await db.transaction(() async {
-        final current = await db.playlistDao
-            .watchPlaylistSongs(playlist.id)
-            .first;
-        return await db.playlistDao.setLocalPlaylistSongs(playlist.id, [
-          ...current.map((song) => song.id),
-          ...songIds,
+        final current = [
+          for (final song
+              in await db.playlistDao.watchPlaylistSongs(playlist.id).first)
+            song.id,
+        ];
+        final fresh = _newIds(songIds, current);
+        final failed = await db.playlistDao.setLocalPlaylistSongs(playlist.id, [
+          ...current,
+          ...fresh,
         ]);
+        return (
+          added: fresh.length - failed,
+          alreadyThere: songIds.length - fresh.length,
+          failed: failed,
+        );
       });
     }
     final api = _serverApi();
-    // One add per playlist at a time: a second waits for the first.
-    final previous = _adds[playlist.id];
-    final run =
-        (previous?.then<void>((_) {}, onError: (_) {}) ?? Future<void>.value())
-            .then((_) => _addToServer(api, playlist.id, songIds));
-    _adds[playlist.id] = run;
+    return await _serverEdit(
+      playlist.id,
+      () => _addToServer(api, playlist.id, songIds),
+    );
+  }
+
+  /// One server edit of a playlist (add, remove, reorder), in order with the
+  /// others. [run] returns its result and the playlist's resulting ids, which
+  /// are stored at once; the refresh that follows (also after a failed edit,
+  /// which may have changed the server) must not join a hydration that started
+  /// before the edit, since that one carries the old list.
+  Future<T> _serverEdit<T>(
+    String id,
+    Future<({T result, List<String> ids})> Function() run,
+  ) async {
     try {
-      return await run;
+      return await _edit(id, () async {
+        final (:result, :ids) = await run();
+        try {
+          await _storeEntries(id, ids);
+        } on Object {
+          // The server edit succeeded; the refresh below repairs the list.
+        }
+        return result;
+      });
     } finally {
-      if (identical(_adds[playlist.id], run)) _adds.remove(playlist.id);
       if (_ref.mounted) {
-        _ref.invalidate(playlistDetailSyncProvider(playlist.id));
         _ref.invalidate(playlistSyncProvider);
+        unawaited(
+          _ref
+              .read(librarySyncControllerProvider.notifier)
+              .requestTarget(LibrarySyncTarget.playlist(id), requireFresh: true)
+              .then<void>((_) {}, onError: (Object _) {}),
+        );
       }
     }
   }
 
-  Future<int> _addToServer(
+  /// Runs one server edit of a playlist at a time (add, remove, reorder): a
+  /// second waits for the first, whether or not it failed.
+  Future<T> _edit<T>(String id, Future<T> Function() run) {
+    final previous = _edits[id];
+    final task =
+        (previous?.then<void>((_) {}, onError: (_) {}) ?? Future<void>.value())
+            .then((_) => run());
+    _edits[id] = task;
+    return task.whenComplete(() {
+      if (identical(_edits[id], task)) unawaited(_edits.remove(id));
+    });
+  }
+
+  /// [picked] without repeats and without anything in [present], in order.
+  List<String> _newIds(List<String> picked, List<String> present) {
+    final seen = present.toSet();
+    return [
+      for (final id in picked)
+        if (seen.add(id)) id,
+    ];
+  }
+
+  Future<({PlaylistAddResult result, List<String> ids})> _addToServer(
     SubsonicApiClient api,
     String id,
-    List<String> songIds,
+    List<String> picked,
   ) async {
     final before = await _entryIds(api, id);
+    final songIds = _newIds(picked, before);
+    final alreadyThere = picked.length - songIds.length;
+    if (songIds.isEmpty) {
+      return (
+        result: (added: 0, alreadyThere: alreadyThere, failed: 0),
+        ids: before,
+      );
+    }
     // Navidrome 0.64 answers ok to a multi-id add but adds nothing, so the
     // result is verified and what is missing is re-added one id per request.
     // A failed request leaves its ids missing; the read-backs decide.
@@ -246,8 +332,14 @@ class PlaylistActions {
     } on Object {
       // Counted as missing below.
     }
-    var missing = _missing(songIds, before, await _entryIds(api, id));
-    if (missing.isEmpty) return 0;
+    var after = await _entryIds(api, id);
+    var missing = _missing(songIds, before, after);
+    if (missing.isEmpty) {
+      return (
+        result: (added: songIds.length, alreadyThere: alreadyThere, failed: 0),
+        ids: after,
+      );
+    }
     for (final song in missing) {
       try {
         await api.updatePlaylist(id: id, songIdsToAdd: [song]);
@@ -255,8 +347,16 @@ class PlaylistActions {
         // Counted as missing below.
       }
     }
-    missing = _missing(songIds, before, await _entryIds(api, id));
-    return missing.length;
+    after = await _entryIds(api, id);
+    missing = _missing(songIds, before, after);
+    return (
+      result: (
+        added: songIds.length - missing.length,
+        alreadyThere: alreadyThere,
+        failed: missing.length,
+      ),
+      ids: after,
+    );
   }
 
   /// The playlist's song ids on the server; throws when the read is
@@ -295,28 +395,86 @@ class PlaylistActions {
     return missing;
   }
 
+  /// Removes one occurrence of [songId]: the [occurrence]-th (0-based) entry
+  /// with that id, in a list the caller saw with [copies] of it. Never removes
+  /// by position, so a list that moved under the caller cannot take another
+  /// song; a song already gone removes nothing, and a song whose copies
+  /// changed throws [PlaylistChangedException] without writing, since the
+  /// occurrence no longer names the row the user chose.
   Future<void> removeAt(
-    PlaylistsTableData playlist,
-    List<String> currentIds,
-    int index,
-  ) async {
+    PlaylistsTableData playlist, {
+    required String songId,
+    required int occurrence,
+    required int copies,
+  }) async {
     if (playlist.isLocal) {
-      final ids = currentIds.toList()..removeAt(index);
-      await _ref
-          .read(navisDatabaseProvider)
-          .playlistDao
-          .setLocalPlaylistSongs(playlist.id, ids);
+      final db = _ref.read(navisDatabaseProvider);
+      await db.transaction(() async {
+        final ids = [
+          for (final song
+              in await db.playlistDao.watchPlaylistSongs(playlist.id).first)
+            song.id,
+        ];
+        final at = _occurrenceIndex(ids, songId, occurrence, copies);
+        if (at < 0) return;
+        await db.playlistDao.setLocalPlaylistSongs(
+          playlist.id,
+          ids..removeAt(at),
+        );
+      });
       return;
     }
-    await _serverApi().updatePlaylist(
-      id: playlist.id,
-      songIndexesToRemove: [index],
-    );
-    if (_ref.mounted) {
-      _ref.invalidate(playlistDetailSyncProvider(playlist.id));
-    }
+    final api = _serverApi();
+    await _serverEdit(playlist.id, () async {
+      final ids = await _entryIds(api, playlist.id);
+      final at = _occurrenceIndex(ids, songId, occurrence, copies);
+      if (at < 0) return (result: null, ids: ids);
+      // One index per call: Navidrome 0.64 ignores several.
+      await api.updatePlaylist(id: playlist.id, songIndexesToRemove: [at]);
+      return (result: null, ids: ids..removeAt(at));
+    });
   }
 
+  /// Index of the [occurrence]-th [songId] in [ids], or -1 when none is left.
+  /// Throws [PlaylistChangedException] when [ids] holds other than [copies]
+  /// of it: another edit or a repeated tap changed which copy is which.
+  int _occurrenceIndex(
+    List<String> ids,
+    String songId,
+    int occurrence,
+    int copies,
+  ) {
+    final fresh = ids.where((id) => id == songId).length;
+    if (fresh == 0) return -1;
+    if (fresh != copies) throw const PlaylistChangedException();
+    var seen = 0;
+    for (var i = 0; i < ids.length; i++) {
+      if (ids[i] == songId && seen++ == occurrence) return i;
+    }
+    return -1;
+  }
+
+  /// Stores a server playlist's entries right after an edit. Ids the library
+  /// does not hold yet are left for the hydration the caller starts next.
+  Future<void> _storeEntries(String id, List<String> ids) async {
+    final db = _ref.read(navisDatabaseProvider);
+    final known = {
+      for (final song in await db.libraryDao.getSongsByIds(ids)) song.id,
+    };
+    await db.playlistDao.replacePlaylistSongs(id, [
+      for (final songId in ids.where(known.contains).indexed)
+        PlaylistSongsTableCompanion.insert(
+          playlistId: id,
+          songId: songId.$2,
+          sortOrder: songId.$1,
+        ),
+    ]);
+  }
+
+  /// Moves one song within [currentIds], the list the caller is showing.
+  /// Throws [PlaylistChangedException] without writing when the playlist no
+  /// longer matches it, so a stale list cannot resurrect removed songs or drop
+  /// added ones.
   Future<void> reorder(
     PlaylistsTableData playlist,
     List<String> currentIds,
@@ -328,23 +486,29 @@ class PlaylistActions {
     final songId = reordered.removeAt(from);
     reordered.insert(to, songId);
     if (playlist.isLocal) {
-      await _ref
-          .read(navisDatabaseProvider)
-          .playlistDao
-          .setLocalPlaylistSongs(playlist.id, reordered);
+      final db = _ref.read(navisDatabaseProvider);
+      await db.transaction(() async {
+        final stored = [
+          for (final song
+              in await db.playlistDao.watchPlaylistSongs(playlist.id).first)
+            song.id,
+        ];
+        if (!listEquals(stored, currentIds)) {
+          throw const PlaylistChangedException();
+        }
+        await db.playlistDao.setLocalPlaylistSongs(playlist.id, reordered);
+      });
       return;
     }
     final api = _serverApi();
-    try {
+    await _serverEdit(playlist.id, () async {
+      final ids = await _entryIds(api, playlist.id);
+      if (!listEquals(ids, currentIds)) throw const PlaylistChangedException();
       await api.replacePlaylistSongs(
         playlistId: playlist.id,
         songIds: reordered,
       );
-    } finally {
-      // Refresh on failure too, reverting the detail screen's optimistic order.
-      if (_ref.mounted) {
-        _ref.invalidate(playlistDetailSyncProvider(playlist.id));
-      }
-    }
+      return (result: null, ids: reordered);
+    });
   }
 }

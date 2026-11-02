@@ -1419,6 +1419,18 @@
       }
     }
   },
+  "addToPlaylistAlreadyThere": "Already in the playlist",
+  "addToPlaylistSomeAlreadyThere": "Added {added, plural, =1{1 song} other{{added} songs}} · {existing} already in the playlist",
+  "@addToPlaylistSomeAlreadyThere": {
+    "placeholders": {
+      "added": {
+        "type": "int"
+      },
+      "existing": {
+        "type": "int"
+      }
+    }
+  },
   "addToPlaylistNewPlaylist": "New Playlist",
   "addToPlaylistFailed": "Failed to add to playlist",
   "librarySongMenuAddToPlaylist": "Add to Playlist",

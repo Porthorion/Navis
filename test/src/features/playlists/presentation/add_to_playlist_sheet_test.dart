@@ -112,7 +112,8 @@ void main() {
     tester,
   ) async {
     final actions = _MockPlaylistActions();
-    when(() => actions.addSongs(any(), any())).thenAnswer((_) async => 0);
+    when(() => actions.addSongs(any(), any()))
+        .thenAnswer((_) async => (added: 1, alreadyThere: 0, failed: 0));
     final notices = await _openPicker(tester, actions);
 
     await tester.tap(find.text('My Mix'));
@@ -121,7 +122,8 @@ void main() {
     expect(notices.notice?.message, 'Added to "My Mix"');
 
     // Nothing was added (every song skipped): that is a failure.
-    when(() => actions.addSongs(any(), any())).thenAnswer((_) async => 1);
+    when(() => actions.addSongs(any(), any()))
+        .thenAnswer((_) async => (added: 0, alreadyThere: 0, failed: 1));
     await tester.tap(find.text('Open picker'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('My Mix'));
@@ -143,7 +145,8 @@ void main() {
     tester,
   ) async {
     final actions = _MockPlaylistActions();
-    when(() => actions.addSongs(any(), any())).thenAnswer((_) async => 1);
+    when(() => actions.addSongs(any(), any()))
+        .thenAnswer((_) async => (added: 1, alreadyThere: 0, failed: 1));
     final notices = await _openPicker(
       tester,
       actions,
@@ -154,6 +157,54 @@ void main() {
     await tester.pumpAndSettle();
     expect(notices.notice?.message, 'Added to "My Mix"; 1 song was skipped');
     expect(notices.notice?.level, AppNoticeLevel.info);
+    notices.dismiss();
+  });
+
+  testWidgets('a partial add also reports the songs already there', (
+    tester,
+  ) async {
+    final actions = _MockPlaylistActions();
+    when(() => actions.addSongs(any(), any()))
+        .thenAnswer((_) async => (added: 1, alreadyThere: 2, failed: 1));
+    final notices = await _openPicker(
+      tester,
+      actions,
+      songIds: const <String>['song-1', 'song-2', 'song-3', 'song-4'],
+    );
+
+    await tester.tap(find.text('My Mix'));
+    await tester.pumpAndSettle();
+    expect(
+      notices.notice?.message,
+      'Added to "My Mix"; 1 song was skipped · Already in the playlist',
+    );
+    notices.dismiss();
+  });
+
+  testWidgets('songs already in the playlist are reported, not hidden', (
+    tester,
+  ) async {
+    final actions = _MockPlaylistActions();
+    when(() => actions.addSongs(any(), any()))
+        .thenAnswer((_) async => (added: 0, alreadyThere: 1, failed: 0));
+    final notices = await _openPicker(tester, actions);
+
+    await tester.tap(find.text('My Mix'));
+    await tester.pumpAndSettle();
+    expect(notices.notice?.message, 'Already in the playlist');
+    expect(notices.notice?.level, AppNoticeLevel.info);
+    notices.dismiss();
+
+    when(() => actions.addSongs(any(), any()))
+        .thenAnswer((_) async => (added: 3, alreadyThere: 2, failed: 0));
+    await tester.tap(find.text('Open picker'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('My Mix'));
+    await tester.pumpAndSettle();
+    expect(
+      notices.notice?.message,
+      'Added 3 songs · 2 already in the playlist',
+    );
     notices.dismiss();
   });
 

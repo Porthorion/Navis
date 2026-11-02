@@ -4949,6 +4949,18 @@ abstract class AppLocalizations {
   /// **'Added to \"{name}\"; {skipped, plural, =1{1 song was} other{{skipped} songs were}} skipped'**
   String addToPlaylistPartial(String name, int skipped);
 
+  /// No description provided for @addToPlaylistAlreadyThere.
+  ///
+  /// In en, this message translates to:
+  /// **'Already in the playlist'**
+  String get addToPlaylistAlreadyThere;
+
+  /// No description provided for @addToPlaylistSomeAlreadyThere.
+  ///
+  /// In en, this message translates to:
+  /// **'Added {added, plural, =1{1 song} other{{added} songs}} · {existing} already in the playlist'**
+  String addToPlaylistSomeAlreadyThere(int added, int existing);
+
   /// No description provided for @addToPlaylistNewPlaylist.
   ///
   /// In en, this message translates to:
