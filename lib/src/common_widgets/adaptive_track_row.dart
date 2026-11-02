@@ -365,22 +365,27 @@ class AdaptiveTrackRow extends StatelessWidget {
                   constraints: BoxConstraints(minHeight: minHeight),
                   child: Padding(
                     padding: padding,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: compactMobile
-                          ? MainAxisAlignment.center
-                          : MainAxisAlignment.start,
-                      children: [
-                        body,
-                        if (stackControls)
-                          Row(
-                            children: [
-                              if (!compactMobile) durationWidget,
-                              const Spacer(),
-                              ?actionWidget,
-                            ],
-                          ),
-                      ],
+                    // The row may be taller than its content (minHeight); the
+                    // highlight is the whole row, so centre the content in it.
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      // Shrink-wrap the height, so only minHeight (above) makes
+                      // the row taller than its content.
+                      heightFactor: 1,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          body,
+                          if (stackControls)
+                            Row(
+                              children: [
+                                if (!compactMobile) durationWidget,
+                                const Spacer(),
+                                ?actionWidget,
+                              ],
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
