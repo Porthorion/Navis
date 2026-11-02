@@ -62,6 +62,8 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
     },
     cancelSync: () =>
         ref.read(librarySyncControllerProvider.notifier).cancelAndWait(),
+    dismissSyncProgress: () =>
+        ref.read(librarySyncNotifierProvider).dismissProgress(),
     cancelAndroidBackgroundSync: () async {
       final config = await ref
           .read(serverConfigRepositoryProvider)
@@ -109,6 +111,7 @@ class SessionLifecycleService implements SignOutService {
     this._cancelApiRequests,
     this._cancelSync,
     this._cancelAndroidBackgroundSync,
+    this._dismissSyncProgress,
     this._stopDownloads,
     this._resetPlayback,
     this._resetTransientUi,
@@ -130,6 +133,7 @@ class SessionLifecycleService implements SignOutService {
   final Future<void> Function()? _cancelApiRequests;
   final Future<void> Function()? _cancelSync;
   final Future<void> Function()? _cancelAndroidBackgroundSync;
+  final Future<void> Function()? _dismissSyncProgress;
   final Future<void> Function()? _stopDownloads;
   final Future<void> Function()? _resetPlayback;
   final Future<void> Function()? _resetTransientUi;
@@ -220,23 +224,30 @@ class SessionLifecycleService implements SignOutService {
       // A busy writer lock is retried until the step's own bound, because
       // this is the step that keeps a stale run out of the wipe.
       final fenceBound = _fenceTimeout * _timeoutScale;
+      var fenceGaveUp = false;
       await attempt('fence library sync', () async {
         final waited = Stopwatch()..start();
         var pause = const Duration(milliseconds: 50);
-        while (true) {
+        // No try may start once the step has given up: a late sentinel from
+        // an abandoned loop would land after the lock frees, defeating the
+        // in-transaction fence of the wipe.
+        while (!fenceGaveUp) {
           try {
             return await _database.librarySyncDao
                 .fenceAllExecutionLeasesForSignOut(now: DateTime.now());
           } on Object catch (error) {
-            if (!isDatabaseLockTimeout(error) || waited.elapsed >= fenceBound) {
+            final left = fenceBound - waited.elapsed;
+            if (!isDatabaseLockTimeout(error) || left <= Duration.zero) {
               rethrow;
             }
+            // Back off so an instantly failing lock cannot spin, never past
+            // the bound.
+            await Future<void>.delayed(pause < left ? pause : left);
+            pause = pause * 2 > _fenceMaxPause ? _fenceMaxPause : pause * 2;
           }
-          // Back off so an instantly failing lock cannot spin.
-          await Future<void>.delayed(pause);
-          if (pause < const Duration(seconds: 1)) pause *= 2;
         }
       }, timeout: _fenceTimeout);
+      fenceGaveUp = true;
       await attempt('stop downloads', () async {
         await _stopDownloads?.call();
       }, timeout: const Duration(seconds: 20));
@@ -291,6 +302,11 @@ class SessionLifecycleService implements SignOutService {
         DownloadNotifier.dismissProgress,
         timeout: const Duration(seconds: 5),
       );
+      // A run abandoned by its timeout can leave the sync progress
+      // notification up; its own tail no longer dismisses it.
+      await attempt('dismiss sync notification', () async {
+        await _dismissSyncProgress?.call();
+      }, timeout: const Duration(seconds: 5));
 
       await attempt('clear cover artwork cache', () async {
         await _clearCoverArt?.call();
@@ -329,6 +345,7 @@ class SessionLifecycleService implements SignOutService {
   }
 
   static const _fenceTimeout = Duration(seconds: 30);
+  static const _fenceMaxPause = Duration(seconds: 1);
   static const _databaseStepTimeout = Duration(seconds: 30);
 }
 

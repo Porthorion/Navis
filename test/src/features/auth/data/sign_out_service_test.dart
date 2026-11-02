@@ -837,6 +837,25 @@ void main() {
 
         for (final wipe in [false, true]) {
           test(
+            'sign-out dismisses the sync progress notification, wipe=$wipe',
+            () async {
+              var dismissed = 0;
+              service = SessionLifecycleService(
+                credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
+                serverConfigRepository: repository,
+                database: database,
+                dismissSyncProgress: () async => dismissed++,
+                timeoutScale: 0.02,
+              );
+              await service.signOut(wipeLocalData: wipe);
+              expect(dismissed, 1);
+            },
+            skip: !sqliteAvailable,
+          );
+        }
+
+        for (final wipe in [false, true]) {
+          test(
             'a throwing phase callback still clears credentials, wipe=$wipe',
             () async {
               await _seedAuthenticatedData(

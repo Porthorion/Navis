@@ -298,6 +298,13 @@ const Duration librarySyncProgressPublishInterval = Duration(milliseconds: 250);
 class LibrarySyncController extends Notifier<LibrarySyncState> {
   bool _startupSyncSuppressed = false;
   int _startupSyncEpoch = 0;
+
+  /// Bumped on every session change (sign-out and every new session). A run
+  /// or tail that started in an earlier session compares it before writing:
+  /// sign-out abandons a slow cancel, so such work can finish after the next
+  /// session began. Unlike [_startupSyncEpoch], a cancel within a session
+  /// never bumps it.
+  int _sessionGeneration = 0;
   int _cancellationGeneration = 0;
   Future<LibrarySyncState>? _activeCatalogSync;
   int? _activeCatalogSyncPriority;
@@ -597,7 +604,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   Future<void> cancelAndWait() async {
     _cancelPeriodicSync();
     _startupSyncSuppressed = true;
-    final epoch = ++_startupSyncEpoch;
+    _startupSyncEpoch++;
+    final generation = _sessionGeneration;
     final engine = ref.read(librarySyncEngineProvider);
     cancelSync();
     final startupTask = _startupSyncTask;
@@ -624,7 +632,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     // Sign-out abandons a cancel that outlasts its timeout. A session change
     // meanwhile has already reset this controller (it bumps the epoch), and
     // this late tail must not clobber the next session.
-    if (epoch != _startupSyncEpoch) return;
+    if (generation != _sessionGeneration) return;
     // The session service cancels native work before wiping the profile.
     // Its later config-null notification must not launch another status write.
     _androidScheduledConfig = null;
@@ -854,6 +862,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _androidScheduledConfig = null;
       _startupSyncSuppressed = true;
       _startupSyncEpoch++;
+      _sessionGeneration++;
       _retryStartupWhenEngineReady = false;
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = null;
@@ -869,6 +878,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       _cancelWorkerReconciliation();
       _startupSyncSuppressed = false;
       _startupSyncEpoch++;
+      // Null to a session is no change of session (sign-out already bumped
+      // it): a run started before this listener ran is still current.
+      if (_sessionFingerprint != null) _sessionGeneration++;
       _retryStartupWhenEngineReady = false;
       _startupSyncDoneFingerprint = null;
       _sessionFingerprint = fingerprint;
@@ -1200,10 +1212,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
 
     if (automaticCheckIsDue) _busyRetryAt = null;
+    final generation = _sessionGeneration;
     final result = await _runSync(
       force: false,
       tolerateUnavailableEngine: true,
     );
+    // An abandoned run from an earlier session must not schedule this one.
+    if (generation != _sessionGeneration) return result;
     if (automaticCheckIsDue && result.completedAt != null) {
       if (result.planReason == 'leaseHeld') {
         await _scheduleAfterLeaseExpiry(interval);
@@ -1493,7 +1508,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }) async {
     final engine = ref.read(librarySyncEngineProvider);
     final notifier = ref.read(librarySyncNotifierProvider);
-    final fingerprint = _sessionFingerprint;
+    final generation = _sessionGeneration;
     if (engine == null) {
       if (tolerateUnavailableEngine) {
         // Startup/periodic work is not a user-visible failed sync merely
@@ -1519,7 +1534,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
     final setupConfig = ref.read(serverConfigStateProvider).asData?.value;
     final completingSetup = setupConfig?.id != null && await _setupPending();
-    if (!ref.mounted) return state;
+    if (!ref.mounted || generation != _sessionGeneration) return state;
     final stateBeforeRequest = state;
     // Planning performs durable work before its first detailed frame. Make an
     // explicit rescan visibly running immediately instead of leaving the UI
@@ -1570,6 +1585,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       forceFull: forceFull,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
       repairOrigin: repairOrigin,
+      generation: generation,
       onProgressExternal: (progress) {
         if (progress.status == LibrarySyncStatus.running) {
           unawaited(notifier.showProgress(progress));
@@ -1578,7 +1594,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
     // A session change while the engine ran (sign-out abandons a slow cancel)
     // has reset this controller for the next session: do not overwrite it.
-    if (!ref.mounted || fingerprint != _sessionFingerprint) {
+    if (!ref.mounted || generation != _sessionGeneration) {
       return result;
     }
     if (completingSetup &&
@@ -1652,7 +1668,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
               .read(navisDatabaseProvider)
               .librarySyncDao
               .getOrCreateState(serverId);
-    if (!ref.mounted || fingerprint != _sessionFingerprint) {
+    if (!ref.mounted || generation != _sessionGeneration) {
       return shown;
     }
     state = persisted == null
@@ -1713,6 +1729,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool forceFull,
     required bool allowMeteredBroadOverride,
     required SyncRunOrigin repairOrigin,
+    required int generation,
     required void Function(LibrarySyncState progress) onProgressExternal,
   }) {
     // Engines report progress per artist or album batch, and every published
@@ -1734,6 +1751,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
 
     void updateProgress(LibrarySyncState progress) {
+      // A run abandoned by sign-out must not repost the notification sign-out
+      // dismissed, or overwrite the next session's state.
+      if (generation != _sessionGeneration) return;
       onProgressExternal(progress);
       final current = ref.mounted ? state : null;
       throttle.add(
