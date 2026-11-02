@@ -574,12 +574,13 @@ extension _NavisRecovery on NavisAudioHandler {
     final duration = item.duration;
     // ponytail: metadata-only EOF detection; add native cut evidence if server
     // durations overstate real transcode ends by more than the 10-second margin.
+    // A completed cache file does not exempt the end: the sidecar's re-download
+    // finishes before mpv drains the cut stream, and the reopen reads that file.
     if ((kind != PlaybackSourceKind.directStream.name &&
             kind != PlaybackSourceKind.lockCachedStream.name) ||
         (item.extras?['transcodingApplied'] != true &&
             _positionOffsetOf(item) == Duration.zero) ||
         isExternalCatalogSource(id: item.id) ||
-        _completedCacheFileFor(item) != null ||
         duration == null ||
         position < Duration.zero ||
         position + const Duration(seconds: 10) >= duration ||

@@ -1013,6 +1013,7 @@ START_DEADLINE = 45
 LAND_TOLERANCE_MS = 1500
 SAMPLE_PERIOD = 0.1
 RESTART_THRESHOLD_MS = 3000  # navisPreviousTrackRestartThreshold
+CUT_NATURAL_END_MARGIN_MS = 10000  # the app's premature-transcode-EOF margin (navis_audio_handler_recovery.dart): an end this close to the duration is a natural end
 
 
 class CaseAbort(Exception):
@@ -3004,7 +3005,7 @@ def cut_at_case(fraction: float, cuts: int, gap_s=10.0, pace_kbps=176, at_s=None
         resumed = next((s for s in after if s['t'] > events[0]['t'] + 0.5 and s['proc'] == 'ready' and s['playing']
                         and s['pos'] >= events[0]['pos'] + 1500), None)
         top = max((s['pos'] for s in after), default=0)
-        early = moved is not None and top < dur - 6000
+        early = moved is not None and top < dur - CUT_NATURAL_END_MARGIN_MS
         restarted = any(b['pos'] < a['pos'] - 5000 and b['pos'] < 6000 for a, b in zip(after, after[1:]))
         run.metrics['cutVerdict'] = {'resumedAfterS': resumed and round(resumed['t'] - t_first, 1), 'topPosMs': top, 'durMs': dur,
                                      'endedEarlyAndAdvanced': early, 'restartedNear0': restarted, 'advancedNaturally': moved is not None and not early}
