@@ -3522,8 +3522,12 @@ works like the weekly playlists. `homeTrendingProvider`
   the replacement transaction. If changed, both copies remain and a notice says
   "Playlist changed while saving; the device copy was kept". The resolved server
   id remains pending for that device id. Saving again updates that same server
-  playlist with the current device name and ordered entries through
-  `updatePlaylist`, then repeats the snapshot-checked replacement; recovery is
+  playlist with the current device entries through
+  `replacePlaylistSongs` (`createPlaylist` with `playlistId`: exact, duplicates
+  and order kept on Navidrome 0.64.2, which ignores several removal indexes) and
+  the name through a name-only `updatePlaylist`; an empty device list is cleared
+  with single-index removals, last first, because an empty replace is a no-op.
+  It then repeats the snapshot-checked replacement; recovery is
   completed only after the device row is replaced. After replacement, its old `local:<uuid>` id is recorded in
   `playlistMovedToServerProvider`, which an open `PlaylistDetailScreen` follows
   via `NavService.replacePlaylistDetail`. The result carries kept/total counts;

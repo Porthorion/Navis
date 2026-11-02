@@ -117,14 +117,21 @@ class PlaylistActions {
     );
     var uploadedSnapshot = resolved.snapshot;
     if (_keptUploads.contains(localId)) {
-      final current = await api.getPlaylist(resolved.id);
-      validatePlaylistSnapshot(current, requestedId: resolved.id);
-      await api.updatePlaylist(
-        id: resolved.id,
-        name: snapshot.name,
-        songIndexesToRemove: List.generate(current.entries.length, (i) => i),
-        songIdsToAdd: snapshot.songIds,
-      );
+      // Navidrome 0.64 replaces exactly (duplicates and order kept) but
+      // ignores several removal indexes, and an empty replace is a no-op.
+      if (snapshot.songIds.isEmpty) {
+        final current = await api.getPlaylist(resolved.id);
+        validatePlaylistSnapshot(current, requestedId: resolved.id);
+        for (var i = current.entries.length - 1; i >= 0; i--) {
+          await api.updatePlaylist(id: resolved.id, songIndexesToRemove: [i]);
+        }
+      } else {
+        await api.replacePlaylistSongs(
+          playlistId: resolved.id,
+          songIds: snapshot.songIds,
+        );
+      }
+      await api.updatePlaylist(id: resolved.id, name: snapshot.name);
       uploadedSnapshot = snapshot;
     }
     final actual = await api.getPlaylist(resolved.id);
