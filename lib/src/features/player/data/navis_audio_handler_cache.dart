@@ -247,6 +247,11 @@ extension _NavisCache on NavisAudioHandler {
     }
     final desktop = _isDesktopRuntime;
     final current = _currentMediaItem;
+    // The player already moved on but the hand-over to its new song has not
+    // run: the published current song reads as having no next song and would
+    // cancel the very warm that is about to become current. Publishing the
+    // new song syncs again.
+    if (_resolveCurrentQueueMetadata().mediaItem?.id != current?.id) return;
     final nextId = _rollingCacheNextSongId(current?.id);
     if (!desktop) _pruneEndedLockCacheWarm();
     final active = desktop

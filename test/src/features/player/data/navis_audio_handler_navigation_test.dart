@@ -6407,6 +6407,31 @@ void main() {
       await settle();
     });
 
+    test(
+      'a tick before the hand-over to the warmed song keeps its warm',
+      () async {
+        final s = await serveQueue(3, hold: {'song-1'});
+        ticks(s.player);
+        final warm = sourceAt(s.player, 1);
+        await playCurrent(s.player);
+        await until(() => s.requests.contains('song-1') && warm.isDownloading);
+        // The player has moved to song 1; the handler has not published it yet,
+        // so the published current song still reads song 0.
+        s.player.index = 1;
+        s.player.emitPlayerEvent();
+        await pumpEventQueue();
+        expect(warm.isDownloading, isTrue);
+        s.player.moveTo(1);
+        await pumpEventQueue();
+        final asked = warm.request();
+        s.release.complete();
+        await drain(await asked);
+        await until(() => s.requests.contains('song-2'));
+        expect(s.requests, ['song-0', 'song-1', 'song-2']);
+        await settle();
+      },
+    );
+
     test('Repeat All wraps the warm to the first song', () async {
       final s = await serveQueue(2, startIndex: 1);
       await s.handler.setRepeatMode(AudioServiceRepeatMode.all);
@@ -6792,7 +6817,16 @@ void main() {
         // ignore: experimental_member_use, reason: the lock-cache source.
         if (s is! LockCachingAudioSource) continue;
         final id = ids[i];
-        if (!identical(s, handler.debugRegisteredLockCacheSource(id))) bad++;
+        // A finished download unregisters (the player keeps its source), and
+        // how soon that happens relative to this audit depends on timing: a
+        // slow runner has the current song's source still held here. Only a
+        // completed download may be held unregistered; any other unregistered
+        // source (never registered, or failed and removed) is a defect.
+        final registered = handler.debugRegisteredLockCacheSource(id);
+        if (!identical(s, registered) &&
+            (registered != null || !handler.debugLockCacheCompleted(id))) {
+          bad++;
+        }
         (instances[id] ??= <int>{}).add(identityHashCode(s));
       }
       final multi = [
