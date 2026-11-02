@@ -620,6 +620,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (sheetContext) => SafeArea(
         child: ConstrainedBox(
           constraints: BoxConstraints(

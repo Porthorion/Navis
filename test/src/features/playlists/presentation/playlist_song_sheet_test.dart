@@ -65,10 +65,11 @@ Future<void> _pump(
   required Size size,
   required bool miniPlayer,
   double textScale = 1.0,
+  double topInset = 24,
 }) async {
   setAdaptiveTestViewport(tester, size);
-  tester.view.padding = const FakeViewPadding(top: 24, bottom: 24);
-  tester.view.viewPadding = const FakeViewPadding(top: 24, bottom: 24);
+  tester.view.padding = FakeViewPadding(top: topInset, bottom: 24);
+  tester.view.viewPadding = FakeViewPadding(top: topInset, bottom: 24);
   addTearDown(tester.view.reset);
   final db = createTestDatabase();
   addTearDown(db.close);
@@ -163,5 +164,26 @@ void main() {
     final sheet = tester.getRect(find.byType(BottomSheet));
     expect(tester.getRect(remove).bottom, lessThanOrEqualTo(sheet.bottom));
     expect(remove.hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('sheet never reaches under the status bar', (tester) async {
+    // 120 dp inset: the 0.85 cap alone would leave the sheet top at 96 dp.
+    await _pump(
+      tester,
+      size: const Size(360, 640),
+      miniPlayer: true,
+      topInset: 120,
+    );
+    await tester.scrollUntilVisible(find.text('First song'), 100);
+    await tester.longPress(find.text('First song'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.getRect(find.text('Play Now')).top,
+      greaterThanOrEqualTo(120),
+    );
+    expect(
+      tester.getRect(find.byType(BottomSheet)).top,
+      greaterThanOrEqualTo(120),
+    );
   });
 }
