@@ -663,6 +663,204 @@ void main() {
 
         expect(await acquire('foreground'), isTrue);
       }, skip: !sqliteAvailable);
+
+      group('round 2', () {
+        // An Android worker on its own connection, parked inside a write
+        // transaction: it holds the writer lock until [release] completes.
+        Future<
+          ({
+            NavisDatabase main,
+            ServerConfigRepository repository,
+            int serverId,
+            Completer<void> release,
+            Future<void> transaction,
+            Future<Object?> lateWrite,
+            Completer<void> lateGate,
+          })
+        >
+        lockedWorker() async {
+          final file = File('${tmpDir.path}/round2.sqlite');
+          final main = createTestDatabase(file: file);
+          final worker = createTestDatabase(file: file);
+          addTearDown(() async {
+            await worker.close();
+            await main.close();
+          });
+          final mainRepository = ServerConfigRepository(
+            main,
+            credentials: credentials,
+          );
+          await _seedAuthenticatedData(
+            main,
+            mainRepository,
+            '${tmpDir.path}/unused.mp3',
+          );
+          final serverId = (await main.serverDao.getActiveServer())!.id;
+          await main.librarySyncDao.acquireExecutionLease(
+            serverId: serverId,
+            ownerToken: 'worker',
+            ownerKind: 'androidWorker',
+            now: DateTime.now(),
+            ttl: const Duration(minutes: 10),
+          );
+          final fence = SyncWriteFence(
+            serverId: serverId,
+            ownerToken: 'worker',
+            now: DateTime.now,
+          );
+          final release = Completer<void>();
+          final lateGate = Completer<void>();
+          final holding = Completer<void>();
+          final transaction = fence.run(
+            () => worker.transaction(() async {
+              await worker.libraryDao.upsertSongs([
+                SongsTableCompanion.insert(id: 'early', title: 'Early'),
+              ]);
+              holding.complete();
+              await release.future;
+            }),
+          );
+          await holding.future;
+          final lateWrite = fence.run<Object?>(() async {
+            await lateGate.future;
+            try {
+              await worker.libraryDao.upsertSongs([
+                SongsTableCompanion.insert(id: 'late', title: 'Late'),
+              ]);
+              return null;
+            } on Object catch (error) {
+              return error;
+            }
+          });
+          return (
+            main: main,
+            repository: mainRepository,
+            serverId: serverId,
+            release: release,
+            transaction: transaction,
+            lateWrite: lateWrite,
+            lateGate: lateGate,
+          );
+        }
+
+        test('a failed fence step cannot leave the wipe unfenced', () async {
+          final w = await lockedWorker();
+          final signOutService = SessionLifecycleService(
+            credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
+            serverConfigRepository: w.repository,
+            database: w.main,
+            // Runs after the fence step gave up on the locked writer: the
+            // worker commits and lets go, as a long promotion does.
+            stopDownloads: () async {
+              w.release.complete();
+              await w.transaction;
+            },
+            wipeServerData: () async {
+              await ServerDataResetService(database: w.main)
+                  .reset(fenceSync: true);
+              w.lateGate.complete();
+              await w.lateWrite;
+            },
+            timeoutScale: 0.02,
+          );
+
+          await signOutService
+              .signOut(wipeLocalData: true)
+              .timeout(const Duration(seconds: 20));
+
+          expect(
+            messages(Level.warning),
+            contains(contains('fence library sync')),
+            reason: 'the early fence must have failed for this to matter',
+          );
+          expect(await w.lateWrite, isA<SyncLeaseLostException>());
+          expect(await w.main.select(w.main.songsTable).get(), isEmpty);
+        }, skip: !sqliteAvailable);
+
+        test(
+          'the fence step retries a busy writer lock until it lands',
+          () async {
+            final w = await lockedWorker();
+            Timer(const Duration(milliseconds: 150), w.release.complete);
+            final signOutService = SessionLifecycleService(
+              credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
+              serverConfigRepository: w.repository,
+              database: w.main,
+              timeoutScale: 0.02,
+            );
+
+            await signOutService
+                .signOut(wipeLocalData: false)
+                .timeout(const Duration(seconds: 20));
+            await w.transaction;
+
+            expect(
+              messages(Level.warning),
+              isNot(contains(contains('fence library sync'))),
+            );
+            expect(
+              (await w.main.librarySyncDao.getExecutionLease(w.serverId))
+                  ?.ownerKind,
+              'signout',
+            );
+          },
+          skip: !sqliteAvailable,
+        );
+
+        test('a stalled database cannot keep the password stored', () async {
+          await _seedAuthenticatedData(
+            database,
+            repository,
+            '${tmpDir.path}/unused.mp3',
+          );
+          final stall = Completer<void>();
+          final holding = Completer<void>();
+          final stalled = database.transaction(() async {
+            await database.customStatement('UPDATE app_settings SET id = id');
+            holding.complete();
+            await stall.future;
+          });
+          await holding.future;
+
+          await scaled()
+              .signOut(wipeLocalData: false)
+              .timeout(const Duration(seconds: 30));
+
+          expect(credentials.password, isNull);
+          expect(
+            messages(Level.warning),
+            contains(contains('clear authentication')),
+          );
+          stall.complete();
+          await stalled;
+        }, skip: !sqliteAvailable);
+
+        for (final wipe in [false, true]) {
+          test(
+            'a throwing phase callback still clears credentials, wipe=$wipe',
+            () async {
+              await _seedAuthenticatedData(
+                database,
+                repository,
+                '${tmpDir.path}/unused.mp3',
+              );
+              var resetPlayback = 0;
+              service = scaled(
+                resetPlayback: () async => resetPlayback++,
+                onTransition: (_) => throw StateError('ref disposed'),
+              );
+
+              await service.signOut(wipeLocalData: wipe);
+
+              expect(credentials.password, isNull);
+              expect(await database.serverDao.getActiveServer(), isNull);
+              expect(resetPlayback, 1);
+              expect(await database.starSyncDao.getPendingActions(), isEmpty);
+            },
+            skip: !sqliteAvailable,
+          );
+        }
+      });
     });
   });
 }

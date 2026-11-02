@@ -1886,6 +1886,87 @@ void main() {
       expect(engine.automaticRequests, [_automaticRequest]);
     });
 
+    test('a late cancelAndWait tail leaves the next session alone', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: config.id!,
+        nextAutomaticCheckAt: DateTime.now().subtract(
+          const Duration(minutes: 1),
+        ),
+      );
+      final entered = Completer<void>();
+      final release = Completer<LibrarySyncState>();
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          entered.complete();
+          return await release.future;
+        }
+        return const LibrarySyncState.idle();
+      });
+      final container = _container(
+        engine,
+        database: database,
+        reachability: ServerReachabilityStatus.offline,
+        interval: _hourlyInterval,
+        serverConfig: [
+          serverConfigStateProvider.overrideWith(
+            (ref) => ref.watch(_serverConfigSource),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.read(_serverConfigSource.notifier).set(AsyncData(config));
+      final controller = container.read(librarySyncControllerProvider.notifier);
+      final automatic = controller.syncIfStale();
+      await entered.future;
+
+      // Sign-out abandons the pending cancel after its timeout, clears the
+      // session, and another user signs in.
+      final cancellation = controller.cancelAndWait();
+      await Future<void>.delayed(Duration.zero);
+      container.read(_serverConfigSource.notifier).set(const AsyncData(null));
+      await container.pump();
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://other.example.com',
+          username: 'bob',
+          apiVersion: '1.16.1',
+          isAuthenticated: const Value(true),
+        ),
+      );
+      final other = (await database.serverDao.getActiveServer())!;
+      container
+          .read(_serverConfigSource.notifier)
+          .set(
+            AsyncData(
+              ServerConfigModel(
+                id: other.id,
+                url: other.url,
+                username: other.username,
+                password: 'secret',
+                apiVersion: other.apiVersion,
+              ),
+            ),
+          );
+      await container.pump();
+      final before = container.read(librarySyncControllerProvider).status;
+
+      release.complete(
+        LibrarySyncState(
+          status: LibrarySyncStatus.cancelled,
+          stage: LibrarySyncStage.completed,
+          completedAt: DateTime.now(),
+        ),
+      );
+      await cancellation;
+      await automatic;
+
+      expect(before, isNot(LibrarySyncStatus.cancelled));
+      expect(container.read(librarySyncControllerProvider).status, before);
+    }, skip: !sqliteAvailable);
+
     test(
       'cancelAndWait drains and suppresses scheduled startup sync',
       () async {

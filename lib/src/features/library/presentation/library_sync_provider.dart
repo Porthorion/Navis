@@ -597,7 +597,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   Future<void> cancelAndWait() async {
     _cancelPeriodicSync();
     _startupSyncSuppressed = true;
-    _startupSyncEpoch++;
+    final epoch = ++_startupSyncEpoch;
     final engine = ref.read(librarySyncEngineProvider);
     cancelSync();
     final startupTask = _startupSyncTask;
@@ -621,6 +621,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     while (_syncStateTasks.isNotEmpty) {
       await Future.wait(_syncStateTasks.toList());
     }
+    // Sign-out abandons a cancel that outlasts its timeout. A session change
+    // meanwhile has already reset this controller (it bumps the epoch), and
+    // this late tail must not clobber the next session.
+    if (epoch != _startupSyncEpoch) return;
     // The session service cancels native work before wiping the profile.
     // Its later config-null notification must not launch another status write.
     _androidScheduledConfig = null;
@@ -1489,6 +1493,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   }) async {
     final engine = ref.read(librarySyncEngineProvider);
     final notifier = ref.read(librarySyncNotifierProvider);
+    final fingerprint = _sessionFingerprint;
     if (engine == null) {
       if (tolerateUnavailableEngine) {
         // Startup/periodic work is not a user-visible failed sync merely
@@ -1571,7 +1576,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         }
       },
     );
-    if (!ref.mounted) {
+    // A session change while the engine ran (sign-out abandons a slow cancel)
+    // has reset this controller for the next session: do not overwrite it.
+    if (!ref.mounted || fingerprint != _sessionFingerprint) {
       return result;
     }
     if (completingSetup &&
@@ -1645,7 +1652,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
               .read(navisDatabaseProvider)
               .librarySyncDao
               .getOrCreateState(serverId);
-    if (!ref.mounted) {
+    if (!ref.mounted || fingerprint != _sessionFingerprint) {
       return shown;
     }
     state = persisted == null

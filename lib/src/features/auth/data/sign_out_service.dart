@@ -86,7 +86,7 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
     },
     clearCoverArt: () => ref.read(clearCoverArtCachesProvider)(),
     wipeServerData: () async {
-      await ref.read(serverDataResetServiceProvider).reset();
+      await ref.read(serverDataResetServiceProvider).reset(fenceSync: true);
       await ref.read(clearIntegrationLibraryCacheProvider)();
     },
     onTransition: (transition) {
@@ -120,7 +120,9 @@ class SessionLifecycleService implements SignOutService {
   }) : _database = database,
        _wipeServerData =
            wipeServerData ??
-           (() => ServerDataResetService(database: database).reset());
+           (() =>
+               ServerDataResetService(database: database)
+                   .reset(fenceSync: true));
 
   final ExternalScrobbleCredentialStore _credentials;
   final ServerConfigRepository _serverConfigRepository;
@@ -150,8 +152,21 @@ class SessionLifecycleService implements SignOutService {
   }
 
   Future<void> _signOut({required bool wipeLocalData}) async {
-    _onTransition?.call(SessionTransition.stoppingSync);
     final failures = <String>[];
+
+    // The callback reaches into providers and can throw (a disposed ref). A
+    // phase is cosmetic: it must never skip a teardown step or the credentials.
+    void publish(SessionTransition phase) {
+      try {
+        _onTransition?.call(phase);
+      } on Object catch (error) {
+        AppLogger.warning(
+          'Session transition ${phase.name} failed: ${error.runtimeType}.',
+        );
+      }
+    }
+
+    publish(SessionTransition.stoppingSync);
 
     // Every step is bounded: one that never completes is abandoned (its late
     // result is ignored) and teardown moves on, so credentials are always
@@ -207,6 +222,7 @@ class SessionLifecycleService implements SignOutService {
       final fenceBound = _fenceTimeout * _timeoutScale;
       await attempt('fence library sync', () async {
         final waited = Stopwatch()..start();
+        var pause = const Duration(milliseconds: 50);
         while (true) {
           try {
             return await _database.librarySyncDao
@@ -216,6 +232,9 @@ class SessionLifecycleService implements SignOutService {
               rethrow;
             }
           }
+          // Back off so an instantly failing lock cannot spin.
+          await Future<void>.delayed(pause);
+          if (pause < const Duration(seconds: 1)) pause *= 2;
         }
       }, timeout: _fenceTimeout);
       await attempt('stop downloads', () async {
@@ -228,7 +247,7 @@ class SessionLifecycleService implements SignOutService {
         await _resetTransientUi?.call();
       }, timeout: const Duration(seconds: 5));
 
-      _onTransition?.call(SessionTransition.clearingData);
+      publish(SessionTransition.clearingData);
       await attempt('clear persisted playback queue', () {
         return _database.playQueueDao.clearQueue();
       }, timeout: _databaseStepTimeout);
@@ -286,7 +305,7 @@ class SessionLifecycleService implements SignOutService {
         );
       }
     } finally {
-      _onTransition?.call(SessionTransition.finishing);
+      publish(SessionTransition.finishing);
       // Credentials are never skipped, whatever the steps above did.
       await attempt('clear authentication', () {
         return wipeLocalData
@@ -319,10 +338,19 @@ class ServerDataResetService {
   final NavisDatabase _database;
   final Future<void> Function()? _clearCoverArt;
 
-  Future<void> reset() async {
+  /// [fenceSync] also fences every sync run as the first statement of the
+  /// wipe transaction, so a run that outlived the sign-out fence cannot write
+  /// between this reset and the server delete. Only sign-out passes it:
+  /// a diagnostics reset must not block sync.
+  Future<void> reset({bool fenceSync = false}) async {
     final cachedTracks = await _database.cacheDao.getCachedTracks();
     final userFolder = await _userOwnedDownloadFolder();
     await _database.transaction(() async {
+      if (fenceSync) {
+        await _database.librarySyncDao.fenceAllExecutionLeasesForSignOut(
+          now: DateTime.now(),
+        );
+      }
       await _database.delete(_database.librarySyncWorkTable).go();
       await _database.delete(_database.librarySyncLocalMutationsTable).go();
       await _database.delete(_database.librarySyncCandidateSongsTable).go();

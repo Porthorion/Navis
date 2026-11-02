@@ -637,7 +637,11 @@ clear and cover art; 180 s for the server-data wipe, which deletes files; 60 s
 for authentication), logs its duration, and on a timeout or error logs a
 warning naming the step and goes on. An abandoned step's late result is
 ignored, so a hung step costs at most its bound, and credentials are always
-cleared. Timeouts are silent for the user (no notice).
+cleared (`clear()` and `signOutKeepData()` clear the credentials before the
+database write, so a stalled database cannot keep the password; the phase
+callbacks are guarded and can never skip a step). A sync controller whose
+cancel is abandoned and finishes late skips its tail and its result write
+when the session changed meanwhile. Timeouts are silent for the user (no notice).
 The fence step replaces every server's `library_sync_execution_lease` row with
 a sentinel (`owner_kind = 'signout'`, unexpired for 15 minutes, a token no run
 holds). The write fence checks the lease on every write and at commit, so a
@@ -645,7 +649,11 @@ run that ignored its cancel (or an Android worker on its own connection) fails
 its next write with `SyncLeaseLostException` and rolls back, and no run can
 acquire the lease while the sentinel stands. The row is not deleted because a
 run starting after a delete would insert a fresh lease and write during the
-wipe. A busy writer lock is retried until the step's bound. A wipe removes the
+wipe. A busy writer lock is retried with a 50 ms to 1 s back-off until the step's
+bound. The sign-out wipe (`ServerDataResetService.reset(fenceSync: true)`) writes
+the same sentinel as the first statement of its transaction, so a failed fence
+step still leaves the wipe fenced; diagnostics resets keep the default and do not
+block sync. A wipe removes the
 sentinel with its server row (cascade); keep-data sign-out keeps the row, so
 `ServerConfigRepository.save` clears the sentinel at the next sign-in, and the
 15-minute expiry heals a sign-out that was killed midway. The sync run's
