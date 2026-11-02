@@ -5220,9 +5220,12 @@ Each unsuccessful probe records
 `reason`, `elapsedMs`, `positionMs`, `bufferedMs`, `processingState` and `playing`
 in the seek's `unsettled` diagnostics. Each current request permits one recovery
 attempt, plus a reload from a sidecar file that completes during it. An
-exhausted desktop request on a dead source uses the existing failed-song
+exhausted request on a dead source uses the existing failed-song
 failover, preserving latest Play/Pause intent and queue; a song whose position
-still advances keeps playing quietly. With no successor it stops quietly (pause
+still advances keeps playing quietly. Android takes the same failover when the
+failed seek reload left the player empty (a timed-out reload rebuilds an empty
+player): the load failure keeps the loading song instead of clearing it, so the
+failover or Play can act on it (#203). With no successor it stops quietly (pause
 and stop each bounded by the reset timeout, so a stuck native stop cannot park
 the seek lane) and marks the source failed so Play reloads it. Automatic
 failovers (seek, stall, queue-load and a song that completes far short of
