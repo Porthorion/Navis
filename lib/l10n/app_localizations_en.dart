@@ -136,6 +136,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get initialSyncCancelling => 'Cancelling and signing out...';
 
   @override
+  String get signOutStoppingSync => 'Stopping sync…';
+
+  @override
+  String get signOutClearingData => 'Clearing data…';
+
+  @override
+  String get signOutFinishing => 'Signing out…';
+
+  @override
   String get requiredSyncInitialTitle => 'Building Your Library';
 
   @override

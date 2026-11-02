@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/features/auth/data/sign_out_service.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
@@ -50,6 +51,44 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   LibrarySyncState build() => initial;
 }
 
+/// The real controller's cancel-and-sign-out, without starting a sync run.
+class _IdleRebuildController extends RequiredLibraryRebuildController {
+  new() : super(RequiredLibraryRebuildReason.initialLogin);
+
+  @override
+  RequiredLibraryRebuildState build() => const RequiredLibraryRebuildState(
+    status: RequiredLibraryRebuildStatus.syncing,
+  );
+}
+
+class _NoRefreshServerConfig extends ServerConfigNotifier {
+  @override
+  Future<ServerConfigModel?> build() async => null;
+
+  @override
+  Future<void> refresh() async {}
+}
+
+/// A slow sign-out that publishes the phases like the session service does
+/// and, like a teardown that could not clear the session, leaves it in place.
+class _PhasedSignOut implements SignOutService {
+  new(this._ref);
+
+  final Ref _ref;
+  final stoppingSync = Completer<void>();
+  final clearingData = Completer<void>();
+
+  @override
+  Future<void> signOut({required bool wipeLocalData}) async {
+    final phase = _ref.read(sessionTransitionProvider.notifier);
+    phase.setTransition(SessionTransition.stoppingSync);
+    await stoppingSync.future;
+    phase.setTransition(SessionTransition.clearingData);
+    await clearingData.future;
+    phase.setTransition(SessionTransition.idle);
+  }
+}
+
 Widget _testApp({
   _StaticRequiredRebuildController? setup,
   LibrarySyncState sync = const LibrarySyncState.idle(),
@@ -81,6 +120,62 @@ Widget _testApp({
 }
 
 void main() {
+  testWidgets('cancel and sign out shows the teardown phase text', (
+    tester,
+  ) async {
+    late _PhasedSignOut signOut;
+    await tester.pumpWidget(
+      _testApp(
+        overrides: [
+          requiredLibraryRebuildControllerProvider(
+            RequiredLibraryRebuildReason.initialLogin,
+          ).overrideWith(_IdleRebuildController.new),
+          serverConfigProvider.overrideWith(_NoRefreshServerConfig.new),
+          signOutServiceProvider.overrideWith(
+            (ref) => signOut = _PhasedSignOut(ref),
+          ),
+        ],
+      ),
+    );
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('requiredSyncSignOut')));
+    await tester.pump();
+    expect(find.text('Stopping sync…'), findsOneWidget);
+    expect(find.text('Cancelling and signing out...'), findsNothing);
+
+    signOut.stoppingSync.complete();
+    await tester.pump();
+    expect(find.text('Clearing data…'), findsOneWidget);
+    expect(find.text('Stopping sync…'), findsNothing);
+
+    // The sign-out returns with the session still in place: the screen must
+    // leave the cancelling state and offer Retry.
+    signOut.clearingData.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Clearing data…'), findsNothing);
+    expect(find.text('Cancelling and signing out...'), findsNothing);
+    expect(find.text('Your library could not be set up.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('requiredSyncRetry')), findsOneWidget);
+  });
+
+  testWidgets('cancelling without a published phase keeps the generic text', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _testApp(
+        setup: _StaticRequiredRebuildController(
+          const RequiredLibraryRebuildState(
+            status: RequiredLibraryRebuildStatus.cancelling,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.text('Cancelling and signing out...'), findsOneWidget);
+  });
+
   for (final offline in [false, true]) {
     testWidgets(
       offline

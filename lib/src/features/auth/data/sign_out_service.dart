@@ -23,7 +23,9 @@ abstract interface class SignOutService {
   Future<void> signOut({required bool wipeLocalData});
 }
 
-enum SessionTransition { idle, signingOut }
+/// The sign-out phase shown to the user; teardown publishes one per group of
+/// steps, never one per step.
+enum SessionTransition { idle, stoppingSync, clearingData, finishing }
 
 class SessionTransitionController extends Notifier<SessionTransition> {
   @override
@@ -60,6 +62,8 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
     },
     cancelSync: () =>
         ref.read(librarySyncControllerProvider.notifier).cancelAndWait(),
+    dismissSyncProgress: () =>
+        ref.read(librarySyncNotifierProvider).dismissProgress(),
     cancelAndroidBackgroundSync: () async {
       final config = await ref
           .read(serverConfigRepositoryProvider)
@@ -84,7 +88,7 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
     },
     clearCoverArt: () => ref.read(clearCoverArtCachesProvider)(),
     wipeServerData: () async {
-      await ref.read(serverDataResetServiceProvider).reset();
+      await ref.read(serverDataResetServiceProvider).reset(fenceSync: true);
       await ref.read(clearIntegrationLibraryCacheProvider)();
     },
     onTransition: (transition) {
@@ -107,6 +111,7 @@ class SessionLifecycleService implements SignOutService {
     this._cancelApiRequests,
     this._cancelSync,
     this._cancelAndroidBackgroundSync,
+    this._dismissSyncProgress,
     this._stopDownloads,
     this._resetPlayback,
     this._resetTransientUi,
@@ -114,10 +119,13 @@ class SessionLifecycleService implements SignOutService {
     Future<void> Function()? wipeServerData,
     this._onTransition,
     this._invalidateSessionProviders,
+    this._timeoutScale = 1,
   }) : _database = database,
        _wipeServerData =
            wipeServerData ??
-           (() => ServerDataResetService(database: database).reset());
+           (() =>
+               ServerDataResetService(database: database)
+                   .reset(fenceSync: true));
 
   final ExternalScrobbleCredentialStore _credentials;
   final ServerConfigRepository _serverConfigRepository;
@@ -125,6 +133,7 @@ class SessionLifecycleService implements SignOutService {
   final Future<void> Function()? _cancelApiRequests;
   final Future<void> Function()? _cancelSync;
   final Future<void> Function()? _cancelAndroidBackgroundSync;
+  final Future<void> Function()? _dismissSyncProgress;
   final Future<void> Function()? _stopDownloads;
   final Future<void> Function()? _resetPlayback;
   final Future<void> Function()? _resetTransientUi;
@@ -132,6 +141,9 @@ class SessionLifecycleService implements SignOutService {
   final Future<void> Function() _wipeServerData;
   final void Function(SessionTransition transition)? _onTransition;
   final void Function()? _invalidateSessionProviders;
+
+  /// Multiplies every step timeout; tests shrink them instead of waiting.
+  final double _timeoutScale;
 
   Future<void>? _inFlight;
 
@@ -144,51 +156,122 @@ class SessionLifecycleService implements SignOutService {
   }
 
   Future<void> _signOut({required bool wipeLocalData}) async {
-    _onTransition?.call(SessionTransition.signingOut);
     final failures = <String>[];
 
-    Future<void> attempt(String label, FutureOr<void> Function() action) async {
+    // The callback reaches into providers and can throw (a disposed ref). A
+    // phase is cosmetic: it must never skip a teardown step or the credentials.
+    void publish(SessionTransition phase) {
       try {
-        await action();
+        _onTransition?.call(phase);
+      } on Object catch (error) {
+        AppLogger.warning(
+          'Session transition ${phase.name} failed: ${error.runtimeType}.',
+        );
+      }
+    }
+
+    publish(SessionTransition.stoppingSync);
+
+    // Every step is bounded: one that never completes is abandoned (its late
+    // result is ignored) and teardown moves on, so credentials are always
+    // cleared. Durations are logged so a slow step names itself.
+    Future<void> attempt(
+      String label,
+      FutureOr<void> Function() action, {
+      required Duration timeout,
+    }) async {
+      final watch = Stopwatch()..start();
+      var timedOut = false;
+      try {
+        // The async wrapper gives the future the static type the timeout
+        // callback returns: a DAO's Future<int> would reject it.
+        await (() async => await action())().timeout(
+          timeout * _timeoutScale,
+          onTimeout: () => timedOut = true,
+        );
       } on Object catch (error) {
         failures.add(label);
         AppLogger.warning(
           'Session teardown step failed ($label): ${error.runtimeType}.',
         );
+        return;
       }
+      if (timedOut) {
+        failures.add(label);
+        AppLogger.warning(
+          'Session teardown step timed out ($label) after '
+          '${watch.elapsedMilliseconds} ms.',
+        );
+        return;
+      }
+      AppLogger.info(
+        'Session teardown step ($label) took ${watch.elapsedMilliseconds} ms.',
+      );
     }
 
     try {
       await attempt('cancel API requests', () async {
         await _cancelApiRequests?.call();
-      });
+      }, timeout: const Duration(seconds: 5));
       await attempt('cancel library sync', () async {
         await _cancelSync?.call();
-      });
+      }, timeout: const Duration(seconds: 30));
       await attempt('cancel Android background sync', () async {
         await _cancelAndroidBackgroundSync?.call();
-      });
+      }, timeout: const Duration(seconds: 10));
+      // Runs whether or not the cancels finished: a run that ignored its
+      // cancel can no longer write once its lease is the sign-out sentinel.
+      // A busy writer lock is retried until the step's own bound, because
+      // this is the step that keeps a stale run out of the wipe.
+      final fenceBound = _fenceTimeout * _timeoutScale;
+      var fenceGaveUp = false;
+      await attempt('fence library sync', () async {
+        final waited = Stopwatch()..start();
+        var pause = const Duration(milliseconds: 50);
+        // No try may start once the step has given up: a late sentinel from
+        // an abandoned loop would land after the lock frees, defeating the
+        // in-transaction fence of the wipe.
+        while (!fenceGaveUp) {
+          try {
+            return await _database.librarySyncDao
+                .fenceAllExecutionLeasesForSignOut(now: DateTime.now());
+          } on Object catch (error) {
+            final left = fenceBound - waited.elapsed;
+            if (!isDatabaseLockTimeout(error) || left <= Duration.zero) {
+              rethrow;
+            }
+            // Back off so an instantly failing lock cannot spin, never past
+            // the bound.
+            await Future<void>.delayed(pause < left ? pause : left);
+            pause = pause * 2 > _fenceMaxPause ? _fenceMaxPause : pause * 2;
+          }
+        }
+      }, timeout: _fenceTimeout);
+      fenceGaveUp = true;
       await attempt('stop downloads', () async {
         await _stopDownloads?.call();
-      });
+      }, timeout: const Duration(seconds: 20));
       await attempt('reset playback', () async {
         await _resetPlayback?.call();
-      });
+      }, timeout: const Duration(seconds: 10));
       await attempt('reset transient UI', () async {
         await _resetTransientUi?.call();
-      });
+      }, timeout: const Duration(seconds: 5));
+
+      publish(SessionTransition.clearingData);
       await attempt('clear persisted playback queue', () {
         return _database.playQueueDao.clearQueue();
-      });
+      }, timeout: _databaseStepTimeout);
       await attempt('clear pending download queue', () {
         return _database.downloadQueueDao.clearQueue();
-      });
+      }, timeout: _databaseStepTimeout);
       await attempt('clear pending star actions', () async {
         await _database.starSyncDao.clearAll();
-      });
+      }, timeout: _databaseStepTimeout);
       await attempt(
         'delete ListenBrainz token',
         _credentials.clearListenBrainzToken,
+        timeout: const Duration(seconds: 10),
       );
       await attempt(
         'reset ListenBrainz connection',
@@ -197,46 +280,65 @@ class SessionLifecycleService implements SignOutService {
           enabled: false,
           clearUserName: true,
         ),
+        timeout: _databaseStepTimeout,
       );
       await attempt('clear pending scrobbles', () {
         return _database.scrobbleDao.clearAll();
-      });
+      }, timeout: _databaseStepTimeout);
       await attempt('clear pending ListenBrainz feedback', () async {
         await _database.listenBrainzFeedbackDao.clearAll();
-      });
+      }, timeout: _databaseStepTimeout);
       await attempt('clear sync candidates', () {
         return _database.librarySyncCandidateDao.clearAll();
-      });
+      }, timeout: _databaseStepTimeout);
       await attempt('clear sync mutations', () {
         return _database.librarySyncDao.clearLocalMutations();
-      });
+      }, timeout: _databaseStepTimeout);
       await attempt('clear durable sync work', () {
         return _database.librarySyncDao.discardAllPendingSessionWork();
-      });
+      }, timeout: _databaseStepTimeout);
       await attempt(
         'dismiss download notification',
         DownloadNotifier.dismissProgress,
+        timeout: const Duration(seconds: 5),
       );
+      // A run abandoned by its timeout can leave the sync progress
+      // notification up; its own tail no longer dismisses it.
+      await attempt('dismiss sync notification', () async {
+        await _dismissSyncProgress?.call();
+      }, timeout: const Duration(seconds: 5));
 
       await attempt('clear cover artwork cache', () async {
         await _clearCoverArt?.call();
-      });
+      }, timeout: const Duration(seconds: 30));
 
       if (wipeLocalData) {
-        await attempt('clear server-scoped data', _wipeServerData);
+        // Deletes the downloaded files too, so it gets the longest bound.
+        await attempt(
+          'clear server-scoped data',
+          _wipeServerData,
+          timeout: const Duration(seconds: 180),
+        );
       }
     } finally {
+      publish(SessionTransition.finishing);
+      // Credentials are never skipped, whatever the steps above did.
       await attempt('clear authentication', () {
         return wipeLocalData
             ? _serverConfigRepository.clear()
             : _serverConfigRepository.signOutKeepData();
-      });
+      }, timeout: const Duration(seconds: 60));
+      // Again: by now the sync controller has left the old session, so a
+      // run that reposted after the earlier dismiss cannot do it again.
+      await attempt('dismiss sync notification after sign-out', () async {
+        await _dismissSyncProgress?.call();
+      }, timeout: const Duration(seconds: 5));
       await attempt('invalidate session providers', () async {
         _invalidateSessionProviders?.call();
-      });
+      }, timeout: const Duration(seconds: 5));
       await attempt('finish session transition', () async {
         _onTransition?.call(SessionTransition.idle);
-      });
+      }, timeout: const Duration(seconds: 5));
     }
 
     if (failures.isNotEmpty) {
@@ -246,6 +348,10 @@ class SessionLifecycleService implements SignOutService {
       );
     }
   }
+
+  static const _fenceTimeout = Duration(seconds: 30);
+  static const _fenceMaxPause = Duration(seconds: 1);
+  static const _databaseStepTimeout = Duration(seconds: 30);
 }
 
 class ServerDataResetService {
@@ -254,10 +360,19 @@ class ServerDataResetService {
   final NavisDatabase _database;
   final Future<void> Function()? _clearCoverArt;
 
-  Future<void> reset() async {
+  /// [fenceSync] also fences every sync run as the first statement of the
+  /// wipe transaction, so a run that outlived the sign-out fence cannot write
+  /// between this reset and the server delete. Only sign-out passes it:
+  /// a diagnostics reset must not block sync.
+  Future<void> reset({bool fenceSync = false}) async {
     final cachedTracks = await _database.cacheDao.getCachedTracks();
     final userFolder = await _userOwnedDownloadFolder();
     await _database.transaction(() async {
+      if (fenceSync) {
+        await _database.librarySyncDao.fenceAllExecutionLeasesForSignOut(
+          now: DateTime.now(),
+        );
+      }
       await _database.delete(_database.librarySyncWorkTable).go();
       await _database.delete(_database.librarySyncLocalMutationsTable).go();
       await _database.delete(_database.librarySyncCandidateSongsTable).go();

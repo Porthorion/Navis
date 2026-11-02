@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 
@@ -842,6 +843,88 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  group('sign-out fence', () {
+    final now = DateTime.utc(2026, 8, 12, 10);
+
+    Future<bool> acquire(String kind, {DateTime? at}) =>
+        database.librarySyncDao.acquireExecutionLease(
+          serverId: 1,
+          ownerToken: 'late-$kind',
+          ownerKind: kind,
+          now: at ?? now,
+          ttl: const Duration(minutes: 10),
+        );
+
+    test('replaces a live lease and blocks every owner kind', () async {
+      await acquire('androidWorker');
+      await database.librarySyncDao.fenceAllExecutionLeasesForSignOut(now: now);
+      final lease = await database.librarySyncDao.getExecutionLease(1);
+      expect(lease?.ownerKind, 'signout');
+      expect(
+        await database.librarySyncDao.heartbeatExecutionLease(
+          serverId: 1,
+          ownerToken: 'late-androidWorker',
+          now: now,
+          ttl: const Duration(minutes: 10),
+        ),
+        isFalse,
+      );
+      expect(await acquire('foreground'), isFalse);
+      expect(await acquire('androidWorker'), isFalse);
+      expect(
+        (await database.librarySyncDao.getExecutionLease(1))?.ownerKind,
+        'signout',
+      );
+    }, skip: !sqliteAvailable);
+
+    test('fences a server that has no lease row yet', () async {
+      await database.librarySyncDao.fenceAllExecutionLeasesForSignOut(now: now);
+      expect(await acquire('foreground'), isFalse);
+    }, skip: !sqliteAvailable);
+
+    test('a run that starts after the fence cannot write', () async {
+      await database.librarySyncDao.fenceAllExecutionLeasesForSignOut(now: now);
+      await acquire('foreground');
+      await expectLater(
+        SyncWriteFence(
+          serverId: 1,
+          ownerToken: 'late-foreground',
+          now: () => now,
+        ).run(
+          () => database.libraryDao.upsertSongs([
+            SongsTableCompanion.insert(id: 'late', title: 'Late'),
+          ]),
+        ),
+        throwsA(isA<SyncLeaseLostException>()),
+      );
+      expect(await database.libraryDao.getSongById('late'), isNull);
+    }, skip: !sqliteAvailable);
+
+    test('expires so a crashed sign-out cannot block sync for good', () async {
+      await database.librarySyncDao.fenceAllExecutionLeasesForSignOut(now: now);
+      expect(
+        await acquire('foreground', at: now.add(const Duration(minutes: 14))),
+        isFalse,
+      );
+      expect(
+        await acquire('foreground', at: now.add(const Duration(minutes: 16))),
+        isTrue,
+      );
+    }, skip: !sqliteAvailable);
+
+    test('clearSignOutFence removes only the sentinel', () async {
+      await database.librarySyncDao.fenceAllExecutionLeasesForSignOut(now: now);
+      await database.librarySyncDao.clearSignOutFence(1);
+      expect(await database.librarySyncDao.getExecutionLease(1), isNull);
+      expect(await acquire('foreground'), isTrue);
+      await database.librarySyncDao.clearSignOutFence(1);
+      expect(
+        (await database.librarySyncDao.getExecutionLease(1))?.ownerToken,
+        'late-foreground',
+      );
+    }, skip: !sqliteAvailable);
+  });
 
   test('lease heartbeat and release are ownership guarded', () async {
     final now = DateTime.utc(2026, 8, 12, 10);

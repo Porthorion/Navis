@@ -96,6 +96,8 @@ class ServerConfigRepository {
           ),
         );
       } else {
+        // Keep-data sign-out left the sign-out fence on this server's lease.
+        await _database.librarySyncDao.clearSignOutFence(retained.id);
         await _serverDao.updateRetainedServer(
           retained.id,
           ServerConfigTableCompanion(
@@ -123,7 +125,20 @@ class ServerConfigRepository {
     }
   }
 
+  // Both sign-out forms clear the credentials first: a stalled database write
+  // (a busy disk) must never leave the password stored. Nothing here reads the
+  // credentials back, and a failure of either half is still reported after
+  // both were attempted.
   Future<void> signOutKeepData() async {
+    Object? credentialError;
+    StackTrace? credentialStackTrace;
+    try {
+      await _clearCredentials();
+    } on Object catch (error, stackTrace) {
+      credentialError = error;
+      credentialStackTrace = stackTrace;
+    }
+
     Object? databaseError;
     StackTrace? databaseStackTrace;
     try {
@@ -146,21 +161,25 @@ class ServerConfigRepository {
       databaseStackTrace = stackTrace;
     }
 
-    try {
-      await _clearCredentials();
-    } on Object {
-      if (databaseError != null && databaseStackTrace != null) {
-        Error.throwWithStackTrace(databaseError, databaseStackTrace);
-      }
-      rethrow;
-    }
-
+    // The database error takes precedence, as before.
     if (databaseError != null && databaseStackTrace != null) {
       Error.throwWithStackTrace(databaseError, databaseStackTrace);
+    }
+    if (credentialError != null && credentialStackTrace != null) {
+      Error.throwWithStackTrace(credentialError, credentialStackTrace);
     }
   }
 
   Future<void> clear() async {
+    Object? credentialError;
+    StackTrace? credentialStackTrace;
+    try {
+      await _clearCredentials();
+    } on Object catch (error, stackTrace) {
+      credentialError = error;
+      credentialStackTrace = stackTrace;
+    }
+
     Object? serverError;
     StackTrace? serverStackTrace;
     try {
@@ -170,17 +189,11 @@ class ServerConfigRepository {
       serverStackTrace = stackTrace;
     }
 
-    try {
-      await _clearCredentials();
-    } on Object {
-      if (serverError != null && serverStackTrace != null) {
-        Error.throwWithStackTrace(serverError, serverStackTrace);
-      }
-      rethrow;
-    }
-
     if (serverError != null && serverStackTrace != null) {
       Error.throwWithStackTrace(serverError, serverStackTrace);
+    }
+    if (credentialError != null && credentialStackTrace != null) {
+      Error.throwWithStackTrace(credentialError, credentialStackTrace);
     }
   }
 

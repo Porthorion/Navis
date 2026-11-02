@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -550,6 +551,55 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
           (table) =>
               table.serverId.equals(serverId) &
               table.ownerToken.equals(ownerToken),
+        ))
+        .go();
+  }
+
+  /// Longer than the sum of the sign-out step timeouts. A sign-out killed
+  /// midway leaves a still-authenticated server whose sync would otherwise
+  /// stay fenced until the next sign-in; this lets it recover on its own.
+  static const _signOutFenceTtl = Duration(minutes: 15);
+
+  /// Fences every sync run for sign-out, on every connection.
+  ///
+  /// Replaces each server's lease with a sentinel owned by nobody. A running
+  /// run (or the Android worker) fails its next fenced write and commit
+  /// exactly as if it had lost the lease, and no run can acquire one: the
+  /// sentinel is unexpired, has a foreign token and is not a worker lease.
+  /// Deleting the rows instead would let a run that starts after the fence
+  /// insert a fresh lease and write while the data is wiped. A wipe removes
+  /// the sentinel with its server row (cascade); keep-data sign-out keeps the
+  /// row, so [clearSignOutFence] removes it at the next sign-in.
+  Future<void> fenceAllExecutionLeasesForSignOut({required DateTime now}) {
+    final timestamp = now.toUtc().millisecondsSinceEpoch ~/ 1000;
+    return customStatement(
+      '''
+      INSERT INTO library_sync_execution_lease (
+        server_id, owner_token, owner_kind, started_at, heartbeat_at,
+        expires_at
+      ) SELECT id, ?, 'signout', ?, ?, ? FROM server_config WHERE true
+      ON CONFLICT(server_id) DO UPDATE SET
+        owner_token = excluded.owner_token,
+        owner_kind = excluded.owner_kind,
+        started_at = excluded.started_at,
+        heartbeat_at = excluded.heartbeat_at,
+        expires_at = excluded.expires_at;
+      ''',
+      <Object?>[
+        'signout:${Random.secure().nextInt(1 << 32)}',
+        timestamp,
+        timestamp,
+        timestamp + _signOutFenceTtl.inSeconds,
+      ],
+    );
+  }
+
+  /// Removes the sign-out sentinel so the signed-in server can sync again.
+  Future<void> clearSignOutFence(int serverId) {
+    return (delete(librarySyncExecutionLeaseTable)..where(
+          (table) =>
+              table.serverId.equals(serverId) &
+              table.ownerKind.equals('signout'),
         ))
         .go();
   }

@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
+import 'package:navis/src/features/auth/data/sign_out_service.dart';
+import 'package:navis/src/features/auth/presentation/sign_out_phase_text.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
@@ -58,6 +60,7 @@ class _RequiredLibraryRebuildScreenState
       requiredLibraryRebuildControllerProvider(widget.reason),
     );
     final sync = ref.watch(librarySyncControllerProvider);
+    final transition = ref.watch(sessionTransitionProvider);
     final controller = ref.read(
       requiredLibraryRebuildControllerProvider(widget.reason).notifier,
     );
@@ -92,7 +95,7 @@ class _RequiredLibraryRebuildScreenState
     final progress = running && total != null && total > 0 && processed != null
         ? (processed / total).clamp(0.0, 1.0)
         : null;
-    final status = _statusText(l10n, rebuild, sync);
+    final status = _statusText(l10n, rebuild, sync, transition);
     final isInitial =
         widget.reason == RequiredLibraryRebuildReason.initialLogin;
 
@@ -231,6 +234,7 @@ class _RequiredLibraryRebuildScreenState
     AppLocalizations l10n,
     RequiredLibraryRebuildState rebuild,
     LibrarySyncState sync,
+    SessionTransition transition,
   ) {
     return switch (rebuild.status) {
       RequiredLibraryRebuildStatus.waitingForNetwork =>
@@ -243,7 +247,8 @@ class _RequiredLibraryRebuildScreenState
         widget.reason == RequiredLibraryRebuildReason.initialLogin
             ? l10n.initialSyncFailed
             : l10n.requiredSyncRebuildFailed,
-      RequiredLibraryRebuildStatus.cancelling => l10n.initialSyncCancelling,
+      RequiredLibraryRebuildStatus.cancelling =>
+        transition.phaseText(l10n) ?? l10n.initialSyncCancelling,
       RequiredLibraryRebuildStatus.complete => l10n.initialSyncComplete,
       RequiredLibraryRebuildStatus.idle ||
       RequiredLibraryRebuildStatus.checkingNetwork =>
