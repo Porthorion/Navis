@@ -530,21 +530,24 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         );
   }
 
-  Future<void> _removeTrack(int songIndex) async {
-    final playlist = _editable;
-    if (playlist == null) return;
-    final l10n = AppLocalizations.of(context)!;
+  /// How many rows with [song]'s id precede [songIndex] in the stored list
+  /// the row was built from. Read when a menu opens and captured, so removal
+  /// names the chosen occurrence even if the list changes before the tap.
+  int _occurrenceAt(SongsTableData song, int songIndex) {
     final songs =
         ref.read(playlistSongsProvider(widget.playlistId)).asData?.value ??
         const <SongsTableData>[];
+    return songs.take(songIndex).where((s) => s.id == song.id).length;
+  }
+
+  Future<void> _removeTrack(String songId, int occurrence) async {
+    final playlist = _editable;
+    if (playlist == null) return;
+    final l10n = AppLocalizations.of(context)!;
     try {
       await ref
           .read(playlistActionsProvider)
-          .removeAt(
-            playlist,
-            songs.map((song) => song.id).toList(growable: false),
-            songIndex,
-          );
+          .removeAt(playlist, songId: songId, occurrence: occurrence);
       if (!mounted) return;
       showAppNotice(
         context,
@@ -617,6 +620,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
       return;
     }
     final l10n = AppLocalizations.of(context)!;
+    final occurrence = _occurrenceAt(song, songIndex);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -795,7 +799,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     ),
                     onTap: () {
                       Navigator.of(sheetContext).pop();
-                      unawaited(_removeTrack(songIndex));
+                      unawaited(_removeTrack(song.id, occurrence));
                     },
                   ),
                 ],
@@ -813,6 +817,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     required Offset anchor,
   }) async {
     final l10n = AppLocalizations.of(context)!;
+    final occurrence = _occurrenceAt(song, songIndex);
     final downloadState = ref.read(songDownloadStateProvider(song.id));
     final isDownloaded = downloadState.status == SongDownloadStatus.downloaded;
     final colors = Theme.of(context).colorScheme;
@@ -929,7 +934,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         unawaited(_deleteDownload(song));
         return;
       case _PlaylistSongContextAction.removeFromPlaylist:
-        unawaited(_removeTrack(songIndex));
+        unawaited(_removeTrack(song.id, occurrence));
         return;
     }
   }

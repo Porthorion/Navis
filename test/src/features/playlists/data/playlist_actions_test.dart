@@ -145,7 +145,7 @@ void main() {
       final ids = ['a', 'a', 'b'];
       await a.reorder(p, ids, 1, 2);
       expect(ids, ['a', 'a', 'b']);
-      await a.removeAt(p, ['a', 'b', 'a'], 2);
+      await a.removeAt(p, songId: 'a', occurrence: 1);
       await a.rename(p, ' Renamed ');
       final updated = (await database.playlistDao.watchPlaylistById(id).first)!;
       expect(
@@ -415,43 +415,6 @@ void main() {
     expect(server, ['x', 'a']);
   });
 
-  test('remove uses the occurrence index and refreshes detail', () async {
-    when(() => api.updatePlaylist(id: 'p', songIndexesToRemove: [1]))
-        .thenAnswer((_) async => _response);
-    await flush();
-    await actions.removeAt(_playlist, ['a', 'a', 'b'], 1);
-    await flush();
-    expect(headerSyncs, 1);
-    expect(detailSyncs, 2);
-    verify(() => api.updatePlaylist(id: 'p', songIndexesToRemove: [1]))
-        .called(1);
-  });
-
-  test('adding to a device playlist skips songs it already holds', () async {
-    final database = createTestDatabase();
-    addTearDown(database.close);
-    final local = ProviderContainer(overrides: withTestDatabase(database));
-    addTearDown(local.dispose);
-    await database.libraryDao.upsertSongs([
-      for (final id in ['s1', 's2', 's3'])
-        SongsTableCompanion.insert(id: id, title: id),
-    ]);
-    final a = local.read(playlistActionsProvider);
-    final id = await a.create('Mix', ['s1', 's2'], onServer: false);
-    final p = (await database.playlistDao.watchPlaylistById(id).first)!;
-    expect(await a.addSongs(p, ['s1', 's2', 's3', 's3']), (
-      added: 1,
-      alreadyThere: 3,
-      failed: 0,
-    ));
-    expect(
-      (await database.playlistDao.watchPlaylistSongs(id).first).map(
-        (s) => s.id,
-      ),
-      ['s1', 's2', 's3'],
-    );
-  }, skip: !sqliteAvailable);
-
   test('reorder replaces atomically, preserves duplicates and input', () async {
     when(
       () => api.replacePlaylistSongs(playlistId: 'p', songIds: ['a', 'b', 'a']),
@@ -483,7 +446,7 @@ void main() {
             await a.addSongs(p, ['a']);
           },
         ),
-        ('remove', (a, p) => a.removeAt(p, ['a', 'b'], 0)),
+        ('remove', (a, p) => a.removeAt(p, songId: 'a', occurrence: 0)),
         ('reorder', (a, p) => a.reorder(p, ['a', 'b'], 0, 1)),
       ]) {
     test('$label throws server failures to its caller', () async {

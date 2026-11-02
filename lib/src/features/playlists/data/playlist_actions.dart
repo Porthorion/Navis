@@ -6,6 +6,8 @@ import 'package:navis/src/api/server_create_recovery.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/library_sync_response_validation.dart';
+import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
@@ -30,7 +32,7 @@ class PlaylistActions {
   final Ref _ref;
 
   final _uploads = <String, Future<PlaylistUploadResult>>{};
-  final _adds = <String, Future<PlaylistAddResult>>{};
+  final _edits = <String, Future<Object?>>{};
   final _createRecovery = ServerCreateRecovery<_UploadSnapshot>();
   final _keptUploads = <String>{};
 
@@ -229,21 +231,30 @@ class PlaylistActions {
       });
     }
     final api = _serverApi();
-    // One add per playlist at a time: a second waits for the first.
-    final previous = _adds[playlist.id];
-    final run =
-        (previous?.then<void>((_) {}, onError: (_) {}) ?? Future<void>.value())
-            .then((_) => _addToServer(api, playlist.id, songIds));
-    _adds[playlist.id] = run;
     try {
-      return await run;
+      return await _edit(
+        playlist.id,
+        () => _addToServer(api, playlist.id, songIds),
+      );
     } finally {
-      if (identical(_adds[playlist.id], run)) _adds.remove(playlist.id);
       if (_ref.mounted) {
         _ref.invalidate(playlistDetailSyncProvider(playlist.id));
         _ref.invalidate(playlistSyncProvider);
       }
     }
+  }
+
+  /// Runs one server edit of a playlist at a time (add, remove, reorder): a
+  /// second waits for the first, whether or not it failed.
+  Future<T> _edit<T>(String id, Future<T> Function() run) {
+    final previous = _edits[id];
+    final task =
+        (previous?.then<void>((_) {}, onError: (_) {}) ?? Future<void>.value())
+            .then((_) => run());
+    _edits[id] = task;
+    return task.whenComplete(() {
+      if (identical(_edits[id], task)) unawaited(_edits.remove(id));
+    });
   }
 
   /// [picked] without repeats and without anything in [present], in order.
@@ -329,26 +340,87 @@ class PlaylistActions {
     return missing;
   }
 
+  /// Removes one occurrence of [songId]: the [occurrence]-th (0-based) entry
+  /// with that id in the list the caller saw, or the last one if the playlist
+  /// now has fewer. Never removes by position, so a list that moved under the
+  /// caller cannot take another song; a song already gone removes nothing.
   Future<void> removeAt(
-    PlaylistsTableData playlist,
-    List<String> currentIds,
-    int index,
-  ) async {
+    PlaylistsTableData playlist, {
+    required String songId,
+    required int occurrence,
+  }) async {
     if (playlist.isLocal) {
-      final ids = currentIds.toList()..removeAt(index);
-      await _ref
-          .read(navisDatabaseProvider)
-          .playlistDao
-          .setLocalPlaylistSongs(playlist.id, ids);
+      final db = _ref.read(navisDatabaseProvider);
+      await db.transaction(() async {
+        final ids = [
+          for (final song
+              in await db.playlistDao.watchPlaylistSongs(playlist.id).first)
+            song.id,
+        ];
+        final at = _occurrenceIndex(ids, songId, occurrence);
+        if (at < 0) return;
+        await db.playlistDao.setLocalPlaylistSongs(
+          playlist.id,
+          ids..removeAt(at),
+        );
+      });
       return;
     }
-    await _serverApi().updatePlaylist(
-      id: playlist.id,
-      songIndexesToRemove: [index],
+    final api = _serverApi();
+    await _edit(playlist.id, () async {
+      final ids = await _entryIds(api, playlist.id);
+      final at = _occurrenceIndex(ids, songId, occurrence);
+      if (at < 0) return;
+      // One index per call: Navidrome 0.64 ignores several.
+      await api.updatePlaylist(id: playlist.id, songIndexesToRemove: [at]);
+      try {
+        await _storeEntries(playlist.id, ids..removeAt(at));
+      } on Object {
+        // The server edit succeeded; the hydration below repairs the list.
+      }
+    });
+    if (!_ref.mounted) return;
+    _ref.invalidate(playlistSyncProvider);
+    // The stored list is already right; this settles counts and covers. It
+    // must not join a hydration that started before the edit.
+    unawaited(
+      _ref
+          .read(librarySyncControllerProvider.notifier)
+          .requestTarget(
+            LibrarySyncTarget.playlist(playlist.id),
+            requireFresh: true,
+          )
+          .then<void>((_) {}, onError: (Object _) {}),
     );
-    if (_ref.mounted) {
-      _ref.invalidate(playlistDetailSyncProvider(playlist.id));
+  }
+
+  /// Index of the [occurrence]-th [songId] in [ids], else the last one, else -1.
+  int _occurrenceIndex(List<String> ids, String songId, int occurrence) {
+    var seen = 0;
+    var last = -1;
+    for (var i = 0; i < ids.length; i++) {
+      if (ids[i] != songId) continue;
+      if (seen++ == occurrence) return i;
+      last = i;
     }
+    return last;
+  }
+
+  /// Stores a server playlist's entries right after an edit. Ids the library
+  /// does not hold yet are left for the hydration the caller starts next.
+  Future<void> _storeEntries(String id, List<String> ids) async {
+    final db = _ref.read(navisDatabaseProvider);
+    final known = {
+      for (final song in await db.libraryDao.getSongsByIds(ids)) song.id,
+    };
+    await db.playlistDao.replacePlaylistSongs(id, [
+      for (final songId in ids.where(known.contains).indexed)
+        PlaylistSongsTableCompanion.insert(
+          playlistId: id,
+          songId: songId.$2,
+          sortOrder: songId.$1,
+        ),
+    ]);
   }
 
   Future<void> reorder(
@@ -370,9 +442,12 @@ class PlaylistActions {
     }
     final api = _serverApi();
     try {
-      await api.replacePlaylistSongs(
-        playlistId: playlist.id,
-        songIds: reordered,
+      await _edit(
+        playlist.id,
+        () => api.replacePlaylistSongs(
+          playlistId: playlist.id,
+          songIds: reordered,
+        ),
       );
     } finally {
       // Refresh on failure too, reverting the detail screen's optimistic order.

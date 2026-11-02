@@ -14,6 +14,19 @@ Last updated: 2026-11-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #212 B1+B3 (1.5.2), playlist add/remove — 2026-11-02
+  (branch `fix/playlist-edits`, stacked on `fix/playlist-song-sheet`). `addSongs`
+  skips songs the playlist already holds and returns `(added, alreadyThere,
+  failed)` (new strings `addToPlaylistAlreadyThere`,
+  `addToPlaylistSomeAlreadyThere`). `removeAt(playlist, songId:, occurrence:)`
+  removes the chosen occurrence from the fresh server list inside a
+  per-playlist edit chain, writes the result locally and requests a
+  `requireFresh` hydration. Probes (Navidrome 0.64.2): createPlaylist with 5
+  ids is complete (B2 not needed); replace by `createPlaylist(playlistId, ...)`
+  is exact but an empty list is a no-op; name-only `updatePlaylist` keeps songs.
+  Failing-first: add tests `Expected: (added: 1, alreadyThere: 2, failed: 0)
+  Actual: 1`; with `requireFresh: false` the stale-hydration test ends
+  `['A','B','C','D']` instead of `['A','D']`.
 - [x] Issue #212 A (1.5.2), playlist song sheet cut off — 2026-11-02
   (branch `fix/playlist-song-sheet`). `_showSongActions` now uses the
   `showSongContextMenu` pattern (`isScrollControlled`, 0.85 height cap,

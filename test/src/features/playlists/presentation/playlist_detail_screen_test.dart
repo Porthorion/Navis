@@ -330,8 +330,13 @@ void main() {
       tester,
     ) async {
       final actions = _MockPlaylistActions();
-      when(() => actions.removeAt(any(), any(), any()))
-          .thenAnswer((_) async {});
+      when(
+        () => actions.removeAt(
+          any(),
+          songId: any(named: 'songId'),
+          occurrence: any(named: 'occurrence'),
+        ),
+      ).thenAnswer((_) async {});
       final notices = await _pumpEditableDetail(
         tester,
         _playlist,
@@ -344,13 +349,17 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove from Playlist'));
       await tester.pumpAndSettle();
-      verify(
-        () => actions.removeAt(any(), <String>['playlist-1', 'playlist-2'], 1),
-      ).called(1);
+      verify(() => actions.removeAt(any(), songId: 'playlist-2', occurrence: 0))
+          .called(1);
       expect(notices.notice?.message, 'Track removed');
 
-      when(() => actions.removeAt(any(), any(), any()))
-          .thenThrow(StateError('boom'));
+      when(
+        () => actions.removeAt(
+          any(),
+          songId: any(named: 'songId'),
+          occurrence: any(named: 'occurrence'),
+        ),
+      ).thenThrow(StateError('boom'));
       await tester.longPress(find.text('First song'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove from Playlist'));

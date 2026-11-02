@@ -3450,6 +3450,15 @@ works like the weekly playlists. `homeTrendingProvider`
   Creation and rename reject blank trimmed names. Server creation disables
   transport retries because repeating it can create another playlist. Server
   reorder refreshes detail even on failure to revert optimistic UI state.
+  Server edits of one playlist (add, remove, reorder) run one at a time in
+  order (`_edits`). Remove names the song, not a position: the detail screen
+  captures the chosen row's id and its occurrence count when the menu opens,
+  and `removeAt` re-reads the server list inside the chain, removes that
+  occurrence (the last one if fewer remain, nothing if the song is gone) with a
+  single `songIndexToRemove` (Navidrome 0.64 ignores several), stores the
+  remaining entries through `PlaylistDao.replacePlaylistSongs`, invalidates
+  `playlistSyncProvider` and starts a `requireFresh` playlist hydration without
+  awaiting it, so it cannot join one that began before the edit.
 - The phone song-actions sheet on the playlist detail screen
   (`_showSongActions`) is scrollable like `showSongContextMenu`:
   `isScrollControlled`, `useSafeArea`, a 0.85 x screen-height cap and a

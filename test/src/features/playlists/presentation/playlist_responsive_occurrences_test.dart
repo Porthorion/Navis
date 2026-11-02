@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/playlist.dart';
+import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -150,6 +151,18 @@ void main() {
       final database = createTestDatabase();
       addTearDown(database.close);
       final api = _Api();
+      when(() => api.getPlaylist('occurrences')).thenAnswer(
+        (_) async => const Playlist(
+          id: 'occurrences',
+          name: 'Occurrences',
+          songCount: 3,
+          entries: [
+            Song(id: 'duplicate', title: 'Repeated song'),
+            Song(id: 'middle', title: 'Middle song'),
+            Song(id: 'duplicate', title: 'Repeated song'),
+          ],
+        ),
+      );
       when(
         () => api.updatePlaylist(id: 'occurrences', songIndexesToRemove: [2]),
       ).thenAnswer(
