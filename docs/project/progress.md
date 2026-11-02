@@ -14,6 +14,16 @@ Last updated: 2026-11-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issues #102 + #103 (1.5.2), sign-out phases, step timeouts and write
+  fence — 2026-11-02 (branch `fix/sign-out-fence`). Every teardown step now has a
+  timeout and a logged duration (so the 5-minute stall in #102/#103 names its
+  step), sign-out replaces every sync lease with an unexpired sentinel before
+  anything is cleared, and the screens show "Stopping sync…" / "Clearing
+  data…" / "Signing out…". Failing-first (base, same scenario with a cancel
+  that returns while the run keeps its lease): the cancelled run's song survives
+  the wipe (`Expected: <Instance of 'SyncLeaseLostException'> Actual: <null>`).
+  Tail writes after a run's fenced section only touch cascading `server_id`
+  tables. Runtime check on the slow-server host still needed.
 - [x] Issue #203 (1) (1.5.2), cold seek stall leaves Android idle — 2026-11-02
   (branch `fix/cold-seek-stall-idle`). Cause (proven at runtime): a stalled
   cold seek's reload times out, `_recoverPlayersFromTimeout` leaves an empty

@@ -96,6 +96,8 @@ class ServerConfigRepository {
           ),
         );
       } else {
+        // Keep-data sign-out left the sign-out fence on this server's lease.
+        await _database.librarySyncDao.clearSignOutFence(retained.id);
         await _serverDao.updateRetainedServer(
           retained.id,
           ServerConfigTableCompanion(

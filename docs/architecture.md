@@ -626,9 +626,37 @@ that engine and retry their startup pass when it arrives; only an explicit
 user-triggered retry exposes a persistent unavailable-engine failure.
 
 All logout callers use the injected, single-flight `SessionLifecycleService`.
-Its ordering is API cancellation → awaited sync/download stop → playback/radio
-session reset → transient UI/mix/timer reset → pending mutation/work cleanup →
-optional server-data/file reset → authentication invalidation in `finally`.
+Its ordering is API cancellation → awaited sync stop → sign-out fence of every
+sync lease → download stop → playback/radio session reset → transient
+UI/mix/timer reset → pending mutation/work cleanup → optional server-data/file
+reset → authentication invalidation in `finally`. Every step runs through one
+`attempt` helper that bounds it with a timeout (5 s for API cancel, UI reset and
+notification; 10 s for Android-worker cancel, playback reset and the ListenBrainz
+token; 20 s for downloads; 30 s for the sync cancel, the fence, each database
+clear and cover art; 180 s for the server-data wipe, which deletes files; 60 s
+for authentication), logs its duration, and on a timeout or error logs a
+warning naming the step and goes on. An abandoned step's late result is
+ignored, so a hung step costs at most its bound, and credentials are always
+cleared. Timeouts are silent for the user (no notice).
+The fence step replaces every server's `library_sync_execution_lease` row with
+a sentinel (`owner_kind = 'signout'`, unexpired for 15 minutes, a token no run
+holds). The write fence checks the lease on every write and at commit, so a
+run that ignored its cancel (or an Android worker on its own connection) fails
+its next write with `SyncLeaseLostException` and rolls back, and no run can
+acquire the lease while the sentinel stands. The row is not deleted because a
+run starting after a delete would insert a fresh lease and write during the
+wipe. A busy writer lock is retried until the step's bound. A wipe removes the
+sentinel with its server row (cascade); keep-data sign-out keeps the row, so
+`ServerConfigRepository.save` clears the sentinel at the next sign-in, and the
+15-minute expiry heals a sign-out that was killed midway. The sync run's
+bookkeeping writes after its fenced section touch only `server_id` tables that
+cascade on the server delete; no write to an unscoped content table happens
+outside a fence.
+`sessionTransitionProvider` publishes one coarse phase per group of steps
+(`stoppingSync`, `clearingData`, `finishing`, then `idle`); the cancel-and-sign-out
+screen and the server settings sign-out button show it ("Stopping sync…",
+"Clearing data…", "Signing out…"), and the diagnostics `transition` field
+reports it.
 `NavisPlaybackHandler.resetSession()` supersedes transport and queue work,
 stops radio metadata, crossfade and cache sidecars, empties both decks and the
 media session, persists an empty queue, and emits idle state. Download teardown

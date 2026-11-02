@@ -7,7 +7,9 @@ import 'package:drift/drift.dart' show InsertMode, Value;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logger/logger.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
@@ -359,7 +361,9 @@ void main() {
         expect(playbackCalls, 1);
         expect(invalidationCalls, 1);
         expect(transitions, <SessionTransition>[
-          SessionTransition.signingOut,
+          SessionTransition.stoppingSync,
+          SessionTransition.clearingData,
+          SessionTransition.finishing,
           SessionTransition.idle,
         ]);
         expect(await database.serverDao.getActiveServer(), isNull);
@@ -368,6 +372,298 @@ void main() {
       },
       skip: !sqliteAvailable,
     );
+
+    group('bounded teardown and write fence', () {
+      late List<LogEvent> logs;
+
+      setUp(() {
+        logs = <LogEvent>[];
+        void record(LogEvent event) => logs.add(event);
+        Logger.addLogListener(record);
+        addTearDown(() => Logger.removeLogListener(record));
+      });
+
+      Iterable<String> messages(Level level) => logs
+          .where((event) => event.level == level)
+          .map((event) => event.message.toString());
+
+      // 0.02 turns the 30 s step bound into 600 ms and the 180 s wipe bound
+      // into 3.6 s, long enough for in-memory SQLite and short enough to wait.
+      SessionLifecycleService scaled({
+        Future<void> Function()? cancelSync,
+        Future<void> Function()? resetPlayback,
+        Future<void> Function()? wipeServerData,
+        void Function(SessionTransition)? onTransition,
+      }) => SessionLifecycleService(
+        credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
+        serverConfigRepository: repository,
+        database: database,
+        cancelSync: cancelSync,
+        resetPlayback: resetPlayback,
+        wipeServerData: wipeServerData,
+        onTransition: onTransition,
+        timeoutScale: 0.02,
+      );
+
+      test(
+        'a step that never completes is timed out and later steps still run',
+        () async {
+          final cacheFile = File('${tmpDir.path}/track.mp3')
+            ..writeAsStringSync('audio');
+          await _seedAuthenticatedData(database, repository, cacheFile.path);
+          final hung = Completer<void>();
+          var playbackCalls = 0;
+          service = scaled(
+            cancelSync: () => hung.future,
+            resetPlayback: () async => playbackCalls++,
+          );
+
+          await service
+              .signOut(wipeLocalData: false)
+              .timeout(const Duration(seconds: 20));
+
+          expect(playbackCalls, 1);
+          expect(await database.serverDao.getActiveServer(), isNull);
+          expect(credentials.password, isNull);
+          expect(await database.starSyncDao.getPendingActions(), isEmpty);
+          expect(
+            messages(Level.warning),
+            contains(
+              allOf(contains('cancel library sync'), contains('timed out')),
+            ),
+          );
+          // Only the hung step is a problem: no other step fails or times out.
+          expect(
+            messages(Level.warning).where(
+              (message) =>
+                  message.startsWith('Session teardown step') &&
+                  !message.contains('cancel library sync'),
+            ),
+            isEmpty,
+          );
+          expect(
+            messages(Level.info),
+            containsAll(<Matcher>[
+              allOf(contains('reset playback'), contains(' ms')),
+              allOf(contains('clear authentication'), contains(' ms')),
+            ]),
+          );
+
+          // The abandoned future failing later must not surface as an
+          // unhandled error (the test framework fails the test if it does).
+          hung.completeError(StateError('late failure'));
+          await Future<void>.delayed(Duration.zero);
+        },
+        skip: !sqliteAvailable,
+      );
+
+      test('a zombie sync run cannot write after the fence, even mid-wipe', () async {
+        await _seedAuthenticatedData(
+          database,
+          repository,
+          '${tmpDir.path}/unused.mp3',
+        );
+        final serverId = (await database.serverDao.getActiveServer())!.id;
+        await database.librarySyncDao.acquireExecutionLease(
+          serverId: serverId,
+          ownerToken: 'zombie',
+          ownerKind: 'foreground',
+          now: DateTime.now(),
+          ttl: const Duration(minutes: 10),
+        );
+        final gate = Completer<void>();
+        final zombie =
+            SyncWriteFence(
+              serverId: serverId,
+              ownerToken: 'zombie',
+              now: DateTime.now,
+            ).run(() async {
+              await gate.future;
+              final errors = <Object>[];
+              for (final write in <Future<void> Function()>[
+                () => database.libraryDao.upsertSongs([
+                  SongsTableCompanion.insert(
+                    id: 'zombie-song',
+                    title: 'Zombie',
+                  ),
+                ]),
+                () => database.customStatement(
+                  'INSERT INTO library_sync_candidate_artists '
+                  "(server_id, generation, id, name) VALUES ($serverId, 2, 'z', 'Z')",
+                ),
+              ]) {
+                try {
+                  await write();
+                } on Object catch (error) {
+                  errors.add(error);
+                }
+              }
+              return errors;
+            });
+        service = scaled(
+          cancelSync: () => Completer<void>().future,
+          wipeServerData: () async {
+            await ServerDataResetService(database: database).reset();
+            // The cancelled run wakes up after the reset and before the
+            // server row is deleted: the window the fence must close.
+            gate.complete();
+            await zombie;
+          },
+        );
+
+        await service
+            .signOut(wipeLocalData: true)
+            .timeout(const Duration(seconds: 20));
+
+        expect(await zombie, everyElement(isA<SyncLeaseLostException>()));
+        expect(await zombie, hasLength(2));
+        expect(await database.select(database.songsTable).get(), isEmpty);
+        expect(
+          await database
+              .customSelect('SELECT * FROM library_sync_candidate_artists')
+              .get(),
+          isEmpty,
+        );
+      }, skip: !sqliteAvailable);
+
+      test('an Android worker on its own connection is fenced too', () async {
+        final file = File('${tmpDir.path}/worker.sqlite');
+        final main = createTestDatabase(file: file);
+        final worker = createTestDatabase(file: file);
+        addTearDown(() async {
+          await worker.close();
+          await main.close();
+        });
+        final mainRepository = ServerConfigRepository(
+          main,
+          credentials: credentials,
+        );
+        await _seedAuthenticatedData(
+          main,
+          mainRepository,
+          '${tmpDir.path}/unused.mp3',
+        );
+        final serverId = (await main.serverDao.getActiveServer())!.id;
+        await main.librarySyncDao.acquireExecutionLease(
+          serverId: serverId,
+          ownerToken: 'worker',
+          ownerKind: 'androidWorker',
+          now: DateTime.now(),
+          ttl: const Duration(minutes: 10),
+        );
+        final gate = Completer<void>();
+        final zombie =
+            SyncWriteFence(
+              serverId: serverId,
+              ownerToken: 'worker',
+              now: DateTime.now,
+            ).run(() async {
+              await gate.future;
+              try {
+                await worker.libraryDao.upsertSongs([
+                  SongsTableCompanion.insert(
+                    id: 'worker-song',
+                    title: 'Worker',
+                  ),
+                ]);
+                return null;
+              } on Object catch (error) {
+                return error;
+              }
+            });
+        final signOutService = SessionLifecycleService(
+          credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
+          serverConfigRepository: mainRepository,
+          database: main,
+          wipeServerData: () async {
+            await ServerDataResetService(database: main).reset();
+            gate.complete();
+            await zombie;
+          },
+          timeoutScale: 0.02,
+        );
+
+        await signOutService
+            .signOut(wipeLocalData: true)
+            .timeout(const Duration(seconds: 20));
+
+        expect(await zombie, isA<SyncLeaseLostException>());
+        expect(await main.select(main.songsTable).get(), isEmpty);
+      }, skip: !sqliteAvailable);
+
+      test('sync bookkeeping written between the reset and the server delete '
+          'does not outlive a wipe', () async {
+        await _seedAuthenticatedData(
+          database,
+          repository,
+          '${tmpDir.path}/unused.mp3',
+        );
+        final serverId = (await database.serverDao.getActiveServer())!.id;
+        service = scaled(
+          wipeServerData: () async {
+            await ServerDataResetService(database: database).reset();
+            await database.librarySyncDao.getOrCreateState(serverId);
+            await database.librarySyncDao.enqueueWork(
+              serverId: serverId,
+              kind: 'catalogSnapshot',
+              priority: 1,
+            );
+            expect(
+              await database.select(database.librarySyncWorkTable).get(),
+              hasLength(1),
+            );
+          },
+        );
+
+        await service.signOut(wipeLocalData: true);
+
+        expect(
+          await database.select(database.librarySyncStateTable).get(),
+          isEmpty,
+        );
+        expect(
+          await database.select(database.librarySyncWorkTable).get(),
+          isEmpty,
+        );
+        expect(
+          await database.select(database.librarySyncExecutionLeaseTable).get(),
+          isEmpty,
+        );
+      }, skip: !sqliteAvailable);
+
+      test('keep-data sign out blocks sync until the next sign-in clears the fence', () async {
+        await _seedAuthenticatedData(
+          database,
+          repository,
+          '${tmpDir.path}/unused.mp3',
+        );
+        final serverId = (await database.serverDao.getActiveServer())!.id;
+        Future<bool> acquire(String kind) =>
+            database.librarySyncDao.acquireExecutionLease(
+              serverId: serverId,
+              ownerToken: 'next-$kind',
+              ownerKind: kind,
+              now: DateTime.now(),
+              ttl: const Duration(minutes: 10),
+            );
+
+        await service.signOut(wipeLocalData: false);
+        expect(await acquire('foreground'), isFalse);
+        expect(await acquire('androidWorker'), isFalse);
+
+        await repository.save(
+          const ServerConfigModel(
+            name: 'example.com',
+            url: 'https://example.com',
+            username: 'alice',
+            password: 'secret',
+            apiVersion: '1.16.1',
+          ),
+        );
+
+        expect(await acquire('foreground'), isTrue);
+      }, skip: !sqliteAvailable);
+    });
   });
 }
 
