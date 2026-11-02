@@ -1493,6 +1493,86 @@ class RealServer(unittest.TestCase):
             self.assertEqual(fix.draws, 100, 'replayed picks draw nothing')
             self.assertEqual(Backend(None).fresh_songs(1), [{'id': 'random-1-0'}])  # no file: plain draw
 
+    def paired_backend(self, path):
+        class Backend:
+            def __init__(self):
+                self._picks, self._pick_n, self.draws = path, 0, 0
+            @engine.paired
+            def fresh_songs(self, n, min_s=100):
+                self.draws += 1
+                return [{'id': f'song-{self.draws}-{k}'} for k in range(n)]
+            @engine.paired
+            def filler(self, n, exclude=()):
+                return [f'f{k}' for k in range(n)]
+        return Backend
+
+    def test_replay_with_other_args_or_a_skipped_pick_raises_and_keeps_the_recording(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'seek-0.json'
+            Backend = self.paired_backend(path)
+            recorder = Backend()
+            recorder.fresh_songs(1)
+            recorder.filler(3, exclude=('a',))
+            recorder.fresh_songs(2)
+            recorded = path.read_text()
+            replay = Backend()
+            with self.assertRaises(engine.Failure):  # same method, other args
+                replay.fresh_songs(6)
+            skipping = Backend()
+            with self.assertRaises(engine.Failure):  # the first variant skipped its first pick
+                skipping.filler(3, exclude=('a',))
+            late = Backend()
+            late.fresh_songs(1)
+            with self.assertRaises(engine.Failure):  # other exclude
+                late.filler(3, exclude=('b',))
+            self.assertEqual(path.read_text(), recorded, 'a mismatch never rewrites or truncates the recording')
+            ok = Backend()
+            self.assertEqual([ok.fresh_songs(1), ok.filler(3, exclude=('a',)), ok.fresh_songs(2)],
+                             [[{'id': 'song-1-0'}], ['f0', 'f1', 'f2'], [{'id': 'song-2-0'}, {'id': 'song-2-1'}]])
+            self.assertEqual(list(Path(tmp).iterdir()), [path], 'the recording is written atomically: no temporary file is left')
+
+    def test_failed_seed_copy_leaves_no_seed_behind(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            credentials = Path(tmp) / 'creds.json'
+            credentials.write_text('{"url": "https://a.example", "username": "u", "password": "SECRET-PW"}')
+            credentials.chmod(0o600)
+            linux = Path(tmp) / 'base-linux'
+            linux.mkdir()
+            data = Path(tmp) / 'data'
+            (data / 'root').mkdir(parents=True)
+            (data / 'root' / 'navis.sqlite').write_text('catalog')
+            def dying_copy(source, target):
+                Path(target).write_text('trunc')
+                raise OSError('killed mid-copy')
+            with patch.object(h, 'CREDENTIALS', credentials), patch.object(h, 'DATA', data), patch.object(h, 'activate'), \
+                    patch.object(h, 'base_build', return_value=(linux, 'hit')), patch.object(h, 'engine', return_value=Mock(returncode=0)), \
+                    patch.object(h.shutil, 'copyfile', side_effect=dying_copy), contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(OSError):
+                    h.seed_catalog('sha', 'flutter', {}, Path(tmp), real=True)
+            self.assertEqual([p.name for p in Path(tmp).glob('base-linux*seed*') if not p.name.endswith('.tmp')], [])
+            out = io.StringIO()
+            with patch.object(h, 'CREDENTIALS', credentials), patch.object(h, 'DATA', data), patch.object(h, 'activate'), \
+                    patch.object(h, 'base_build', return_value=(linux, 'hit')), patch.object(h, 'engine', return_value=Mock(returncode=0)), \
+                    contextlib.redirect_stdout(out):
+                self.assertTrue(h.seed_catalog('sha', 'flutter', {}, Path(tmp), real=True).exists())
+            self.assertIn('\nseed: linux base', '\n' + out.getvalue())
+            self.assertNotIn('android seed', out.getvalue())
+
+    def test_android_password_file_is_private_and_removed_after_a_failure(self):
+        modes = []
+        real_open = os.open
+        def spy(path, flags, mode=0o777, **kw):
+            modes.append((Path(path).name, mode))
+            return real_open(path, flags, mode, **kw)
+        with tempfile.TemporaryDirectory() as tmp:
+            app = engine.AndroidApp(Path(tmp), 'emulator-5554')  # no navis.sqlite in ROOT: the seed backup fails after the password is written
+            with patch.object(engine, 'ROOT', Path(tmp) / 'root'), patch.object(engine.subprocess, 'run', return_value=Mock(returncode=0, stdout='', stderr='')), \
+                    patch.object(engine.os, 'open', side_effect=spy):
+                with self.assertRaises(Exception):
+                    app.prepare({'password': 'SECRET-PW'}, 'http://127.0.0.1:1')
+            self.assertIn(('password.tmp', 0o600), modes)
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
 
 if __name__ == '__main__':
     unittest.main()

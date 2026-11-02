@@ -943,14 +943,19 @@ def seed_catalog(base_sha: str, flutter: str, display_env: dict, out: Path, real
     """Android (and Linux under --real) starts from a synced catalog; made once per base from the base's cached Linux bundle. Under --real
     the catalog is synced from the live server (--seed-only works there too), so a run syncs at most once, and cached apart from the fixture seed."""
     linux, note = base_build(base_sha, 'linux', flutter, out)
-    print(f'android seed: linux base {note}')
+    print(f'seed: linux base {note}')
     seed = linux.parent / (live_seed_name(linux.name) if real else f'{linux.name}-seed.sqlite')
     if not seed.exists():
         activate(linux, 'linux', real=real)
         done = engine(['--seed-only'], display_env, out / 'seed', {}, timeout=2400, label='seed', real=real)  # the engine waits up to 1800 s for the first sync
         if done.returncode or not (DATA / 'root' / 'navis.sqlite').exists():
             raise InfraError('could not seed the Android catalog from a Linux run')
-        shutil.copyfile(DATA / 'root' / 'navis.sqlite', seed)
+        temporary = seed.with_name(seed.name + '.tmp')  # a kill mid-copy must not leave a truncated seed that passes for a cache hit
+        try:
+            shutil.copyfile(DATA / 'root' / 'navis.sqlite', temporary)
+            os.replace(temporary, seed)
+        finally:
+            temporary.unlink(missing_ok=True)
     return seed
 
 

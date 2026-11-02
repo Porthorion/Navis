@@ -1716,7 +1716,10 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   (Linux and Android both start from that seed, cached apart from the fixture
   seed and keyed by server and account; Linux runs `--keep-profile`), and base
   and fix replay one another's random song picks per scenario and repetition
-  (`picks/` in the output folder) so the A/B compares code, not songs. Only scenarios that need no fixture library or
+  (`picks/` in the output folder) so the A/B compares code, not songs; a pick
+  that differs between the variants is a case error, never other songs. The
+  fix variant starts from the base's synced seed, so a fix that bumps the
+  schema or triggers the library reset re-syncs on its own. Only scenarios that need no fixture library or
   transcoder run: `seek`, `stress-drag`, `memory-soak`, `local-seek`
   (`FIXTURE_ONLY` names the rest and why). Naming a fixture-only scenario
   exits 2 before any build; `--all`/`--map` skip them (`SKIP <scenario>:

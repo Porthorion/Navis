@@ -530,8 +530,9 @@ class AndroidApp(App):
         seed = self.run / 'seed.sqlite'
         password = self.run / 'password.tmp'
         try:
-            password.write_text(credentials['password'] + '\n')
-            os.chmod(password, 0o600)
+            descriptor = os.open(password, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(descriptor, 'w') as out:
+                out.write(credentials['password'] + '\n')
             source = sqlite3.connect(f'file:{ROOT / "navis.sqlite"}?mode=ro',
                                      uri=True)
             copy = sqlite3.connect(seed)
@@ -1769,11 +1770,16 @@ def paired(method):
             return method(self, *args, **kwargs)
         n, self._pick_n = self._pick_n, self._pick_n + 1
         picks = json.loads(path.read_text()) if path.exists() else []
-        if n < len(picks) and picks[n]['method'] == method.__name__:
+        call = json.loads(json.dumps([method.__name__, args, kwargs], default=str))
+        if n < len(picks):  # replay: a different call than the first variant made is a case error, never other songs
+            if picks[n]['call'] != call:
+                raise Failure(f"paired pick {n} differs from the first variant's: {picks[n]['call']} vs {call}")
             return tuple(picks[n]['value']) if picks[n]['tuple'] else picks[n]['value']
         result = method(self, *args, **kwargs)
-        picks[n:] = [{'method': method.__name__, 'tuple': isinstance(result, tuple), 'value': result}]
-        path.write_text(json.dumps(picks))
+        picks.append({'call': call, 'tuple': isinstance(result, tuple), 'value': result})
+        temporary = path.with_name(path.name + '.tmp')  # a kill mid-write must not leave a file the next variant cannot parse
+        temporary.write_text(json.dumps(picks))
+        os.replace(temporary, path)
         return result
     return wrapper
 
