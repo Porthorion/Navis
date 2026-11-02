@@ -798,7 +798,7 @@ class PairedRepetitions(unittest.TestCase):
         """Runs cmd_ab for queue-edit on Linux against a fake engine; returns (exit/exception, evidence dir, calls)."""
         import argparse
         import json
-        calls = []
+        calls, roles = [], []
         activated = [] if activated is None else activated
         seeded = [] if seeded is None else seeded
         root_ctx = tempfile.TemporaryDirectory()
@@ -806,7 +806,8 @@ class PairedRepetitions(unittest.TestCase):
         root = Path(root_ctx.name)
         artifact = root / 'bundle'
         artifact.write_text('bundle')
-        def scenario(name, platform, variant_dir, display_env, serial, apk, full, nreps, real, rep=None):
+        def scenario(name, platform, variant_dir, display_env, serial, apk, full, nreps, real, rep=None, pick_role=None):
+            roles.append(pick_role)
             parts = variant_dir.parts
             calls.append((parts[-4], parts[-3], int(parts[-2].split('-')[1])) if parts[-2].startswith('rep-')
                          else (parts[-3], parts[-2], None))
@@ -847,6 +848,7 @@ class PairedRepetitions(unittest.TestCase):
                 code = h.cmd_ab(args)
             except h.InfraError as error:
                 code = error
+        self.roles = roles
         return code, root / 'out', calls
 
     def test_ab_interleaves_and_keeps_one_verified_evidence_record_per_variant(self):
@@ -885,6 +887,20 @@ class PairedRepetitions(unittest.TestCase):
         self.assertIn('server live', (out / 'summary.md').read_text())
         merged = Path(record['variants']['fix/seek']['report'])
         self.assertEqual(json.loads(merged.read_text())['server'], 'live')
+
+
+    def test_the_variant_that_runs_first_records_and_the_other_replays(self):
+        evaluate = patch.object(h, 'evaluate', return_value=[(True, 'ok')])  # these rows carry no metrics; thresholds are not under test
+        evaluate.start()
+        self.addCleanup(evaluate.stop)
+        code, out, calls = self.ab(real=True, reps=2, scenarios=('seek',))
+        self.assertEqual(code, 0)
+        by_step = dict(zip(calls, self.roles))
+        for variant, name, rep in calls:
+            first = next(c for c in calls if c[1:] == (name, rep))
+            self.assertEqual(by_step[(variant, name, rep)], 'record' if (variant, name, rep) == first else 'replay')
+        self.assertEqual(sorted(set(by_step.values())), ['record', 'replay'])
+        self.assertEqual([v for v, _, r in calls if r == 1][0], 'fix')  # fix-first repetitions record just the same
 
     def test_android_runs_one_guest_per_variant_and_scenario_with_alternating_first_variant(self):
         import json
@@ -1410,16 +1426,27 @@ class RealServer(unittest.TestCase):
             self.assertEqual(names[0], names[3])
             self.assertNotIn('SECRET-PW', ''.join(names))
 
-    def run_args(self, platform, real):
+    def run_args(self, platform, real, role='record', existing=False):
         seen = {}
         def fake_engine(args, env, folder, extra, timeout, label, real=False):
             seen.update(args=args, extra=extra, timeout=timeout)
             raise h.InfraError('stop')
         with tempfile.TemporaryDirectory() as tmp, patch.object(h, 'engine', side_effect=fake_engine), \
                 patch.object(h, 'PICKS', Path(tmp) / 'picks'):
+            picks = Path(tmp) / 'picks' / ('seek-all.json')
+            if existing:
+                picks.parent.mkdir()
+                picks.write_text('{"partial": []}')
             with self.assertRaises(h.InfraError):
-                h.run_scenario('seek', platform, Path(tmp), {}, 'emulator-5554' if platform == 'android' else None, Path('a.apk'), False, 1, real, None)
+                h.run_scenario('seek', platform, Path(tmp), {}, 'emulator-5554' if platform == 'android' else None, Path('a.apk'), False, 1, real, None, role)
+            seen['picks_left'] = picks.exists()
         return seen
+
+    def test_recorder_attempts_start_fresh_and_replayer_attempts_keep_the_recording(self):
+        recorder = self.run_args('android', True, 'record', existing=True)  # attempt 2 of the recorder: its partial file is discarded
+        self.assertEqual((recorder['extra']['NAVIS_LIVE_SEEK_PICKS_ROLE'], recorder['picks_left']), ('record', False))
+        replayer = self.run_args('android', True, 'replay', existing=True)
+        self.assertEqual((replayer['extra']['NAVIS_LIVE_SEEK_PICKS_ROLE'], replayer['picks_left']), ('replay', True))
 
     def test_linux_real_keeps_the_profile_and_pairs_the_songs(self):
         live = self.run_args('linux', True)
@@ -1473,8 +1500,8 @@ class RealServer(unittest.TestCase):
     def test_engine_pairs_live_picks_between_base_and_fix(self):
         class Backend:
             cell = ('seek_far', 'opus128', 'wan6000', 0)
-            def __init__(self, path):
-                self._picks, self.draws = path, 0
+            def __init__(self, path, role='record'):
+                self._picks, self._picks_role, self.draws = path, role, 0
             @engine.paired
             def fresh_songs(self, n, min_s=100):
                 self.draws += 1
@@ -1488,7 +1515,7 @@ class RealServer(unittest.TestCase):
             base = Backend(path)
             first = (base.fresh_songs(2), base.fresh_artist())
             self.assertEqual(base.fresh_songs(1), [{'id': 'random-3-0'}], 'the recorder keeps recording after its first pick')
-            fix = Backend(path)
+            fix = Backend(path, 'replay')
             fix.draws = 100  # a fresh process would draw different random songs
             self.assertEqual((fix.fresh_songs(2), fix.fresh_artist()), first)
             self.assertEqual(fix.draws, 100, 'replayed picks draw nothing')
@@ -1497,8 +1524,8 @@ class RealServer(unittest.TestCase):
     def paired_backend(self, path):
         class Backend:
             cell = ('seek_far', 'opus128', 'wan6000', 0)
-            def __init__(self):
-                self._picks, self.draws, self.real_calls = path, 0, 0
+            def __init__(self, role='record'):
+                self._picks, self._picks_role, self.draws, self.real_calls = path, role, 0, 0
             @engine.paired
             def fresh_songs(self, n, min_s=100):
                 self.draws += 1
@@ -1519,18 +1546,18 @@ class RealServer(unittest.TestCase):
             recorder.filler(3, exclude=('a',))
             recorder.fresh_songs(2)
             recorded = path.read_text()
-            replay = Backend()
+            replay = Backend('replay')
             with self.assertRaises(engine.Failure):  # same method, other args
                 replay.fresh_songs(6)
-            skipping = Backend()
+            skipping = Backend('replay')
             with self.assertRaises(engine.Failure):  # the first variant skipped its first pick
                 skipping.filler(3, exclude=('a',))
-            late = Backend()
+            late = Backend('replay')
             late.fresh_songs(1)
             with self.assertRaises(engine.Failure):  # other exclude
                 late.filler(3, exclude=('b',))
             self.assertEqual(path.read_text(), recorded, 'a mismatch never rewrites or truncates the recording')
-            ok = Backend()
+            ok = Backend('replay')
             self.assertEqual([ok.fresh_songs(1), ok.filler(3, exclude=('a',)), ok.fresh_songs(2)],
                              [[{'id': 'song-1-0'}], ['f0', 'f1', 'f2'], [{'id': 'song-2-0'}, {'id': 'song-2-1'}]])
             self.assertEqual(list(Path(tmp).iterdir()), [path], 'the recording is written atomically: no temporary file is left')
@@ -1541,12 +1568,35 @@ class RealServer(unittest.TestCase):
             Backend = self.paired_backend(path)
             Backend().fresh_songs(1)  # the other variant aborted its case after one pick
             recorded, stamp = path.read_text(), path.stat().st_mtime_ns
-            replayer = Backend()
+            replayer = Backend('replay')
             self.assertEqual(replayer.fresh_songs(1), [{'id': 'song-1-0'}])
             with self.assertRaises(engine.Failure):
                 replayer.fresh_songs(1)
             self.assertEqual(replayer.real_calls, 0, 'a replayer never calls the real method')
             self.assertEqual((path.read_text(), path.stat().st_mtime_ns), (recorded, stamp), 'a replayer never writes the file')
+
+
+    def test_a_replayer_without_a_recording_and_a_pick_outside_a_case_raise(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            Backend = self.paired_backend(Path(tmp) / 'seek-0.json')
+            with self.assertRaises(engine.Failure):
+                Backend('replay').fresh_songs(1)  # the other variant recorded nothing: no silent draw
+            self.assertEqual(Backend('replay').real_calls, 0)
+            self.assertFalse((Path(tmp) / 'seek-0.json').exists())
+            outside = Backend()
+            outside.cell = None  # run_matrix clears the cell after every case
+            with self.assertRaises(engine.Failure):
+                outside.fresh_songs(1)
+
+    def test_a_replay_attempt_after_a_crash_still_replays_the_other_variants_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'seek-0.json'
+            Backend = self.paired_backend(path)
+            Backend('record').fresh_songs(2)
+            recorded = path.read_text()
+            for attempt in (1, 2):  # a fresh process each attempt, same role
+                self.assertEqual(Backend('replay').fresh_songs(2), [{'id': 'song-1-0'}, {'id': 'song-1-1'}])
+            self.assertEqual(path.read_text(), recorded)
 
     def test_an_aborted_case_does_not_shift_the_next_cases_picks(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1558,7 +1608,7 @@ class RealServer(unittest.TestCase):
             recorder.fresh_songs(2)
             recorder.cell = ('b', 'q', 't', 0)
             expected = recorder.fresh_songs(3)
-            replayer = Backend()
+            replayer = Backend('replay')
             replayer.cell = ('a', 'q', 't', 0)
             replayer.fresh_songs(1)  # this case aborts before its second pick
             replayer.cell = ('b', 'q', 't', 0)

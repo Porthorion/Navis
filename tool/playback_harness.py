@@ -997,7 +997,7 @@ def plan(name: str, full: bool, reps: int | None, platform: str = 'linux') -> tu
 
 
 def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict, serial: str | None, apk: Path | None,
-                 full: bool, reps: int | None, real: bool, rep: int | None = None) -> tuple[list[dict], float]:
+                 full: bool, reps: int | None, real: bool, rep: int | None = None, pick_role: str = 'record') -> tuple[list[dict], float]:
     """Runs a scenario's matrix, or only repetition [rep] of every cell (one engine invocation per repetition, numbered at its own index)."""
     spec = SCENARIOS[name]
     cases, reps, budget = plan(name, full, reps, platform)
@@ -1019,7 +1019,10 @@ def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict,
             args += ['--keep-profile']  # the activated live seed is the profile: a run must not re-sync the whole catalog
         if PICKS:  # base and fix replay one another's live song picks, so the A/B compares code, not songs
             PICKS.mkdir(parents=True, exist_ok=True)
-            extra['NAVIS_LIVE_SEEK_PICKS'] = str(PICKS / f'{name}-{"all" if rep is None else rep}.json')
+            picks = PICKS / f'{name}-{"all" if rep is None else rep}.json'
+            if pick_role == 'record':
+                picks.unlink(missing_ok=True)  # a retried recorder starts its recording again
+            extra.update(NAVIS_LIVE_SEEK_PICKS=str(picks), NAVIS_LIVE_SEEK_PICKS_ROLE=pick_role)
     started = time.monotonic()
     record = {'status': 'running', 'expected': [c for c in expected_cells(name, full, reps, platform) if rep is None or c[3] == rep],
               'observed': [], 'exitCode': None, 'log': str(variant_dir / (name + '.log'))}
@@ -1110,7 +1113,8 @@ def select_scenarios(args, announce=True) -> list[str]:
 
 
 def run_guest_scenario(label: str, name: str, platform: str, folder: Path, step_dir: Path, display_env: dict, seed: Path | None,
-                       candidate: dict, full: bool, reps: int | None, real: bool, rep: int | None = None) -> tuple[list[dict], float]:
+                       candidate: dict, full: bool, reps: int | None, real: bool, rep: int | None = None,
+                       pick_role: str = 'record') -> tuple[list[dict], float]:
     """One scenario run (or one repetition of it) of the build in [folder], evidence under [step_dir]/attempt-N. Android gets a fresh guest per run: the
     emulator's GPU translator has crashed (qemu core dump) minutes into a session, and a wiped guest starts both variants from
     the same state. A guest that fails to boot (Emulator.__enter__ has already removed it and its clone) or dies during the run
@@ -1129,7 +1133,7 @@ def run_guest_scenario(label: str, name: str, platform: str, folder: Path, step_
                     raise InfraError('candidate changed before scenario')
                 activate(folder, platform, seed, real)
                 try:
-                    return run_scenario(name, platform, attempt_dir, display_env, serial, apk, full, reps, real, rep)
+                    return run_scenario(name, platform, attempt_dir, display_env, serial, apk, full, reps, real, rep, pick_role)
                 except InfraError:
                     if not (emulator is not None and attempt == 1 and emulator.proc.poll() is not None):
                         raise
@@ -1246,12 +1250,15 @@ def _cmd_ab(args, out: Path, evidence: dict) -> int:
         reps_of = lambda name: plan(name, args.full, args.reps, platform)[1]
         steps = schedule(names, reps_of) if platform == 'linux' else android_schedule(names)
         rows_of = {}
+        recorded = set()  # the variant that runs a (scenario, repetition) first records its live picks; the other replays them
         try:
             for variant, name, rep in steps:
+                pick_role = 'replay' if (name, rep) in recorded else 'record'
+                recorded.add((name, rep))
                 label = f'{variant} {name}' + (f' repetition {rep + 1}/{reps_of(name)}' if rep is not None else '')
                 step_dir = out / variant / name / (f'rep-{rep}' if rep is not None else '')
                 rows, seconds = run_guest_scenario(label, name, platform, folders[variant], step_dir, display_env, seed,
-                                                   evidence['candidate'], args.full, args.reps, args.real, rep)
+                                                   evidence['candidate'], args.full, args.reps, args.real, rep, pick_role)
                 if variant == 'base' and invalid_cells(rows):
                     raise InfraError(f'base {name} is not a valid comparison: {invalid_cells(rows)} (logs: {out / variant / name})')
                 timings[(variant, name)] = timings.get((variant, name), 0) + seconds

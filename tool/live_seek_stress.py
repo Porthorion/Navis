@@ -1763,15 +1763,18 @@ class FixtureBackend:
 def paired(method):
     """A live pick that the harness's A/B can replay: with NAVIS_LIVE_SEEK_PICKS the first variant records the picks of each cell (case,
     quality, throttle, rep) and the second returns them unchanged, so base and fix play the same songs (live picks are random and never
-    repeat across runs). Which variant records is decided once per process, by whether the file existed at its first pick; a replayer
-    never draws or writes, and a pick that differs from the recorded one, or is missing, is a case error (Failure) instead of other songs."""
+    repeat across runs). The harness names each process's role (NAVIS_LIVE_SEEK_PICKS_ROLE: the variant that runs first records, the other
+    replays; a retried guest keeps its role); a replayer never draws or writes, and a pick that differs from the recorded one, or is missing, is a case error (Failure) instead of other songs."""
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
         path = getattr(self, '_picks', None)
         if path is None:
             return method(self, *args, **kwargs)
-        state = self.__dict__.setdefault('_pick_state', {'replay': path.exists(), 'index': {}})
-        key = '|'.join(map(str, getattr(self, 'cell', ())))
+        cell = getattr(self, 'cell', None)
+        if cell is None:
+            raise Failure('a paired pick was made outside a case')
+        state = self.__dict__.setdefault('_pick_state', {'replay': getattr(self, '_picks_role', 'record') == 'replay', 'index': {}})
+        key = '|'.join(map(str, cell))
         n = state['index'][key] = state['index'].get(key, -1) + 1
         call = json.loads(json.dumps([method.__name__, args, kwargs], default=str))
         picks = json.loads(path.read_text()) if path.exists() else {}
@@ -1801,6 +1804,7 @@ class LiveBackend:
         self.pool: list[dict] = []
         self.used = used_songs()
         self._picks = Path(os.environ['NAVIS_LIVE_SEEK_PICKS']) if os.environ.get('NAVIS_LIVE_SEEK_PICKS') else None
+        self._picks_role = os.environ.get('NAVIS_LIVE_SEEK_PICKS_ROLE', 'record')
 
     def _catalog_has(self, ids):
         with sqlite3.connect(f'file:{ROOT / "navis.sqlite"}?mode=ro', uri=True) as db:
@@ -4504,7 +4508,6 @@ def run_one(app, backend, proxy, env, case: str, quality: str, throttle: str, re
             events: list | None = None) -> dict:
     events = events if events is not None else []
     revived = revive_app(app, backend, proxy, quality, events, f'before #{serial} {case}')
-    backend.cell = (case, quality, throttle, rep)  # live picks are paired per cell (see `paired`)
     run = Run(app, backend, case, quality, throttle, rep)
     if revived:
         run.metrics['appRestartedBeforeRun'] = True
@@ -4737,7 +4740,11 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
                         if (case, quality, throttle, rep) in finished:
                             continue
                         serial += 1
-                        row = run_one(app, backend, proxy, env, case, quality, throttle, rep, run_dir, serial, events)
+                        backend.cell = (case, quality, throttle, rep)  # live picks are paired per cell (see `paired`)
+                        try:
+                            row = run_one(app, backend, proxy, env, case, quality, throttle, rep, run_dir, serial, events)
+                        finally:
+                            backend.cell = None
                         results.append(row)
                         print(json.dumps({k: row[k] for k in ('id', 'case', 'quality', 'throttle', 'passed', 'latencyS')}
                                          | {'violations': [v['oracle'] for v in row['violations']]}), flush=True)
