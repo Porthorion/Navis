@@ -1472,9 +1472,9 @@ class RealServer(unittest.TestCase):
 
     def test_engine_pairs_live_picks_between_base_and_fix(self):
         class Backend:
-            _picks = None
+            cell = ('seek_far', 'opus128', 'wan6000', 0)
             def __init__(self, path):
-                self._picks, self._pick_n, self.draws = path, 0, 0
+                self._picks, self.draws = path, 0
             @engine.paired
             def fresh_songs(self, n, min_s=100):
                 self.draws += 1
@@ -1487,6 +1487,7 @@ class RealServer(unittest.TestCase):
             path = Path(tmp) / 'seek-0.json'
             base = Backend(path)
             first = (base.fresh_songs(2), base.fresh_artist())
+            self.assertEqual(base.fresh_songs(1), [{'id': 'random-3-0'}], 'the recorder keeps recording after its first pick')
             fix = Backend(path)
             fix.draws = 100  # a fresh process would draw different random songs
             self.assertEqual((fix.fresh_songs(2), fix.fresh_artist()), first)
@@ -1495,14 +1496,17 @@ class RealServer(unittest.TestCase):
 
     def paired_backend(self, path):
         class Backend:
+            cell = ('seek_far', 'opus128', 'wan6000', 0)
             def __init__(self):
-                self._picks, self._pick_n, self.draws = path, 0, 0
+                self._picks, self.draws, self.real_calls = path, 0, 0
             @engine.paired
             def fresh_songs(self, n, min_s=100):
                 self.draws += 1
+                self.real_calls += 1
                 return [{'id': f'song-{self.draws}-{k}'} for k in range(n)]
             @engine.paired
             def filler(self, n, exclude=()):
+                self.real_calls += 1
                 return [f'f{k}' for k in range(n)]
         return Backend
 
@@ -1531,6 +1535,35 @@ class RealServer(unittest.TestCase):
                              [[{'id': 'song-1-0'}], ['f0', 'f1', 'f2'], [{'id': 'song-2-0'}, {'id': 'song-2-1'}]])
             self.assertEqual(list(Path(tmp).iterdir()), [path], 'the recording is written atomically: no temporary file is left')
 
+    def test_a_replayer_never_draws_or_writes_past_the_end_of_the_recording(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'seek-0.json'
+            Backend = self.paired_backend(path)
+            Backend().fresh_songs(1)  # the other variant aborted its case after one pick
+            recorded, stamp = path.read_text(), path.stat().st_mtime_ns
+            replayer = Backend()
+            self.assertEqual(replayer.fresh_songs(1), [{'id': 'song-1-0'}])
+            with self.assertRaises(engine.Failure):
+                replayer.fresh_songs(1)
+            self.assertEqual(replayer.real_calls, 0, 'a replayer never calls the real method')
+            self.assertEqual((path.read_text(), path.stat().st_mtime_ns), (recorded, stamp), 'a replayer never writes the file')
+
+    def test_an_aborted_case_does_not_shift_the_next_cases_picks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'seek-0.json'
+            Backend = self.paired_backend(path)
+            recorder = Backend()
+            recorder.cell = ('a', 'q', 't', 0)
+            recorder.fresh_songs(1)
+            recorder.fresh_songs(2)
+            recorder.cell = ('b', 'q', 't', 0)
+            expected = recorder.fresh_songs(3)
+            replayer = Backend()
+            replayer.cell = ('a', 'q', 't', 0)
+            replayer.fresh_songs(1)  # this case aborts before its second pick
+            replayer.cell = ('b', 'q', 't', 0)
+            self.assertEqual(replayer.fresh_songs(3), expected)
+
     def test_failed_seed_copy_leaves_no_seed_behind(self):
         with tempfile.TemporaryDirectory() as tmp:
             credentials = Path(tmp) / 'creds.json'
@@ -1549,7 +1582,7 @@ class RealServer(unittest.TestCase):
                     patch.object(h.shutil, 'copyfile', side_effect=dying_copy), contextlib.redirect_stdout(io.StringIO()):
                 with self.assertRaises(OSError):
                     h.seed_catalog('sha', 'flutter', {}, Path(tmp), real=True)
-            self.assertEqual([p.name for p in Path(tmp).glob('base-linux*seed*') if not p.name.endswith('.tmp')], [])
+            self.assertEqual(sorted(p.name for p in Path(tmp).glob('base-linux*seed*')), [], 'no seed and no .tmp is left behind')
             out = io.StringIO()
             with patch.object(h, 'CREDENTIALS', credentials), patch.object(h, 'DATA', data), patch.object(h, 'activate'), \
                     patch.object(h, 'base_build', return_value=(linux, 'hit')), patch.object(h, 'engine', return_value=Mock(returncode=0)), \

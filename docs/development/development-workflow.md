@@ -1715,8 +1715,8 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
   --credentials`. The catalog is synced from the live server once per base
   (Linux and Android both start from that seed, cached apart from the fixture
   seed and keyed by server and account; Linux runs `--keep-profile`), and base
-  and fix replay one another's random song picks per scenario and repetition
-  (`picks/` in the output folder) so the A/B compares code, not songs; a pick
+  and fix replay one another's random song picks per case
+  and cell (`picks/` in the output folder; whichever variant runs first records) so the A/B compares code, not songs; a pick
   that differs between the variants is a case error, never other songs. The
   fix variant starts from the base's synced seed, so a fix that bumps the
   schema or triggers the library reset re-syncs on its own. Only scenarios that need no fixture library or
