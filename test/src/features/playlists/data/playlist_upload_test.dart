@@ -130,24 +130,32 @@ void main() {
           return server;
         });
     when(() => api.getPlaylist('srv1')).thenAnswer((_) async => server);
+    // Navidrome 0.64.2: createPlaylist(playlistId, songId...) replaces the
+    // songs exactly; updatePlaylist with several indexes silently does nothing.
     when(
-      () => api.updatePlaylist(
-        id: 'srv1',
-        name: 'Edited',
-        songIdsToAdd: ['a', 'b', 'a'],
-        songIndexesToRemove: [0, 1, 2],
+      () => api.replacePlaylistSongs(
+        playlistId: 'srv1',
+        songIds: ['a', 'b', 'a'],
       ),
     ).thenAnswer((_) async {
-      return server = const Playlist(
+      server = Playlist(
         id: 'srv1',
-        name: 'Edited',
-        entries: [
+        name: server.name,
+        entries: const [
           Song(id: 'a', title: 'A'),
           Song(id: 'b', title: 'B'),
           Song(id: 'a', title: 'A'),
         ],
       );
     });
+    when(() => api.updatePlaylist(id: 'srv1', name: 'Edited'))
+        .thenAnswer((_) async {
+          return server = Playlist(
+            id: 'srv1',
+            name: 'Edited',
+            entries: server.entries,
+          );
+        });
     expect((await actions.uploadToServer(localId)).deviceCopyKept, isTrue);
     final result = await actions.uploadToServer(localId);
     verify(() => api.createPlaylist(any(), songIds: any(named: 'songIds')))
@@ -158,6 +166,54 @@ void main() {
     expect(await row(localId), isNull);
     expect((await row('srv1'))?.name, 'Edited');
     expect(await songIds('srv1'), ['a', 'b', 'a']);
+    verifyNever(
+      () => api.updatePlaylist(
+        id: any(named: 'id'),
+        songIndexesToRemove: any(named: 'songIndexesToRemove'),
+      ),
+    );
+  });
+
+  test('a kept device copy emptied on the device clears the server', () async {
+    var server = const Playlist(
+      id: 'srv1',
+      name: 'Mix',
+      entries: [
+        Song(id: 'b', title: 'B'),
+        Song(id: 'a', title: 'A'),
+        Song(id: 'b', title: 'B'),
+      ],
+    );
+    when(() => api.createPlaylist(any(), songIds: any(named: 'songIds')))
+        .thenAnswer((_) async {
+          await database.playlistDao.setLocalPlaylistSongs(localId, []);
+          return server;
+        });
+    when(() => api.getPlaylist('srv1')).thenAnswer((_) async => server);
+    // An empty createPlaylist(playlistId) is a no-op on 0.64.2, so the clear
+    // must be single-index removals, last first.
+    when(
+      () => api.updatePlaylist(
+        id: 'srv1',
+        songIndexesToRemove: any(named: 'songIndexesToRemove'),
+      ),
+    ).thenAnswer((call) async {
+      final removal = call.namedArguments[#songIndexesToRemove] as List<int>;
+      expect(removal, hasLength(1));
+      final entries = server.entries.toList()..removeAt(removal.single);
+      return server = Playlist(id: 'srv1', name: 'Mix', entries: entries);
+    });
+    when(() => api.updatePlaylist(id: 'srv1', name: 'Mix'))
+        .thenAnswer((_) async => server);
+    expect((await actions.uploadToServer(localId)).deviceCopyKept, isTrue);
+    await actions.uploadToServer(localId);
+    expect(server.entries, isEmpty);
+    verifyNever(
+      () => api.replacePlaylistSongs(
+        playlistId: any(named: 'playlistId'),
+        songIds: any(named: 'songIds'),
+      ),
+    );
   });
 
   test('bodyless success resolves only a new matching id', () async {

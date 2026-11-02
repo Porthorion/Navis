@@ -14,6 +14,35 @@ Last updated: 2026-11-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #212 B1+B3 (1.5.2), playlist add/remove — 2026-11-02
+  (branch `fix/playlist-edits`, stacked on `fix/playlist-song-sheet`). `addSongs`
+  skips songs the playlist already holds and returns `(added, alreadyThere,
+  failed)` (new strings `addToPlaylistAlreadyThere`,
+  `addToPlaylistSomeAlreadyThere`). `removeAt(playlist, songId:, occurrence:)`
+  removes the chosen occurrence from the fresh server list inside a
+  per-playlist edit chain, writes the result locally and requests a
+  `requireFresh` hydration. Probes (Navidrome 0.64.2): createPlaylist with 5
+  ids is complete (B2 not needed); replace by `createPlaylist(playlistId, ...)`
+  is exact but an empty list is a no-op; name-only `updatePlaylist` keeps songs.
+  Failing-first: add tests `Expected: (added: 1, alreadyThere: 2, failed: 0)
+  Actual: 1`; with `requireFresh: false` the stale-hydration test ends
+  `['A','B','C','D']` instead of `['A','D']`.
+- [x] Issue #212 B4+B5 (1.5.2), kept upload and ownership — 2026-11-02
+  (branch `fix/playlist-edits`). The kept-device-copy re-upload now uses
+  `replacePlaylistSongs` plus a name-only `updatePlaylist` (empty list cleared
+  by single-index removals); `canEditPlaylist` treats a server playlist with a
+  known owner as not editable while the viewer name is unknown. B2 (album to New
+  playlist) skipped: a probe showed `createPlaylist` with 5 ids is complete.
+- [x] Issue #212 B round 2 (1.5.2) — 2026-11-02
+  (branch `fix/playlist-edits`). Add and reorder now share remove's tail
+  (`_serverEdit`: store the resulting list, `requireFresh` refresh, also after a
+  failed edit). A reorder from a list that no longer matches the playlist throws
+  `PlaylistChangedException` instead of writing it back; the partial-add notice
+  also shows songs already there. Failing-first tests in
+  `playlist_actions_removal_test`, `playlist_actions_test`,
+  `add_to_playlist_sheet_test`. Follow-ups (not built): `_entryIds` throws when
+  `songCount` != entries, and a deferred requireFresh refresh leaves the old
+  list until reopen.
 - [x] Issue #212 A (1.5.2), playlist song sheet cut off — 2026-11-02
   (branch `fix/playlist-song-sheet`). `_showSongActions` now uses the
   `showSongContextMenu` pattern (`isScrollControlled`, 0.85 height cap,

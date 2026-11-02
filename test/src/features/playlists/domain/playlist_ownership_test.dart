@@ -51,11 +51,11 @@ void main() {
         ),
         ('missing owner', base, 'alice', true, true),
         (
-          'missing username',
+          'missing username with a known owner is not editable',
           base.copyWith(owner: const Value('bob')),
           null,
-          true,
-          true,
+          false,
+          false,
         ),
         ('both missing', base, null, true, true),
         (

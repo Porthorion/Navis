@@ -330,8 +330,14 @@ void main() {
       tester,
     ) async {
       final actions = _MockPlaylistActions();
-      when(() => actions.removeAt(any(), any(), any()))
-          .thenAnswer((_) async {});
+      when(
+        () => actions.removeAt(
+          any(),
+          songId: any(named: 'songId'),
+          occurrence: any(named: 'occurrence'),
+          copies: any(named: 'copies'),
+        ),
+      ).thenAnswer((_) async {});
       final notices = await _pumpEditableDetail(
         tester,
         _playlist,
@@ -345,12 +351,23 @@ void main() {
       await tester.tap(find.text('Remove from Playlist'));
       await tester.pumpAndSettle();
       verify(
-        () => actions.removeAt(any(), <String>['playlist-1', 'playlist-2'], 1),
+        () => actions.removeAt(
+          any(),
+          songId: 'playlist-2',
+          occurrence: 0,
+          copies: 1,
+        ),
       ).called(1);
       expect(notices.notice?.message, 'Track removed');
 
-      when(() => actions.removeAt(any(), any(), any()))
-          .thenThrow(StateError('boom'));
+      when(
+        () => actions.removeAt(
+          any(),
+          songId: any(named: 'songId'),
+          occurrence: any(named: 'occurrence'),
+          copies: any(named: 'copies'),
+        ),
+      ).thenThrow(StateError('boom'));
       await tester.longPress(find.text('First song'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove from Playlist'));
@@ -367,6 +384,7 @@ void main() {
       final notices = await _pumpEditableDetail(
         tester,
         _playlist,
+        viewer: 'navis',
         actions: actions,
       );
 
