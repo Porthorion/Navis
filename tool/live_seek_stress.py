@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import functools
 import hashlib
 import http.client
 import json
@@ -528,29 +529,30 @@ class AndroidApp(App):
         self.shell('mkdir', '-p', staging)
         seed = self.run / 'seed.sqlite'
         password = self.run / 'password.tmp'
-        password.write_text(credentials['password'] + '\n')
-        os.chmod(password, 0o600)
-        source = sqlite3.connect(f'file:{ROOT / "navis.sqlite"}?mode=ro',
-                                 uri=True)
-        copy = sqlite3.connect(seed)
         try:
-            source.backup(copy)
-            # The backup inherits WAL mode; edits would then stay in a -wal
-            # file that is never pushed.
-            copy.execute('PRAGMA journal_mode=DELETE')
-            android_seed_edits(copy, server_url)
-            copy.commit()
-        finally:
-            copy.close()
-            source.close()
-        try:
+            descriptor = os.open(password, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(descriptor, 'w') as out:
+                out.write(credentials['password'] + '\n')
+            source = sqlite3.connect(f'file:{ROOT / "navis.sqlite"}?mode=ro',
+                                     uri=True)
+            copy = sqlite3.connect(seed)
+            try:
+                source.backup(copy)
+                # The backup inherits WAL mode; edits would then stay in a -wal
+                # file that is never pushed.
+                copy.execute('PRAGMA journal_mode=DELETE')
+                android_seed_edits(copy, server_url)
+                copy.commit()
+            finally:
+                copy.close()
+                source.close()
             for local in (password, seed):
                 subprocess.run(self.adb + ['push', str(local),
                                            f'{staging}/{local.name}'],
                                check=True, capture_output=True)
-        finally:
-            password.unlink()
-            seed.unlink()
+        finally:  # the password never stays on the host, whatever failed
+            password.unlink(missing_ok=True)
+            seed.unlink(missing_ok=True)
         script = (f'mkdir -p {ANDROID_ROOT} && '
                   f'rm -f {ANDROID_ROOT}/navis.sqlite-wal '
                   f'{ANDROID_ROOT}/navis.sqlite-shm && '
@@ -1758,6 +1760,40 @@ class FixtureBackend:
         return self.handler.requests
 
 
+def paired(method):
+    """A live pick that the harness's A/B can replay: with NAVIS_LIVE_SEEK_PICKS the first variant records the picks of each cell (case,
+    quality, throttle, rep) and the second returns them unchanged, so base and fix play the same songs (live picks are random and never
+    repeat across runs). The harness names each process's role (NAVIS_LIVE_SEEK_PICKS_ROLE: the variant that runs first records, the other
+    replays; a retried guest keeps its role); a replayer never draws or writes, and a pick that differs from the recorded one, or is missing, is a case error (Failure) instead of other songs."""
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        path = getattr(self, '_picks', None)
+        if path is None:
+            return method(self, *args, **kwargs)
+        cell = getattr(self, 'cell', None)
+        if cell is None:
+            raise Failure('a paired pick was made outside a case')
+        state = self.__dict__.setdefault('_pick_state', {'replay': getattr(self, '_picks_role', 'record') == 'replay', 'index': {}})
+        key = '|'.join(map(str, cell))
+        n = state['index'][key] = state['index'].get(key, -1) + 1
+        call = json.loads(json.dumps([method.__name__, args, kwargs], default=str))
+        picks = json.loads(path.read_text()) if path.exists() else {}
+        entries = picks.get(key, [])
+        if state['replay']:
+            if n >= len(entries):
+                raise Failure(f"paired pick {key}#{n} was never recorded by the first variant: {call}")
+            if entries[n]['call'] != call:
+                raise Failure(f"paired pick {key}#{n} differs from the first variant's: {entries[n]['call']} vs {call}")
+            return tuple(entries[n]['value']) if entries[n]['tuple'] else entries[n]['value']
+        result = method(self, *args, **kwargs)
+        picks.setdefault(key, []).append({'call': call, 'tuple': isinstance(result, tuple), 'value': result})
+        temporary = path.with_name(path.name + '.tmp')  # a kill mid-write must not leave a file the next variant cannot parse
+        temporary.write_text(json.dumps(picks))
+        os.replace(temporary, path)
+        return result
+    return wrapper
+
+
 class LiveBackend:
     name = 'live'
     short_groups = False  # real songs are long: natural-end cases wait out a whole song
@@ -1767,6 +1803,8 @@ class LiveBackend:
         self.upstream = credentials['url']
         self.pool: list[dict] = []
         self.used = used_songs()
+        self._picks = Path(os.environ['NAVIS_LIVE_SEEK_PICKS']) if os.environ.get('NAVIS_LIVE_SEEK_PICKS') else None
+        self._picks_role = os.environ.get('NAVIS_LIVE_SEEK_PICKS_ROLE', 'record')
 
     def _catalog_has(self, ids):
         with sqlite3.connect(f'file:{ROOT / "navis.sqlite"}?mode=ro', uri=True) as db:
@@ -1783,6 +1821,7 @@ class LiveBackend:
             if len(self.pool) >= 150:
                 return
 
+    @paired
     def fresh_songs(self, n, min_s=100):
         if len(self.pool) < n:
             self._refill()
@@ -1828,11 +1867,13 @@ class LiveBackend:
             saved.write_text(json.dumps(groups))
         return groups[kind]
 
+    @paired
     def fresh_album(self, short=False):
         if LIVE_REUSE_GROUPS:
             return self._reused('album', lambda: self._take_ids(self._groups('album_id', 6, 14)[1]))
         return self._take_ids(self._groups('album_id', 6, 14)[1])
 
+    @paired
     def fresh_artist(self, short=False):
         if LIVE_REUSE_GROUPS:
             artist, ids = self._reused('artist', lambda: list(self.fresh_artist_raw()))
@@ -1844,6 +1885,7 @@ class LiveBackend:
         artist, ids = self._groups('artist_id', 15, 45, 'AND COUNT(DISTINCT s.album_id) BETWEEN 2 AND 4')
         return artist, self._take_ids(ids)
 
+    @paired
     def filler(self, n, exclude=()):
         return [s['id'] for s in queue_filler(self.server, n + len(exclude)) if s['id'] not in exclude][:n]
 
@@ -4698,7 +4740,11 @@ def run_matrix(args, credentials, app, run_dir: Path) -> int:
                         if (case, quality, throttle, rep) in finished:
                             continue
                         serial += 1
-                        row = run_one(app, backend, proxy, env, case, quality, throttle, rep, run_dir, serial, events)
+                        backend.cell = (case, quality, throttle, rep)  # live picks are paired per cell (see `paired`)
+                        try:
+                            row = run_one(app, backend, proxy, env, case, quality, throttle, rep, run_dir, serial, events)
+                        finally:
+                            backend.cell = None
                         results.append(row)
                         print(json.dumps({k: row[k] for k in ('id', 'case', 'quality', 'throttle', 'passed', 'latencyS')}
                                          | {'violations': [v['oracle'] for v in row['violations']]}), flush=True)
