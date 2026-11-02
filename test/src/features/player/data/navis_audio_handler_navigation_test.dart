@@ -6407,6 +6407,31 @@ void main() {
       await settle();
     });
 
+    test(
+      'a tick before the hand-over to the warmed song keeps its warm',
+      () async {
+        final s = await serveQueue(3, hold: {'song-1'});
+        ticks(s.player);
+        final warm = sourceAt(s.player, 1);
+        await playCurrent(s.player);
+        await until(() => s.requests.contains('song-1') && warm.isDownloading);
+        // The player has moved to song 1; the handler has not published it yet,
+        // so the published current song still reads song 0.
+        s.player.index = 1;
+        s.player.emitPlayerEvent();
+        await pumpEventQueue();
+        expect(warm.isDownloading, isTrue);
+        s.player.moveTo(1);
+        await pumpEventQueue();
+        final asked = warm.request();
+        s.release.complete();
+        await drain(await asked);
+        await until(() => s.requests.contains('song-2'));
+        expect(s.requests, ['song-0', 'song-1', 'song-2']);
+        await settle();
+      },
+    );
+
     test('Repeat All wraps the warm to the first song', () async {
       final s = await serveQueue(2, startIndex: 1);
       await s.handler.setRepeatMode(AudioServiceRepeatMode.all);
@@ -6792,7 +6817,16 @@ void main() {
         // ignore: experimental_member_use, reason: the lock-cache source.
         if (s is! LockCachingAudioSource) continue;
         final id = ids[i];
-        if (!identical(s, handler.debugRegisteredLockCacheSource(id))) bad++;
+        // A finished download unregisters (the player keeps its source), and
+        // how soon that happens relative to this audit depends on timing: a
+        // slow runner has the current song's source still held here. Only a
+        // completed download may be held unregistered; any other unregistered
+        // source (never registered, or failed and removed) is a defect.
+        final registered = handler.debugRegisteredLockCacheSource(id);
+        if (!identical(s, registered) &&
+            (registered != null || !handler.debugLockCacheCompleted(id))) {
+          bad++;
+        }
         (instances[id] ??= <int>{}).add(identityHashCode(s));
       }
       final multi = [
@@ -12100,7 +12134,6 @@ void main() {
         'unknown duration',
         'unsupported',
         'original',
-        'completed file',
       ]) {
         test('$gate keeps normal advance', () async {
           final (handler, player) = await setup(
@@ -12108,12 +12141,6 @@ void main() {
             original: gate == 'original',
             duration: gate == 'unknown duration' ? null : 300,
           );
-          if (gate == 'completed file') {
-            final path =
-                handler.currentMediaItem!.extras!['sidecarCacheFilePath']!
-                    as String;
-            await File(path).writeAsBytes([1, 2, 3]);
-          }
           final loads = player.sourceLoads;
           player.finishCurrentTrack(
             endPosition: Duration(seconds: gate == 'near end' ? 290 : 47),
@@ -12124,6 +12151,42 @@ void main() {
           expect(handler.snapshot.currentSongId, 'song-2');
         });
       }
+
+      // A cut stream drains in mpv after the sidecar's full re-download has
+      // already finished, so a completed file must not block the recovery.
+      test('a completed cache file still recovers the cut', () async {
+        late NavisDatabase database;
+        final (handler, player) = await setup(
+          onDatabase: (db) => database = db,
+        );
+        final path =
+            handler.currentMediaItem!.extras!['sidecarCacheFilePath']!
+                as String;
+        await File(path).writeAsBytes(List<int>.filled(64, 1));
+        // The sidecar registers the finished download as a rolling entry.
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'song-1',
+            filePath: path,
+            fileSize: 64,
+            format: 'opus',
+            cacheType: CacheType.rolling,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime.now(),
+          ),
+        );
+        final loads = player.sourceLoads;
+
+        player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+        await until(() => player.sourceLoads > loads);
+        await drain(handler);
+
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.sourceLoads, loads + 1);
+        expect(current(player).uri, Uri.file(path));
+        expect(player.position.inSeconds, 47);
+        expect(player.playing, isTrue);
+      });
 
       test(
         'completion uses the backend position instead of its clock',
