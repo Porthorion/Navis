@@ -3,6 +3,7 @@
 
 import contextlib
 import io
+import json
 import os
 import sys
 import tempfile
@@ -793,11 +794,13 @@ class PairedRepetitions(unittest.TestCase):
         self.assertEqual(list(engine.matrix_reps('seek_far', 1, 0, 2)), [2])
         self.assertEqual(list(engine.matrix_reps('shuffle_album', 3, 2, 1)), [1, 2])
 
-    def ab(self, fail_at=None, reps=3, platform='linux', scenarios=('queue-edit',), full=False, guests=None):
+    def ab(self, fail_at=None, reps=3, platform='linux', scenarios=('queue-edit',), full=False, guests=None, real=False, activated=None, seeded=None):
         """Runs cmd_ab for queue-edit on Linux against a fake engine; returns (exit/exception, evidence dir, calls)."""
         import argparse
         import json
         calls = []
+        activated = [] if activated is None else activated
+        seeded = [] if seeded is None else seeded
         root_ctx = tempfile.TemporaryDirectory()
         self.addCleanup(root_ctx.cleanup)
         root = Path(root_ctx.name)
@@ -815,7 +818,7 @@ class PairedRepetitions(unittest.TestCase):
                     for i, c in enumerate(cells, 1)]  # the engine numbers rows from 1 in every invocation
             (variant_dir / f'{name}.log').write_text(f'engine log {parts[-4]} rep {rep}')
             report = variant_dir / 'report.json'
-            report.write_text(json.dumps({'results': rows}))
+            report.write_text(json.dumps({'server': 'live' if real else 'fixture', 'results': rows}))
             h.write_evidence(variant_dir, {'status': 'complete', 'exitCode': 0, 'expected': cells, 'observed': cells, 'seconds': 1.0,
                                            'log': str(variant_dir / f'{name}.log'), 'report': str(report)})
             return rows, 1.0
@@ -823,7 +826,7 @@ class PairedRepetitions(unittest.TestCase):
         def git(*a, **k):
             return 'headsha' if a[:2] == ('rev-parse', 'HEAD') else ('basesha' if a[0] == 'rev-parse' else '')
         args = argparse.Namespace(fn=h.cmd_ab, command='ab', scenarios=list(scenarios), map=False, all=False, platform=platform,
-                                  base='ref', base_range='r...HEAD', full=full, reps=reps, real=False, output=str(root / 'out'))
+                                  base='ref', base_range='r...HEAD', full=full, reps=reps, real=real, output=str(root / 'out'))
         class Guest:  # a fake Emulator that only counts boots
             def __init__(self, out):
                 guests.append(out) if guests is not None else None
@@ -832,12 +835,12 @@ class PairedRepetitions(unittest.TestCase):
             def __enter__(self): return 'emulator-5620'
             def __exit__(self, *_): pass
         with patch.object(h, 'PROJECT', root), patch.object(h, 'candidate_identity', return_value=identity), \
-                patch.object(h, 'Emulator', Guest), patch.object(h, 'seed_android', return_value=root), \
+                patch.object(h, 'Emulator', Guest), patch.object(h, 'seed_catalog', side_effect=lambda *a: seeded.append(a) or root), patch.object(h, 'real_credentials'), \
                 patch.object(h, 'environment_identity', return_value={}), patch.object(h, 'heavy_lock', return_value=contextlib.nullcontext(())), \
                 patch.object(h, 'git', side_effect=git), patch.object(h, 'run', return_value=Mock(returncode=0)), \
                 patch.object(h, 'flutter_version', return_value='Flutter test'), patch.object(h, 'downloads_snapshot', return_value={}), \
                 patch.object(h, 'base_build', return_value=(root, 'cached')), patch.object(h, 'fix_build', return_value=root), \
-                patch.object(h, 'artifact_of', return_value=artifact), patch.object(h, 'activate'), \
+                patch.object(h, 'artifact_of', return_value=artifact), patch.object(h, 'activate', side_effect=lambda *a: activated.append(a)), \
                 patch.object(h, 'Display', return_value=contextlib.nullcontext({})), patch.object(h, 'run_scenario', side_effect=scenario), \
                 contextlib.redirect_stdout(io.StringIO()):
             try:
@@ -863,6 +866,25 @@ class PairedRepetitions(unittest.TestCase):
             self.assertEqual(len(set(ids)), len(ids), 'row ids stay unique across repetitions (trace files are named by id)')
             self.assertTrue(all(r['repDir'].endswith(f"rep-{r['rep']}/attempt-1") for r in merged_rows))
             self.assertEqual(Path(merged['log']).read_text().count('engine log'), 3)
+
+    def test_linux_real_reuses_the_live_seed_with_a_kept_profile(self):
+        import json
+        seeded, activated = [], []
+        evaluate = patch.object(h, 'evaluate', return_value=[(True, 'ok')])  # these rows carry no metrics; thresholds are not under test
+        evaluate.start()
+        self.addCleanup(evaluate.stop)
+        code, out, calls = self.ab(real=True, reps=1, scenarios=('seek',), seeded=seeded, activated=activated)
+        self.assertEqual(code, 0)
+        self.assertEqual(len(seeded), 1)
+        self.assertTrue(activated and all(a[2] is not None and a[3] is True for a in activated))
+        self.assertEqual(self.ab(real=False, reps=1, scenarios=('seek',), seeded=(none := []))[0], 0)
+        self.assertEqual(none, [])
+        record = json.loads((out / 'evidence.json').read_text())
+        self.assertEqual(record['status'], 'passed')
+        self.assertEqual(json.loads((out / 'comparison.json').read_text())['server'], 'live')
+        self.assertIn('server live', (out / 'summary.md').read_text())
+        merged = Path(record['variants']['fix/seek']['report'])
+        self.assertEqual(json.loads(merged.read_text())['server'], 'live')
 
     def test_android_runs_one_guest_per_variant_and_scenario_with_alternating_first_variant(self):
         import json
@@ -1342,6 +1364,9 @@ class RealServer(unittest.TestCase):
 
     def test_android_seed_is_a_live_sync_cached_apart_from_the_fixture_seed(self):
         with tempfile.TemporaryDirectory() as tmp:
+            credentials = Path(tmp) / 'creds.json'
+            credentials.write_text('{"url": "https://a.example", "username": "u", "password": "SECRET-PW"}')
+            credentials.chmod(0o600)
             linux = Path(tmp) / 'base-linux'
             linux.mkdir()
             data = Path(tmp) / 'data'
@@ -1353,11 +1378,11 @@ class RealServer(unittest.TestCase):
                 return Mock(returncode=0)
             def fake_activate(folder, platform, seed=None, real=False):
                 calls.append(('activate', real))
-            with patch.object(h, 'DATA', data), patch.object(h, 'base_build', return_value=(linux, 'hit')), \
+            with patch.object(h, 'CREDENTIALS', credentials), patch.object(h, 'DATA', data), patch.object(h, 'base_build', return_value=(linux, 'hit')), \
                     patch.object(h, 'engine', side_effect=fake_engine), patch.object(h, 'activate', side_effect=fake_activate), \
                     contextlib.redirect_stdout(io.StringIO()):
-                live = h.seed_android('sha', 'flutter', {}, Path(tmp), real=True)
-                fixture = h.seed_android('sha', 'flutter', {}, Path(tmp), real=False)
+                live = h.seed_catalog('sha', 'flutter', {}, Path(tmp), real=True)
+                fixture = h.seed_catalog('sha', 'flutter', {}, Path(tmp), real=False)
             self.assertNotEqual(live, fixture)
             self.assertIn('live', live.name)
             self.assertNotIn('live', fixture.name)
@@ -1371,6 +1396,102 @@ class RealServer(unittest.TestCase):
                 with patch.object(h, 'DATA', Path(tmp) / 'data'):
                     h.activate(Path(tmp), 'android', seed, real)
                     self.assertEqual((Path(tmp) / 'data' / 'root' / 'profile-server').read_text(), marker)
+
+    def test_live_seed_key_names_the_server_and_account_but_never_the_password(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            credentials = Path(tmp) / 'creds.json'
+            names = []
+            for url, user in (('https://a.example', 'u'), ('https://b.example', 'u'), ('https://a.example', 'v'), ('https://a.example', 'u')):
+                credentials.write_text(json.dumps({'url': url, 'username': user, 'password': 'SECRET-PW'}))
+                credentials.chmod(0o600)
+                with patch.object(h, 'CREDENTIALS', credentials):
+                    names.append(h.live_seed_name('base-linux'))
+            self.assertEqual(len({names[0], names[1], names[2]}), 3)
+            self.assertEqual(names[0], names[3])
+            self.assertNotIn('SECRET-PW', ''.join(names))
+
+    def run_args(self, platform, real):
+        seen = {}
+        def fake_engine(args, env, folder, extra, timeout, label, real=False):
+            seen.update(args=args, extra=extra, timeout=timeout)
+            raise h.InfraError('stop')
+        with tempfile.TemporaryDirectory() as tmp, patch.object(h, 'engine', side_effect=fake_engine), \
+                patch.object(h, 'PICKS', Path(tmp) / 'picks'):
+            with self.assertRaises(h.InfraError):
+                h.run_scenario('seek', platform, Path(tmp), {}, 'emulator-5554' if platform == 'android' else None, Path('a.apk'), False, 1, real, None)
+        return seen
+
+    def test_linux_real_keeps_the_profile_and_pairs_the_songs(self):
+        live = self.run_args('linux', True)
+        self.assertIn('--keep-profile', live['args'])
+        self.assertTrue(live['extra']['NAVIS_LIVE_SEEK_PICKS'].endswith('seek-all.json'))
+        self.assertGreaterEqual(live['timeout'], 1800)
+        for platform, real in (('linux', False), ('android', True)):
+            seen = self.run_args(platform, real)
+            self.assertNotIn('--keep-profile', seen['args'])
+        self.assertNotIn('NAVIS_LIVE_SEEK_PICKS', self.run_args('linux', False)['extra'])
+
+    def test_picks_are_keyed_by_scenario_and_repetition(self):
+        seen = {}
+        def fake_engine(args, env, folder, extra, timeout, label, real=False):
+            seen.update(extra)
+            raise h.InfraError('stop')
+        with tempfile.TemporaryDirectory() as tmp, patch.object(h, 'engine', side_effect=fake_engine), patch.object(h, 'PICKS', Path(tmp)):
+            with self.assertRaises(h.InfraError):
+                h.run_scenario('seek', 'linux', Path(tmp) / 'v', {}, None, None, False, 3, True, 2)
+        self.assertEqual(seen['NAVIS_LIVE_SEEK_PICKS'], str(Path(tmp) / 'seek-2.json'))
+
+    def test_real_full_all_evidence_is_iteration_coverage_not_full_platform(self):
+        import json
+        for real in (True, False):
+            with self.subTest(real=real), tempfile.TemporaryDirectory() as directory:
+                out = Path(directory)
+                config = {'names': ['queue-edit'], 'all': True, 'full': True, 'reps': None, 'platform': 'linux', 'real': real,
+                          'baseSha': 'base', 'flutter': 'Flutter test'}
+                cells = h.expected_cells('queue-edit', True, None, 'linux')
+                log, report = out / 'run.log', out / 'report.json'
+                log.write_text('x')
+                report.write_text(json.dumps({'results': [dict(zip(('case', 'quality', 'throttle', 'rep'), c), metrics={}, violations=[],
+                                                                latencyS=None, passed=True) for c in cells]}))
+                (out / 'comparison.json').write_text(json.dumps({'base': 'base', 'fix': 'head', 'platform': 'linux', 'scenarios': {'queue-edit': {}}}))
+                (out / 'summary.md').write_text('x')
+                record = {'base': 'base', 'flutter': 'Flutter test', 'coverage': 'iteration' if real else 'full-platform',
+                          'baseArtifact': {'path': str(log), 'sha256': h.sha256(log)},
+                          'schema': 1, 'status': 'passed', 'exitCode': 0, 'candidate': {'sha256': 'a', 'head': 'head'},
+                          'candidateAfter': {'sha256': 'a', 'head': 'head'}, 'environment': {}, 'config': config,
+                          'variants': {v + '/queue-edit': {'status': 'complete', 'exitCode': 0, 'expected': cells, 'observed': cells,
+                                                           'log': str(log), 'report': str(report)} for v in ('base', 'fix')},
+                          'artifacts': {str(p): h.sha256(p) for p in out.iterdir()}}
+                h.write_evidence(out, record)
+                h.verify_evidence(out, record['candidate'], {}, config)
+                if not real:  # fixture evidence still has to be full-platform
+                    record['coverage'] = 'iteration'
+                    h.write_evidence(out, record)
+                    with self.assertRaises(h.InfraError):
+                        h.verify_evidence(out, record['candidate'], {}, config)
+
+    def test_engine_pairs_live_picks_between_base_and_fix(self):
+        class Backend:
+            _picks = None
+            def __init__(self, path):
+                self._picks, self._pick_n, self.draws = path, 0, 0
+            @engine.paired
+            def fresh_songs(self, n, min_s=100):
+                self.draws += 1
+                return [{'id': f'random-{self.draws}-{k}'} for k in range(n)]
+            @engine.paired
+            def fresh_artist(self, short=False):
+                self.draws += 1
+                return f'artist-{self.draws}', [f'song-{self.draws}']
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'seek-0.json'
+            base = Backend(path)
+            first = (base.fresh_songs(2), base.fresh_artist())
+            fix = Backend(path)
+            fix.draws = 100  # a fresh process would draw different random songs
+            self.assertEqual((fix.fresh_songs(2), fix.fresh_artist()), first)
+            self.assertEqual(fix.draws, 100, 'replayed picks draw nothing')
+            self.assertEqual(Backend(None).fresh_songs(1), [{'id': 'random-1-0'}])  # no file: plain draw
 
 
 if __name__ == '__main__':

@@ -430,6 +430,7 @@ def _command_owner(cmd, descriptors, grace):
 # Heavy-lock descriptors held by this process (set by cmd_ab); every bounded command inherits them so a killed
 # holder cannot release the lock while an owner or its descendants still run.
 LOCK_FDS: tuple = ()
+PICKS: Path | None = None  # --real: where the first variant records its live song picks for the second (set by cmd_ab)
 
 
 def held_fds(extra=()) -> tuple:
@@ -578,7 +579,8 @@ def verify_evidence(out: Path, candidate: dict, environment: dict, config: dict,
             raise InfraError('stale or unsuccessful evidence')
         if record['base'] != config['baseSha'] or record['flutter'] != config['flutter']:
             raise InfraError('wrong base or Flutter identity')
-        if config.get('all') and config['full'] and config['reps'] is None and record.get('coverage') != 'full-platform':
+        if (config.get('all') and config['full'] and config['reps'] is None and not config.get('real')
+                and record.get('coverage') != 'full-platform'):  # a real run is recorded as iteration coverage
             raise InfraError('not full-platform evidence')
         base_artifact = record['baseArtifact']
         if sha256(Path(base_artifact['path'])) != base_artifact['sha256']:
@@ -929,15 +931,23 @@ class Emulator:
 
 # A/B runner ------------------------------------------------------------------------------------------------
 
-def seed_android(base_sha: str, flutter: str, display_env: dict, out: Path, real: bool = False):
-    """Android is seeded with a synced Linux catalog; made once per base from the base's cached Linux bundle. Under --real the catalog
-    is synced from the live server (--seed-only works there too) and cached apart from the fixture seed."""
+def live_seed_name(stem: str) -> str:
+    """Cache name of a live seed: the server and account are part of it (hashed; never the password), so another account or server
+    never reuses a stale catalog."""
+    credentials = json.loads(real_credentials().read_text())
+    who = hashlib.sha256(f"{credentials['url']}\0{credentials['username']}".encode()).hexdigest()[:8]
+    return f'{stem}-seed-live-{who}.sqlite'
+
+
+def seed_catalog(base_sha: str, flutter: str, display_env: dict, out: Path, real: bool = False):
+    """Android (and Linux under --real) starts from a synced catalog; made once per base from the base's cached Linux bundle. Under --real
+    the catalog is synced from the live server (--seed-only works there too), so a run syncs at most once, and cached apart from the fixture seed."""
     linux, note = base_build(base_sha, 'linux', flutter, out)
     print(f'android seed: linux base {note}')
-    seed = linux.parent / f'{linux.name}-seed{"-live" if real else ""}.sqlite'
+    seed = linux.parent / (live_seed_name(linux.name) if real else f'{linux.name}-seed.sqlite')
     if not seed.exists():
         activate(linux, 'linux', real=real)
-        done = engine(['--seed-only'], display_env, out / 'seed', {}, timeout=1200, label='seed', real=real)
+        done = engine(['--seed-only'], display_env, out / 'seed', {}, timeout=2400, label='seed', real=real)  # the engine waits up to 1800 s for the first sync
         if done.returncode or not (DATA / 'root' / 'navis.sqlite').exists():
             raise InfraError('could not seed the Android catalog from a Linux run')
         shutil.copyfile(DATA / 'root' / 'navis.sqlite', seed)
@@ -958,6 +968,7 @@ def activate(folder: Path, platform: str, seed: Path | None = None, real: bool =
 def engine(args: list[str], env: dict, out: Path, extra_env: dict, timeout: int, label: str, real: bool = False):
     """One engine invocation: the fixture server, or with [real] the live one signed in with the credential file."""
     out.mkdir(parents=True, exist_ok=True)
+    # --proxy-chunked stays under live: Navidrome frames transcodes as chunked, which the proxy otherwise flattens to HTTP/1.0
     server = ['--server', 'live', '--credentials', str(real_credentials())] if real else ['--server', 'fixture', '--transcode-speed', '3']
     full = {**engine_env(extra_env), **env, 'NAVIS_LIVE_SEEK_RUNS': str(out / 'runs')}
     with (out / f'{label}.log').open('w') as log:
@@ -998,13 +1009,19 @@ def run_scenario(name: str, platform: str, variant_dir: Path, display_env: dict,
         if not serial:
             extra.update(FLUTTER_ENGINE_SWITCHES='2', FLUTTER_ENGINE_SWITCH_1='enable-dart-profiling',
                          FLUTTER_ENGINE_SWITCH_2='vm-service-port=0')
+    if real:
+        if not serial:
+            args += ['--keep-profile']  # the activated live seed is the profile: a run must not re-sync the whole catalog
+        if PICKS:  # base and fix replay one another's live song picks, so the A/B compares code, not songs
+            PICKS.mkdir(parents=True, exist_ok=True)
+            extra['NAVIS_LIVE_SEEK_PICKS'] = str(PICKS / f'{name}-{"all" if rep is None else rep}.json')
     started = time.monotonic()
     record = {'status': 'running', 'expected': [c for c in expected_cells(name, full, reps, platform) if rep is None or c[3] == rep],
               'observed': [], 'exitCode': None, 'log': str(variant_dir / (name + '.log'))}
     variant_dir.mkdir(parents=True, exist_ok=True)
     write_evidence(variant_dir, record)
     try:
-        done = engine(args, env, variant_dir, extra, timeout=budget * 60 * 4 + 600, label=name, real=real)
+        done = engine(args, env, variant_dir, extra, timeout=max(budget * 60 * 4 + 600, 2400 if real else 0), label=name, real=real)
         record['exitCode'] = done.returncode
         reports = sorted((variant_dir / 'runs').glob(f'*-{name}/report.json'))
         if done.returncode not in (0, 1) or len(reports) != 1:
@@ -1153,8 +1170,10 @@ def merge_reps(name: str, platform: str, step_dir: Path, full: bool, reps: int) 
     expected = expected_cells(name, full, reps, platform)
     order = {tuple(cell): i for i, cell in enumerate(expected)}
     # Every invocation numbers its rows from 1 and names its trace files by that id: prefix the repetition and point at its directory.
+    reports = {rep: json.loads(Path(part['report']).read_text()) for rep, part in parts.items()}
+    servers = {r.get('server') for r in reports.values()}
     rows = sorted(({**row, 'id': f'{rep}-{row["id"]}', 'repDir': str(dirs[rep])} if 'id' in row else row
-                   for rep, part in sorted(parts.items()) for row in json.loads(Path(part['report']).read_text())['results']),
+                   for rep, report in sorted(reports.items()) for row in report['results']),
                   key=lambda r: order[(r['case'], r['quality'], r['throttle'], r['rep'])])
     merged = step_dir / 'attempt-1'
     merged.mkdir(exist_ok=True)
@@ -1165,7 +1184,7 @@ def merge_reps(name: str, platform: str, step_dir: Path, full: bool, reps: int) 
               'seconds': round(sum(p['seconds'] for p in parts.values()), 1)}
     (merged / f'{name}.log').write_text(''.join(f'== repetition {r}: {p["log"]}\n{Path(p["log"]).read_text()}' for r, p in sorted(parts.items())))
     if complete:
-        (merged / 'report.json').write_text(json.dumps({'results': rows}))
+        (merged / 'report.json').write_text(json.dumps({'server': servers.pop() if len(servers) == 1 else None, 'results': rows}))
         record['report'] = str(merged / 'report.json')
     write_evidence(merged, record)
     return rows
@@ -1217,7 +1236,7 @@ def _cmd_ab(args, out: Path, evidence: dict) -> int:
     results, timings = {}, {}
     with ExitStack() as stack:
         display_env = stack.enter_context(Display(out))
-        seed = seed_android(base_sha, flutter, display_env, out, args.real) if platform == 'android' else None
+        seed = seed_catalog(base_sha, flutter, display_env, out, args.real) if (platform == 'android' or args.real) else None
         folders = {'base': base_dir, 'fix': fix_dir}
         reps_of = lambda name: plan(name, args.full, args.reps, platform)[1]
         steps = schedule(names, reps_of) if platform == 'linux' else android_schedule(names)
@@ -1242,6 +1261,7 @@ def _cmd_ab(args, out: Path, evidence: dict) -> int:
     if after != before:
         raise InfraError(f'{DOWNLOADS} changed during the run (before/after in {out})')
     lines, comparison, ok = [], {}, True
+    server = 'live' if args.real else 'fixture'
     for name in names:
         checked = evaluate(name, results[('base', name)], results[('fix', name)], platform)
         ok &= all(good for good, _ in checked)
@@ -1251,8 +1271,8 @@ def _cmd_ab(args, out: Path, evidence: dict) -> int:
     if candidate_identity() != evidence['candidate']:
         raise InfraError('candidate changed during run')
     result = 'RESULT FAIL' if not ok else 'RESULT UNVERIFIED'  # cmd_ab promotes it to PASS only after verify_evidence succeeds
-    (out / 'comparison.json').write_text(json.dumps({'base': base_sha, 'fix': fix_sha, 'platform': platform, 'scenarios': comparison}, indent=1))
-    (out / 'summary.md').write_text('\n'.join([f'# Playback harness {stamp} ({platform})', '', f'base {base_ref} {base_sha}', f'fix {fix_sha}', '',
+    (out / 'comparison.json').write_text(json.dumps({'base': base_sha, 'fix': fix_sha, 'platform': platform, 'server': server, 'scenarios': comparison}, indent=1))
+    (out / 'summary.md').write_text('\n'.join([f'# Playback harness {stamp} ({platform})', '', f'base {base_ref} {base_sha}', f'fix {fix_sha}', f'server {server}', '',
                                                *[f'    {line}' for line in lines], '', result, '']))
     print('\n'.join(lines + [f'summary: {out / "summary.md"}']))  # RESULT is printed by cmd_ab after finalization
     return 0 if ok else 1
@@ -1274,14 +1294,15 @@ def cmd_ab(args) -> int:
         except InfraError:
             pass  # the run reports the unknown base itself
     write_evidence(out, evidence)
-    global LOCK_FDS
+    global LOCK_FDS, PICKS
     try:
         with heavy_lock(out, CACHE) as descriptors:
             LOCK_FDS = descriptors
+            PICKS = out / 'picks' if getattr(args, 'real', False) else None
             try:
                 code = _cmd_ab(args, out, evidence)
             finally:
-                LOCK_FDS = ()
+                LOCK_FDS, PICKS = (), None
         evidence['exitCode'] = code
         has_comparison = (out / 'comparison.json').exists()
         evidence['status'] = 'passed' if code == 0 and has_comparison else (
@@ -1342,7 +1363,7 @@ def cmd_ab(args) -> int:
                 if evidence['status'] != 'passed' and not detailed:
                     (out / 'summary.md').unlink(missing_ok=True)  # a failed write must not leave a stale PASS summary
                     (out / 'summary.md').write_text(
-                        f"Playback fixture matrix: {evidence['status']}; exit {evidence['exitCode']}\n"
+                        f"Playback {'live' if evidence['config'].get('real') else 'fixture'} matrix: {evidence['status']}; exit {evidence['exitCode']}\n"
                         f"{evidence.get('error', evidence.get('finalizationError', 'no playback code changed' if evidence['status'] == 'none' else 'comparison failed'))}\n"
                         f"Evidence: {out / 'evidence.json'}\n")
             except OSError as summary_error:

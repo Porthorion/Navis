@@ -1712,8 +1712,11 @@ tool/playback_harness.py ab --all --platform android --full   # calibration / re
 - **Real server (`--real`).** Signs in to the live server with the mode-600
   `~/.config/navis/perf-credentials.json` (a disposable account; never
   printed or logged) instead of the fixture: engine runs get `--server live
-  --credentials`, and Android is seeded from a live Linux sync cached apart
-  from the fixture seed. Only scenarios that need no fixture library or
+  --credentials`. The catalog is synced from the live server once per base
+  (Linux and Android both start from that seed, cached apart from the fixture
+  seed and keyed by server and account; Linux runs `--keep-profile`), and base
+  and fix replay one another's random song picks per scenario and repetition
+  (`picks/` in the output folder) so the A/B compares code, not songs. Only scenarios that need no fixture library or
   transcoder run: `seek`, `stress-drag`, `memory-soak`, `local-seek`
   (`FIXTURE_ONLY` names the rest and why). Naming a fixture-only scenario
   exits 2 before any build; `--all`/`--map` skip them (`SKIP <scenario>:
