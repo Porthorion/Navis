@@ -160,6 +160,27 @@ void main() {
     notices.dismiss();
   });
 
+  testWidgets('a partial add also reports the songs already there', (
+    tester,
+  ) async {
+    final actions = _MockPlaylistActions();
+    when(() => actions.addSongs(any(), any()))
+        .thenAnswer((_) async => (added: 1, alreadyThere: 2, failed: 1));
+    final notices = await _openPicker(
+      tester,
+      actions,
+      songIds: const <String>['song-1', 'song-2', 'song-3', 'song-4'],
+    );
+
+    await tester.tap(find.text('My Mix'));
+    await tester.pumpAndSettle();
+    expect(
+      notices.notice?.message,
+      'Added to "My Mix"; 1 song was skipped · Already in the playlist',
+    );
+    notices.dismiss();
+  });
+
   testWidgets('songs already in the playlist are reported, not hidden', (
     tester,
   ) async {

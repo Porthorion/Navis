@@ -197,7 +197,10 @@ class _AddToPlaylistSheet extends ConsumerWidget {
       message: failed
           ? l10n.addToPlaylistFailed
           : partial
-          ? l10n.addToPlaylistPartial(playlist.name, result.failed)
+          ? [
+              l10n.addToPlaylistPartial(playlist.name, result.failed),
+              if (result.alreadyThere > 0) l10n.addToPlaylistAlreadyThere,
+            ].join(' · ')
           : alreadyThere && result.added == 0
           ? l10n.addToPlaylistAlreadyThere
           : alreadyThere
