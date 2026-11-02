@@ -82,7 +82,6 @@ import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/routing/navigation_history_provider.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/shell_offline_banner.dart';
-import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/utils/artist_utils.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -1021,7 +1020,6 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (useDesktopShell && !isMiniPlayerMode) {
       _lastDesktopViewSize = mediaSize;
     }
-    final desktopTokens = NavisTokens.of(context);
     final configuredNavbarStyle = desktopRuntime
         ? ref.watch(desktopNavbarStyleProvider)
         : 'comfortable';
@@ -1033,10 +1031,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     final desktopSidebarWidth = switch (navbarStyle) {
       'compact' => 220.0,
       'icons' => 64.0,
-      _ =>
-        (screenWidth * 0.22)
-            .clamp(math.max(260.0, desktopTokens.sidebarWidth * 0.9), 360.0)
-            .toDouble(),
+      // Large: a fixed width, with bigger labels and taller targets in the
+      // tiles instead of empty space.
+      _ => 260.0,
     };
     if (desktopRuntime && _lastReportedDesktopViewport != mediaSize) {
       _lastReportedDesktopViewport = mediaSize;

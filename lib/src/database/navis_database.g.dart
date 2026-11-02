@@ -1757,7 +1757,7 @@ class $AppSettingsTableTable extends AppSettingsTable
         false,
         type: DriftSqlType.string,
         requiredDuringInsert: false,
-        defaultValue: const Constant('comfortable'),
+        defaultValue: const Constant('compact'),
       );
   static const VerificationMeta _desktopNavbarAutohideMeta =
       const VerificationMeta('desktopNavbarAutohide');
@@ -3802,7 +3802,8 @@ class AppSettingsTableData extends DataClass
   /// JSON-encoded ordered list of library page IDs. Null = default order.
   final String? libraryPageOrder;
 
-  /// Desktop navigation style: 'comfortable', 'compact', or 'icons'. Default 'comfortable'.
+  /// Desktop navigation style: 'compact' (shown as Default), 'comfortable'
+  /// (shown as Large) or 'icons'. Default 'compact'.
   final String desktopNavbarStyle;
 
   /// When true on desktop, the navigation sidebar hides automatically. Default false.

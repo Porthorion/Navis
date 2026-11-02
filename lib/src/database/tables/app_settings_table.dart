@@ -308,9 +308,10 @@ class AppSettingsTable extends Table {
   /// JSON-encoded ordered list of library page IDs. Null = default order.
   TextColumn get libraryPageOrder => text().nullable()();
 
-  /// Desktop navigation style: 'comfortable', 'compact', or 'icons'. Default 'comfortable'.
+  /// Desktop navigation style: 'compact' (shown as Default), 'comfortable'
+  /// (shown as Large) or 'icons'. Default 'compact'.
   TextColumn get desktopNavbarStyle =>
-      text().withDefault(const Constant('comfortable'))();
+      text().withDefault(const Constant('compact'))();
 
   /// When true on desktop, the navigation sidebar hides automatically. Default false.
   BoolColumn get desktopNavbarAutohide =>

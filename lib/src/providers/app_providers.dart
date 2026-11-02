@@ -3195,13 +3195,14 @@ final densityProvider = Provider<NavisDensity>((ref) {
   return settings.density;
 });
 
-/// Desktop navigation sidebar style: 'comfortable', 'compact', or 'icons'.
+/// Desktop navigation sidebar style: 'compact' (Default), 'comfortable'
+/// (Large) or 'icons'.
 final desktopNavbarStyleProvider = Provider<String>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
       const AppSettingsModel.defaults();
   final style = settings.desktopNavbarStyle;
-  return (style == 'compact' || style == 'icons') ? style : 'comfortable';
+  return (style == 'comfortable' || style == 'icons') ? style : 'compact';
 });
 
 /// Whether the desktop navigation sidebar autohides.

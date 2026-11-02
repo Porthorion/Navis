@@ -231,6 +231,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
               showLibrarySubNavigation:
                   widget.showLibrarySubNavigation && !autohide,
               peekStrip: peekStrip,
+              largeTiles: widget.navbarStyle == 'comfortable',
               allowScrollableRail: widget.allowScrollableRail,
               selectedLibrarySection: widget.selectedLibrarySection,
               visibleLibrarySections: widget.visibleLibrarySections,

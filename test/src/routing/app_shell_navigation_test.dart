@@ -920,6 +920,53 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  group('desktop sidebar sizes', () {
+    test('Default is the narrow style', () {
+      expect(const AppSettingsModel.defaults().desktopNavbarStyle, 'compact');
+    });
+
+    Future<void> pump(WidgetTester tester, String style) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1600, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final settings = const AppSettingsModel.defaults().copyWith(
+        desktopNavbarStyle: style,
+      );
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          appSettingsProvider.overrideWithValue(AsyncData(settings)),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    final sidebar = find.byKey(const ValueKey<String>('desktopSidebarRegion'));
+    final home = find.descendant(of: sidebar, matching: find.text('Home'));
+
+    testWidgets('Default is 220 px wide with regular labels', (tester) async {
+      await pump(tester, 'compact');
+      expect(tester.getSize(sidebar).width, 220);
+      expect(tester.widget<Text>(home).style?.fontSize, 16);
+    });
+
+    testWidgets('Large is a fixed 260 px with bigger labels and 52 px tiles', (
+      tester,
+    ) async {
+      await pump(tester, 'comfortable');
+      expect(tester.getSize(sidebar).width, 260);
+      expect(tester.widget<Text>(home).style?.fontSize, 18);
+      final tile = tester.getSize(find.byKey(const ValueKey('railNavTile-0')));
+      expect(tile.height, greaterThanOrEqualTo(52));
+    });
+  });
+
   group('desktop sidebar auto-hide overlay', () {
     Future<ProviderContainer> pumpDesktop(
       WidgetTester tester, {

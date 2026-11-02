@@ -109,6 +109,7 @@ class _RailSidebar extends ConsumerWidget {
     this.librarySectionsFit,
     this.showHistoryControls = false,
     this.peekStrip = false,
+    this.largeTiles = false,
   });
 
   final List<_ShellDestination> destinations;
@@ -149,6 +150,9 @@ class _RailSidebar extends ConsumerWidget {
   /// lock and the icons sit inside the strip and Back/Forward and the labels
   /// start past it.
   final bool peekStrip;
+
+  /// The Large desktop style: bigger labels in 52 px tiles.
+  final bool largeTiles;
 
   Widget _autohideButton(BuildContext context) {
     return SizedBox(
@@ -211,7 +215,12 @@ class _RailSidebar extends ConsumerWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final navTileEstimatedHeight = compact ? 52.0 : 64.0;
+                // Tile plus its 12 px gap: 44, 52 or 55 px of tile.
+                final navTileEstimatedHeight = largeTiles
+                    ? 68.0
+                    : compact
+                    ? 56.0
+                    : 64.0;
                 const subNavTileEstimatedHeight = 44.0;
                 const subNavTrailingGap = 6.0;
                 const reservedMiniPlayerHeight = 170.0;
@@ -266,6 +275,7 @@ class _RailSidebar extends ConsumerWidget {
                         iconsOnly: iconsOnly,
                         compact: compact,
                         peekStrip: peekStrip,
+                        large: largeTiles,
                         showBadge: false,
                       ),
                     ),
@@ -356,6 +366,7 @@ class _RailNavTile extends StatelessWidget {
     this.compact = false,
     this.showBadge = false,
     this.peekStrip = false,
+    this.large = false,
   });
 
   final _ShellDestination destination;
@@ -369,14 +380,20 @@ class _RailNavTile extends StatelessWidget {
   /// rail insets + 14), whatever the style, and the label follows it.
   final bool peekStrip;
 
+  /// Large: labels 2 sp bigger, which with the 14 px tile padding makes the
+  /// tile at least 52 px tall.
+  final bool large;
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final colorStyle = NavisColorStyleData.of(context);
     final selectedInk = colorStyle.onTonalControlFill(colorScheme);
-    final textStyle = Theme.of(context).textTheme.bodyLarge?.copyWith(
+    final base = Theme.of(context).textTheme.bodyLarge;
+    final textStyle = base?.copyWith(
       fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
       color: selected ? selectedInk : colorScheme.onSurfaceVariant,
+      fontSize: large ? (base.fontSize ?? 16) + 2 : null,
     );
     final tilePadding = iconsOnly
         ? const EdgeInsets.symmetric(horizontal: 4, vertical: 12)

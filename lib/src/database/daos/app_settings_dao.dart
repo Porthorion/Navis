@@ -161,7 +161,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     double desktopPlaybackVolume = defaultDesktopPlaybackVolume,
     double desktopLastAudibleVolume = defaultDesktopPlaybackVolume,
     String? libraryPageOrder,
-    String desktopNavbarStyle = 'comfortable',
+    String desktopNavbarStyle = 'compact',
     bool desktopNavbarAutohide = false,
     bool albumQueueEnabled = true,
     bool matchFlowEnabled = false,

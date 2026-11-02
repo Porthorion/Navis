@@ -7289,17 +7289,17 @@ abstract class AppLocalizations {
   /// **'Navigation Style'**
   String get desktopNavbarStyleLabel;
 
-  /// No description provided for @desktopNavbarStyleWide.
+  /// No description provided for @desktopNavbarStyleLarge.
   ///
   /// In en, this message translates to:
-  /// **'Wide'**
-  String get desktopNavbarStyleWide;
+  /// **'Large'**
+  String get desktopNavbarStyleLarge;
 
-  /// No description provided for @desktopNavbarStyleNarrow.
+  /// No description provided for @desktopNavbarStyleDefault.
   ///
   /// In en, this message translates to:
-  /// **'Narrow'**
-  String get desktopNavbarStyleNarrow;
+  /// **'Default'**
+  String get desktopNavbarStyleDefault;
 
   /// No description provided for @desktopNavbarStyleIcons.
   ///
