@@ -33,6 +33,16 @@ Last updated: 2026-11-02
   by single-index removals); `canEditPlaylist` treats a server playlist with a
   known owner as not editable while the viewer name is unknown. B2 (album to New
   playlist) skipped: a probe showed `createPlaylist` with 5 ids is complete.
+- [x] Issue #212 B round 2 (1.5.2) — 2026-11-02
+  (branch `fix/playlist-edits`). Add and reorder now share remove's tail
+  (`_serverEdit`: store the resulting list, `requireFresh` refresh, also after a
+  failed edit). A reorder from a list that no longer matches the playlist throws
+  `PlaylistChangedException` instead of writing it back; the partial-add notice
+  also shows songs already there. Failing-first tests in
+  `playlist_actions_removal_test`, `playlist_actions_test`,
+  `add_to_playlist_sheet_test`. Follow-ups (not built): `_entryIds` throws when
+  `songCount` != entries, and a deferred requireFresh refresh leaves the old
+  list until reopen.
 - [x] Issue #212 A (1.5.2), playlist song sheet cut off — 2026-11-02
   (branch `fix/playlist-song-sheet`). `_showSongActions` now uses the
   `showSongContextMenu` pattern (`isScrollControlled`, 0.85 height cap,

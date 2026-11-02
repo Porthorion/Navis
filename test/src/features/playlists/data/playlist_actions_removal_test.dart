@@ -59,6 +59,16 @@ class _Fixture {
       server.addAll(i.namedArguments[#songIdsToAdd] as List<String>);
       return const Playlist(id: 'p', name: 'Mix');
     });
+    when(
+      () => api.replacePlaylistSongs(
+        playlistId: 'p',
+        songIds: any(named: 'songIds'),
+      ),
+    ).thenAnswer((i) async {
+      server
+        ..clear()
+        ..addAll(i.namedArguments[#songIds] as List<String>);
+    });
     when(() => api.getPlaylist('p')).thenAnswer(
       (_) async => Playlist(
         id: 'p',
@@ -131,7 +141,8 @@ class _Fixture {
   Future<void> landHydrations() async {
     var landed = 0;
     while (landed < gates.length) {
-      gates[landed++].complete();
+      final gate = gates[landed++];
+      if (!gate.isCompleted) gate.complete();
       await pump();
     }
   }
@@ -154,6 +165,10 @@ class _Fixture {
         ],
       );
 }
+
+/// A song the library already holds, as one picked from it is.
+Future<void> _knowSong(NavisDatabase db, String id) =>
+    db.libraryDao.upsertSongs([SongsTableCompanion.insert(id: id, title: id)]);
 
 Future<void> pump() => Future<void>.delayed(const Duration(milliseconds: 50));
 
@@ -251,6 +266,76 @@ void main() {
       throwsStateError,
     );
     expect(f.shown, ['A', 'B']);
-    expect(f.playlistRequests, 0);
+    // The failed edit may have changed the server: the screen still refreshes.
+    expect(f.playlistRequests, 1);
   }, skip: !sqliteAvailable);
+
+  test(
+    'a reorder from a list that missed a removal throws and writes nothing',
+    () async {
+      final f = await _open(['A', 'B', 'C', 'D']);
+      await f.actions.removeAt(_pl, songId: 'B', occurrence: 0);
+      // Only the hydration that started before the removal lands: the screen
+      // shows the removed song again.
+      f.gates.first.complete();
+      await pump();
+      expect(f.shown, ['A', 'B', 'C', 'D']);
+      await expectLater(
+        f.actions.reorder(_pl, f.shown, 3, 0),
+        throwsA(isA<PlaylistChangedException>()),
+      );
+      expect(f.server, ['A', 'C', 'D']);
+      await f.landHydrations();
+      expect(f.shown, ['A', 'C', 'D']);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'a reorder from a list that missed an add keeps the added song',
+    () async {
+      final f = await _open(['A', 'B']);
+      await _knowSong(f.db, 'X');
+      await f.actions.addSongs(_pl, ['X']);
+      f.gates.first.complete();
+      await pump();
+      expect(f.shown, ['A', 'B']);
+      await expectLater(
+        f.actions.reorder(_pl, f.shown, 1, 0),
+        throwsA(isA<PlaylistChangedException>()),
+      );
+      expect(f.server, ['A', 'B', 'X']);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'a reorder from the current list replaces and shows the new order',
+    () async {
+      final f = await _open(['A', 'B', 'C'], hydrating: false);
+      await f.actions.reorder(_pl, f.shown, 2, 0);
+      await pump();
+      expect(f.server, ['C', 'A', 'B']);
+      expect(f.shown, ['C', 'A', 'B']);
+      await f.landHydrations();
+      expect(f.shown, ['C', 'A', 'B']);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'an add while the open hydration is in flight shows the new song',
+    () async {
+      final f = await _open(['A', 'B']);
+      await _knowSong(f.db, 'X');
+      await f.actions.addSongs(_pl, ['X']);
+      await pump();
+      expect(f.shown, ['A', 'B', 'X'], reason: 'stored without waiting');
+      await f.landHydrations();
+      expect(f.server, ['A', 'B', 'X']);
+      expect(f.shown, ['A', 'B', 'X']);
+      expect(f.playlistRequests, 2, reason: 'own hydration, not the open one');
+    },
+    skip: !sqliteAvailable,
+  );
 }

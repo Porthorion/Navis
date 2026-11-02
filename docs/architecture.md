@@ -3447,19 +3447,25 @@ works like the weekly playlists. `homeTrendingProvider`
   their own. Each `PlaylistLibraryItem` exposes its section for the Library UI.
 - `PlaylistActions` supplies create/rename/delete/add/remove/reorder methods.
   Device mutations use only `PlaylistDao`; server mutations retain their
-  header/detail sync invalidations and throw when the API is unavailable.
+  header sync invalidations and throw when the API is unavailable.
   Creation and rename reject blank trimmed names. Server creation disables
-  transport retries because repeating it can create another playlist. Server
-  reorder refreshes detail even on failure to revert optimistic UI state.
+  transport retries because repeating it can create another playlist.
   Server edits of one playlist (add, remove, reorder) run one at a time in
-  order (`_edits`). Remove names the song, not a position: the detail screen
-  captures the chosen row's id and its occurrence count when the menu opens,
-  and `removeAt` re-reads the server list inside the chain, removes that
+  order (`_edits`) through one shared tail (`_serverEdit`): on success the
+  resulting list is stored through `PlaylistDao.replacePlaylistSongs`; after
+  success or failure it invalidates `playlistSyncProvider` and starts a
+  `requireFresh` playlist hydration without awaiting it, so it cannot join one
+  that began before the edit and a failed edit still reverts the optimistic
+  UI state. Remove names the song, not a position: the detail screen captures
+  the chosen row's id and its occurrence count when the menu opens, and
+  `removeAt` re-reads the server list inside the chain and removes that
   occurrence (the last one if fewer remain, nothing if the song is gone) with a
-  single `songIndexToRemove` (Navidrome 0.64 ignores several), stores the
-  remaining entries through `PlaylistDao.replacePlaylistSongs`, invalidates
-  `playlistSyncProvider` and starts a `requireFresh` playlist hydration without
-  awaiting it, so it cannot join one that began before the edit.
+  single `songIndexToRemove` (Navidrome 0.64 ignores several). Reorder sends
+  the list the screen showed; inside the chain it re-reads the playlist and, if
+  that differs (an add or remove landed meanwhile), throws
+  `PlaylistChangedException` without writing, so a stale list can never
+  resurrect a removed song or drop an added one. Device playlists make the same
+  check against the stored list in one transaction.
 - The phone song-actions sheet on the playlist detail screen
   (`_showSongActions`) is scrollable like `showSongContextMenu`:
   `isScrollControlled`, `useSafeArea`, a 0.85 x screen-height cap and a

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/server_create_recovery.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -21,6 +22,16 @@ typedef PlaylistUploadResult = ({
 /// Songs [PlaylistActions.addSongs] added, skipped because the playlist already
 /// had them (or the picked list repeated them) and could not add.
 typedef PlaylistAddResult = ({int added, int alreadyThere, int failed});
+
+/// A reorder was made from a list that no longer matches the playlist (another
+/// edit landed meanwhile). Nothing was written; the screen shows the real list.
+class PlaylistChangedException implements Exception {
+  const new();
+
+  @override
+  String toString() => 'The playlist changed. Try again.';
+}
+
 typedef _UploadSnapshot = ({String name, List<String> songIds});
 
 final playlistActionsProvider = Provider<PlaylistActions>(PlaylistActions.new);
@@ -238,15 +249,40 @@ class PlaylistActions {
       });
     }
     final api = _serverApi();
+    return await _serverEdit(
+      playlist.id,
+      () => _addToServer(api, playlist.id, songIds),
+    );
+  }
+
+  /// One server edit of a playlist (add, remove, reorder), in order with the
+  /// others. [run] returns its result and the playlist's resulting ids, which
+  /// are stored at once; the refresh that follows (also after a failed edit,
+  /// which may have changed the server) must not join a hydration that started
+  /// before the edit, since that one carries the old list.
+  Future<T> _serverEdit<T>(
+    String id,
+    Future<({T result, List<String> ids})> Function() run,
+  ) async {
     try {
-      return await _edit(
-        playlist.id,
-        () => _addToServer(api, playlist.id, songIds),
-      );
+      return await _edit(id, () async {
+        final (:result, :ids) = await run();
+        try {
+          await _storeEntries(id, ids);
+        } on Object {
+          // The server edit succeeded; the refresh below repairs the list.
+        }
+        return result;
+      });
     } finally {
       if (_ref.mounted) {
-        _ref.invalidate(playlistDetailSyncProvider(playlist.id));
         _ref.invalidate(playlistSyncProvider);
+        unawaited(
+          _ref
+              .read(librarySyncControllerProvider.notifier)
+              .requestTarget(LibrarySyncTarget.playlist(id), requireFresh: true)
+              .then<void>((_) {}, onError: (Object _) {}),
+        );
       }
     }
   }
@@ -273,7 +309,7 @@ class PlaylistActions {
     ];
   }
 
-  Future<PlaylistAddResult> _addToServer(
+  Future<({PlaylistAddResult result, List<String> ids})> _addToServer(
     SubsonicApiClient api,
     String id,
     List<String> picked,
@@ -282,7 +318,10 @@ class PlaylistActions {
     final songIds = _newIds(picked, before);
     final alreadyThere = picked.length - songIds.length;
     if (songIds.isEmpty) {
-      return (added: 0, alreadyThere: alreadyThere, failed: 0);
+      return (
+        result: (added: 0, alreadyThere: alreadyThere, failed: 0),
+        ids: before,
+      );
     }
     // Navidrome 0.64 answers ok to a multi-id add but adds nothing, so the
     // result is verified and what is missing is re-added one id per request.
@@ -292,9 +331,13 @@ class PlaylistActions {
     } on Object {
       // Counted as missing below.
     }
-    var missing = _missing(songIds, before, await _entryIds(api, id));
+    var after = await _entryIds(api, id);
+    var missing = _missing(songIds, before, after);
     if (missing.isEmpty) {
-      return (added: songIds.length, alreadyThere: alreadyThere, failed: 0);
+      return (
+        result: (added: songIds.length, alreadyThere: alreadyThere, failed: 0),
+        ids: after,
+      );
     }
     for (final song in missing) {
       try {
@@ -303,11 +346,15 @@ class PlaylistActions {
         // Counted as missing below.
       }
     }
-    missing = _missing(songIds, before, await _entryIds(api, id));
+    after = await _entryIds(api, id);
+    missing = _missing(songIds, before, after);
     return (
-      added: songIds.length - missing.length,
-      alreadyThere: alreadyThere,
-      failed: missing.length,
+      result: (
+        added: songIds.length - missing.length,
+        alreadyThere: alreadyThere,
+        failed: missing.length,
+      ),
+      ids: after,
     );
   }
 
@@ -374,31 +421,14 @@ class PlaylistActions {
       return;
     }
     final api = _serverApi();
-    await _edit(playlist.id, () async {
+    await _serverEdit(playlist.id, () async {
       final ids = await _entryIds(api, playlist.id);
       final at = _occurrenceIndex(ids, songId, occurrence);
-      if (at < 0) return;
+      if (at < 0) return (result: null, ids: ids);
       // One index per call: Navidrome 0.64 ignores several.
       await api.updatePlaylist(id: playlist.id, songIndexesToRemove: [at]);
-      try {
-        await _storeEntries(playlist.id, ids..removeAt(at));
-      } on Object {
-        // The server edit succeeded; the hydration below repairs the list.
-      }
+      return (result: null, ids: ids..removeAt(at));
     });
-    if (!_ref.mounted) return;
-    _ref.invalidate(playlistSyncProvider);
-    // The stored list is already right; this settles counts and covers. It
-    // must not join a hydration that started before the edit.
-    unawaited(
-      _ref
-          .read(librarySyncControllerProvider.notifier)
-          .requestTarget(
-            LibrarySyncTarget.playlist(playlist.id),
-            requireFresh: true,
-          )
-          .then<void>((_) {}, onError: (Object _) {}),
-    );
   }
 
   /// Index of the [occurrence]-th [songId] in [ids], else the last one, else -1.
@@ -430,6 +460,10 @@ class PlaylistActions {
     ]);
   }
 
+  /// Moves one song within [currentIds], the list the caller is showing.
+  /// Throws [PlaylistChangedException] without writing when the playlist no
+  /// longer matches it, so a stale list cannot resurrect removed songs or drop
+  /// added ones.
   Future<void> reorder(
     PlaylistsTableData playlist,
     List<String> currentIds,
@@ -441,26 +475,29 @@ class PlaylistActions {
     final songId = reordered.removeAt(from);
     reordered.insert(to, songId);
     if (playlist.isLocal) {
-      await _ref
-          .read(navisDatabaseProvider)
-          .playlistDao
-          .setLocalPlaylistSongs(playlist.id, reordered);
+      final db = _ref.read(navisDatabaseProvider);
+      await db.transaction(() async {
+        final stored = [
+          for (final song
+              in await db.playlistDao.watchPlaylistSongs(playlist.id).first)
+            song.id,
+        ];
+        if (!listEquals(stored, currentIds)) {
+          throw const PlaylistChangedException();
+        }
+        await db.playlistDao.setLocalPlaylistSongs(playlist.id, reordered);
+      });
       return;
     }
     final api = _serverApi();
-    try {
-      await _edit(
-        playlist.id,
-        () => api.replacePlaylistSongs(
-          playlistId: playlist.id,
-          songIds: reordered,
-        ),
+    await _serverEdit(playlist.id, () async {
+      final ids = await _entryIds(api, playlist.id);
+      if (!listEquals(ids, currentIds)) throw const PlaylistChangedException();
+      await api.replacePlaylistSongs(
+        playlistId: playlist.id,
+        songIds: reordered,
       );
-    } finally {
-      // Refresh on failure too, reverting the detail screen's optimistic order.
-      if (_ref.mounted) {
-        _ref.invalidate(playlistDetailSyncProvider(playlist.id));
-      }
-    }
+      return (result: null, ids: reordered);
+    });
   }
 }

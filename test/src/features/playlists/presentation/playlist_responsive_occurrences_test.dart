@@ -204,6 +204,18 @@ void main() {
           songIds: ['middle', 'duplicate', 'duplicate'],
         ),
       ).thenAnswer((_) async {});
+      when(() => api.getPlaylist('occurrences')).thenAnswer(
+        (_) async => const Playlist(
+          id: 'occurrences',
+          name: 'Occurrences',
+          songCount: 3,
+          entries: [
+            Song(id: 'duplicate', title: 'Repeated song'),
+            Song(id: 'middle', title: 'Middle song'),
+            Song(id: 'duplicate', title: 'Repeated song'),
+          ],
+        ),
+      );
       await render(tester, database, api);
       expect(
         find.byKey(const ValueKey('occurrences-duplicate-0')),
