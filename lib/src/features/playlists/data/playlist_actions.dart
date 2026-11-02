@@ -15,6 +15,10 @@ typedef PlaylistUploadResult = ({
   int kept,
   int total,
 });
+
+/// Songs [PlaylistActions.addSongs] added, skipped because the playlist already
+/// had them (or the picked list repeated them) and could not add.
+typedef PlaylistAddResult = ({int added, int alreadyThere, int failed});
 typedef _UploadSnapshot = ({String name, List<String> songIds});
 
 final playlistActionsProvider = Provider<PlaylistActions>(PlaylistActions.new);
@@ -26,7 +30,7 @@ class PlaylistActions {
   final Ref _ref;
 
   final _uploads = <String, Future<PlaylistUploadResult>>{};
-  final _adds = <String, Future<int>>{};
+  final _adds = <String, Future<PlaylistAddResult>>{};
   final _createRecovery = ServerCreateRecovery<_UploadSnapshot>();
   final _keptUploads = <String>{};
 
@@ -196,22 +200,32 @@ class PlaylistActions {
     if (_ref.mounted) _ref.invalidate(playlistSyncProvider);
   }
 
-  /// Returns the number of songs not added (local: unknown ids; server: songs
-  /// the server still lacks after a read-back).
-  Future<int> addSongs(
+  /// Adds the songs the playlist does not hold yet, in the picked order; a
+  /// repeated or present id counts as `alreadyThere`. `failed` counts songs
+  /// that did not land (local: unknown ids; server: still missing after a
+  /// read-back).
+  Future<PlaylistAddResult> addSongs(
     PlaylistsTableData playlist,
     List<String> songIds,
   ) async {
     if (playlist.isLocal) {
       final db = _ref.read(navisDatabaseProvider);
       return await db.transaction(() async {
-        final current = await db.playlistDao
-            .watchPlaylistSongs(playlist.id)
-            .first;
-        return await db.playlistDao.setLocalPlaylistSongs(playlist.id, [
-          ...current.map((song) => song.id),
-          ...songIds,
+        final current = [
+          for (final song
+              in await db.playlistDao.watchPlaylistSongs(playlist.id).first)
+            song.id,
+        ];
+        final fresh = _newIds(songIds, current);
+        final failed = await db.playlistDao.setLocalPlaylistSongs(playlist.id, [
+          ...current,
+          ...fresh,
         ]);
+        return (
+          added: fresh.length - failed,
+          alreadyThere: songIds.length - fresh.length,
+          failed: failed,
+        );
       });
     }
     final api = _serverApi();
@@ -232,12 +246,26 @@ class PlaylistActions {
     }
   }
 
-  Future<int> _addToServer(
+  /// [picked] without repeats and without anything in [present], in order.
+  List<String> _newIds(List<String> picked, List<String> present) {
+    final seen = present.toSet();
+    return [
+      for (final id in picked)
+        if (seen.add(id)) id,
+    ];
+  }
+
+  Future<PlaylistAddResult> _addToServer(
     SubsonicApiClient api,
     String id,
-    List<String> songIds,
+    List<String> picked,
   ) async {
     final before = await _entryIds(api, id);
+    final songIds = _newIds(picked, before);
+    final alreadyThere = picked.length - songIds.length;
+    if (songIds.isEmpty) {
+      return (added: 0, alreadyThere: alreadyThere, failed: 0);
+    }
     // Navidrome 0.64 answers ok to a multi-id add but adds nothing, so the
     // result is verified and what is missing is re-added one id per request.
     // A failed request leaves its ids missing; the read-backs decide.
@@ -247,7 +275,9 @@ class PlaylistActions {
       // Counted as missing below.
     }
     var missing = _missing(songIds, before, await _entryIds(api, id));
-    if (missing.isEmpty) return 0;
+    if (missing.isEmpty) {
+      return (added: songIds.length, alreadyThere: alreadyThere, failed: 0);
+    }
     for (final song in missing) {
       try {
         await api.updatePlaylist(id: id, songIdsToAdd: [song]);
@@ -256,7 +286,11 @@ class PlaylistActions {
       }
     }
     missing = _missing(songIds, before, await _entryIds(api, id));
-    return missing.length;
+    return (
+      added: songIds.length - missing.length,
+      alreadyThere: alreadyThere,
+      failed: missing.length,
+    );
   }
 
   /// The playlist's song ids on the server; throws when the read is

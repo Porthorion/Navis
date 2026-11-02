@@ -131,7 +131,11 @@ void main() {
       final id = await a.create(' Mix ', ['a', 'a'], onServer: false);
       final p = (await database.playlistDao.watchPlaylistById(id).first)!;
       expect(p.name, 'Mix');
-      expect(await a.addSongs(p, ['b', 'missing']), 1);
+      expect(await a.addSongs(p, ['b', 'missing']), (
+        added: 1,
+        alreadyThere: 0,
+        failed: 1,
+      ));
       expect(
         (await database.playlistDao.watchPlaylistSongs(id).first).map(
           (s) => s.id,
@@ -241,7 +245,11 @@ void main() {
       },
     );
     await flush();
-    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), 0);
+    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), (
+      added: 3,
+      alreadyThere: 0,
+      failed: 0,
+    ));
     expect(server.toSet(), {'x', 'z', 'a', 'b', 'c'});
     expect(server.length, 5);
   });
@@ -249,21 +257,33 @@ void main() {
   test('a server keeping a non-prefix subset is not resent that id', () async {
     final server = stubServer(['x'], maxAdd: 1, multiKeep: (ids) => [ids.last]);
     await flush();
-    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), 0);
+    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), (
+      added: 3,
+      alreadyThere: 0,
+      failed: 0,
+    ));
     expect(server, ['x', 'c', 'a', 'b']);
   });
 
   test('an id the server rejects is reported as missing', () async {
     final server = stubServer(['x'], maxAdd: 1, rejected: {'bad'});
     await flush();
-    expect(await actions.addSongs(_playlist, ['bad', 'b', 'c']), 1);
+    expect(await actions.addSongs(_playlist, ['bad', 'b', 'c']), (
+      added: 2,
+      alreadyThere: 0,
+      failed: 1,
+    ));
     expect(server, ['x', 'b', 'c']);
   });
 
   test('one failing id does not abort the rest', () async {
     final server = stubServer(['x'], maxAdd: 1, failing: {'b'});
     await flush();
-    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), 1);
+    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), (
+      added: 2,
+      alreadyThere: 0,
+      failed: 1,
+    ));
     expect(server, ['x', 'a', 'c']);
   });
 
@@ -299,17 +319,54 @@ void main() {
   test('album add falls back to one id per request', () async {
     final server = stubServer(['x'], maxAdd: 1);
     await flush();
-    expect(await actions.addSongs(_playlist, ['a', 'b', 'a']), 0);
+    // The repeated 'a' inside the picked list counts as already there.
+    expect(await actions.addSongs(_playlist, ['a', 'b', 'a']), (
+      added: 2,
+      alreadyThere: 1,
+      failed: 0,
+    ));
     await flush();
-    expect(server, ['x', 'a', 'b', 'a']);
+    expect(server, ['x', 'a', 'b']);
     expect(headerSyncs, 2);
     expect(detailSyncs, 2);
+  });
+
+  test('songs already in the playlist are skipped, not re-added', () async {
+    final server = stubServer(['s1', 's2'], maxAdd: 99);
+    await flush();
+    expect(await actions.addSongs(_playlist, ['s1', 's2', 's3']), (
+      added: 1,
+      alreadyThere: 2,
+      failed: 0,
+    ));
+    expect(server, ['s1', 's2', 's3']);
+    verify(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['s3'])).called(1);
+  });
+
+  test('adding only songs already there makes no update call', () async {
+    stubServer(['s1', 's2'], maxAdd: 99);
+    await flush();
+    expect(await actions.addSongs(_playlist, ['s2', 's1']), (
+      added: 0,
+      alreadyThere: 2,
+      failed: 0,
+    ));
+    verifyNever(
+      () => api.updatePlaylist(
+        id: any(named: 'id'),
+        songIdsToAdd: any(named: 'songIdsToAdd'),
+      ),
+    );
   });
 
   test('add stays one update when the server honours multi-id', () async {
     final server = stubServer(['x'], maxAdd: 99);
     await flush();
-    expect(await actions.addSongs(_playlist, ['a', 'b']), 0);
+    expect(await actions.addSongs(_playlist, ['a', 'b']), (
+      added: 2,
+      alreadyThere: 0,
+      failed: 0,
+    ));
     expect(server, ['x', 'a', 'b']);
     verify(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['a', 'b']))
         .called(1);
@@ -321,7 +378,11 @@ void main() {
   test('add never reports success when the server drops every add', () async {
     final server = stubServer(['x'], maxAdd: 0);
     await flush();
-    expect(await actions.addSongs(_playlist, ['a', 'b']), 2);
+    expect(await actions.addSongs(_playlist, ['a', 'b']), (
+      added: 0,
+      alreadyThere: 0,
+      failed: 2,
+    ));
     expect(server, ['x']);
   });
 
@@ -346,7 +407,11 @@ void main() {
       ),
     );
     await flush();
-    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), 2);
+    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), (
+      added: 1,
+      alreadyThere: 0,
+      failed: 2,
+    ));
     expect(server, ['x', 'a']);
   });
 
@@ -361,6 +426,31 @@ void main() {
     verify(() => api.updatePlaylist(id: 'p', songIndexesToRemove: [1]))
         .called(1);
   });
+
+  test('adding to a device playlist skips songs it already holds', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    final local = ProviderContainer(overrides: withTestDatabase(database));
+    addTearDown(local.dispose);
+    await database.libraryDao.upsertSongs([
+      for (final id in ['s1', 's2', 's3'])
+        SongsTableCompanion.insert(id: id, title: id),
+    ]);
+    final a = local.read(playlistActionsProvider);
+    final id = await a.create('Mix', ['s1', 's2'], onServer: false);
+    final p = (await database.playlistDao.watchPlaylistById(id).first)!;
+    expect(await a.addSongs(p, ['s1', 's2', 's3', 's3']), (
+      added: 1,
+      alreadyThere: 3,
+      failed: 0,
+    ));
+    expect(
+      (await database.playlistDao.watchPlaylistSongs(id).first).map(
+        (s) => s.id,
+      ),
+      ['s1', 's2', 's3'],
+    );
+  }, skip: !sqliteAvailable);
 
   test('reorder replaces atomically, preserves duplicates and input', () async {
     when(

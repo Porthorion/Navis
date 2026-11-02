@@ -3537,9 +3537,15 @@ works like the weekly playlists. `homeTrendingProvider`
   `playlistDetailTrackRemoveFailed` or `playlistDetailReorderFailed` instead of
   swallowing the error. The playlist detail screen computes editability once per
   build and hides the drag handle and "Remove from playlist" when it is false.
-  The add-to-playlist sheet lists only editable playlists and treats every song
-  skipped (`addSongs` result) as a failure; its notices use the opening
-  context because the sheet is already closed when the result arrives.
+  The add-to-playlist sheet lists only editable playlists. `addSongs` skips
+  ids the playlist already holds (read from the server just before the add, or
+  the stored rows for a device playlist) and ids repeated in the picked list,
+  and returns `(added, alreadyThere, failed)`; it makes no update call when
+  nothing is new. The sheet reports a total failure (nothing added, some
+  failed) as an error, a partial one as "skipped", and already-there songs as
+  "Added N songs · M already in the playlist" or "Already in the playlist".
+  Its notices use the opening context because the sheet is already closed when
+  the result arrives.
 - `playlistLibraryItemsProvider` adds a `PlaylistLibraryItem.trending` after
   the weekly playlists while the switch is allowed and an account is signed
   in, whatever the chart holds (rows are still loading, or there is no chart
