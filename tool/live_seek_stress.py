@@ -1366,7 +1366,7 @@ def oracle_skip(run: Run, rec: dict) -> list[dict]:
 
 
 def license_pool(run: Run):
-    return [a for a in run.actions if a['kind'] in ('start', 'next', 'prev', 'jump', 'shuffle', 'queueEdit')]
+    return [a for a in run.actions if a['kind'] in ('start', 'next', 'prev', 'jump', 'shuffle', 'queueEdit', 'failover')]
 
 
 def _requested_at(run: Run, t: float, kinds=('seek', 'prev', 'jump', 'start', 'next')) -> bool:
@@ -3081,9 +3081,10 @@ def cold_command_case(kind: str, kbps=1000):
         run.observe(4.0)
     return case
 def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0, at_start=False):
-    """Round 8 injection: a same-song seek 5 s into a slow cold start; once the cold load is up, every media body is held
+    """Round 8 injection: a same-song seek 5 s into a slow cold start; once the seek's load has begun, every media body is held
     (connection kept open, ProxyServer.stall) for [stall_s], so the seek cannot settle (~25 s deadline) and the reload
-    (and its retry) times out at 12 s. Records the state 20 s after the seek and the final state, and flags an idle player."""
+    (and its retry) times out at 12 s. Records the state 20 s after the seek and the final state, and flags an idle player
+    (the song must be kept, and playback fail over to the next song as on desktop, #203)."""
     ids = env.backend.fresh_album()
     run.songs = [{'id': i} for i in ids]
     tgt = cold_seek_target(ids[0])
@@ -3107,8 +3108,17 @@ def case_cold_seek_stall(run: Run, env, kbps=1000, stall_s=60.0, at_start=False)
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             seek = issue_seek(run, pool, tgt)
             seek['song'] = ids[0]
-            loaded = run.until(lambda s: s['songId'] == ids[0] and s['proc'] in ('ready', 'buffering') and not s['loading'], 90)
-            run.metrics['coldLoadedAfterS'] = None if loaded is None else round(loaded['t'] - t_cmd, 1)
+            # The stall must hit the seek's own reload. A "ready and not loading" sample taken before the app flips to
+            # loading passes at once and sent the stall to the playing song (the 2026-11 flaky leftIdle/failover split):
+            # wait for the seek's load to begin, then hold the media bodies at once.
+            loading_now = lambda s: s['songId'] == ids[0] and s['loading']
+            began = next((x for x in run.samples if x['t'] >= t_cmd and loading_now(x)), None) or run.until(loading_now, 10)
+            run.metrics['seekLoadBeganAfterS'] = None if began is None else round(began['t'] - t_cmd, 1)
+            if began is None:  # the stall would not target the seek's reload: say so instead of passing on a different path
+                run.violations.append(violation('seekLoadNotObserved', run.now(), 'the seek never showed a loading state within 10 s; '
+                                                'the stall did not target its reload (inconclusive)', run))
+            for _ in range(2):  # a stalled seek fails over to the next song, up to the 2-failover cap (#203): licensed changes
+                run.act('failover', expected=True)
             if not at_start:
                 env.proxy.stall(stall_s)
                 run.act('stall', seconds=stall_s)
