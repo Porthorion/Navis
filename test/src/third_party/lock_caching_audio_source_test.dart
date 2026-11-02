@@ -1585,6 +1585,7 @@ void main() {
   // still unwinding (it would be failed with "Download cancelled" with it): it
   // starts a fresh one once the cancelled fetch has released its partial file.
   group('a request after cancelDownload', () {
+    // ignore: experimental_member_use, reason: tests the Navis additions to the vendored source.
     Future<List<int>> bytesOf(LockCachingAudioSource source) async {
       final response = await source.request();
       return response.stream.expand((bytes) => bytes).toList();
