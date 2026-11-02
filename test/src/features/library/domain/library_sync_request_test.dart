@@ -43,6 +43,7 @@ void main() {
       'providerUnsupported',
       'legacyAmbiguous',
       'unknownFailure',
+      'databaseBusy',
     ]);
   });
 

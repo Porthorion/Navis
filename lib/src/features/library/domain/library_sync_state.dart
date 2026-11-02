@@ -183,6 +183,10 @@ class LibrarySyncState {
 
   bool get isRunning => status == LibrarySyncStatus.running;
 
+  /// A lock timeout the scheduler retries on its own; never shown as an error.
+  bool get isSilentFailure =>
+      status == LibrarySyncStatus.failed && failureCategory == 'databaseBusy';
+
   LibrarySyncState copyWith({
     LibrarySyncStatus? status,
     LibrarySyncStage? stage,

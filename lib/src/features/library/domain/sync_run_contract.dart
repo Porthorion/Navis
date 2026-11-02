@@ -56,6 +56,8 @@ enum SyncSafeReason {
   // Retained because historical outcome rows persist this enum index.
   legacyAmbiguous,
   unknownFailure,
+  // Appended: rows persist the enum index.
+  databaseBusy,
 }
 
 /// Immutable network and endpoint limits resolved once by the scheduler.

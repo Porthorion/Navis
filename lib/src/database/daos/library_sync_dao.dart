@@ -50,6 +50,13 @@ class LibrarySyncRunHistoryEntry {
   final DateTime completedAt;
 }
 
+/// Rows persist the enum index; one written by a newer build (a reason this
+/// build lacks) reads as [SyncSafeReason.unknownFailure].
+SyncSafeReason _safeReasonAt(int index) =>
+    index >= 0 && index < SyncSafeReason.values.length
+    ? SyncSafeReason.values[index]
+    : SyncSafeReason.unknownFailure;
+
 @DriftAccessor(
   tables: [
     LibrarySyncStateTable,
@@ -360,8 +367,9 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
             },
             outcome: SyncRunOutcomeKind
                 .values[row.readTable(librarySyncRunOutcomeTable).outcomeKind],
-            reason: SyncSafeReason
-                .values[row.readTable(librarySyncRunOutcomeTable).safeReason],
+            reason: _safeReasonAt(
+              row.readTable(librarySyncRunOutcomeTable).safeReason,
+            ),
             requestCount: row
                 .readTable(librarySyncRunOutcomeTable)
                 .requestCount,

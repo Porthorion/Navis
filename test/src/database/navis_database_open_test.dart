@@ -7,7 +7,20 @@ import 'package:drift/remote.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:sqlite3/sqlite3.dart';
+
+class _SupportDirProvider extends PathProviderPlatform {
+  new(this.support);
+
+  final Directory support;
+
+  @override
+  Future<String?> getApplicationSupportPath() async => support.path;
+
+  @override
+  Future<String?> getApplicationDocumentsPath() async => support.path;
+}
 
 void main() {
   test(
@@ -178,6 +191,59 @@ void main() {
 
   test('a write waits while another connection holds the lock', () async {
     final (database, raw) = await openWithRawLock();
+    unawaited(
+      Future<void>.delayed(
+        const Duration(seconds: 1),
+        () => raw.execute('ROLLBACK'),
+      ),
+    );
+    final stopwatch = Stopwatch()..start();
+
+    await insertSong(database);
+
+    expect(stopwatch.elapsed, greaterThan(const Duration(milliseconds: 900)));
+  }, timeout: const Timeout(Duration(seconds: 60)));
+
+  // withBusyLimit opens the default database location, so point it at a temp
+  // directory.
+  Future<(NavisDatabase, Database)> openWithBusyLimitAndRawLock(
+    Duration limit,
+  ) async {
+    final support = await Directory.systemTemp.createTemp('navis-busy-');
+    addTearDown(() => support.delete(recursive: true));
+    final previous = PathProviderPlatform.instance;
+    PathProviderPlatform.instance = _SupportDirProvider(support);
+    addTearDown(() => PathProviderPlatform.instance = previous);
+    final database = NavisDatabase.withBusyLimit(limit);
+    addTearDown(database.close);
+    await database.customSelect('SELECT 1').get();
+    final raw = sqlite3.open(p.join(support.path, 'navis.sqlite.sqlite'));
+    addTearDown(raw.close);
+    raw.execute('BEGIN IMMEDIATE');
+    return (database, raw);
+  }
+
+  test(
+    'a short busy limit fails a write while another holds the lock',
+    () async {
+      final (database, raw) = await openWithBusyLimitAndRawLock(
+        const Duration(milliseconds: 200),
+      );
+      addTearDown(() => raw.execute('ROLLBACK'));
+      final stopwatch = Stopwatch()..start();
+
+      final error = await insertSong(database)
+          .then<Object?>((_) => null, onError: (Object error) => error);
+
+      expect(isDatabaseLockTimeout(error!), isTrue);
+      expect(stopwatch.elapsed, lessThan(const Duration(seconds: 3)));
+    },
+  );
+
+  test('a longer busy limit waits out the lock and then writes', () async {
+    final (database, raw) = await openWithBusyLimitAndRawLock(
+      const Duration(seconds: 3),
+    );
     unawaited(
       Future<void>.delayed(
         const Duration(seconds: 1),

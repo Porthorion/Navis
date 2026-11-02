@@ -14,6 +14,22 @@ Last updated: 2026-10-28
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #197 (1.5.2), sync lock timeout — 2026-11-01
+  (branch `fix/sync-lock-timeout`). A lock timeout during sync is now transient
+  and silent: engine `failureCategory: 'databaseBusy'` (no error text, no
+  banner/notification), ledger reason `SyncSafeReason.databaseBusy` (appended),
+  1 min retry for the first two consecutive failures, then the normal backoff.
+  Android's WorkManager connection waits 30 s (`NavisDatabase.withBusyLimit`);
+  the app connection keeps 5 s. Failing-first: engine `Expected: 'databaseBusy'
+  Actual: <null>`; coordinator `Expected: SyncSafeReason.databaseBusy Actual:
+  SyncSafeReason.unknownFailure`. Evidence: `flutter test` on
+  navis_database_open, adaptive_library_sync_coordinator,
+  android_background_sync_entrypoint and library_sync_engine tests.
+  Round 2 (review fixes): the retry now fires (foreground next-check at the
+  retry time, worker `transientFailure`), the state surfaces from the third
+  failure, targeted hydration and the settings status are covered, unknown
+  history reasons read as `unknownFailure`; the worker-connection test now
+  drives the real entrypoint.
 - [x] Issue #105 (1.5.1, #86), sync lease liveness — 2026-10-28
   (branch `fix/sync-lease-liveness`). Heartbeat and `SyncWriteFence.lockAndCheck`
   now match on the owner token only (like `checkBeforeCommit`), so a DB stall

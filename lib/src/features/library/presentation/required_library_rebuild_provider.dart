@@ -258,7 +258,7 @@ class RequiredLibraryRebuildController
       state = RequiredLibraryRebuildState(
         status: RequiredLibraryRebuildStatus.failed,
         failure: RequiredLibraryRebuildFailure.incomplete,
-        errorMessage: result.errorMessage,
+        errorMessage: result.isSilentFailure ? null : result.errorMessage,
       );
     } on Object catch (error) {
       AppLogger.warning('Library rebuild failed: ${error.runtimeType}.');
