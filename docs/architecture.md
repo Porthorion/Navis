@@ -377,8 +377,8 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   and batches already announce their tables; raw SQL cannot be inferred by
   this mechanism. Target artist/album hydration retains its explicit library
   announcements and page re-read fallback as additional protection.
-- Linux and Windows profile diagnostics use the bearer-authenticated loopback
-  control plane. The Linux launcher is `tool/sync_diagnostics.sh`; Windows
+- Linux, Windows and macOS profile diagnostics use the bearer-authenticated loopback
+  control plane. The Linux/macOS launcher is `tool/sync_diagnostics.sh`; Windows
   launchers must use the same clone-only, isolated database/cache contract.
   A desktop clone resolves all `path_provider` directories inside
   `NAVIS_SYNC_DIAGNOSTICS_ROOT`.

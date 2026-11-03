@@ -452,7 +452,8 @@ behavior under test:
 | Linux media-session integration | Linux app API plus MPRIS |
 | Android or Android Auto | Linux startup smoke plus the Android media-session/MediaBrowser API on a device, emulator, or DHU as appropriate |
 | Windows media integration | Linux startup smoke plus `tool/windows_smtc_diagnostics.ps1` on Windows and GMTC |
-| macOS or iOS integration | Deferred by the project owner while Apple development is unavailable; record unverified Apple status |
+| macOS app behavior | macOS profile clone launched on a Mac host through the shared diagnostics launchers (`flutter run -d macos`, selected automatically on Darwin) plus the app API and an inspected screenshot; Now Playing and media keys also need a manual check on the Mac until an app-owned probe exists |
+| iOS integration | Deferred by the project owner while Apple development is unavailable; record unverified iOS status |
 
 ### Temporary Android emulators
 
@@ -799,8 +800,17 @@ Retain package version, old/new pid, root-temp cleanup, screenshots and installe
 stderr evidence. Cancellation, no-agent, swap and lock-error UI checks still
 require the owner; static/script checks are not runtime acceptance.
 
-Linux and Windows profile diagnostics share the authenticated control-plane
-contract. Android production builds remain observation-only. The planned SAF
+Linux, Windows and macOS profile diagnostics share the authenticated
+control-plane contract. `diagnostics_device` in `tool/lib/diagnostics.sh`
+selects `-d macos` on Darwin for its launchers, `tool/sync_diagnostics.sh` and
+`tool/presentation_diagnostics.sh`; other single-site scripts still launch
+`-d linux`. macOS builds are unsandboxed (`macos/Runner/*.entitlements` omit
+`app-sandbox`, like the notarized app), so the clone root and handshake under
+`build/` are writable. The PulseAudio capture launcher (`launch_audio_app`)
+exits 69 on Darwin. On a Mac, set `NAVIS_DIAGNOSTICS_PRIMARY_DB` for
+`sync_diagnostics.sh`, and expect the first cold `flutter run -d macos` build to
+outlast the 180-second handshake wait; build once first. Android production
+builds remain observation-only. The planned SAF
 download-folder diagnostics must be sidecar-only, restricted to an emulator
 fixture tree, reject arbitrary paths, and never be enabled by the stable
 package.

@@ -240,7 +240,7 @@ launch_app() {
   if [[ "$MODE" == "throughput" || "$MODE" == "full-rescan" || "$MODE" == "cache-alias" ]]; then
     diagnostics_runtime_mode="clone"
   fi
-  flutter run -d linux --profile \
+  flutter run -d "$(diagnostics_device)" --profile \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define=NAVIS_APP_NAME='Navis Diagnostics' \
