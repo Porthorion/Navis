@@ -18,19 +18,27 @@ bool _atLeast(String? recorded, String release) {
 }
 
 /// Unacknowledged options for an updated user. First-run and loading are empty.
+///
+/// The current release group is acknowledged by Finish or first-run Skip;
+/// standalone highlights only by being seen.
 final pendingSetupHighlightsProvider = Provider<Set<SetupHighlight>>((ref) {
   final settings = ref.watch(appSettingsProvider);
-  final release = ref.watch(setupWhatsNewReleaseProvider);
+  final version = ref.watch(packageInfoProvider).asData?.value.version;
   if (settings.isLoading ||
       settings.asData == null ||
-      release == null ||
-      ref.watch(onboardingRequiredProvider) != false ||
-      _atLeast(settings.asData!.value.setupHighlightsSeenRelease, release)) {
+      version == null ||
+      ref.watch(onboardingRequiredProvider) != false) {
     return const <SetupHighlight>{};
   }
-  final seen = settings.asData!.value.setupHighlightsSeen;
+  final release = ref.watch(setupWhatsNewReleaseProvider);
+  final model = settings.asData!.value;
+  final candidates = <SetupHighlight>{
+    if (release != null && !_atLeast(model.setupHighlightsSeenRelease, release))
+      ...setupHighlightsFor(release),
+    ...standaloneSetupHighlightsFor(version),
+  };
   return Set.unmodifiable(
-    setupHighlightsFor(release).where((h) => !seen.contains(h.storageKey)),
+    candidates.where((h) => !model.setupHighlightsSeen.contains(h.storageKey)),
   );
 });
 
@@ -55,10 +63,14 @@ final settingsHasNewOptionsProvider = Provider<bool>((ref) {
 
 /// Whether Home should invite the updated user to review setup for this release.
 ///
+/// Standalone highlights are not part of setup and never raise the card.
 /// Dismissing the card leaves [pendingSetupHighlightsProvider] unchanged.
 final setupHighlightsCardVisibleProvider = Provider<bool>((ref) {
-  if (ref.watch(pendingSetupHighlightsProvider).isEmpty) return false;
-  final release = ref.watch(setupWhatsNewReleaseProvider)!;
+  final release = ref.watch(setupWhatsNewReleaseProvider);
+  if (release == null ||
+      ref.watch(pendingSetupHighlightsProvider).every((h) => h.standalone)) {
+    return false;
+  }
   final dismissed = ref
       .watch(appSettingsProvider)
       .asData!
@@ -107,9 +119,10 @@ final setupHighlightsServiceProvider = Provider<SetupHighlightsService>((ref) {
     (option) async {
       final info = await ref.read(packageInfoProvider.future);
       final release = setupWhatsNewRelease(info.version);
-      if (release == null || !setupHighlightsFor(release).contains(option)) {
-        return;
-      }
+      final current = option.standalone
+          ? standaloneSetupHighlightsFor(info.version).contains(option)
+          : release != null && setupHighlightsFor(release).contains(option);
+      if (!current) return;
       await repository.markSetupHighlightSeen(option.storageKey);
     },
   );

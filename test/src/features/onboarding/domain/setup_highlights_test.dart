@@ -11,11 +11,11 @@ void main() {
       expect(setupWhatsNewRelease('1.5.0+10500'), '1.5.0');
       expect(setupWhatsNewRelease('1.5.0-sidecar'), '1.5.0');
       expect(setupWhatsNewRelease('1.5.1'), '1.5.0');
-      // 1.5.2 brought the Genres page, which replaces the 1.5.0 group.
-      expect(setupWhatsNewRelease('1.5.2'), '1.5.2');
-      expect(setupWhatsNewRelease('1.5.10'), '1.5.2');
-      expect(setupWhatsNewRelease('1.6.0'), '1.5.2');
-      expect(setupWhatsNewRelease('1.6.9+10609'), '1.5.2');
+      // The Genres page tag is standalone: it never replaces the 1.5.0 group.
+      expect(setupWhatsNewRelease('1.5.2'), '1.5.0');
+      expect(setupWhatsNewRelease('1.5.10'), '1.5.0');
+      expect(setupWhatsNewRelease('1.6.0'), '1.5.0');
+      expect(setupWhatsNewRelease('1.6.9+10609'), '1.5.0');
       expect(setupWhatsNewRelease('1.7.0'), isNull);
       expect(setupWhatsNewRelease('1.7.0-sidecar'), isNull);
       expect(setupWhatsNewRelease('invalid'), isNull);
@@ -56,15 +56,28 @@ void main() {
       setupHighlightsFor('1.5.0'),
       SetupHighlight.values.where((h) => h.since == '1.5.0').toSet(),
     );
-    expect(setupHighlightsFor('1.5.2'), {SetupHighlight.genresPage});
+    expect(setupHighlightsFor('1.5.2'), isEmpty);
     // A replacement release returns only its own group, never the older group.
     expect(setupHighlightsFor('1.6.0'), isEmpty);
     for (final release in SetupHighlight.values.map((h) => h.since).toSet()) {
       expect(
         setupHighlightsFor(release),
-        SetupHighlight.values.where((h) => h.since == release).toSet(),
+        SetupHighlight.values
+            .where((h) => h.since == release && !h.standalone)
+            .toSet(),
       );
     }
+  });
+
+  test('a standalone highlight is tagged for two minor releases', () {
+    expect(standaloneSetupHighlightsFor('1.5.1'), isEmpty);
+    expect(standaloneSetupHighlightsFor('1.5.2'), {SetupHighlight.genresPage});
+    expect(standaloneSetupHighlightsFor('1.6.9+10609'), {
+      SetupHighlight.genresPage,
+    });
+    expect(standaloneSetupHighlightsFor('1.7.0'), isEmpty);
+    expect(standaloneSetupHighlightsFor('2.0.0'), isEmpty);
+    expect(standaloneSetupHighlightsFor('invalid'), isEmpty);
   });
 
   test('shared semver helpers compare numeric versions and build suffixes', () {

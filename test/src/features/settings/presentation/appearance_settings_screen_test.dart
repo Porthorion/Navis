@@ -1252,6 +1252,46 @@ void main() {
         expect(seenOptions, hasLength(setupHighlightsFor('1.5.0').length));
       });
 
+      testWidgets('the Library pages group header carries the Genres tag', (
+        tester,
+      ) async {
+        tallView(tester);
+        final header = find
+            .ancestor(
+              of: find.text(l10n.appearancePagesSectionLabel),
+              matching: find.byType(InkWell),
+            )
+            .first;
+        await pumpAppearance(
+          tester,
+          highlights: <SetupHighlight>{SetupHighlight.genresPage},
+          settle: false,
+        );
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(
+          find.descendant(of: header, matching: find.byType(NewFeatureTag)),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('the group header has no tag when nothing is pending', (
+        tester,
+      ) async {
+        tallView(tester);
+        await pumpAppearance(tester, settle: false);
+        await tester.pump(const Duration(milliseconds: 500));
+        final header = find
+            .ancestor(
+              of: find.text(l10n.appearancePagesSectionLabel),
+              matching: find.byType(InkWell),
+            )
+            .first;
+        expect(
+          find.descendant(of: header, matching: find.byType(NewFeatureTag)),
+          findsNothing,
+        );
+      });
+
       testWidgets('the Genres tag clears only once its group is open', (
         tester,
       ) async {

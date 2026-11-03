@@ -6,6 +6,7 @@ import 'package:navis/src/features/settings/domain/color_namer.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
+import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -557,6 +558,18 @@ class _AppearanceSettingsScreenState
                   leading: const _BlinkingEyeIcon(),
                   title: l10n.appearancePagesSectionLabel,
                   initiallyExpanded: widget.focusLibraryPages,
+                  // The tagged row is inside the group; the tag has to be
+                  // visible while the group is closed.
+                  adornment: Consumer(
+                    builder: (context, ref, _) =>
+                        AppearanceVisitScope.isTagged(
+                          context,
+                          ref,
+                          SetupHighlight.genresPage,
+                        )
+                        ? const NewFeatureTag()
+                        : const SizedBox.shrink(),
+                  ),
                   child: _LibraryPageReorder(
                     highlighted: _highlightGenres
                         ? LibrarySection.genres
@@ -696,6 +709,7 @@ class SettingsCollapsibleGroup extends StatefulWidget {
     required this.title,
     required this.child,
     this.initiallyExpanded = false,
+    this.adornment,
     this.outerPadding = const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     this.buildCollapsed = true,
     super.key,
@@ -705,6 +719,10 @@ class SettingsCollapsibleGroup extends StatefulWidget {
   final String title;
   final Widget child;
   final bool initiallyExpanded;
+
+  /// Shown beside the title, for example a "New" tag for an option inside the
+  /// collapsed group.
+  final Widget? adornment;
 
   /// Space around the card.
   final EdgeInsetsGeometry outerPadding;
@@ -792,8 +810,9 @@ class SettingsCollapsibleGroupState extends State<SettingsCollapsibleGroup> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(
+                          titleWithAdornment(
                             widget.title,
+                            widget.adornment,
                             style: theme.textTheme.titleMedium,
                           ),
                         ],

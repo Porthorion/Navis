@@ -510,7 +510,8 @@ menu). A chip opens the genre page, or, while the page is hidden, a notice
 "Genre page disabled" whose Show action opens Settings -> Appearance with
 `focus=libraryPages`: that group opens, scrolls into view and briefly
 highlights the Genres row, which carries the 1.5.2 "New" tag
-(`SetupHighlight.genresPage`). Global search lists matching genres after Artists
+(`SetupHighlight.genresPage`, a standalone highlight: the Library pages group
+header shows the tag too while it is new). Global search lists matching genres after Artists
 from the local index, so they also work offline, and never when the page is
 hidden or a type filter is active; song results do not match on genre text.
 
@@ -2290,6 +2291,13 @@ release on first completion. All acknowledgement writes are targeted and exclude
 from full settings saves; defaults and resets clear them. The clone-only
 `POST /v1/presentation/setup-highlights/reset` clears the set and both release
 markers in a transaction; the integrations settings dump exposes all three.
+
+A highlight marked `standalone` (`genresPage`, since 1.5.2) is outside the
+release groups: it never sets `setupWhatsNewRelease`, so it does not replace
+unseen 1.5.0 tags, never raises the Home card and is not cleared by Finish. It
+is pending for two minor releases after `since` until `markOptionSeen` records
+it, and the Library pages group header carries its tag so it is visible while
+the group is closed.
 
 The look step shows the appearance options through the same callback-driven
 widgets as Settings › Appearance (`settings/presentation/appearance_options.dart`).
