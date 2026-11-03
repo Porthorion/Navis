@@ -51,6 +51,7 @@ answers questions about replacing files this script did not create).
 EOF
 }
 
+# shellcheck disable=SC2329  # runs via `trap cleanup EXIT` below
 cleanup() {
   local rc=$? p keep_old=0
   trap '' INT TERM HUP   # a second signal must not interrupt the restore below
