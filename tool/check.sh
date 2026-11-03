@@ -61,7 +61,12 @@ assert_no_blocking_warnings() {
 }
 
 run_step "playback harness tooling" python3 tool/playback_harness_test.py
-run_step "heavy ownership and capture" python3 tool/validation_gate_test.py
+# The gate's process cleanup needs Linux pidfd and child-subreaper support.
+if [[ "$(uname -s)" == Linux ]]; then
+  run_step "heavy ownership and capture" python3 tool/validation_gate_test.py
+else
+  echo "[check] Skipping heavy ownership and capture: Linux-only (pidfd, child-subreaper)."
+fi
 run_step "test log guard" ./tool/check_test_log_test.sh
 run_step "linux desktop entry" ./tool/linux_desktop_entry_test.sh
 run_step "linux install script" ./tool/linux_install_test.sh
