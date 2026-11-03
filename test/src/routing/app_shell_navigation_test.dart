@@ -693,8 +693,8 @@ void main() {
   // estimate overflows the column. Swept in steps of 4 px through the window
   // heights where the estimate flips, for every navbar style and for text
   // below, at and above 100%.
-  for (final style in <String>['comfortable', 'compact', 'icons'])
-    for (final scale in <double>[0.8, 0.9, 1.0, 1.15, 1.3, 1.5, 1.75, 2.0])
+  for (final style in <String>['comfortable', 'compact', 'icons']) {
+    for (final scale in <double>[0.8, 0.9, 1.0, 1.15, 1.3, 1.5, 1.75, 2.0]) {
       for (final withPlayer in <bool>[false, true]) {
         testWidgets(
           'desktop $style rail never overflows at ${(scale * 100).round()} percent '
@@ -744,6 +744,8 @@ void main() {
           },
         );
       }
+    }
+  }
 
   testWidgets('phone layout uses bottom navigation', (tester) async {
     tester.view.devicePixelRatio = 1;
