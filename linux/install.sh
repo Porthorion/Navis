@@ -52,20 +52,30 @@ EOF
 }
 
 cleanup() {
-  local rc=$? p
-  # Put the previous install back only if we actually moved it aside.
-  if [[ -n ${OLDDIR} && ( -e ${OLDDIR}/app || -L ${OLDDIR}/app ) ]]; then
-    rm -rf "${APP}"
-    mv "${OLDDIR}/app" "${APP}" && echo "install.sh: restored the previous Navis install" >&2
-  elif [[ ${NEW_IN_PLACE} == 1 ]]; then
-    rm -rf "${APP}"
-  fi
+  local rc=$? p keep_old=0
+  # Before the commit point only: undo what this run did. Once COMMITTED the
+  # new install is the truth and nothing here may roll it back.
   if [[ ${COMMITTED} != 1 ]]; then
-    for p in ${FRESH[@]+"${FRESH[@]}"}; do rm -rf -- "${p}"; done
+    if [[ -n ${OLDDIR} && ( -e ${OLDDIR}/app || -L ${OLDDIR}/app ) ]]; then
+      rm -rf "${APP}" || true
+      if mv "${OLDDIR}/app" "${APP}"; then
+        echo "install.sh: restored the previous Navis install" >&2
+      else
+        keep_old=1
+        echo "install.sh: could not restore the previous install; it is kept at ${OLDDIR}/app" >&2
+      fi
+    elif [[ ${NEW_IN_PLACE} == 1 ]]; then
+      rm -rf "${APP}" || true
+    fi
+    for p in ${FRESH[@]+"${FRESH[@]}"}; do rm -rf -- "${p}" || true; done
+    if [[ -n ${MANIFEST} ]]; then rm -f -- "${MANIFEST}.tmp" || true; fi
   fi
-  if [[ -n ${OLDDIR} ]]; then rm -rf "${OLDDIR}"; fi
-  if [[ -n ${NEW} ]]; then rm -rf "${NEW}"; fi
-  if [[ -n ${TMP} ]]; then rm -rf "${TMP}"; fi
+  if [[ -n ${OLDDIR} && ${keep_old} == 0 ]]; then
+    chmod -R u+w "${OLDDIR}" 2>/dev/null || true
+    rm -rf "${OLDDIR}" || echo "install.sh: could not remove ${OLDDIR}; it is safe to delete" >&2
+  fi
+  if [[ -n ${NEW} ]]; then rm -rf "${NEW}" || true; fi
+  if [[ -n ${TMP} ]]; then rm -rf "${TMP}" || true; fi
   exit "${rc}"
 }
 trap cleanup EXIT
@@ -190,7 +200,9 @@ paths() {
 allowed_path() {
   local p="$1"
   [[ ${p} != *..* && ${p} != *[[:cntrl:]]* ]] || return 1
-  [[ ${p} == "${APP}" || ${p} == "${LAUNCHER}" || ${p} == "${DESKTOP}" || ${p} == "${DATA}/icons/hicolor/"?* ]]
+  [[ ${p} == "${APP}" || ${p} == "${LAUNCHER}" || ${p} == "${DESKTOP}" ]] && return 0
+  # Icons are files (or symlinks); a directory there is never ours to remove.
+  [[ ${p} == "${DATA}/icons/hicolor/"?* && ( ! -d ${p} || -L ${p} ) ]]
 }
 refresh_caches() {
   if command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database "${DATA}/applications" >/dev/null 2>&1 || true; fi
@@ -199,7 +211,7 @@ refresh_caches() {
   fi
 }
 do_uninstall() {
-  local line
+  local line p
   [[ -f ${MANIFEST} ]] || die "no install manifest at ${MANIFEST}; nothing to uninstall"
   # Validate every path before deleting any.
   while IFS= read -r line || [[ -n ${line} ]]; do
@@ -208,7 +220,14 @@ do_uninstall() {
   done < "${MANIFEST}"
   while IFS= read -r line || [[ -n ${line} ]]; do
     [[ ${line} == "path "* ]] || continue
-    rm -rf -- "${line#path }"
+    p="${line#path }"
+    if [[ ${p} == "${LAUNCHER}" && ( ! -L ${p} || $(readlink "${p}") != "${APP}/navis" ) && ( -e ${p} || -L ${p} ) ]]; then
+      echo "left ${p}: it no longer points at this install" >&2; continue
+    fi
+    if [[ ${p} == "${DESKTOP}" && -f ${p} ]] && ! { sed -n 's/^Exec=//p' "${p}" | grep -qF -- "${APP}"; }; then
+      echo "left ${p}: it no longer starts this install" >&2; continue
+    fi
+    rm -rf -- "${p}"
   done < "${MANIFEST}"
   rm -f -- "${MANIFEST}"
   refresh_caches
@@ -351,7 +370,11 @@ integrate() {
   } > "${MANIFEST}.tmp"
   mv "${MANIFEST}.tmp" "${MANIFEST}"
   COMMITTED=1; NEW_IN_PLACE=0
-  rm -rf "${OLDDIR}"; OLDDIR=''
+  # Past the commit point, removing the parked copy is best-effort: a read-only
+  # subdir or a signal here must never bring the old install back.
+  chmod -R u+w "${OLDDIR}" 2>/dev/null || true
+  rm -rf "${OLDDIR}" || echo "warning: could not remove the previous copy at ${OLDDIR}; it is safe to delete" >&2
+  OLDDIR=''
   refresh_caches
 }
 

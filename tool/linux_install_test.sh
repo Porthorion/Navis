@@ -14,7 +14,7 @@ pass() { echo "ok - $1"; }
 for t in jq openssl base64 tar sha256sum; do command -v "${t}" >/dev/null || fail "${t} is required"; done
 
 tmp="$(mktemp -d "${TMPDIR:-/tmp}/navis-install-test-XXXXXX")"
-trap 'rm -rf "${tmp}"' EXIT
+trap 'chmod -R u+w "${tmp}" 2>/dev/null; rm -rf "${tmp}"' EXIT
 unset XDG_DATA_HOME XDG_CACHE_HOME XDG_CONFIG_HOME XDG_STATE_HOME
 HOME_DIR="${tmp}/home dir"   # a space on purpose
 out=''; rc=0
@@ -50,13 +50,32 @@ printf '#!/bin/sh\n[ -z "${TEST_LDD_MISSING:-}" ] || printf "\\t%%s => not found
 printf '#!/bin/sh\n[ "$1" = -m ] && echo "${TEST_ARCH:-x86_64}"\n' > "${tmp}/stubs/uname"
 printf '#!/bin/sh\necho "glibc ${TEST_GLIBC:-2.39}"\n' > "${tmp}/stubs/getconf"
 printf '#!/bin/sh\necho "${TEST_UID:-1000}"\n' > "${tmp}/stubs/id"
-# mv fails on request: "new" = the final swap-in, "old" = moving the current install aside.
+# mv fails on request (comma list): "new" = the final swap-in, "old" = moving the
+# current install aside, "restore" = putting the parked copy back.
 cat > "${tmp}/stubs/mv" <<'STUB'
 #!/bin/sh
-case "${TEST_MV_FAIL:-}:$1" in
-  new:*/navis.new.*|old:*/navis) exit 1 ;;
+case ",${TEST_MV_FAIL:-}," in
+  *,new,*) case "$1" in */navis.new.*) exit 1 ;; esac ;;
+  *) ;;
+esac
+case ",${TEST_MV_FAIL:-}," in
+  *,old,*) case "$1" in */navis) exit 1 ;; esac ;;
+esac
+case ",${TEST_MV_FAIL:-}," in
+  *,restore,*) case "$1" in */navis.old.*/app) exit 1 ;; esac ;;
+esac
+case ",${TEST_MV_FAIL:-}," in
+  *,manifest,*) case "$1" in *.install-manifest.tmp) exit 1 ;; esac ;;
 esac
 exec /usr/bin/env -i PATH=/usr/bin:/bin mv "$@"
+STUB
+# rm refuses anything under a parked previous install when asked (simulates a failed removal).
+cat > "${tmp}/stubs/rm" <<'STUB'
+#!/bin/sh
+if [ -n "${TEST_RM_FAIL:-}" ]; then
+  for a; do case "$a" in */navis.old.*) exit 1 ;; esac; done
+fi
+exec /usr/bin/env -i PATH=/usr/bin:/bin rm "$@"
 STUB
 real_install="$(command -v install)"; real_openssl="$(command -v openssl)"
 printf '#!/bin/sh
@@ -107,7 +126,7 @@ make_manifest() {
 # release VERSION: fixtures for a valid release of VERSION
 release() { build_tarball "$1"; make_manifest "$1" "${tmp}/dl/navis-v$1-linux.tar.gz"; }
 
-fresh() { rm -rf "${HOME_DIR}" "${FX_LOG}"; mkdir -p "${HOME_DIR}"; : > "${FX_LOG}"; }
+fresh() { chmod -R u+w "${HOME_DIR}" 2>/dev/null || true; rm -rf "${HOME_DIR}" "${FX_LOG}"; mkdir -p "${HOME_DIR}"; : > "${FX_LOG}"; }
 run() { rc=0; mkdir -p "${tmp}/tmpdir"; out="$(cd "${tmp}" && TMPDIR="${tmp}/tmpdir" HOME="${HOME_DIR}" bash "${SCRIPT:-${copy}}" "$@" 2>&1 </dev/null)" || rc=$?; }
 want_rc() { [[ "${rc}" == "$1" ]] || fail "$2: expected exit $1, got ${rc}"; }
 want_fail() { [[ "${rc}" != 0 ]] || fail "$1: expected a refusal, got success"; }
@@ -410,6 +429,48 @@ c_bundle_shape() {
   run --yes; want_fail "bundle without lib"; want_out 'does not look like' "bundle without lib"; not_installed "bundle without lib"
 }
 
+c_commit_then_old_removal_fails() { # R12: after the commit point nothing rolls back
+  install_v 1.5.2; release 1.5.3
+  TEST_RM_FAIL=1 run --yes; want_rc 0 "failed removal of the parked copy"
+  [[ "$(cmd_of)" == navis-stub-1.5.3 && -f "${IM}" ]] || fail "the new install was rolled back after the commit"
+  grep -q '^version 1.5.3$' "${IM}" || fail "manifest not the new one"
+  want_out 'navis\.old\.' "warning names the leftover dir"
+}
+c_readonly_old_subdir() { # R12: a read-only subdir in the old copy must not undo the upgrade
+  install_v 1.5.2; mkdir -p "${APP}/ro"; echo x > "${APP}/ro/f"; chmod 555 "${APP}/ro"
+  release 1.5.3; run --yes; want_rc 0 "upgrade over a read-only subdir"
+  [[ "$(cmd_of)" == navis-stub-1.5.3 ]] || fail "upgrade was rolled back"
+  no_leftovers "read-only subdir"
+}
+c_restore_fails_keeps_old() { # R13
+  install_v 1.5.2; release 1.5.3
+  TEST_MV_FAIL=new,restore run --yes; want_fail "swap and restore both fail"
+  ls -d "${APP}".old.*/app >/dev/null 2>&1 || fail "the only copy of the old install was deleted"
+  [[ -f "$(ls -d "${APP}".old.*/app | head -1)/lib/libapp.so" ]] || fail "parked copy is damaged"
+  want_out 'navis\.old\.' "message says where the old copy is"
+}
+c_uninstall_refuses_icon_dir() { # R14
+  install_v 1.5.2; mkdir -p "${DATA}/icons/hicolor/256x256/apps"; echo other > "${DATA}/icons/hicolor/256x256/apps/other.png"
+  printf 'path %s\n' "${DATA}/icons/hicolor/256x256" >> "${IM}"
+  run --uninstall; want_fail "directory under hicolor"
+  [[ -f "${DATA}/icons/hicolor/256x256/apps/other.png" && -d "${APP}" ]] || fail "a directory under hicolor was removed"
+}
+c_uninstall_leaves_changed_files() { # R15
+  install_v 1.5.2
+  rm -f "${LAUNCHER}"; printf '#!/bin/sh\n' > "${LAUNCHER}"            # user replaced the launcher
+  printf '[Desktop Entry]\nExec=/somewhere/else\n' > "${DESKTOP}"      # and the desktop file
+  run --uninstall; want_rc 0 "uninstall with changed files"; want_out 'left' "says what it left"
+  [[ -f "${LAUNCHER}" && ! -L "${LAUNCHER}" && -f "${DESKTOP}" ]] || fail "uninstall removed files that are no longer ours"
+  [[ ! -e "${APP}" && ! -e "${IM}" ]] || fail "uninstall did not remove the app dir and manifest"
+  install_v 1.5.2; ln -sfn /usr/bin/true "${LAUNCHER}"                  # symlink pointing elsewhere
+  run --uninstall; want_rc 0 "uninstall with foreign symlink"; [[ -L "${LAUNCHER}" && "$(readlink "${LAUNCHER}")" == /usr/bin/true ]] || fail "foreign launcher symlink removed"
+}
+c_manifest_tmp_cleaned() { # R16
+  install_v 1.5.2; release 1.5.3
+  TEST_MV_FAIL=manifest run --yes; rc=0
+  [[ ! -e "${IM}.tmp" ]] || fail "manifest temp left behind"
+}
+
 # --- run ----------------------------------------------------------------------
 run_case "pinned key equals constants.dart" c_pinned_key
 run_case "valid install: symlink launcher, tarball-root-only app dir, desktop entry, manifest, no leftovers" c_valid_install
@@ -449,6 +510,12 @@ run_case "R2 control characters in XDG_DATA_HOME refused" c_xdg_control_chars
 run_case "--help" c_help
 run_case "R7 truncated script does not run" c_truncated_download
 run_case "R8 curl flags (proto, proto-redir, UA, timeouts, size cap)" c_curl_flags
+run_case "R12 failure after the commit point keeps the new install" c_commit_then_old_removal_fails
+run_case "R12 read-only subdir in the old copy" c_readonly_old_subdir
+run_case "R13 failed restore keeps the parked old copy" c_restore_fails_keeps_old
+run_case "R14 uninstall never removes directories under hicolor" c_uninstall_refuses_icon_dir
+run_case "R15 uninstall leaves launcher/desktop file that are no longer ours" c_uninstall_leaves_changed_files
+run_case "R16 manifest temp removed on failure" c_manifest_tmp_cleaned
 run_case "R11 unsafe tar member refused" c_unsafe_tar_member
 run_case "R11 bundle shape checked" c_bundle_shape
 
