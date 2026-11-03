@@ -809,6 +809,7 @@ void main() {
 
     // Looks live in Settings only: they save straight to settings, which a
     // setup draft must not do, so setup never shows (or marks) that option.
+    // The Genres page row lives in Settings' Library pages group likewise.
     testWidgets('tagged options mark themselves seen once shown', (
       tester,
     ) async {
@@ -823,10 +824,14 @@ void main() {
       expect(
         _shownOptions.toSet(),
         SetupHighlight.values
-            .where((h) => h != SetupHighlight.appearanceLooks)
+            .where(
+              (h) =>
+                  h != SetupHighlight.appearanceLooks &&
+                  h != SetupHighlight.genresPage,
+            )
             .toSet(),
       );
-      expect(_shownOptions, hasLength(SetupHighlight.values.length - 1));
+      expect(_shownOptions, hasLength(SetupHighlight.values.length - 2));
     });
 
     testWidgets('the hidden OLED and Flat area options are not marked seen', (
@@ -837,7 +842,9 @@ void main() {
       expect(_shownOptions, isNot(contains(SetupHighlight.oledForAuto)));
       expect(_shownOptions, isNot(contains(SetupHighlight.flatAreas)));
       expect(_shownOptions, contains(SetupHighlight.colorTuning));
-      expect(_shownOptions, hasLength(SetupHighlight.values.length - 3));
+      // Not shown: Looks and Genres (Settings only), OLED and Flat areas
+      // (hidden here).
+      expect(_shownOptions, hasLength(SetupHighlight.values.length - 4));
     });
 
     testWidgets(

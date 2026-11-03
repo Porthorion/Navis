@@ -35,6 +35,7 @@ enum NavisAndroidAutoSearchType {
   album,
   playlist,
   title,
+  genre,
 }
 
 enum NavisPreviousTrackAction { none, restartCurrent, skipToPrevious }
@@ -74,6 +75,7 @@ NavisAndroidAutoSearchRequest navisAndroidAutoSearchRequest(
   final artist = _stringExtra(extras, AndroidAutoConstants.mediaArtistKey);
   final album = _stringExtra(extras, AndroidAutoConstants.mediaAlbumKey);
   final playlist = _stringExtra(extras, AndroidAutoConstants.mediaPlaylistKey);
+  final genre = _stringExtra(extras, AndroidAutoConstants.mediaGenreKey);
   final fallback = query.trim();
 
   NavisAndroidAutoSearchRequest request(
@@ -89,7 +91,16 @@ NavisAndroidAutoSearchRequest navisAndroidAutoSearchRequest(
         : NavisAndroidAutoSearchRequest(type: type, term: term);
   }
 
+  // A genre extra decides the request only when no other focus
+  // (artist/album/playlist/song) is set.
+  if (genre != null &&
+      (focus == null || focus == AndroidAutoConstants.mediaFocusGenre)) {
+    return request(NavisAndroidAutoSearchType.genre, genre);
+  }
+
   switch (focus) {
+    case AndroidAutoConstants.mediaFocusGenre:
+      return request(NavisAndroidAutoSearchType.genre, null);
     case AndroidAutoConstants.mediaFocusArtist:
       return request(NavisAndroidAutoSearchType.artist, artist);
     case AndroidAutoConstants.mediaFocusAlbum:

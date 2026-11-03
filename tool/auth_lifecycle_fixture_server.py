@@ -105,6 +105,8 @@ PARTIAL_ALBUM_ID = "fixture-incomplete-album"
 MEDIA_SECONDS = 0.0
 # Extra songs of the fixture album (downloads scenario), by id.
 EXTRA_SONGS = {}
+# Songs of albums whose song list is fixed (genres scenario), by album id.
+ALBUM_SONGS = {}
 
 
 def _configure_manual_discovery_fixture(omit_existing_artist_album=False):
@@ -186,6 +188,76 @@ def _configure_downloads_fixture(song_count, distinct_covers=False):
         }
         for index in range(2, song_count + 1)
     }
+
+
+# (album, year, songs); a song is (title, genre names, send the legacy
+# "genre" string only, like a plain Subsonic server).
+GENRE_FIXTURE = [
+    ("Night Drive", 2024, [
+        ("Neon Lights", ["Hip Hop"], False),
+        ("Back Alley", ["Hip-Hop", "Electronic"], False),
+        ("Tail Lights", ["hip_hop"], False),
+    ]),
+    ("Slow Burn", 2022, [
+        ("Ember", ["Rock", "Blues"], False),
+        ("Ash", ["Rock"], False),
+        ("Smoke Signal", ["Rock", "Hip Hop", "Jazz", "Soul"], False),
+    ]),
+    ("Blue Hour", 2019, [
+        ("Midnight Set", ["Jazz"], True),
+        ("Brushes", ["Jazz"], True),
+    ]),
+    ("Tokyo Pop", 2025, [
+        ("Sakura", ["ジェイポップ"], False),
+        ("Shibuya", ["ジェイポップ", "Electronic"], False),
+    ]),
+    ("Wide Open", 2021, [
+        ("Prairie", ["Folk", "Country"], False),
+        ("Dust", ["Folk"], False),
+        ("Untagged Song", [], False),
+    ]),
+]
+
+
+def _configure_genres_fixture():
+    """Albums whose songs carry genre tags, for the Genres pages.
+
+    Navidrome sends both the OpenSubsonic genres list and the legacy genre
+    string; the Jazz album sends only the string, like a plain Subsonic server.
+    """
+    global ALL_ALBUMS, ARTIST, ARTIST_ALBUMS, ALBUM_SONGS, ALBUM
+    albums = []
+    for index, (name, year, songs) in enumerate(GENRE_FIXTURE, start=1):
+        album_id = f"fixture-genre-album-{index}"
+        rows = []
+        for track, (title, genres, legacy_only) in enumerate(songs, start=1):
+            row = {
+                **SONG,
+                "id": f"{album_id}-song-{track}",
+                "title": title,
+                "album": name,
+                "albumId": album_id,
+                "track": track,
+            }
+            if genres:
+                row["genre"] = genres[0]
+                if not legacy_only:
+                    row["genres"] = [{"name": genre} for genre in genres]
+            rows.append(row)
+        album = {
+            **ALBUM,
+            "id": album_id,
+            "name": name,
+            "year": year,
+            "songCount": len(rows),
+            "duration": 4 * len(rows),
+        }
+        ALBUM_SONGS[album_id] = rows
+        albums.append(album)
+    ARTIST = {**ARTIST, "albumCount": len(albums)}
+    ALBUM = albums[0]
+    ARTIST_ALBUMS = albums
+    ALL_ALBUMS = albums
 
 
 def _configure_partial_album_fixture():
@@ -314,7 +386,7 @@ class Handler(BaseHTTPRequestHandler):
         if endpoint == "getAlbumList2":
             time.sleep(0.8)
             offset = int(query.get("offset", ["0"])[0])
-            albums = ARTIST_ALBUMS if PARTIAL_ALBUM_FLAG else [ALBUM]
+            albums = ARTIST_ALBUMS if PARTIAL_ALBUM_FLAG or ALBUM_SONGS else [ALBUM]
             self._json(_root(albumList2={"album": albums if offset == 0 else []}))
             return
         if endpoint == "getAlbum":
@@ -334,6 +406,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(
                     {"error": "Fixture album detail failure"}, status=500
                 )
+                return
+            if album_id in ALBUM_SONGS:
+                self._json(_root(album={**album, "song": ALBUM_SONGS[album_id]}))
                 return
             song = SONG if album_id == ALBUM["id"] else {
                 **SONG, "id": ALBUM_SONG_IDS.get(album_id, f"{album_id}-song"),
@@ -396,7 +471,13 @@ def main():
     parser.add_argument("--failure-flag", required=True)
     parser.add_argument(
         "--scenario",
-        choices=("auth-lifecycle", "manual-discovery", "partial-album", "downloads"),
+        choices=(
+            "auth-lifecycle",
+            "manual-discovery",
+            "partial-album",
+            "downloads",
+            "genres",
+        ),
         default="auth-lifecycle",
     )
     parser.add_argument(
@@ -448,6 +529,8 @@ def main():
         )
     if args.scenario == "manual-discovery":
         _configure_manual_discovery_fixture(args.omit_existing_artist_album)
+    if args.scenario == "genres":
+        _configure_genres_fixture()
     if args.scenario == "partial-album":
         if not PARTIAL_ALBUM_FLAG:
             parser.error("--partial-album-flag is required for partial-album")

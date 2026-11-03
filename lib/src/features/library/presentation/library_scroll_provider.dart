@@ -20,12 +20,13 @@ final libraryScrollToTopRequestProvider =
       _LibraryScrollToTopNotifier.new,
     );
 
-enum LibrarySection { albums, liked, artists, playlists, radio }
+enum LibrarySection { albums, liked, artists, genres, playlists, radio }
 
 const List<LibrarySection> defaultLibraryPageOrder = <LibrarySection>[
   LibrarySection.albums,
   LibrarySection.liked,
   LibrarySection.artists,
+  LibrarySection.genres,
   LibrarySection.playlists,
   LibrarySection.radio,
 ];
@@ -51,9 +52,13 @@ List<LibrarySection> sanitizeLibraryPageOrder(List<String>? persistedOrder) {
     }
   }
   for (final section in defaultLibraryPageOrder) {
-    if (seen.add(section)) {
-      ordered.add(section);
-    }
+    if (!seen.add(section)) continue;
+    // Genres arrived after the other pages: a saved order that predates it
+    // gets it right after Artists instead of at the end.
+    final artists = section == LibrarySection.genres
+        ? ordered.indexOf(LibrarySection.artists)
+        : -1;
+    ordered.insert(artists < 0 ? ordered.length : artists + 1, section);
   }
   return ordered;
 }
@@ -63,6 +68,7 @@ List<LibrarySection> visibleLibrarySections({
   required bool showAlbums,
   required bool showLiked,
   required bool showArtists,
+  required bool showGenres,
   required bool showPlaylists,
   required bool showRadio,
 }) {
@@ -72,6 +78,7 @@ List<LibrarySection> visibleLibrarySections({
           LibrarySection.albums => showAlbums,
           LibrarySection.liked => showLiked,
           LibrarySection.artists => showArtists,
+          LibrarySection.genres => showGenres,
           LibrarySection.playlists => showPlaylists,
           LibrarySection.radio => showRadio,
         };

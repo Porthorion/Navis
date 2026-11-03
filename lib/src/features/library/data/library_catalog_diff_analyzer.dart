@@ -216,6 +216,15 @@ class LibraryCatalogDiffAnalyzer {
   static bool songNeedsApply(
     LibrarySyncCandidateSongsTableData candidate,
     SongsTableData? existing,
+  ) =>
+      songChangedBesidesGenres(candidate, existing) ||
+      _genresDiffer(existing?.genres, candidate.genres);
+
+  /// Everything [songNeedsApply] checks except the genre tags. Tags never
+  /// change artwork, so a genre-only change must not bump cover revisions.
+  static bool songChangedBesidesGenres(
+    LibrarySyncCandidateSongsTableData candidate,
+    SongsTableData? existing,
   ) {
     return existing == null ||
         existing.isProvisional ||
@@ -242,6 +251,21 @@ class LibraryCatalogDiffAnalyzer {
         existing.replayGainAlbumGain != candidate.replayGainAlbumGain ||
         existing.replayGainTrackPeak != candidate.replayGainTrackPeak ||
         existing.replayGainAlbumPeak != candidate.replayGainAlbumPeak;
+  }
+
+  /// Genre lists are equal when they hold the same names in any order, so a
+  /// server that merely reorders tags is not a change but a retag is. A row
+  /// never synced since genres existed (null) differs from any synced list,
+  /// so the post-upgrade full sync fills every song.
+  static bool _genresDiffer(List<String>? existing, List<String>? candidate) {
+    if (existing == null || candidate == null) return existing != candidate;
+    if (existing.length != candidate.length) return true;
+    final sortedExisting = [...existing]..sort();
+    final sortedCandidate = [...candidate]..sort();
+    for (var index = 0; index < sortedExisting.length; index++) {
+      if (sortedExisting[index] != sortedCandidate[index]) return true;
+    }
+    return false;
   }
 
   static bool _artistListsEqual(List<Object> left, List<Object> right) {

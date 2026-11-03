@@ -850,6 +850,7 @@ class SyncDiagnosticsServer {
           final autoAdvance = body['homeRecommendationsAutoAdvance'];
           final artists = body['showArtistsPage'];
           final radio = body['showRadioPage'];
+          final genres = body['showGenresPage'];
           final coverShape = body['coverArtShape'];
           final nowPlayingShape = body['nowPlayingArtShape'];
           final artistShape = body['artistCardShape'];
@@ -971,6 +972,7 @@ class SyncDiagnosticsServer {
                   'homeRecommendationsAutoAdvance',
                   'showArtistsPage',
                   'showRadioPage',
+                  'showGenresPage',
                   'coverArtShape',
                   'nowPlayingArtShape',
                   'artistCardShape',
@@ -981,6 +983,7 @@ class SyncDiagnosticsServer {
               (autoAdvance != null && autoAdvance is! bool) ||
               (artists != null && artists is! bool) ||
               (radio != null && radio is! bool) ||
+              (genres != null && genres is! bool) ||
               // Cover art offers only square and rounded, like Appearance.
               (coverShape != null &&
                   !const ['square', 'rounded'].contains(coverShape)) ||
@@ -1062,6 +1065,7 @@ class SyncDiagnosticsServer {
             await dao.updateShowArtistsPage(enabled: artists);
           }
           if (radio is bool) await dao.updateShowRadioPage(enabled: radio);
+          if (genres is bool) await dao.updateShowGenresPage(enabled: genres);
           await presentationController?.waitForFrame();
         }
         final settings = await dao.getSettings();
@@ -1098,6 +1102,7 @@ class SyncDiagnosticsServer {
           'gridArtworkSize': settings?.gridArtworkSize ?? 'auto',
           'showArtistsPage': settings?.showArtistsPage ?? true,
           'showRadioPage': settings?.showRadioPage ?? true,
+          'showGenresPage': settings?.showGenresPage ?? true,
           'homeRecommendationsAutoAdvance':
               settings?.homeRecommendationsAutoAdvance ?? false,
           'coverArtShape': settings?.coverArtShape ?? 'square',

@@ -44,6 +44,7 @@ class AppSettingsModel {
     this.playlistCreateOnServer = true,
     required this.showArtistsPage,
     required this.showLikedPage,
+    this.showGenresPage = true,
 
     required this.wifiOnlyDownloads,
     required this.autoDownloadStarredOnWifi,
@@ -139,6 +140,7 @@ class AppSettingsModel {
       playlistCreateOnServer = true,
       showArtistsPage = true,
       showLikedPage = true,
+      showGenresPage = true,
 
       wifiOnlyDownloads = true,
       autoDownloadStarredOnWifi = false,
@@ -234,6 +236,7 @@ class AppSettingsModel {
   final bool playlistCreateOnServer;
   final bool showArtistsPage;
   final bool showLikedPage;
+  final bool showGenresPage;
 
   final bool wifiOnlyDownloads;
   final bool autoDownloadStarredOnWifi;
@@ -420,6 +423,7 @@ class AppSettingsModel {
     bool? playlistCreateOnServer,
     bool? showArtistsPage,
     bool? showLikedPage,
+    bool? showGenresPage,
 
     bool? wifiOnlyDownloads,
     bool? autoDownloadStarredOnWifi,
@@ -540,6 +544,7 @@ class AppSettingsModel {
           playlistCreateOnServer ?? this.playlistCreateOnServer,
       showArtistsPage: showArtistsPage ?? this.showArtistsPage,
       showLikedPage: showLikedPage ?? this.showLikedPage,
+      showGenresPage: showGenresPage ?? this.showGenresPage,
 
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
       autoDownloadStarredOnWifi:

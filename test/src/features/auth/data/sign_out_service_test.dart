@@ -228,6 +228,28 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('server data reset empties the genre index', () async {
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'song-1',
+          title: 'One',
+          genres: const Value(['Rock']),
+        ),
+      ]);
+      await database.libraryDao.refreshSongGenreIndex();
+      expect(
+        await database.select(database.songGenreIndexTable).get(),
+        hasLength(1),
+      );
+
+      await ServerDataResetService(database: database).reset();
+
+      expect(
+        await database.select(database.songGenreIndexTable).get(),
+        isEmpty,
+      );
+    }, skip: !sqliteAvailable);
+
     test('full wipe clears local data and deletes cached files', () async {
       final cacheFile = File('${tmpDir.path}/track.mp3');
       cacheFile.writeAsStringSync('audio');

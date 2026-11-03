@@ -51,6 +51,7 @@ the existing local Navis profile:
 ./tool/dev_app.sh run -d linux --playback-recovery
 ./tool/dev_app.sh run -d linux --partial-album
 ./tool/dev_app.sh run -d linux --server-error
+./tool/dev_app.sh run -d linux --genres
 ./tool/dev_app.sh run -d linux --fresh-login
 ```
 
@@ -62,7 +63,10 @@ production mandatory cache-upgrade route performs its reset and rebuild.
 catalog. The two cache-reset commands and playback recovery enter their corresponding full-screen
 rebuild routes. `--partial-album` and `--server-error` use a local Subsonic
 fixture for reproducible incomplete album detail and initial catalog failure;
-both begin at first setup. `--fresh-login` starts with an empty local profile
+both begin at first setup. `--genres` uses the same fixture with five
+albums whose songs carry genre tags (spelling variants, several genres per
+song, a legacy `genre`-only album, a non-Latin name and an untagged song) and
+begins at first setup too. `--fresh-login` starts with an empty local profile
 and opens Login.
 
 Append `--offline` or `--metered` to a preset to begin on the matching network
