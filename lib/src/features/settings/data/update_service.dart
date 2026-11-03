@@ -534,8 +534,9 @@ class UpdateService {
         }
         try {
           if (uid != null) {
+            // BSD stat by path: a GNU coreutils stat may come first on PATH.
             final owner = await Process.run(
-              'stat',
+              Platform.isMacOS ? '/usr/bin/stat' : 'stat',
               Platform.isMacOS
                   ? ['-f', '%u', entity.path]
                   : ['-c', '%u', '--', entity.path],
