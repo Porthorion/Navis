@@ -19,6 +19,10 @@ PackageInfo _info(String version) => PackageInfo(
   buildNumber: '1',
 );
 
+/// The highlights of the release these tests run as; later releases add
+/// their own group (see setup_highlights_test.dart).
+final _highlights150 = setupHighlightsFor('1.5.0');
+
 void main() {
   for (final required in <bool?>[true, null, false]) {
     test('pending highlights with onboarding required = $required', () async {
@@ -38,7 +42,7 @@ void main() {
       await container.read(packageInfoProvider.future);
       expect(
         container.read(pendingSetupHighlightsProvider),
-        required == false ? SetupHighlight.values.toSet() : isEmpty,
+        required == false ? _highlights150.toSet() : isEmpty,
       );
       expect(
         container.read(setupHighlightsCardVisibleProvider),
@@ -70,7 +74,7 @@ void main() {
       expect(
         container.read(pendingSetupHighlightsProvider),
         ['1.4.9', 'malformed'].contains(seen)
-            ? SetupHighlight.values.toSet()
+            ? _highlights150.toSet()
             : isEmpty,
       );
     });
@@ -98,7 +102,7 @@ void main() {
       await container.read(packageInfoProvider.future);
       expect(
         container.read(pendingSetupHighlightsProvider),
-        SetupHighlight.values.toSet(),
+        _highlights150.toSet(),
       );
       expect(
         container.read(setupHighlightsCardVisibleProvider),
@@ -106,6 +110,99 @@ void main() {
       );
     });
   }
+
+  group('Genres page tag (standalone, 1.5.2)', () {
+    Future<ProviderContainer> open({
+      String? seenRelease,
+      Set<String> seen = const <String>{},
+    }) async {
+      final container = ProviderContainer(
+        overrides: [
+          onboardingRequiredProvider.overrideWithValue(false),
+          appSettingsProvider.overrideWith(
+            (ref) => Stream.value(
+              const AppSettingsModel.defaults().copyWith(
+                setupHighlightsSeenRelease: seenRelease,
+                setupHighlightsSeen: seen,
+              ),
+            ),
+          ),
+          packageInfoProvider.overrideWith((ref) async => _info('1.5.2')),
+        ],
+      );
+      container.listen(appSettingsProvider, (_, _) {});
+      container.listen(packageInfoProvider, (_, _) {});
+      addTearDown(container.dispose);
+      await container.read(appSettingsProvider.future);
+      await container.read(packageInfoProvider.future);
+      return container;
+    }
+
+    test('does not create the Home setup card', () async {
+      final container = await open(seenRelease: '1.5.0');
+      expect(container.read(pendingSetupHighlightsProvider), {
+        SetupHighlight.genresPage,
+      });
+      expect(container.read(setupHighlightsCardVisibleProvider), isFalse);
+      // The tag still leads somewhere: Appearance shows it on its group.
+      expect(container.read(settingsHasNewOptionsProvider), isTrue);
+      expect(container.read(quickCustomizationHasNewOptionsProvider), isFalse);
+    });
+
+    test('leaves unseen 1.5.0 highlights pending', () async {
+      final container = await open();
+      expect(container.read(pendingSetupHighlightsProvider), {
+        ..._highlights150,
+        SetupHighlight.genresPage,
+      });
+      expect(container.read(setupHighlightsCardVisibleProvider), isTrue);
+    });
+
+    test('is cleared by marking it seen, and Finish leaves it alone', () async {
+      final database = createTestDatabase();
+      await database.appSettingsDao.getSettings();
+      await database.appSettingsDao.completeOnboarding(
+        currentOnboardingVersion,
+      );
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: <Override>[
+            packageInfoProvider.overrideWith((ref) async => _info('1.5.2')),
+          ],
+        ),
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+      container.listen(appSettingsProvider, (_, _) {});
+      container.listen(onboardingRequiredProvider, (_, _) {});
+      await container.read(onboardingVersionProvider.future);
+      await container.read(appSettingsProvider.future);
+      await container.read(packageInfoProvider.future);
+      final service = container.read(setupHighlightsServiceProvider);
+      final finished = container
+          .read(settingsRepositoryProvider)
+          .watchSettings()
+          .firstWhere((s) => s.setupHighlightsSeenRelease == '1.5.0');
+      await service.markSeen();
+      await finished;
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(pendingSetupHighlightsProvider), {
+        SetupHighlight.genresPage,
+      });
+
+      final seen = container
+          .read(settingsRepositoryProvider)
+          .watchSettings()
+          .firstWhere((s) => s.setupHighlightsSeen.isNotEmpty);
+      await service.markOptionSeen(SetupHighlight.genresPage);
+      await seen;
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(pendingSetupHighlightsProvider), isEmpty);
+    }, skip: !sqliteAvailable);
+  });
 
   test('settings and metadata loading or errors hide highlights', () async {
     for (final settingsReady in [false, true]) {
@@ -195,7 +292,7 @@ void main() {
       await container.read(packageInfoProvider.future);
       expect(
         container.read(pendingSetupHighlightsProvider),
-        SetupHighlight.values.toSet(),
+        _highlights150.toSet(),
       );
       final service = container.read(setupHighlightsServiceProvider);
       // Listen before writing so assertions observe the committed stream value.
@@ -209,7 +306,7 @@ void main() {
       expect(container.read(setupHighlightsCardVisibleProvider), isFalse);
       expect(
         container.read(pendingSetupHighlightsProvider),
-        SetupHighlight.values.toSet(),
+        _highlights150.toSet(),
       );
       final seen = container
           .read(settingsRepositoryProvider)
@@ -262,17 +359,14 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(
         container.read(pendingSetupHighlightsProvider),
-        SetupHighlight.values
-            .where((h) => h != SetupHighlight.colorStyle)
-            .toSet(),
+        _highlights150.where((h) => h != SetupHighlight.colorStyle).toSet(),
       );
       expect(container.read(setupHighlightsCardVisibleProvider), isTrue);
       final completed = repository.watchSettings().firstWhere(
-        (s) => s.setupHighlightsSeen.length == SetupHighlight.values.length,
+        (s) => s.setupHighlightsSeen.length == _highlights150.length,
       );
       await Future.wait([
-        for (final option in SetupHighlight.values)
-          service.markOptionSeen(option),
+        for (final option in _highlights150) service.markOptionSeen(option),
         service.markOptionSeen(SetupHighlight.colorStyle),
       ]);
       await completed;
@@ -286,7 +380,7 @@ void main() {
       await repository.saveSettings(initial);
       expect(
         (await repository.getSettings()).setupHighlightsSeen.length,
-        SetupHighlight.values.length,
+        _highlights150.length,
       );
       // Unknown and malformed persisted keys never clear an unrelated option.
       await database.customStatement(

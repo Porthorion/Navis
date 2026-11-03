@@ -74,6 +74,7 @@ void main() {
     FlatAreas flatAreas = const FlatAreas(),
     bool albumArtShade = false,
     bool albumArtColoredShade = false,
+    bool focusLibraryPages = false,
   }) async {
     if (adaptiveContext == null &&
         tester.view.physicalSize / tester.view.devicePixelRatio ==
@@ -150,10 +151,12 @@ void main() {
             child: child!,
           ),
           home: adaptiveContext == null
-              ? const AppearanceSettingsScreen()
+              ? AppearanceSettingsScreen(focusLibraryPages: focusLibraryPages)
               : AdaptiveContextScope(
                   adaptiveContext: adaptiveContext,
-                  child: const AppearanceSettingsScreen(),
+                  child: AppearanceSettingsScreen(
+                    focusLibraryPages: focusLibraryPages,
+                  ),
                 ),
         ),
       ),
@@ -183,6 +186,75 @@ void main() {
   BoxDecoration chipDecoration(WidgetTester tester, String key) {
     return chip(tester, key).decoration! as BoxDecoration;
   }
+
+  group('focus=libraryPages deep link', () {
+    final genresRow = find.byKey(const ValueKey<String>('library-page-genres'));
+
+    Material material(WidgetTester tester) =>
+        tester.widget<Material>(genresRow);
+
+    testWidgets(
+      'opens Library pages, scrolls to the Genres row and highlights it',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        // The group's eye icon blinks forever, so pump by time, not settle.
+        await pumpAppearance(
+          tester,
+          focusLibraryPages: true,
+          highlights: const <SetupHighlight>{SetupHighlight.genresPage},
+          settle: false,
+        );
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(genresRow, findsOneWidget);
+        final rect = tester.getRect(genresRow);
+        expect(rect.top, greaterThanOrEqualTo(0));
+        expect(rect.bottom, lessThanOrEqualTo(844));
+        expect(genresRow.hitTestable(), findsOneWidget);
+        expect(
+          find.descendant(of: genresRow, matching: find.byType(NewFeatureTag)),
+          findsOneWidget,
+        );
+        final colors = Theme.of(tester.element(genresRow)).colorScheme;
+        expect(material(tester).color, colors.primary.withValues(alpha: 0.22));
+
+        await tester.pump(const Duration(seconds: 3));
+        expect(material(tester).color, Colors.transparent);
+      },
+    );
+
+    testWidgets('works on the desktop layout too', (tester) async {
+      setAdaptiveTestViewport(tester, const Size(1280, 800));
+      await pumpAppearance(
+        tester,
+        focusLibraryPages: true,
+        highlights: const <SetupHighlight>{SetupHighlight.genresPage},
+        settle: false,
+        adaptiveContext: resolveAdaptiveContext(
+          desktopRuntime: true,
+          viewportSize: const Size(1280, 800),
+          safePadding: EdgeInsets.zero,
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(genresRow, findsOneWidget);
+      final rect = tester.getRect(genresRow);
+      expect(rect.top, greaterThanOrEqualTo(0));
+      expect(rect.bottom, lessThanOrEqualTo(800));
+      expect(genresRow.hitTestable(), findsOneWidget);
+      final colors = Theme.of(tester.element(genresRow)).colorScheme;
+      expect(material(tester).color, colors.primary.withValues(alpha: 0.22));
+      await tester.pump(const Duration(seconds: 3));
+    });
+
+    testWidgets('without the link the group stays closed', (tester) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await pumpAppearance(tester);
+
+      expect(genresRow.hitTestable(), findsNothing);
+    });
+  });
 
   testWidgets('theme selector stays horizontal on a phone-width surface', (
     tester,
@@ -1147,7 +1219,7 @@ void main() {
           tester,
           themeMode: 'system',
           flatSurfaces: true,
-          highlights: SetupHighlight.values.toSet(),
+          highlights: setupHighlightsFor('1.5.0'),
           settle: false,
         );
         expect(find.byType(NewFeatureTag), findsNWidgets(10));
@@ -1197,12 +1269,72 @@ void main() {
           tester,
           themeMode: 'system',
           flatSurfaces: true,
-          highlights: SetupHighlight.values.toSet(),
+          highlights: setupHighlightsFor('1.5.0'),
           settle: false,
         );
         await tester.pump();
-        expect(seenOptions.toSet(), SetupHighlight.values.toSet());
-        expect(seenOptions, hasLength(SetupHighlight.values.length));
+        expect(seenOptions.toSet(), setupHighlightsFor('1.5.0'));
+        expect(seenOptions, hasLength(setupHighlightsFor('1.5.0').length));
+      });
+
+      testWidgets('the Library pages group header carries the Genres tag', (
+        tester,
+      ) async {
+        tallView(tester);
+        final header = find
+            .ancestor(
+              of: find.text(l10n.appearancePagesSectionLabel),
+              matching: find.byType(InkWell),
+            )
+            .first;
+        await pumpAppearance(
+          tester,
+          highlights: <SetupHighlight>{SetupHighlight.genresPage},
+          settle: false,
+        );
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(
+          find.descendant(of: header, matching: find.byType(NewFeatureTag)),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('the group header has no tag when nothing is pending', (
+        tester,
+      ) async {
+        tallView(tester);
+        await pumpAppearance(tester, settle: false);
+        await tester.pump(const Duration(milliseconds: 500));
+        final header = find
+            .ancestor(
+              of: find.text(l10n.appearancePagesSectionLabel),
+              matching: find.byType(InkWell),
+            )
+            .first;
+        expect(
+          find.descendant(of: header, matching: find.byType(NewFeatureTag)),
+          findsNothing,
+        );
+      });
+
+      testWidgets('the Genres tag clears only once its group is open', (
+        tester,
+      ) async {
+        tallView(tester);
+        await pumpAppearance(
+          tester,
+          highlights: <SetupHighlight>{SetupHighlight.genresPage},
+          settle: false,
+        );
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(seenOptions, isEmpty);
+
+        await tester.ensureVisible(find.text(l10n.appearancePagesSectionLabel));
+        await tester.tap(find.text(l10n.appearancePagesSectionLabel));
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.pump(const Duration(milliseconds: 500));
+        await tester.pump();
+        expect(seenOptions, <SetupHighlight>[SetupHighlight.genresPage]);
       });
 
       testWidgets('hidden OLED option is never marked', (tester) async {

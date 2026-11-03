@@ -145,12 +145,12 @@ class _HighlightedAppearanceOptionState
 
 /// A switch title with an optional [adornment] (such as a "New" tag) beside
 /// it. Without an adornment it is the plain title, so rows keep their height.
-Widget _titleWithAdornment(String text, Widget? adornment) {
-  if (adornment == null) return Text(text);
+Widget titleWithAdornment(String text, Widget? adornment, {TextStyle? style}) {
+  if (adornment == null) return Text(text, style: style);
   return Row(
     mainAxisSize: MainAxisSize.min,
     children: <Widget>[
-      Flexible(child: Text(text)),
+      Flexible(child: Text(text, style: style)),
       const SizedBox(width: NavisSpace.xs),
       adornment,
     ],
@@ -204,7 +204,7 @@ class OledForAutoOption extends StatelessWidget {
           start: AppearanceLayout.subOptionInsetOf(context),
           end: AppearanceLayout.gutterOf(context),
         ),
-        title: _titleWithAdornment(l10n.appearanceOledForAutoLabel, adornment),
+        title: titleWithAdornment(l10n.appearanceOledForAutoLabel, adornment),
         subtitle: Text(l10n.appearanceOledForAutoSub),
         value: value,
         onChanged: onChanged,
@@ -233,7 +233,7 @@ class FlatSurfacesOption extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     return SwitchListTile(
       contentPadding: appearanceSwitchPadding(context),
-      title: _titleWithAdornment(l10n.appearanceFlatSurfacesLabel, adornment),
+      title: titleWithAdornment(l10n.appearanceFlatSurfacesLabel, adornment),
       subtitle: Text(l10n.appearanceFlatSurfacesSub),
       value: value,
       onChanged: onChanged,
@@ -276,7 +276,7 @@ class FlatAreasOption extends StatelessWidget {
         start: AppearanceLayout.subOptionInsetOf(context),
         end: AppearanceLayout.gutterOf(context),
       ),
-      title: _titleWithAdornment(title, adornment),
+      title: titleWithAdornment(title, adornment),
       subtitle: Text(subtitle),
       value: selected,
       onChanged: onChanged,
@@ -345,7 +345,7 @@ class ColorTuningOption extends StatelessWidget {
     return ListTile(
       key: const ValueKey<String>('colorTuningOption'),
       contentPadding: appearanceSwitchPadding(context),
-      title: _titleWithAdornment(l10n.appearanceColorTuningLabel, adornment),
+      title: titleWithAdornment(l10n.appearanceColorTuningLabel, adornment),
       subtitle: Text(
         colorTuningSummary(l10n, tuning, dark: dark),
         key: const ValueKey<String>('colorTuningOption-summary'),
@@ -389,7 +389,7 @@ class AlbumArtShadeOption extends StatelessWidget {
         SwitchListTile(
           key: const ValueKey<String>('albumArtShadeSwitch'),
           contentPadding: appearanceSwitchPadding(context),
-          title: _titleWithAdornment(
+          title: titleWithAdornment(
             l10n.appearanceAlbumArtShadeLabel,
             adornment,
           ),
@@ -498,7 +498,7 @@ class NightScheduleSection extends StatelessWidget {
       children: <Widget>[
         SwitchListTile(
           contentPadding: appearanceSwitchPadding(context),
-          title: _titleWithAdornment(
+          title: titleWithAdornment(
             l10n.appearanceNightScheduleLabel,
             adornment,
           ),

@@ -738,6 +738,13 @@ final showArtistsPageProvider = Provider<bool>((ref) {
   return settings.showArtistsPage;
 });
 
+final showGenresPageProvider = Provider<bool>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.showGenresPage;
+});
+
 final showLikedPageProvider = Provider<bool>((ref) {
   final settings =
       ref.watch(appSettingsProvider).asData?.value ??
@@ -3245,6 +3252,7 @@ final visibleLibrarySectionsProvider = Provider<List<LibrarySection>>((ref) {
     showAlbums: ref.watch(showAlbumsPageProvider),
     showLiked: ref.watch(showLikedPageProvider),
     showArtists: ref.watch(showArtistsPageProvider),
+    showGenres: ref.watch(showGenresPageProvider),
     showPlaylists: ref.watch(showPlaylistsPageProvider),
     showRadio: ref.watch(showRadioPageProvider),
   );

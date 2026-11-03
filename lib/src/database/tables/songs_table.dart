@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
+import 'package:navis/src/database/tables/string_list_converter.dart';
 
 class SongsTable extends Table {
   @override
@@ -101,6 +102,13 @@ class SongsTable extends Table {
 
   /// ReplayGain album peak (linear, 0.0–1.0+).
   RealColumn get replayGainAlbumPeak => real().nullable()();
+
+  /// The song's genre names as the server spelled them, JSON-encoded, with
+  /// blank names and duplicates by merge key already dropped (see
+  /// `resolveGenres`). `'[]'` for a synced untagged song; null only for rows
+  /// not synced since genres were added. Nullable so existing rows and
+  /// callers need no backfill; read null as untagged.
+  TextColumn get genres => text().map(const StringListConverter()).nullable()();
 
   @override
   Set<Column<Object>> get primaryKey => {id};

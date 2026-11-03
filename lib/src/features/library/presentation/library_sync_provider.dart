@@ -135,7 +135,10 @@ final requiredLibrarySyncModelVersionProvider = Provider<String?>((ref) {
 /// stored value schedules exactly one post-upgrade recovery reconciliation
 /// (a resumable full repair) per installation, and the new version is
 /// stamped only after that repair's catalog promotion completed (plan §5).
-const currentLibrarySyncModelVersion = '58';
+///
+/// '59' resyncs once so every song gains its genre tags (genre browsing);
+/// the sync is a normal non-destructive full repair, not a cache reset.
+const currentLibrarySyncModelVersion = '59';
 
 const bool _syncDiagnosticsEnabled = bool.fromEnvironment(
   'NAVIS_SYNC_DIAGNOSTICS',

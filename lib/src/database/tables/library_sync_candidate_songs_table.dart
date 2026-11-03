@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:navis/src/database/tables/string_list_converter.dart';
 
 class LibrarySyncCandidateSongsTable extends Table {
   @override
@@ -55,6 +56,9 @@ class LibrarySyncCandidateSongsTable extends Table {
   RealColumn get replayGainTrackPeak => real().nullable()();
 
   RealColumn get replayGainAlbumPeak => real().nullable()();
+
+  /// Genre names as `songs.genres` holds them; promotion copies the list.
+  TextColumn get genres => text().map(const StringListConverter()).nullable()();
 
   /// Null while the candidate still needs comparison, zero when it matches
   /// the committed row, and one when promotion must insert or update it.

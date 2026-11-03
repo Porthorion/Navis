@@ -36,6 +36,11 @@ _Song _$SongFromJson(Map<String, dynamic> json) => _Song(
   replayGain: json['replayGain'] == null
       ? null
       : ReplayGain.fromJson(json['replayGain'] as Map<String, dynamic>),
+  genres:
+      (_readGenresJson(json, 'genres') as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const <String>[],
 );
 
 Map<String, dynamic> _$SongToJson(_Song instance) => <String, dynamic>{
@@ -62,6 +67,7 @@ Map<String, dynamic> _$SongToJson(_Song instance) => <String, dynamic>{
   'created': instance.created?.toIso8601String(),
   'isExternal': instance.isExternal,
   'replayGain': instance.replayGain?.toJson(),
+  'genres': instance.genres,
 };
 
 _ReplayGain _$ReplayGainFromJson(Map<String, dynamic> json) => _ReplayGain(
