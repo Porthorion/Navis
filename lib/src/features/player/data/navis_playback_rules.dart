@@ -91,9 +91,12 @@ NavisAndroidAutoSearchRequest navisAndroidAutoSearchRequest(
         : NavisAndroidAutoSearchRequest(type: type, term: term);
   }
 
-  // A named genre is the most specific thing the request can carry, even
-  // when the spoken query is empty.
-  if (genre != null) return request(NavisAndroidAutoSearchType.genre, genre);
+  // A genre extra decides the request only when no other focus
+  // (artist/album/playlist/song) is set.
+  if (genre != null &&
+      (focus == null || focus == AndroidAutoConstants.mediaFocusGenre)) {
+    return request(NavisAndroidAutoSearchType.genre, genre);
+  }
 
   switch (focus) {
     case AndroidAutoConstants.mediaFocusGenre:

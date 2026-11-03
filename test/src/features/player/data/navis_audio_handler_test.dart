@@ -277,6 +277,18 @@ void main() {
         term: 'Jazz',
       );
       searchCase(
+        'an artist focus beats the genre extra',
+        '',
+        NavisAndroidAutoSearchType.artist,
+        extras: {
+          AndroidAutoConstants.mediaFocusKey:
+              AndroidAutoConstants.mediaFocusArtist,
+          AndroidAutoConstants.mediaArtistKey: 'Miles Davis',
+          AndroidAutoConstants.mediaGenreKey: 'Jazz',
+        },
+        term: 'Miles Davis',
+      );
+      searchCase(
         'genre focus without the extra uses the spoken query',
         'Blues',
         NavisAndroidAutoSearchType.genre,
