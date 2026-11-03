@@ -73,6 +73,12 @@ printf 'sums\n' > "${tmp}/SHA256SUMS"
 printf 'notes\n' > "${tmp}/notes.md"
 navis_github_publish v1.5.0 false "${tmp}/notes.md" "${tmp}/manifest.json" "${tmp}/navis-v1.5.0-windows.zip" "${tmp}/SHA256SUMS"
 cmp "${tmp}/manifest.json" "${TEST_GITHUB_ASSETS}/manifest.json"
+# The per-user installer rides along with its checksum, and the signed manifest is untouched.
+cmp "${SCRIPT_DIR}/../linux/install.sh" "${TEST_GITHUB_ASSETS}/install.sh" || fail 'installer was not attached'
+installer_sum="$(sha256sum "${SCRIPT_DIR}/../linux/install.sh" | cut -d' ' -f1)"
+[[ "$(rg -c '  install.sh$' "${TEST_GITHUB_ASSETS}/SHA256SUMS")" == 1 ]] || fail 'SHA256SUMS lacks exactly one install.sh line'
+rg -q "^${installer_sum}  install.sh$" "${TEST_GITHUB_ASSETS}/SHA256SUMS" || fail 'install.sh checksum is wrong'
+rg -q installer "${TEST_GITHUB_ASSETS}/manifest.json" && fail 'installer leaked into the signed manifest'
 for host in objects.githubusercontent.com release-assets.githubusercontent.com; do
   TEST_REDIRECT="https://${host}/fixture" navis_github_verify_manifest v1.5.0 "${tmp}/manifest.json"
 done
@@ -85,6 +91,7 @@ printf 'installer\n' > "${tmp}/navis-v1.5.0-windows-installer.exe"
 navis_github_publish v1.5.0 false "${tmp}/notes.md" "${tmp}/manifest.json" "${tmp}/navis-v1.5.0-windows-installer.exe" "${tmp}/SHA256SUMS"
 rg -q 'release upload .*--clobber' "${TEST_GITHUB_LOG}" || fail 'late asset was not uploaded with clobber'
 [[ -f "${TEST_GITHUB_ASSETS}/navis-v1.5.0-windows.zip" ]] || fail 'existing asset lost'
+[[ "$(rg -c '  install.sh$' "${TEST_GITHUB_ASSETS}/SHA256SUMS")" == 1 ]] || fail 'late-asset run duplicated the install.sh checksum'
 cmp "${tmp}/manifest.json" "${TEST_GITHUB_ASSETS}/manifest.json"
 rm "${TEST_GITHUB_ASSETS}/navis-v1.5.0-windows.zip"
 refused navis_github_publish v1.5.0 false "${tmp}/notes.md" "${tmp}/manifest.json" "${tmp}/navis-v1.5.0-windows-installer.exe" "${tmp}/SHA256SUMS"

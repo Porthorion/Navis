@@ -71,7 +71,18 @@ navis_github_publish() {
     echo 'Error: a verified manifest.json is required.' >&2; return 1;
   }
   local repo="${NAVIS_GITHUB_REPO:-Porthorion/Navis}" asset name size release
-  local assets=("$@" "${manifest}") args
+  local assets=("$@") args
+  # Stable releases also carry the per-user installer. It is not an updater
+  # asset: the signed manifest and R2 stay untouched; only the GitHub
+  # SHA256SUMS gains its line (rewritten idempotently, as late-asset runs repeat).
+  local installer="$(dirname "${BASH_SOURCE[0]}")/../../linux/install.sh" sums=''
+  [[ -f "${installer}" ]] || { echo "Error: ${installer} is missing." >&2; return 1; }
+  for asset in "$@"; do [[ "$(basename "${asset}")" != SHA256SUMS ]] || sums="${asset}"; done
+  if [[ -n "${sums}" ]]; then
+    { grep -v '  install.sh$' "${sums}" || true; printf '%s  install.sh\n' "$(sha256sum "${installer}" | cut -d' ' -f1)"; } \
+      | sort -k2 > "${sums}.new" && mv "${sums}.new" "${sums}"
+  fi
+  assets+=("${installer}" "${manifest}")
   if gh release view "${tag}" --repo "${repo}" --json tagName >/dev/null 2>&1; then
     args=(release upload "${tag}" --repo "${repo}" --clobber)
   else

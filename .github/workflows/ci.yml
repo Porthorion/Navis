@@ -48,6 +48,9 @@ jobs:
       - run: git diff --exit-code -- '*.g.dart' '*.freezed.dart'
       - run: flutter analyze --no-fatal-infos
       - run: dart run tool/dead_code_check.dart
+      # The per-user Linux installer verifies signatures and writes into $HOME.
+      - run: ./tool/linux_install_test.sh
+      - run: shellcheck linux/install.sh
 
   # Generated code is committed, so shards skip build_runner.
   test:

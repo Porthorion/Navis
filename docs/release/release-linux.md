@@ -8,6 +8,7 @@ musl runtime is not supported by these bundles.
 | Format | Filename | Install location |
 |---|---|---|
 | Portable | `navis-vX.Y.Z-linux.tar.gz` | User-selected directory |
+| Per-user script | `linux/install.sh` (also a stable GitHub release asset) | `${XDG_DATA_HOME:-~/.local/share}/navis` |
 | Debian | `navis-vX.Y.Z-linux-amd64.deb` | `/opt/navis` |
 | RPM | `navis-vX.Y.Z-linux-x86_64.rpm` | `/opt/navis` |
 | AUR binary recipe | `packaging/aur/navis-bin/` | `/opt/navis` |
@@ -335,6 +336,29 @@ The updater script:
 - Relaunches from the new binary (`navis &`).
 - Removes the backup and self-deletes.
 - If the move fails, **automatically restores the backup** so the app remains usable.
+
+### Per-user install script
+
+`linux/install.sh` installs the portable bundle without root. It reads the signed
+stable manifest (`channels/stable/manifest.json`, or `releases/download/vX.Y.Z/manifest.json`
+on GitHub when given a local tarball), verifies the Ed25519 signature against the pinned
+`updateSigningPublicKey`, then checks the signed SHA-256 of `linuxPortable`.
+Only the verified payload bytes are parsed. Redirect hosts are limited to
+`downloads.porthorion.com` and GitHub's release CDN.
+
+Layout (dictated by the auto-updater, which replaces the directory holding the resolved
+executable): the app directory `${XDG_DATA_HOME:-~/.local/share}/navis` holds exactly the
+tarball root; `~/.local/bin/navis` is a symlink into it (never a wrapper script); the desktop
+entry and hicolor icons go under `${XDG_DATA_HOME}`. `navis.install-manifest` lists every path
+created, and `--uninstall` removes exactly those. `--purge` also deletes
+`com.navis.app.navis` data/config/cache after a typed confirmation read from `/dev/tty`
+(keyring entries stay). Upgrades swap `navis.new` in beside the old copy and restore it on failure.
+
+Releasing: `release.sh` (through `navis_github_publish`) attaches `linux/install.sh` to every
+stable GitHub release and adds its line to the GitHub `SHA256SUMS`. It is not an updater asset:
+the signed manifest and the R2 `SHA256SUMS` are unchanged. The README one-liner points at `main`.
+If the signing key is ever rotated, update `PINNED_KEY` in the script;
+`tool/linux_install_test.sh` fails while it differs from `constants.dart`.
 
 ---
 
