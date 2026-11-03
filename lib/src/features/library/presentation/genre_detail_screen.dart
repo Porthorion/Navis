@@ -103,7 +103,10 @@ class _GenreDetailScreenState extends ConsumerState<GenreDetailScreen>
     final genre = summary.asData?.value;
     return Scaffold(
       appBar: AppBar(title: Text(genre?.name ?? '')),
+      // A sync republish re-reads the summary; keep the page (tab, search,
+      // scroll) on screen meanwhile.
       body: summary.when(
+        skipLoadingOnReload: true,
         loading: () => const ShimmerListPage(count: 8),
         error: (_, _) => ErrorState(
           title: l10n.genresLoadError,

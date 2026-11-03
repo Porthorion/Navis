@@ -52,6 +52,15 @@ class _QueueSpy extends QueueController {
   }
 }
 
+class _Epoch extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final _epoch = NotifierProvider<_Epoch, int>(_Epoch.new);
+
 const _hipHop = GenreSummary(
   key: 'hiphop',
   name: 'Hip-Hop',
@@ -334,6 +343,52 @@ void main() {
       expect(
         find.byKey(const ValueKey<String>('genreSongsSortControl')),
         findsOneWidget,
+      );
+    });
+
+    testWidgets('a sync epoch change keeps the tab and typed search', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        _app(<Object?>[
+          ..._commonOverrides(genres: const [_hipHop]),
+          genreDataEpochProvider.overrideWith((ref) => ref.watch(_epoch)),
+          genreSummaryProvider.overrideWith((ref, k) async {
+            ref.watch(genreDataEpochProvider);
+            return _hipHop;
+          }),
+          genreAlbumsProvider.overrideWith((ref, request) async => const []),
+          genreSongsProvider.overrideWith((ref, request) async => const []),
+        ], initial: AppRoutes.genre('hiphop', songs: true)),
+      );
+      await tester.pumpAndSettle();
+      final field = find.descendant(
+        of: find.byType(GenreDetailScreen),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(field, 'boom');
+      await tester.pump();
+
+      ProviderScope.containerOf(
+        tester.element(find.byType(GenreDetailScreen)),
+      ).read(_epoch.notifier).bump();
+      await tester.pump();
+
+      expect(tester.widget<TextField>(field).controller!.text, 'boom');
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(field).controller!.text, 'boom');
+      expect(
+        tester
+            .widget<TabBar>(
+              find.descendant(
+                of: find.byType(GenreDetailScreen),
+                matching: find.byType(TabBar),
+              ),
+            )
+            .controller!
+            .index,
+        1,
       );
     });
 
