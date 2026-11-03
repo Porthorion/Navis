@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
 /// Named command actions supported by the desktop shell.
@@ -190,7 +191,9 @@ defaultDesktopShortcutBindings() {
 bool get _isApplePlatform => defaultTargetPlatform == TargetPlatform.macOS;
 
 const String _desktopShortcutStorageKey = 'navis.desktop.shortcut_bindings.v1';
-const FlutterSecureStorage _desktopShortcutStorage = FlutterSecureStorage();
+const FlutterSecureStorage _desktopShortcutStorage = FlutterSecureStorage(
+  mOptions: macOsLoginKeychain,
+);
 String? _desktopShortcutSessionFallback;
 bool _didLogShortcutReadFallbackWarning = false;
 bool _didLogShortcutWriteFallbackWarning = false;

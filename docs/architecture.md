@@ -564,6 +564,7 @@ build their own containers keep Riverpod's default unless they pass it.
 Credential redaction treats URL user info as a credential: request logging and
 free-text error redaction strip it, and OS media URL guards reject it. The server password and URL user info use separate keys in the existing secure
 credential store, with a memory-only fallback when platform storage is unavailable.
+On macOS every `FlutterSecureStorage` uses the login keychain (`macOsLoginKeychain`, `usesDataProtectionKeychain: false`): the plugin's default data-protection keychain needs a `keychain-access-groups` entitlement no build has, so writes fail with -34018. Development builds are ad-hoc signed and legacy keychain items are bound to the code signature, so a read after a rebuild can wait on a system prompt and surface as a temporary credential-read failure; stable signing avoids it.
 Drift stores the credential-free URL; active configs merge user info back in memory
 for HTTP and media Basic authentication, including Android background sync. Loads
 scrub legacy URLs once; signed-out profiles are scrubbed without restoring secrets.
