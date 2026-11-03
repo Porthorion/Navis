@@ -53,18 +53,41 @@ plus Opus review for auth/file writes).
 
 | # | Item | Risk | iOS carry-over | State | Branch / PR |
 |---|---|---|---|---|---|
-| M0 | Diagnostics API on macOS profile builds (`_syncDiagnosticsRuntimeEnabled`; launch sites hard-coding `-d linux`: `tool/lib/diagnostics.sh:202,247,296`, `tool/sync_diagnostics.sh:243`, `tool/presentation_diagnostics.sh:213`; the PulseAudio device that `tool/lib/diagnostics.sh:247-252` injects, which `lib/main.dart:284-290` would pass to libmpv, must not be used on macOS). Drops the App Sandbox from both entitlement files so the sandbox no longer blocks the clone root and handshake under `build/`, matching the notarized app, which `tool/macos_notarize.sh` re-signs without entitlements. Prerequisite for every runtime check below | risky (auth surface, profile only; entitlements) | no | in implementation; owner approved dropping the sandbox 2026-11-04 | `chore/macos-diagnostics-api` |
-| M1 | Runtime-verify Now Playing and remote commands through `audio_service`: metadata, artwork, position/duration/rate, scrubbing (`changePlaybackPosition`), play/pause/next/previous/seek from media keys, Control Center, AirPods. Fix what fails, then decide whether an app-owned Darwin bridge (like MPRIS/SMTC) is needed | risky (playback) | yes (same MediaPlayer APIs) | triaged | – |
+| M0 | Diagnostics API on macOS profile builds (`_syncDiagnosticsRuntimeEnabled`; launch sites hard-coding `-d linux`: `tool/lib/diagnostics.sh:202,247,296`, `tool/sync_diagnostics.sh:243`, `tool/presentation_diagnostics.sh:213`; the PulseAudio device that `tool/lib/diagnostics.sh:247-252` injects, which `lib/main.dart:284-290` would pass to libmpv, must not be used on macOS). Drops the App Sandbox from both entitlement files so the sandbox no longer blocks the clone root and handshake under `build/`, matching the notarized app, which `tool/macos_notarize.sh` re-signs without entitlements. Prerequisite for every runtime check below | risky (auth surface, profile only; entitlements) | no | in review; owner approved dropping the sandbox 2026-11-04 | `chore/macos-diagnostics-api` |
+| M1 | Runtime-verify Now Playing and remote commands through `audio_service`: metadata, artwork, position/duration/rate, scrubbing (`changePlaybackPosition`), play/pause/next/previous/seek from media keys, Control Center, AirPods. Fix what fails, then decide whether an app-owned Darwin bridge (like MPRIS/SMTC) is needed | risky (playback) | yes (same MediaPlayer APIs) | phase A done 2026-11-04 (see below); hardware keys, AirPods and the cold-start gap open | – |
 | M2 | Replace the macOS libmpv bundle with a pinned full build (like Windows): system TLS verification, libavfilter equalizer, then lift the macOS gates for EQ and fast seeking. Interim if M2 is slow: `tls-verify=yes` with `tls-ca-file=/etc/ssl/cert.pem`, runtime-proven against a bad certificate | risky (playback, security) | no (iOS uses AVFoundation) | triaged | – |
 | M3 | Mac app lifecycle: keep running when the window closes, reopen on Dock click, Dock menu (play/pause, next, previous, now playing), Controls menu in the menu bar wired to `desktop_commands` (Flutter `PlatformMenuBar`) | risky (window/close lifecycle) | partly (commands) | triaged | – |
 | M4 | Self-update on macOS: prove download → replace → relaunch on a notarized build (unsandboxed after M0) and sign with explicit entitlements and hardened runtime rather than `--deep` re-signing | risky (file writes, updater) | no | triaged | – |
 | M5 | Register the LGPL libmpv/FFmpeg notice on macOS | low | no | triaged | – |
 | M6 | Prove, then harden, the sqflite cover-art store against the reported 3.4.5 open/close bugs. Cross-platform: the store is shared with Android and iOS, so Android evidence is required | risky (cache, cross-platform) | yes | triaged | – |
-| M7 | Commit the Swift Package Manager migration of the macOS Xcode project so builds stop dirtying the tree | low | yes (iOS project too) | triaged | – |
+| M7 | Commit the Swift Package Manager migration of the macOS Xcode project so builds stop dirtying the tree; the first build after a clean checkout can fail with "Unable to resolve module dependency" and pass on retry | low | yes (iOS project too) | triaged | – |
+| M9 | Saved sign-in on macOS: `flutter_secure_storage` 11.2.0 defaults to the data-protection keychain, which needs a `keychain-access-groups` entitlement that no macOS build has, so `SecItemAdd` returns -34018 and credentials last only for the session (`lib/src/features/auth/data/secure_credential_store.dart:266`). Prove at runtime, then either use the login keychain on macOS (`usesDataProtectionKeychain: false`) or sign with a team and access group | risky (auth) | yes (iOS keychain) | triaged | – |
 | M8 | Docs: macOS status in `README.md`, `docs/architecture.md`, `docs/release/release-macos.md` (TLS gap, updater flow), macOS testing playbook. `docs/development/technical-overview.md` is corrected with this plan and again by M1 | low | – | after M1–M3 | – |
 
 Order: M0 first (enables runtime evidence), then M1 and M2 (playback core),
 M3, M4, with M5 and M7 as small parallel PRs and M8 last.
+
+## M1 phase A results (2026-11-04)
+
+Profile clone on macOS 27.2 against `tool/auth_lifecycle_fixture_server.py`,
+system state read through MediaRemote from an Apple-signed host, commands sent
+with `MRMediaRemoteSendCommand`.
+
+- Works through `audio_service` 0.18.19 (`AudioServicePlugin.m`): title,
+  artist, album and artwork in system Now Playing; duration, elapsed within
+  about 0.5 s, rate 1 playing and 0 paused; play, pause, toggle, stop, next,
+  previous; scrubbing (`changePlaybackPosition`) while playing and paused;
+  Now Playing clears when the queue clears. No app-owned Darwin bridge is
+  needed for these.
+- Not set by the plugin: queue index and count (`AudioServicePlugin.m:317-320`),
+  skip-interval, like and rating commands (`:131-135`).
+- Cold start with a restored paused queue: the system shows no Now Playing,
+  and a system play command opened Music.app instead of resuming Navis. The
+  plugin enables the command centre only on the first `playing` state
+  (`:179-184`); whether that or macOS itself causes it is unproven.
+- Not verified: hardware media keys and AirPods (scripted key events need
+  Accessibility trust, not granted), Control Center and menu-bar visuals.
+  Needs one manual pass on the Mac.
 
 ## Open questions
 

@@ -743,7 +743,7 @@ real Navis process. It complements automated tests; it does not replace the UI
 or introduce a second implementation of feature behavior.
 
 The current implementation starts `SyncDiagnosticsServer` on Linux, Windows,
-and Android profile builds:
+macOS and Android profile builds:
 
 1. `main.dart` accepts diagnostics only in a supported profile build with a
    valid mode and a desktop handshake path when applicable. Android supports
