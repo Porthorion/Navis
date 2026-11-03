@@ -409,7 +409,10 @@ class NavisDatabase extends _$NavisDatabase {
       // 108 is reserved for fix/desktop-overlay-rail (#226). If it merges
       // first its step replaces this placeholder; if genre browsing ships
       // alone, renumber by setting currentSchemaVersion to 108, renaming
-      // from108To109 to from107To108, and deleting this line.
+      // from108To109 to from107To108, deleting this line, deleting the
+      // '107 to 109' test in navis_migration_test.dart, and changing "schema
+      // 109" in docs/architecture.md and
+      // docs/features/sync-reliability-recovery-plan.md.
       _noMigration,
       from108To109,
     ];

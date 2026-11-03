@@ -295,8 +295,9 @@ void main() {
         NavisAndroidAutoSearchType.title,
         extras: {AndroidAutoConstants.mediaTitleKey: 'Feeling Good'},
       );
-      // Genres are not a Navis concept: the platform genre focus and extra are
-      // ignored and the spoken query is searched as typed.
+      // Android Auto has no genre browsing (the in-app Genres section is not
+      // reachable from the car): the platform genre focus and extra are ignored
+      // and the spoken query is searched as typed.
       searchCase(
         'a genre voice intent is only a raw-query search',
         'jazz music',

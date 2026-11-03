@@ -76,6 +76,113 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test(
+    '107 to 109 runs through the reserved 108 slot and keeps real rows',
+    () async {
+      // Pins the 108 placeholder: when the schema is renumbered to 108 this
+      // test goes away with it (see the recipe above `from108To109`).
+      expect(NavisDatabase.currentSchemaVersion, 109);
+      final directory = await Directory.systemTemp.createTemp('navis_v107_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+      ]);
+      await seed.libraryDao.upsertAlbums([
+        AlbumsTableCompanion.insert(
+          id: 'album-1',
+          name: 'Album',
+          artistId: const Value('artist-1'),
+        ),
+      ]);
+      await seed.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'song-1',
+          title: 'One',
+          albumId: const Value('album-1'),
+        ),
+        SongsTableCompanion.insert(
+          id: 'song-2',
+          title: 'Two',
+          albumId: const Value('album-1'),
+        ),
+      ]);
+      await seed.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'song-1',
+          filePath: '/music/song-1.mp3',
+          fileSize: 1,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime(2026),
+        ),
+      );
+      await seed.appSettingsDao.setLastFullSyncAppBuild('58');
+      await seed.cacheSystemStateDao.markVersion(1005);
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute('DROP TABLE song_genre_index');
+        raw.execute('ALTER TABLE songs DROP COLUMN genres');
+        raw.execute(
+          'ALTER TABLE library_sync_candidate_songs DROP COLUMN genres',
+        );
+        raw.execute('PRAGMA user_version = 107');
+      } finally {
+        raw.close();
+      }
+
+      final upgraded = createTestDatabase(file: file);
+      addTearDown(upgraded.close);
+
+      expect(
+        (await upgraded.customSelect('PRAGMA user_version').getSingle())
+            .read<int>('user_version'),
+        109,
+      );
+      final songs = await upgraded.select(upgraded.songsTable).get();
+      expect(
+        songs.map((song) => (song.id, song.albumId, song.genres)),
+        unorderedEquals([
+          ('song-1', 'album-1', null),
+          ('song-2', 'album-1', null),
+        ]),
+      );
+      expect(await upgraded.libraryDao.getAlbumById('album-1'), isNotNull);
+      expect(await upgraded.appSettingsDao.getLastFullSyncAppBuild(), '58');
+      expect(await upgraded.cacheSystemStateDao.getVersion(), 1005);
+      // Untagged rows list nothing; once a sync tags them they are indexed.
+      expect(await upgraded.libraryDao.getGenres(), isEmpty);
+      await upgraded.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'song-1',
+          title: 'One',
+          albumId: const Value('album-1'),
+          genres: const Value(['Rock']),
+        ),
+        SongsTableCompanion.insert(
+          id: 'song-2',
+          title: 'Two',
+          albumId: const Value('album-1'),
+          genres: const Value(['Rock', 'Jazz']),
+        ),
+      ]);
+      final genres = await upgraded.libraryDao.getGenres();
+      expect(genres.map((g) => (g.key, g.songCount, g.albumCount)), [
+        ('rock', 2, 1),
+        ('jazz', 1, 1),
+      ]);
+      expect(
+        (await upgraded.libraryDao.getGenres(downloadedOnly: true))
+            .map((g) => (g.key, g.songCount)),
+        [('rock', 1)],
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('106 to 107 adds prefetch next on mobile data, default true', () async {
     final directory = await Directory.systemTemp.createTemp('navis_v107_');
     addTearDown(() => directory.delete(recursive: true));
