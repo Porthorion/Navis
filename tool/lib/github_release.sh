@@ -71,8 +71,34 @@ navis_github_publish() {
     echo 'Error: a verified manifest.json is required.' >&2; return 1;
   }
   local repo="${NAVIS_GITHUB_REPO:-Porthorion/Navis}" asset name size release
-  local assets=("$@" "${manifest}") args
+  local assets=("$@") args
+  # Stable releases also carry the per-user installer. It is not an updater
+  # asset: the signed manifest and R2 stay untouched; only the GitHub
+  # SHA256SUMS gains its line. The installer is attached once, when the release
+  # is created: a late-asset run (--clobber) must neither replace it with a
+  # newer checkout's copy nor drop its SHA256SUMS line, so it re-derives the
+  # line from the asset already on the release.
+  local installer="$(dirname "${BASH_SOURCE[0]}")/../../linux/install.sh" sums='' installer_sum exists=false
+  for asset in "$@"; do [[ "$(basename "${asset}")" != SHA256SUMS ]] || sums="${asset}"; done
   if gh release view "${tag}" --repo "${repo}" --json tagName >/dev/null 2>&1; then
+    exists=true
+    release="$(gh release view "${tag}" --repo "${repo}" --json assets)" || return 1
+    if jq -e '[.assets[] | select(.name == "install.sh")] | length > 0' <<< "${release}" >/dev/null; then
+      installer_sum="$(gh release download "${tag}" --repo "${repo}" --pattern install.sh --output - | sha256sum | cut -d' ' -f1)" || return 1
+      installer=''
+    fi
+  fi
+  if [[ -n "${installer}" ]]; then
+    [[ -f "${installer}" ]] || { echo "Error: ${installer} is missing." >&2; return 1; }
+    installer_sum="$(sha256sum < "${installer}" | cut -d' ' -f1)"
+    assets+=("${installer}")
+  fi
+  if [[ -n "${sums}" ]]; then
+    { grep -v '  install.sh$' "${sums}" || true; printf '%s  install.sh\n' "${installer_sum}"; } \
+      | sort -k2 > "${sums}.new" && mv "${sums}.new" "${sums}"
+  fi
+  assets+=("${manifest}")
+  if [[ "${exists}" == true ]]; then
     args=(release upload "${tag}" --repo "${repo}" --clobber)
   else
     args=(release create "${tag}" --repo "${repo}" --title "Navis ${tag}" --notes-file "${notes}")
