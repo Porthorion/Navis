@@ -98,6 +98,8 @@ void main() {
       'tool/lib/lastfm_key_defines.sh',
       'tool/lib/r2_tags.sh',
       'tool/lib/github_release.sh',
+      // Stable GitHub releases attach the per-user installer from the repo.
+      'linux/install.sh',
     ]) {
       await write(script, File(script).readAsStringSync());
     }
@@ -586,7 +588,8 @@ fi
       uploadedAssets.map(
         (dynamic asset) => (asset as Map<String, dynamic>)['name'],
       ),
-      [...assets, 'SHA256SUMS', 'manifest.json'],
+      // install.sh is the per-user installer; it is not a signed manifest asset.
+      [...assets, 'SHA256SUMS', 'install.sh', 'manifest.json'],
     );
     for (final dynamic asset in uploadedAssets.take(assets.length)) {
       final entry = asset as Map<String, dynamic>;
