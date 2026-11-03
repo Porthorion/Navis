@@ -58,6 +58,7 @@ import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/utils/genre_key.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:rxdart/rxdart.dart';

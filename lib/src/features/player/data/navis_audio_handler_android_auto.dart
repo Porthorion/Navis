@@ -184,6 +184,34 @@ extension _NavisAndroidAuto on NavisAudioHandler {
     }
   }
 
+  /// Plays the genre a spoken [term] names ("jazz", "jazz music"), shuffled,
+  /// through the normal queue load. Null when the term is not a genre of the
+  /// library, so the usual search continues.
+  Future<bool?> _loadGenreFromSearch(
+    String term, {
+    required bool autoPlay,
+  }) async {
+    final key = genreKey(term);
+    const music = 'music';
+    // The whole name first, so a genre called "World Music" matches as spoken.
+    for (final candidate in <String>{
+      key,
+      if (key.length > music.length && key.endsWith(music))
+        key.substring(0, key.length - music.length),
+    }) {
+      final songs = await _libraryDao.getSongsByGenre(candidate);
+      if (songs.isEmpty) continue;
+      final shuffled = List<SongsTableData>.of(songs)..shuffle(_shuffleRandom);
+      return _loadAutoRows(
+        shuffled,
+        originalOrder: songs.map((song) => song.id).toList(growable: false),
+        autoPlay: autoPlay,
+        expandMatchFlows: false,
+      );
+    }
+    return null;
+  }
+
   Future<bool> _loadFromSearch(
     String query,
     Map<String, dynamic>? extras, {
@@ -270,6 +298,11 @@ extension _NavisAndroidAuto on NavisAudioHandler {
             autoPlay: autoPlay,
           );
         }
+        final genre = await _loadGenreFromSearch(
+          request.term,
+          autoPlay: autoPlay,
+        );
+        if (genre != null) return genre;
       case NavisAndroidAutoSearchType.empty:
         break;
     }

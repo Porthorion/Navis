@@ -486,8 +486,11 @@ only and take a `downloadedOnly` filter.
 Existing libraries gain genres through `currentLibrarySyncModelVersion`
 ('59'): the startup check runs one non-destructive forced full sync, deferred
 on mobile data, and stamps the version after promotion. Permanent downloads
-and the rolling cache are untouched. An Android Auto genre voice intent is
-still an ordinary raw-query search; there is no Android Auto genre node.
+and the rolling cache are untouched. There is no Android Auto genre node;
+instead a spoken query that is exactly a genre ("jazz", "jazz music", by
+`genreKey`) plays that genre shuffled through the normal queue load
+(`_loadGenreFromSearch`), after an exact song or playlist title match and before
+the general search. Any other query is searched as before.
 
 UI. `LibrarySection.genres` is a Library page, placed right after Artists:
 `sanitizeLibraryPageOrder` inserts it after Artists in any saved order that
@@ -502,13 +505,18 @@ has finished the sync that reads genre tags (`getLastFullSyncAppBuild()` is not
 the server's tags. The genre page (`GenreDetailScreen`, route
 `/library/genres/:key` where `key` is the merge key) has Play and Shuffle for
 every song of the genre, an Albums grid and a Songs list; both read one page at
-a time (`limit` grows as the list nears its end) with their own search, sort and
-the downloaded-only filter. `genre_providers.dart` re-reads on the sync
+a time (`limit` grows as the list nears its end, and restarts at the first
+page when the search, sort or downloaded-only filter changes) with their own
+search (applied after a 250 ms pause), sort and the downloaded-only filter.
+Tapping a song while more of the genre is unloaded queues the whole genre in the
+current order, like Play; the page is framed with `DesktopFrame` on desktop and
+keeps its tab, search and scroll across a sync republish. `genre_providers.dart` re-reads on the sync
 controller's catalog and completion timestamps, because every star or play
 count write touches `songs`. Albums and songs show their genres as `GenreChips`
-(an album's come from its songs; songs show them at the top of the mobile song
-menu). A chip opens the genre page, or, while the page is hidden, a notice
-"Genre page disabled" whose Show action opens Settings -> Appearance with
+(an album's come from its songs, remote songs excluded; songs show them at the
+top of the mobile song sheet and the desktop song menu, never for a remote song).
+A chip opens the genre page, or, while the page is hidden, a notice
+"Genre page disabled" whose Show action (still working after the sheet closed) opens Settings -> Appearance with
 `focus=libraryPages`: that group opens, scrolls into view and briefly
 highlights the Genres row, which carries the 1.5.2 "New" tag
 (`SetupHighlight.genresPage`, a standalone highlight: the Library pages group
