@@ -1677,7 +1677,7 @@ Update all widgets that only need is-playing state or current song metadata to w
 
 Work through tasks in priority order: HIGH → MEDIUM → LOW.
 
-Scope guard: deeper genre-browsing expansion (`getSongsByGenre`-driven UI surfaces) is out of scope for the current roadmap and should not be scheduled in this phase.
+Scope guard (historical): genre browsing was out of scope for this phase. It returned in 1.5.2 as its own item (issue #233); do not schedule it here.
 
 ### 15.1 — Starred / Favorites Screen (HIGH)
 

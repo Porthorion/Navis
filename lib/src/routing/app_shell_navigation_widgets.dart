@@ -194,8 +194,33 @@ class _RailSidebar extends ConsumerWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final navTileEstimatedHeight = compact ? 52.0 : 64.0;
-                const subNavTileEstimatedHeight = 44.0;
+                // Large text grows a tile by its label's extra line height
+                // (a nav tile's 24 px icon hides the label until it is taller
+                // than that); small text never shrinks a tile. Without this
+                // one more Library section overflows the rail.
+                final textScaler = MediaQuery.textScalerOf(context);
+                final textTheme = Theme.of(context).textTheme;
+                double lineHeight(TextStyle? style, {required bool scaled}) {
+                  final size = style?.fontSize ?? 14;
+                  return (scaled ? textScaler.scale(size) : size) *
+                      (style?.height ?? 1.2);
+                }
+
+                final navLabel = textTheme.bodyLarge;
+                final navTextGrowth = math.max<double>(
+                  0,
+                  lineHeight(navLabel, scaled: true) -
+                      math.max<double>(24, lineHeight(navLabel, scaled: false)),
+                );
+                final subLabel = textTheme.bodyMedium;
+                final subTextGrowth = math.max<double>(
+                  0,
+                  lineHeight(subLabel, scaled: true) -
+                      lineHeight(subLabel, scaled: false),
+                );
+                final navTileEstimatedHeight =
+                    (compact ? 56.0 : 64.0) + navTextGrowth;
+                final subNavTileEstimatedHeight = 44.0 + subTextGrowth;
                 const subNavTrailingGap = 6.0;
                 const reservedMiniPlayerHeight = 170.0;
                 const railMiniPlayerGap = 6.0;
@@ -323,6 +348,7 @@ String _librarySectionShellLabel(BuildContext context, LibrarySection section) {
     LibrarySection.albums => l10n.libraryTabAlbums,
     LibrarySection.liked => l10n.libraryTabLiked,
     LibrarySection.artists => l10n.libraryTabArtists,
+    LibrarySection.genres => l10n.libraryTabGenres,
     LibrarySection.playlists => l10n.navPlaylists,
     LibrarySection.radio => l10n.navRadio,
   };

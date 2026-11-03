@@ -6359,4 +6359,70 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notificationDownloadHeldTitle =>
       'Downloads Waiting for Storage or Access';
+
+  @override
+  String get libraryTabGenres => 'Genres';
+
+  @override
+  String get appearanceShowGenresPageSubtitle =>
+      'Show the Genres tab in the Library screen.';
+
+  @override
+  String get genresSearchHint => 'Search genres';
+
+  @override
+  String get genresSortLabel => 'Sort Genres By';
+
+  @override
+  String get genresSortName => 'Name (A-Z)';
+
+  @override
+  String get genresSortSongs => 'Most Songs';
+
+  @override
+  String get genresSortAlbums => 'Most Albums';
+
+  @override
+  String get genresLoadError => 'Could Not Load Genres';
+
+  @override
+  String get genresEmptyTitle => 'No Genres Yet';
+
+  @override
+  String get genresEmptySubtitle =>
+      'Genres come from the tags on your server\'s songs. Tag them there, then sync.';
+
+  @override
+  String get genresSyncingTitle => 'Reading Genres';
+
+  @override
+  String get genresSyncingSubtitle =>
+      'Genres appear once the library finishes syncing.';
+
+  @override
+  String get genreDisabledNotice => 'Genre page disabled';
+
+  @override
+  String get genreDisabledShowAction => 'Show';
+
+  @override
+  String get genreNotFound => 'This genre is no longer in your library.';
+
+  @override
+  String get genreAlbumsSearchHint => 'Search albums';
+
+  @override
+  String get genreSongsEmpty => 'No Songs Found';
+
+  @override
+  String get genreSongsSortLabel => 'Sort Songs By';
+
+  @override
+  String get genreSongsSortTitle => 'Title';
+
+  @override
+  String get genreSongsSortAlbum => 'Album';
+
+  @override
+  String get searchGenresSection => 'Genres';
 }

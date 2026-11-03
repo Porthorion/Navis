@@ -903,6 +903,7 @@ void main() {
       ('Albums', 'showAlbumsPage', 'albums'),
       ('Liked', 'showLikedPage', 'liked'),
       ('Artists', 'showArtistsPage', 'artists'),
+      ('Genres', 'showGenresPage', 'genres'),
       ('Playlists', 'showPlaylistsPage', 'playlists'),
       ('Radio', 'showRadioPage', 'radio'),
     ])
@@ -912,6 +913,7 @@ void main() {
           'updateShowAlbumsPage',
           'updateShowLikedPage',
           'updateShowArtistsPage',
+          'updateShowGenresPage',
           'updateShowPlaylistsPage',
           'updateShowRadioPage',
         },

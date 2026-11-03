@@ -453,7 +453,9 @@ class _YearListItem {
   bool get isHeader => albums.isEmpty;
 }
 
-class _SortFilterRow<T> extends StatelessWidget {
+/// The downloaded-only chip and sort dropdown above a Library list; shared
+/// with the genre pages.
+class LibrarySortFilterRow<T> extends StatelessWidget {
   const new({
     required this.sortLabel,
     required this.sortValue,
@@ -463,8 +465,10 @@ class _SortFilterRow<T> extends StatelessWidget {
     required this.onDownloadedOnlyChanged,
     this.likedOnly = false,
     this.onLikedOnlyChanged,
+    this.sortKey = const ValueKey<String>('libraryAlbumSortControl'),
   });
 
+  final Key sortKey;
   final String sortLabel;
   final T sortValue;
   final List<DropdownMenuItem<T>> sortItems;
@@ -479,7 +483,7 @@ class _SortFilterRow<T> extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     Widget buildSortDropdown() {
       return DropdownButton<T>(
-        key: const ValueKey<String>('libraryAlbumSortControl'),
+        key: sortKey,
         value: sortValue,
         isExpanded: true,
         isDense: true,

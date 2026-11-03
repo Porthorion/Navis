@@ -23,6 +23,8 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
+import 'package:navis/src/features/library/presentation/genre_detail_screen.dart';
+import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
@@ -1103,6 +1105,76 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   });
 
+  testWidgets('routes the genre page and the Library pages deep link', (
+    tester,
+  ) async {
+    final container = await _createContainerWithDatabase(
+      overrides: [
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData(
+            ServerConfigModel(
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+          ),
+        ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.online,
+            ),
+          ),
+        ),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        homeRecentlyPlayedProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeFrequentAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        artistInfoProvider.overrideWith((ref, artistId) async => null),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: _testApp),
+    );
+    await tester.pumpAndSettle();
+
+    final router = container.read(appRouterProvider);
+    router.go(AppRoutes.genre('drum/bass'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byType(GenreDetailScreen), findsOneWidget);
+    expect(
+      tester.widget<GenreDetailScreen>(find.byType(GenreDetailScreen)).genreKey,
+      'drum/bass',
+    );
+
+    router.go(AppRoutes.appearanceLibraryPages);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(
+      tester
+          .widget<AppearanceSettingsScreen>(
+            find.byType(AppearanceSettingsScreen),
+          )
+          .focusLibraryPages,
+      isTrue,
+    );
+
+    // Flush any pending Riverpod retry timers (e.g. from the artist provider
+    // failing its HTTP call in the test environment) to avoid a pending-timer
+    // assertion after widget disposal.
+    await tester.pump(const Duration(milliseconds: 500));
+  });
+
   group('detail pages follow their id', () {
     // `router.go` between two ids of one detail route reuses the page's
     // State unless the id keys the page, so the second id would never be
@@ -1525,6 +1597,8 @@ void main() {
       AppRoutes.onboardingReview,
       AppRoutes.album('al/bum?#1'),
       AppRoutes.artist('artist 1'),
+      AppRoutes.genre('drum/bass'),
+      AppRoutes.appearanceLibraryPages,
       AppRoutes.artistTopTracks('artist-1'),
       AppRoutes.playlist('playlist-1'),
       AppRoutes.listenBrainzWeekly('patch/1'),
@@ -1546,6 +1620,12 @@ void main() {
           .findMatch(Uri.parse(AppRoutes.album('al/bum?#1')))
           .pathParameters['id'],
       'al/bum?#1',
+    );
+    expect(
+      configuration
+          .findMatch(Uri.parse(AppRoutes.genre('drum/bass')))
+          .pathParameters['key'],
+      'drum/bass',
     );
   });
 
@@ -1587,6 +1667,7 @@ void main() {
     expect(configuredLocations, contains('/library'));
     expect(configuredLocations, contains('/library/artists/:id'));
     expect(configuredLocations, contains('/library/albums/:id'));
+    expect(configuredLocations, contains('/library/genres/:key'));
     expect(configuredLocations, contains('/search'));
     expect(configuredLocations, contains('/library/playlists/:id'));
     expect(configuredLocations, contains('/settings'));

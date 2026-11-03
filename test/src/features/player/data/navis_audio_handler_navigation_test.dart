@@ -1,3 +1,4 @@
+import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
 
 import 'dart:math';
@@ -4997,6 +4998,106 @@ void main() {
         }
       });
     }
+  });
+
+  group('Android Auto voice genres', () {
+    Future<(NavisAudioHandler, NavisDatabase)> genreHandler() async {
+      final directory = await Directory.systemTemp.createTemp('navis-auto-g-');
+      final (handler, _, database) = await createHandler(
+        directory,
+        6,
+        seed: (database) async {
+          Future<void> tag(int i, String title, List<String> genres) =>
+              database.libraryDao.upsertSongs([
+                SongsTableCompanion.insert(
+                  id: 'song-$i',
+                  title: title,
+                  genres: Value<List<String>?>(genres),
+                ),
+              ]);
+          await tag(0, 'Song 0', ['Jazz']);
+          await tag(1, 'Song 1', ['Jazz', 'Blues']);
+          await tag(2, 'Song 2', ['Hip-Hop', 'Rock']);
+          await tag(3, 'Song 3', ['World Music']);
+          await tag(4, 'Song 4', ['Jazz']);
+          await tag(5, 'Rock', ['Pop']);
+        },
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      return (handler, database);
+    }
+
+    final jazz = <String>['song-0', 'song-1', 'song-4'];
+
+    for (final query in ['jazz', 'Jazz Music', 'JAZZ']) {
+      test(
+        '"$query" plays the genre shuffled through the normal queue',
+        () async {
+          final (handler, _) = await genreHandler();
+          await handler.prepareFromSearch(query);
+          await settleQueue(handler);
+          expect(
+            handler.snapshot.queueSongIds,
+            List<String>.of(jazz)..shuffle(Random(7)),
+          );
+        },
+      );
+    }
+
+    test('a spelling variant of the name matches by its key', () async {
+      final (handler, _) = await genreHandler();
+      await handler.prepareFromSearch('hip hop');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, ['song-2']);
+    });
+
+    test('a genre named with "music" matches as spoken', () async {
+      final (handler, _) = await genreHandler();
+      await handler.prepareFromSearch('world music');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, ['song-3']);
+    });
+
+    test('an exact song title still wins over a genre of that name', () async {
+      final (handler, _) = await genreHandler();
+      await handler.prepareFromSearch('rock');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, ['song-5']);
+    });
+
+    test('a genre extra plays the genre even with an empty query', () async {
+      final (handler, _) = await genreHandler();
+      await handler.prepareFromSearch('', {
+        AndroidAutoConstants.mediaFocusKey:
+            AndroidAutoConstants.mediaFocusGenre,
+        AndroidAutoConstants.mediaGenreKey: 'Jazz',
+      });
+      await settleQueue(handler);
+      expect(
+        handler.snapshot.queueSongIds,
+        List<String>.of(jazz)..shuffle(Random(7)),
+      );
+    });
+
+    test('a failing genre lookup falls back to the normal search', () async {
+      final (handler, database) = await genreHandler();
+      await database.customStatement('DROP TABLE song_genre_index');
+      // Not an exact title, so the genre lookup runs (and throws) first.
+      await handler.prepareFromSearch('Song');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, isNotEmpty);
+    });
+
+    test('a spoken name that is not a genre keeps the normal search', () async {
+      final (handler, _) = await genreHandler();
+      await handler.prepareFromSearch('Song 3');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, ['song-3']);
+    });
   });
 
   group('Android Auto collections', () {

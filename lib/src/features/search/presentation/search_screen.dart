@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/database/daos/library_dao.dart' show GenreSummary;
 import 'package:navis/src/database/navis_database.dart' show PlaylistsTableData;
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
@@ -418,6 +419,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             collections.stations.isNotEmpty &&
             (filter == null || filter == SearchResultType.radio);
         final hasResults =
+            state.genres.isNotEmpty ||
             data.artists.isNotEmpty ||
             data.albums.isNotEmpty ||
             data.songs.isNotEmpty ||
@@ -463,6 +465,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               .select(SearchResultType.artists);
                         }
                       },
+                    ),
+                  if (state.genres.isNotEmpty)
+                    _GenreResultsSection(
+                      genres: state.genres,
+                      desktopMode: desktopMode,
                     ),
                   if (data.albums.isNotEmpty)
                     _AlbumResultsSection(
@@ -904,6 +911,44 @@ Widget _collectionRow({
         trailing: trailing,
         onTap: onTap,
       );
+
+/// Genres matching the query, from the local index (so they work offline).
+class _GenreResultsSection extends ConsumerWidget {
+  const new({required this.genres, this.desktopMode = false});
+
+  final List<GenreSummary> genres;
+  final bool desktopMode;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        NavisSectionHeader(
+          title: l10n.searchGenresSection,
+          compact: true,
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+        ),
+        for (final genre in genres)
+          _collectionRow(
+            desktopMode: desktopMode,
+            key: ValueKey<String>('searchGenre-${genre.key}'),
+            leading: const SizedBox(
+              width: 40,
+              height: 40,
+              child: Icon(Icons.sell_outlined),
+            ),
+            title: genre.name,
+            subtitle:
+                '${l10n.playlistsSongCount(genre.songCount)} • '
+                '${l10n.artistCardAlbumCount(genre.albumCount)}',
+            onTap: () => NavService.openGenreDetail(context, ref, genre.key),
+          ),
+      ],
+    );
+  }
+}
 
 class _PlaylistResultsSection extends ConsumerWidget {
   const new({
