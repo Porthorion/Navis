@@ -1,3 +1,7 @@
+// Release scripts run on the Linux release host and use its GNU tool paths.
+@TestOn('linux')
+library;
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
