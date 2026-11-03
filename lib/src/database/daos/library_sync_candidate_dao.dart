@@ -876,6 +876,7 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
       replayGainAlbumGain: song.replayGainAlbumGain,
       replayGainTrackPeak: song.replayGainTrackPeak,
       replayGainAlbumPeak: song.replayGainAlbumPeak,
+      genres: song.genres,
     );
   }
 }

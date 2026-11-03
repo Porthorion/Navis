@@ -17,6 +17,64 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
+  test(
+    '108 to 109 adds song genres and the genre index, keeping every row',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('navis_v109_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'song-1', title: 'One'),
+        SongsTableCompanion.insert(id: 'song-2', title: 'Two'),
+      ]);
+      await seed.appSettingsDao.setLastFullSyncAppBuild('58');
+      await seed.cacheSystemStateDao.markVersion(1005);
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute('DROP TABLE song_genre_index');
+        raw.execute('ALTER TABLE songs DROP COLUMN genres');
+        raw.execute(
+          'ALTER TABLE library_sync_candidate_songs DROP COLUMN genres',
+        );
+        raw.execute('PRAGMA user_version = 108');
+      } finally {
+        raw.close();
+      }
+
+      final upgraded = createTestDatabase(file: file);
+      addTearDown(upgraded.close);
+      Future<Set<String>> columns(String table) async =>
+          (await upgraded.customSelect('PRAGMA table_info($table)').get())
+              .map((row) => row.read<String>('name'))
+              .toSet();
+      expect(await columns('songs'), contains('genres'));
+      expect(await columns('library_sync_candidate_songs'), contains('genres'));
+      expect(
+        await columns('song_genre_index'),
+        containsAll(<String>['song_id', 'genre_key', 'name']),
+      );
+      final songs = await upgraded.select(upgraded.songsTable).get();
+      expect(
+        songs.map((song) => song.id),
+        unorderedEquals(['song-1', 'song-2']),
+      );
+      expect(songs.map((song) => song.genres), everyElement(isNull));
+      // The upgrade neither resets the cache nor stamps the sync model: the
+      // startup repair gate sees the old model and runs one full sync.
+      expect(await upgraded.appSettingsDao.getLastFullSyncAppBuild(), '58');
+      expect(await upgraded.cacheSystemStateDao.getVersion(), 1005);
+      expect(
+        (await upgraded.customSelect('PRAGMA user_version').getSingle())
+            .read<int>('user_version'),
+        NavisDatabase.currentSchemaVersion,
+      );
+      await upgraded.from108To109(Migrator(upgraded));
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('106 to 107 adds prefetch next on mobile data, default true', () async {
     final directory = await Directory.systemTemp.createTemp('navis_v107_');
     addTearDown(() => directory.delete(recursive: true));
@@ -43,7 +101,7 @@ void main() {
     expect(
       (await upgraded.customSelect('PRAGMA user_version').getSingle())
           .read<int>('user_version'),
-      107,
+      NavisDatabase.currentSchemaVersion,
     );
     await upgraded.from106To107(Migrator(upgraded));
   }, skip: !sqliteAvailable);

@@ -14,6 +14,36 @@
     },
     {
       "kind": "declaration",
+      "path": "lib/src/database/daos/library_dao.dart",
+      "name": "LibraryDao.getAlbumsByGenre",
+      "reason": "pending: the Genres UI (issue #233 phase B) is its production caller; remove this entry in that change"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/database/daos/library_dao.dart",
+      "name": "LibraryDao.getGenre",
+      "reason": "pending: the Genres UI (issue #233 phase B) is its production caller; remove this entry in that change"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/database/daos/library_dao.dart",
+      "name": "LibraryDao.getGenres",
+      "reason": "pending: the Genres UI (issue #233 phase B) is its production caller; remove this entry in that change"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/database/daos/library_dao.dart",
+      "name": "LibraryDao.getSongsByGenre",
+      "reason": "pending: the Genres UI (issue #233 phase B) is its production caller; remove this entry in that change"
+    },
+    {
+      "kind": "declaration",
+      "path": "lib/src/database/daos/library_dao.dart",
+      "name": "LibraryDao.searchGenres",
+      "reason": "pending: the Genres UI (issue #233 phase B) is its production caller; remove this entry in that change"
+    },
+    {
+      "kind": "declaration",
       "path": "lib/src/features/library/domain/library_sync_request.dart",
       "name": "SyncRunOrigin.invariant",
       "reason": "deliberate: enum index retained for decoding historical sync diagnostics rows in library_sync_dao.dart"

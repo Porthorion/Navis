@@ -454,20 +454,38 @@ Listen Together / Voyage is retired for now. There are no active Listen
 Together UI entry points and no active Voyage HTTP, websocket, session,
 playback sync, or queue coordination paths.
 
-#### Genres are not a Navis concept
+#### Genres
 
-By product decision (2026-09-30) Navis has no genre page, route, Library
-section, Home shelf, search filter, Android Auto node, sync/scan input,
-catalog-change signal, recommendation input or diagnostics field. Server
-`genre` fields are ignored when albums are decoded, so a genre-only server edit
-is not a catalog change. Schema 89 dropped the `genres` table, the
-`albums.genre`, `library_sync_candidate_albums.genre` and
-`library_sync_state.last_genres_synced_at` columns, and purged retired
-`@genres` sync work and genre-target run history (`target_kind = 6`).
-`test/src/architecture/no_genre_feature_test.dart` fails on any `genre`
-mention in `lib/` outside generated files, historical changelog data and that
-migration step. An Android Auto genre voice intent is an ordinary raw-query
-search.
+Genre browsing returned in 1.5.2 (product decision 2026-11-03), after the
+2026-09-30 removal (schema 89). Each song's genres come from the OpenSubsonic
+`genres: [{name}]` list, falling back to the legacy `genre` string as one tag;
+`Song.genres` holds the resolved list. Names are never split on punctuation.
+`genreKey` (`lib/src/utils/genre_key.dart`) is the single merge key (lowercase,
+spaces, hyphens and underscores removed, empty keys dropped) shared by the
+song model, the index writer and every query, so "Hip Hop", "hip-hop" and
+"Hip_Hop" are one genre while "R&B" and "RnB" stay apart. Albums carry no
+genre; an album belongs to every genre any of its songs has.
+
+Storage (schema 109): `songs.genres` and `library_sync_candidate_songs.genres`
+hold the JSON list of raw server names (deduped by key), null until a row is
+synced after the upgrade. The derived `song_genre_index` (`song_id`,
+`genre_key`, `name`, `source`) is maintained lazily like `song_search_text`
+and `album_artist_index`: a row is current only while `source` equals the
+song's `genres` text plus `genreKeyVersion`, `LibraryDao.refreshSongGenreIndex`
+repairs missing or stale rows (it also runs at the end of every sync and
+before each genre query), only catalog songs (not provisional, not external)
+are indexed, and `clearLibraryData()` empties it. Promotion copies `genres`;
+`LibraryCatalogDiffAnalyzer.songNeedsApply` compares the sorted lists, so a
+reordering is not a change but a retag is. Display names are the most common
+spelling in the library. The genre queries (`getGenres`, `searchGenres`,
+`getGenre`, `getAlbumsByGenre`, `getSongsByGenre`) read the local database
+only and take a `downloadedOnly` filter.
+
+Existing libraries gain genres through `currentLibrarySyncModelVersion`
+('59'): the startup check runs one non-destructive forced full sync, deferred
+on mobile data, and stamps the version after promotion. Permanent downloads
+and the rolling cache are untouched. An Android Auto genre voice intent is
+still an ordinary raw-query search; there is no Android Auto genre node.
 
 ### Import Guidelines
 
@@ -6322,8 +6340,8 @@ collaborators does not read locale settings or open the database for localizatio
     of catalog execution. The retired per-server capabilities-JSON timestamp
     is no longer read or written. The catalog circuit breaker does not
     suppress these independent endpoints.
-    Genres are not synchronized: there is no genre target, endpoint or stored
-    genre data (see "Genres are not a Navis concept").
+    Genres are not a sync target: they arrive as a field of the song rows the
+    catalog sync already fetches (see "Genres").
     Starred reconciliation
     excludes queued local star/unstar actions until they reach the server.
     Favorites, ratings, artwork revisions, and identity reference updates

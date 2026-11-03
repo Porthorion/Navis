@@ -241,7 +241,20 @@ class LibraryCatalogDiffAnalyzer {
         existing.replayGainTrackGain != candidate.replayGainTrackGain ||
         existing.replayGainAlbumGain != candidate.replayGainAlbumGain ||
         existing.replayGainTrackPeak != candidate.replayGainTrackPeak ||
-        existing.replayGainAlbumPeak != candidate.replayGainAlbumPeak;
+        existing.replayGainAlbumPeak != candidate.replayGainAlbumPeak ||
+        !_sameGenres(existing.genres ?? const [], candidate.genres ?? const []);
+  }
+
+  /// Genre lists are equal when they hold the same names in any order, so a
+  /// server that merely reorders tags is not a change but a retag is.
+  static bool _sameGenres(List<String> left, List<String> right) {
+    if (left.length != right.length) return false;
+    final sortedLeft = [...left]..sort();
+    final sortedRight = [...right]..sort();
+    for (var index = 0; index < sortedLeft.length; index++) {
+      if (sortedLeft[index] != sortedRight[index]) return false;
+    }
+    return true;
   }
 
   static bool _artistListsEqual(List<Object> left, List<Object> right) {

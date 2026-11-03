@@ -55,6 +55,45 @@ void main() {
     expect(changed.map((song) => song.id), <String>['song-1']);
   });
 
+  test(
+    'a genre-only change marks the song changed; reordering does not',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      await _seedMatchingCatalog(database, songCount: 2);
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        _song('song-0').copyWith(genres: const Value(['Rock', 'Jazz'])),
+        _song('song-1').copyWith(genres: const Value(['Rock'])),
+      ]);
+      // The candidate repeats song-0 reordered and retags song-1.
+      await database.librarySyncCandidateDao.replaceSongsForAlbums(
+        serverId: 1,
+        generation: 2,
+        songsByAlbum: <String, List<SongsTableCompanion>>{
+          'album-1': [
+            _song('song-0').copyWith(genres: const Value(['Jazz', 'Rock'])),
+            _song('song-1').copyWith(genres: const Value(['Rock', 'Blues'])),
+          ],
+        },
+      );
+
+      final stats = await LibraryCatalogDiffAnalyzer(database)
+          .analyze(serverId: 1, generation: 2);
+
+      expect(stats.songChangedCount, 1);
+      expect(stats.songUnchangedCount, 1);
+      final changed = await database.librarySyncCandidateDao
+          .getChangedSongsPage(
+            serverId: 1,
+            generation: 2,
+            afterId: '',
+            limit: 10,
+          );
+      expect(changed.map((song) => song.id), <String>['song-1']);
+      expect(changed.single.genres, <String>['Rock', 'Blues']);
+    },
+  );
+
   test('local star and rating fields do not trigger catalog writes', () async {
     final database = createTestDatabase();
     addTearDown(database.close);

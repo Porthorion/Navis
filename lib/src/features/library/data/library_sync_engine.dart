@@ -31,6 +31,7 @@ import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/utils/genre_key.dart';
 
 typedef LibrarySyncProgressCallback = void Function(LibrarySyncState state);
 
@@ -1632,6 +1633,12 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
           onProgress: onProgress,
         );
       }
+
+      // Songs were written or promoted: rebuild the derived genre index now
+      // so the first Genres page read does not pay for it. Readers repair it
+      // on demand too, and a failure is logged, not thrown.
+      await _database.libraryDao.refreshSongGenreIndex();
+      metrics.addDbWriteBatch();
 
       final catalogWasPromoted = state.mode == LibrarySyncMode.forceFull;
       if (!catalogWasPromoted) {
@@ -3402,6 +3409,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
               replayGainAlbumGain: Value(song.replayGainAlbumGain),
               replayGainTrackPeak: Value(song.replayGainTrackPeak),
               replayGainAlbumPeak: Value(song.replayGainAlbumPeak),
+              genres: Value(song.genres),
             ),
         ]);
       }
@@ -6067,6 +6075,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             replayGainAlbumGain: Value(row.replayGain?.albumGain),
             replayGainTrackPeak: Value(row.replayGain?.trackPeak),
             replayGainAlbumPeak: Value(row.replayGain?.albumPeak),
+            genres: Value(resolveGenres(row.genres)),
             catalogGeneration: catalogGeneration == null
                 ? const Value.absent()
                 : Value(catalogGeneration),
