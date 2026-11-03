@@ -91,7 +91,7 @@ List<Object?> _commonOverrides({
   ),
   subsonicApiProvider.overrideWithValue(null),
   librarySyncControllerProvider.overrideWith(_IdleSync.new),
-  genresPendingSyncProvider.overrideWith((ref) async => pendingSync),
+  genresPendingSyncProvider.overrideWith((ref) => Stream.value(pendingSync)),
   genreListProvider.overrideWith((ref, request) async {
     _requests.add(request);
     final query = request.query.toLowerCase();
@@ -119,8 +119,12 @@ Widget _app(List<Object?> overrides, {String? initial}) {
         routes: <RouteBase>[
           GoRoute(
             path: AppRoutes.genreSegment,
-            builder: (context, state) =>
-                GenreDetailScreen(genreKey: state.pathParameters['key']!),
+            builder: (context, state) => GenreDetailScreen(
+              genreKey: state.pathParameters['key']!,
+              showSongs:
+                  state.uri.queryParameters[AppRoutes.genreTabParam] ==
+                  AppRoutes.genreTabSongs,
+            ),
           ),
         ],
       ),
@@ -279,6 +283,7 @@ void main() {
     Future<_QueueSpy> pumpDetail(
       WidgetTester tester, {
       String key = 'hiphop',
+      bool songsTab = false,
       bool exists = true,
       List<SongsTableData> pageSongs = const [],
     }) async {
@@ -294,7 +299,7 @@ void main() {
           }),
           genreAlbumsProvider.overrideWith((ref, request) async => const []),
           genreSongsProvider.overrideWith((ref, request) async => pageSongs),
-        ], initial: AppRoutes.genre(key)),
+        ], initial: AppRoutes.genre(key, songs: songsTab)),
       );
       await tester.pumpAndSettle();
       return queue;
@@ -308,6 +313,26 @@ void main() {
       expect(find.text('12 songs • 3 albums'), findsOneWidget);
       expect(
         find.byKey(const ValueKey<String>('genrePlayAction')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('can open on the Songs tab', (tester) async {
+      await pumpDetail(tester, songsTab: true);
+      expect(
+        tester
+            .widget<TabBar>(
+              find.descendant(
+                of: find.byType(GenreDetailScreen),
+                matching: find.byType(TabBar),
+              ),
+            )
+            .controller!
+            .index,
+        1,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('genreSongsSortControl')),
         findsOneWidget,
       );
     });

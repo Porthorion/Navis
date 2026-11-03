@@ -335,6 +335,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                           'genre:${state.pathParameters['key']!}',
                         ),
                         genreKey: state.pathParameters['key']!,
+                        showSongs:
+                            state.uri.queryParameters[AppRoutes
+                                .genreTabParam] ==
+                            AppRoutes.genreTabSongs,
                       ),
                     ),
                   ),

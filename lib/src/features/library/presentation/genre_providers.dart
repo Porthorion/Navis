@@ -38,15 +38,17 @@ final genreListProvider = FutureProvider.autoDispose
     });
 
 /// Whether the library has not finished the sync that reads genre tags yet,
-/// so an empty Genres page means "not yet" rather than "none".
-final genresPendingSyncProvider = FutureProvider.autoDispose<bool>((ref) async {
-  ref.watch(genreDataEpochProvider);
-  final built = await ref
+/// so an empty Genres page means "not yet" rather than "none". Watches the
+/// settings row, because the sync model is stamped just after the sync run
+/// reports it is complete.
+final genresPendingSyncProvider = StreamProvider.autoDispose<bool>(
+  (ref) => ref
       .watch(navisDatabaseProvider)
       .appSettingsDao
-      .getLastFullSyncAppBuild();
-  return built != currentLibrarySyncModelVersion;
-});
+      .watchSettings()
+      .map((row) => row?.lastFullSyncAppBuild != currentLibrarySyncModelVersion)
+      .distinct(),
+);
 
 /// One genre with its unfiltered counts, for the detail header.
 final genreSummaryProvider = FutureProvider.autoDispose

@@ -129,6 +129,7 @@ void main() {
         raw.execute(
           'ALTER TABLE library_sync_candidate_songs DROP COLUMN genres',
         );
+        raw.execute('ALTER TABLE app_settings DROP COLUMN show_genres_page');
         raw.execute('PRAGMA user_version = 107');
       } finally {
         raw.close();
@@ -153,6 +154,11 @@ void main() {
       expect(await upgraded.libraryDao.getAlbumById('album-1'), isNotNull);
       expect(await upgraded.appSettingsDao.getLastFullSyncAppBuild(), '58');
       expect(await upgraded.cacheSystemStateDao.getVersion(), 1005);
+      // The existing settings row gains the Genres page switch, on.
+      expect(
+        (await upgraded.appSettingsDao.getSettings())?.showGenresPage,
+        isTrue,
+      );
       // Untagged rows list nothing; once a sync tags them they are indexed.
       expect(await upgraded.libraryDao.getGenres(), isEmpty);
       await upgraded.libraryDao.upsertSongs([

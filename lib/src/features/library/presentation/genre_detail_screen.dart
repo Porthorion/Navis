@@ -38,10 +38,13 @@ const int _songPageSize = 100;
 /// search, sort and downloaded-only filter, plus Play and Shuffle for all of
 /// the genre's songs.
 class GenreDetailScreen extends ConsumerStatefulWidget {
-  const new({required this.genreKey, super.key});
+  const new({required this.genreKey, this.showSongs = false, super.key});
 
   /// The genre's merge key (`genreKey`).
   final String genreKey;
+
+  /// Opens on the Songs tab instead of Albums.
+  final bool showSongs;
 
   @override
   ConsumerState<GenreDetailScreen> createState() => _GenreDetailScreenState();
@@ -49,7 +52,11 @@ class GenreDetailScreen extends ConsumerStatefulWidget {
 
 class _GenreDetailScreenState extends ConsumerState<GenreDetailScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 2, vsync: this);
+  late final TabController _tabs = TabController(
+    length: 2,
+    vsync: this,
+    initialIndex: widget.showSongs ? 1 : 0,
+  );
 
   @override
   void dispose() {

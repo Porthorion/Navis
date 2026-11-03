@@ -114,8 +114,16 @@ abstract final class AppRoutes {
   static String artistTopTracks(String id) =>
       '$library/artists/${_encode(id)}/$artistTopTracksSegment';
 
-  /// The page of one genre; [key] is its merge key (`genreKey`).
-  static String genre(String key) => '$library/genres/${_encode(key)}';
+  /// Query parameter and value that open a genre page on its Songs tab.
+  static const genreTabParam = 'tab';
+  static const genreTabSongs = 'songs';
+
+  /// The page of one genre; [key] is its merge key (`genreKey`). It opens on
+  /// the Albums tab, or the Songs tab when [songs] is set.
+  static String genre(String key, {bool songs = false}) => _withOptionalQuery(
+    '$library/genres/${_encode(key)}',
+    <String, String?>{genreTabParam: songs ? genreTabSongs : null},
+  );
 
   /// Query parameter naming the Appearance group to open and highlight.
   static const appearanceFocusParam = 'focus';
