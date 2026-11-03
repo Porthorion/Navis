@@ -202,7 +202,7 @@ extension _NavisAndroidAuto on NavisAudioHandler {
       final songs = await _libraryDao.getSongsByGenre(candidate);
       if (songs.isEmpty) continue;
       final shuffled = List<SongsTableData>.of(songs)..shuffle(_shuffleRandom);
-      return _loadAutoRows(
+      return await _loadAutoRows(
         shuffled,
         originalOrder: songs.map((song) => song.id).toList(growable: false),
         autoPlay: autoPlay,

@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -19,6 +20,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/library_section_navigation_scope.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
@@ -122,7 +124,11 @@ List<Object?> _commonOverrides({
   }),
 ];
 
-Widget _app(List<Object?> overrides, {String? initial}) {
+Widget _app(
+  List<Object?> overrides, {
+  String? initial,
+  AdaptiveContext? adaptiveContext,
+}) {
   final router = GoRouter(
     initialLocation: initial ?? AppRoutes.library,
     routes: <RouteBase>[
@@ -150,7 +156,12 @@ Widget _app(List<Object?> overrides, {String? initial}) {
         sectionsFit: ValueNotifier<bool>(true),
         child: MediaQuery(
           data: MediaQuery.of(context).copyWith(disableAnimations: true),
-          child: child!,
+          child: adaptiveContext == null
+              ? child!
+              : AdaptiveContextScope(
+                  adaptiveContext: adaptiveContext,
+                  child: child!,
+                ),
         ),
       ),
       routerConfig: router,
@@ -334,6 +345,30 @@ void main() {
       );
     });
 
+    testWidgets('is framed like other detail pages on a desktop window', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1280, 800));
+      await tester.pumpWidget(
+        _app(
+          <Object?>[
+            ..._commonOverrides(genres: const [_hipHop]),
+            genreSummaryProvider.overrideWith((ref, k) async => _hipHop),
+            genreAlbumsProvider.overrideWith((ref, request) async => const []),
+            genreSongsProvider.overrideWith((ref, request) async => const []),
+          ],
+          initial: AppRoutes.genre('hiphop'),
+          adaptiveContext: resolveAdaptiveContext(
+            desktopRuntime: true,
+            viewportSize: const Size(1280, 800),
+            safePadding: EdgeInsets.zero,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(DesktopFrame), findsOneWidget);
+    });
+
     testWidgets('can open on the Songs tab', (tester) async {
       await pumpDetail(tester, songsTab: true);
       expect(
@@ -498,14 +533,14 @@ void main() {
           id: 'jz-1',
           title: 'Blue Song',
           albumId: const Value('jz-al1'),
-          artistName: const Value('Zed'),
+          artistName: const Value('Abe'),
           genres: Value<List<String>?>(const ['Jazz']),
         ),
         SongsTableCompanion.insert(
           id: 'jz-2',
           title: 'Alpha Song',
           albumId: const Value('jz-al2'),
-          artistName: const Value('Abe'),
+          artistName: const Value('Zed'),
           genres: Value<List<String>?>(const ['Jazz']),
         ),
       ]);
@@ -596,9 +631,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Artist').last);
       await settleDb(tester);
-      // Abe (Alpha Song) still sorts first; title order alone would too, so
-      // check the sort reached the query through the reversed case below.
-      expect(top(tester, alpha), lessThan(top(tester, blue)));
+      // By artist, Abe's Blue Song now leads Zed's Alpha Song.
+      expect(top(tester, blue), lessThan(top(tester, alpha)));
 
       await typeSearch(tester, 'blue');
       await tester.pump(const Duration(milliseconds: 300));

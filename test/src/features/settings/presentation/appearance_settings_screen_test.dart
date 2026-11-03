@@ -223,6 +223,31 @@ void main() {
       },
     );
 
+    testWidgets('works on the desktop layout too', (tester) async {
+      setAdaptiveTestViewport(tester, const Size(1280, 800));
+      await pumpAppearance(
+        tester,
+        focusLibraryPages: true,
+        highlights: const <SetupHighlight>{SetupHighlight.genresPage},
+        settle: false,
+        adaptiveContext: resolveAdaptiveContext(
+          desktopRuntime: true,
+          viewportSize: const Size(1280, 800),
+          safePadding: EdgeInsets.zero,
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(genresRow, findsOneWidget);
+      final rect = tester.getRect(genresRow);
+      expect(rect.top, greaterThanOrEqualTo(0));
+      expect(rect.bottom, lessThanOrEqualTo(800));
+      expect(genresRow.hitTestable(), findsOneWidget);
+      final colors = Theme.of(tester.element(genresRow)).colorScheme;
+      expect(material(tester).color, colors.primary.withValues(alpha: 0.22));
+      await tester.pump(const Duration(seconds: 3));
+    });
+
     testWidgets('without the link the group stays closed', (tester) async {
       setAdaptiveTestViewport(tester, const Size(390, 844));
       await pumpAppearance(tester);
