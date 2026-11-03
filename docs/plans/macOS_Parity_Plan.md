@@ -1,0 +1,69 @@
+# macOS parity plan
+
+Goal (owner, 2026-11-04): macOS is a complete Navis desktop client. All audio
+playback works, caching keeps the permanent download → rolling cache → stream
+order, every Linux/Windows desktop feature works as well or better, and the
+system integration matches popular Mac players (Now Playing in Control Center
+and the menu bar with artwork, metadata and scrubbing; media keys; AirPods and
+headphone controls; keyboard shortcuts; Dock menu). iOS is not a target yet,
+but work that also serves iOS (AVFoundation/MediaPlayer, `audio_session`,
+Darwin plugins) is preferred.
+
+This file is the durable ledger for the work. Each item gets its own branch
+and pull request against `dev`; update the item's row when its state changes.
+
+## Inventory (dev at `cd493f95`, 2026-11-04)
+
+Sources: every `Platform.is*` / `defaultTargetPlatform` branch in `lib/`, the
+`macos/`, `linux/` and `windows/` runners, `third_party/`, `pubspec.yaml`, and a
+`flutter build macos --release` on macOS 27.2 (Apple silicon), which succeeds.
+
+| Feature | Linux / Windows | macOS today | Evidence |
+|---|---|---|---|
+| Audio backend | media_kit + libmpv (Linux system bundle, Windows pinned full bundle `third_party/media_kit_libs_windows_audio`) | media_kit + `media_kit_libs_macos_audio` 1.1.4 (mpv 0.36, Mbed TLS, no libavfilter). Debug builds skip media_kit and use just_audio's AVFoundation player unless `NAVIS_ENABLE_MEDIA_KIT_DEBUG=true` | `lib/main.dart:265-297,536-538`, `pubspec.yaml:65,70` |
+| Stream TLS verification | `tls-verify=yes`, system store | **off**: the stream URL carries the auth token, so a man in the middle can read it | `lib/main.dart:281`, `docs/architecture.md:4832-4840` |
+| Equalizer | libavfilter chain | **unavailable** (bundle lacks filters) | `lib/src/features/equalizer/data/eq_platform_support.dart:12-17` |
+| Fast seeking (transcode offset) | yes | **off** (platform gate) | `lib/src/features/player/data/navis_audio_handler_recovery.dart:395-399`, `lib/src/features/settings/presentation/playback_settings_screen.dart:264-266` |
+| Speed / pitch, gapless, crossfade, ReplayGain | yes | yes in release; speed/pitch absent in debug | `lib/src/features/player/presentation/playback_adjustment_controller.dart:17-21` |
+| System media controls | Linux: app-owned MPRIS bridge. Windows: app-owned SMTC adapter | `audio_service` Darwin plugin (`MPNowPlayingInfoCenter`, `MPRemoteCommandCenter`); **never runtime-verified** | `lib/src/features/player/data/navis_audio_handler_bootstrap.dart:164-211`, `docs/development/technical-overview.md:11,53` |
+| System media artwork | local file from `_artCache` | `audio_service` fetches `artUri` through the guarded cache manager; unverified | `lib/src/features/player/data/navis_audio_handler.dart:155-161`, `navis_audio_handler_bootstrap.dart:193` |
+| Audio session | not used | `AudioSessionConfiguration.music()` | `lib/src/features/player/data/navis_audio_handler_support.dart:12-13` |
+| Window lifecycle | close persists state and quits | same, and `applicationShouldTerminateAfterLastWindowClosed = true`: closing the window stops playback | `lib/src/routing/desktop_window_controller.dart:582-594`, `macos/Runner/AppDelegate.swift:6-8` |
+| Dock menu / app menu playback commands | n/a | **none** (stock `AppDelegate`, stock `MainMenu.xib`) | `macos/Runner/AppDelegate.swift` |
+| Keyboard shortcuts | Ctrl bindings | Cmd bindings, Cmd+[ / Cmd+] (in-window only, same as other platforms) | `lib/src/routing/desktop_commands.dart:53-61,153-166` |
+| Diagnostics API (runtime loop) | profile builds | **excluded** by the platform list; launch scripts hard-code `-d linux` | `lib/main.dart:526-531`, `tool/sync_diagnostics.sh:243` |
+| Self-update | package / portable / installer modes | `macosBundle`: detached shell script replaces the `.app`. Unverified; `tool/macos_notarize.sh` re-signs with `--deep` and no `--entitlements`, so the shipped app is not sandboxed while `flutter build` output is | `lib/src/features/settings/data/update_install_mode.dart:46-58`, `update_service.dart`, `tool/macos_notarize.sh:87-93` |
+| LGPL libmpv/FFmpeg notice | shown | **missing**, although the bundle ships libmpv | `lib/src/app_licenses.dart:39-41` |
+| Cover-art cache store | flutter_cache_manager JSON store | sqflite store; 3.4.5 hangs lookups after a failed open and crashes on `close()` before open completes | `lib/src/common_widgets/cover_art_cache_manager.dart:1220-1228` |
+| Xcode project | n/a | `flutter build macos` rewrites `project.pbxproj` and the scheme for the Swift Package Manager plugin migration on every build | build of `cd493f95` |
+| Equal everywhere (no gap) | tray icon, single instance, URL scheme, notifications, launch at login, output-device UI, Discord RPC: absent on all desktops | same | survey |
+
+## Items
+
+Risk follows `~/.claude/CLAUDE.md`: playback, file writes, auth, updaters and
+native lifecycle are risky (Opus plan → Sonnet build → fresh Sonnet review,
+plus Opus review for auth/file writes).
+
+| # | Item | Risk | iOS carry-over | State | Branch / PR |
+|---|---|---|---|---|---|
+| M0 | Diagnostics API on macOS profile builds (`_syncDiagnosticsRuntimeEnabled`, launch scripts `-d macos`, profile entitlement `network.server` already present). Prerequisite for every runtime check below | risky (auth surface, profile only) | no | triaged | – |
+| M1 | Runtime-verify Now Playing and remote commands through `audio_service`: metadata, artwork, position/duration/rate, scrubbing (`changePlaybackPosition`), play/pause/next/previous/seek from media keys, Control Center, AirPods. Fix what fails, then decide whether an app-owned Darwin bridge (like MPRIS/SMTC) is needed | risky (playback) | yes (same MediaPlayer APIs) | triaged | – |
+| M2 | Replace the macOS libmpv bundle with a pinned full build (like Windows): system TLS verification, libavfilter equalizer, then lift the macOS gates for EQ and fast seeking. Interim if M2 is slow: `tls-verify=yes` with `tls-ca-file=/etc/ssl/cert.pem`, runtime-proven against a bad certificate | risky (playback, security) | no (iOS uses AVFoundation) | triaged | – |
+| M3 | Mac app lifecycle: keep running when the window closes, reopen on Dock click, Dock menu (play/pause, next, previous, now playing), Controls menu in the menu bar wired to `desktop_commands` (Flutter `PlatformMenuBar`) | risky (window/close lifecycle) | partly (commands) | triaged | – |
+| M4 | Self-update on macOS: prove download → replace → relaunch on a notarized build; settle signing entitlements (sandbox or not) so `flutter build` and the shipped app match | risky (file writes, updater) | no | triaged | – |
+| M5 | Register the LGPL libmpv/FFmpeg notice on macOS | low | no | triaged | – |
+| M6 | Harden the sqflite cover-art store against the 3.4.5 open/close bugs | risky (cache) | yes | triaged | – |
+| M7 | Commit the Swift Package Manager migration of the macOS Xcode project so builds stop dirtying the tree | low | yes (iOS project too) | triaged | – |
+| M8 | Docs: macOS status in `README.md`, `docs/development/technical-overview.md`, `docs/architecture.md`, macOS testing playbook | low | – | after M1–M3 | – |
+
+Order: M0 first (enables runtime evidence), then M1 and M2 (playback core),
+M3, M4, with M5 and M7 as small parallel PRs and M8 last.
+
+## Open questions
+
+- M2: is there a maintained full libmpv build for macOS arm64 + x86_64 with
+  libavfilter and a TLS stack that uses the system trust store (Secure
+  Transport/Network.framework, or OpenSSL with `/etc/ssl/cert.pem`)? If not,
+  Navis builds its own, as for Windows.
+- M3: owner preference on closing the window while playing. Default: keep
+  playing (Apple Music, Spotify, Doppler behaviour); quit with Cmd+Q.
