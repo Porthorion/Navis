@@ -2,8 +2,11 @@
 set -euo pipefail
 
 navis_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-navis_jdk="${ANDROID_STUDIO_JDK:-${JAVA_HOME:-${HOME}/android-studio/jbr}}"
-if command -v javac >/dev/null 2>&1; then
+navis_studio_jdk="${HOME}/android-studio/jbr"
+[[ "$(uname -s)" != Darwin ]] || navis_studio_jdk='/Applications/Android Studio.app/Contents/jbr/Contents/Home'
+navis_jdk="${ANDROID_STUDIO_JDK:-${JAVA_HOME:-${navis_studio_jdk}}}"
+# Probe that javac runs: macOS ships a /usr/bin/javac stub that fails without a JDK.
+if javac -version >/dev/null 2>&1; then
   navis_javac="$(command -v javac)"
   navis_java="$(command -v java)"
 else
