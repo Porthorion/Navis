@@ -5,6 +5,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
+import 'package:navis/src/common_widgets/genre_chips.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -71,6 +72,21 @@ Future<void> showSongContextMenu(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
+                    if (song.genres?.isNotEmpty ?? false) ...<Widget>[
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Padding(
+                          padding: const EdgeInsetsDirectional.fromSTEB(
+                            16,
+                            12,
+                            16,
+                            8,
+                          ),
+                          child: GenreChips(genres: song.genres!),
+                        ),
+                      ),
+                      const Divider(height: 1),
+                    ],
                     ListTile(
                       leading: const Icon(Icons.play_arrow_outlined),
                       title: Text(l10n.librarySongMenuPlayNow),

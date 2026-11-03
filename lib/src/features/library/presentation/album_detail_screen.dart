@@ -14,6 +14,7 @@ import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
+import 'package:navis/src/common_widgets/genre_chips.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -650,6 +651,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                           color: colors.onSurfaceVariant,
                                         ),
                                       ),
+                                      _genreChips(songs, top: 8),
                                       SizedBox(
                                         height: compactDesktop ? 16 : 20,
                                       ),
@@ -1008,6 +1010,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                         color: colors.onSurfaceVariant,
                                       ),
                                     ),
+                                    _genreChips(songs, top: 6),
                                   ],
                                 ),
                               ),
@@ -1282,6 +1285,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             ),
                           ),
                         ),
+                        _genreChips(songs, left: 16, right: 16, bottom: 8),
                         // Action buttons:
                         //   Left  — play (icon), shuffle (icon), Rate (text)
                         //   Right — like (icon), 3-dot context menu
@@ -1459,6 +1463,23 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       onLikedOnlyChanged: (value) => setState(() => _showLikedOnly = value),
       onDownloadedOnlyChanged: (value) =>
           setState(() => _showDownloadedOnly = value),
+    );
+  }
+
+  /// The album's genres, taken from its songs, as chips; nothing when the
+  /// songs carry no genres.
+  Widget _genreChips(
+    List<SongsTableData> songs, {
+    double top = 0,
+    double left = 0,
+    double right = 0,
+    double bottom = 0,
+  }) {
+    final genres = albumGenres(songs.map((song) => song.genres));
+    if (genres.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.fromLTRB(left, top, right, bottom),
+      child: GenreChips(genres: genres),
     );
   }
 
