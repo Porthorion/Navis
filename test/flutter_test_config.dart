@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -21,6 +22,10 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
       Directory(Directory.systemTemp.resolveSymbolicLinksSync()),
     );
   }
+  if (!Platform.isLinux) {
+    // Goldens are rendered on Linux; Linux CI and check.sh stay authoritative.
+    goldenFileComparator = _SkippingGoldenComparator(goldenFileComparator);
+  }
   await testMain();
 }
 
@@ -31,4 +36,20 @@ final class _CanonicalSystemTemp extends IOOverrides {
 
   @override
   Directory getSystemTempDirectory() => _temp;
+}
+
+class _SkippingGoldenComparator extends GoldenFileComparator {
+  new(this._inner);
+
+  final GoldenFileComparator _inner;
+
+  @override
+  Future<bool> compare(Uint8List imageBytes, Uri golden) async => true;
+
+  // Never overwrite the Linux-rendered goldens from another host.
+  @override
+  Future<void> update(Uri golden, Uint8List imageBytes) async {}
+
+  @override
+  Uri getTestUri(Uri key, int? version) => _inner.getTestUri(key, version);
 }
