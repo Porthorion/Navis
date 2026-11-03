@@ -468,7 +468,8 @@ genre; an album belongs to every genre any of its songs has.
 
 Storage (schema 109): `songs.genres` and `library_sync_candidate_songs.genres`
 hold the JSON list of raw server names (deduped by key), null until a row is
-synced after the upgrade. The derived `song_genre_index` (`song_id`,
+synced after the upgrade (the diff analyzer treats null as changed, so the
+post-upgrade full sync fills every song, untagged ones with `[]`). The derived `song_genre_index` (`song_id`,
 `genre_key`, `name`, `source`) is maintained lazily like `song_search_text`
 and `album_artist_index`: a row is current only while `source` equals the
 song's `genres` text plus `genreKeyVersion`, `LibraryDao.refreshSongGenreIndex`

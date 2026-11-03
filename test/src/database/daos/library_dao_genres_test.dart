@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
-import 'package:navis/src/utils/genre_key.dart';
 
 import '../../../helpers/test_database.dart';
 
@@ -217,7 +216,6 @@ void main() {
 
     expect(await ids(GenreSongSort.title), ['s1', 's2', 's3', 's7']);
     expect(await ids(GenreSongSort.title, limit: 2, offset: 1), ['s2', 's3']);
-    // Album order follows the library's album order, then track order.
     expect(await ids(GenreSongSort.album), ['s1', 's2', 's3', 's7']);
     expect(await database.libraryDao.getSongsByGenre('jazz'), hasLength(1));
     expect(await database.libraryDao.getSongsByGenre('nope'), isEmpty);
@@ -248,10 +246,70 @@ void main() {
     );
   }, skip: !sqliteAvailable);
 
+  test('album and song queries filter by query before paging', () async {
+    await seed();
+    await database.libraryDao.upsertSongs([
+      song('t1', 'album-1', ['Rock'], title: 'Zebra Crossing'),
+      song('t2', 'album-2', ['Rock'], title: 'Zebra Müller'),
+      song('t3', 'album-3', ['Rock'], title: 'Zebra Last'),
+    ]);
+
+    final songs = await database.libraryDao.getSongsByGenre(
+      'rock',
+      query: 'ZEBRA muller',
+    );
+    expect(songs.map((s) => s.id), ['t2']);
+    final firstPage = await database.libraryDao.getSongsByGenre(
+      'rock',
+      query: 'zebra',
+      limit: 2,
+    );
+    final secondPage = await database.libraryDao.getSongsByGenre(
+      'rock',
+      query: 'zebra',
+      limit: 2,
+      offset: 2,
+    );
+    expect(firstPage.map((s) => s.id), ['t1', 't3']);
+    expect(secondPage.map((s) => s.id), ['t2']);
+    expect(
+      await database.libraryDao.getSongsByGenre('rock', query: 'nope'),
+      isEmpty,
+    );
+
+    final albums = await database.libraryDao.getAlbumsByGenre(
+      'rock',
+      query: 'album 2',
+    );
+    expect(albums.map((a) => a.id), ['album-2']);
+    expect(
+      (await database.libraryDao.getAlbumsByGenre(
+        'rock',
+        query: 'ARTIST',
+      )).length,
+      3,
+    );
+    expect(
+      await database.libraryDao.getAlbumsByGenre('rock', query: 'nothing'),
+      isEmpty,
+    );
+  }, skip: !sqliteAvailable);
+
+  test('empty or separator-only keys match nothing', () async {
+    await seed();
+
+    expect(await database.libraryDao.getGenre(''), isNull);
+    expect(await database.libraryDao.getGenre('-'), isNull);
+    expect(await database.libraryDao.getSongsByGenre(''), isEmpty);
+    expect(await database.libraryDao.getAlbumsByGenre('_'), isEmpty);
+    // A display name works as a key too.
+    expect((await database.libraryDao.getGenre('Hip-Hop'))?.key, 'hiphop');
+  }, skip: !sqliteAvailable);
+
   test('getGenre reads one genre by key', () async {
     await seed();
 
-    final rock = await database.libraryDao.getGenre(genreKey('Rock'));
+    final rock = await database.libraryDao.getGenre('rock');
 
     expect(rock?.songCount, 3);
     expect(await database.libraryDao.getGenre('missing'), isNull);

@@ -94,6 +94,29 @@ void main() {
     },
   );
 
+  test('a song never synced for genres (null) is changed by any synced list, '
+      'including an empty one', () async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    await _seedMatchingCatalog(database, songCount: 2);
+    // The committed rows predate genres (null); the candidate is a fresh sync.
+    await database.librarySyncCandidateDao.replaceSongsForAlbums(
+      serverId: 1,
+      generation: 2,
+      songsByAlbum: <String, List<SongsTableCompanion>>{
+        'album-1': [
+          _song('song-0').copyWith(genres: const Value(<String>[])),
+          _song('song-1').copyWith(genres: const Value(['Rock'])),
+        ],
+      },
+    );
+
+    final stats = await LibraryCatalogDiffAnalyzer(database)
+        .analyze(serverId: 1, generation: 2);
+
+    expect(stats.songChangedCount, 2);
+  });
+
   test('local star and rating fields do not trigger catalog writes', () async {
     final database = createTestDatabase();
     addTearDown(database.close);

@@ -135,6 +135,41 @@ void main() {
   }, skip: !sqliteAvailable);
 
   test(
+    'upgrade: rows with null genres are filled by one forced sync',
+    () async {
+      api.bulkSongPages[0] = allSongs([
+        taggedSongs[0],
+        taggedSongs[1].copyWith(genres: const []),
+      ]);
+      final engine = serialDriftEngine(
+        api: api,
+        database: database,
+        repository: repository,
+      );
+      await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+      // Put the library back as the previous release left it.
+      await database.customStatement('UPDATE songs SET genres = NULL');
+      await database.customStatement('DELETE FROM song_genre_index');
+
+      api.bulkSongPages[0] = allSongs();
+      await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+
+      await expectGenresLanded();
+      // Untagged songs become [] too, so null never means "untagged" for long.
+      final untagged = await (database.select(
+        database.songsTable,
+      )..where((t) => t.id.equals('song-5'))).getSingle();
+      expect(untagged.genres, isNotNull);
+      expect(untagged.genres, isEmpty);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
     'a server retag reaches the song and the index on the next sync',
     () async {
       api.bulkSongPages[0] = allSongs();

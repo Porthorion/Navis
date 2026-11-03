@@ -18,7 +18,7 @@ import '../../../helpers/test_database.dart';
 
 void main() {
   test(
-    '108 to 109 adds song genres and the genre index, keeping every row',
+    'the genre step adds song genres and the genre index, keeping every row',
     () async {
       final directory = await Directory.systemTemp.createTemp('navis_v109_');
       addTearDown(() => directory.delete(recursive: true));
@@ -38,7 +38,9 @@ void main() {
         raw.execute(
           'ALTER TABLE library_sync_candidate_songs DROP COLUMN genres',
         );
-        raw.execute('PRAGMA user_version = 108');
+        raw.execute(
+          'PRAGMA user_version = ${NavisDatabase.currentSchemaVersion - 1}',
+        );
       } finally {
         raw.close();
       }
@@ -70,7 +72,6 @@ void main() {
             .read<int>('user_version'),
         NavisDatabase.currentSchemaVersion,
       );
-      await upgraded.from108To109(Migrator(upgraded));
     },
     skip: !sqliteAvailable,
   );
