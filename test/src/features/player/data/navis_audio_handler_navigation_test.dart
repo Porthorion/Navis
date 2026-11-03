@@ -1,3 +1,4 @@
+import 'package:navis/src/features/auto/domain/android_auto_constants.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_sidecar_downloader.dart';
 
 import 'dart:math';
@@ -5051,6 +5052,29 @@ void main() {
       await handler.prepareFromSearch('rock');
       await settleQueue(handler);
       expect(handler.snapshot.queueSongIds, ['song-5']);
+    });
+
+    test('a genre extra plays the genre even with an empty query', () async {
+      final (handler, _) = await genreHandler();
+      await handler.prepareFromSearch('', {
+        AndroidAutoConstants.mediaFocusKey:
+            AndroidAutoConstants.mediaFocusGenre,
+        AndroidAutoConstants.mediaGenreKey: 'Jazz',
+      });
+      await settleQueue(handler);
+      expect(
+        handler.snapshot.queueSongIds,
+        List<String>.of(jazz)..shuffle(Random(7)),
+      );
+    });
+
+    test('a failing genre lookup falls back to the normal search', () async {
+      final (handler, database) = await genreHandler();
+      await database.customStatement('DROP TABLE song_genre_index');
+      // Not an exact title, so the genre lookup runs (and throws) first.
+      await handler.prepareFromSearch('Song');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, isNotEmpty);
     });
 
     test('a spoken name that is not a genre keeps the normal search', () async {

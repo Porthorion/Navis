@@ -263,6 +263,30 @@ void main() {
         term: '',
       );
       searchCase(
+        'a genre extra alone requests that genre',
+        '',
+        NavisAndroidAutoSearchType.genre,
+        extras: {AndroidAutoConstants.mediaGenreKey: 'Jazz'},
+        term: 'Jazz',
+      );
+      searchCase(
+        'a genre extra wins over the spoken query',
+        'play some music',
+        NavisAndroidAutoSearchType.genre,
+        extras: {AndroidAutoConstants.mediaGenreKey: 'Jazz'},
+        term: 'Jazz',
+      );
+      searchCase(
+        'genre focus without the extra uses the spoken query',
+        'Blues',
+        NavisAndroidAutoSearchType.genre,
+        extras: {
+          AndroidAutoConstants.mediaFocusKey:
+              AndroidAutoConstants.mediaFocusGenre,
+        },
+        term: 'Blues',
+      );
+      searchCase(
         'artist focus uses the artist extra',
         '',
         NavisAndroidAutoSearchType.artist,
@@ -294,20 +318,6 @@ void main() {
         '',
         NavisAndroidAutoSearchType.title,
         extras: {AndroidAutoConstants.mediaTitleKey: 'Feeling Good'},
-      );
-      // Android Auto has no genre browsing: the platform genre focus and extra
-      // are ignored and the spoken query is classified as typed. The handler
-      // then plays it as a genre when it exactly names one (see the "Android
-      // Auto voice genres" tests).
-      searchCase(
-        'a genre voice intent is only a raw-query search',
-        'jazz music',
-        NavisAndroidAutoSearchType.general,
-        extras: {
-          AndroidAutoConstants.mediaFocusKey: 'vnd.android.cursor.item/genre',
-          'android.intent.extra.genre': 'Jazz',
-        },
-        term: 'jazz music',
       );
       searchCase(
         'plain query uses general search',

@@ -199,7 +199,17 @@ extension _NavisAndroidAuto on NavisAudioHandler {
       if (key.length > music.length && key.endsWith(music))
         key.substring(0, key.length - music.length),
     }) {
-      final songs = await _libraryDao.getSongsByGenre(candidate);
+      final List<SongsTableData> songs;
+      try {
+        songs = await _libraryDao.getSongsByGenre(candidate);
+      } on Object catch (error, stackTrace) {
+        // The usual search still has a chance; a genre lookup must not take
+        // the whole voice request down.
+        AppLogger.warning(
+          'Android Auto genre lookup failed: $error\n$stackTrace',
+        );
+        return null;
+      }
       if (songs.isEmpty) continue;
       final shuffled = List<SongsTableData>.of(songs)..shuffle(_shuffleRandom);
       return await _loadAutoRows(
@@ -298,6 +308,12 @@ extension _NavisAndroidAuto on NavisAudioHandler {
             autoPlay: autoPlay,
           );
         }
+        final genre = await _loadGenreFromSearch(
+          request.term,
+          autoPlay: autoPlay,
+        );
+        if (genre != null) return genre;
+      case NavisAndroidAutoSearchType.genre:
         final genre = await _loadGenreFromSearch(
           request.term,
           autoPlay: autoPlay,
