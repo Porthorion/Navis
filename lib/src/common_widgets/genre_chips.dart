@@ -26,11 +26,7 @@ class GenreChips extends ConsumerWidget {
       message: l10n.genreDisabledNotice,
       duration: const Duration(seconds: 5),
       actionLabel: l10n.genreDisabledShowAction,
-      onAction: () {
-        if (context.mounted) {
-          NavService.openAppearanceLibraryPages(context, ref);
-        }
-      },
+      onAction: NavService.libraryPagesSettingsAction(context),
     );
   }
 

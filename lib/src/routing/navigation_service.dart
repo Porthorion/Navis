@@ -105,9 +105,18 @@ abstract final class NavService {
     _drillIn(context, ref, AppRoutes.genre(genreKey));
   }
 
-  /// Open Appearance settings on the Library pages group.
-  static void openAppearanceLibraryPages(BuildContext context, WidgetRef ref) {
-    _drillIn(context, ref, AppRoutes.appearanceLibraryPages);
+  /// An action that opens Appearance settings on the Library pages group.
+  ///
+  /// For notices: the action can run after the widget that offered it (a
+  /// closed sheet) is gone, so it keeps the router and container, not
+  /// [context] or a `WidgetRef`.
+  static VoidCallback libraryPagesSettingsAction(BuildContext context) {
+    final router = GoRouter.of(context);
+    final container = ProviderScope.containerOf(context);
+    return () {
+      container.read(playerOverlayStackProvider.notifier).clear();
+      unawaited(router.push<void>(AppRoutes.appearanceLibraryPages));
+    };
   }
 
   /// Open an artist's virtual top-tracks playlist from the current context.

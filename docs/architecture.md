@@ -461,7 +461,8 @@ Genre browsing returned in 1.5.2 (product decision 2026-11-03), after the
 `genres: [{name}]` list, falling back to the legacy `genre` string as one tag;
 `Song.genres` holds the resolved list. Names are never split on punctuation.
 `genreKey` (`lib/src/utils/genre_key.dart`) is the single merge key (lowercase,
-spaces, hyphens and underscores removed, empty keys dropped) shared by the
+spaces, hyphens and underscores removed, empty keys and the dot-only names
+"." and ".." dropped, as the genre route cannot carry them) shared by the
 song model, the index writer and every query, so "Hip Hop", "hip-hop" and
 "Hip_Hop" are one genre while "R&B" and "RnB" stay apart. Albums carry no
 genre; an album belongs to every genre any of its songs has.

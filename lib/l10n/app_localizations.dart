@@ -10275,12 +10275,6 @@ abstract class AppLocalizations {
   /// **'Search albums'**
   String get genreAlbumsSearchHint;
 
-  /// No description provided for @genreSongsSearchHint.
-  ///
-  /// In en, this message translates to:
-  /// **'Search songs'**
-  String get genreSongsSearchHint;
-
   /// No description provided for @genreSongsEmpty.
   ///
   /// In en, this message translates to:

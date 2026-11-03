@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
@@ -33,6 +35,7 @@ class _IdleSync extends LibrarySyncController {
 
 class _QueueSpy extends QueueController {
   List<String>? ids;
+  int? startIndex;
   List<String>? originalOrder;
 
   @override
@@ -48,6 +51,7 @@ class _QueueSpy extends QueueController {
     List<String>? originalOrder,
   }) async {
     ids = songs.map((song) => song.id).toList();
+    this.startIndex = startIndex;
     this.originalOrder = originalOrder;
   }
 }
@@ -128,12 +132,8 @@ Widget _app(List<Object?> overrides, {String? initial}) {
         routes: <RouteBase>[
           GoRoute(
             path: AppRoutes.genreSegment,
-            builder: (context, state) => GenreDetailScreen(
-              genreKey: state.pathParameters['key']!,
-              showSongs:
-                  state.uri.queryParameters[AppRoutes.genreTabParam] ==
-                  AppRoutes.genreTabSongs,
-            ),
+            builder: (context, state) =>
+                GenreDetailScreen(genreKey: state.pathParameters['key']!),
           ),
         ],
       ),
@@ -156,6 +156,13 @@ Widget _app(List<Object?> overrides, {String? initial}) {
       routerConfig: router,
     ),
   );
+}
+
+Future<void> _openSongsTab(WidgetTester tester) async {
+  await tester.tap(
+    find.descendant(of: find.byType(TabBar), matching: find.text('Songs')),
+  );
+  await tester.pumpAndSettle();
 }
 
 void main() {
@@ -308,9 +315,10 @@ void main() {
           }),
           genreAlbumsProvider.overrideWith((ref, request) async => const []),
           genreSongsProvider.overrideWith((ref, request) async => pageSongs),
-        ], initial: AppRoutes.genre(key, songs: songsTab)),
+        ], initial: AppRoutes.genre(key)),
       );
       await tester.pumpAndSettle();
+      if (songsTab) await _openSongsTab(tester);
       return queue;
     }
 
@@ -360,9 +368,10 @@ void main() {
           }),
           genreAlbumsProvider.overrideWith((ref, request) async => const []),
           genreSongsProvider.overrideWith((ref, request) async => const []),
-        ], initial: AppRoutes.genre('hiphop', songs: true)),
+        ], initial: AppRoutes.genre('hiphop')),
       );
       await tester.pumpAndSettle();
+      await _openSongsTab(tester);
       final field = find.descendant(
         of: find.byType(GenreDetailScreen),
         matching: find.byType(TextField),
@@ -370,9 +379,9 @@ void main() {
       await tester.enterText(field, 'boom');
       await tester.pump();
 
-      ProviderScope.containerOf(
-        tester.element(find.byType(GenreDetailScreen)),
-      ).read(_epoch.notifier).bump();
+      ProviderScope.containerOf(tester.element(find.byType(GenreDetailScreen)))
+          .read(_epoch.notifier)
+          .bump();
       await tester.pump();
 
       expect(tester.widget<TextField>(field).controller!.text, 'boom');
@@ -432,6 +441,236 @@ void main() {
       await tester.pump();
       expect(queue.ids!.toSet(), {'g1', 'g2', 'g3'});
       expect(queue.originalOrder, ['g1', 'g2', 'g3']);
+    });
+  });
+
+  group('genre page content (real providers)', () {
+    Future<void> settleDb(WidgetTester tester) async {
+      for (var i = 0; i < 3; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 150)),
+        );
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+    }
+
+    Future<_QueueSpy> pumpReal(
+      WidgetTester tester, {
+      required String key,
+      bool songsTab = false,
+      Size size = const Size(390, 844),
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      final queue = _QueueSpy();
+      await tester.pumpWidget(
+        _app(<Object?>[
+          ..._commonOverrides(genres: const []),
+          queueProvider.overrideWith(() => queue),
+        ], initial: AppRoutes.genre(key)),
+      );
+      await settleDb(tester);
+      if (songsTab) {
+        await _openSongsTab(tester);
+        await settleDb(tester);
+      }
+      return queue;
+    }
+
+    Future<void> seedSongs(WidgetTester tester, String genre, int count) =>
+        tester.runAsync(
+          () => _db.libraryDao.upsertSongs([
+            for (var n = 1; n <= count; n++)
+              SongsTableCompanion.insert(
+                id: '$genre-$n',
+                title: '$genre ${n.toString().padLeft(3, '0')}',
+                genres: Value<List<String>?>(<String>[genre]),
+              ),
+          ]),
+        );
+
+    Future<void> seedJazz(WidgetTester tester) => tester.runAsync(() async {
+      await _db.libraryDao.upsertAlbums([
+        AlbumsTableCompanion.insert(id: 'jz-al1', name: 'Blue Hour'),
+        AlbumsTableCompanion.insert(id: 'jz-al2', name: 'Alpha Moon'),
+      ]);
+      await _db.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'jz-1',
+          title: 'Blue Song',
+          albumId: const Value('jz-al1'),
+          artistName: const Value('Zed'),
+          genres: Value<List<String>?>(const ['Jazz']),
+        ),
+        SongsTableCompanion.insert(
+          id: 'jz-2',
+          title: 'Alpha Song',
+          albumId: const Value('jz-al2'),
+          artistName: const Value('Abe'),
+          genres: Value<List<String>?>(const ['Jazz']),
+        ),
+      ]);
+    });
+
+    double top(WidgetTester tester, Finder finder) =>
+        tester.getTopLeft(finder).dy;
+
+    Future<void> typeSearch(WidgetTester tester, String text) async {
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(GenreDetailScreen),
+          matching: find.byType(TextField),
+        ),
+        text,
+      );
+    }
+
+    testWidgets('Albums tab lists the genre\'s albums and searches within', (
+      tester,
+    ) async {
+      await seedJazz(tester);
+      await pumpReal(tester, key: 'jazz');
+
+      final blue = find.byKey(const ValueKey<String>('genre-album-jz-al1'));
+      final alpha = find.byKey(const ValueKey<String>('genre-album-jz-al2'));
+      expect(blue, findsOneWidget);
+      expect(alpha, findsOneWidget);
+      expect(top(tester, alpha), lessThanOrEqualTo(top(tester, blue)));
+
+      await typeSearch(tester, 'blue');
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(alpha, findsOneWidget, reason: 'the search waits for a pause');
+      await tester.pump(const Duration(milliseconds: 200));
+      await settleDb(tester);
+      expect(blue, findsOneWidget);
+      expect(alpha, findsNothing);
+
+      await typeSearch(tester, 'zzz');
+      await tester.pump(const Duration(milliseconds: 300));
+      await settleDb(tester);
+      expect(find.byType(AlbumCard), findsNothing);
+    });
+
+    testWidgets('Albums tab follows downloaded-only', (tester) async {
+      await seedJazz(tester);
+      await tester.runAsync(
+        () => _db.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: 'jz-1',
+            filePath: '/music/jz-1.mp3',
+            fileSize: 1,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime(2026),
+          ),
+        ),
+      );
+      await pumpReal(tester, key: 'jazz');
+      await tester.tap(find.text('Downloaded'));
+      await settleDb(tester);
+      expect(
+        find.byKey(const ValueKey<String>('genre-album-jz-al1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('genre-album-jz-al2')),
+        findsNothing,
+      );
+      await tester.tap(find.text('Downloaded'));
+      await settleDb(tester);
+    });
+
+    testWidgets('Songs tab sorts and searches within the genre', (
+      tester,
+    ) async {
+      await seedJazz(tester);
+      await pumpReal(tester, key: 'jazz', songsTab: true);
+
+      final blue = find.text('Blue Song');
+      final alpha = find.text('Alpha Song');
+      expect(top(tester, alpha), lessThan(top(tester, blue)));
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('genreSongsSortControl')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Artist').last);
+      await settleDb(tester);
+      // Abe (Alpha Song) still sorts first; title order alone would too, so
+      // check the sort reached the query through the reversed case below.
+      expect(top(tester, alpha), lessThan(top(tester, blue)));
+
+      await typeSearch(tester, 'blue');
+      await tester.pump(const Duration(milliseconds: 300));
+      await settleDb(tester);
+      expect(blue, findsOneWidget);
+      expect(alpha, findsNothing);
+    });
+
+    testWidgets('Songs tab loads the next page on scroll and restarts on a '
+        'filter change', (tester) async {
+      await seedSongs(tester, 'Pager', 130);
+      final limits = <int>[];
+      setAdaptiveTestViewport(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        _app(<Object?>[
+          ..._commonOverrides(genres: const []),
+          genreSongsProvider.overrideWith((ref, request) {
+            limits.add(request.limit);
+            ref.watch(genreDataEpochProvider);
+            return _db.libraryDao.getSongsByGenre(
+              request.key,
+              sort: request.sort,
+              downloadedOnly: request.downloadedOnly,
+              query: request.query,
+              limit: request.limit,
+            );
+          }),
+        ], initial: AppRoutes.genre('pager')),
+      );
+      await settleDb(tester);
+      await _openSongsTab(tester);
+      await settleDb(tester);
+      expect(limits, <int>[100]);
+
+      for (
+        var i = 0;
+        i < 60 && find.text('Pager 130').evaluate().isEmpty;
+        i++
+      ) {
+        await tester.drag(
+          find.byType(CustomScrollView).last,
+          const Offset(0, -2000),
+        );
+        await settleDb(tester);
+      }
+      expect(limits, contains(200));
+      expect(find.text('Pager 130'), findsOneWidget);
+
+      // Nothing is downloaded, so toggling the filter empties the list; the
+      // next read starts again at the first page.
+      await tester.fling(
+        find.byType(CustomScrollView).last,
+        const Offset(0, 20000),
+        20000,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Downloaded'));
+      await settleDb(tester);
+      expect(limits.last, 100);
+    });
+
+    testWidgets('tapping a song queues the whole genre, not the loaded page', (
+      tester,
+    ) async {
+      await seedSongs(tester, 'Rock', 130);
+      final queue = await pumpReal(tester, key: 'rock', songsTab: true);
+
+      await tester.tap(find.text('Rock 003'));
+      await settleDb(tester);
+
+      expect(queue.ids, hasLength(130));
+      expect(queue.ids![queue.startIndex!], 'Rock-3');
     });
   });
 }

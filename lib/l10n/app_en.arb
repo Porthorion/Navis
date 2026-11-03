@@ -3017,7 +3017,6 @@
   "genreDisabledShowAction": "Show",
   "genreNotFound": "This genre is no longer in your library.",
   "genreAlbumsSearchHint": "Search albums",
-  "genreSongsSearchHint": "Search songs",
   "genreSongsEmpty": "No Songs Found",
   "genreSongsSortLabel": "Sort Songs By",
   "genreSongsSortTitle": "Title",

@@ -207,14 +207,14 @@ class _RailSidebar extends ConsumerWidget {
                 }
 
                 final navLabel = textTheme.bodyLarge;
-                final navTextGrowth = math.max(
-                  0.0,
+                final navTextGrowth = math.max<double>(
+                  0,
                   lineHeight(navLabel, scaled: true) -
-                      math.max(24.0, lineHeight(navLabel, scaled: false)),
+                      math.max<double>(24, lineHeight(navLabel, scaled: false)),
                 );
                 final subLabel = textTheme.bodyMedium;
-                final subTextGrowth = math.max(
-                  0.0,
+                final subTextGrowth = math.max<double>(
+                  0,
                   lineHeight(subLabel, scaled: true) -
                       lineHeight(subLabel, scaled: false),
                 );

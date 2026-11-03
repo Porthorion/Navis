@@ -46,6 +46,14 @@ void main() {
     expect(genreKey(''), isEmpty);
   });
 
+  test('dot-only names are not genres: they would break the genre route', () {
+    expect(genreKey('.'), isEmpty);
+    expect(genreKey(' .. '), isEmpty);
+    expect(genreKey('...'), '...');
+    expect(genreKey('a.b'), 'a.b');
+    expect(resolveGenres(<String?>['..', '.', 'Rock']), <String>['Rock']);
+  });
+
   test('resolveGenres trims, drops empty keys and dedupes by key', () {
     expect(
       resolveGenres(<String?>[

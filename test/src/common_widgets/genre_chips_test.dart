@@ -41,6 +41,7 @@ void main() {
       WidgetTester tester, {
       required bool genresPage,
       List<String> genres = const ['Hip Hop', 'Rock'],
+      bool inSheet = false,
     }) async {
       setAdaptiveTestViewport(tester, const Size(390, 844));
       final db = createTestDatabase();
@@ -49,8 +50,19 @@ void main() {
         routes: <RouteBase>[
           GoRoute(
             path: '/',
-            builder: (context, state) =>
-                Scaffold(body: GenreChips(genres: genres)),
+            builder: (context, state) => Scaffold(
+              body: inSheet
+                  ? Center(
+                      child: TextButton(
+                        onPressed: () => showModalBottomSheet<void>(
+                          context: context,
+                          builder: (_) => GenreChips(genres: genres),
+                        ),
+                        child: const Text('Open sheet'),
+                      ),
+                    )
+                  : GenreChips(genres: genres),
+            ),
           ),
           GoRoute(
             path: '/library/genres/:key',
@@ -106,6 +118,25 @@ void main() {
 
       expect(find.text('Genre page disabled'), findsOneWidget);
       expect(find.text('genre page rock'), findsNothing);
+
+      await tester.tap(find.text('Show'));
+      await tester.pumpAndSettle();
+      expect(find.text('appearance focus=libraryPages'), findsOneWidget);
+    });
+
+    testWidgets('Show still works after the sheet holding the chip closed', (
+      tester,
+    ) async {
+      await pump(tester, genresPage: false, inSheet: true);
+      await tester.tap(find.text('Open sheet'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rock'));
+      await tester.pump();
+      expect(find.text('Genre page disabled'), findsOneWidget);
+
+      Navigator.of(tester.element(find.text('Rock'))).pop();
+      await tester.pumpAndSettle();
+      expect(find.text('Rock'), findsNothing);
 
       await tester.tap(find.text('Show'));
       await tester.pumpAndSettle();

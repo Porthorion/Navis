@@ -6405,9 +6405,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get genreAlbumsSearchHint => 'Search albums';
 
   @override
-  String get genreSongsSearchHint => 'Search songs';
-
-  @override
   String get genreSongsEmpty => 'No Songs Found';
 
   @override

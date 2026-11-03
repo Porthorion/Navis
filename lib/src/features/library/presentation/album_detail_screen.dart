@@ -1475,7 +1475,9 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     double right = 0,
     double bottom = 0,
   }) {
-    final genres = albumGenres(songs.map((song) => song.genres));
+    final genres = albumGenres(
+      songs.where((song) => !song.isExternal).map((song) => song.genres),
+    );
     if (genres.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: EdgeInsets.fromLTRB(left, top, right, bottom),

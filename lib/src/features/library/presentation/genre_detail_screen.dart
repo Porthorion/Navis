@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/album_download_badge.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
@@ -38,13 +40,10 @@ const int _songPageSize = 100;
 /// search, sort and downloaded-only filter, plus Play and Shuffle for all of
 /// the genre's songs.
 class GenreDetailScreen extends ConsumerStatefulWidget {
-  const new({required this.genreKey, this.showSongs = false, super.key});
+  const new({required this.genreKey, super.key});
 
   /// The genre's merge key (`genreKey`).
   final String genreKey;
-
-  /// Opens on the Songs tab instead of Albums.
-  final bool showSongs;
 
   @override
   ConsumerState<GenreDetailScreen> createState() => _GenreDetailScreenState();
@@ -52,11 +51,7 @@ class GenreDetailScreen extends ConsumerStatefulWidget {
 
 class _GenreDetailScreenState extends ConsumerState<GenreDetailScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(
-    length: 2,
-    vsync: this,
-    initialIndex: widget.showSongs ? 1 : 0,
-  );
+  late final TabController _tabs = TabController(length: 2, vsync: this);
 
   @override
   void dispose() {
@@ -101,91 +96,130 @@ class _GenreDetailScreenState extends ConsumerState<GenreDetailScreen>
     final l10n = AppLocalizations.of(context)!;
     final summary = ref.watch(genreSummaryProvider(widget.genreKey));
     final genre = summary.asData?.value;
+    final body = summary.when(
+      skipLoadingOnReload: true,
+      loading: () => const ShimmerListPage(count: 8),
+      error: (_, _) => ErrorState(
+        title: l10n.genresLoadError,
+        onRetry: () => ref.invalidate(genreSummaryProvider(widget.genreKey)),
+        retryLabel: l10n.commonRetry,
+      ),
+      data: (genre) {
+        if (genre == null) {
+          return EmptyState(
+            title: l10n.genreNotFound,
+            icon: Icons.sell_outlined,
+          );
+        }
+        return Column(
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text(
+                      '${l10n.playlistsSongCount(genre.songCount)} • '
+                      '${l10n.artistCardAlbumCount(genre.albumCount)}',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  EntityActionBar(
+                    compact: MediaQuery.sizeOf(context).width < 400,
+                    playKey: const ValueKey<String>('genrePlayAction'),
+                    shuffleKey: const ValueKey<String>('genreShuffleAction'),
+                    onPlay: () => _play(shuffle: false),
+                    onShuffle: () => _play(shuffle: true),
+                  ),
+                ],
+              ),
+            ),
+            TabBar(
+              controller: _tabs,
+              tabs: <Widget>[
+                Tab(text: l10n.libraryTabAlbums),
+                Tab(text: l10n.searchSongsSection),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabs,
+                children: <Widget>[
+                  _GenreAlbumsTab(genreKey: widget.genreKey),
+                  _GenreSongsTab(genreKey: widget.genreKey),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
     return Scaffold(
       appBar: AppBar(title: Text(genre?.name ?? '')),
       // A sync republish re-reads the summary; keep the page (tab, search,
       // scroll) on screen meanwhile.
-      body: summary.when(
-        skipLoadingOnReload: true,
-        loading: () => const ShimmerListPage(count: 8),
-        error: (_, _) => ErrorState(
-          title: l10n.genresLoadError,
-          onRetry: () => ref.invalidate(genreSummaryProvider(widget.genreKey)),
-          retryLabel: l10n.commonRetry,
-        ),
-        data: (genre) {
-          if (genre == null) {
-            return EmptyState(
-              title: l10n.genreNotFound,
-              icon: Icons.sell_outlined,
-            );
-          }
-          return Column(
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: Row(
-                  children: <Widget>[
-                    Expanded(
-                      child: Text(
-                        '${l10n.playlistsSongCount(genre.songCount)} • '
-                        '${l10n.artistCardAlbumCount(genre.albumCount)}',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    EntityActionBar(
-                      compact: MediaQuery.sizeOf(context).width < 400,
-                      playKey: const ValueKey<String>('genrePlayAction'),
-                      shuffleKey: const ValueKey<String>('genreShuffleAction'),
-                      onPlay: () => _play(shuffle: false),
-                      onShuffle: () => _play(shuffle: true),
-                    ),
-                  ],
-                ),
+      body: resolveAdaptiveContextFor(context).useDesktopShell
+          ? DesktopFrame(
+              layoutClass: resolveDesktopLayoutClass(
+                MediaQuery.sizeOf(context).width,
               ),
-              TabBar(
-                controller: _tabs,
-                tabs: <Widget>[
-                  Tab(text: l10n.libraryTabAlbums),
-                  Tab(text: l10n.searchSongsSection),
-                ],
-              ),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabs,
-                  children: <Widget>[
-                    _GenreAlbumsTab(genreKey: widget.genreKey),
-                    _GenreSongsTab(genreKey: widget.genreKey),
-                  ],
-                ),
-              ),
-            ],
-          );
-        },
-      ),
+              padding: EdgeInsets.zero,
+              child: body,
+            )
+          : body,
     );
+  }
+}
+
+/// The typed search of a tab, applied to its list after a short pause like the
+/// other searches that query the database (each keystroke would re-read the
+/// whole genre).
+mixin _DebouncedSearch<T extends StatefulWidget> on State<T> {
+  final TextEditingController search = TextEditingController();
+  Timer? _debounce;
+
+  /// The search text the list currently follows.
+  String query = '';
+
+  void _onSearchChanged(String _) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () {
+      if (mounted) setState(() => query = search.text.trim());
+    });
+    // Shows the clear button at once.
+    setState(() {});
+  }
+
+  void _clearSearch() {
+    _debounce?.cancel();
+    search.clear();
+    setState(() => query = '');
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    search.dispose();
+    super.dispose();
   }
 }
 
 /// Search field, sort and downloaded-only chip shared by both tabs.
 Widget _filters({
-  required AppLocalizations l10n,
   required TextEditingController controller,
   required String hint,
-  required VoidCallback onQueryChanged,
+  required ValueChanged<String> onChanged,
+  required VoidCallback onClear,
   required Widget sortRow,
 }) => Column(
   children: <Widget>[
     ListFilterField(
       controller: controller,
       hint: hint,
-      onChanged: (_) => onQueryChanged(),
-      onClear: () {
-        controller.clear();
-        onQueryChanged();
-      },
+      onChanged: onChanged,
+      onClear: onClear,
     ),
     sortRow,
   ],
@@ -214,11 +248,11 @@ class _GenreAlbumsTab extends ConsumerStatefulWidget {
 }
 
 class _GenreAlbumsTabState extends ConsumerState<_GenreAlbumsTab>
-    with AutomaticKeepAliveClientMixin {
-  final TextEditingController _search = TextEditingController();
+    with AutomaticKeepAliveClientMixin, _DebouncedSearch {
   final ScrollController _scroll = ScrollController();
   AlbumSortOrder _sort = AlbumSortOrder.name;
   int _pages = 1;
+  Object? _pagedFor;
   List<AlbumsTableData>? _last;
 
   @override
@@ -233,7 +267,6 @@ class _GenreAlbumsTabState extends ConsumerState<_GenreAlbumsTab>
   @override
   void dispose() {
     _scroll.dispose();
-    _search.dispose();
     super.dispose();
   }
 
@@ -244,14 +277,17 @@ class _GenreAlbumsTabState extends ConsumerState<_GenreAlbumsTab>
     }
   }
 
-  void _reset() => setState(() => _pages = 1);
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final l10n = AppLocalizations.of(context)!;
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
-    final query = _search.text.trim();
+    // A different search, sort or filter starts again from the first page.
+    final pagedFor = (query, _sort, downloadedOnly);
+    if (_pagedFor != pagedFor) {
+      _pagedFor = pagedFor;
+      _pages = 1;
+    }
     final async = ref.watch(
       genreAlbumsProvider((
         key: widget.genreKey,
@@ -270,10 +306,10 @@ class _GenreAlbumsTabState extends ConsumerState<_GenreAlbumsTab>
       slivers: <Widget>[
         SliverToBoxAdapter(
           child: _filters(
-            l10n: l10n,
-            controller: _search,
+            controller: search,
             hint: l10n.genreAlbumsSearchHint,
-            onQueryChanged: _reset,
+            onChanged: _onSearchChanged,
+            onClear: _clearSearch,
             sortRow: LibrarySortFilterRow<AlbumSortOrder>(
               sortKey: const ValueKey<String>('genreAlbumsSortControl'),
               sortLabel: l10n.libraryAlbumsSortLabel,
@@ -297,11 +333,7 @@ class _GenreAlbumsTabState extends ConsumerState<_GenreAlbumsTab>
                 ),
               ],
               onSortChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  _sort = value;
-                  _pages = 1;
-                });
+                if (value != null) setState(() => _sort = value);
               },
               downloadedOnly: downloadedOnly,
               onDownloadedOnlyChanged: (value) =>
@@ -384,11 +416,11 @@ class _GenreSongsTab extends ConsumerStatefulWidget {
 }
 
 class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
-    with AutomaticKeepAliveClientMixin {
-  final TextEditingController _search = TextEditingController();
+    with AutomaticKeepAliveClientMixin, _DebouncedSearch {
   final ScrollController _scroll = ScrollController();
   GenreSongSort _sort = GenreSongSort.title;
   int _pages = 1;
+  Object? _pagedFor;
   List<SongsTableData>? _last;
 
   @override
@@ -403,7 +435,6 @@ class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
   @override
   void dispose() {
     _scroll.dispose();
-    _search.dispose();
     super.dispose();
   }
 
@@ -417,7 +448,31 @@ class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
     }
   }
 
-  void _reset() => setState(() => _pages = 1);
+  /// Plays [index] of the loaded [songs]. While more of the genre remains
+  /// unloaded, the whole genre in the current order is queued instead, so a
+  /// tap in a large genre does not stop after the loaded pages (like Play).
+  Future<void> _playFrom(List<SongsTableData> songs, int index) async {
+    var queued = songs;
+    var start = index;
+    if (ref.read(albumQueueEnabledProvider) &&
+        songs.length >= _songPageSize * _pages) {
+      final all = await ref
+          .read(navisDatabaseProvider)
+          .libraryDao
+          .getSongsByGenre(
+            widget.genreKey,
+            sort: _sort,
+            downloadedOnly: ref.read(downloadedOnlyFilterProvider),
+            query: query,
+          );
+      final at = all.indexWhere((song) => song.id == songs[index].id);
+      if (at >= 0) {
+        queued = all;
+        start = at;
+      }
+    }
+    if (mounted) playTableSongInCollection(ref, queued, start);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -425,7 +480,12 @@ class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
     final l10n = AppLocalizations.of(context)!;
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     final downloadedOnly = ref.watch(downloadedOnlyFilterProvider);
-    final query = _search.text.trim();
+    // A different search, sort or filter starts again from the first page.
+    final pagedFor = (query, _sort, downloadedOnly);
+    if (_pagedFor != pagedFor) {
+      _pagedFor = pagedFor;
+      _pages = 1;
+    }
     final async = ref.watch(
       genreSongsProvider((
         key: widget.genreKey,
@@ -444,10 +504,10 @@ class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
       slivers: <Widget>[
         SliverToBoxAdapter(
           child: _filters(
-            l10n: l10n,
-            controller: _search,
-            hint: l10n.genreSongsSearchHint,
-            onQueryChanged: _reset,
+            controller: search,
+            hint: l10n.matchFlowSearchHint,
+            onChanged: _onSearchChanged,
+            onClear: _clearSearch,
             sortRow: LibrarySortFilterRow<GenreSongSort>(
               sortKey: const ValueKey<String>('genreSongsSortControl'),
               sortLabel: l10n.genreSongsSortLabel,
@@ -467,11 +527,7 @@ class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
                 ),
               ],
               onSortChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  _sort = value;
-                  _pages = 1;
-                });
+                if (value != null) setState(() => _sort = value);
               },
               downloadedOnly: downloadedOnly,
               onDownloadedOnlyChanged: (value) =>
@@ -519,7 +575,7 @@ class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
                         onPressed: () =>
                             showSongContextMenu(context, ref, song),
                       ),
-                onTap: () => playTableSongInCollection(ref, songs, index),
+                onTap: () => unawaited(_playFrom(songs, index)),
                 onLongPress: () => showSongContextMenu(context, ref, song),
               );
             }, childCount: songs.length),
