@@ -146,6 +146,7 @@ void main() {
       expect(container.read(setupHighlightsCardVisibleProvider), isFalse);
       // The tag still leads somewhere: Appearance shows it on its group.
       expect(container.read(settingsHasNewOptionsProvider), isTrue);
+      expect(container.read(quickCustomizationHasNewOptionsProvider), isFalse);
     });
 
     test('leaves unseen 1.5.0 highlights pending', () async {
