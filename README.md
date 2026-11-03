@@ -88,9 +88,21 @@ Every online service has its own switch. Turn off *Online services* and Navis on
 |---|---|---|
 | **Android** | [Website](https://navis.porthorion.com) · [GitHub Releases](https://github.com/Porthorion/Navis/releases/latest) | Android 7.0+. One universal APK, or per-architecture APKs |
 | **Windows** | Installer from the [website](https://navis.porthorion.com) or [Releases](https://github.com/Porthorion/Navis/releases/latest) | Windows 10 / 11, x64 |
-| **Linux** | `.deb`, `.rpm` or portable `.tar.gz` | x86_64, glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora). AUR coming soon |
+| **Linux** | `.deb`, `.rpm`, portable `.tar.gz` or the [per-user install script](#linux-install-script) | x86_64, glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora). AUR coming soon |
 
 Official downloads are served from Porthorion's Cloudflare R2 storage (`downloads.porthorion.com`). Each GitHub release carries identical copies plus a `SHA256SUMS` file, so you can check any download with `sha256sum -c SHA256SUMS`. Navis updates itself from a signed release manifest.
+
+### Linux install script
+
+For a per-user install without root (Navis in `~/.local/share/navis`, a launcher in `~/.local/bin`, an app-menu entry), download the script, read it, then run it:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/Porthorion/Navis/main/linux/install.sh
+less install.sh
+bash install.sh
+```
+
+If you trust the repository, `curl -fsSL https://raw.githubusercontent.com/Porthorion/Navis/main/linux/install.sh | bash` does the same in one step. The script installs only after the release manifest's signature verifies against Navis's pinned update key and the tarball matches its signed SHA-256. Pass a downloaded `navis-vX.Y.Z-linux.tar.gz` to install that version, or `--uninstall` / `--purge` to remove it. Each stable GitHub release also carries `install.sh` with its line in `SHA256SUMS`.
 
 **Works with** [Navidrome](https://www.navidrome.org), the server Navis is developed and tested against, and other Subsonic / OpenSubsonic servers such as Gonic and Airsonic-Advanced. If your server misbehaves, please [tell us](https://github.com/Porthorion/Navis/issues/new?template=server_compatibility.yml).
 
