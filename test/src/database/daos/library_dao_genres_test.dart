@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Value, Variable;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -313,5 +313,205 @@ void main() {
 
     expect(rock?.songCount, 3);
     expect(await database.libraryDao.getGenre('missing'), isNull);
+  }, skip: !sqliteAvailable);
+
+  group('upgrade carry-forward', () {
+    // Rows as the previous release left them: hydrated album, genres NULL.
+    Future<void> seedHydratedAlbum({required bool nullGenres}) async {
+      await database.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'ar', name: 'Artist'),
+      ]);
+      await database.libraryDao.upsertAlbums([
+        AlbumsTableCompanion.insert(
+          id: 'album',
+          name: 'Album',
+          artistId: const Value('ar'),
+          songCount: const Value(2),
+          songsHydrated: const Value(true),
+        ),
+      ]);
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'a',
+          title: 'A',
+          albumId: const Value('album'),
+        ),
+        SongsTableCompanion.insert(
+          id: 'b',
+          title: 'B',
+          albumId: const Value('album'),
+        ),
+      ]);
+      await database.customStatement(
+        nullGenres
+            ? 'UPDATE songs SET genres = NULL'
+            : "UPDATE songs SET genres = '[]'",
+      );
+      final album = (await database.libraryDao.getAlbumById('album'))!;
+      await database.librarySyncCandidateDao.upsertAlbums(
+        serverId: 1,
+        generation: 1,
+        albums: [
+          album.toCompanion(false).copyWith(songsHydrated: const Value(false)),
+        ],
+      );
+    }
+
+    test(
+      'an album with a never-synced (NULL genres) song stays pending',
+      () async {
+        await seedHydratedAlbum(nullGenres: true);
+
+        final carried = await database.librarySyncCandidateDao
+            .carryForwardPendingAlbums(serverId: 1, generation: 1);
+
+        expect(carried, isEmpty);
+        expect(
+          await database.select(database.librarySyncCandidateSongsTable).get(),
+          isEmpty,
+        );
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'an album whose songs were synced untagged is still carried',
+      () async {
+        await seedHydratedAlbum(nullGenres: false);
+
+        final carried = await database.librarySyncCandidateDao
+            .carryForwardPendingAlbums(serverId: 1, generation: 1);
+
+        expect(carried, ['album']);
+        final songs = await database
+            .select(database.librarySyncCandidateSongsTable)
+            .get();
+        expect(songs.map((c) => c.genres), everyElement(isEmpty));
+      },
+      skip: !sqliteAvailable,
+    );
+  });
+
+  test('readers do not rescan the library while nothing changed', () async {
+    await seed();
+    final dao = database.libraryDao;
+
+    await dao.getGenres();
+    final built = dao.debugSongGenreIndexRefreshCount;
+    await dao.getGenres();
+    await dao.searchGenres('ro');
+    await dao.getGenre('rock');
+    await dao.getAlbumsByGenre('rock');
+    await dao.getSongsByGenre('rock');
+
+    expect(dao.debugSongGenreIndexRefreshCount, built);
+
+    // A song write makes the next reader repair the index, once.
+    await dao.upsertSongs([
+      song('s8', 'album-3', ['Blues']),
+    ]);
+    expect((await dao.getGenres()).map((g) => g.key), contains('blues'));
+    expect(dao.debugSongGenreIndexRefreshCount, built + 1);
+    await dao.getSongsByGenre('blues');
+    expect(dao.debugSongGenreIndexRefreshCount, built + 1);
+
+    // So does wiping the library.
+    await dao.clearLibraryData();
+    expect(await dao.getGenres(), isEmpty);
+    expect(dao.debugSongGenreIndexRefreshCount, built + 2);
+  }, skip: !sqliteAvailable);
+
+  test('a write during a refresh leaves the index stale', () async {
+    await seed();
+    final dao = database.libraryDao;
+    await dao.getGenres();
+    final built = dao.debugSongGenreIndexRefreshCount;
+
+    // The refresh starts, then a retag lands before it finishes.
+    final refresh = dao.refreshSongGenreIndex();
+    await dao.upsertSongs([
+      song('s8', 'album-3', ['Blues']),
+    ]);
+    await refresh;
+    final genres = await dao.getGenres();
+
+    expect(genres.map((g) => g.key), contains('blues'));
+    expect(genres.map((g) => g.key), isNot(contains('jazz')));
+    expect(dao.debugSongGenreIndexRefreshCount, greaterThan(built));
+  }, skip: !sqliteAvailable);
+
+  test('the exact-key lookup uses the genre key index', () async {
+    await seed();
+
+    final plan = await database
+        .customSelect(
+          'EXPLAIN QUERY PLAN ${LibraryDao.debugGenreSummarySql(exactKey: true)}',
+          variables: [
+            Variable<String>(''),
+            Variable<String>('rock'),
+            Variable<int>(1),
+            Variable<int>(0),
+          ],
+        )
+        .map((row) => row.read<String>('detail'))
+        .get();
+
+    expect(plan.join('\n'), contains('idx_song_genre_index_key'));
+    expect(plan.join('\n'), isNot(contains('SCAN x')));
+  }, skip: !sqliteAvailable);
+
+  test('album counts match the album lists', () async {
+    await seed();
+    await database.libraryDao.upsertAlbums([
+      AlbumsTableCompanion.insert(
+        id: 'album-prov',
+        name: 'Provisional',
+        artistId: const Value('artist-1'),
+        isProvisional: const Value(true),
+      ),
+      AlbumsTableCompanion.insert(
+        id: 'album-ext',
+        name: 'External',
+        artistId: const Value('artist-1'),
+        isExternal: const Value(true),
+      ),
+    ]);
+    await database.libraryDao.upsertSongs([
+      song('p1', 'album-prov', ['Jazz']),
+      song('p2', 'album-ext', ['Jazz']),
+    ]);
+
+    final genres = await database.libraryDao.getGenres();
+
+    expect(genres, isNotEmpty);
+    for (final genre in genres) {
+      final albums = await database.libraryDao.getAlbumsByGenre(genre.key);
+      expect(genre.albumCount, albums.length, reason: genre.key);
+      expect(
+        (await database.libraryDao.getGenre(genre.key))?.albumCount,
+        albums.length,
+        reason: 'getGenre ${genre.key}',
+      );
+    }
+    expect(genres.firstWhere((g) => g.key == 'jazz').songCount, 3);
+  }, skip: !sqliteAvailable);
+
+  test('songs that cannot be indexed do not starve the rest', () async {
+    await database.transaction(() async {
+      for (var i = 0; i < 1100; i++) {
+        await database.customStatement(
+          'INSERT INTO songs(id, title, genres) VALUES (?, ?, ?)',
+          ['a${i.toString().padLeft(4, '0')}', 'x', '["-"]'],
+        );
+      }
+      await database.customStatement(
+        'INSERT INTO songs(id, title, genres) VALUES (?, ?, ?)',
+        ['z', 'real', '["Rock"]'],
+      );
+    });
+
+    final genres = await database.libraryDao.getGenres();
+
+    expect(genres.map((g) => g.key), ['rock']);
   }, skip: !sqliteAvailable);
 }

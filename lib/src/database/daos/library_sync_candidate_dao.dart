@@ -483,6 +483,10 @@ class LibrarySyncCandidateDao extends DatabaseAccessor<NavisDatabase>
       if (expectedSongCount == null || songs.length != expectedSongCount) {
         continue;
       }
+      // A song never synced since genres arrived (NULL) would be staged as
+      // NULL again and look unchanged, so it would never gain its genres.
+      // Leave the album pending for getAlbum hydration instead.
+      if (songs.any((song) => song.genres == null)) continue;
       await replaceSongsForAlbums(
         serverId: serverId,
         generation: generation,

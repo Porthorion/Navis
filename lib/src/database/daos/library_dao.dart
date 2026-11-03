@@ -507,6 +507,42 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<int>? _songGenreIndexRefresh;
 
+  /// Scans run by [refreshSongGenreIndex]; tests assert readers skip it.
+  @visibleForTesting
+  int debugSongGenreIndexRefreshCount = 0;
+
+  // Writes to `songs` or `song_genre_index` seen so far, and the count a
+  // successful refresh started at. Equal means the index is known fresh and
+  // readers skip the scan. The first reader always refreshes.
+  int _songGenreWrites = 0;
+  int _songGenreIndexedAtWrites = -1;
+
+  bool _songGenreWritesWatched = false;
+
+  // Counted synchronously when a write commits (drift's own stream store, as
+  // announced by every write path, `customUpdate` included), so a reader
+  // right after a write already sees it. Listened to lazily: before the first
+  // reader the index counts as stale anyway. The stream closes with the
+  // database.
+  void _watchSongGenreWrites() {
+    if (_songGenreWritesWatched) return;
+    _songGenreWritesWatched = true;
+    streamQueries
+        .updatesForSync(
+          TableUpdateQuery.onAllTables([songsTable, songGenreIndexTable]),
+        )
+        .listen((_) => _songGenreWrites++);
+  }
+
+  /// Refreshes the genre index only if a write may have changed it since the
+  /// last successful refresh. What every genre reader calls.
+  Future<void> _ensureSongGenreIndex() async {
+    _watchSongGenreWrites();
+    if (_songGenreIndexedAtWrites != _songGenreWrites) {
+      await refreshSongGenreIndex();
+    }
+  }
+
   // The trailing key version makes rows keyed by an older normalizer stale.
   static const String _songGenreSourceSql =
       "s.genres || char(31) || '$genreKeyVersion'";
@@ -517,7 +553,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   ///
   /// A failure is logged and reported as 0: genre pages then read the index
   /// as it is, and the next call retries.
+  ///
+  /// Never call this inside a transaction: it joins a refresh already running
+  /// outside it, whose statements wait for the lock the caller holds.
   Future<int> refreshSongGenreIndex() {
+    _watchSongGenreWrites();
     return _songGenreIndexRefresh ??= _refreshSongGenreIndex()
         .catchError((Object error, StackTrace stackTrace) {
           AppLogger.warning(
@@ -530,6 +570,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }
 
   Future<int> _refreshSongGenreIndex({int batchSize = 1000}) async {
+    debugSongGenreIndexRefreshCount++;
+    // A write landing mid-refresh moves the counter on, so the index is not
+    // marked fresh and the next reader repairs it.
+    final writesAtStart = _songGenreWrites;
     // Raw statements, like the other derived indexes: the refresh must never
     // wake the watchers of the queries that call it.
     await customStatement('''
@@ -541,29 +585,31 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       )
       ''');
     var written = 0;
-    final seen = <String>{};
+    // Keyset by id: songs whose names all have empty keys never gain a row
+    // and are skipped over, not selected forever. Writers resolve names, so
+    // this is a safety net.
+    var lastId = '';
     while (true) {
       final rows = await customSelect(
         '''
         SELECT s.id AS id, s.genres AS genres,
           $_songGenreSourceSql AS source
         FROM songs s
-        WHERE s.is_provisional = 0 AND s.is_external = 0
+        WHERE s.id > ?1 AND s.is_provisional = 0 AND s.is_external = 0
           AND s.genres IS NOT NULL AND s.genres <> '[]'
           AND NOT EXISTS (
             SELECT 1 FROM song_genre_index x WHERE x.song_id = s.id
           )
-        LIMIT ?
+        ORDER BY s.id
+        LIMIT ?2
         ''',
-        variables: <Variable<Object>>[Variable<int>(batchSize)],
+        variables: <Variable<Object>>[
+          Variable<String>(lastId),
+          Variable<int>(batchSize),
+        ],
         readsFrom: {songsTable, songGenreIndexTable},
       ).get();
-      // A song whose names all have empty keys never gains a row and would
-      // be selected forever; writers resolve names, so this is a safety net.
-      if (rows.isEmpty ||
-          rows.every((row) => seen.contains(row.read<String>('id')))) {
-        break;
-      }
+      if (rows.isEmpty) break;
       final entries = <(String, String, String, String)>[
         for (final row in rows)
           for (final name in resolveGenres(
@@ -590,9 +636,10 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         );
       }
       written += rows.length;
-      seen.addAll(rows.map((row) => row.read<String>('id')));
+      lastId = rows.last.read<String>('id');
       if (rows.length < batchSize) break;
     }
+    _songGenreIndexedAtWrites = writesAtStart;
     return written;
   }
 
@@ -661,26 +708,27 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return rows.isEmpty ? null : rows.single;
   }
 
-  Future<List<GenreSummary>> _queryGenres({
-    String query = '',
-    String? exactKey,
-    required bool downloadedOnly,
-    required String order,
-    int? limit,
-    int offset = 0,
-  }) async {
-    final key = genreKey(query);
-    // Punctuation-only input matches nothing, like the song search.
-    if (query.trim().isNotEmpty && key.isEmpty) return const <GenreSummary>[];
-    await refreshSongGenreIndex();
-    final rows = await customSelect(
+  /// The SQL of [_queryGenres], exposed to test its query plan. A lookup by
+  /// exact key filters the index directly and drives the join from it (CROSS
+  /// JOIN), so it uses `idx_song_genre_index_key`; a list filters on the
+  /// aggregated keys. Albums count only when listed by [getAlbumsByGenre].
+  @visibleForTesting
+  static String debugGenreSummarySql({
+    required bool exactKey,
+    bool downloadedOnly = false,
+    String order = 'tot.k ASC',
+  }) =>
       '''
       WITH g AS (
-        SELECT x.genre_key AS k, x.name AS n, s.id AS sid, s.album_id AS aid
-        FROM song_genre_index x JOIN songs s ON s.id = x.song_id
+        SELECT x.genre_key AS k, x.name AS n, s.id AS sid,
+          CASE WHEN al.is_provisional = 0 AND al.is_external = 0
+            THEN s.album_id END AS aid
+        FROM song_genre_index x
+        ${exactKey ? 'CROSS' : 'INNER'} JOIN songs s ON s.id = x.song_id
+        LEFT JOIN albums al ON al.id = s.album_id
         WHERE $_genreListedSongSql
           ${downloadedOnly ? _genreDownloadedSql : ''}
-          AND (?2 = '' OR x.genre_key = ?2)
+          ${exactKey ? 'AND x.genre_key = ?2' : ''}
       ),
       names AS (SELECT k, n, COUNT(*) AS c FROM g GROUP BY k, n),
       tot AS (
@@ -695,14 +743,38 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       WHERE (?1 = '' OR instr(tot.k, ?1) > 0)
       ORDER BY $order
       LIMIT ?3 OFFSET ?4
-      ''',
+      ''';
+
+  Future<List<GenreSummary>> _queryGenres({
+    String query = '',
+    String? exactKey,
+    required bool downloadedOnly,
+    required String order,
+    int? limit,
+    int offset = 0,
+  }) async {
+    final key = genreKey(query);
+    // Punctuation-only input matches nothing, like the song search.
+    if (query.trim().isNotEmpty && key.isEmpty) return const <GenreSummary>[];
+    await _ensureSongGenreIndex();
+    final rows = await customSelect(
+      debugGenreSummarySql(
+        exactKey: exactKey != null,
+        downloadedOnly: downloadedOnly,
+        order: order,
+      ),
       variables: <Variable<Object>>[
         Variable<String>(key),
         Variable<String>(exactKey ?? ''),
         Variable<int>(limit ?? -1),
         Variable<int>(offset < 0 ? 0 : offset),
       ],
-      readsFrom: {songGenreIndexTable, songsTable, cachedTracksTable},
+      readsFrom: {
+        songGenreIndexTable,
+        songsTable,
+        albumsTable,
+        cachedTracksTable,
+      },
     ).get();
     return <GenreSummary>[
       for (final row in rows)
@@ -729,7 +801,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }) async {
     final exact = genreKey(key);
     if (exact.isEmpty) return const <AlbumsTableData>[];
-    await refreshSongGenreIndex();
+    await _ensureSongGenreIndex();
     final needle = normalizeSearchText(query);
     Selectable<QueryRow> genreRows(String columns, {required bool paged}) {
       return customSelect(
@@ -798,7 +870,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
   }) async {
     final exact = genreKey(key);
     if (exact.isEmpty) return const <SongsTableData>[];
-    await refreshSongGenreIndex();
+    await _ensureSongGenreIndex();
     final needle = normalizeSearchText(query);
     final order = switch (sort) {
       GenreSongSort.title => 'lower(s.title) ASC',
