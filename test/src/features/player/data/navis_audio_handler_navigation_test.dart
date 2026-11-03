@@ -11273,6 +11273,8 @@ void main() {
         test('holds the cut position instead of the next item 0', () async {
           final (handler, player, resolver, seen) = await gatedCut();
           expect(seen.where((p) => p < const Duration(seconds: 47)), isEmpty);
+          expect(seen, isNotEmpty);
+          expect(seen.last, greaterThanOrEqualTo(const Duration(seconds: 47)));
           resolver.release!.complete();
           await drain(handler);
           expect(current(player).positionOffset, const Duration(seconds: 47));
@@ -11290,7 +11292,7 @@ void main() {
           expect(seen.last, lessThan(const Duration(seconds: 47)));
         });
 
-        test('raw positions resume once the reload lands', () async {
+        test('raw positions resume once the departure clears', () async {
           final (handler, player, resolver, seen) = await gatedCut();
           resolver.release!.complete();
           await drain(handler);
@@ -11299,6 +11301,21 @@ void main() {
                 (handler.collectPlaybackDiagnostics()['seek']!
                     as Map)['pending'] !=
                 true,
+          );
+          seen.clear();
+          player.simulatedPosition = const Duration(seconds: 50);
+          await Future<void>.delayed(const Duration(milliseconds: 450));
+          expect(seen, isNotEmpty);
+          expect(seen.last, greaterThanOrEqualTo(const Duration(seconds: 50)));
+        });
+        test('the stream follows the player once the reload is ready, '
+            'while the seek is still pending', () async {
+          final (handler, player, resolver, seen) = await gatedCut();
+          resolver.release!.complete();
+          await drain(handler);
+          expect(
+            (handler.collectPlaybackDiagnostics()['seek']! as Map)['pending'],
+            isTrue,
           );
           seen.clear();
           player.simulatedPosition = const Duration(seconds: 50);

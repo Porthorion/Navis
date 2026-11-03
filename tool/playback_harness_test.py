@@ -324,10 +324,12 @@ class PositionBlip(unittest.TestCase):
     def test_native_dip_during_offset_reload_is_judged_by_the_ui_position(self):
         # #210: the native clock reads the next item's 0 while the UI holds the cut target.
         samples = self.samples([92448, 0, 92000, 92100], 92000)
-        samples[1].update(rec='reloading current song', uiPos=92576)
+        samples[1].update(rec='reloading current song', seekPending=True, uiPos=92576)
         run = type('R', (), {'samples': samples, 'actions': [], 'trace': []})()
         self.assertEqual(engine.oracle_unexpected_change(run), [])
-        samples[1]['uiPos'] = 0
+        samples[1]['seekPending'] = False  # a stale stage string after cancellation is not a reload
+        self.assertIn('unrequestedReset', [v['oracle'] for v in engine.oracle_unexpected_change(run)])
+        samples[1].update(seekPending=True, uiPos=0)
         self.assertIn('unrequestedReset', [v['oracle'] for v in engine.oracle_unexpected_change(run)])
         samples[1]['uiPos'] = 92576
         self.assertEqual(engine.oracle_progress_loss(type('R', (), {'samples': samples, 'actions': [], 'trace': []})()), [])

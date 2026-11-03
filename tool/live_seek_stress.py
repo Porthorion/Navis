@@ -1404,7 +1404,7 @@ def oracle_progress_loss(run: Run, drop_ms=2000) -> list[dict]:
 def shown_pos(s):
     """The position the UI shows. While a premature-EOF offset reload runs, the native clock dips to the next
     item's 0; the app holds the cut target in uiPos (#210), so judge that instead."""
-    if s.get('rec') == 'reloading current song' and s.get('uiPos') is not None:
+    if s.get('rec') == 'reloading current song' and s.get('seekPending') and s.get('uiPos') is not None:
         return s['uiPos']
     return s['pos']
 
