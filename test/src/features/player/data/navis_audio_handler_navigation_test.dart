@@ -15,6 +15,9 @@ import 'package:flutter/foundation.dart'
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_service_platform_interface/audio_service_platform_interface.dart'
+    show AudioServicePlatform;
+import 'package:audio_service_platform_interface/no_op_audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 
 import 'dart:async';
@@ -1493,9 +1496,21 @@ Future<void> settleQueue(NavisAudioHandler handler) async {
   expectNativeMirrorsQueue(handler, handler.debugActivePlayer);
 }
 
+/// The handler builds its system-art file cache only on Android, Linux and
+/// Windows (see the `_artCache` initializer), so macOS never publishes
+/// `artCacheFile` or a `content:` art URI.
+final String? _noSystemArtCacheOnMacOS = Platform.isMacOS
+    ? 'macOS builds no system artwork cache'
+    : null;
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  setUpAll(() => registerFallbackValue(const RadioFilters()));
+  setUpAll(() {
+    registerFallbackValue(const RadioFilters());
+    // Linux and Windows default to the no-op platform; other hosts would talk
+    // to unmocked audio_service plugin channels.
+    AudioServicePlatform.instance = NoOpAudioService();
+  });
 
   Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
   createHandler(
@@ -5535,6 +5550,7 @@ void main() {
       expect(last.artUri?.scheme, 'content');
       expect(last.extras?['artCacheFile'], file.path);
     },
+    skip: _noSystemArtCacheOnMacOS,
   );
 
   test(
@@ -11731,6 +11747,7 @@ void main() {
             expect(handler.snapshot.currentSongId, 'song-1');
             expect(current(player).positionOffset, const Duration(seconds: 47));
           },
+          skip: _noSystemArtCacheOnMacOS,
         );
       }
 
