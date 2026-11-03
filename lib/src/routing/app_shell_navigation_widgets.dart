@@ -219,7 +219,7 @@ class _RailSidebar extends ConsumerWidget {
                       lineHeight(subLabel, scaled: false),
                 );
                 final navTileEstimatedHeight =
-                    (compact ? 52.0 : 64.0) + navTextGrowth;
+                    (compact ? 56.0 : 64.0) + navTextGrowth;
                 final subNavTileEstimatedHeight = 44.0 + subTextGrowth;
                 const subNavTrailingGap = 6.0;
                 const reservedMiniPlayerHeight = 170.0;
