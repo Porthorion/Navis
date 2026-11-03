@@ -9,6 +9,11 @@ headphone controls; keyboard shortcuts; Dock menu). iOS is not a target yet,
 but work that also serves iOS (AVFoundation/MediaPlayer, `audio_session`,
 Darwin plugins) is preferred.
 
+macOS work must not change Linux or Windows behaviour (owner): gate changes
+on `Platform.isMacOS` (or `isMacOS || isIOS` for shared Darwin code). A change
+to a shared path is called out in its PR as cross-platform, carries Linux and
+Windows evidence, and gets a risky-change review.
+
 This file is the durable ledger for the work. Each item gets its own branch
 and pull request against `dev`; update the item's row when its state changes.
 
@@ -46,11 +51,11 @@ plus Opus review for auth/file writes).
 
 | # | Item | Risk | iOS carry-over | State | Branch / PR |
 |---|---|---|---|---|---|
-| M0 | Diagnostics API on macOS profile builds (`_syncDiagnosticsRuntimeEnabled`, launch scripts `-d macos`, profile entitlement `network.server` already present). Prerequisite for every runtime check below | risky (auth surface, profile only) | no | triaged | – |
+| M0 | Diagnostics API on macOS profile builds (`_syncDiagnosticsRuntimeEnabled`, launch scripts `-d macos`). Drops the App Sandbox from both entitlement files so the sandbox no longer blocks the clone root and handshake under `build/`, matching the notarized app, which `tool/macos_notarize.sh` re-signs without entitlements. Prerequisite for every runtime check below | risky (auth surface, profile only; entitlements) | no | in implementation | `chore/macos-diagnostics-api` |
 | M1 | Runtime-verify Now Playing and remote commands through `audio_service`: metadata, artwork, position/duration/rate, scrubbing (`changePlaybackPosition`), play/pause/next/previous/seek from media keys, Control Center, AirPods. Fix what fails, then decide whether an app-owned Darwin bridge (like MPRIS/SMTC) is needed | risky (playback) | yes (same MediaPlayer APIs) | triaged | – |
 | M2 | Replace the macOS libmpv bundle with a pinned full build (like Windows): system TLS verification, libavfilter equalizer, then lift the macOS gates for EQ and fast seeking. Interim if M2 is slow: `tls-verify=yes` with `tls-ca-file=/etc/ssl/cert.pem`, runtime-proven against a bad certificate | risky (playback, security) | no (iOS uses AVFoundation) | triaged | – |
 | M3 | Mac app lifecycle: keep running when the window closes, reopen on Dock click, Dock menu (play/pause, next, previous, now playing), Controls menu in the menu bar wired to `desktop_commands` (Flutter `PlatformMenuBar`) | risky (window/close lifecycle) | partly (commands) | triaged | – |
-| M4 | Self-update on macOS: prove download → replace → relaunch on a notarized build; settle signing entitlements (sandbox or not) so `flutter build` and the shipped app match | risky (file writes, updater) | no | triaged | – |
+| M4 | Self-update on macOS: prove download → replace → relaunch on a notarized build (unsandboxed after M0) and sign with explicit entitlements and hardened runtime rather than `--deep` re-signing | risky (file writes, updater) | no | triaged | – |
 | M5 | Register the LGPL libmpv/FFmpeg notice on macOS | low | no | triaged | – |
 | M6 | Harden the sqflite cover-art store against the 3.4.5 open/close bugs | risky (cache) | yes | triaged | – |
 | M7 | Commit the Swift Package Manager migration of the macOS Xcode project so builds stop dirtying the tree | low | yes (iOS project too) | triaged | – |
