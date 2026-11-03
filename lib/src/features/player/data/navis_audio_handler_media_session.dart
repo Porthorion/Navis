@@ -487,10 +487,19 @@ extension _NavisMediaSession on NavisAudioHandler {
           if (!identical(_player, wiredPlayer)) return;
           if (!_positionController.isClosed) {
             // The outgoing deck now plays the next song from ~0 mid-hand-over.
-            _positionController.add(
-              _outgoingAdvancedMidFade ? _transportPosition : position,
-            );
-            _lastPositionEmitAt = DateTime.now();
+            // A premature-EOF reload does the same for ~40 ms: hold the cut
+            // target (or the last value) until the reload lands (#210).
+            final departed = _prematureTranscodeDeparture?.item.id;
+            final held = _pendingSeek?.songId == departed
+                ? _pendingSeek?.position
+                : null;
+            if (departed == null || held != null) {
+              _positionController.add(
+                held ??
+                    (_outgoingAdvancedMidFade ? _transportPosition : position),
+              );
+              _lastPositionEmitAt = DateTime.now();
+            }
           }
           _captureTranscodeEndOccurrence();
           _observePlaybackAdvance();

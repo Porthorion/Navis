@@ -11193,6 +11193,7 @@ void main() {
         bool original = false,
         int? duration = 300,
         ScrobbleService? scrobbleService,
+        bool positionStreams = false,
         void Function(NavisDatabase)? onDatabase,
         PlaybackSourceResolver Function(PlaybackSourceResolver)? wrap,
       }) async {
@@ -11203,7 +11204,7 @@ void main() {
               : opus128,
           wrapResolver: wrap,
           scrobbleService: scrobbleService,
-          positionStreams: scrobbleService != null,
+          positionStreams: scrobbleService != null || positionStreams,
         );
         onDatabase?.call(database);
         await database.libraryDao.upsertSongs([
@@ -11230,6 +11231,82 @@ void main() {
         await pumpEventQueue(times: 100);
         await settleQueue(handler);
       }
+
+      group('position stream across a cut reload (#210)', () {
+        Future<
+          (
+            NavisAudioHandler,
+            _ControllableAudioPlayer,
+            _GatedSourceResolver,
+            List<Duration>,
+          )
+        >
+        gatedCut() async {
+          late _GatedSourceResolver resolver;
+          final (handler, player) = await setup(
+            positionStreams: true,
+            wrap: (base) => resolver = _GatedSourceResolver(base),
+          );
+          final seen = <Duration>[];
+          final sub = handler.positionStream.listen(seen.add);
+          addTearDown(sub.cancel);
+          addTearDown(() {
+            if (resolver.release?.isCompleted == false) {
+              resolver.release!.complete();
+            }
+          });
+          // The sampler runs on real timers; let it publish the pre-cut value.
+          player.simulatedPosition = const Duration(seconds: 47);
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          resolver
+            ..blockedSongId = 'song-1'
+            ..entered = Completer<void>()
+            ..release = Completer<void>();
+          seen.clear();
+          // just_audio auto-advances: the player now reads the next item at 0.
+          player.finishCurrentTrack(endPosition: const Duration(seconds: 47));
+          await until(() => resolver.entered!.isCompleted);
+          await Future<void>.delayed(const Duration(milliseconds: 450));
+          return (handler, player, resolver, seen);
+        }
+
+        test('holds the cut position instead of the next item 0', () async {
+          final (handler, player, resolver, seen) = await gatedCut();
+          expect(seen.where((p) => p < const Duration(seconds: 47)), isEmpty);
+          resolver.release!.complete();
+          await drain(handler);
+          expect(current(player).positionOffset, const Duration(seconds: 47));
+        });
+
+        test('a skip during the cut releases the hold', () async {
+          final (handler, player, resolver, seen) = await gatedCut();
+          unawaited(handler.skipToNext());
+          resolver.release!.complete();
+          await drain(handler);
+          seen.clear();
+          player.simulatedPosition = const Duration(seconds: 3);
+          await Future<void>.delayed(const Duration(milliseconds: 450));
+          expect(seen, isNotEmpty);
+          expect(seen.last, lessThan(const Duration(seconds: 47)));
+        });
+
+        test('raw positions resume once the reload lands', () async {
+          final (handler, player, resolver, seen) = await gatedCut();
+          resolver.release!.complete();
+          await drain(handler);
+          await until(
+            () =>
+                (handler.collectPlaybackDiagnostics()['seek']!
+                    as Map)['pending'] !=
+                true,
+          );
+          seen.clear();
+          player.simulatedPosition = const Duration(seconds: 50);
+          await Future<void>.delayed(const Duration(milliseconds: 450));
+          expect(seen, isNotEmpty);
+          expect(seen.last, greaterThanOrEqualTo(const Duration(seconds: 50)));
+        });
+      });
 
       test('row 15 queued append preserves the classified cut', () async {
         final (handler, player, database) = await offsetHandler();
