@@ -67,6 +67,72 @@ void main() {
       expect(lyrics.structuredLyrics.first.line.first.value, 'line');
     });
 
+    group('Song genres', () {
+      Song parse(Map<String, dynamic> extra) =>
+          Song.fromJson(<String, dynamic>{'id': 's', 'title': 'T', ...extra});
+
+      test('the OpenSubsonic genres list wins over the legacy genre', () {
+        final song = parse(<String, dynamic>{
+          'genre': 'Pop',
+          'genres': <Object>[
+            <String, Object>{'name': 'Rock'},
+            <String, Object>{'name': 'Jazz'},
+          ],
+        });
+        expect(song.genres, <String>['Rock', 'Jazz']);
+      });
+
+      test('falls back to the legacy genre as one tag when the list is '
+          'missing or empty', () {
+        expect(parse(<String, dynamic>{'genre': 'Rock'}).genres, ['Rock']);
+        expect(
+          parse(<String, dynamic>{'genre': 'Rock', 'genres': const <Object>[]})
+              .genres,
+          ['Rock'],
+        );
+        expect(parse(const <String, dynamic>{}).genres, isEmpty);
+      });
+
+      test('never splits a tag on punctuation', () {
+        expect(parse(<String, dynamic>{'genre': 'Rock & Roll'}).genres, [
+          'Rock & Roll',
+        ]);
+        expect(
+          parse(<String, dynamic>{
+            'genres': <Object>[
+              <String, Object>{'name': 'Drum/Bass'},
+              <String, Object>{'name': 'Rock; Pop'},
+            ],
+          }).genres,
+          ['Drum/Bass', 'Rock; Pop'],
+        );
+      });
+
+      test('drops empty names and dedupes by merge key, keeping the first', () {
+        final song = parse(<String, dynamic>{
+          'genres': <Object>[
+            <String, Object>{'name': ' Hip Hop '},
+            <String, Object>{'name': ''},
+            <String, Object>{'name': '   '},
+            <String, Object>{'name': '-'},
+            <String, Object>{'name': 'hip-hop'},
+            <String, Object>{'name': 'Rock'},
+          ],
+        });
+        expect(song.genres, <String>['Hip Hop', 'Rock']);
+      });
+
+      test('round-trips through toJson', () {
+        final song = parse(<String, dynamic>{
+          'genres': <Object>[
+            <String, Object>{'name': 'Rock'},
+            <String, Object>{'name': 'Jazz'},
+          ],
+        });
+        expect(Song.fromJson(song.toJson()).genres, song.genres);
+      });
+    });
+
     test('deserializes ScanStatus including a missing lastScan', () {
       final complete = ScanStatus.fromJson(<String, dynamic>{
         'scanning': false,
@@ -83,7 +149,7 @@ void main() {
       expect(minimal.lastScan, isNull);
     });
 
-    test('ignores a server genre so a genre-only edit is not a change', () {
+    test('albums carry no genre; theirs derives from their songs', () {
       const base = <String, dynamic>{'id': 'al-1', 'name': 'A', 'year': 2020};
       final tagged = Album.fromJson(<String, dynamic>{
         ...base,

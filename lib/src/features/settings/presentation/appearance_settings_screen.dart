@@ -5,12 +5,15 @@ import 'dart:math';
 import 'package:navis/src/features/settings/domain/color_namer.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
+import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/features/home/domain/home_section_ids.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
+import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/content_layout.dart';
@@ -31,11 +34,53 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
-class AppearanceSettingsScreen extends ConsumerWidget {
-  const new({super.key});
+class AppearanceSettingsScreen extends ConsumerStatefulWidget {
+  const new({this.focusLibraryPages = false, super.key});
+
+  /// Opens the Library pages group, scrolls to it and briefly highlights the
+  /// Genres row (the link from a genre chip while the page is hidden).
+  final bool focusLibraryPages;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AppearanceSettingsScreen> createState() =>
+      _AppearanceSettingsScreenState();
+}
+
+class _AppearanceSettingsScreenState
+    extends ConsumerState<AppearanceSettingsScreen> {
+  final GlobalKey _libraryPagesKey = GlobalKey();
+  Timer? _highlightTimer;
+  bool _highlightGenres = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.focusLibraryPages) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final target = _libraryPagesKey.currentContext;
+        if (!mounted || target == null) return;
+        Scrollable.ensureVisible(
+          target,
+          alignment: 0.02,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+        );
+        setState(() => _highlightGenres = true);
+        _highlightTimer = Timer(const Duration(milliseconds: 2500), () {
+          if (mounted) setState(() => _highlightGenres = false);
+        });
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _highlightTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final currentMode = ref.watch(themeModeProvider);
     final currentSeed = ref.watch(colorSchemeSeedProvider);
@@ -159,6 +204,12 @@ class AppearanceSettingsScreen extends ConsumerWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1040),
             child: ListView(
+              // A deep link to the Library pages group, near the bottom, needs
+              // it built to scroll to. The extent is finite: an infinite one breaks
+              // the semantics tree.
+              scrollCacheExtent: widget.focusLibraryPages
+                  ? const ScrollCacheExtent.pixels(20000)
+                  : null,
               padding: EdgeInsets.symmetric(vertical: isDesktop ? 24 : 8),
               children: <Widget>[
                 if (languageControlVisible) ...[
@@ -503,16 +554,33 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                 const Divider(height: 24),
 
                 SettingsCollapsibleGroup(
+                  key: _libraryPagesKey,
                   leading: const _BlinkingEyeIcon(),
                   title: l10n.appearancePagesSectionLabel,
-                  initiallyExpanded: false,
+                  initiallyExpanded: widget.focusLibraryPages,
+                  // The tagged row is inside the group; the tag has to be
+                  // visible while the group is closed.
+                  adornment: Consumer(
+                    builder: (context, ref, _) =>
+                        AppearanceVisitScope.isTagged(
+                          context,
+                          ref,
+                          SetupHighlight.genresPage,
+                        )
+                        ? const NewFeatureTag()
+                        : const SizedBox.shrink(),
+                  ),
                   child: _LibraryPageReorder(
+                    highlighted: _highlightGenres
+                        ? LibrarySection.genres
+                        : null,
                     order: libraryPageOrder,
                     visibleSections: visibleLibrarySections(
                       orderedSections: libraryPageOrder,
                       showAlbums: ref.watch(showAlbumsPageProvider),
                       showLiked: ref.watch(showLikedPageProvider),
                       showArtists: ref.watch(showArtistsPageProvider),
+                      showGenres: ref.watch(showGenresPageProvider),
                       showPlaylists: ref.watch(showPlaylistsPageProvider),
                       showRadio: ref.watch(showRadioPageProvider),
                     ).toSet(),
@@ -537,6 +605,10 @@ class AppearanceSettingsScreen extends ConsumerWidget {
                           );
                         case LibrarySection.artists:
                           await db.appSettingsDao.updateShowArtistsPage(
+                            enabled: visible,
+                          );
+                        case LibrarySection.genres:
+                          await db.appSettingsDao.updateShowGenresPage(
                             enabled: visible,
                           );
                         case LibrarySection.playlists:
@@ -637,6 +709,7 @@ class SettingsCollapsibleGroup extends StatefulWidget {
     required this.title,
     required this.child,
     this.initiallyExpanded = false,
+    this.adornment,
     this.outerPadding = const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     this.buildCollapsed = true,
     super.key,
@@ -646,6 +719,10 @@ class SettingsCollapsibleGroup extends StatefulWidget {
   final String title;
   final Widget child;
   final bool initiallyExpanded;
+
+  /// Shown beside the title, for example a "New" tag for an option inside the
+  /// collapsed group.
+  final Widget? adornment;
 
   /// Space around the card.
   final EdgeInsetsGeometry outerPadding;
@@ -733,8 +810,9 @@ class SettingsCollapsibleGroupState extends State<SettingsCollapsibleGroup> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          Text(
+                          titleWithAdornment(
                             widget.title,
+                            widget.adornment,
                             style: theme.textTheme.titleMedium,
                           ),
                         ],
@@ -1860,8 +1938,11 @@ class _LibraryPageReorder extends StatefulWidget {
     required this.visibleSections,
     required this.onReorder,
     required this.onToggleVisibility,
+    this.highlighted,
   });
 
+  /// The row shown with a highlight background, if any.
+  final LibrarySection? highlighted;
   final List<LibrarySection> order;
   final Set<LibrarySection> visibleSections;
   final ValueChanged<List<LibrarySection>> onReorder;
@@ -1894,6 +1975,7 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
       LibrarySection.albums => l10n.libraryTabAlbums,
       LibrarySection.liked => l10n.libraryTabLiked,
       LibrarySection.artists => l10n.libraryTabArtists,
+      LibrarySection.genres => l10n.libraryTabGenres,
       LibrarySection.playlists => l10n.navPlaylists,
       LibrarySection.radio => l10n.navRadio,
     };
@@ -1904,6 +1986,7 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
       LibrarySection.albums => null,
       LibrarySection.liked => l10n.appearanceShowLikedPageSubtitle,
       LibrarySection.artists => l10n.appearanceShowArtistsPageSubtitle,
+      LibrarySection.genres => l10n.appearanceShowGenresPageSubtitle,
       LibrarySection.playlists => l10n.appearanceShowPlaylistsPageSubtitle,
       LibrarySection.radio => l10n.appearanceShowRadioPageSubtitle,
     };
@@ -1929,23 +2012,32 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
       itemBuilder: (context, index) {
         final section = _localOrder[index];
         final visible = widget.visibleSections.contains(section);
+        final label = _sectionLabel(section, l10n);
+        final titleStyle = !visible
+            ? theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onSurface.withAlpha(100),
+              )
+            : null;
         final subtitle = _sectionSubtitle(section, l10n);
         return Material(
           key: ValueKey<String>('library-page-${section.name}'),
-          color: Colors.transparent,
+          borderRadius: NavisShapeData.of(context).mdAll,
+          // primaryContainer is near-black in dark themes, so tint the accent.
+          color: widget.highlighted == section
+              ? theme.colorScheme.primary.withValues(alpha: 0.22)
+              : Colors.transparent,
           child: ListTile(
             leading: ReorderableDragStartListener(
               index: index,
               child: const Icon(Icons.drag_handle),
             ),
-            title: Text(
-              _sectionLabel(section, l10n),
-              style: !visible
-                  ? theme.textTheme.bodyLarge?.copyWith(
-                      color: theme.colorScheme.onSurface.withAlpha(100),
-                    )
-                  : null,
-            ),
+            title: section == LibrarySection.genres
+                ? HighlightedAppearanceOption(
+                    highlight: SetupHighlight.genresPage,
+                    builder: (context, adornment) =>
+                        titleWithAdornment(label, adornment, style: titleStyle),
+                  )
+                : Text(label, style: titleStyle),
             subtitle: subtitle == null ? null : Text(subtitle),
             trailing: Switch(
               value: visible,

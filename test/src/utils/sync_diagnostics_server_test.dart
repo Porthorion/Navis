@@ -560,6 +560,7 @@ void main() {
         'homeRecommendationsAutoAdvance': true,
         'showArtistsPage': true,
         'showRadioPage': true,
+        'showGenresPage': true,
         'coverArtShape': 'rounded',
         'nowPlayingArtShape': 'circle',
         'artistCardShape': 'square',

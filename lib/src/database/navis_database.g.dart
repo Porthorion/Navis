@@ -828,6 +828,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _showGenresPageMeta = const VerificationMeta(
+    'showGenresPage',
+  );
+  @override
+  late final GeneratedColumn<bool> showGenresPage = GeneratedColumn<bool>(
+    'show_genres_page',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("show_genres_page" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _rollingCacheBudgetMbMeta =
       const VerificationMeta('rollingCacheBudgetMb');
   @override
@@ -2029,6 +2044,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     playlistCreateOnServer,
     showArtistsPage,
     showLikedPage,
+    showGenresPage,
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
     autoDownloadStarredOnWifi,
@@ -2285,6 +2301,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         showLikedPage.isAcceptableOrUnknown(
           data['show_liked_page']!,
           _showLikedPageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('show_genres_page')) {
+      context.handle(
+        _showGenresPageMeta,
+        showGenresPage.isAcceptableOrUnknown(
+          data['show_genres_page']!,
+          _showGenresPageMeta,
         ),
       );
     }
@@ -3190,6 +3215,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}show_liked_page'],
       )!,
+      showGenresPage: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}show_genres_page'],
+      )!,
       rollingCacheBudgetMb: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}rolling_cache_budget_mb'],
@@ -3597,6 +3626,7 @@ class AppSettingsTableData extends DataClass
   final bool playlistCreateOnServer;
   final bool showArtistsPage;
   final bool showLikedPage;
+  final bool showGenresPage;
 
   /// Rolling cache budget in megabytes. Default 2048 (2 GB).
   final int rollingCacheBudgetMb;
@@ -3893,6 +3923,7 @@ class AppSettingsTableData extends DataClass
     required this.playlistCreateOnServer,
     required this.showArtistsPage,
     required this.showLikedPage,
+    required this.showGenresPage,
     required this.rollingCacheBudgetMb,
     required this.wifiOnlyDownloads,
     required this.autoDownloadStarredOnWifi,
@@ -4018,6 +4049,7 @@ class AppSettingsTableData extends DataClass
     map['playlist_create_on_server'] = Variable<bool>(playlistCreateOnServer);
     map['show_artists_page'] = Variable<bool>(showArtistsPage);
     map['show_liked_page'] = Variable<bool>(showLikedPage);
+    map['show_genres_page'] = Variable<bool>(showGenresPage);
     map['rolling_cache_budget_mb'] = Variable<int>(rollingCacheBudgetMb);
     map['wifi_only_downloads'] = Variable<bool>(wifiOnlyDownloads);
     map['auto_download_starred_on_wifi'] = Variable<bool>(
@@ -4216,6 +4248,7 @@ class AppSettingsTableData extends DataClass
       playlistCreateOnServer: Value(playlistCreateOnServer),
       showArtistsPage: Value(showArtistsPage),
       showLikedPage: Value(showLikedPage),
+      showGenresPage: Value(showGenresPage),
       rollingCacheBudgetMb: Value(rollingCacheBudgetMb),
       wifiOnlyDownloads: Value(wifiOnlyDownloads),
       autoDownloadStarredOnWifi: Value(autoDownloadStarredOnWifi),
@@ -4382,6 +4415,7 @@ class AppSettingsTableData extends DataClass
       ),
       showArtistsPage: serializer.fromJson<bool>(json['showArtistsPage']),
       showLikedPage: serializer.fromJson<bool>(json['showLikedPage']),
+      showGenresPage: serializer.fromJson<bool>(json['showGenresPage']),
       rollingCacheBudgetMb: serializer.fromJson<int>(
         json['rollingCacheBudgetMb'],
       ),
@@ -4597,6 +4631,7 @@ class AppSettingsTableData extends DataClass
       'playlistCreateOnServer': serializer.toJson<bool>(playlistCreateOnServer),
       'showArtistsPage': serializer.toJson<bool>(showArtistsPage),
       'showLikedPage': serializer.toJson<bool>(showLikedPage),
+      'showGenresPage': serializer.toJson<bool>(showGenresPage),
       'rollingCacheBudgetMb': serializer.toJson<int>(rollingCacheBudgetMb),
       'wifiOnlyDownloads': serializer.toJson<bool>(wifiOnlyDownloads),
       'autoDownloadStarredOnWifi': serializer.toJson<bool>(
@@ -4762,6 +4797,7 @@ class AppSettingsTableData extends DataClass
     bool? playlistCreateOnServer,
     bool? showArtistsPage,
     bool? showLikedPage,
+    bool? showGenresPage,
     int? rollingCacheBudgetMb,
     bool? wifiOnlyDownloads,
     bool? autoDownloadStarredOnWifi,
@@ -4882,6 +4918,7 @@ class AppSettingsTableData extends DataClass
         playlistCreateOnServer ?? this.playlistCreateOnServer,
     showArtistsPage: showArtistsPage ?? this.showArtistsPage,
     showLikedPage: showLikedPage ?? this.showLikedPage,
+    showGenresPage: showGenresPage ?? this.showGenresPage,
     rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
     wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
     autoDownloadStarredOnWifi:
@@ -5087,6 +5124,9 @@ class AppSettingsTableData extends DataClass
       showLikedPage: data.showLikedPage.present
           ? data.showLikedPage.value
           : this.showLikedPage,
+      showGenresPage: data.showGenresPage.present
+          ? data.showGenresPage.value
+          : this.showGenresPage,
       rollingCacheBudgetMb: data.rollingCacheBudgetMb.present
           ? data.rollingCacheBudgetMb.value
           : this.rollingCacheBudgetMb,
@@ -5382,6 +5422,7 @@ class AppSettingsTableData extends DataClass
           ..write('playlistCreateOnServer: $playlistCreateOnServer, ')
           ..write('showArtistsPage: $showArtistsPage, ')
           ..write('showLikedPage: $showLikedPage, ')
+          ..write('showGenresPage: $showGenresPage, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('autoDownloadStarredOnWifi: $autoDownloadStarredOnWifi, ')
@@ -5507,6 +5548,7 @@ class AppSettingsTableData extends DataClass
     playlistCreateOnServer,
     showArtistsPage,
     showLikedPage,
+    showGenresPage,
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
     autoDownloadStarredOnWifi,
@@ -5623,6 +5665,7 @@ class AppSettingsTableData extends DataClass
           other.playlistCreateOnServer == this.playlistCreateOnServer &&
           other.showArtistsPage == this.showArtistsPage &&
           other.showLikedPage == this.showLikedPage &&
+          other.showGenresPage == this.showGenresPage &&
           other.rollingCacheBudgetMb == this.rollingCacheBudgetMb &&
           other.wifiOnlyDownloads == this.wifiOnlyDownloads &&
           other.autoDownloadStarredOnWifi == this.autoDownloadStarredOnWifi &&
@@ -5745,6 +5788,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> playlistCreateOnServer;
   final Value<bool> showArtistsPage;
   final Value<bool> showLikedPage;
+  final Value<bool> showGenresPage;
   final Value<int> rollingCacheBudgetMb;
   final Value<bool> wifiOnlyDownloads;
   final Value<bool> autoDownloadStarredOnWifi;
@@ -5857,6 +5901,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.playlistCreateOnServer = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
     this.showLikedPage = const Value.absent(),
+    this.showGenresPage = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
     this.autoDownloadStarredOnWifi = const Value.absent(),
@@ -5970,6 +6015,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.playlistCreateOnServer = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
     this.showLikedPage = const Value.absent(),
+    this.showGenresPage = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
     this.autoDownloadStarredOnWifi = const Value.absent(),
@@ -6083,6 +6129,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? playlistCreateOnServer,
     Expression<bool>? showArtistsPage,
     Expression<bool>? showLikedPage,
+    Expression<bool>? showGenresPage,
     Expression<int>? rollingCacheBudgetMb,
     Expression<bool>? wifiOnlyDownloads,
     Expression<bool>? autoDownloadStarredOnWifi,
@@ -6202,6 +6249,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'playlist_create_on_server': playlistCreateOnServer,
       if (showArtistsPage != null) 'show_artists_page': showArtistsPage,
       if (showLikedPage != null) 'show_liked_page': showLikedPage,
+      if (showGenresPage != null) 'show_genres_page': showGenresPage,
       if (rollingCacheBudgetMb != null)
         'rolling_cache_budget_mb': rollingCacheBudgetMb,
       if (wifiOnlyDownloads != null) 'wifi_only_downloads': wifiOnlyDownloads,
@@ -6367,6 +6415,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? playlistCreateOnServer,
     Value<bool>? showArtistsPage,
     Value<bool>? showLikedPage,
+    Value<bool>? showGenresPage,
     Value<int>? rollingCacheBudgetMb,
     Value<bool>? wifiOnlyDownloads,
     Value<bool>? autoDownloadStarredOnWifi,
@@ -6482,6 +6531,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           playlistCreateOnServer ?? this.playlistCreateOnServer,
       showArtistsPage: showArtistsPage ?? this.showArtistsPage,
       showLikedPage: showLikedPage ?? this.showLikedPage,
+      showGenresPage: showGenresPage ?? this.showGenresPage,
       rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
       autoDownloadStarredOnWifi:
@@ -6669,6 +6719,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (showLikedPage.present) {
       map['show_liked_page'] = Variable<bool>(showLikedPage.value);
+    }
+    if (showGenresPage.present) {
+      map['show_genres_page'] = Variable<bool>(showGenresPage.value);
     }
     if (rollingCacheBudgetMb.present) {
       map['rolling_cache_budget_mb'] = Variable<int>(
@@ -7055,6 +7108,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('playlistCreateOnServer: $playlistCreateOnServer, ')
           ..write('showArtistsPage: $showArtistsPage, ')
           ..write('showLikedPage: $showLikedPage, ')
+          ..write('showGenresPage: $showGenresPage, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('autoDownloadStarredOnWifi: $autoDownloadStarredOnWifi, ')
@@ -10363,6 +10417,15 @@ class $SongsTableTable extends SongsTable
         requiredDuringInsert: false,
       );
   @override
+  late final GeneratedColumnWithTypeConverter<List<String>?, String> genres =
+      GeneratedColumn<String>(
+        'genres',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      ).withConverter<List<String>?>($SongsTableTable.$convertergenresn);
+  @override
   List<GeneratedColumn> get $columns => [
     id,
     title,
@@ -10396,6 +10459,7 @@ class $SongsTableTable extends SongsTable
     replayGainAlbumGain,
     replayGainTrackPeak,
     replayGainAlbumPeak,
+    genres,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -10772,6 +10836,12 @@ class $SongsTableTable extends SongsTable
         DriftSqlType.double,
         data['${effectivePrefix}replay_gain_album_peak'],
       ),
+      genres: $SongsTableTable.$convertergenresn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}genres'],
+        ),
+      ),
     );
   }
 
@@ -10779,6 +10849,11 @@ class $SongsTableTable extends SongsTable
   $SongsTableTable createAlias(String alias) {
     return $SongsTableTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<List<String>, String> $convertergenres =
+      const StringListConverter();
+  static TypeConverter<List<String>?, String?> $convertergenresn =
+      NullAwareTypeConverter.wrap($convertergenres);
 }
 
 class SongsTableData extends DataClass implements Insertable<SongsTableData> {
@@ -10849,6 +10924,13 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
 
   /// ReplayGain album peak (linear, 0.0–1.0+).
   final double? replayGainAlbumPeak;
+
+  /// The song's genre names as the server spelled them, JSON-encoded, with
+  /// blank names and duplicates by merge key already dropped (see
+  /// `resolveGenres`). `'[]'` for a synced untagged song; null only for rows
+  /// not synced since genres were added. Nullable so existing rows and
+  /// callers need no backfill; read null as untagged.
+  final List<String>? genres;
   const SongsTableData({
     required this.id,
     required this.title,
@@ -10882,6 +10964,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     this.replayGainAlbumGain,
     this.replayGainTrackPeak,
     this.replayGainAlbumPeak,
+    this.genres,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -10974,6 +11057,11 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     if (!nullToAbsent || replayGainAlbumPeak != null) {
       map['replay_gain_album_peak'] = Variable<double>(replayGainAlbumPeak);
     }
+    if (!nullToAbsent || genres != null) {
+      map['genres'] = Variable<String>(
+        $SongsTableTable.$convertergenresn.toSql(genres),
+      );
+    }
     return map;
   }
 
@@ -11065,6 +11153,9 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       replayGainAlbumPeak: replayGainAlbumPeak == null && nullToAbsent
           ? const Value.absent()
           : Value(replayGainAlbumPeak),
+      genres: genres == null && nullToAbsent
+          ? const Value.absent()
+          : Value(genres),
     );
   }
 
@@ -11116,6 +11207,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       replayGainAlbumPeak: serializer.fromJson<double?>(
         json['replayGainAlbumPeak'],
       ),
+      genres: serializer.fromJson<List<String>?>(json['genres']),
     );
   }
   @override
@@ -11154,6 +11246,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       'replayGainAlbumGain': serializer.toJson<double?>(replayGainAlbumGain),
       'replayGainTrackPeak': serializer.toJson<double?>(replayGainTrackPeak),
       'replayGainAlbumPeak': serializer.toJson<double?>(replayGainAlbumPeak),
+      'genres': serializer.toJson<List<String>?>(genres),
     };
   }
 
@@ -11190,6 +11283,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     Value<double?> replayGainAlbumGain = const Value.absent(),
     Value<double?> replayGainTrackPeak = const Value.absent(),
     Value<double?> replayGainAlbumPeak = const Value.absent(),
+    Value<List<String>?> genres = const Value.absent(),
   }) => SongsTableData(
     id: id ?? this.id,
     title: title ?? this.title,
@@ -11241,6 +11335,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     replayGainAlbumPeak: replayGainAlbumPeak.present
         ? replayGainAlbumPeak.value
         : this.replayGainAlbumPeak,
+    genres: genres.present ? genres.value : this.genres,
   );
   SongsTableData copyWithCompanion(SongsTableCompanion data) {
     return SongsTableData(
@@ -11310,6 +11405,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
       replayGainAlbumPeak: data.replayGainAlbumPeak.present
           ? data.replayGainAlbumPeak.value
           : this.replayGainAlbumPeak,
+      genres: data.genres.present ? data.genres.value : this.genres,
     );
   }
 
@@ -11347,7 +11443,8 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           ..write('replayGainTrackGain: $replayGainTrackGain, ')
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
           ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
-          ..write('replayGainAlbumPeak: $replayGainAlbumPeak')
+          ..write('replayGainAlbumPeak: $replayGainAlbumPeak, ')
+          ..write('genres: $genres')
           ..write(')'))
         .toString();
   }
@@ -11386,6 +11483,7 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
     replayGainAlbumGain,
     replayGainTrackPeak,
     replayGainAlbumPeak,
+    genres,
   ]);
   @override
   bool operator ==(Object other) =>
@@ -11422,7 +11520,8 @@ class SongsTableData extends DataClass implements Insertable<SongsTableData> {
           other.replayGainTrackGain == this.replayGainTrackGain &&
           other.replayGainAlbumGain == this.replayGainAlbumGain &&
           other.replayGainTrackPeak == this.replayGainTrackPeak &&
-          other.replayGainAlbumPeak == this.replayGainAlbumPeak);
+          other.replayGainAlbumPeak == this.replayGainAlbumPeak &&
+          other.genres == this.genres);
 }
 
 class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
@@ -11458,6 +11557,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
   final Value<double?> replayGainAlbumGain;
   final Value<double?> replayGainTrackPeak;
   final Value<double?> replayGainAlbumPeak;
+  final Value<List<String>?> genres;
   final Value<int> rowid;
   const SongsTableCompanion({
     this.id = const Value.absent(),
@@ -11492,6 +11592,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.replayGainAlbumGain = const Value.absent(),
     this.replayGainTrackPeak = const Value.absent(),
     this.replayGainAlbumPeak = const Value.absent(),
+    this.genres = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SongsTableCompanion.insert({
@@ -11527,6 +11628,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     this.replayGainAlbumGain = const Value.absent(),
     this.replayGainTrackPeak = const Value.absent(),
     this.replayGainAlbumPeak = const Value.absent(),
+    this.genres = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title);
@@ -11563,6 +11665,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Expression<double>? replayGainAlbumGain,
     Expression<double>? replayGainTrackPeak,
     Expression<double>? replayGainAlbumPeak,
+    Expression<String>? genres,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -11603,6 +11706,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
         'replay_gain_track_peak': replayGainTrackPeak,
       if (replayGainAlbumPeak != null)
         'replay_gain_album_peak': replayGainAlbumPeak,
+      if (genres != null) 'genres': genres,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -11640,6 +11744,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
     Value<double?>? replayGainAlbumGain,
     Value<double?>? replayGainTrackPeak,
     Value<double?>? replayGainAlbumPeak,
+    Value<List<String>?>? genres,
     Value<int>? rowid,
   }) {
     return SongsTableCompanion(
@@ -11675,6 +11780,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
       replayGainAlbumGain: replayGainAlbumGain ?? this.replayGainAlbumGain,
       replayGainTrackPeak: replayGainTrackPeak ?? this.replayGainTrackPeak,
       replayGainAlbumPeak: replayGainAlbumPeak ?? this.replayGainAlbumPeak,
+      genres: genres ?? this.genres,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -11786,6 +11892,11 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
         replayGainAlbumPeak.value,
       );
     }
+    if (genres.present) {
+      map['genres'] = Variable<String>(
+        $SongsTableTable.$convertergenresn.toSql(genres.value),
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -11827,6 +11938,7 @@ class SongsTableCompanion extends UpdateCompanion<SongsTableData> {
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
           ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
           ..write('replayGainAlbumPeak: $replayGainAlbumPeak, ')
+          ..write('genres: $genres, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -12533,6 +12645,316 @@ class AlbumArtistIndexTableCompanion
           ..write('albumId: $albumId, ')
           ..write('source: $source, ')
           ..write('artistKeys: $artistKeys')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SongGenreIndexTableTable extends SongGenreIndexTable
+    with TableInfo<$SongGenreIndexTableTable, SongGenreIndexTableData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SongGenreIndexTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _songIdMeta = const VerificationMeta('songId');
+  @override
+  late final GeneratedColumn<String> songId = GeneratedColumn<String>(
+    'song_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _genreKeyMeta = const VerificationMeta(
+    'genreKey',
+  );
+  @override
+  late final GeneratedColumn<String> genreKey = GeneratedColumn<String>(
+    'genre_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sourceMeta = const VerificationMeta('source');
+  @override
+  late final GeneratedColumn<String> source = GeneratedColumn<String>(
+    'source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [songId, genreKey, name, source];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'song_genre_index';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SongGenreIndexTableData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('song_id')) {
+      context.handle(
+        _songIdMeta,
+        songId.isAcceptableOrUnknown(data['song_id']!, _songIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_songIdMeta);
+    }
+    if (data.containsKey('genre_key')) {
+      context.handle(
+        _genreKeyMeta,
+        genreKey.isAcceptableOrUnknown(data['genre_key']!, _genreKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_genreKeyMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('source')) {
+      context.handle(
+        _sourceMeta,
+        source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sourceMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {songId, genreKey};
+  @override
+  SongGenreIndexTableData map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SongGenreIndexTableData(
+      songId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}song_id'],
+      )!,
+      genreKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}genre_key'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      source: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source'],
+      )!,
+    );
+  }
+
+  @override
+  $SongGenreIndexTableTable createAlias(String alias) {
+    return $SongGenreIndexTableTable(attachedDatabase, alias);
+  }
+
+  @override
+  bool get withoutRowId => true;
+}
+
+class SongGenreIndexTableData extends DataClass
+    implements Insertable<SongGenreIndexTableData> {
+  final String songId;
+
+  /// The merge key, see `genreKey`.
+  final String genreKey;
+
+  /// The server's spelling, for choosing the most common display name.
+  final String name;
+  final String source;
+  const SongGenreIndexTableData({
+    required this.songId,
+    required this.genreKey,
+    required this.name,
+    required this.source,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['song_id'] = Variable<String>(songId);
+    map['genre_key'] = Variable<String>(genreKey);
+    map['name'] = Variable<String>(name);
+    map['source'] = Variable<String>(source);
+    return map;
+  }
+
+  SongGenreIndexTableCompanion toCompanion(bool nullToAbsent) {
+    return SongGenreIndexTableCompanion(
+      songId: Value(songId),
+      genreKey: Value(genreKey),
+      name: Value(name),
+      source: Value(source),
+    );
+  }
+
+  factory SongGenreIndexTableData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SongGenreIndexTableData(
+      songId: serializer.fromJson<String>(json['songId']),
+      genreKey: serializer.fromJson<String>(json['genreKey']),
+      name: serializer.fromJson<String>(json['name']),
+      source: serializer.fromJson<String>(json['source']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'songId': serializer.toJson<String>(songId),
+      'genreKey': serializer.toJson<String>(genreKey),
+      'name': serializer.toJson<String>(name),
+      'source': serializer.toJson<String>(source),
+    };
+  }
+
+  SongGenreIndexTableData copyWith({
+    String? songId,
+    String? genreKey,
+    String? name,
+    String? source,
+  }) => SongGenreIndexTableData(
+    songId: songId ?? this.songId,
+    genreKey: genreKey ?? this.genreKey,
+    name: name ?? this.name,
+    source: source ?? this.source,
+  );
+  SongGenreIndexTableData copyWithCompanion(SongGenreIndexTableCompanion data) {
+    return SongGenreIndexTableData(
+      songId: data.songId.present ? data.songId.value : this.songId,
+      genreKey: data.genreKey.present ? data.genreKey.value : this.genreKey,
+      name: data.name.present ? data.name.value : this.name,
+      source: data.source.present ? data.source.value : this.source,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SongGenreIndexTableData(')
+          ..write('songId: $songId, ')
+          ..write('genreKey: $genreKey, ')
+          ..write('name: $name, ')
+          ..write('source: $source')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(songId, genreKey, name, source);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SongGenreIndexTableData &&
+          other.songId == this.songId &&
+          other.genreKey == this.genreKey &&
+          other.name == this.name &&
+          other.source == this.source);
+}
+
+class SongGenreIndexTableCompanion
+    extends UpdateCompanion<SongGenreIndexTableData> {
+  final Value<String> songId;
+  final Value<String> genreKey;
+  final Value<String> name;
+  final Value<String> source;
+  const SongGenreIndexTableCompanion({
+    this.songId = const Value.absent(),
+    this.genreKey = const Value.absent(),
+    this.name = const Value.absent(),
+    this.source = const Value.absent(),
+  });
+  SongGenreIndexTableCompanion.insert({
+    required String songId,
+    required String genreKey,
+    required String name,
+    required String source,
+  }) : songId = Value(songId),
+       genreKey = Value(genreKey),
+       name = Value(name),
+       source = Value(source);
+  static Insertable<SongGenreIndexTableData> custom({
+    Expression<String>? songId,
+    Expression<String>? genreKey,
+    Expression<String>? name,
+    Expression<String>? source,
+  }) {
+    return RawValuesInsertable({
+      if (songId != null) 'song_id': songId,
+      if (genreKey != null) 'genre_key': genreKey,
+      if (name != null) 'name': name,
+      if (source != null) 'source': source,
+    });
+  }
+
+  SongGenreIndexTableCompanion copyWith({
+    Value<String>? songId,
+    Value<String>? genreKey,
+    Value<String>? name,
+    Value<String>? source,
+  }) {
+    return SongGenreIndexTableCompanion(
+      songId: songId ?? this.songId,
+      genreKey: genreKey ?? this.genreKey,
+      name: name ?? this.name,
+      source: source ?? this.source,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (songId.present) {
+      map['song_id'] = Variable<String>(songId.value);
+    }
+    if (genreKey.present) {
+      map['genre_key'] = Variable<String>(genreKey.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (source.present) {
+      map['source'] = Variable<String>(source.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SongGenreIndexTableCompanion(')
+          ..write('songId: $songId, ')
+          ..write('genreKey: $genreKey, ')
+          ..write('name: $name, ')
+          ..write('source: $source')
           ..write(')'))
         .toString();
   }
@@ -27573,6 +27995,17 @@ class $LibrarySyncCandidateSongsTableTable
         type: DriftSqlType.double,
         requiredDuringInsert: false,
       );
+  @override
+  late final GeneratedColumnWithTypeConverter<List<String>?, String> genres =
+      GeneratedColumn<String>(
+        'genres',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      ).withConverter<List<String>?>(
+        $LibrarySyncCandidateSongsTableTable.$convertergenresn,
+      );
   static const VerificationMeta _applyStateMeta = const VerificationMeta(
     'applyState',
   );
@@ -27612,6 +28045,7 @@ class $LibrarySyncCandidateSongsTableTable
     replayGainAlbumGain,
     replayGainTrackPeak,
     replayGainAlbumPeak,
+    genres,
     applyState,
   ];
   @override
@@ -27927,6 +28361,12 @@ class $LibrarySyncCandidateSongsTableTable
         DriftSqlType.double,
         data['${effectivePrefix}replay_gain_album_peak'],
       ),
+      genres: $LibrarySyncCandidateSongsTableTable.$convertergenresn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}genres'],
+        ),
+      ),
       applyState: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}apply_state'],
@@ -27938,6 +28378,11 @@ class $LibrarySyncCandidateSongsTableTable
   $LibrarySyncCandidateSongsTableTable createAlias(String alias) {
     return $LibrarySyncCandidateSongsTableTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<List<String>, String> $convertergenres =
+      const StringListConverter();
+  static TypeConverter<List<String>?, String?> $convertergenresn =
+      NullAwareTypeConverter.wrap($convertergenres);
 }
 
 class LibrarySyncCandidateSongsTableData extends DataClass
@@ -27969,6 +28414,9 @@ class LibrarySyncCandidateSongsTableData extends DataClass
   final double? replayGainTrackPeak;
   final double? replayGainAlbumPeak;
 
+  /// Genre names as `songs.genres` holds them; promotion copies the list.
+  final List<String>? genres;
+
   /// Null while the candidate still needs comparison, zero when it matches
   /// the committed row, and one when promotion must insert or update it.
   final int? applyState;
@@ -27999,6 +28447,7 @@ class LibrarySyncCandidateSongsTableData extends DataClass
     this.replayGainAlbumGain,
     this.replayGainTrackPeak,
     this.replayGainAlbumPeak,
+    this.genres,
     this.applyState,
   });
   @override
@@ -28073,6 +28522,11 @@ class LibrarySyncCandidateSongsTableData extends DataClass
     }
     if (!nullToAbsent || replayGainAlbumPeak != null) {
       map['replay_gain_album_peak'] = Variable<double>(replayGainAlbumPeak);
+    }
+    if (!nullToAbsent || genres != null) {
+      map['genres'] = Variable<String>(
+        $LibrarySyncCandidateSongsTableTable.$convertergenresn.toSql(genres),
+      );
     }
     if (!nullToAbsent || applyState != null) {
       map['apply_state'] = Variable<int>(applyState);
@@ -28150,6 +28604,9 @@ class LibrarySyncCandidateSongsTableData extends DataClass
       replayGainAlbumPeak: replayGainAlbumPeak == null && nullToAbsent
           ? const Value.absent()
           : Value(replayGainAlbumPeak),
+      genres: genres == null && nullToAbsent
+          ? const Value.absent()
+          : Value(genres),
       applyState: applyState == null && nullToAbsent
           ? const Value.absent()
           : Value(applyState),
@@ -28196,6 +28653,7 @@ class LibrarySyncCandidateSongsTableData extends DataClass
       replayGainAlbumPeak: serializer.fromJson<double?>(
         json['replayGainAlbumPeak'],
       ),
+      genres: serializer.fromJson<List<String>?>(json['genres']),
       applyState: serializer.fromJson<int?>(json['applyState']),
     );
   }
@@ -28229,6 +28687,7 @@ class LibrarySyncCandidateSongsTableData extends DataClass
       'replayGainAlbumGain': serializer.toJson<double?>(replayGainAlbumGain),
       'replayGainTrackPeak': serializer.toJson<double?>(replayGainTrackPeak),
       'replayGainAlbumPeak': serializer.toJson<double?>(replayGainAlbumPeak),
+      'genres': serializer.toJson<List<String>?>(genres),
       'applyState': serializer.toJson<int?>(applyState),
     };
   }
@@ -28260,6 +28719,7 @@ class LibrarySyncCandidateSongsTableData extends DataClass
     Value<double?> replayGainAlbumGain = const Value.absent(),
     Value<double?> replayGainTrackPeak = const Value.absent(),
     Value<double?> replayGainAlbumPeak = const Value.absent(),
+    Value<List<String>?> genres = const Value.absent(),
     Value<int?> applyState = const Value.absent(),
   }) => LibrarySyncCandidateSongsTableData(
     serverId: serverId ?? this.serverId,
@@ -28298,6 +28758,7 @@ class LibrarySyncCandidateSongsTableData extends DataClass
     replayGainAlbumPeak: replayGainAlbumPeak.present
         ? replayGainAlbumPeak.value
         : this.replayGainAlbumPeak,
+    genres: genres.present ? genres.value : this.genres,
     applyState: applyState.present ? applyState.value : this.applyState,
   );
   LibrarySyncCandidateSongsTableData copyWithCompanion(
@@ -28352,6 +28813,7 @@ class LibrarySyncCandidateSongsTableData extends DataClass
       replayGainAlbumPeak: data.replayGainAlbumPeak.present
           ? data.replayGainAlbumPeak.value
           : this.replayGainAlbumPeak,
+      genres: data.genres.present ? data.genres.value : this.genres,
       applyState: data.applyState.present
           ? data.applyState.value
           : this.applyState,
@@ -28387,6 +28849,7 @@ class LibrarySyncCandidateSongsTableData extends DataClass
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
           ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
           ..write('replayGainAlbumPeak: $replayGainAlbumPeak, ')
+          ..write('genres: $genres, ')
           ..write('applyState: $applyState')
           ..write(')'))
         .toString();
@@ -28420,6 +28883,7 @@ class LibrarySyncCandidateSongsTableData extends DataClass
     replayGainAlbumGain,
     replayGainTrackPeak,
     replayGainAlbumPeak,
+    genres,
     applyState,
   ]);
   @override
@@ -28452,6 +28916,7 @@ class LibrarySyncCandidateSongsTableData extends DataClass
           other.replayGainAlbumGain == this.replayGainAlbumGain &&
           other.replayGainTrackPeak == this.replayGainTrackPeak &&
           other.replayGainAlbumPeak == this.replayGainAlbumPeak &&
+          other.genres == this.genres &&
           other.applyState == this.applyState);
 }
 
@@ -28483,6 +28948,7 @@ class LibrarySyncCandidateSongsTableCompanion
   final Value<double?> replayGainAlbumGain;
   final Value<double?> replayGainTrackPeak;
   final Value<double?> replayGainAlbumPeak;
+  final Value<List<String>?> genres;
   final Value<int?> applyState;
   final Value<int> rowid;
   const LibrarySyncCandidateSongsTableCompanion({
@@ -28512,6 +28978,7 @@ class LibrarySyncCandidateSongsTableCompanion
     this.replayGainAlbumGain = const Value.absent(),
     this.replayGainTrackPeak = const Value.absent(),
     this.replayGainAlbumPeak = const Value.absent(),
+    this.genres = const Value.absent(),
     this.applyState = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -28542,6 +29009,7 @@ class LibrarySyncCandidateSongsTableCompanion
     this.replayGainAlbumGain = const Value.absent(),
     this.replayGainTrackPeak = const Value.absent(),
     this.replayGainAlbumPeak = const Value.absent(),
+    this.genres = const Value.absent(),
     this.applyState = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : serverId = Value(serverId),
@@ -28575,6 +29043,7 @@ class LibrarySyncCandidateSongsTableCompanion
     Expression<double>? replayGainAlbumGain,
     Expression<double>? replayGainTrackPeak,
     Expression<double>? replayGainAlbumPeak,
+    Expression<String>? genres,
     Expression<int>? applyState,
     Expression<int>? rowid,
   }) {
@@ -28609,6 +29078,7 @@ class LibrarySyncCandidateSongsTableCompanion
         'replay_gain_track_peak': replayGainTrackPeak,
       if (replayGainAlbumPeak != null)
         'replay_gain_album_peak': replayGainAlbumPeak,
+      if (genres != null) 'genres': genres,
       if (applyState != null) 'apply_state': applyState,
       if (rowid != null) 'rowid': rowid,
     });
@@ -28641,6 +29111,7 @@ class LibrarySyncCandidateSongsTableCompanion
     Value<double?>? replayGainAlbumGain,
     Value<double?>? replayGainTrackPeak,
     Value<double?>? replayGainAlbumPeak,
+    Value<List<String>?>? genres,
     Value<int?>? applyState,
     Value<int>? rowid,
   }) {
@@ -28671,6 +29142,7 @@ class LibrarySyncCandidateSongsTableCompanion
       replayGainAlbumGain: replayGainAlbumGain ?? this.replayGainAlbumGain,
       replayGainTrackPeak: replayGainTrackPeak ?? this.replayGainTrackPeak,
       replayGainAlbumPeak: replayGainAlbumPeak ?? this.replayGainAlbumPeak,
+      genres: genres ?? this.genres,
       applyState: applyState ?? this.applyState,
       rowid: rowid ?? this.rowid,
     );
@@ -28765,6 +29237,13 @@ class LibrarySyncCandidateSongsTableCompanion
         replayGainAlbumPeak.value,
       );
     }
+    if (genres.present) {
+      map['genres'] = Variable<String>(
+        $LibrarySyncCandidateSongsTableTable.$convertergenresn.toSql(
+          genres.value,
+        ),
+      );
+    }
     if (applyState.present) {
       map['apply_state'] = Variable<int>(applyState.value);
     }
@@ -28803,6 +29282,7 @@ class LibrarySyncCandidateSongsTableCompanion
           ..write('replayGainAlbumGain: $replayGainAlbumGain, ')
           ..write('replayGainTrackPeak: $replayGainTrackPeak, ')
           ..write('replayGainAlbumPeak: $replayGainAlbumPeak, ')
+          ..write('genres: $genres, ')
           ..write('applyState: $applyState, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -34192,6 +34672,8 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
       $SongSearchTextTableTable(this);
   late final $AlbumArtistIndexTableTable albumArtistIndexTable =
       $AlbumArtistIndexTableTable(this);
+  late final $SongGenreIndexTableTable songGenreIndexTable =
+      $SongGenreIndexTableTable(this);
   late final $AlbumInfoCacheTableTable albumInfoCacheTable =
       $AlbumInfoCacheTableTable(this);
   late final $ExternalLyricsCacheTableTable externalLyricsCacheTable =
@@ -34313,6 +34795,7 @@ abstract class _$NavisDatabase extends GeneratedDatabase {
     songsTable,
     songSearchTextTable,
     albumArtistIndexTable,
+    songGenreIndexTable,
     albumInfoCacheTable,
     externalLyricsCacheTable,
     playlistsTable,
@@ -35827,6 +36310,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> playlistCreateOnServer,
       Value<bool> showArtistsPage,
       Value<bool> showLikedPage,
+      Value<bool> showGenresPage,
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
       Value<bool> autoDownloadStarredOnWifi,
@@ -35941,6 +36425,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> playlistCreateOnServer,
       Value<bool> showArtistsPage,
       Value<bool> showLikedPage,
+      Value<bool> showGenresPage,
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
       Value<bool> autoDownloadStarredOnWifi,
@@ -36132,6 +36617,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get showLikedPage => $composableBuilder(
     column: $table.showLikedPage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get showGenresPage => $composableBuilder(
+    column: $table.showGenresPage,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36701,6 +37191,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get showGenresPage => $composableBuilder(
+    column: $table.showGenresPage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get rollingCacheBudgetMb => $composableBuilder(
     column: $table.rollingCacheBudgetMb,
     builder: (column) => ColumnOrderings(column),
@@ -37266,6 +37761,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get showGenresPage => $composableBuilder(
+    column: $table.showGenresPage,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get rollingCacheBudgetMb => $composableBuilder(
     column: $table.rollingCacheBudgetMb,
     builder: (column) => column,
@@ -37779,6 +38279,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> playlistCreateOnServer = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
                 Value<bool> showLikedPage = const Value.absent(),
+                Value<bool> showGenresPage = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
                 Value<bool> autoDownloadStarredOnWifi = const Value.absent(),
@@ -37896,6 +38397,7 @@ class $$AppSettingsTableTableTableManager
                 playlistCreateOnServer: playlistCreateOnServer,
                 showArtistsPage: showArtistsPage,
                 showLikedPage: showLikedPage,
+                showGenresPage: showGenresPage,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
                 autoDownloadStarredOnWifi: autoDownloadStarredOnWifi,
@@ -38011,6 +38513,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> playlistCreateOnServer = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
                 Value<bool> showLikedPage = const Value.absent(),
+                Value<bool> showGenresPage = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
                 Value<bool> autoDownloadStarredOnWifi = const Value.absent(),
@@ -38128,6 +38631,7 @@ class $$AppSettingsTableTableTableManager
                 playlistCreateOnServer: playlistCreateOnServer,
                 showArtistsPage: showArtistsPage,
                 showLikedPage: showLikedPage,
+                showGenresPage: showGenresPage,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
                 autoDownloadStarredOnWifi: autoDownloadStarredOnWifi,
@@ -40032,6 +40536,7 @@ typedef $$SongsTableTableCreateCompanionBuilder = SongsTableCompanion Function({
   Value<double?> replayGainAlbumGain,
   Value<double?> replayGainTrackPeak,
   Value<double?> replayGainAlbumPeak,
+  Value<List<String>?> genres,
   Value<int> rowid,
 });
 typedef $$SongsTableTableUpdateCompanionBuilder = SongsTableCompanion Function({
@@ -40067,6 +40572,7 @@ typedef $$SongsTableTableUpdateCompanionBuilder = SongsTableCompanion Function({
   Value<double?> replayGainAlbumGain,
   Value<double?> replayGainTrackPeak,
   Value<double?> replayGainAlbumPeak,
+  Value<List<String>?> genres,
   Value<int> rowid,
 });
 
@@ -40384,6 +40890,12 @@ class $$SongsTableTableFilterComposer
   ColumnFilters<double> get replayGainAlbumPeak => $composableBuilder(
     column: $table.replayGainAlbumPeak,
     builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<List<String>?, List<String>, String>
+  get genres => $composableBuilder(
+    column: $table.genres,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
   $$AlbumsTableTableFilterComposer get albumId {
@@ -40721,6 +41233,11 @@ class $$SongsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get genres => $composableBuilder(
+    column: $table.genres,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$AlbumsTableTableOrderingComposer get albumId {
     final $$AlbumsTableTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -40900,6 +41417,9 @@ class $$SongsTableTableAnnotationComposer
     column: $table.replayGainAlbumPeak,
     builder: (column) => column,
   );
+
+  GeneratedColumnWithTypeConverter<List<String>?, String> get genres =>
+      $composableBuilder(column: $table.genres, builder: (column) => column);
 
   $$AlbumsTableTableAnnotationComposer get albumId {
     final $$AlbumsTableTableAnnotationComposer composer = $composerBuilder(
@@ -41148,6 +41668,7 @@ class $$SongsTableTableTableManager
                 Value<double?> replayGainAlbumGain = const Value.absent(),
                 Value<double?> replayGainTrackPeak = const Value.absent(),
                 Value<double?> replayGainAlbumPeak = const Value.absent(),
+                Value<List<String>?> genres = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongsTableCompanion(
                 id: id,
@@ -41182,6 +41703,7 @@ class $$SongsTableTableTableManager
                 replayGainAlbumGain: replayGainAlbumGain,
                 replayGainTrackPeak: replayGainTrackPeak,
                 replayGainAlbumPeak: replayGainAlbumPeak,
+                genres: genres,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -41218,6 +41740,7 @@ class $$SongsTableTableTableManager
                 Value<double?> replayGainAlbumGain = const Value.absent(),
                 Value<double?> replayGainTrackPeak = const Value.absent(),
                 Value<double?> replayGainAlbumPeak = const Value.absent(),
+                Value<List<String>?> genres = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongsTableCompanion.insert(
                 id: id,
@@ -41252,6 +41775,7 @@ class $$SongsTableTableTableManager
                 replayGainAlbumGain: replayGainAlbumGain,
                 replayGainTrackPeak: replayGainTrackPeak,
                 replayGainAlbumPeak: replayGainAlbumPeak,
+                genres: genres,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -41896,6 +42420,209 @@ typedef $$AlbumArtistIndexTableTableProcessedTableManager =
         >,
       ),
       AlbumArtistIndexTableData,
+      PrefetchHooks Function()
+    >;
+typedef $$SongGenreIndexTableTableCreateCompanionBuilder =
+    SongGenreIndexTableCompanion Function({
+      required String songId,
+      required String genreKey,
+      required String name,
+      required String source,
+    });
+typedef $$SongGenreIndexTableTableUpdateCompanionBuilder =
+    SongGenreIndexTableCompanion Function({
+      Value<String> songId,
+      Value<String> genreKey,
+      Value<String> name,
+      Value<String> source,
+    });
+
+class $$SongGenreIndexTableTableFilterComposer
+    extends Composer<_$NavisDatabase, $SongGenreIndexTableTable> {
+  $$SongGenreIndexTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get songId => $composableBuilder(
+    column: $table.songId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get genreKey => $composableBuilder(
+    column: $table.genreKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SongGenreIndexTableTableOrderingComposer
+    extends Composer<_$NavisDatabase, $SongGenreIndexTableTable> {
+  $$SongGenreIndexTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get songId => $composableBuilder(
+    column: $table.songId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get genreKey => $composableBuilder(
+    column: $table.genreKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get source => $composableBuilder(
+    column: $table.source,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SongGenreIndexTableTableAnnotationComposer
+    extends Composer<_$NavisDatabase, $SongGenreIndexTableTable> {
+  $$SongGenreIndexTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get songId =>
+      $composableBuilder(column: $table.songId, builder: (column) => column);
+
+  GeneratedColumn<String> get genreKey =>
+      $composableBuilder(column: $table.genreKey, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get source =>
+      $composableBuilder(column: $table.source, builder: (column) => column);
+}
+
+class $$SongGenreIndexTableTableTableManager
+    extends
+        RootTableManager<
+          _$NavisDatabase,
+          $SongGenreIndexTableTable,
+          SongGenreIndexTableData,
+          $$SongGenreIndexTableTableFilterComposer,
+          $$SongGenreIndexTableTableOrderingComposer,
+          $$SongGenreIndexTableTableAnnotationComposer,
+          $$SongGenreIndexTableTableCreateCompanionBuilder,
+          $$SongGenreIndexTableTableUpdateCompanionBuilder,
+          (
+            SongGenreIndexTableData,
+            BaseReferences<
+              _$NavisDatabase,
+              $SongGenreIndexTableTable,
+              SongGenreIndexTableData
+            >,
+          ),
+          SongGenreIndexTableData,
+          PrefetchHooks Function()
+        > {
+  $$SongGenreIndexTableTableTableManager(
+    _$NavisDatabase db,
+    $SongGenreIndexTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SongGenreIndexTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SongGenreIndexTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$SongGenreIndexTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> songId = const Value.absent(),
+                Value<String> genreKey = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> source = const Value.absent(),
+              }) => SongGenreIndexTableCompanion(
+                songId: songId,
+                genreKey: genreKey,
+                name: name,
+                source: source,
+              ),
+          createCompanionCallback:
+              ({
+                required String songId,
+                required String genreKey,
+                required String name,
+                required String source,
+              }) => SongGenreIndexTableCompanion.insert(
+                songId: songId,
+                genreKey: genreKey,
+                name: name,
+                source: source,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $SongGenreIndexTableTable,
+                    SongGenreIndexTableData
+                  >(table),
+                  BaseReferences<
+                    _$NavisDatabase,
+                    $SongGenreIndexTableTable,
+                    SongGenreIndexTableData
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SongGenreIndexTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NavisDatabase,
+      $SongGenreIndexTableTable,
+      SongGenreIndexTableData,
+      $$SongGenreIndexTableTableFilterComposer,
+      $$SongGenreIndexTableTableOrderingComposer,
+      $$SongGenreIndexTableTableAnnotationComposer,
+      $$SongGenreIndexTableTableCreateCompanionBuilder,
+      $$SongGenreIndexTableTableUpdateCompanionBuilder,
+      (
+        SongGenreIndexTableData,
+        BaseReferences<
+          _$NavisDatabase,
+          $SongGenreIndexTableTable,
+          SongGenreIndexTableData
+        >,
+      ),
+      SongGenreIndexTableData,
       PrefetchHooks Function()
     >;
 typedef $$AlbumInfoCacheTableTableCreateCompanionBuilder =
@@ -50883,6 +51610,7 @@ typedef $$LibrarySyncCandidateSongsTableTableCreateCompanionBuilder =
       Value<double?> replayGainAlbumGain,
       Value<double?> replayGainTrackPeak,
       Value<double?> replayGainAlbumPeak,
+      Value<List<String>?> genres,
       Value<int?> applyState,
       Value<int> rowid,
     });
@@ -50914,6 +51642,7 @@ typedef $$LibrarySyncCandidateSongsTableTableUpdateCompanionBuilder =
       Value<double?> replayGainAlbumGain,
       Value<double?> replayGainTrackPeak,
       Value<double?> replayGainAlbumPeak,
+      Value<List<String>?> genres,
       Value<int?> applyState,
       Value<int> rowid,
     });
@@ -51055,6 +51784,12 @@ class $$LibrarySyncCandidateSongsTableTableFilterComposer
   ColumnFilters<double> get replayGainAlbumPeak => $composableBuilder(
     column: $table.replayGainAlbumPeak,
     builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<List<String>?, List<String>, String>
+  get genres => $composableBuilder(
+    column: $table.genres,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
   ColumnFilters<int> get applyState => $composableBuilder(
@@ -51202,6 +51937,11 @@ class $$LibrarySyncCandidateSongsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get genres => $composableBuilder(
+    column: $table.genres,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get applyState => $composableBuilder(
     column: $table.applyState,
     builder: (column) => ColumnOrderings(column),
@@ -51317,6 +52057,9 @@ class $$LibrarySyncCandidateSongsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumnWithTypeConverter<List<String>?, String> get genres =>
+      $composableBuilder(column: $table.genres, builder: (column) => column);
+
   GeneratedColumn<int> get applyState => $composableBuilder(
     column: $table.applyState,
     builder: (column) => column,
@@ -51395,6 +52138,7 @@ class $$LibrarySyncCandidateSongsTableTableTableManager
                 Value<double?> replayGainAlbumGain = const Value.absent(),
                 Value<double?> replayGainTrackPeak = const Value.absent(),
                 Value<double?> replayGainAlbumPeak = const Value.absent(),
+                Value<List<String>?> genres = const Value.absent(),
                 Value<int?> applyState = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LibrarySyncCandidateSongsTableCompanion(
@@ -51424,6 +52168,7 @@ class $$LibrarySyncCandidateSongsTableTableTableManager
                 replayGainAlbumGain: replayGainAlbumGain,
                 replayGainTrackPeak: replayGainTrackPeak,
                 replayGainAlbumPeak: replayGainAlbumPeak,
+                genres: genres,
                 applyState: applyState,
                 rowid: rowid,
               ),
@@ -51455,6 +52200,7 @@ class $$LibrarySyncCandidateSongsTableTableTableManager
                 Value<double?> replayGainAlbumGain = const Value.absent(),
                 Value<double?> replayGainTrackPeak = const Value.absent(),
                 Value<double?> replayGainAlbumPeak = const Value.absent(),
+                Value<List<String>?> genres = const Value.absent(),
                 Value<int?> applyState = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LibrarySyncCandidateSongsTableCompanion.insert(
@@ -51484,6 +52230,7 @@ class $$LibrarySyncCandidateSongsTableTableTableManager
                 replayGainAlbumGain: replayGainAlbumGain,
                 replayGainTrackPeak: replayGainTrackPeak,
                 replayGainAlbumPeak: replayGainAlbumPeak,
+                genres: genres,
                 applyState: applyState,
                 rowid: rowid,
               ),
@@ -55944,6 +56691,8 @@ class $NavisDatabaseManager {
       $$SongSearchTextTableTableTableManager(_db, _db.songSearchTextTable);
   $$AlbumArtistIndexTableTableTableManager get albumArtistIndexTable =>
       $$AlbumArtistIndexTableTableTableManager(_db, _db.albumArtistIndexTable);
+  $$SongGenreIndexTableTableTableManager get songGenreIndexTable =>
+      $$SongGenreIndexTableTableTableManager(_db, _db.songGenreIndexTable);
   $$AlbumInfoCacheTableTableTableManager get albumInfoCacheTable =>
       $$AlbumInfoCacheTableTableTableManager(_db, _db.albumInfoCacheTable);
   $$ExternalLyricsCacheTableTableTableManager get externalLyricsCacheTable =>

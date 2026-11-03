@@ -15,6 +15,7 @@ import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/daos/eq_dao.dart';
 import 'package:navis/src/database/tables/eq_tables.dart';
 import 'package:navis/src/database/tables/artist_ref_converter.dart';
+import 'package:navis/src/database/tables/string_list_converter.dart';
 import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/daos/cache_system_state_dao.dart';
 import 'package:navis/src/database/daos/download_queue_dao.dart';
@@ -72,6 +73,7 @@ import 'package:navis/src/database/tables/server_config_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/database/tables/song_search_text_table.dart';
 import 'package:navis/src/database/tables/album_artist_index_table.dart';
+import 'package:navis/src/database/tables/song_genre_index_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
 import 'package:navis/src/database/tables/starred_absence_candidates_table.dart';
 import 'package:navis/src/database/database_location.dart';
@@ -91,6 +93,7 @@ part 'navis_database.g.dart';
     SongsTable,
     SongSearchTextTable,
     AlbumArtistIndexTable,
+    SongGenreIndexTable,
     AlbumInfoCacheTable,
     ExternalLyricsCacheTable,
     PlaylistsTable,
@@ -276,7 +279,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 108;
+  static const currentSchemaVersion = 109;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -404,9 +407,36 @@ class NavisDatabase extends _$NavisDatabase {
       from105To106,
       from106To107,
       from107To108,
+      from108To109,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
+    }
+  }
+
+  /// Genre browsing: per-song genre lists and the derived genre index. Adds
+  /// columns and a table only. It neither resets the cache nor queues the
+  /// resync itself: the startup sync-model check (`currentLibrarySyncModelVersion`)
+  /// runs one full, non-destructive library sync, which fills the new columns.
+  Future<void> from107To108(Migrator migrator) async {
+    if (!await _columnExists('songs', 'genres')) {
+      await migrator.addColumn(songsTable, songsTable.genres);
+    }
+    if (!await _columnExists('library_sync_candidate_songs', 'genres')) {
+      await migrator.addColumn(
+        librarySyncCandidateSongsTable,
+        librarySyncCandidateSongsTable.genres,
+      );
+    }
+    if (!await _tableExists('song_genre_index')) {
+      await migrator.createTable(songGenreIndexTable);
+    }
+    // The Genres Library page is shown by default like the others.
+    if (!await _columnExists('app_settings', 'show_genres_page')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.showGenresPage,
+      );
     }
   }
 
@@ -414,7 +444,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// optional Large one, so profiles still on the old default move to the new
   /// default once. A user who picks Large afterwards keeps it (the schema
   /// version is the completion marker).
-  Future<void> from107To108(Migrator migrator) async {
+  Future<void> from108To109(Migrator migrator) async {
     await customStatement(
       "UPDATE app_settings SET desktop_navbar_style = 'compact' "
       "WHERE desktop_navbar_style = 'comfortable'",
@@ -1844,6 +1874,7 @@ FROM scrobble_queue;
         showPlaylistsPage: const Value(true),
         showArtistsPage: const Value(true),
         showLikedPage: const Value(true),
+        showGenresPage: const Value(true),
         libraryPageOrder: const Value(null),
         rollingCacheBudgetMb: const Value(
           AppSettingsDao.defaultRollingCacheBudgetMb,
@@ -1939,6 +1970,10 @@ FROM scrobble_queue;
     );
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_songs_artist ON songs(artist_id);',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_song_genre_index_key '
+      'ON song_genre_index(genre_key, song_id);',
     );
     // Exact lookups on the derived search index: track-matching title and
     // artist keys, and title-then-artist prefixes for downloads-folder

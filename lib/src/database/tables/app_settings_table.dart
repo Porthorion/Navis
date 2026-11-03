@@ -54,6 +54,9 @@ class AppSettingsTable extends Table {
 
   BoolColumn get showLikedPage => boolean().withDefault(const Constant(true))();
 
+  BoolColumn get showGenresPage =>
+      boolean().withDefault(const Constant(true))();
+
   /// Rolling cache budget in megabytes. Default 2048 (2 GB).
   IntColumn get rollingCacheBudgetMb =>
       integer().withDefault(const Constant(2048))();

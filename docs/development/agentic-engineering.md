@@ -108,10 +108,12 @@ modify unrelated dirty work. Report actual validation and any uncertainty.
 - Retired Listen Together/Voyage has compatibility fields only. Do not revive
   its session, transport, settings, queue sync, or UI without an explicit
   product decision and a recorded decision/history update.
-- Genres are not a Navis concept (product decision 2026-09-30). Do not add a
-  genre page, route, Library section, Home shelf, search filter, Android Auto
-  node, sync/scan input, catalog-change signal, recommendation input or
-  diagnostics field without an explicit product decision.
+- Genre browsing returned in 1.5.2 (product decision 2026-11-03; it was
+  removed 2026-09-30). Genres are per-song server tags merged by `genreKey`
+  (`lib/src/utils/genre_key.dart`), the one merge-key definition for the
+  model, the index writer and every query. Do not split tags client-side, add
+  a Home shelf, an Android Auto genre browse node, alias editing or genre
+  recommendations without an explicit product decision.
 - Production code used only by tests must be deleted or marked
   `@visibleForTesting` as a deliberate test seam. The dead-code gate excludes
   annotated declarations and accepts other exceptions only with factual

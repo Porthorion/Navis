@@ -5,6 +5,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
+import 'package:navis/src/common_widgets/genre_chips.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -71,6 +72,21 @@ Future<void> showSongContextMenu(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
+                    if (_hasGenreChips(song)) ...<Widget>[
+                      Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: Padding(
+                          padding: const EdgeInsetsDirectional.fromSTEB(
+                            16,
+                            12,
+                            16,
+                            8,
+                          ),
+                          child: GenreChips(genres: song.genres!),
+                        ),
+                      ),
+                      const Divider(height: 1),
+                    ],
                     ListTile(
                       leading: const Icon(Icons.play_arrow_outlined),
                       title: Text(l10n.librarySongMenuPlayNow),
@@ -328,6 +344,36 @@ enum _SongContextAction {
   deleteDownload,
 }
 
+/// Genre chips lead the song menus. A remote (external) song's genres are not
+/// indexed, so its chips would open an empty page.
+bool _hasGenreChips(SongsTableData song) =>
+    !song.isExternal && (song.genres?.isNotEmpty ?? false);
+
+/// The song's genre chips as a row of the desktop popup menu; tapping one
+/// dismisses the menu and opens the genre.
+class _GenreChipsEntry extends PopupMenuEntry<_SongContextAction> {
+  const new(this.genres);
+
+  final List<String> genres;
+
+  @override
+  double get height => 48;
+
+  @override
+  bool represents(_SongContextAction? value) => false;
+
+  @override
+  State<_GenreChipsEntry> createState() => _GenreChipsEntryState();
+}
+
+class _GenreChipsEntryState extends State<_GenreChipsEntry> {
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    child: GenreChips(genres: widget.genres),
+  );
+}
+
 Future<void> _showDesktopSongContextMenu(
   BuildContext context,
   WidgetRef ref,
@@ -350,6 +396,10 @@ Future<void> _showDesktopSongContextMenu(
     context: context,
     anchor: anchor,
     items: <PopupMenuEntry<_SongContextAction>>[
+      if (_hasGenreChips(song)) ...<PopupMenuEntry<_SongContextAction>>[
+        _GenreChipsEntry(song.genres!),
+        const PopupMenuDivider(),
+      ],
       PopupMenuItem<_SongContextAction>(
         value: _SongContextAction.playNow,
         child: Text(l10n.librarySongMenuPlayNow),

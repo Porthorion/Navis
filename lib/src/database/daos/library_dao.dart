@@ -12,6 +12,7 @@ import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/snapshot_write_guard.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/utils/catalog_source.dart';
+import 'package:navis/src/utils/genre_key.dart';
 import 'package:navis/src/database/tables/album_info_cache_table.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
@@ -28,6 +29,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/scrobble_queue_table.dart';
 import 'package:navis/src/database/tables/song_search_text_table.dart';
 import 'package:navis/src/database/tables/album_artist_index_table.dart';
+import 'package:navis/src/database/tables/song_genre_index_table.dart';
 import 'package:navis/src/database/tables/artist_ref_converter.dart';
 import 'package:navis/src/utils/metadata_normalization.dart';
 import 'package:navis/src/features/library/data/library_artist_name_index.dart';
@@ -44,6 +46,31 @@ part 'library_dao.g.dart';
 enum AlbumSortOrder { recentlyAdded, newest, name, artist }
 
 enum SongSortOrder { newest, oldest, name }
+
+/// Orders of the genre list.
+enum GenreSortOrder { name, songs, albums }
+
+/// Orders of the songs of one genre.
+enum GenreSongSort { title, artist, album }
+
+/// One merged genre: every spelling sharing [key] counted together.
+class GenreSummary {
+  const new({
+    required this.key,
+    required this.name,
+    required this.songCount,
+    required this.albumCount,
+  });
+
+  /// The merge key, see `genreKey`. Identifies the genre in queries.
+  final String key;
+
+  /// The most common spelling in the library.
+  final String name;
+
+  final int songCount;
+  final int albumCount;
+}
 
 class ArtistAlbumBuckets {
   const new({
@@ -158,6 +185,7 @@ class DownloadReconciliationSong {
     SongsTable,
     SongSearchTextTable,
     AlbumArtistIndexTable,
+    SongGenreIndexTable,
     AlbumInfoCacheTable,
     ExternalLyricsCacheTable,
     CachedTracksTable,
@@ -475,6 +503,444 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       );
     }
     return written;
+  }
+
+  Future<int>? _songGenreIndexRefresh;
+
+  /// Scans run by [refreshSongGenreIndex]; tests assert readers skip it.
+  @visibleForTesting
+  int debugSongGenreIndexRefreshCount = 0;
+
+  // Writes to `songs` or `song_genre_index` seen so far, and the count a
+  // successful refresh started at. Equal means the index is known fresh and
+  // readers skip the scan. The first reader always refreshes.
+  int _songGenreWrites = 0;
+  int _songGenreIndexedAtWrites = -1;
+
+  bool _songGenreWritesWatched = false;
+
+  // Counted synchronously when a write commits (drift's own stream store, as
+  // announced by every write path, `customUpdate` included), so a reader
+  // right after a write already sees it. Listened to lazily: before the first
+  // reader the index counts as stale anyway. The stream closes with the
+  // database.
+  void _watchSongGenreWrites() {
+    if (_songGenreWritesWatched) return;
+    _songGenreWritesWatched = true;
+    streamQueries
+        .updatesForSync(
+          TableUpdateQuery.onAllTables([songsTable, songGenreIndexTable]),
+        )
+        .listen((_) => _songGenreWrites++);
+  }
+
+  /// Refreshes the genre index only if a write may have changed it since the
+  /// last successful refresh. What every genre reader calls.
+  Future<void> _ensureSongGenreIndex() async {
+    _watchSongGenreWrites();
+    if (_songGenreIndexedAtWrites != _songGenreWrites) {
+      await refreshSongGenreIndex();
+    }
+  }
+
+  // The trailing key version makes rows keyed by an older normalizer stale.
+  static const String _songGenreSourceSql =
+      "s.genres || char(31) || '$genreKeyVersion'";
+
+  /// Writes every missing or stale `song_genre_index` row and removes rows of
+  /// songs that are gone, retagged, provisional or external. Single-flight;
+  /// concurrent callers share one refresh. Returns the songs indexed.
+  ///
+  /// A failure is logged and reported as 0: genre pages then read the index
+  /// as it is, and the next call retries.
+  ///
+  /// Never call this inside a transaction: it joins a refresh already running
+  /// outside it, whose statements wait for the lock the caller holds.
+  Future<int> refreshSongGenreIndex() {
+    _watchSongGenreWrites();
+    return _songGenreIndexRefresh ??= _refreshSongGenreIndex()
+        .catchError((Object error, StackTrace stackTrace) {
+          AppLogger.warning(
+            'Song genre index refresh failed '
+            '(${error.runtimeType}): $error\n$stackTrace',
+          );
+          return 0;
+        })
+        .whenComplete(() => _songGenreIndexRefresh = null);
+  }
+
+  Future<int> _refreshSongGenreIndex({int batchSize = 1000}) async {
+    debugSongGenreIndexRefreshCount++;
+    // A write landing mid-refresh moves the counter on, so the index is not
+    // marked fresh and the next reader repairs it.
+    final writesAtStart = _songGenreWrites;
+    // Raw statements, like the other derived indexes: the refresh must never
+    // wake the watchers of the queries that call it.
+    await customStatement('''
+      DELETE FROM song_genre_index WHERE NOT EXISTS (
+        SELECT 1 FROM songs s
+        WHERE s.id = song_genre_index.song_id
+          AND s.is_provisional = 0 AND s.is_external = 0
+          AND $_songGenreSourceSql = song_genre_index.source
+      )
+      ''');
+    var written = 0;
+    // Keyset by id: songs whose names all have empty keys never gain a row
+    // and are skipped over, not selected forever. Writers resolve names, so
+    // this is a safety net.
+    var lastId = '';
+    while (true) {
+      final rows = await customSelect(
+        '''
+        SELECT s.id AS id, s.genres AS genres,
+          $_songGenreSourceSql AS source
+        FROM songs s
+        WHERE s.id > ?1 AND s.is_provisional = 0 AND s.is_external = 0
+          AND s.genres IS NOT NULL AND s.genres <> '[]'
+          AND NOT EXISTS (
+            SELECT 1 FROM song_genre_index x WHERE x.song_id = s.id
+          )
+        ORDER BY s.id
+        LIMIT ?2
+        ''',
+        variables: <Variable<Object>>[
+          Variable<String>(lastId),
+          Variable<int>(batchSize),
+        ],
+        readsFrom: {songsTable, songGenreIndexTable},
+      ).get();
+      if (rows.isEmpty) break;
+      final entries = <(String, String, String, String)>[
+        for (final row in rows)
+          for (final name in resolveGenres(
+            (jsonDecode(row.read<String>('genres')) as List<dynamic>)
+                .cast<String>(),
+          ))
+            (
+              row.read<String>('id'),
+              genreKey(name),
+              name,
+              row.read<String>('source'),
+            ),
+      ];
+      const chunkSize = 200;
+      // One transaction per batch: a cut between chunks must not leave a
+      // song with only some of its rows, which the repair would take as done.
+      await transaction(() async {
+        for (final chunk in chunked(entries, chunkSize)) {
+          await customStatement(
+            'INSERT INTO song_genre_index(song_id, genre_key, name, source) '
+            'VALUES ${List<String>.filled(chunk.length, '(?, ?, ?, ?)').join(', ')} '
+            'ON CONFLICT(song_id, genre_key) DO UPDATE SET '
+            'name = excluded.name, source = excluded.source',
+            <Object?>[
+              for (final e in chunk) ...<Object?>[e.$1, e.$2, e.$3, e.$4],
+            ],
+          );
+        }
+      });
+      written += rows.length;
+      lastId = rows.last.read<String>('id');
+      if (rows.length < batchSize) break;
+    }
+    _songGenreIndexedAtWrites = writesAtStart;
+    return written;
+  }
+
+  // The index holds neither provisional nor external rows; server-deleted
+  // ones are hidden here like in every other song list.
+  static const String _genreListedSongSql = 's.server_deleted_at IS NULL';
+
+  static const String _genreDownloadedSql =
+      'AND s.id IN (SELECT song_id FROM cached_tracks '
+      "WHERE cache_type = 'permanent')";
+
+  /// Genres of the library, merged by `genreKey`, with song and album
+  /// counts. [query] matches the merge key, so "hip hop" finds "Hip-Hop".
+  /// [downloadedOnly] counts permanently downloaded songs only. Paged by
+  /// [limit] and [offset]; a null limit returns every genre.
+  Future<List<GenreSummary>> getGenres({
+    String query = '',
+    GenreSortOrder sort = GenreSortOrder.songs,
+    bool downloadedOnly = false,
+    int? limit,
+    int offset = 0,
+  }) {
+    final order = switch (sort) {
+      GenreSortOrder.name => 'tot.k ASC',
+      GenreSortOrder.songs => 'tot.songs DESC, tot.k ASC',
+      GenreSortOrder.albums => 'tot.albums DESC, tot.songs DESC, tot.k ASC',
+    };
+    return _queryGenres(
+      query: query,
+      downloadedOnly: downloadedOnly,
+      order: order,
+      limit: limit,
+      offset: offset,
+    );
+  }
+
+  /// Genres whose merge key contains [query], prefix matches first and then
+  /// the larger genres, for global search. Local only, so it works offline.
+  Future<List<GenreSummary>> searchGenres(
+    String query, {
+    int limit = 10,
+    bool downloadedOnly = false,
+  }) async {
+    if (genreKey(query).isEmpty || limit < 1) return const <GenreSummary>[];
+    return _queryGenres(
+      query: query,
+      downloadedOnly: downloadedOnly,
+      order: 'instr(tot.k, ?1) = 1 DESC, tot.songs DESC, tot.k ASC',
+      limit: limit,
+    );
+  }
+
+  /// One genre by merge key, or null when no listed song has it.
+  Future<GenreSummary?> getGenre(
+    String key, {
+    bool downloadedOnly = false,
+  }) async {
+    final exact = genreKey(key);
+    if (exact.isEmpty) return null;
+    final rows = await _queryGenres(
+      exactKey: exact,
+      downloadedOnly: downloadedOnly,
+      order: 'tot.k ASC',
+      limit: 1,
+    );
+    return rows.isEmpty ? null : rows.single;
+  }
+
+  /// The SQL of [_queryGenres], exposed to test its query plan. A lookup by
+  /// exact key filters the index directly and drives the join from it (CROSS
+  /// JOIN), so it uses `idx_song_genre_index_key`; a list filters on the
+  /// aggregated keys. Albums count only when listed by [getAlbumsByGenre].
+  @visibleForTesting
+  static String debugGenreSummarySql({
+    required bool exactKey,
+    bool downloadedOnly = false,
+    String order = 'tot.k ASC',
+  }) =>
+      '''
+      WITH g AS (
+        SELECT x.genre_key AS k, x.name AS n, s.id AS sid,
+          CASE WHEN al.is_provisional = 0 AND al.is_external = 0
+            THEN s.album_id END AS aid
+        FROM song_genre_index x
+        ${exactKey ? 'CROSS' : 'INNER'} JOIN songs s ON s.id = x.song_id
+        LEFT JOIN albums al ON al.id = s.album_id
+        WHERE $_genreListedSongSql
+          ${downloadedOnly ? _genreDownloadedSql : ''}
+          ${exactKey ? 'AND x.genre_key = ?2' : ''}
+      ),
+      names AS (SELECT k, n, COUNT(*) AS c FROM g GROUP BY k, n),
+      tot AS (
+        SELECT k, COUNT(*) AS songs, COUNT(DISTINCT aid) AS albums
+        FROM g GROUP BY k
+      )
+      SELECT tot.k AS k,
+        (SELECT n FROM names WHERE names.k = tot.k
+          ORDER BY c DESC, n ASC LIMIT 1) AS name,
+        tot.songs AS songs, tot.albums AS albums
+      FROM tot
+      WHERE (?1 = '' OR instr(tot.k, ?1) > 0)
+      ORDER BY $order
+      LIMIT ?3 OFFSET ?4
+      ''';
+
+  Future<List<GenreSummary>> _queryGenres({
+    String query = '',
+    String? exactKey,
+    required bool downloadedOnly,
+    required String order,
+    int? limit,
+    int offset = 0,
+  }) async {
+    final key = genreKey(query);
+    // Punctuation-only input matches nothing, like the song search.
+    if (query.trim().isNotEmpty && key.isEmpty) return const <GenreSummary>[];
+    await _ensureSongGenreIndex();
+    final rows = await customSelect(
+      debugGenreSummarySql(
+        exactKey: exactKey != null,
+        downloadedOnly: downloadedOnly,
+        order: order,
+      ),
+      variables: <Variable<Object>>[
+        Variable<String>(key),
+        Variable<String>(exactKey ?? ''),
+        Variable<int>(limit ?? -1),
+        Variable<int>(offset < 0 ? 0 : offset),
+      ],
+      readsFrom: {
+        songGenreIndexTable,
+        songsTable,
+        albumsTable,
+        cachedTracksTable,
+      },
+    ).get();
+    return <GenreSummary>[
+      for (final row in rows)
+        GenreSummary(
+          key: row.read<String>('k'),
+          name: row.read<String>('name'),
+          songCount: row.read<int>('songs'),
+          albumCount: row.read<int>('albums'),
+        ),
+    ];
+  }
+
+  /// Albums with at least one song in the genre [key]. [query] keeps albums
+  /// whose name or artist contains every word of it (accent- and
+  /// case-insensitive), applied before paging by [limit] and [offset]; a
+  /// null limit returns all of them.
+  Future<List<AlbumsTableData>> getAlbumsByGenre(
+    String key, {
+    AlbumSortOrder sort = AlbumSortOrder.name,
+    bool downloadedOnly = false,
+    String query = '',
+    int? limit,
+    int offset = 0,
+  }) async {
+    final exact = genreKey(key);
+    if (exact.isEmpty) return const <AlbumsTableData>[];
+    await _ensureSongGenreIndex();
+    final needle = normalizeSearchText(query);
+    Selectable<QueryRow> genreRows(String columns, {required bool paged}) {
+      return customSelect(
+        '''
+        SELECT $columns FROM albums
+        WHERE albums.is_provisional = 0 AND albums.is_external = 0
+          AND albums.id IN (
+            SELECT s.album_id
+            FROM song_genre_index x JOIN songs s ON s.id = x.song_id
+            WHERE x.genre_key = ?1 AND $_genreListedSongSql
+              ${downloadedOnly ? _genreDownloadedSql : ''}
+          )
+        ORDER BY ${_albumOrderSql(sort, false)}
+        ${paged ? 'LIMIT ?2 OFFSET ?3' : ''}
+        ''',
+        variables: <Variable<Object>>[
+          Variable<String>(exact),
+          if (paged) ...<Variable<Object>>[
+            Variable<int>(limit ?? -1),
+            Variable<int>(offset < 0 ? 0 : offset),
+          ],
+        ],
+        readsFrom: {
+          albumsTable,
+          songsTable,
+          songGenreIndexTable,
+          cachedTracksTable,
+        },
+      );
+    }
+
+    if (needle.isEmpty) {
+      return await genreRows(
+        'albums.*',
+        paged: true,
+      ).map((row) => albumsTable.map(row.data)).get();
+    }
+    // Normalization needs Dart, so the cheap columns are filtered here, in
+    // the final order, and only the requested page is read in full.
+    final rows = await genreRows(
+      'albums.id AS id, albums.name AS name, albums.artist_name AS artist',
+      paged: false,
+    ).get();
+    final ids = <String>[
+      for (final row in rows)
+        if (_matchesAllWords(needle, [
+          row.read<String>('name'),
+          row.readNullable<String>('artist'),
+        ]))
+          row.read<String>('id'),
+    ];
+    return getAlbumsByIds(_page(ids, limit, offset));
+  }
+
+  /// Songs tagged with the genre [key]. [query] keeps songs whose title,
+  /// artist or album contains every word of it (accent- and case-
+  /// insensitive), applied before paging by [limit] and [offset]; a null
+  /// limit returns all of them.
+  Future<List<SongsTableData>> getSongsByGenre(
+    String key, {
+    GenreSongSort sort = GenreSongSort.title,
+    bool downloadedOnly = false,
+    String query = '',
+    int? limit,
+    int offset = 0,
+  }) async {
+    final exact = genreKey(key);
+    if (exact.isEmpty) return const <SongsTableData>[];
+    await _ensureSongGenreIndex();
+    final needle = normalizeSearchText(query);
+    final order = switch (sort) {
+      GenreSongSort.title => 'lower(s.title) ASC',
+      GenreSongSort.artist =>
+        'lower(s.artist_name) ASC, lower(s.album_name) ASC, '
+            'COALESCE(s.disc_number, 1) ASC, s.track ASC, lower(s.title) ASC',
+      GenreSongSort.album =>
+        'lower(s.album_name) ASC, COALESCE(s.disc_number, 1) ASC, '
+            's.track ASC, lower(s.title) ASC',
+    };
+    Selectable<QueryRow> genreRows(String columns, {required bool paged}) {
+      return customSelect(
+        '''
+        SELECT $columns FROM songs s
+        WHERE $_genreListedSongSql
+          ${downloadedOnly ? _genreDownloadedSql : ''}
+          AND s.id IN (
+            SELECT x.song_id FROM song_genre_index x WHERE x.genre_key = ?1
+          )
+        ORDER BY $order, s.id ASC
+        ${paged ? 'LIMIT ?2 OFFSET ?3' : ''}
+        ''',
+        variables: <Variable<Object>>[
+          Variable<String>(exact),
+          if (paged) ...<Variable<Object>>[
+            Variable<int>(limit ?? -1),
+            Variable<int>(offset < 0 ? 0 : offset),
+          ],
+        ],
+        readsFrom: {songsTable, songGenreIndexTable, cachedTracksTable},
+      );
+    }
+
+    if (needle.isEmpty) {
+      return await genreRows(
+        's.*',
+        paged: true,
+      ).map((row) => songsTable.map(row.data)).get();
+    }
+    final rows = await genreRows(
+      's.id AS id, s.title AS title, s.artist_name AS artist, '
+      's.album_name AS album',
+      paged: false,
+    ).get();
+    final ids = <String>[
+      for (final row in rows)
+        if (_matchesAllWords(needle, [
+          row.read<String>('title'),
+          row.readNullable<String>('artist'),
+          row.readNullable<String>('album'),
+        ]))
+          row.read<String>('id'),
+    ];
+    return getSongsByIds(_page(ids, limit, offset));
+  }
+
+  static bool _matchesAllWords(String needle, List<String?> fields) {
+    final text = normalizeSearchText(fields.nonNulls.join(' '));
+    return needle.split(' ').every(text.contains);
+  }
+
+  static List<String> _page(List<String> ids, int? limit, int offset) {
+    final start = offset < 0 ? 0 : offset;
+    if (start >= ids.length) return const <String>[];
+    final end = limit == null ? ids.length : start + limit;
+    return ids.sublist(start, end > ids.length ? ids.length : end);
   }
 
   /// Visible albums that may belong to an artist page: those whose album
@@ -2712,6 +3178,11 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       // Kept rows are references until the rebuild reconfirms them. Availability
       // distinguishes these provisional songs from playable search results,
       // and lets a complete scan reconcile them even without parent IDs.
+      await customUpdate(
+        'DELETE FROM song_genre_index',
+        updates: {songGenreIndexTable},
+        updateKind: UpdateKind.delete,
+      );
       await update(songsTable)
           .write(const SongsTableCompanion(isProvisional: Value(true)));
       await (update(songsTable)..where(

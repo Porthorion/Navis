@@ -582,6 +582,7 @@ void main() {
           overrides: <Object?>[
             showAlbumsPageProvider.overrideWithValue(false),
             showLikedPageProvider.overrideWithValue(false),
+            showGenresPageProvider.overrideWithValue(false),
           ],
           showArtistsPage: false,
         ),
@@ -1082,6 +1083,7 @@ void main() {
         await _pumpLibraryScreen(
           tester,
           overrides: [
+            showGenresPageProvider.overrideWithValue(false),
             librarySyncControllerProvider.overrideWith(
               () => _FakeLibrarySyncController(
                 const LibrarySyncState.idle(),
@@ -1283,6 +1285,7 @@ void main() {
         (tester) async {
           setAdaptiveTestViewport(tester, const Size(390, 844));
           final overrides = <Object?>[
+            showGenresPageProvider.overrideWithValue(false),
             librarySyncControllerProvider.overrideWith(_LongSyncController.new),
             artistsProvider.overrideWithValue(
               const AsyncData(<ArtistsTableData>[]),

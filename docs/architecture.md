@@ -454,20 +454,75 @@ Listen Together / Voyage is retired for now. There are no active Listen
 Together UI entry points and no active Voyage HTTP, websocket, session,
 playback sync, or queue coordination paths.
 
-#### Genres are not a Navis concept
+#### Genres
 
-By product decision (2026-09-30) Navis has no genre page, route, Library
-section, Home shelf, search filter, Android Auto node, sync/scan input,
-catalog-change signal, recommendation input or diagnostics field. Server
-`genre` fields are ignored when albums are decoded, so a genre-only server edit
-is not a catalog change. Schema 89 dropped the `genres` table, the
-`albums.genre`, `library_sync_candidate_albums.genre` and
-`library_sync_state.last_genres_synced_at` columns, and purged retired
-`@genres` sync work and genre-target run history (`target_kind = 6`).
-`test/src/architecture/no_genre_feature_test.dart` fails on any `genre`
-mention in `lib/` outside generated files, historical changelog data and that
-migration step. An Android Auto genre voice intent is an ordinary raw-query
-search.
+Genre browsing returned in 1.5.2 (product decision 2026-11-03), after the
+2026-09-30 removal (schema 89). Each song's genres come from the OpenSubsonic
+`genres: [{name}]` list, falling back to the legacy `genre` string as one tag;
+`Song.genres` holds the resolved list. Names are never split on punctuation.
+`genreKey` (`lib/src/utils/genre_key.dart`) is the single merge key (lowercase,
+spaces, hyphens and underscores removed, empty keys and the dot-only names
+"." and ".." dropped, as the genre route cannot carry them) shared by the
+song model, the index writer and every query, so "Hip Hop", "hip-hop" and
+"Hip_Hop" are one genre while "R&B" and "RnB" stay apart. Albums carry no
+genre; an album belongs to every genre any of its songs has.
+
+Storage (schema 108): `songs.genres` and `library_sync_candidate_songs.genres`
+hold the JSON list of raw server names (deduped by key), null until a row is
+synced after the upgrade (the diff analyzer treats null as changed, so the
+post-upgrade full sync fills every song, untagged ones with `[]`). The derived `song_genre_index` (`song_id`,
+`genre_key`, `name`, `source`) is maintained lazily like `song_search_text`
+and `album_artist_index`: a row is current only while `source` equals the
+song's `genres` text plus `genreKeyVersion`, `LibraryDao.refreshSongGenreIndex`
+repairs missing or stale rows (it also runs at the end of every sync and
+before each genre query), only catalog songs (not provisional, not external)
+are indexed, and `clearLibraryData()` empties it. Promotion copies `genres`;
+`LibraryCatalogDiffAnalyzer.songNeedsApply` compares the sorted lists, so a
+reordering is not a change but a retag is. Display names are the most common
+spelling in the library. The genre queries (`getGenres`, `searchGenres`,
+`getGenre`, `getAlbumsByGenre`, `getSongsByGenre`) read the local database
+only and take a `downloadedOnly` filter.
+
+Existing libraries gain genres through `currentLibrarySyncModelVersion`
+('59'): the startup check runs one non-destructive forced full sync, deferred
+on mobile data, and stamps the version after promotion. Permanent downloads
+and the rolling cache are untouched. There is no Android Auto genre node;
+instead a spoken query that is exactly a genre ("jazz", "jazz music", by
+`genreKey`) plays that genre shuffled through the normal queue load
+(`_loadGenreFromSearch`), after an exact song or playlist title match and before
+the general search. Any other query is searched as before.
+
+UI. `LibrarySection.genres` is a Library page, placed right after Artists:
+`sanitizeLibraryPageOrder` inserts it after Artists in any saved order that
+predates it, and visibility is `app_settings.show_genres_page` (default on,
+added to the schema 108 step) like the other pages. The list
+(`library_genres_tab.dart`, a part of `library_screen.dart`) has a search field
+(the merge key, so "hip hop" finds "Hip-Hop"), a sort (most songs, most albums,
+name with the A-Z rail and non-Latin names under "#") and the shared
+downloaded-only chip. Its empty state says "Reading Genres" until the library
+has finished the sync that reads genre tags (`getLastFullSyncAppBuild()` is not
+`currentLibrarySyncModelVersion`), and otherwise explains that genres come from
+the server's tags. The genre page (`GenreDetailScreen`, route
+`/library/genres/:key` where `key` is the merge key) has Play and Shuffle for
+every song of the genre, an Albums grid and a Songs list; both read one page at
+a time (`limit` grows as the list nears its end, and restarts at the first
+page when the search, sort or downloaded-only filter changes) with their own
+search (applied after a 250 ms pause), sort and the downloaded-only filter.
+Tapping a song while more of the genre is unloaded queues the whole genre in the
+current order, like Play; the page is framed with `DesktopFrame` on desktop and
+keeps its tab, search and scroll across a sync republish. `genre_providers.dart` re-reads on the sync
+controller's catalog and completion timestamps, because every star or play
+count write touches `songs`. Albums and songs show their genres as `GenreChips`
+(an album's come from its songs, remote songs excluded; songs show them at the
+top of the mobile song sheet and the desktop song menu, never for a remote song).
+A chip opens the genre page, or, while the page is hidden, a notice
+"Genre page disabled" whose Show action (still working after the sheet closed) opens Settings -> Appearance with
+`focus=libraryPages`: that group opens, scrolls into view and briefly
+highlights the Genres row, which carries the 1.5.2 "New" tag
+(`SetupHighlight.genresPage`, a standalone highlight: the Library pages group
+header shows the tag too while it is new). Global search lists matching genres after Artists
+from the local index, so they also work offline, and never when the page is
+hidden or a type filter is active; song results do not match on genre text.
 
 ### Import Guidelines
 
@@ -2246,6 +2301,13 @@ from full settings saves; defaults and resets clear them. The clone-only
 `POST /v1/presentation/setup-highlights/reset` clears the set and both release
 markers in a transaction; the integrations settings dump exposes all three.
 
+A highlight marked `standalone` (`genresPage`, since 1.5.2) is outside the
+release groups: it never sets `setupWhatsNewRelease`, so it does not replace
+unseen 1.5.0 tags, never raises the Home card and is not cleared by Finish. It
+is pending for two minor releases after `since` until `markOptionSeen` records
+it, and the Library pages group header carries its tag so it is visible while
+the group is closed.
+
 The look step shows the appearance options through the same callback-driven
 widgets as Settings › Appearance (`settings/presentation/appearance_options.dart`).
 Theme Mode, Color Style, Night Schedule and Accent Color are always visible;
@@ -2479,7 +2541,7 @@ The desktop workspace gives pages the whole area beside the rail: it adds no
 inset of its own, so each page owns its gutter (24 px, `NavisSpace.xl`; the
 lyrics overlay is full-bleed). Sidebar styles are stored as `compact` (shown
 as Default, 220 px, the default), `comfortable` (Large, a fixed 260 px with
-18 sp labels and 52 px tiles) and `icons`; schema 108 moved profiles still on
+18 sp labels and 52 px tiles) and `icons`; schema 109 moved profiles still on
 the old `comfortable` default to `compact` once.
 
 With auto-hide the layout always reserves the 64 px icon strip and
@@ -6338,8 +6400,8 @@ collaborators does not read locale settings or open the database for localizatio
     of catalog execution. The retired per-server capabilities-JSON timestamp
     is no longer read or written. The catalog circuit breaker does not
     suppress these independent endpoints.
-    Genres are not synchronized: there is no genre target, endpoint or stored
-    genre data (see "Genres are not a Navis concept").
+    Genres are not a sync target: they arrive as a field of the song rows the
+    catalog sync already fetches (see "Genres").
     Starred reconciliation
     excludes queued local star/unstar actions until they reach the server.
     Favorites, ratings, artwork revisions, and identity reference updates

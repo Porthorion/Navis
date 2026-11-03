@@ -31,6 +31,7 @@ import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/home/presentation/listenbrainz_playlist_artwork.dart';
 import 'package:navis/src/features/home/presentation/trending_detail_screen.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/genre_providers.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
 import 'package:navis/src/features/library/presentation/radio_screen.dart';
 import 'package:navis/src/features/library/presentation/library_scroll_provider.dart';
@@ -62,6 +63,7 @@ import 'package:navis/src/theme/artwork_shape.dart';
 
 part 'library_support_widgets.dart';
 part 'library_tabs.dart';
+part 'library_genres_tab.dart';
 
 enum _AlbumSort { recentlyAdded, newest, name, artist, byYear }
 
@@ -107,6 +109,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   final ScrollController _likedScrollController = ScrollController();
   final ScrollController _playlistsScrollController = ScrollController();
   final ScrollController _radioScrollController = ScrollController();
+  final ItemScrollController _genresItemScrollController =
+      ItemScrollController();
   final ScrollController _artistsGridScrollController = ScrollController();
   final ItemScrollController _artistsItemScrollController =
       ItemScrollController();
@@ -129,6 +133,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   Map<String, int> _yearDecadeStartIndex = const <String, int>{};
   String? _activeYearDecade;
   bool _isYearRailScrubbing = false;
+  bool _isGenreRailScrubbing = false;
   TabController? _tabController;
   bool _synchronizingTabControllerFromSection = false;
   LibrarySection? _pendingSectionSync;
@@ -461,6 +466,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           );
         }
         return;
+      case LibrarySection.genres:
+        if (_genresItemScrollController.isAttached) {
+          unawaited(
+            _genresItemScrollController.scrollTo(
+              index: 0,
+              duration: const Duration(milliseconds: 450),
+              curve: Curves.easeOutCubic,
+            ),
+          );
+        }
+        return;
       case LibrarySection.playlists:
         _animateScrollControllerToTop(_playlistsScrollController);
         return;
@@ -504,6 +520,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       LibrarySection.albums => _buildAlbumsTab(context),
       LibrarySection.liked => _buildLikedTab(context, desktopMode: desktopMode),
       LibrarySection.artists => _buildArtistsTab(context),
+      LibrarySection.genres => _LibraryGenresTab(
+        itemScrollController: _genresItemScrollController,
+        typeFilterQuery: _typeFilterQuery,
+        onClearTypeFilter: _clearTypeFilter,
+        onRailScrubbing: (value) =>
+            setState(() => _isGenreRailScrubbing = value),
+      ),
       LibrarySection.playlists => _LibraryPlaylistsTab(
         scrollController: _playlistsScrollController,
         typeFilterQuery: _typeFilterQuery,
@@ -522,6 +545,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       LibrarySection.albums => l10n.libraryTabAlbums,
       LibrarySection.liked => l10n.libraryTabLiked,
       LibrarySection.artists => l10n.libraryTabArtists,
+      LibrarySection.genres => l10n.libraryTabGenres,
       LibrarySection.playlists => l10n.navPlaylists,
       LibrarySection.radio => l10n.navRadio,
     };
@@ -660,7 +684,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             Expanded(
               child: TabBarView(
                 controller: tabController,
-                physics: (_isArtistRailScrubbing || _isYearRailScrubbing)
+                physics:
+                    (_isArtistRailScrubbing ||
+                        _isYearRailScrubbing ||
+                        _isGenreRailScrubbing)
                     ? const NeverScrollableScrollPhysics()
                     : const PageScrollPhysics(),
                 children: <Widget>[
@@ -1297,7 +1324,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: <Widget>[
                     SliverToBoxAdapter(
-                      child: _SortFilterRow<_AlbumSort>(
+                      child: LibrarySortFilterRow<_AlbumSort>(
                         sortLabel: l10n.libraryAlbumsSortLabel,
                         sortValue: _albumSort,
                         sortItems: <DropdownMenuItem<_AlbumSort>>[
@@ -1469,7 +1496,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     return Column(
       children: <Widget>[
-        _SortFilterRow<_AlbumSort>(
+        LibrarySortFilterRow<_AlbumSort>(
           sortLabel: l10n.libraryAlbumsSortLabel,
           sortValue: _albumSort,
           sortItems: <DropdownMenuItem<_AlbumSort>>[

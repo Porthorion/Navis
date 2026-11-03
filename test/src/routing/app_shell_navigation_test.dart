@@ -690,6 +690,64 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  // The rail estimates whether the Library sections fit under the tiles; a wrong
+  // estimate overflows the column. Swept in steps of 4 px through the window
+  // heights where the estimate flips, for every navbar style and for text
+  // below, at and above 100%.
+  for (final style in <String>['comfortable', 'compact', 'icons']) {
+    for (final scale in <double>[0.8, 0.9, 1.0, 1.15, 1.3, 1.5, 1.75, 2.0]) {
+      for (final withPlayer in <bool>[false, true]) {
+        testWidgets(
+          'desktop $style rail never overflows at ${(scale * 100).round()} percent '
+          'text${withPlayer ? ' with the player' : ''}',
+          (tester) async {
+            tester.view.devicePixelRatio = 1;
+            addTearDown(() {
+              tester.view.resetPhysicalSize();
+              tester.view.resetDevicePixelRatio();
+            });
+            final container = _createContainerWithDatabase(
+              overrides: <Override>[
+                ..._authenticatedShellOverrides(
+                  desktopRuntime: true,
+                  playback: withPlayer
+                      ? _activePlayback
+                      : const PlaybackSnapshot.idle(),
+                ),
+                desktopNavbarStyleProvider.overrideWithValue(style),
+                showLikedPageProvider.overrideWithValue(true),
+                showArtistsPageProvider.overrideWithValue(true),
+                showGenresPageProvider.overrideWithValue(true),
+                showPlaylistsPageProvider.overrideWithValue(true),
+                showRadioPageProvider.overrideWithValue(true),
+              ],
+            );
+            for (var height = 640; height <= 1100; height += 4) {
+              tester.view.physicalSize = Size(1280, height.toDouble());
+              await tester.pumpWidget(
+                MediaQuery(
+                  data: MediaQueryData.fromView(tester.view)
+                      .copyWith(textScaler: TextScaler.linear(scale)),
+                  child: UncontrolledProviderScope(
+                    container: container,
+                    child: testNavisApp,
+                  ),
+                ),
+              );
+              await tester.pumpAndSettle();
+              expect(
+                tester.takeException(),
+                isNull,
+                reason: 'rail overflow at 1280x$height, $style, text $scale',
+              );
+            }
+            await tester.pump(const Duration(milliseconds: 201));
+          },
+        );
+      }
+    }
+  }
+
   testWidgets('phone layout uses bottom navigation', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(599, 1000);

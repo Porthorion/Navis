@@ -3386,6 +3386,48 @@ void main() {
       },
     );
 
+    test('upgrading from the pre-genre sync model queues one full repair and '
+        'keeps the cached library', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      // The model the previous release stamped: genres were not synced.
+      await database.appSettingsDao.setLastFullSyncAppBuild('58');
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'kept', title: 'Kept'),
+      ]);
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) {
+          return const LibrarySyncState(
+            status: LibrarySyncStatus.skipped,
+            stage: LibrarySyncStage.completed,
+          );
+        }
+        return LibrarySyncState(
+          status: LibrarySyncStatus.succeeded,
+          stage: LibrarySyncStage.completed,
+          mode: LibrarySyncMode.forceFull,
+          completedAt: DateTime.now(),
+        );
+      });
+      final container = _container(
+        engine,
+        database: database,
+        server: _exampleServer,
+        extra: [networkTypeProvider.overrideWithValue(NetworkType.wifi)],
+      );
+      addTearDown(container.dispose);
+
+      container.read(librarySyncControllerProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(engine.explicitCatalogRequests, [_repairRequest]);
+      expect(
+        await database.appSettingsDao.getLastFullSyncAppBuild(),
+        currentLibrarySyncModelVersion,
+      );
+      expect(await database.libraryDao.getSongById('kept'), isNotNull);
+    });
+
     test(
       'upgrading from the previous sync model forces a full catalog repair',
       () async {

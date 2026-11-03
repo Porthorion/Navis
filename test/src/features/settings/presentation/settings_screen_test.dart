@@ -285,6 +285,29 @@ void main() {
       handle.dispose();
     });
 
+    testWidgets(
+      'the Genres highlight tags Appearance, not Quick Customization',
+      (tester) async {
+        await pump(tester, const Size(390, 1600), const <SetupHighlight>{
+          SetupHighlight.genresPage,
+        });
+        await tester.scrollUntilVisible(
+          find.text('Run Quick Customization'),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+
+        Finder tagIn(String title) => find.descendant(
+          of: find
+              .ancestor(of: find.text(title), matching: find.byType(ListTile))
+              .first,
+          matching: find.byType(NewFeatureTag),
+        );
+        expect(tagIn('Appearance'), findsOneWidget);
+        expect(tagIn('Run Quick Customization'), findsNothing);
+      },
+    );
+
     testWidgets('OLED alone does not tag outside Auto mode', (tester) async {
       await pump(tester, const Size(390, 1600), const <SetupHighlight>{
         SetupHighlight.oledForAuto,
