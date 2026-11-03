@@ -7,6 +7,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:meta/meta.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/database/daos/library_dao.dart' show GenreSummary;
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
@@ -93,9 +94,14 @@ class SearchResultsState {
     required this.isWaitingForApi,
     required this.isLocalOnly,
     required this.remoteSearchFailed,
+    this.genres = const <GenreSummary>[],
   });
 
   final SearchResult3 result;
+
+  /// Genres matching the query from the local index, so they work offline;
+  /// empty while the Genres page is hidden or a type filter is active.
+  final List<GenreSummary> genres;
   final bool isWaitingForApi;
   final bool isLocalOnly;
 
@@ -124,11 +130,19 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
       rankSearchResult(await _searchLocal(ref, query, filter), query),
       filter,
     );
+    // Genre names live only in the local index and show under All only.
+    final genres = filter == null && ref.watch(showGenresPageProvider)
+        ? await ref
+              .read(navisDatabaseProvider)
+              .libraryDao
+              .searchGenres(query, limit: 5)
+        : const <GenreSummary>[];
 
     if (isOffline || filter?.isCollection == true) {
       // Playlists and radio are matched in memory by
       // [searchCollectionMatchesProvider]; nothing to ask the server.
       yield SearchResultsState(
+        genres: genres,
         result: localResult,
         isWaitingForApi: false,
         isLocalOnly: isOffline,
@@ -140,6 +154,7 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
     final api = ref.watch(subsonicApiProvider);
     if (api == null) {
       yield SearchResultsState(
+        genres: genres,
         result: localResult,
         isWaitingForApi: false,
         isLocalOnly: true,
@@ -158,6 +173,7 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
 
     const defaultCount = 20;
     yield SearchResultsState(
+      genres: genres,
       result: localResult,
       isWaitingForApi: true,
       isLocalOnly: false,
@@ -188,6 +204,7 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
         filter,
       );
       yield SearchResultsState(
+        genres: genres,
         result: _filterResultByType(
           mergeAndRankSearchResults(
             local: localResult,
@@ -202,6 +219,7 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
       );
     } on Object {
       yield SearchResultsState(
+        genres: genres,
         result: localResult,
         isWaitingForApi: false,
         isLocalOnly: false,
