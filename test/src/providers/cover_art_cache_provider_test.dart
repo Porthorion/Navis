@@ -41,6 +41,8 @@ void main() {
       ),
     );
     final manager = container.read(coverArtCacheManagerProvider);
+    // The sqflite repository (macOS) cannot close before its open completes.
+    await manager.getFileFromCache('initialization-probe');
     addTearDown(() async {
       container.dispose();
       // Provider disposal starts this asynchronously; await it before deleting.

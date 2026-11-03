@@ -1069,7 +1069,9 @@ from `smaps_rollup`; resident PSS is informational and Dart heap stays gated.
 Local `./tool/check.sh` retains every captured step log in a unique
 `build/check/run-*` directory and propagates both command and tee failures.
 It now includes `python3 tool/playback_harness_test.py` and
-`python3 tool/validation_gate_test.py`; existing checks remain required.
+`python3 tool/validation_gate_test.py` (Linux only: it needs pidfd and
+child-subreaper support, so other hosts skip it with a message); existing
+checks remain required.
 CI's focused `tooling` job runs these two Python suites (NumPy for PCM oracle
 self-checks) plus Bash syntax checks. The aggregate `ci` job requires it. This
 adds no duplicate Flutter suite and starts no runtime matrix, build or emulator.

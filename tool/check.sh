@@ -61,7 +61,12 @@ assert_no_blocking_warnings() {
 }
 
 run_step "playback harness tooling" python3 tool/playback_harness_test.py
-run_step "heavy ownership and capture" python3 tool/validation_gate_test.py
+# The gate's process cleanup needs Linux pidfd and child-subreaper support.
+if [[ "$(uname -s)" == Linux ]]; then
+  run_step "heavy ownership and capture" python3 tool/validation_gate_test.py
+else
+  echo "[check] Skipping heavy ownership and capture: Linux-only (pidfd, child-subreaper)."
+fi
 run_step "test log guard" ./tool/check_test_log_test.sh
 run_step "linux desktop entry" ./tool/linux_desktop_entry_test.sh
 run_step "linux install script" ./tool/linux_install_test.sh
@@ -72,7 +77,12 @@ run_step "Last.fm key masking" ./tool/lastfm_key_defines_test.sh
 run_step "artifact secret scan" ./tool/scan_artifact_secret_test.sh
 run_step "native equalizer response" ./tool/equalizer_native_test.sh
 run_step "Android repeat runner contract" ./tool/android_repeat_runner_test.sh
-run_step "Android repeat bridge JVM" ./tool/android_repeat_native_test.sh
+# Gradle compiles the Android app module; macOS hosts run no Android builds.
+if [[ "$(uname -s)" != Darwin ]]; then
+  run_step "Android repeat bridge JVM" ./tool/android_repeat_native_test.sh
+else
+  echo "[check] Skipping Android repeat bridge JVM: no Android builds on macOS hosts."
+fi
 run_step "Windows SQLite asset verification" python3 tool/sqlite3_windows_asset_test.py
 run_step "diagnostics profile preparation" python3 tool/diagnostics_profile_test.py
 run_step "format check" ./tool/dart_format.sh --check
