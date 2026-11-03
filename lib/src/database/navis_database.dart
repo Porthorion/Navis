@@ -406,13 +406,16 @@ class NavisDatabase extends _$NavisDatabase {
       from104To105,
       from105To106,
       from106To107,
-      // 108 is reserved for fix/desktop-overlay-rail (#226). If it merges
-      // first its step replaces this placeholder; if genre browsing ships
-      // alone, renumber by setting currentSchemaVersion to 108, renaming
-      // from108To109 to from107To108, deleting this line, deleting the
-      // '107 to 109' test in navis_migration_test.dart, and changing "schema
-      // 109" in docs/architecture.md and
-      // docs/features/sync-reliability-recovery-plan.md.
+      // 108 is reserved for fix/desktop-overlay-rail (#226). This branch must
+      // never merge with the placeholder below: a dev build that ships schema
+      // 109 would leave #226's step unrun on every installed device. Decide at
+      // merge time. If #226's step is already on release/1.5, keep 109 and put
+      // its step in this slot. Otherwise renumber to 108 first: set
+      // currentSchemaVersion to 108, rename from108To109 to from107To108,
+      // delete this line, delete the '107 to 109' test in
+      // navis_migration_test.dart, and change "schema 109" in
+      // docs/architecture.md and
+      // docs/features/sync-reliability-recovery-plan.md. #226 then becomes 109.
       _noMigration,
       from108To109,
     ];
