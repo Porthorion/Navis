@@ -66,6 +66,7 @@ assert_no_blocking_warnings() {
 
 run_step "test log guard" ./tool/check_test_log_test.sh
 run_step "linux desktop entry" ./tool/linux_desktop_entry_test.sh
+run_step "linux install script" ./tool/linux_install_test.sh
 run_step "release tag guard" ./tool/release_tag_guard_test.sh
 run_step "dev release and R2 publishing" ./tool/dev_release_test.sh
 run_step "GitHub update publication" ./tool/github_release_test.sh
