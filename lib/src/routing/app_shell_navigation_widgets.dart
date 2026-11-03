@@ -194,8 +194,13 @@ class _RailSidebar extends ConsumerWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final navTileEstimatedHeight = compact ? 52.0 : 64.0;
-                const subNavTileEstimatedHeight = 44.0;
+                // A tile grows by its label's extra height at large text sizes;
+                // without it one more Library section overflows the rail.
+                final textGrowth =
+                    MediaQuery.textScalerOf(context).scale(18) - 18;
+                final navTileEstimatedHeight =
+                    (compact ? 52.0 : 64.0) + textGrowth;
+                final subNavTileEstimatedHeight = 44.0 + textGrowth;
                 const subNavTrailingGap = 6.0;
                 const reservedMiniPlayerHeight = 170.0;
                 const railMiniPlayerGap = 6.0;

@@ -269,9 +269,6 @@ List<Override> _authenticatedShellOverrides({
     changelogToShowProvider.overrideWith((ref) async => null),
     // Like the release notes row, the 1.5.0 notice is not part of the shell.
     integrationsNoticeVisibleProvider.overrideWithValue(false),
-    // The Genres page has its own tests; these shell layouts and goldens are
-    // about the other pages.
-    showGenresPageProvider.overrideWithValue(false),
     initialSyncRequiredProvider.overrideWithValue(const AsyncData(false)),
     desktopPresentationRuntimeProvider.overrideWithValue(desktopRuntime),
     networkTypeProvider.overrideWithValue(NetworkType.wifi),
