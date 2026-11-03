@@ -92,11 +92,13 @@ printf 'installer\n' > "${tmp}/navis-v1.5.0-windows-installer.exe"
 # The installer on the tag is never replaced by a later checkout's copy (R10).
 printf 'installer as released\n' > "${TEST_GITHUB_ASSETS}/install.sh"
 : > "${TEST_GITHUB_LOG}"
-printf 'sums\n' > "${tmp}/SHA256SUMS"
+# A stale install.sh line (from an earlier run) must be replaced, not duplicated.
+printf 'sums\n%s  install.sh\n' "$(printf '0%.0s' {1..64})" > "${tmp}/SHA256SUMS"
 navis_github_publish v1.5.0 false "${tmp}/notes.md" "${tmp}/manifest.json" "${tmp}/navis-v1.5.0-windows-installer.exe" "${tmp}/SHA256SUMS"
 [[ "$(cat "${TEST_GITHUB_ASSETS}/install.sh")" == 'installer as released' ]] || fail 'late-asset run replaced the released installer'
 rg -q 'release upload .*install\.sh' "${TEST_GITHUB_LOG}" && fail 'late-asset run re-uploaded install.sh'
 released_sum="$(printf 'installer as released\n' | sha256sum | cut -d' ' -f1)"
+[[ "$(rg -c '  install.sh$' "${tmp}/SHA256SUMS")" == 1 ]] || fail 'a stale install.sh line was duplicated'
 rg -q "^${released_sum}  install.sh$" "${tmp}/SHA256SUMS" || fail 'late-asset SHA256SUMS lacks the released installer line'
 rg -q 'release upload .*--clobber' "${TEST_GITHUB_LOG}" || fail 'late asset was not uploaded with clobber'
 [[ -f "${TEST_GITHUB_ASSETS}/navis-v1.5.0-windows.zip" ]] || fail 'existing asset lost'

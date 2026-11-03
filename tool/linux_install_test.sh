@@ -127,7 +127,7 @@ make_manifest() {
 release() { build_tarball "$1"; make_manifest "$1" "${tmp}/dl/navis-v$1-linux.tar.gz"; }
 
 fresh() { chmod -R u+w "${HOME_DIR}" 2>/dev/null || true; rm -rf "${HOME_DIR}" "${FX_LOG}"; mkdir -p "${HOME_DIR}"; : > "${FX_LOG}"; }
-run() { rc=0; mkdir -p "${tmp}/tmpdir"; out="$(cd "${tmp}" && TMPDIR="${tmp}/tmpdir" HOME="${HOME_DIR}" bash "${SCRIPT:-${copy}}" "$@" 2>&1 </dev/null)" || rc=$?; }
+run() { rc=0; mkdir -p "${tmp}/tmpdir"; out="$(cd "${tmp}" && TMPDIR="${tmp}/tmpdir" HOME="${RUN_HOME:-${HOME_DIR}}" bash "${SCRIPT:-${copy}}" "$@" 2>&1 </dev/null)" || rc=$?; }
 want_rc() { [[ "${rc}" == "$1" ]] || fail "$2: expected exit $1, got ${rc}"; }
 want_fail() { [[ "${rc}" != 0 ]] || fail "$1: expected a refusal, got success"; }
 want_out() { printf '%s' "${out}" | grep -Eqi -- "$1" || fail "$2: output lacks /$1/"; }
@@ -218,7 +218,10 @@ c_bad_asset_urls() {
       'https://downloads.porthorion.com/navis/../evil/navis-v1.5.2-linux.tar.gz' \
       'https://github.com/evil/Navis/releases/download/v1.5.2/navis-v1.5.2-linux.tar.gz' \
       'https://objects.githubusercontent.com/x/navis-v1.5.2-linux.tar.gz' \
-      'http://downloads.porthorion.com/navis/navis-v1.5.2-linux.tar.gz'; do
+      'http://downloads.porthorion.com/navis/navis-v1.5.2-linux.tar.gz' \
+      'https://downloads.porthorion.com.evil.example/navis/navis-v1.5.2-linux.tar.gz' \
+      'https://evildownloads.porthorion.com/navis/navis-v1.5.2-linux.tar.gz' \
+      'https://downloads.porthorion.com@evil.example/navis/navis-v1.5.2-linux.tar.gz'; do
     fresh; build_tarball 1.5.2; M_URL="${url}" make_manifest 1.5.2 "${tmp}/dl/navis-v1.5.2-linux.tar.gz"
     run --yes; want_fail "asset url ${url}"; not_installed "asset url ${url}"
     ! grep -q 'tar.gz' "${FX_LOG}" || fail "disallowed URL was requested: ${url}"
@@ -305,6 +308,27 @@ c_system_package() {
   fresh; release 1.5.2; touch "${tmp}/system-navis"; chmod +x "${tmp}/system-navis"
   TEST_SYSTEM_APP="${tmp}/system-navis" run; want_fail "system package, no tty"; not_installed "system package"
   TEST_SYSTEM_APP="${tmp}/system-navis" run --yes; want_rc 0 "system package with --yes"
+}
+c_system_package_tty() { # the /opt/navis question, answered on the terminal
+  fresh; release 1.5.2; touch "${tmp}/system-navis"; chmod +x "${tmp}/system-navis"
+  tty_answers $'n\ny\n'; TEST_SYSTEM_APP="${tmp}/system-navis" run; want_fail "answered n to the system package question"
+  want_out 'system package' "question names the system package"; not_installed "system package, answered n"
+  tty_answers $'y\ny\n'; TEST_SYSTEM_APP="${tmp}/system-navis" run; want_rc 0 "answered y"; [[ -x "${APP}/navis" ]] || fail "not installed after y"
+}
+c_relative_home() { fresh; release 1.5.2; RUN_HOME='relative/home' run --yes; want_fail "relative HOME"; want_out 'HOME' "relative HOME"; [[ ! -e "${tmp}/relative" ]] || fail "created files under a relative HOME"; }
+c_symlink_launcher_in_bundle() { # a bundle whose navis is a symlink is not a bundle
+  fresh; build_tarball 1.5.2; rm "${tmp}/bundle-1.5.2/navis"; ln -s /bin/true "${tmp}/bundle-1.5.2/navis"
+  tar -czf "${tmp}/dl/navis-v1.5.2-linux.tar.gz" -C "${tmp}/bundle-1.5.2" .; make_manifest 1.5.2 "${tmp}/dl/navis-v1.5.2-linux.tar.gz"
+  run --yes; want_fail "symlinked navis"; want_out 'does not look like' "symlinked navis"; not_installed "symlinked navis"
+}
+c_trailing_slash_xdg() { # R18: no `share//navis` paths in the manifest
+  fresh; release 1.5.2
+  XDG_DATA_HOME="${DATA}/" run --yes; want_rc 0 "trailing-slash XDG_DATA_HOME"
+  ! grep -q '//' "${IM}" || fail "install manifest records a doubled slash: $(grep '//' "${IM}" | head -1)"
+  run --uninstall; want_rc 0 "uninstall without the variable"; [[ ! -e "${APP}" ]] || fail "uninstall left the app"
+}
+c_cleanup_ignores_signals() { # R19: a second signal must not interrupt the restore
+  sed -n '/^cleanup() {/,/^}/p' "${INSTALL}" | grep -q "trap '' INT TERM HUP" || fail "cleanup() does not ignore INT/TERM/HUP"
 }
 c_foreign_launcher() {
   fresh; release 1.5.2; mkdir -p "$(dirname "${LAUNCHER}")"; echo '#!/bin/sh' > "${LAUNCHER}"
@@ -498,6 +522,11 @@ run_case "R4 failed integrate on an upgrade keeps the old install" c_integrate_f
 run_case "older local tarball warns but installs" c_older_tarball
 run_case "foreign app dir: --yes refused, n refused, interactive y replaces" c_foreign_app
 run_case "system package install is asked about" c_system_package
+run_case "R20 /opt/navis question asked on the tty" c_system_package_tty
+run_case "R20 relative HOME refused" c_relative_home
+run_case "R20 symlinked navis in a bundle refused" c_symlink_launcher_in_bundle
+run_case "R18 trailing slash in XDG_DATA_HOME" c_trailing_slash_xdg
+run_case "R19 cleanup ignores further signals" c_cleanup_ignores_signals
 run_case "foreign launcher not replaced under --yes" c_foreign_launcher
 run_case "R5 foreign desktop file / symlink never overwritten or followed" c_foreign_desktop
 run_case "R6 user's own navis.new / navis.old untouched" c_user_new_old_dirs

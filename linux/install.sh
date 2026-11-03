@@ -53,6 +53,7 @@ EOF
 
 cleanup() {
   local rc=$? p keep_old=0
+  trap '' INT TERM HUP   # a second signal must not interrupt the restore below
   # Before the commit point only: undo what this run did. Once COMMITTED the
   # new install is the truth and nothing here may roll it back.
   if [[ ${COMMITTED} != 1 ]]; then
@@ -184,7 +185,9 @@ desktop_exec_quote() {
 paths() {
   [[ ${HOME:-} == /* ]] || die "HOME must be an absolute path"
   local v
-  v="${XDG_DATA_HOME:-}"; [[ ${v} == /* ]] || v="${HOME}/.local/share"; DATA="${v}"
+  v="${XDG_DATA_HOME:-}"; [[ ${v} == /* ]] || v="${HOME}/.local/share"
+  while [[ ${v} == */ && ${v} != / ]]; do v="${v%/}"; done   # never record `share//navis`
+  DATA="${v}"
   v="${XDG_CONFIG_HOME:-}"; [[ ${v} == /* ]] || v="${HOME}/.config"; CONFIG="${v}"
   v="${XDG_CACHE_HOME:-}"; [[ ${v} == /* ]] || v="${HOME}/.cache"; CACHE="${v}"
   for v in "${HOME}" "${DATA}" "${CONFIG}" "${CACHE}"; do
