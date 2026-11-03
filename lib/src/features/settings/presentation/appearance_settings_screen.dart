@@ -2002,8 +2002,10 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
         final subtitle = _sectionSubtitle(section, l10n);
         return Material(
           key: ValueKey<String>('library-page-${section.name}'),
+          borderRadius: NavisShapeData.of(context).mdAll,
+          // primaryContainer is near-black in dark themes, so tint the accent.
           color: widget.highlighted == section
-              ? theme.colorScheme.primaryContainer
+              ? theme.colorScheme.primary.withValues(alpha: 0.22)
               : Colors.transparent,
           child: ListTile(
             leading: ReorderableDragStartListener(

@@ -216,7 +216,7 @@ void main() {
           findsOneWidget,
         );
         final colors = Theme.of(tester.element(genresRow)).colorScheme;
-        expect(material(tester).color, colors.primaryContainer);
+        expect(material(tester).color, colors.primary.withValues(alpha: 0.22));
 
         await tester.pump(const Duration(seconds: 3));
         expect(material(tester).color, Colors.transparent);
