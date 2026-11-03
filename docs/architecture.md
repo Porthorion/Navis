@@ -488,6 +488,32 @@ on mobile data, and stamps the version after promotion. Permanent downloads
 and the rolling cache are untouched. An Android Auto genre voice intent is
 still an ordinary raw-query search; there is no Android Auto genre node.
 
+UI. `LibrarySection.genres` is a Library page, placed right after Artists:
+`sanitizeLibraryPageOrder` inserts it after Artists in any saved order that
+predates it, and visibility is `app_settings.show_genres_page` (default on,
+added to the schema 109 step) like the other pages. The list
+(`library_genres_tab.dart`, a part of `library_screen.dart`) has a search field
+(the merge key, so "hip hop" finds "Hip-Hop"), a sort (most songs, most albums,
+name with the A-Z rail and non-Latin names under "#") and the shared
+downloaded-only chip. Its empty state says "Reading Genres" until the library
+has finished the sync that reads genre tags (`getLastFullSyncAppBuild()` is not
+`currentLibrarySyncModelVersion`), and otherwise explains that genres come from
+the server's tags. The genre page (`GenreDetailScreen`, route
+`/library/genres/:key` where `key` is the merge key) has Play and Shuffle for
+every song of the genre, an Albums grid and a Songs list; both read one page at
+a time (`limit` grows as the list nears its end) with their own search, sort and
+the downloaded-only filter. `genre_providers.dart` re-reads on the sync
+controller's catalog and completion timestamps, because every star or play
+count write touches `songs`. Albums and songs show their genres as `GenreChips`
+(an album's come from its songs; songs show them at the top of the mobile song
+menu). A chip opens the genre page, or, while the page is hidden, a notice
+"Genre page disabled" whose Show action opens Settings -> Appearance with
+`focus=libraryPages`: that group opens, scrolls into view and briefly
+highlights the Genres row, which carries the 1.5.2 "New" tag
+(`SetupHighlight.genresPage`). Global search lists matching genres after Artists
+from the local index, so they also work offline, and never when the page is
+hidden or a type filter is active; song results do not match on genre text.
+
 ### Import Guidelines
 
 1. **Feature code should import from feature providers first**:

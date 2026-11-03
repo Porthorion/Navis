@@ -438,6 +438,13 @@ class NavisDatabase extends _$NavisDatabase {
     if (!await _tableExists('song_genre_index')) {
       await migrator.createTable(songGenreIndexTable);
     }
+    // The Genres Library page is shown by default like the others.
+    if (!await _columnExists('app_settings', 'show_genres_page')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.showGenresPage,
+      );
+    }
   }
 
   Future<void> from106To107(Migrator migrator) async {
@@ -1863,6 +1870,7 @@ FROM scrobble_queue;
         showPlaylistsPage: const Value(true),
         showArtistsPage: const Value(true),
         showLikedPage: const Value(true),
+        showGenresPage: const Value(true),
         libraryPageOrder: const Value(null),
         rollingCacheBudgetMb: const Value(
           AppSettingsDao.defaultRollingCacheBudgetMb,

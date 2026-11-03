@@ -11,7 +11,8 @@ enum SetupHighlight {
   flatAreas('1.5.0'),
   albumArtShade('1.5.0'),
   nowPlayingBackground('1.5.0'),
-  cornerStyle('1.5.0');
+  cornerStyle('1.5.0'),
+  genresPage('1.5.2');
 
   new(this.since);
 

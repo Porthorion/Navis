@@ -828,6 +828,21 @@ class $AppSettingsTableTable extends AppSettingsTable
     ),
     defaultValue: const Constant(true),
   );
+  static const VerificationMeta _showGenresPageMeta = const VerificationMeta(
+    'showGenresPage',
+  );
+  @override
+  late final GeneratedColumn<bool> showGenresPage = GeneratedColumn<bool>(
+    'show_genres_page',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("show_genres_page" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   static const VerificationMeta _rollingCacheBudgetMbMeta =
       const VerificationMeta('rollingCacheBudgetMb');
   @override
@@ -2029,6 +2044,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     playlistCreateOnServer,
     showArtistsPage,
     showLikedPage,
+    showGenresPage,
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
     autoDownloadStarredOnWifi,
@@ -2285,6 +2301,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         showLikedPage.isAcceptableOrUnknown(
           data['show_liked_page']!,
           _showLikedPageMeta,
+        ),
+      );
+    }
+    if (data.containsKey('show_genres_page')) {
+      context.handle(
+        _showGenresPageMeta,
+        showGenresPage.isAcceptableOrUnknown(
+          data['show_genres_page']!,
+          _showGenresPageMeta,
         ),
       );
     }
@@ -3190,6 +3215,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.bool,
         data['${effectivePrefix}show_liked_page'],
       )!,
+      showGenresPage: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}show_genres_page'],
+      )!,
       rollingCacheBudgetMb: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}rolling_cache_budget_mb'],
@@ -3597,6 +3626,7 @@ class AppSettingsTableData extends DataClass
   final bool playlistCreateOnServer;
   final bool showArtistsPage;
   final bool showLikedPage;
+  final bool showGenresPage;
 
   /// Rolling cache budget in megabytes. Default 2048 (2 GB).
   final int rollingCacheBudgetMb;
@@ -3892,6 +3922,7 @@ class AppSettingsTableData extends DataClass
     required this.playlistCreateOnServer,
     required this.showArtistsPage,
     required this.showLikedPage,
+    required this.showGenresPage,
     required this.rollingCacheBudgetMb,
     required this.wifiOnlyDownloads,
     required this.autoDownloadStarredOnWifi,
@@ -4017,6 +4048,7 @@ class AppSettingsTableData extends DataClass
     map['playlist_create_on_server'] = Variable<bool>(playlistCreateOnServer);
     map['show_artists_page'] = Variable<bool>(showArtistsPage);
     map['show_liked_page'] = Variable<bool>(showLikedPage);
+    map['show_genres_page'] = Variable<bool>(showGenresPage);
     map['rolling_cache_budget_mb'] = Variable<int>(rollingCacheBudgetMb);
     map['wifi_only_downloads'] = Variable<bool>(wifiOnlyDownloads);
     map['auto_download_starred_on_wifi'] = Variable<bool>(
@@ -4215,6 +4247,7 @@ class AppSettingsTableData extends DataClass
       playlistCreateOnServer: Value(playlistCreateOnServer),
       showArtistsPage: Value(showArtistsPage),
       showLikedPage: Value(showLikedPage),
+      showGenresPage: Value(showGenresPage),
       rollingCacheBudgetMb: Value(rollingCacheBudgetMb),
       wifiOnlyDownloads: Value(wifiOnlyDownloads),
       autoDownloadStarredOnWifi: Value(autoDownloadStarredOnWifi),
@@ -4381,6 +4414,7 @@ class AppSettingsTableData extends DataClass
       ),
       showArtistsPage: serializer.fromJson<bool>(json['showArtistsPage']),
       showLikedPage: serializer.fromJson<bool>(json['showLikedPage']),
+      showGenresPage: serializer.fromJson<bool>(json['showGenresPage']),
       rollingCacheBudgetMb: serializer.fromJson<int>(
         json['rollingCacheBudgetMb'],
       ),
@@ -4596,6 +4630,7 @@ class AppSettingsTableData extends DataClass
       'playlistCreateOnServer': serializer.toJson<bool>(playlistCreateOnServer),
       'showArtistsPage': serializer.toJson<bool>(showArtistsPage),
       'showLikedPage': serializer.toJson<bool>(showLikedPage),
+      'showGenresPage': serializer.toJson<bool>(showGenresPage),
       'rollingCacheBudgetMb': serializer.toJson<int>(rollingCacheBudgetMb),
       'wifiOnlyDownloads': serializer.toJson<bool>(wifiOnlyDownloads),
       'autoDownloadStarredOnWifi': serializer.toJson<bool>(
@@ -4761,6 +4796,7 @@ class AppSettingsTableData extends DataClass
     bool? playlistCreateOnServer,
     bool? showArtistsPage,
     bool? showLikedPage,
+    bool? showGenresPage,
     int? rollingCacheBudgetMb,
     bool? wifiOnlyDownloads,
     bool? autoDownloadStarredOnWifi,
@@ -4881,6 +4917,7 @@ class AppSettingsTableData extends DataClass
         playlistCreateOnServer ?? this.playlistCreateOnServer,
     showArtistsPage: showArtistsPage ?? this.showArtistsPage,
     showLikedPage: showLikedPage ?? this.showLikedPage,
+    showGenresPage: showGenresPage ?? this.showGenresPage,
     rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
     wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
     autoDownloadStarredOnWifi:
@@ -5086,6 +5123,9 @@ class AppSettingsTableData extends DataClass
       showLikedPage: data.showLikedPage.present
           ? data.showLikedPage.value
           : this.showLikedPage,
+      showGenresPage: data.showGenresPage.present
+          ? data.showGenresPage.value
+          : this.showGenresPage,
       rollingCacheBudgetMb: data.rollingCacheBudgetMb.present
           ? data.rollingCacheBudgetMb.value
           : this.rollingCacheBudgetMb,
@@ -5381,6 +5421,7 @@ class AppSettingsTableData extends DataClass
           ..write('playlistCreateOnServer: $playlistCreateOnServer, ')
           ..write('showArtistsPage: $showArtistsPage, ')
           ..write('showLikedPage: $showLikedPage, ')
+          ..write('showGenresPage: $showGenresPage, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('autoDownloadStarredOnWifi: $autoDownloadStarredOnWifi, ')
@@ -5506,6 +5547,7 @@ class AppSettingsTableData extends DataClass
     playlistCreateOnServer,
     showArtistsPage,
     showLikedPage,
+    showGenresPage,
     rollingCacheBudgetMb,
     wifiOnlyDownloads,
     autoDownloadStarredOnWifi,
@@ -5622,6 +5664,7 @@ class AppSettingsTableData extends DataClass
           other.playlistCreateOnServer == this.playlistCreateOnServer &&
           other.showArtistsPage == this.showArtistsPage &&
           other.showLikedPage == this.showLikedPage &&
+          other.showGenresPage == this.showGenresPage &&
           other.rollingCacheBudgetMb == this.rollingCacheBudgetMb &&
           other.wifiOnlyDownloads == this.wifiOnlyDownloads &&
           other.autoDownloadStarredOnWifi == this.autoDownloadStarredOnWifi &&
@@ -5744,6 +5787,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> playlistCreateOnServer;
   final Value<bool> showArtistsPage;
   final Value<bool> showLikedPage;
+  final Value<bool> showGenresPage;
   final Value<int> rollingCacheBudgetMb;
   final Value<bool> wifiOnlyDownloads;
   final Value<bool> autoDownloadStarredOnWifi;
@@ -5856,6 +5900,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.playlistCreateOnServer = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
     this.showLikedPage = const Value.absent(),
+    this.showGenresPage = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
     this.autoDownloadStarredOnWifi = const Value.absent(),
@@ -5969,6 +6014,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.playlistCreateOnServer = const Value.absent(),
     this.showArtistsPage = const Value.absent(),
     this.showLikedPage = const Value.absent(),
+    this.showGenresPage = const Value.absent(),
     this.rollingCacheBudgetMb = const Value.absent(),
     this.wifiOnlyDownloads = const Value.absent(),
     this.autoDownloadStarredOnWifi = const Value.absent(),
@@ -6082,6 +6128,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? playlistCreateOnServer,
     Expression<bool>? showArtistsPage,
     Expression<bool>? showLikedPage,
+    Expression<bool>? showGenresPage,
     Expression<int>? rollingCacheBudgetMb,
     Expression<bool>? wifiOnlyDownloads,
     Expression<bool>? autoDownloadStarredOnWifi,
@@ -6201,6 +6248,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'playlist_create_on_server': playlistCreateOnServer,
       if (showArtistsPage != null) 'show_artists_page': showArtistsPage,
       if (showLikedPage != null) 'show_liked_page': showLikedPage,
+      if (showGenresPage != null) 'show_genres_page': showGenresPage,
       if (rollingCacheBudgetMb != null)
         'rolling_cache_budget_mb': rollingCacheBudgetMb,
       if (wifiOnlyDownloads != null) 'wifi_only_downloads': wifiOnlyDownloads,
@@ -6366,6 +6414,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? playlistCreateOnServer,
     Value<bool>? showArtistsPage,
     Value<bool>? showLikedPage,
+    Value<bool>? showGenresPage,
     Value<int>? rollingCacheBudgetMb,
     Value<bool>? wifiOnlyDownloads,
     Value<bool>? autoDownloadStarredOnWifi,
@@ -6481,6 +6530,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           playlistCreateOnServer ?? this.playlistCreateOnServer,
       showArtistsPage: showArtistsPage ?? this.showArtistsPage,
       showLikedPage: showLikedPage ?? this.showLikedPage,
+      showGenresPage: showGenresPage ?? this.showGenresPage,
       rollingCacheBudgetMb: rollingCacheBudgetMb ?? this.rollingCacheBudgetMb,
       wifiOnlyDownloads: wifiOnlyDownloads ?? this.wifiOnlyDownloads,
       autoDownloadStarredOnWifi:
@@ -6668,6 +6718,9 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     }
     if (showLikedPage.present) {
       map['show_liked_page'] = Variable<bool>(showLikedPage.value);
+    }
+    if (showGenresPage.present) {
+      map['show_genres_page'] = Variable<bool>(showGenresPage.value);
     }
     if (rollingCacheBudgetMb.present) {
       map['rolling_cache_budget_mb'] = Variable<int>(
@@ -7054,6 +7107,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('playlistCreateOnServer: $playlistCreateOnServer, ')
           ..write('showArtistsPage: $showArtistsPage, ')
           ..write('showLikedPage: $showLikedPage, ')
+          ..write('showGenresPage: $showGenresPage, ')
           ..write('rollingCacheBudgetMb: $rollingCacheBudgetMb, ')
           ..write('wifiOnlyDownloads: $wifiOnlyDownloads, ')
           ..write('autoDownloadStarredOnWifi: $autoDownloadStarredOnWifi, ')
@@ -36255,6 +36309,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> playlistCreateOnServer,
       Value<bool> showArtistsPage,
       Value<bool> showLikedPage,
+      Value<bool> showGenresPage,
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
       Value<bool> autoDownloadStarredOnWifi,
@@ -36369,6 +36424,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> playlistCreateOnServer,
       Value<bool> showArtistsPage,
       Value<bool> showLikedPage,
+      Value<bool> showGenresPage,
       Value<int> rollingCacheBudgetMb,
       Value<bool> wifiOnlyDownloads,
       Value<bool> autoDownloadStarredOnWifi,
@@ -36560,6 +36616,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<bool> get showLikedPage => $composableBuilder(
     column: $table.showLikedPage,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get showGenresPage => $composableBuilder(
+    column: $table.showGenresPage,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -37129,6 +37190,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get showGenresPage => $composableBuilder(
+    column: $table.showGenresPage,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get rollingCacheBudgetMb => $composableBuilder(
     column: $table.rollingCacheBudgetMb,
     builder: (column) => ColumnOrderings(column),
@@ -37694,6 +37760,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get showGenresPage => $composableBuilder(
+    column: $table.showGenresPage,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get rollingCacheBudgetMb => $composableBuilder(
     column: $table.rollingCacheBudgetMb,
     builder: (column) => column,
@@ -38207,6 +38278,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> playlistCreateOnServer = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
                 Value<bool> showLikedPage = const Value.absent(),
+                Value<bool> showGenresPage = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
                 Value<bool> autoDownloadStarredOnWifi = const Value.absent(),
@@ -38324,6 +38396,7 @@ class $$AppSettingsTableTableTableManager
                 playlistCreateOnServer: playlistCreateOnServer,
                 showArtistsPage: showArtistsPage,
                 showLikedPage: showLikedPage,
+                showGenresPage: showGenresPage,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
                 autoDownloadStarredOnWifi: autoDownloadStarredOnWifi,
@@ -38439,6 +38512,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> playlistCreateOnServer = const Value.absent(),
                 Value<bool> showArtistsPage = const Value.absent(),
                 Value<bool> showLikedPage = const Value.absent(),
+                Value<bool> showGenresPage = const Value.absent(),
                 Value<int> rollingCacheBudgetMb = const Value.absent(),
                 Value<bool> wifiOnlyDownloads = const Value.absent(),
                 Value<bool> autoDownloadStarredOnWifi = const Value.absent(),
@@ -38556,6 +38630,7 @@ class $$AppSettingsTableTableTableManager
                 playlistCreateOnServer: playlistCreateOnServer,
                 showArtistsPage: showArtistsPage,
                 showLikedPage: showLikedPage,
+                showGenresPage: showGenresPage,
                 rollingCacheBudgetMb: rollingCacheBudgetMb,
                 wifiOnlyDownloads: wifiOnlyDownloads,
                 autoDownloadStarredOnWifi: autoDownloadStarredOnWifi,

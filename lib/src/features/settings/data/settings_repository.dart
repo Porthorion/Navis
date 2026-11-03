@@ -55,6 +55,7 @@ class SettingsRepository {
       showPlaylistsPage: settings.showPlaylistsPage,
       showArtistsPage: settings.showArtistsPage,
       showLikedPage: settings.showLikedPage,
+      showGenresPage: settings.showGenresPage,
 
       wifiOnlyDownloads: settings.wifiOnlyDownloads,
       autoDownloadStarredOnWifi: settings.autoDownloadStarredOnWifi,
@@ -360,6 +361,7 @@ class SettingsRepository {
       playlistCreateOnServer: row.playlistCreateOnServer,
       showArtistsPage: row.showArtistsPage,
       showLikedPage: row.showLikedPage,
+      showGenresPage: row.showGenresPage,
 
       wifiOnlyDownloads: row.wifiOnlyDownloads,
       autoDownloadStarredOnWifi: row.autoDownloadStarredOnWifi,

@@ -10178,6 +10178,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Downloads Waiting for Storage or Access'**
   String get notificationDownloadHeldTitle;
+
+  /// No description provided for @libraryTabGenres.
+  ///
+  /// In en, this message translates to:
+  /// **'Genres'**
+  String get libraryTabGenres;
+
+  /// No description provided for @appearanceShowGenresPageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the Genres tab in the Library screen.'**
+  String get appearanceShowGenresPageSubtitle;
+
+  /// No description provided for @genresSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search genres'**
+  String get genresSearchHint;
+
+  /// No description provided for @genresSortLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort Genres By'**
+  String get genresSortLabel;
+
+  /// No description provided for @genresSortName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name (A-Z)'**
+  String get genresSortName;
+
+  /// No description provided for @genresSortSongs.
+  ///
+  /// In en, this message translates to:
+  /// **'Most Songs'**
+  String get genresSortSongs;
+
+  /// No description provided for @genresSortAlbums.
+  ///
+  /// In en, this message translates to:
+  /// **'Most Albums'**
+  String get genresSortAlbums;
+
+  /// No description provided for @genresLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could Not Load Genres'**
+  String get genresLoadError;
+
+  /// No description provided for @genresEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No Genres Yet'**
+  String get genresEmptyTitle;
+
+  /// No description provided for @genresEmptySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Genres come from the tags on your server\'s songs. Tag them there, then sync.'**
+  String get genresEmptySubtitle;
+
+  /// No description provided for @genresSyncingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading Genres'**
+  String get genresSyncingTitle;
+
+  /// No description provided for @genresSyncingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Genres appear once the library finishes syncing.'**
+  String get genresSyncingSubtitle;
+
+  /// No description provided for @genreDisabledNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Genre page disabled'**
+  String get genreDisabledNotice;
+
+  /// No description provided for @genreDisabledShowAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Show'**
+  String get genreDisabledShowAction;
+
+  /// No description provided for @genreNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'This genre is no longer in your library.'**
+  String get genreNotFound;
+
+  /// No description provided for @genreAlbumsSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search albums'**
+  String get genreAlbumsSearchHint;
+
+  /// No description provided for @genreSongsSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search songs'**
+  String get genreSongsSearchHint;
+
+  /// No description provided for @genreSongsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No Songs Found'**
+  String get genreSongsEmpty;
+
+  /// No description provided for @genreSongsSortLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort Songs By'**
+  String get genreSongsSortLabel;
+
+  /// No description provided for @genreSongsSortTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Title'**
+  String get genreSongsSortTitle;
+
+  /// No description provided for @genreSongsSortAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
+  String get genreSongsSortAlbum;
+
+  /// No description provided for @searchGenresSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Genres'**
+  String get searchGenresSection;
 }
 
 class _AppLocalizationsDelegate

@@ -96,6 +96,20 @@ abstract final class NavService {
     _drillIn(context, ref, AppRoutes.artist(artistId, name: name));
   }
 
+  /// Open a genre's page from the current context, preserving back.
+  static void openGenreDetail(
+    BuildContext context,
+    WidgetRef ref,
+    String genreKey,
+  ) {
+    _drillIn(context, ref, AppRoutes.genre(genreKey));
+  }
+
+  /// Open Appearance settings on the Library pages group.
+  static void openAppearanceLibraryPages(BuildContext context, WidgetRef ref) {
+    _drillIn(context, ref, AppRoutes.appearanceLibraryPages);
+  }
+
   /// Open an artist's virtual top-tracks playlist from the current context.
   static void openArtistTopTracksPlaylist(
     BuildContext context,

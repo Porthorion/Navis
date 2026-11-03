@@ -323,6 +323,7 @@ String _librarySectionShellLabel(BuildContext context, LibrarySection section) {
     LibrarySection.albums => l10n.libraryTabAlbums,
     LibrarySection.liked => l10n.libraryTabLiked,
     LibrarySection.artists => l10n.libraryTabArtists,
+    LibrarySection.genres => l10n.libraryTabGenres,
     LibrarySection.playlists => l10n.navPlaylists,
     LibrarySection.radio => l10n.navRadio,
   };
