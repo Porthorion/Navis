@@ -66,9 +66,17 @@ M3, M4, with M5 and M7 as small parallel PRs and M8 last.
 
 ## Open questions
 
-- M2: is there a maintained full libmpv build for macOS arm64 + x86_64 with
-  libavfilter and a TLS stack that uses the system trust store (Secure
-  Transport/Network.framework, or OpenSSL with `/etc/ssl/cert.pem`)? If not,
-  Navis builds its own, as for Windows.
+- M2 findings (2026-11-04): `media_kit_libs_macos_audio` 1.1.4 downloads
+  `media-kit/libmpv-darwin-build` v0.6.0 `macos-universal-audio-default`
+  (mpv 0.36.0, Mbed TLS). Its libavfilter has `equalizer` and `aresample` but
+  no `volume` or `biquad` filters, which the Navis EQ chain needs
+  (`third_party/just_audio_media_kit/lib/src/equalizer_chain.dart:42,58`).
+  The mpv binary accepts `tls-verify` and `tls-ca-file`. The same project's
+  v0.7.3 (2026-09-14) publishes `libmpv-xcframeworks_v0.7.3_macos-universal-audio-full`
+  (and an iOS equivalent). Candidate: vendor the macOS libs package under
+  `third_party/` pinned to v0.7.3 audio-full with a SHA-256, as Windows does,
+  then set `tls-verify=yes` with `tls-ca-file=/etc/ssl/cert.pem` on macOS. Still
+  to prove: filter list, licence flavour (full is LGPL; encodersgpl is not
+  wanted) and a bad-certificate refusal at runtime.
 - M3: owner preference on closing the window while playing. Default: keep
   playing (Apple Music, Spotify, Doppler behaviour); quit with Cmd+Q.
