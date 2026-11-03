@@ -17,14 +17,6 @@ OpenSubsonic API. Jellyfin, Plex and other servers aren't planned for now. That
 doesn't mean they're ruled out: the current goal is to make Navis as mature and
 issue-free as possible on the servers it already supports before taking on more.
 
-## Genre pages
-
-There are no genre pages, genre browsing or genre-based features. Even a
-carefully tagged library (with tools like MusicBrainz Picard or beets) rarely
-produces genre data good enough for a useful genres page. This could be
-revisited if it's widely requested. An architecture test currently keeps genre
-features out of the app code.
-
 ## Sleep timer
 
 A sleep timer is mostly an audiobook feature, and Navis is a music player. It

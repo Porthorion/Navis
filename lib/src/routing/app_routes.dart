@@ -76,6 +76,7 @@ abstract final class AppRoutes {
   static const artistSegment = 'artists/:id';
   static const artistTopTracksSegment = 'top-tracks';
   static const albumSegment = 'albums/:id';
+  static const genreSegment = 'genres/:key';
   static const playlistSegment = 'playlists/:id';
   static const listenBrainzSegment = 'listenbrainz/:sourcePatch';
   static const trendingSegment = 'trending';
@@ -112,6 +113,22 @@ abstract final class AppRoutes {
   );
   static String artistTopTracks(String id) =>
       '$library/artists/${_encode(id)}/$artistTopTracksSegment';
+
+  /// The page of one genre; [key] is its merge key (`genreKey`).
+  static String genre(String key) => '$library/genres/${_encode(key)}';
+
+  /// Query parameter naming the Appearance group to open and highlight.
+  static const appearanceFocusParam = 'focus';
+
+  /// [appearanceFocusParam] value for the Library pages group.
+  static const appearanceFocusLibraryPages = 'libraryPages';
+
+  /// Appearance settings opened on the Library pages group.
+  static String get appearanceLibraryPages => _withQuery(
+    SettingsPage.appearance.location,
+    <String, String>{appearanceFocusParam: appearanceFocusLibraryPages},
+  );
+
   static String playlist(String id) => '$library/playlists/${_encode(id)}';
   static String listenBrainzWeekly(String sourcePatch) =>
       '$library/listenbrainz/${_encode(sourcePatch)}';

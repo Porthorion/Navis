@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Focused checks for disposable sync scenario preparation."""
 
+import importlib.util
 import os
 import sqlite3
 import tempfile
@@ -124,6 +125,30 @@ class DevSyncScenarioTest(unittest.TestCase):
         with sqlite3.connect(fixture) as db:
             self.assertEqual(db.execute("SELECT url FROM server_config").fetchone()[0], "http://127.0.0.1:9000")
             self.assertEqual(db.execute("SELECT count(*) FROM songs").fetchone()[0], 0)
+
+    def test_genres_scenario_is_a_first_catalog_preset_with_tagged_songs(self):
+        options, _ = _scenario_args(["-d", "linux", "--genres"])
+        self.assertEqual(options.scenario, "genres")
+        fixture_db = self.root / "genres.sqlite"
+        prepare_database(
+            self.source, fixture_db, "genres", fixture_url="http://127.0.0.1:9000"
+        )
+        with sqlite3.connect(fixture_db) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM songs").fetchone()[0], 0)
+        spec = importlib.util.spec_from_file_location(
+            "genres_fixture", PROJECT_ROOT / "tool" / "auth_lifecycle_fixture_server.py"
+        )
+        fixture = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(fixture)
+        fixture._configure_genres_fixture()
+        songs = [song for rows in fixture.ALBUM_SONGS.values() for song in rows]
+        # Both tag shapes: the OpenSubsonic list and the legacy string alone.
+        self.assertTrue(any("genres" in song for song in songs))
+        self.assertTrue(any("genre" in song and "genres" not in song for song in songs))
+        self.assertTrue(any("genre" not in song for song in songs))
+        self.assertEqual(
+            {album["id"] for album in fixture.ALL_ALBUMS}, set(fixture.ALBUM_SONGS)
+        )
 
     def test_ready_only_scenarios_reject_unsigned_or_unready_source(self):
         with sqlite3.connect(self.source) as db:

@@ -1306,6 +1306,7 @@ void main() {
                 const AppSettingsModel.defaults().copyWith(
                   showAlbumsPage: false,
                   showArtistsPage: false,
+                  showGenresPage: false,
                   showPlaylistsPage: false,
                   libraryPageOrder: <String>[
                     'liked',
@@ -1324,6 +1325,7 @@ void main() {
           LibrarySection.liked,
           LibrarySection.albums,
           LibrarySection.artists,
+          LibrarySection.genres,
           LibrarySection.playlists,
           LibrarySection.radio,
         ]);

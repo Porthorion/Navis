@@ -30,9 +30,10 @@ SCENARIOS = {
     "playback-recovery": "/library-rebuild?reason=playback-recovery",
     "partial-album": None,
     "server-error": None,
+    "genres": None,
     "fresh-login": None,
 }
-FIRST_CATALOG_SCENARIOS = {"first-setup", "partial-album", "server-error"}
+FIRST_CATALOG_SCENARIOS = {"first-setup", "partial-album", "server-error", "genres"}
 REQUIRES_READY_CATALOG = {
     "force-setup",
     "manual-cache-reset",
@@ -344,10 +345,10 @@ def launch(argv: list[str]) -> int:
     fixture_log = None
     try:
         fixture_url = None
-        if options.scenario in {"partial-album", "server-error"}:
+        if options.scenario in {"partial-album", "server-error", "genres"}:
             if options.scenario == "partial-album":
                 (root / "incomplete-album.flag").touch(mode=0o600)
-            else:
+            elif options.scenario == "server-error":
                 (root / "server-error.flag").touch(mode=0o600)
             fixture_log = (root / "fixture.log").open("wb")
             fixture_args = [
@@ -357,8 +358,8 @@ def launch(argv: list[str]) -> int:
                 "--failure-flag", str(root / "server-error.flag"),
                 "--partial-album-flag", str(root / "incomplete-album.flag"),
             ]
-            if options.scenario == "partial-album":
-                fixture_args += ["--scenario", "partial-album"]
+            if options.scenario in {"partial-album", "genres"}:
+                fixture_args += ["--scenario", options.scenario]
             fixture_process = subprocess.Popen(
                 fixture_args, cwd=PROJECT_ROOT, stdout=fixture_log, stderr=subprocess.STDOUT
             )

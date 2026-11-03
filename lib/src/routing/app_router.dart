@@ -14,6 +14,7 @@ import 'package:navis/src/features/integrations/presentation/integrations_settin
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_playlist_detail_screen.dart';
+import 'package:navis/src/features/library/presentation/genre_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild_screen.dart';
@@ -325,6 +326,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     ],
                   ),
                   GoRoute(
+                    path: AppRoutes.genreSegment,
+                    pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
+                      key: state.pageKey,
+                      child: GenreDetailScreen(
+                        key: ValueKey<String>(
+                          'genre:${state.pathParameters['key']!}',
+                        ),
+                        genreKey: state.pathParameters['key']!,
+                      ),
+                    ),
+                  ),
+                  GoRoute(
                     path: AppRoutes.albumSegment,
                     pageBuilder: (context, state) {
                       // Links without a request (restored history entries,
@@ -518,7 +532,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
-                      child: const AppearanceSettingsScreen(),
+                      child: AppearanceSettingsScreen(
+                        focusLibraryPages:
+                            state.uri.queryParameters[AppRoutes
+                                .appearanceFocusParam] ==
+                            AppRoutes.appearanceFocusLibraryPages,
+                      ),
                     ),
                   ),
                   GoRoute(

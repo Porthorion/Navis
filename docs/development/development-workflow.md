@@ -1051,8 +1051,8 @@ window bounds are checked rather than treating a compositor-clamped resize as
 success. It enables Artists/Radio only in the isolated clone. The authenticated,
 clone-only `GET/POST /v1/presentation/appearance` endpoint accepts
 `gridArtworkSize` (auto/small/medium/large),
-`homeRecommendationsAutoAdvance` (boolean), `showArtistsPage` and `showRadioPage`
-(booleans), and the shape settings `coverArtShape` (square/rounded),
+`homeRecommendationsAutoAdvance` (boolean), `showArtistsPage`, `showRadioPage`
+and `showGenresPage` (booleans), and the shape settings `coverArtShape` (square/rounded),
 `nowPlayingArtShape` and `artistCardShape` (square/rounded/circle). Updates use
 targeted production DAO methods. The same endpoint also accepts `themeMode`
 (system/light/dark/oled), `colorStyle` (neutral/pastel/immersive/night),

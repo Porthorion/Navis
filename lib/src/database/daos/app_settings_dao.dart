@@ -138,6 +138,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     required bool showPlaylistsPage,
     required bool showArtistsPage,
     required bool showLikedPage,
+    bool showGenresPage = true,
 
     required bool wifiOnlyDownloads,
     required bool autoDownloadStarredOnWifi,
@@ -191,6 +192,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         showPlaylistsPage: Value(showPlaylistsPage),
         showArtistsPage: Value(showArtistsPage),
         showLikedPage: Value(showLikedPage),
+        showGenresPage: Value(showGenresPage),
 
         wifiOnlyDownloads: Value(wifiOnlyDownloads),
         autoDownloadStarredOnWifi: Value(autoDownloadStarredOnWifi),
@@ -463,6 +465,13 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   Future<void> updateShowLikedPage({required bool enabled}) {
     return _writeSettings(
       AppSettingsTableCompanion(showLikedPage: Value(enabled)),
+    );
+  }
+
+  /// Targeted update for show genres page.
+  Future<void> updateShowGenresPage({required bool enabled}) {
+    return _writeSettings(
+      AppSettingsTableCompanion(showGenresPage: Value(enabled)),
     );
   }
 

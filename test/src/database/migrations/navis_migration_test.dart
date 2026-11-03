@@ -17,6 +17,176 @@ import 'package:sqlite3/sqlite3.dart';
 import '../../../helpers/test_database.dart';
 
 void main() {
+  test(
+    'the genre step adds song genres and the genre index, keeping every row',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('navis_v108_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(id: 'song-1', title: 'One'),
+        SongsTableCompanion.insert(id: 'song-2', title: 'Two'),
+      ]);
+      await seed.appSettingsDao.setLastFullSyncAppBuild('58');
+      await seed.cacheSystemStateDao.markVersion(1005);
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute('DROP TABLE song_genre_index');
+        raw.execute('ALTER TABLE songs DROP COLUMN genres');
+        raw.execute(
+          'ALTER TABLE library_sync_candidate_songs DROP COLUMN genres',
+        );
+        raw.execute(
+          'PRAGMA user_version = ${NavisDatabase.currentSchemaVersion - 1}',
+        );
+      } finally {
+        raw.close();
+      }
+
+      final upgraded = createTestDatabase(file: file);
+      addTearDown(upgraded.close);
+      Future<Set<String>> columns(String table) async =>
+          (await upgraded.customSelect('PRAGMA table_info($table)').get())
+              .map((row) => row.read<String>('name'))
+              .toSet();
+      expect(await columns('songs'), contains('genres'));
+      expect(await columns('library_sync_candidate_songs'), contains('genres'));
+      expect(
+        await columns('song_genre_index'),
+        containsAll(<String>['song_id', 'genre_key', 'name']),
+      );
+      final songs = await upgraded.select(upgraded.songsTable).get();
+      expect(
+        songs.map((song) => song.id),
+        unorderedEquals(['song-1', 'song-2']),
+      );
+      expect(songs.map((song) => song.genres), everyElement(isNull));
+      // The upgrade neither resets the cache nor stamps the sync model: the
+      // startup repair gate sees the old model and runs one full sync.
+      expect(await upgraded.appSettingsDao.getLastFullSyncAppBuild(), '58');
+      expect(await upgraded.cacheSystemStateDao.getVersion(), 1005);
+      expect(
+        (await upgraded.customSelect('PRAGMA user_version').getSingle())
+            .read<int>('user_version'),
+        NavisDatabase.currentSchemaVersion,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    '107 to 108 adds genres and the Genres page setting, keeping real rows',
+    () async {
+      expect(NavisDatabase.currentSchemaVersion, 108);
+      final directory = await Directory.systemTemp.createTemp('navis_v107_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.libraryDao.upsertArtists([
+        ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+      ]);
+      await seed.libraryDao.upsertAlbums([
+        AlbumsTableCompanion.insert(
+          id: 'album-1',
+          name: 'Album',
+          artistId: const Value('artist-1'),
+        ),
+      ]);
+      await seed.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'song-1',
+          title: 'One',
+          albumId: const Value('album-1'),
+        ),
+        SongsTableCompanion.insert(
+          id: 'song-2',
+          title: 'Two',
+          albumId: const Value('album-1'),
+        ),
+      ]);
+      await seed.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'song-1',
+          filePath: '/music/song-1.mp3',
+          fileSize: 1,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime(2026),
+        ),
+      );
+      await seed.appSettingsDao.setLastFullSyncAppBuild('58');
+      await seed.cacheSystemStateDao.markVersion(1005);
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute('DROP TABLE song_genre_index');
+        raw.execute('ALTER TABLE songs DROP COLUMN genres');
+        raw.execute(
+          'ALTER TABLE library_sync_candidate_songs DROP COLUMN genres',
+        );
+        raw.execute('ALTER TABLE app_settings DROP COLUMN show_genres_page');
+        raw.execute('PRAGMA user_version = 107');
+      } finally {
+        raw.close();
+      }
+
+      final upgraded = createTestDatabase(file: file);
+      addTearDown(upgraded.close);
+
+      expect(
+        (await upgraded.customSelect('PRAGMA user_version').getSingle())
+            .read<int>('user_version'),
+        108,
+      );
+      final songs = await upgraded.select(upgraded.songsTable).get();
+      expect(
+        songs.map((song) => (song.id, song.albumId, song.genres)),
+        unorderedEquals([
+          ('song-1', 'album-1', null),
+          ('song-2', 'album-1', null),
+        ]),
+      );
+      expect(await upgraded.libraryDao.getAlbumById('album-1'), isNotNull);
+      expect(await upgraded.appSettingsDao.getLastFullSyncAppBuild(), '58');
+      expect(await upgraded.cacheSystemStateDao.getVersion(), 1005);
+      // The existing settings row gains the Genres page switch, on.
+      expect(
+        (await upgraded.appSettingsDao.getSettings())?.showGenresPage,
+        isTrue,
+      );
+      // Untagged rows list nothing; once a sync tags them they are indexed.
+      expect(await upgraded.libraryDao.getGenres(), isEmpty);
+      await upgraded.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'song-1',
+          title: 'One',
+          albumId: const Value('album-1'),
+          genres: const Value(['Rock']),
+        ),
+        SongsTableCompanion.insert(
+          id: 'song-2',
+          title: 'Two',
+          albumId: const Value('album-1'),
+          genres: const Value(['Rock', 'Jazz']),
+        ),
+      ]);
+      final genres = await upgraded.libraryDao.getGenres();
+      expect(genres.map((g) => (g.key, g.songCount, g.albumCount)), [
+        ('rock', 2, 1),
+        ('jazz', 1, 1),
+      ]);
+      expect(
+        (await upgraded.libraryDao.getGenres(downloadedOnly: true))
+            .map((g) => (g.key, g.songCount)),
+        [('rock', 1)],
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('106 to 107 adds prefetch next on mobile data, default true', () async {
     final directory = await Directory.systemTemp.createTemp('navis_v107_');
     addTearDown(() => directory.delete(recursive: true));
@@ -43,7 +213,7 @@ void main() {
     expect(
       (await upgraded.customSelect('PRAGMA user_version').getSingle())
           .read<int>('user_version'),
-      107,
+      NavisDatabase.currentSchemaVersion,
     );
     await upgraded.from106To107(Migrator(upgraded));
   }, skip: !sqliteAvailable);
