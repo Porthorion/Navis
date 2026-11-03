@@ -467,7 +467,7 @@ song model, the index writer and every query, so "Hip Hop", "hip-hop" and
 "Hip_Hop" are one genre while "R&B" and "RnB" stay apart. Albums carry no
 genre; an album belongs to every genre any of its songs has.
 
-Storage (schema 109): `songs.genres` and `library_sync_candidate_songs.genres`
+Storage (schema 108): `songs.genres` and `library_sync_candidate_songs.genres`
 hold the JSON list of raw server names (deduped by key), null until a row is
 synced after the upgrade (the diff analyzer treats null as changed, so the
 post-upgrade full sync fills every song, untagged ones with `[]`). The derived `song_genre_index` (`song_id`,
@@ -495,7 +495,7 @@ the general search. Any other query is searched as before.
 UI. `LibrarySection.genres` is a Library page, placed right after Artists:
 `sanitizeLibraryPageOrder` inserts it after Artists in any saved order that
 predates it, and visibility is `app_settings.show_genres_page` (default on,
-added to the schema 109 step) like the other pages. The list
+added to the schema 108 step) like the other pages. The list
 (`library_genres_tab.dart`, a part of `library_screen.dart`) has a search field
 (the merge key, so "hip hop" finds "Hip-Hop"), a sort (most songs, most albums,
 name with the A-Z rail and non-Latin names under "#") and the shared

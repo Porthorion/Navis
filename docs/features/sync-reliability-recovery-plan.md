@@ -40,7 +40,7 @@ Genres are not a sync domain. No catalog, auxiliary, first-time,
 incremental, scheduled, or repair run calls `getGenres`, and a genre-only
 album edit is not a catalog change. Schema 89 removed the genre sync target,
 dropped cached genre rows and columns, and purged legacy queued `@genres` work
-and genre-target run history. Since 1.5.2 (schema 109) each song's genres ride
+and genre-target run history. Since 1.5.2 (schema 108) each song's genres ride
 along with the song rows the catalog sync already fetches, and a genre-only
 song edit re-syncs that song (see "Genres" in `docs/architecture.md`).
 

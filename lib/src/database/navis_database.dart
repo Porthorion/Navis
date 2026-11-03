@@ -279,7 +279,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 109;
+  static const currentSchemaVersion = 108;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -406,18 +406,7 @@ class NavisDatabase extends _$NavisDatabase {
       from104To105,
       from105To106,
       from106To107,
-      // 108 is reserved for fix/desktop-overlay-rail (#226). This branch must
-      // never merge with the placeholder below: a dev build that ships schema
-      // 109 would leave #226's step unrun on every installed device. Decide at
-      // merge time. If #226's step is already on release/1.5, keep 109 and put
-      // its step in this slot. Otherwise renumber to 108 first: set
-      // currentSchemaVersion to 108, rename from108To109 to from107To108,
-      // delete this line, delete the '107 to 109' test in
-      // navis_migration_test.dart, and change "schema 109" in
-      // docs/architecture.md and
-      // docs/features/sync-reliability-recovery-plan.md. #226 then becomes 109.
-      _noMigration,
-      from108To109,
+      from107To108,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -428,7 +417,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// columns and a table only. It neither resets the cache nor queues the
   /// resync itself: the startup sync-model check (`currentLibrarySyncModelVersion`)
   /// runs one full, non-destructive library sync, which fills the new columns.
-  Future<void> from108To109(Migrator migrator) async {
+  Future<void> from107To108(Migrator migrator) async {
     if (!await _columnExists('songs', 'genres')) {
       await migrator.addColumn(songsTable, songsTable.genres);
     }
