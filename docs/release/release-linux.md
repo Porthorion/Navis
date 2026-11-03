@@ -343,8 +343,11 @@ The updater script:
 stable manifest (`channels/stable/manifest.json`, or `releases/download/vX.Y.Z/manifest.json`
 on GitHub when given a local tarball), verifies the Ed25519 signature against the pinned
 `updateSigningPublicKey`, then checks the signed SHA-256 of `linuxPortable`.
-Only the verified payload bytes are parsed. Redirect hosts are limited to
-`downloads.porthorion.com` and GitHub's release CDN.
+Only the verified payload bytes are parsed. Start URLs must be on
+`downloads.porthorion.com/navis/` or `github.com/Porthorion/Navis/releases/download/`; after
+redirects the final URL must also be one of those or GitHub's release CDN. That final-URL check
+runs once curl has the response (curl cannot veto a hop), so integrity rests on the signature and
+SHA-256, not on the host list. Requests use `--proto =https`, a connect timeout and size caps.
 
 Layout (dictated by the auto-updater, which replaces the directory holding the resolved
 executable): the app directory `${XDG_DATA_HOME:-~/.local/share}/navis` holds exactly the
@@ -352,10 +355,15 @@ tarball root; `~/.local/bin/navis` is a symlink into it (never a wrapper script)
 entry and hicolor icons go under `${XDG_DATA_HOME}`. `navis.install-manifest` lists every path
 created, and `--uninstall` removes exactly those. `--purge` also deletes
 `com.navis.app.navis` data/config/cache after a typed confirmation read from `/dev/tty`
-(keyring entries stay). Upgrades swap `navis.new` in beside the old copy and restore it on failure.
+(keyring entries stay). Upgrades unpack into a unique `navis.new.XXXXXX` beside the app dir, park the old copy in
+`navis.old.XXXXXX` and restore it on failure (a user's own `navis.new`/`navis.old` are never touched).
+An existing desktop file, launcher or app dir the script did not create needs an interactive yes;
+`--yes` never answers those.
 
-Releasing: `release.sh` (through `navis_github_publish`) attaches `linux/install.sh` to every
-stable GitHub release and adds its line to the GitHub `SHA256SUMS`. It is not an updater asset:
+Releasing: `navis_github_publish` (used by `release.sh` and late `r2_publish --github` runs) attaches
+`linux/install.sh` when it creates the stable GitHub release and adds its line to the GitHub
+`SHA256SUMS`. Later `--clobber` runs never replace it; they re-derive its `SHA256SUMS` line from the
+asset already on the release. It is not an updater asset:
 the signed manifest and the R2 `SHA256SUMS` are unchanged. The README one-liner points at `main`.
 If the signing key is ever rotated, update `PINNED_KEY` in the script;
 `tool/linux_install_test.sh` fails while it differs from `constants.dart`.

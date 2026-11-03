@@ -30,6 +30,7 @@ PY
   fi
   exit
 fi
+if [[ "$1 $2" == 'release download' ]]; then cat "${TEST_GITHUB_ASSETS}/install.sh"; exit; fi
 if [[ "$1 $2" == 'release create' || "$1 $2" == 'release upload' ]]; then
   touch "${TEST_GITHUB_ASSETS}/exists"
   for arg in "$@"; do
@@ -88,7 +89,15 @@ refused navis_github_preflight v1.5.0 false
 navis_github_preflight v1.5.0 true
 jq -cn --arg payload "$(printf '%s' '{"assets":{"windowsPortable":{"url":"https://downloads.porthorion.com/navis/releases/v1.5.0/navis-v1.5.0-windows.zip","size":9},"windowsInstaller":{"url":"https://downloads.porthorion.com/navis/releases/v1.5.0/navis-v1.5.0-windows-installer.exe","size":10}}}' | base64 -w0)" '{payload:$payload,signature:"disposable-test-fixture"}' > "${tmp}/manifest.json"
 printf 'installer\n' > "${tmp}/navis-v1.5.0-windows-installer.exe"
+# The installer on the tag is never replaced by a later checkout's copy (R10).
+printf 'installer as released\n' > "${TEST_GITHUB_ASSETS}/install.sh"
+: > "${TEST_GITHUB_LOG}"
+printf 'sums\n' > "${tmp}/SHA256SUMS"
 navis_github_publish v1.5.0 false "${tmp}/notes.md" "${tmp}/manifest.json" "${tmp}/navis-v1.5.0-windows-installer.exe" "${tmp}/SHA256SUMS"
+[[ "$(cat "${TEST_GITHUB_ASSETS}/install.sh")" == 'installer as released' ]] || fail 'late-asset run replaced the released installer'
+rg -q 'release upload .*install\.sh' "${TEST_GITHUB_LOG}" && fail 'late-asset run re-uploaded install.sh'
+released_sum="$(printf 'installer as released\n' | sha256sum | cut -d' ' -f1)"
+rg -q "^${released_sum}  install.sh$" "${tmp}/SHA256SUMS" || fail 'late-asset SHA256SUMS lacks the released installer line'
 rg -q 'release upload .*--clobber' "${TEST_GITHUB_LOG}" || fail 'late asset was not uploaded with clobber'
 [[ -f "${TEST_GITHUB_ASSETS}/navis-v1.5.0-windows.zip" ]] || fail 'existing asset lost'
 [[ "$(rg -c '  install.sh$' "${TEST_GITHUB_ASSETS}/SHA256SUMS")" == 1 ]] || fail 'late-asset run duplicated the install.sh checksum'

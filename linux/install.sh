@@ -11,6 +11,10 @@
 # the app trusts for updates), and the tarball must match the signed SHA-256.
 set -euo pipefail
 
+# The whole body is one brace group, so bash parses all of it before running
+# any of it: a download cut off mid-file is a syntax error, not a partial run.
+{
+
 # Same value as AppConstants.updateSigningPublicKey (raw 32-byte key, base64).
 # tool/linux_install_test.sh fails if the two ever differ.
 PINNED_KEY='vSq61OOmfZS6CNYHeddKudoDAjZa179002wz/wnKtGk='
@@ -21,12 +25,14 @@ RELEASES_URL='https://github.com/Porthorion/Navis/releases/download'
 APP_ID=com.navis.app.navis
 # Cloudflare rejects bare curl user agents.
 USER_AGENT='Navis-installer/1'
+MAX_MANIFEST=1048576
+MAX_TARBALL=1073741824
 
 YES=0 MODE=install TARBALL=''
-DATA='' CONFIG='' CACHE='' LAUNCHER='' MANIFEST='' FILE='' PAYLOAD=''
-TMP='' NEW='' OLD='' APP='' ROLLBACK=0
+DATA='' CONFIG='' CACHE='' LAUNCHER='' DESKTOP='' MANIFEST='' FILE='' PAYLOAD=''
+TMP='' NEW='' OLDDIR='' APP='' NEW_IN_PLACE=0 COMMITTED=0
 VERSION='' ASSET_URL='' ASSET_SHA=''
-CREATED=()
+CREATED=() FRESH=()   # CREATED: paths recorded in the manifest; FRESH: those that did not exist before this run
 
 die() { echo "install.sh: $*" >&2; exit 1; }
 say() { echo "==> $*"; }
@@ -46,13 +52,18 @@ EOF
 }
 
 cleanup() {
-  local rc=$?
-  if [[ ${ROLLBACK} == 1 && -n ${OLD} && ( -d ${OLD} || -L ${OLD} ) ]]; then
+  local rc=$? p
+  # Put the previous install back only if we actually moved it aside.
+  if [[ -n ${OLDDIR} && ( -e ${OLDDIR}/app || -L ${OLDDIR}/app ) ]]; then
     rm -rf "${APP}"
-    mv "${OLD}" "${APP}" && echo "install.sh: restored the previous Navis install" >&2
-  elif [[ ${ROLLBACK} == 1 ]]; then
+    mv "${OLDDIR}/app" "${APP}" && echo "install.sh: restored the previous Navis install" >&2
+  elif [[ ${NEW_IN_PLACE} == 1 ]]; then
     rm -rf "${APP}"
   fi
+  if [[ ${COMMITTED} != 1 ]]; then
+    for p in ${FRESH[@]+"${FRESH[@]}"}; do rm -rf -- "${p}"; done
+  fi
+  if [[ -n ${OLDDIR} ]]; then rm -rf "${OLDDIR}"; fi
   if [[ -n ${NEW} ]]; then rm -rf "${NEW}"; fi
   if [[ -n ${TMP} ]]; then rm -rf "${TMP}"; fi
   exit "${rc}"
@@ -90,14 +101,17 @@ check_url() { # URL [redirect]
   if [[ ${2:-} == redirect && ${u} =~ ^https://(objects|release-assets)\.githubusercontent\.com/[^[:space:]]+$ ]]; then return 0; fi
   die "refusing to use a URL outside the allowed hosts: ${u}"
 }
-transport() { # URL OUT -> prints the final URL after redirects
+transport() { # URL OUT MAX_BYTES -> prints the final URL after redirects
   curl -fsSL --proto '=https' --proto-redir '=https' --max-redirs 5 \
+    --connect-timeout 20 --max-filesize "$3" \
     -A "${USER_AGENT}" -o "$2" -w '%{url_effective}' "$1"
 }
-fetch() { # URL OUT
+# The redirect target is checked once the response is in (curl cannot veto a
+# hop); integrity never rests on it, only on the signature and the SHA-256.
+fetch() { # URL OUT MAX_BYTES
   local final
   check_url "$1"
-  final="$(transport "$1" "$2")" || die "download failed: $1"
+  final="$(transport "$1" "$2" "$3")" || die "download failed: $1"
   check_url "${final}" redirect
 }
 
@@ -163,21 +177,41 @@ paths() {
   v="${XDG_DATA_HOME:-}"; [[ ${v} == /* ]] || v="${HOME}/.local/share"; DATA="${v}"
   v="${XDG_CONFIG_HOME:-}"; [[ ${v} == /* ]] || v="${HOME}/.config"; CONFIG="${v}"
   v="${XDG_CACHE_HOME:-}"; [[ ${v} == /* ]] || v="${HOME}/.cache"; CACHE="${v}"
+  for v in "${HOME}" "${DATA}" "${CONFIG}" "${CACHE}"; do
+    [[ ${v} != *[[:cntrl:]]* ]] || die "refusing a directory path with control characters"
+  done
   APP="${DATA}/navis"
+  DESKTOP="${DATA}/applications/${APP_ID}.desktop"
   LAUNCHER="${HOME}/.local/bin/navis"
   MANIFEST="${DATA}/navis.install-manifest"
 }
 
+# Only the paths this installer creates; a damaged or edited manifest cannot widen that.
+allowed_path() {
+  local p="$1"
+  [[ ${p} != *..* && ${p} != *[[:cntrl:]]* ]] || return 1
+  [[ ${p} == "${APP}" || ${p} == "${LAUNCHER}" || ${p} == "${DESKTOP}" || ${p} == "${DATA}/icons/hicolor/"?* ]]
+}
+refresh_caches() {
+  if command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database "${DATA}/applications" >/dev/null 2>&1 || true; fi
+  if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -f -t -q "${DATA}/icons/hicolor" >/dev/null 2>&1 || true
+  fi
+}
 do_uninstall() {
-  local line p
+  local line
   [[ -f ${MANIFEST} ]] || die "no install manifest at ${MANIFEST}; nothing to uninstall"
+  # Validate every path before deleting any.
   while IFS= read -r line || [[ -n ${line} ]]; do
     [[ ${line} == "path "* ]] || continue
-    p="${line#path }"
-    [[ ${p} =~ ^/[^/]+/[^/]+ && ${p} != *..* && ${p} != "${HOME}" ]] || die "install manifest holds an unsafe path: ${p}"
-    rm -rf -- "${p}"
+    allowed_path "${line#path }" || die "install manifest lists a path this installer never creates: ${line#path } (installed with a different XDG_DATA_HOME?); nothing was removed"
+  done < "${MANIFEST}"
+  while IFS= read -r line || [[ -n ${line} ]]; do
+    [[ ${line} == "path "* ]] || continue
+    rm -rf -- "${line#path }"
   done < "${MANIFEST}"
   rm -f -- "${MANIFEST}"
+  refresh_caches
   say "Navis was uninstalled. Settings and data were left in place (use --purge to delete them)."
 }
 
@@ -185,7 +219,7 @@ do_purge() {
   local d dirs=()
   for d in "${DATA}/${APP_ID}" "${CONFIG}/${APP_ID}" "${CACHE}/${APP_ID}"; do [[ -e ${d} ]] && dirs+=("${d}"); done
   [[ -f ${MANIFEST} || ${#dirs[@]} -gt 0 ]] || die "nothing to purge"
-  prompt "This also permanently deletes: ${dirs[*]:-nothing}. Type 'purge' to continue:" \
+  prompt "This also permanently deletes Navis settings, cache and data: ${dirs[*]:-nothing}. That includes permanent downloads, which live in ${DATA}/${APP_ID}, a folder a .deb/.rpm install of Navis shares. Type 'purge' to continue:" \
     || die "--purge needs an interactive terminal; nothing was removed"
   [[ ${REPLY} == purge ]] || die "aborted; nothing was removed"
   if [[ -f ${MANIFEST} ]]; then do_uninstall; fi
@@ -202,22 +236,26 @@ fetch_release() {
     [[ -f ${TARBALL} ]] || die "no such file: ${TARBALL}"
     local want="${BASH_REMATCH[1]}"
     say "Verifying release v${want}"
-    fetch "${RELEASES_URL}/v${want}/manifest.json" "${TMP}/envelope.json"
+    fetch "${RELEASES_URL}/v${want}/manifest.json" "${TMP}/envelope.json" "${MAX_MANIFEST}"
     verify_manifest "${TMP}/envelope.json"
     [[ ${VERSION} == "${want}" ]] || die "the signed manifest is for version ${VERSION}, but the tarball is ${want}"
-    FILE="${TARBALL}"
+    # Hash and unpack a private copy, so the file cannot change after the check.
+    cp -- "${TARBALL}" "${TMP}/navis.tar.gz"
+    FILE="${TMP}/navis.tar.gz"
   else
     say "Reading the signed stable release manifest"
-    fetch "${STABLE_MANIFEST_URL}" "${TMP}/envelope.json"
+    fetch "${STABLE_MANIFEST_URL}" "${TMP}/envelope.json" "${MAX_MANIFEST}"
     verify_manifest "${TMP}/envelope.json"
     say "Downloading Navis ${VERSION}"
-    fetch "${ASSET_URL}" "${TMP}/navis.tar.gz"
+    fetch "${ASSET_URL}" "${TMP}/navis.tar.gz" "${MAX_TARBALL}"
     FILE="${TMP}/navis.tar.gz"
   fi
   local got
-  got="$(sha256sum "${FILE}")"; got="${got%% *}"
+  got="$(sha256sum < "${FILE}")"; got="${got%% *}"
   [[ ${got} == "${ASSET_SHA}" ]] || die "the tarball's SHA-256 does not match the signed manifest; nothing was installed"
 }
+
+listed() { [[ -f ${MANIFEST} ]] && grep -qxF -- "path $1" "${MANIFEST}"; }
 
 check_existing() {
   local installed=''
@@ -229,6 +267,10 @@ check_existing() {
   if [[ -e ${LAUNCHER} || -L ${LAUNCHER} ]] && [[ $(readlink "${LAUNCHER}" 2>/dev/null || true) != "${APP}/navis" ]]; then
     confirm_foreign "${LAUNCHER} exists and does not point at this install. Replace it?"
   fi
+  # tool/dev_app.sh writes this same file name for development builds.
+  if [[ -e ${DESKTOP} || -L ${DESKTOP} ]] && ! listed "${DESKTOP}"; then
+    confirm_foreign "${DESKTOP} exists and was not created by this installer. Replace it?"
+  fi
   if [[ -x ${SYSTEM_APP} ]]; then
     confirm "A system package install of Navis exists at ${SYSTEM_APP}. Add a separate per-user copy anyway?" || die "aborted"
   fi
@@ -239,15 +281,19 @@ check_existing() {
 }
 
 unpack() {
-  local listing missing
+  local listing missing d
   listing="$(tar -tzf "${FILE}")" || die "cannot read the tarball"
   if grep -Eq '(^|/)\.\.(/|$)|^/' <<<"${listing}"; then die "the tarball contains unsafe paths"; fi
-  NEW="${APP}.new"; OLD="${APP}.old"
   mkdir -p "${DATA}"
-  # An interrupted earlier run can leave these behind.
-  if [[ -d ${OLD} && ! -e ${APP} ]]; then mv "${OLD}" "${APP}"; fi
-  rm -rf "${NEW}" "${OLD}"
-  mkdir "${NEW}"
+  # An interrupted earlier run can leave the previous install parked beside the app dir.
+  for d in "${APP}".old.*; do
+    if [[ -e ${d}/app && ! -e ${APP} && ! -L ${APP} ]]; then mv "${d}/app" "${APP}"; fi
+    rmdir "${d}" 2>/dev/null || true
+  done
+  # Unique sibling names: a user's own navis.new / navis.old must never be touched.
+  NEW="$(mktemp -d "${APP}.new.XXXXXX")"
+  OLDDIR="$(mktemp -d "${APP}.old.XXXXXX")"
+  chmod 755 "${NEW}"
   tar -xzf "${FILE}" -C "${NEW}" --no-same-owner
   [[ -f ${NEW}/navis && -x ${NEW}/navis && ! -L ${NEW}/navis && -d ${NEW}/lib && -f ${NEW}/data/${APP_ID}.desktop ]] \
     || die "the tarball does not look like a Navis bundle"
@@ -258,34 +304,44 @@ unpack() {
   fi
 }
 
+# State flips only after each move succeeds, so cleanup() can tell what to undo.
 swap_in() {
-  ROLLBACK=1
-  if [[ -e ${APP} || -L ${APP} ]]; then mv "${APP}" "${OLD}"; fi
+  if [[ -e ${APP} || -L ${APP} ]]; then mv "${APP}" "${OLDDIR}/app"; fi
   mv "${NEW}" "${APP}"
-  NEW=''
+  NEW=''; NEW_IN_PLACE=1
+}
+
+track() { # PATH: record for the manifest; remember it for cleanup if it is new
+  CREATED+=("$1")
+  if [[ ! -e $1 && ! -L $1 ]]; then FRESH+=("$1"); fi
 }
 
 integrate() {
-  local desktop="${DATA}/applications/${APP_ID}.desktop" exec_quoted line f rel
+  local exec_quoted line f rel staged
   mkdir -p "$(dirname "${LAUNCHER}")" "${DATA}/applications"
   # A symlink, not a wrapper: the in-app updater replaces the directory that
   # holds the resolved executable, which must be the app dir.
+  track "${LAUNCHER}"
   ln -sfn "${APP}/navis" "${LAUNCHER}"
-  CREATED+=("${LAUNCHER}")
   # GLib 2.88+ refuses a desktop file whose Exec is not an absolute path or found in PATH.
   exec_quoted="$(desktop_exec_quote "${APP}/navis")"
+  # Write a sibling and rename it over the target, so a symlink there is replaced, never followed.
+  staged="$(mktemp "${DESKTOP}.XXXXXX")"
+  FRESH+=("${staged}")
   while IFS= read -r line || [[ -n ${line} ]]; do
     case "${line}" in
       Exec=*) printf 'Exec=%s %%U\nTryExec=%s\n' "${exec_quoted}" "${APP}/navis" ;;
       TryExec=*) ;;
       *) printf '%s\n' "${line}" ;;
     esac
-  done < "${APP}/data/${APP_ID}.desktop" > "${desktop}"
-  CREATED+=("${desktop}")
+  done < "${APP}/data/${APP_ID}.desktop" > "${staged}"
+  chmod 644 "${staged}"
+  track "${DESKTOP}"
+  mv -f "${staged}" "${DESKTOP}"
   while IFS= read -r -d '' f; do
     rel="${f#"${APP}/data/icons/hicolor/"}"
+    track "${DATA}/icons/hicolor/${rel}"
     install -Dm644 "${f}" "${DATA}/icons/hicolor/${rel}"
-    CREATED+=("${DATA}/icons/hicolor/${rel}")
   done < <(find "${APP}/data/icons/hicolor" -type f -print0 2>/dev/null)
   CREATED+=("${APP}")
   {
@@ -294,12 +350,9 @@ integrate() {
     printf 'path %s\n' "${CREATED[@]}"
   } > "${MANIFEST}.tmp"
   mv "${MANIFEST}.tmp" "${MANIFEST}"
-  ROLLBACK=0
-  rm -rf "${OLD}"
-  if command -v update-desktop-database >/dev/null 2>&1; then update-desktop-database "${DATA}/applications" >/dev/null 2>&1 || true; fi
-  if command -v gtk-update-icon-cache >/dev/null 2>&1; then
-    gtk-update-icon-cache -f -t -q "${DATA}/icons/hicolor" >/dev/null 2>&1 || true
-  fi
+  COMMITTED=1; NEW_IN_PLACE=0
+  rm -rf "${OLDDIR}"; OLDDIR=''
+  refresh_caches
 }
 
 install_main() {
@@ -343,3 +396,5 @@ main() {
 }
 
 main "$@"
+exit $?
+}
