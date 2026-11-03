@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart' show Value, Variable;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
@@ -513,5 +515,30 @@ void main() {
     final genres = await database.libraryDao.getGenres();
 
     expect(genres.map((g) => g.key), ['rock']);
+  }, skip: !sqliteAvailable);
+
+  test('an interrupted refresh never leaves a song partly indexed', () async {
+    // More names than one insert chunk (200), so a cut falls between chunks.
+    final names = [
+      for (var i = 0; i < 201; i++) 'tag${i.toString().padLeft(3, '0')}',
+    ];
+    await database.customStatement(
+      'INSERT INTO songs(id, title, genres) VALUES (?, ?, ?)',
+      ['s1', 'x', jsonEncode(names)],
+    );
+    await database.customStatement(
+      'CREATE TRIGGER cut BEFORE INSERT ON song_genre_index '
+      "WHEN NEW.genre_key = 'tag200' "
+      "BEGIN SELECT RAISE(ABORT, 'cut'); END",
+    );
+    expect(await database.libraryDao.refreshSongGenreIndex(), 0);
+
+    await database.customStatement('DROP TRIGGER cut');
+    await database.libraryDao.refreshSongGenreIndex();
+
+    final rows = await database
+        .customSelect('SELECT count(*) AS n FROM song_genre_index')
+        .getSingle();
+    expect(rows.read<int>('n'), 201);
   }, skip: !sqliteAvailable);
 }

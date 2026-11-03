@@ -624,17 +624,21 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
             ),
       ];
       const chunkSize = 200;
-      for (final chunk in chunked(entries, chunkSize)) {
-        await customStatement(
-          'INSERT INTO song_genre_index(song_id, genre_key, name, source) '
-          'VALUES ${List<String>.filled(chunk.length, '(?, ?, ?, ?)').join(', ')} '
-          'ON CONFLICT(song_id, genre_key) DO UPDATE SET '
-          'name = excluded.name, source = excluded.source',
-          <Object?>[
-            for (final e in chunk) ...<Object?>[e.$1, e.$2, e.$3, e.$4],
-          ],
-        );
-      }
+      // One transaction per batch: a cut between chunks must not leave a
+      // song with only some of its rows, which the repair would take as done.
+      await transaction(() async {
+        for (final chunk in chunked(entries, chunkSize)) {
+          await customStatement(
+            'INSERT INTO song_genre_index(song_id, genre_key, name, source) '
+            'VALUES ${List<String>.filled(chunk.length, '(?, ?, ?, ?)').join(', ')} '
+            'ON CONFLICT(song_id, genre_key) DO UPDATE SET '
+            'name = excluded.name, source = excluded.source',
+            <Object?>[
+              for (final e in chunk) ...<Object?>[e.$1, e.$2, e.$3, e.$4],
+            ],
+          );
+        }
+      });
       written += rows.length;
       lastId = rows.last.read<String>('id');
       if (rows.length < batchSize) break;
