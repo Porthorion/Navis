@@ -1412,7 +1412,7 @@ def oracle_progress_loss(run: Run, drop_ms=2000) -> list[dict]:
         a, b = samples[i - 1], samples[i]
         if a['pos'] is None or b['pos'] is None or a['songId'] != b['songId'] or a['idx'] != b['idx']:
             continue
-        if a['pos'] - b['pos'] <= drop_ms or a['proc'] != 'ready':  # a loading item still reports the previous song's position
+        if shown_pos(a) - shown_pos(b) <= drop_ms or a['proc'] != 'ready':  # a loading item still reports the previous song's position
             continue
         if is_position_blip(samples, i):
             continue
@@ -1424,19 +1424,27 @@ def oracle_progress_loss(run: Run, drop_ms=2000) -> list[dict]:
     return out
 
 
+def shown_pos(s):
+    """The position the UI shows. While a premature-EOF offset reload runs, the native clock dips to the next
+    item's 0; the app holds the cut target in uiPos (#210), so judge that instead."""
+    if s.get('rec') == 'reloading current song' and s.get('seekPending') and s.get('uiPos') is not None:
+        return s['uiPos']
+    return s['pos']
+
+
 def is_position_blip(samples, i) -> bool:
     """A native clock reset returning within 3 samples and 500 ms, or its return to the same timeline."""
     a, b = samples[i - 1], samples[i]
-    if (a['pos'] is None or b['pos'] is None or a['songId'] != b['songId'] or a['idx'] != b['idx']
+    if (shown_pos(a) is None or shown_pos(b) is None or a['songId'] != b['songId'] or a['idx'] != b['idx']
             or (a.get('off') or 0) != (b.get('off') or 0)):
         return False
-    if a['pos'] - b['pos'] > 2000 and 0 <= b['pos'] - (b.get('off') or 0) < 3000:
-        return any(n['pos'] is not None and abs(n['pos'] - a['pos']) < 500
+    if shown_pos(a) - shown_pos(b) > 2000 and 0 <= shown_pos(b) - (b.get('off') or 0) < 3000:
+        return any(shown_pos(n) is not None and abs(shown_pos(n) - shown_pos(a)) < 500
                    and n['songId'] == b['songId'] and n['idx'] == b['idx']
                    and (n.get('off') or 0) == (b.get('off') or 0) and n['t'] - a['t'] <= 0.5
                    for n in samples[i + 1:i + 4])
-    if b['pos'] - a['pos'] > 2000 and 0 <= a['pos'] - (a.get('off') or 0) < 3000:
-        return any(n['pos'] is not None and abs(n['pos'] - b['pos']) < 500
+    if shown_pos(b) - shown_pos(a) > 2000 and 0 <= shown_pos(a) - (a.get('off') or 0) < 3000:
+        return any(shown_pos(n) is not None and abs(shown_pos(n) - shown_pos(b)) < 500
                    and n['songId'] == b['songId'] and n['idx'] == b['idx']
                    and (n.get('off') or 0) == (b.get('off') or 0) and b['t'] - n['t'] <= 0.5
                    for n in samples[max(0, i - 4):i - 1])
@@ -1468,16 +1476,16 @@ def oracle_unexpected_change(run: Run) -> list[dict]:
                 continue
             kind = 'sameSongTwice' if a['songId'] == b['songId'] and a['idx'] != b['idx'] else 'unexpectedChange'
             out.append(violation(kind, b['t'], f"idx {a['idx']}->{b['idx']} song {a['songId']}->{b['songId']} "
-                                 f"pos {a['pos']}->{b['pos']} with no user action", run))
+                                 f"pos {shown_pos(a)}->{shown_pos(b)} with no user action", run))
         elif is_position_blip(samples, i):
             continue  # one status read caught the player between items: the position is back at the next sample
-        elif (a['pos'] is not None and b['pos'] is not None and a['pos'] - b['pos'] > 5000 and b['pos'] < 3000
+        elif (shown_pos(a) is not None and shown_pos(b) is not None and shown_pos(a) - shown_pos(b) > 5000 and shown_pos(b) < 3000
               and not requested(b['t']) and not song_end_near(samples, i)):
-            out.append(violation('unrequestedReset', b['t'], f"position {a['pos']}->{b['pos']} on {b['songId']} "
+            out.append(violation('unrequestedReset', b['t'], f"position {shown_pos(a)}->{shown_pos(b)} on {b['songId']} "
                                  f"with no seek or navigation", run))
-        elif (a['pos'] is not None and b['pos'] is not None and b['pos'] - a['pos'] > 8000 and b['t'] - a['t'] < 2
+        elif (shown_pos(a) is not None and shown_pos(b) is not None and shown_pos(b) - shown_pos(a) > 8000 and b['t'] - a['t'] < 2
               and not requested(b['t'])):
-            out.append(violation('unrequestedJump', b['t'], f"position jumped {a['pos']}->{b['pos']} on {b['songId']} "
+            out.append(violation('unrequestedJump', b['t'], f"position jumped {shown_pos(a)}->{shown_pos(b)} on {b['songId']} "
                                  f"with no seek or navigation", run))
     return out
 
