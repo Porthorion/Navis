@@ -50,6 +50,8 @@ required validation or acceptance is open:
 - [Stale-cache recovery](plans/Fix_Stale_Cache_Plan.md) and its
   [execution plan](plans/Fix_Stale_Cache_Execution_Plan.md) — Android certification
   and release-acceptance evidence remain open.
+- [macOS parity](plans/macOS_Parity_Plan.md) — gap table and risk-ordered work
+  items for a complete macOS client.
 - [Remote song handling](plans/Remote_Song_Handling_Plan.md) — cold remote
   playback and Android runtime validation remain unresolved.
 - [Sync audit remediation](plans/Sync_Audit_Remediation_Plan.md) — consolidated
