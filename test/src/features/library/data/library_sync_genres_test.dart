@@ -198,6 +198,45 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test(
+    'a genre-only change keeps cover art revisions, other changes bump',
+    () async {
+      api.bulkSongPages[0] = allSongs();
+      final engine = serialDriftEngine(
+        api: api,
+        database: database,
+        repository: repository,
+      );
+      Future<void> repair() => engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+      Future<Map<String, int?>> revisions() async => {
+        for (final song in await database.select(database.songsTable).get())
+          song.id: song.coverArtRevision,
+      };
+
+      await repair();
+      final before = await revisions();
+
+      // The 1.5.1 upgrade state: every song has no genre list yet.
+      await database.customStatement('UPDATE songs SET genres = NULL');
+      await repair();
+      expect(await revisions(), before);
+      expect(await indexed(), isNotEmpty);
+
+      // A real metadata change still refetches exactly that song's artwork.
+      api.bulkSongPages[0] = [
+        for (final song in allSongs())
+          song.id == 'song-2' ? song.copyWith(title: 'Renamed') : song,
+      ];
+      await repair();
+      final after = await revisions();
+      expect(after['song-2'], (before['song-2'] ?? 0) + 1);
+      expect(after['song-1'], before['song-1']);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('clearLibraryData empties the genre index', () async {
     api.bulkSongPages[0] = allSongs();
     final engine = serialDriftEngine(

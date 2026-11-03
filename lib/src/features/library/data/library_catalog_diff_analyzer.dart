@@ -216,6 +216,15 @@ class LibraryCatalogDiffAnalyzer {
   static bool songNeedsApply(
     LibrarySyncCandidateSongsTableData candidate,
     SongsTableData? existing,
+  ) =>
+      songChangedBesidesGenres(candidate, existing) ||
+      _genresDiffer(existing?.genres, candidate.genres);
+
+  /// Everything [songNeedsApply] checks except the genre tags. Tags never
+  /// change artwork, so a genre-only change must not bump cover revisions.
+  static bool songChangedBesidesGenres(
+    LibrarySyncCandidateSongsTableData candidate,
+    SongsTableData? existing,
   ) {
     return existing == null ||
         existing.isProvisional ||
@@ -241,8 +250,7 @@ class LibraryCatalogDiffAnalyzer {
         existing.replayGainTrackGain != candidate.replayGainTrackGain ||
         existing.replayGainAlbumGain != candidate.replayGainAlbumGain ||
         existing.replayGainTrackPeak != candidate.replayGainTrackPeak ||
-        existing.replayGainAlbumPeak != candidate.replayGainAlbumPeak ||
-        _genresDiffer(existing.genres, candidate.genres);
+        existing.replayGainAlbumPeak != candidate.replayGainAlbumPeak;
   }
 
   /// Genre lists are equal when they hold the same names in any order, so a

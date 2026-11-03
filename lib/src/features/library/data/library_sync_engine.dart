@@ -3372,7 +3372,24 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             ),
         id: (row) => row.id,
       )) {
-        changedSongIds.addAll(page.map((song) => song.id));
+        if (explicitRepair) {
+          // Read before the upsert: tag-only changes (the post-upgrade genre
+          // backfill) must not refetch song artwork.
+          final existing = {
+            for (final row in await _database.libraryDao.getSongsByIds(
+              page.map((song) => song.id),
+            ))
+              row.id: row,
+          };
+          changedSongIds.addAll([
+            for (final song in page)
+              if (LibraryCatalogDiffAnalyzer.songChangedBesidesGenres(
+                song,
+                existing[song.id],
+              ))
+                song.id,
+          ]);
+        }
         await _database.libraryDao.upsertSongs([
           for (final song in page)
             SongsTableCompanion.insert(
