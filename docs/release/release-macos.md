@@ -21,7 +21,7 @@ Linux or Windows and no `--macos-ssh` flag. Run `tool/release.sh` directly on th
 ### 1. Flutter SDK
 
 ```bash
-flutter --version          # Flutter 3.x stable
+flutter --version          # Flutter 3.47.5 or newer (Swift Package Manager on)
 flutter doctor -v
 ```
 
@@ -40,7 +40,7 @@ sudo xcodebuild -runFirstLaunch
 brew install cocoapods
 ```
 
-Flutter builds the macOS plugins with Swift Package Manager, and the committed
+Flutter builds the plugins that ship a Swift package with Swift Package Manager, and the committed
 `macos/Runner.xcodeproj` already carries that integration, so a build leaves the
 tree clean. CocoaPods is still needed because `media_kit_libs_macos_audio` has no
 Swift package yet.
