@@ -187,6 +187,19 @@ class _FakeScreenRetrieverAdapter implements ScreenRetrieverAdapter {
 }
 
 void main() {
+  test('platformMaximumSize keeps macOS zoom from collapsing the window', () {
+    const unbounded = Size(-1, -1);
+    expect(platformMaximumSize(unbounded, isMacOS: false), unbounded);
+    expect(
+      platformMaximumSize(unbounded, isMacOS: true),
+      const Size(100000, 100000),
+    );
+    expect(
+      platformMaximumSize(const Size(800, -1), isMacOS: true),
+      const Size(800, 100000),
+    );
+  });
+
   group('DesktopWindowController', () {
     late NavisDatabase database;
     late SettingsRepository repository;

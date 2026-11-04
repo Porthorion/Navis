@@ -170,6 +170,20 @@ abstract class WindowManagerAdapter {
   Future<void> focus();
 }
 
+/// window_manager passes the size straight to `NSWindow.maxSize` on macOS,
+/// where (-1, -1) is not "unbounded" but a literal limit: AppKit zoom (a
+/// title-bar double-click) then collapses the window to 0x0. Map any
+/// non-positive dimension to a limit larger than any screen there.
+@visibleForTesting
+Size platformMaximumSize(Size size, {required bool isMacOS}) {
+  if (!isMacOS) return size;
+  const unbounded = 100000.0;
+  return Size(
+    size.width <= 0 ? unbounded : size.width,
+    size.height <= 0 ? unbounded : size.height,
+  );
+}
+
 class WindowManagerDesktopWindowAdapter implements WindowManagerAdapter {
   const new();
 
@@ -194,7 +208,9 @@ class WindowManagerDesktopWindowAdapter implements WindowManagerAdapter {
   Future<void> setMinimumSize(Size size) => windowManager.setMinimumSize(size);
 
   @override
-  Future<void> setMaximumSize(Size size) => windowManager.setMaximumSize(size);
+  Future<void> setMaximumSize(Size size) => windowManager.setMaximumSize(
+    platformMaximumSize(size, isMacOS: Platform.isMacOS),
+  );
 
   @override
   Future<void> setAspectRatio(double aspectRatio) =>
