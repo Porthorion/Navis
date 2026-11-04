@@ -55,10 +55,12 @@ Future<void> _runNavis() async {
   // Before anything resolves a directory: a desktop clone runs as the same OS
   // user as the real app, so its platform directories would be the real
   // profile's. (An Android sidecar is its own package with its own storage.)
-  if (_syncDiagnosticsRequested &&
+  final desktopClone =
+      _syncDiagnosticsRequested &&
       _syncDiagnosticsMode == SyncDiagnosticsMode.clone &&
       _syncDiagnosticsRoot.isNotEmpty &&
-      _isDesktopRuntime) {
+      _isDesktopRuntime;
+  if (desktopClone) {
     PathProviderPlatform.instance = CloneDiagnosticsPathProvider(
       root: _syncDiagnosticsRoot,
       platform: PathProviderPlatform.instance,
@@ -68,7 +70,9 @@ Future<void> _runNavis() async {
   AppLogger.startup(StartupEvent.processStart, outcome: StartupOutcome.cold);
   _initializeDesktopAudioBackend();
   if (_isDesktopRuntime) {
-    unawaited(UpdateService.cleanupStaledUpdates());
+    unawaited(
+      UpdateService.cleanupStaledUpdates(skipBundleBackup: desktopClone),
+    );
   }
   if (_syncDiagnosticsRuntimeEnabled &&
       _isAndroidRuntime &&
@@ -137,6 +141,14 @@ Future<void> _runNavis() async {
       ),
     );
     runApp(diagnosticsPresentation?.wrap(app) ?? app);
+    // A macOS updater script waits for this: only a first frame after a
+    // successful desktop bootstrap (database and settings opened) proves the
+    // new app got past startup.
+    if (_isDesktopRuntime && !desktopClone && desktopBootstrap != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => unawaited(UpdateService.confirmMacosLaunch()),
+      );
+    }
     // Planner statistics and the local-search index are refreshed off the
     // startup path. Both are derived data; a failure only costs speed.
     unawaited(

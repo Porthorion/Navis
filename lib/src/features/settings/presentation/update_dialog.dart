@@ -307,7 +307,13 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
           children: [
             Icon(Icons.lock_outline, color: theme.colorScheme.error),
             const SizedBox(width: 12),
-            Expanded(child: Text(l10n.updateNoWriteAccess)),
+            Expanded(
+              child: Text(
+                _service.needsMoveToApplications(_installMode)
+                    ? l10n.updateMoveToApplications
+                    : l10n.updateNoWriteAccess,
+              ),
+            ),
           ],
         );
 

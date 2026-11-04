@@ -7103,6 +7103,12 @@ abstract class AppLocalizations {
   /// **'Navis cannot update itself from this location. Please download manually.'**
   String get updateNoWriteAccess;
 
+  /// No description provided for @updateMoveToApplications.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Navis to the Applications folder to update it.'**
+  String get updateMoveToApplications;
+
   /// No description provided for @updateUsePackageManager.
   ///
   /// In en, this message translates to:

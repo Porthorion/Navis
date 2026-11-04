@@ -4481,6 +4481,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Navis cannot update itself from this location. Please download manually.';
 
   @override
+  String get updateMoveToApplications =>
+      'Move Navis to the Applications folder to update it.';
+
+  @override
   String get updateUsePackageManager =>
       'Navis was installed by your system\'s package manager. Update it from there, for example with your software updater or AUR helper.';
 
