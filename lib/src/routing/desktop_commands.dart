@@ -198,15 +198,20 @@ String? _desktopShortcutSessionFallback;
 bool _didLogShortcutReadFallbackWarning = false;
 bool _didLogShortcutWriteFallbackWarning = false;
 
-// Shortcut storage shares the credential stores' native queue, so its calls
-// never overlap theirs. No caller waits on it (hydration and writes are
-// fire-and-forget), so it takes no deadline; the queue advances when the
-// native call settles either way.
+const Duration _desktopShortcutStorageDeadline = Duration(seconds: 5);
+
+/// On macOS a shortcut keychain call can wait on a system prompt, so it joins
+/// the credential stores' serialized native queue (never overlapping theirs)
+/// with the same deadline. Other platforms call the plugin directly.
+Future<T> _shortcutStorageCall<T>(Future<T> Function() operation) =>
+    _isApplePlatform
+    ? runSerializedSecureStorage(operation, _desktopShortcutStorageDeadline)
+    : operation();
+
 Future<String?> _readPersistedDesktopShortcutBindings() async {
   try {
-    final stored = await runSerializedSecureStorage(
+    final stored = await _shortcutStorageCall(
       () => _desktopShortcutStorage.read(key: _desktopShortcutStorageKey),
-      null,
     );
     return stored ?? _desktopShortcutSessionFallback;
   } on Object catch (error) {
@@ -224,18 +229,16 @@ Future<void> _writePersistedDesktopShortcutBindings(String? raw) async {
   _desktopShortcutSessionFallback = raw;
   try {
     if (raw == null || raw.trim().isEmpty) {
-      await runSerializedSecureStorage(
+      await _shortcutStorageCall(
         () => _desktopShortcutStorage.delete(key: _desktopShortcutStorageKey),
-        null,
       );
       return;
     }
-    await runSerializedSecureStorage(
+    await _shortcutStorageCall(
       () => _desktopShortcutStorage.write(
         key: _desktopShortcutStorageKey,
         value: raw,
       ),
-      null,
     );
   } on Object catch (error) {
     if (!_didLogShortcutWriteFallbackWarning) {

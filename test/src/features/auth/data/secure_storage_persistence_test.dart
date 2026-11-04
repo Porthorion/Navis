@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -102,7 +103,29 @@ void main() {
     expect(restored.shift, isFalse);
   });
 
-  test('shortcut storage queues behind an earlier credential call', () async {
+  test(
+    'macOS shortcut storage queues behind an earlier credential call',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      passwordReadGate = Completer<void>();
+      final pending = FlutterSecureCredentialStore().readPassword();
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      container.read(desktopShortcutBindingsProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(calls, ['read navis.auth.active_server.password']);
+
+      passwordReadGate!.complete();
+      await pending;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(calls.last, 'read navis.desktop.shortcut_bindings.v1');
+    },
+  );
+
+  test('other platforms call shortcut storage directly', () async {
     passwordReadGate = Completer<void>();
     final pending = FlutterSecureCredentialStore().readPassword();
     await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -111,11 +134,9 @@ void main() {
     addTearDown(container.dispose);
     container.read(desktopShortcutBindingsProvider);
     await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(calls, ['read navis.auth.active_server.password']);
+    expect(calls, contains('read navis.desktop.shortcut_bindings.v1'));
 
     passwordReadGate!.complete();
     await pending;
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(calls.last, 'read navis.desktop.shortcut_bindings.v1');
   });
 }

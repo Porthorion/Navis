@@ -41,21 +41,20 @@ const macOsLoginKeychain = MacOsOptions(
 Future<void> _nativeOperations = Future<void>.value();
 
 /// Runs [operation] after every earlier native secure-storage operation has
-/// settled. The caller gets [deadline] as an error (null waits for the call),
-/// but the queue advances only when the native call itself settles, so a stuck
-/// call is never overlapped.
+/// settled. The caller gets [deadline] as an error, but the queue advances only
+/// when the native call itself settles, so a stuck call is never overlapped.
 /// ponytail: a permanently hung plugin makes later calls time out as
 /// unavailable; the startup Restart Navis recovery covers that.
 Future<T> runSerializedSecureStorage<T>(
   Future<T> Function() operation,
-  Duration? deadline,
+  Duration deadline,
 ) {
   final task = _nativeOperations.then((_) => operation());
   _nativeOperations = task.then<void>(
     (_) {},
     onError: (Object _, StackTrace _) {},
   );
-  return deadline == null ? task : task.timeout(deadline);
+  return task.timeout(deadline);
 }
 
 /// Forgets queued native operations so a test's deliberately stuck call cannot
