@@ -25,7 +25,15 @@ class CredentialWriteException implements Exception {
 /// entitlement that no Navis build has, so each write fails with -34018 and the
 /// credential would last only for the session. The login keychain needs no
 /// entitlement. `mOptions` only affects macOS.
-const macOsLoginKeychain = MacOsOptions(usesDataProtectionKeychain: false);
+///
+/// The login keychain has no per-app access group, and the plugin maps
+/// `accountName` to `kSecAttrService`. Its default service is shared by every
+/// Flutter app on the Mac that uses the plugin, so Navis uses its own bundle
+/// id and its keys cannot collide with or overwrite another app's.
+const macOsLoginKeychain = MacOsOptions(
+  usesDataProtectionKeychain: false,
+  accountName: 'com.navis.app.navis',
+);
 
 /// Tail of the native secure-storage queue. Top-level so every credential
 /// store in this engine shares it: overlapping native calls race
@@ -33,20 +41,21 @@ const macOsLoginKeychain = MacOsOptions(usesDataProtectionKeychain: false);
 Future<void> _nativeOperations = Future<void>.value();
 
 /// Runs [operation] after every earlier native secure-storage operation has
-/// settled. The caller gets [deadline] as an error, but the queue advances only
-/// when the native call itself settles, so a stuck call is never overlapped.
+/// settled. The caller gets [deadline] as an error (null waits for the call),
+/// but the queue advances only when the native call itself settles, so a stuck
+/// call is never overlapped.
 /// ponytail: a permanently hung plugin makes later calls time out as
 /// unavailable; the startup Restart Navis recovery covers that.
 Future<T> runSerializedSecureStorage<T>(
   Future<T> Function() operation,
-  Duration deadline,
+  Duration? deadline,
 ) {
   final task = _nativeOperations.then((_) => operation());
   _nativeOperations = task.then<void>(
     (_) {},
     onError: (Object _, StackTrace _) {},
   );
-  return task.timeout(deadline);
+  return deadline == null ? task : task.timeout(deadline);
 }
 
 /// Forgets queued native operations so a test's deliberately stuck call cannot

@@ -198,10 +198,15 @@ String? _desktopShortcutSessionFallback;
 bool _didLogShortcutReadFallbackWarning = false;
 bool _didLogShortcutWriteFallbackWarning = false;
 
+// Shortcut storage shares the credential stores' native queue, so its calls
+// never overlap theirs. No caller waits on it (hydration and writes are
+// fire-and-forget), so it takes no deadline; the queue advances when the
+// native call settles either way.
 Future<String?> _readPersistedDesktopShortcutBindings() async {
   try {
-    final stored = await _desktopShortcutStorage.read(
-      key: _desktopShortcutStorageKey,
+    final stored = await runSerializedSecureStorage(
+      () => _desktopShortcutStorage.read(key: _desktopShortcutStorageKey),
+      null,
     );
     return stored ?? _desktopShortcutSessionFallback;
   } on Object catch (error) {
@@ -219,12 +224,18 @@ Future<void> _writePersistedDesktopShortcutBindings(String? raw) async {
   _desktopShortcutSessionFallback = raw;
   try {
     if (raw == null || raw.trim().isEmpty) {
-      await _desktopShortcutStorage.delete(key: _desktopShortcutStorageKey);
+      await runSerializedSecureStorage(
+        () => _desktopShortcutStorage.delete(key: _desktopShortcutStorageKey),
+        null,
+      );
       return;
     }
-    await _desktopShortcutStorage.write(
-      key: _desktopShortcutStorageKey,
-      value: raw,
+    await runSerializedSecureStorage(
+      () => _desktopShortcutStorage.write(
+        key: _desktopShortcutStorageKey,
+        value: raw,
+      ),
+      null,
     );
   } on Object catch (error) {
     if (!_didLogShortcutWriteFallbackWarning) {

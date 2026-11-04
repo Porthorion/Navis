@@ -810,8 +810,8 @@ selects `-d macos` on Darwin for its launchers, `tool/sync_diagnostics.sh` and
 exits 69 on Darwin. On a Mac, set `NAVIS_DIAGNOSTICS_PRIMARY_DB` for
 `sync_diagnostics.sh` and `presentation_diagnostics.sh` (the default is the
 Linux data path), pass a mode-600 `NAVIS_DIAGNOSTICS_CREDENTIAL_PATH`
-file to sign the clone in (macOS builds cannot keep a password in the keychain
-yet; plan item M9), run the scripts with Homebrew bash 4+ rather than the
+file to sign the clone in (the clone keeps credentials in memory, so it never
+reads the keychain), run the scripts with Homebrew bash 4+ rather than the
 system bash 3.2, and expect the first cold `flutter run -d macos` build to
 outlast the 180-second handshake wait; build once first. Android production
 builds remain observation-only. The planned SAF

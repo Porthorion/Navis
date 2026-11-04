@@ -17,14 +17,16 @@ void main() {
         .whereType<File>()
         .where((file) => file.path.endsWith('.dart'));
     for (final file in files) {
-      final source = file.readAsStringSync();
+      // Whole-line comments only; line numbers stay intact.
+      final source = file.readAsStringSync().replaceAll(
+        RegExp(r'^\s*//.*$', multiLine: true),
+        '',
+      );
       for (final match in RegExp(
-        r'(?<![A-Za-z0-9_.])FlutterSecureStorage[(]',
+        r'\bFlutterSecureStorage(\.new)?\s*\(',
       ).allMatches(source)) {
-        if (!_balanced(
-          source,
-          match.end - 1,
-        ).contains('mOptions: macOsLoginKeychain')) {
+        if (!RegExp(r'\bmOptions:\s*macOsLoginKeychain\b')
+            .hasMatch(_balanced(source, match.end - 1))) {
           final line =
               '\n'.allMatches(source.substring(0, match.start)).length + 1;
           violations.add(

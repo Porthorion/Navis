@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,13 +15,22 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final values = <String, String>{};
+  final calls = <String>[];
+  Completer<void>? passwordReadGate;
 
   setUp(() {
+    resetSecureStorageQueue();
     values.clear();
+    calls.clear();
+    passwordReadGate = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_secureStorageChannel, (call) async {
           final arguments = call.arguments! as Map<Object?, Object?>;
           final key = arguments['key']! as String;
+          calls.add('${call.method} $key');
+          if (call.method == 'read' && key.endsWith('.password')) {
+            await passwordReadGate?.future;
+          }
           return switch (call.method) {
             'write' => values[key] = arguments['value']! as String,
             'read' => values[key],
@@ -30,6 +41,7 @@ void main() {
   });
 
   tearDown(() {
+    resetSecureStorageQueue();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(_secureStorageChannel, null);
   });
@@ -88,5 +100,22 @@ void main() {
     expect(restored.primaryModifier, isTrue);
     expect(restored.alt, isFalse);
     expect(restored.shift, isFalse);
+  });
+
+  test('shortcut storage queues behind an earlier credential call', () async {
+    passwordReadGate = Completer<void>();
+    final pending = FlutterSecureCredentialStore().readPassword();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container.read(desktopShortcutBindingsProvider);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(calls, ['read navis.auth.active_server.password']);
+
+    passwordReadGate!.complete();
+    await pending;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(calls.last, 'read navis.desktop.shortcut_bindings.v1');
   });
 }
