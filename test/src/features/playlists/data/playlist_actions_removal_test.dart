@@ -200,12 +200,12 @@ Future<void> pump() => Future<void>.delayed(const Duration(milliseconds: 50));
 Future<_Fixture> _open(
   List<String> ids, {
   bool hydrating = true,
-  bool ghostAtTop = false,
+  int ghosts = 0,
 }) async {
   final db = createTestDatabase();
   addTearDown(db.close);
   await _Fixture.hydrate(db, ids);
-  final f = _Fixture(db, [if (ghostAtTop) _ghost, ...ids]);
+  final f = _Fixture(db, [for (var i = 0; i < ghosts; i++) _ghost, ...ids]);
   await pump();
   if (hydrating) {
     // What the open screen does: the detail sync starts a hydration.
@@ -229,19 +229,21 @@ void main() {
     // Each removal asked for its own hydration instead of joining the one
     // that started before it.
     expect(f.playlistRequests, 3);
-    expect(f.replaceCalls, [
-      ['A', 'C', 'D'],
-      ['A', 'D'],
+    expect(f.removeCalls, [
+      [1],
+      [1],
     ]);
+    expect(f.replaceCalls, isEmpty);
   }, skip: !sqliteAvailable);
 
   test('removes the chosen occurrence of a duplicated song', () async {
     final f = await _open(['A', 'B', 'A', 'C', 'A'], hydrating: false);
     await f.actions.removeAt(_pl, songId: 'A', occurrence: 1, copies: 3);
     await pump();
-    expect(f.replaceCalls, [
-      ['A', 'B', 'C', 'A'],
+    expect(f.removeCalls, [
+      [2],
     ]);
+    expect(f.replaceCalls, isEmpty);
     expect(f.server, ['A', 'B', 'C', 'A']);
     expect(f.shown, ['A', 'B', 'C', 'A']);
   }, skip: !sqliteAvailable);
@@ -300,6 +302,7 @@ void main() {
       f.actions.removeAt(_pl, songId: 'A', occurrence: 1, copies: 3),
       throwsA(isA<PlaylistChangedException>()),
     );
+    expect(f.removeCalls, isEmpty);
     expect(f.replaceCalls, isEmpty);
     expect(f.server, ['B', 'A', 'A']);
     // The edit still refreshes, so the screen shows the real list.
@@ -333,6 +336,7 @@ void main() {
     final f = await _open(['A', 'B', 'C'], hydrating: false);
     f.server.remove('B');
     await f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1);
+    expect(f.removeCalls, isEmpty);
     expect(f.replaceCalls, isEmpty);
     expect(f.server, ['A', 'C']);
   }, skip: !sqliteAvailable);
@@ -340,9 +344,9 @@ void main() {
   test('a failed removal leaves the list and server untouched', () async {
     final f = await _open(['A', 'B'], hydrating: false);
     when(
-      () => f.api.replacePlaylistSongs(
-        playlistId: 'p',
-        songIds: any(named: 'songIds'),
+      () => f.api.updatePlaylist(
+        id: 'p',
+        songIndexesToRemove: any(named: 'songIndexesToRemove'),
       ),
     ).thenThrow(StateError('boom'));
     await expectLater(
@@ -455,7 +459,7 @@ void main() {
       test(
         'removing the $label row deletes that row despite a ghost on top',
         () async {
-          final f = await _open(ids, hydrating: false, ghostAtTop: true);
+          final f = await _open(ids, hydrating: false, ghosts: 1);
           await f.actions.removeAt(
             _pl,
             songId: song,
@@ -470,23 +474,70 @@ void main() {
       );
     }
 
-    test(
-      'removing the last song despite a ghost empties the playlist',
-      () async {
-        final f = await _open(['A'], hydrating: false, ghostAtTop: true);
-        await f.actions.removeAt(_pl, songId: 'A', occurrence: 0, copies: 1);
-        await f.landHydrations();
-        expect(f.visible, isEmpty);
-        expect(f.shown, isEmpty);
-        // The first index hits the ghost, the second the song; no replace.
-        expect(f.removeCalls, [
-          [0],
-          [0],
-        ]);
-        expect(f.replaceCalls, isEmpty);
-      },
-      skip: !sqliteAvailable,
-    );
+    test('a clean playlist makes one index call and no replace', () async {
+      final f = await _open(['A', 'B', 'C'], hydrating: false);
+      await f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1);
+      expect(f.server, ['A', 'C']);
+      expect(f.removeCalls, [
+        [1],
+      ]);
+      expect(f.replaceCalls, isEmpty);
+    }, skip: !sqliteAvailable);
+
+    test('a repair makes the next removal one exact index call', () async {
+      final f = await _open(['A', 'B', 'C', 'D'], hydrating: false, ghosts: 1);
+      await f.actions.removeAt(_pl, songId: 'A', occurrence: 0, copies: 1);
+      expect(f.replaceCalls, [
+        ['B', 'C', 'D'],
+      ]);
+      expect(f.server, ['B', 'C', 'D'], reason: 'ghost dropped');
+      f.removeCalls.clear();
+      await f.actions.removeAt(_pl, songId: 'C', occurrence: 0, copies: 1);
+      expect(f.removeCalls, [
+        [1],
+      ]);
+      expect(f.replaceCalls.length, 1);
+      expect(f.server, ['B', 'D']);
+    }, skip: !sqliteAvailable);
+
+    test('a repair the server does not apply throws', () async {
+      final f = await _open(['A', 'B', 'C'], hydrating: false, ghosts: 1);
+      when(
+        () => f.api.replacePlaylistSongs(
+          playlistId: 'p',
+          songIds: any(named: 'songIds'),
+        ),
+      ).thenAnswer((_) async {});
+      await expectLater(
+        f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1),
+        throwsStateError,
+      );
+    }, skip: !sqliteAvailable);
+
+    for (final ghosts in [1, 2]) {
+      test(
+        'removing the last song behind $ghosts ghost(s) empties the playlist',
+        () async {
+          final f = await _open(['A'], hydrating: false, ghosts: ghosts);
+          await f.actions.removeAt(_pl, songId: 'A', occurrence: 0, copies: 1);
+          await f.landHydrations();
+          expect(f.server, isEmpty);
+          expect(f.shown, isEmpty);
+          expect(f.removeCalls.length, ghosts + 1);
+          expect(f.replaceCalls, isEmpty);
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
+    test('removing the last song gives up after five index calls', () async {
+      final f = await _open(['A'], hydrating: false, ghosts: 5);
+      await expectLater(
+        f.actions.removeAt(_pl, songId: 'A', occurrence: 0, copies: 1),
+        throwsStateError,
+      );
+      expect(f.removeCalls.length, 5);
+    }, skip: !sqliteAvailable);
 
     test('removing the last song of a clean playlist is one call', () async {
       final f = await _open(['A'], hydrating: false);
@@ -500,11 +551,7 @@ void main() {
     test(
       'a removal from a changed list still refuses without writing',
       () async {
-        final f = await _open(
-          ['A', 'B', 'A'],
-          hydrating: false,
-          ghostAtTop: true,
-        );
+        final f = await _open(['A', 'B', 'A'], hydrating: false, ghosts: 1);
         f.server.remove('A');
         await expectLater(
           f.actions.removeAt(_pl, songId: 'A', occurrence: 1, copies: 2),

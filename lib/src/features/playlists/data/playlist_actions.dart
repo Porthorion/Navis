@@ -324,10 +324,10 @@ class PlaylistActions {
         ids: before,
       );
     }
-    // One id per request: Navidrome 0.64 answers ok to a multi-id add, adds
-    // nothing visible and leaves a hidden row that shifts every later
-    // `songIndexToRemove`. A failed request leaves its id missing; the
-    // read-back decides.
+    // One id per request, never a multi-id add (#268): Navidrome 0.64 answers
+    // ok to a multi-id add, adds nothing visible and leaves a hidden row that
+    // shifts every later `songIndexToRemove`. A failed request leaves its id
+    // missing; the read-back decides.
     for (final song in songIds) {
       try {
         await api.updatePlaylist(id: id, songIdsToAdd: [song]);
@@ -384,11 +384,11 @@ class PlaylistActions {
   }
 
   /// Removes one occurrence of [songId]: the [occurrence]-th (0-based) entry
-  /// with that id, in a list the caller saw with [copies] of it. Rewrites the
-  /// list without that row instead of removing by index: playlists built by
-  /// 1.5.1 may hold a hidden row (Navidrome 0.64) that `getPlaylist` omits but
-  /// `songIndexToRemove` counts, so an index lands one row early. A replace
-  /// drops such rows. A song already gone removes nothing, and a song whose
+  /// with that id, in a list the caller saw with [copies] of it. Removes by
+  /// index, reads back and, when the index missed (playlists built by 1.5.1
+  /// may hold hidden rows that Navidrome 0.64 counts but `getPlaylist`
+  /// omits), repairs by rewriting the list, which drops such rows. A song
+  /// already gone removes nothing, and a song whose
   /// copies changed throws [PlaylistChangedException] without writing, since
   /// the occurrence no longer names the row the user chose.
   Future<void> removeAt(
@@ -419,21 +419,37 @@ class PlaylistActions {
       final ids = await _entryIds(api, playlist.id);
       final at = _occurrenceIndex(ids, songId, occurrence, copies);
       if (at < 0) return (result: null, ids: ids);
-      final kept = ids.toList()..removeAt(at);
-      if (kept.isNotEmpty) {
-        await api.replacePlaylistSongs(playlistId: playlist.id, songIds: kept);
-        return (result: null, ids: kept);
-      }
-      // An empty replace is a no-op on Navidrome 0.64, so the last song goes
-      // by index (one per call: several are ignored). A hidden row in front
-      // takes the first try, so read back and try once more.
-      for (var attempt = 0; attempt < 2; attempt++) {
-        await api.updatePlaylist(id: playlist.id, songIndexesToRemove: [0]);
-        if ((await _entryIds(api, playlist.id)).isEmpty) {
-          return (result: null, ids: const <String>[]);
+      final expected = ids.toList()..removeAt(at);
+      await api.updatePlaylist(id: playlist.id, songIndexesToRemove: [at]);
+      var now = await _entryIds(api, playlist.id);
+      if (listEquals(now, expected)) return (result: null, ids: now);
+      // The index missed: Navidrome 0.64 counts hidden rows that `getPlaylist`
+      // omits (left by 1.5.1's multi-id adds), so it hit the wrong row.
+      if (expected.isEmpty) {
+        // An empty replace is a no-op, so the last song goes by index; each
+        // try drops one hidden row in front of it.
+        for (var attempt = 1; attempt < 5 && now.isNotEmpty; attempt++) {
+          await api.updatePlaylist(id: playlist.id, songIndexesToRemove: [0]);
+          now = await _entryIds(api, playlist.id);
         }
+        if (now.isNotEmpty) {
+          throw StateError('The server kept the last song');
+        }
+        return (result: null, ids: now);
       }
-      throw StateError('The server kept the last song');
+      // Rewriting the list restores the intended rows and drops the hidden
+      // ones, so later removals are exact. This can overwrite
+      // another client's edit made in the same window; accepted, since it
+      // only runs on a playlist that already has hidden rows.
+      await api.replacePlaylistSongs(
+        playlistId: playlist.id,
+        songIds: expected,
+      );
+      now = await _entryIds(api, playlist.id);
+      if (!listEquals(now, expected)) {
+        throw StateError('The server did not apply the removal');
+      }
+      return (result: null, ids: now);
     });
   }
 
