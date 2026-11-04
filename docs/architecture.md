@@ -3599,7 +3599,11 @@ works like the weekly playlists. `homeTrendingProvider`
   hidden row: a network failure between the index call and the repair can leave
   the wrong row deleted (once per hidden row), and the repair replace is a GET,
   so a very large playlist (about 500+ songs behind Cloudflare) can fail it,
-  the same limit reorder has. Adds send one id per request, since a multi-id
+  the same limit reorder has. Subsonic has no compare-and-set, so another
+  client's edit landing inside the index call on such a playlist can also go
+  wrong. If it removes a row above the chosen one, the repair restores that row.
+  If the read-back is unrecognised, the wrongly removed row stays deleted.
+  Adds send one id per request, since a multi-id
   add on 0.64 adds nothing visible and leaves such a hidden row. The caller also passes how many copies the shown
   list held:
   none left removes nothing, and a different count throws
