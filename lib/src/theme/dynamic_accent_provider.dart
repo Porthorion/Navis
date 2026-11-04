@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +14,10 @@ import 'package:navis/src/providers/app_providers.dart';
 final dynamicAccentEnabledProvider = Provider<bool>((ref) {
   return ref.watch(dynamicAlbumColorEnabledProvider);
 });
+
+/// Sentinel source: the playing song's row is still loading, so the seed
+/// provider holds its previous value instead of resolving.
+const _pendingDynamicAccentSource = 'pending';
 
 final _dynamicAccentSourceProvider = Provider<String?>((ref) {
   if (!ref.watch(dynamicAccentEnabledProvider)) {
@@ -55,23 +61,24 @@ final _dynamicAccentSourceProvider = Provider<String?>((ref) {
     return null;
   }
 
-  final song = ref.watch(songByIdProvider(currentSongId)).asData?.value;
-  final coverArtId = song?.coverArt?.trim() ?? '';
+  final songValue = ref.watch(songByIdProvider(currentSongId));
+  if (songValue.isLoading && !songValue.hasValue) {
+    return _pendingDynamicAccentSource;
+  }
+  final coverArtId = songValue.asData?.value?.coverArt?.trim() ?? '';
   return coverArtId.isEmpty ? null : 'id:$coverArtId';
 });
 
-final _dynamicAccentColorCacheProvider = Provider<_DynamicAccentColorCache>((
-  _,
-) {
-  return _DynamicAccentColorCache();
+final dynamicAccentColorCacheProvider = Provider<DynamicAccentColorCache>((_) {
+  return DynamicAccentColorCache();
 });
 
 final _dynamicAccentCachedSeedProvider = Provider<int?>((ref) {
   final source = ref.watch(_dynamicAccentSourceProvider);
-  if (source == null) {
+  if (source == null || source == _pendingDynamicAccentSource) {
     return null;
   }
-  return ref.watch(_dynamicAccentColorCacheProvider).peek(source);
+  return ref.watch(dynamicAccentColorCacheProvider).peek(source);
 });
 
 /// Seed color extracted from currently playing cover art/radio art.
@@ -82,8 +89,12 @@ final dynamicAccentSeedColorProvider = FutureProvider<int?>((ref) async {
   if (source == null) {
     return null;
   }
+  if (source == _pendingDynamicAccentSource) {
+    // Stay loading so `.value` keeps the previous album's seed.
+    return await Completer<int?>().future;
+  }
 
-  final cache = ref.watch(_dynamicAccentColorCacheProvider);
+  final cache = ref.watch(dynamicAccentColorCacheProvider);
   final api = ref.watch(subsonicApiProvider);
   return await cache.resolve(
     source: source,
@@ -104,7 +115,7 @@ final effectiveColorSchemeSeedProvider = Provider<int?>((ref) {
   return dynamicSeed ?? selectedSeed;
 });
 
-class _DynamicAccentColorCache {
+class DynamicAccentColorCache {
   final Map<String, int> _seedBySource = <String, int>{};
 
   int? peek(String source) => _seedBySource[source];
