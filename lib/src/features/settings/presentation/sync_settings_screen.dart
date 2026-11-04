@@ -146,7 +146,10 @@ class SyncSettingsScreen extends ConsumerWidget {
           text: l10n.syncSettingsApplyDuration(syncState.lastApplyDurationMs!),
           key: null,
         ),
-      if (syncState.failureCategory != null && !syncState.isSilentFailure)
+      if (syncState.failureCategory != null &&
+          // A busy category is never a visible failure (it reads 'sync' once
+          // shown) and may be carried by the running state of the retry.
+          syncState.failureCategory != 'databaseBusy')
         (
           text: l10n.syncSettingsDegradation(
             _humanize(syncState.failureCategory!),

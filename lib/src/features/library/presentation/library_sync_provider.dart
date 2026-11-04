@@ -321,6 +321,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   /// A busy retry time whose persisting failed. It stands in for the (stale)
   /// persisted deadline until a successful write or the check it schedules.
   DateTime? _busyRetryAt;
+
+  /// Set when the last pass armed the busy retry, even if it kept an earlier
+  /// failure as the visible state; read by the automatic check right after.
+  bool _armedBusyRetry = false;
+
   String? _sessionFingerprint;
   ServerReachabilityStatus? _lastReachabilityStatus;
   bool _isForeground = true;
@@ -1218,6 +1223,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     }
 
     if (automaticCheckIsDue) _busyRetryAt = null;
+    _armedBusyRetry = false;
     final result = await _runSync(
       force: false,
       tolerateUnavailableEngine: true,
@@ -1225,10 +1231,11 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     // An abandoned run from an earlier session must not schedule this one.
     if (generation != _sessionGeneration) return result;
     if (automaticCheckIsDue && result.completedAt != null) {
-      if (result.planReason == 'leaseHeld') {
+      if (_armedBusyRetry || result.needsBusyRetry) {
+        // Armed its quick retry in _runSyncOnce; keep it.
+      } else if (result.planReason == 'leaseHeld') {
         await _scheduleAfterLeaseExpiry(interval);
-      } else if (!result.isSilentFailure) {
-        // A silent failure already armed its quick retry in _runSyncOnce.
+      } else {
         await _recordAutomaticCheckCompletion(interval);
       }
     }
@@ -1641,13 +1648,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         (result.status == LibrarySyncStatus.skipped ||
             result.status == LibrarySyncStatus.deferred ||
             result.status == LibrarySyncStatus.cancelled);
-    if (preserveFailure) {
-      state = stateBeforeRequest;
-      return stateBeforeRequest;
-    }
-    // Only this pass's own lock timeout arms the quick retry (a preserved or
-    // joined state never does). With no automatic interval nothing would ever
-    // retry, so the user must see it as an ordinary failure.
+    // Only this pass's own lock timeout arms the quick retry (a joined state
+    // never does). With no automatic interval nothing would ever retry: a
+    // failure then shows as an ordinary one, a deferral stays a plain deferral.
     final interval = ref.read(syncIntervalDurationProvider);
     final silent = result.isSilentFailure;
     final shown = silent && interval == null
@@ -1656,12 +1659,26 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
             errorMessage: librarySyncFailureMessage,
           )
         : result;
-    final busyRetryAt = silent && interval != null
+    final busyRetryAt = result.needsBusyRetry && interval != null
         ? _clampNextCheck(
             result.nextRetryAt?.toUtc() ?? DateTime.now().toUtc(),
             interval,
           )
         : null;
+    if (preserveFailure) {
+      state = stateBeforeRequest;
+      // The kept failure stays visible; the deferral still needs its retry.
+      final preservedServerId = ref
+          .read(serverConfigStateProvider)
+          .asData
+          ?.value
+          ?.id;
+      if (busyRetryAt != null && preservedServerId != null) {
+        _armedBusyRetry = true;
+        _trackSyncStateTask(_armBusyRetry(preservedServerId, busyRetryAt));
+      }
+      return stateBeforeRequest;
+    }
     // The engine owns catalog result fields, but both deadlines are durable
     // scheduler inputs. Engine results do not carry the automatic deadline,
     // and a run can start before the persisted row has been loaded, so the
@@ -1705,6 +1722,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     // After the final state is published: the write runs right after a lock
     // timeout and may fail too. The retry then only re-arms the timer.
     if (busyRetryAt != null && serverId != null) {
+      _armedBusyRetry = true;
       // Not awaited: the caller already has its result.
       _trackSyncStateTask(_armBusyRetry(serverId, busyRetryAt));
     }
