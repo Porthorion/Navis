@@ -91,7 +91,7 @@ void main() {
     // Start the provider before waiting for asynchronous secure-storage
     // hydration to finish.
     restarted.read(desktopShortcutBindingsProvider);
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await pumpEventQueue();
 
     final restored = restarted.read(
       desktopShortcutBindingsProvider,
@@ -110,17 +110,17 @@ void main() {
       addTearDown(() => debugDefaultTargetPlatformOverride = null);
       passwordReadGate = Completer<void>();
       final pending = FlutterSecureCredentialStore().readPassword();
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await pumpEventQueue();
 
       final container = ProviderContainer();
       addTearDown(container.dispose);
       container.read(desktopShortcutBindingsProvider);
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await pumpEventQueue();
       expect(calls, ['read navis.auth.active_server.password']);
 
       passwordReadGate!.complete();
       await pending;
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await pumpEventQueue();
       expect(calls.last, 'read navis.desktop.shortcut_bindings.v1');
     },
   );
@@ -128,12 +128,12 @@ void main() {
   test('other platforms call shortcut storage directly', () async {
     passwordReadGate = Completer<void>();
     final pending = FlutterSecureCredentialStore().readPassword();
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await pumpEventQueue();
 
     final container = ProviderContainer();
     addTearDown(container.dispose);
     container.read(desktopShortcutBindingsProvider);
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await pumpEventQueue();
     expect(calls, contains('read navis.desktop.shortcut_bindings.v1'));
 
     passwordReadGate!.complete();

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -179,6 +180,90 @@ void main() {
       },
     );
 
+    group('a delete the keychain refuses', () {
+      const passwordKey = 'navis.auth.active_server.password';
+      const userInfoKey = 'navis.auth.active_server.user_info';
+      late Map<String, String> persisted;
+
+      setUp(() {
+        persisted = {passwordKey: 'old-secret', userInfoKey: 'old:proxy'};
+        when(() => storage.delete(key: any(named: 'key')))
+            .thenThrow(PlatformException(code: '-25244'));
+        when(
+          () => storage.write(
+            key: any(named: 'key'),
+            value: any(named: 'value'),
+          ),
+        ).thenAnswer((invocation) async {
+          persisted[invocation.namedArguments[#key]! as String] =
+              invocation.namedArguments[#value]! as String;
+        });
+        when(() => storage.read(key: any(named: 'key'))).thenAnswer(
+          (invocation) async =>
+              persisted[invocation.namedArguments[#key]! as String],
+        );
+      });
+
+      test('is overwritten with an empty value that reads as absent', () async {
+        await store.clearPassword();
+        await store.clearUserInfo();
+
+        expect(persisted, {passwordKey: '', userInfoKey: ''});
+        expect(await store.readPassword(), isNull);
+        expect(await store.readUserInfo(), isNull);
+
+        await store.saveUserInfo('new:proxy');
+        expect(await store.readUserInfo(), 'new:proxy');
+      });
+
+      test('is hidden by a cleared marker when the overwrite fails', () async {
+        var failWrites = true;
+        when(
+          () => storage.write(
+            key: any(named: 'key'),
+            value: any(named: 'value'),
+          ),
+        ).thenAnswer((invocation) async {
+          if (failWrites) throw PlatformException(code: '-25244');
+          persisted[invocation.namedArguments[#key]! as String] =
+              invocation.namedArguments[#value]! as String;
+        });
+
+        await store.clearPassword();
+        await store.clearUserInfo();
+
+        expect(persisted[userInfoKey], 'old:proxy');
+        expect(await store.readPassword(), isNull);
+        expect(await store.readUserInfo(), isNull);
+
+        // The marker lasts until a later write succeeds.
+        failWrites = false;
+        await store.saveUserInfo('new:proxy');
+        expect(await store.readUserInfo(), 'new:proxy');
+        expect(await store.readPassword(), isNull);
+      });
+    });
+
+    test('a successful delete stays a plain delete', () async {
+      await store.clearPassword();
+
+      verify(() => storage.delete(key: 'navis.auth.active_server.password'))
+          .called(1);
+      verifyNever(
+        () => storage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      );
+    });
+
+    test('an empty stored value reads as absent', () async {
+      when(() => storage.read(key: any(named: 'key')))
+          .thenAnswer((_) async => '');
+      expect(await store.readPassword(), isNull);
+      expect(await store.readUserInfo(), isNull);
+    });
+
     test('durable stores reject a save that stays memory-only', () async {
       when(
         () => storage.write(
@@ -264,6 +349,63 @@ void main() {
           value: 'fixture',
         ),
       ).called(3);
+    });
+  });
+
+  test('the macOS service name stays pinned', () {
+    expect(
+      macOsLoginKeychain.accountName,
+      'com.navis.app.navis',
+      reason:
+          "Renaming the service name orphans every user's stored items "
+          'in the login keychain.',
+    );
+  });
+
+  group('runSerializedSecureStorage', () {
+    const deadline = Duration(seconds: 5);
+
+    tearDown(resetSecureStorageQueue);
+
+    test('queue wait does not count against the deadline', () {
+      fakeAsync((async) {
+        resetSecureStorageQueue();
+        final slow = Completer<void>();
+        runSerializedSecureStorage(() => slow.future, deadline).ignore();
+        String? second;
+        runSerializedSecureStorage(() async {
+          await Future<void>.delayed(const Duration(seconds: 3));
+          return 'done';
+        }, deadline).then((value) => second = value);
+
+        async.elapse(const Duration(seconds: 4));
+        slow.complete();
+        async.flushMicrotasks();
+        // Seven seconds after enqueue, but only three after it started.
+        async.elapse(const Duration(seconds: 4));
+        expect(second, 'done');
+      });
+    });
+
+    test('a caller waiting behind a stuck call times out unstarted', () {
+      fakeAsync((async) {
+        resetSecureStorageQueue();
+        final stuck = Completer<void>();
+        runSerializedSecureStorage(() => stuck.future, deadline).ignore();
+        var started = false;
+        Object? error;
+        runSerializedSecureStorage(
+          () async => started = true,
+          deadline,
+        ).then<void>((_) {}, onError: (Object e) => error = e);
+
+        async.elapse(deadline + const Duration(milliseconds: 1));
+        expect(error, isA<TimeoutException>());
+
+        stuck.complete();
+        async.flushMicrotasks();
+        expect(started, isFalse);
+      });
     });
   });
 

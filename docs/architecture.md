@@ -571,7 +571,7 @@ scrub legacy URLs once; signed-out profiles are scrubbed without restoring secre
 Both sign-out modes delete both keys. A full wipe also clears the ListenBrainz
 secure token, username, token-valid flag and scrobbling enablement through the
 existing store and targeted settings writer; keep-data sign-out retains them.
-Credential deletion failures reach teardown warning reporting. Profile identity
+Credential deletion failures reach teardown warning reporting. When a delete fails (for example -25244 on a rebuilt macOS binary) the store overwrites the key with an empty value, which reads as absent; if that also fails it remembers the key as cleared until a later save succeeds, so a stale account's user info or password is never read back into the next sign-in. Sign-out still never throws. Each native secure-storage call gets its 5-second deadline from when it starts; a caller still queued after 5 seconds gives up and its call is skipped. Profile identity
 excludes URL credentials.
 
 Credential read failures are transient and must never sign the user out or
