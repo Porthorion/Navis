@@ -205,7 +205,13 @@ void main() {
       ];
     }
 
-    for (final size in <Size>[const Size(412, 915), const Size(1920, 1080)]) {
+    for (final size in <Size>[
+      const Size(360, 800),
+      const Size(375, 812),
+      const Size(390, 844),
+      const Size(412, 915),
+      const Size(1920, 1080),
+    ]) {
       testWidgets('${size.width.toInt()} px: the avatar fills its cell and '
           'the grid gap is the only gutter', (tester) async {
         final rects = await avatars(tester, size);

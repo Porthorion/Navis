@@ -96,4 +96,33 @@ void main() {
       }
     }
   });
+
+  test('artist cells fill the pane on every size, with the letter rail', () {
+    for (final size in GridArtworkSize.values) {
+      for (var window = 600.0; window <= 1920; window += 20) {
+        final width = window - ContentLayout.padding(window) * 2 - 28;
+        final grid = ContentLayout.artists(width, size);
+        expect(
+          grid.occupiedWidth,
+          closeTo(width, 0.001),
+          reason: '$size at $window',
+        );
+      }
+    }
+  });
+
+  test('phones get three artists per row at the default size', () {
+    for (final phone in <double>[360, 375, 390, 412]) {
+      final width = phone - ContentLayout.padding(phone) * 2 - 28;
+      final grid = ContentLayout.artists(width, GridArtworkSize.auto);
+      expect(grid.columns, 3, reason: '$phone');
+      expect(grid.occupiedWidth, closeTo(width, 0.001), reason: '$phone');
+    }
+  });
+
+  test('genre cards reach their widest just below three columns', () {
+    final grid = ContentLayout.genres(683);
+    expect(grid.columns, 2);
+    expect(grid.extent, closeTo(335.5, 0.001));
+  });
 }

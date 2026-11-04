@@ -3412,7 +3412,7 @@ void main() {
     );
 
     for (final mode in <String>['grid', 'list']) {
-      for (final width in <double>[412, 1000, 1920]) {
+      for (final width in <double>[360, 375, 390, 412, 1000, 1920]) {
         _testWidgetsWithCleanup(
           'artists $mode at $width px: filter chips sit on the letter '
           'header and first row inset',

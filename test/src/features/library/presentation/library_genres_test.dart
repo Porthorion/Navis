@@ -304,6 +304,43 @@ void main() {
       });
     }
 
+    for (final width in <double>[1000, 1920]) {
+      testWidgets('$width px: name sort leaves the 28 px letter rail free', (
+        tester,
+      ) async {
+        setAdaptiveTestViewport(tester, Size(width, 900));
+        final genres = <GenreSummary>[
+          for (var i = 0; i < 20; i++)
+            GenreSummary(
+              key: 'g$i',
+              name: 'Genre $i',
+              songCount: 20 - i,
+              albumCount: 1,
+            ),
+        ];
+        await tester.pumpWidget(_app(_commonOverrides(genres: genres)));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey<String>('genresSortControl')),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Name (A-Z)').last);
+        await tester.pumpAndSettle();
+        final rects = <Rect>[
+          for (final genre in genres) tester.getRect(card(genre.key)),
+        ];
+        final inset = ContentLayout.padding(width);
+        expect(
+          rects.map((r) => r.left).reduce((a, b) => a < b ? a : b),
+          closeTo(inset, 0.01),
+        );
+        expect(
+          rects.map((r) => r.right).reduce((a, b) => a > b ? a : b),
+          closeTo(width - inset - 28, 0.01),
+        );
+      });
+    }
+
     testWidgets('a single genre is one card, and name sort keeps letters', (
       tester,
     ) async {
