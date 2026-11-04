@@ -293,6 +293,14 @@ class NavisAudioHandler extends BaseAudioHandler
   /// another load, this lasts only until the next load or progress.
   bool _loadedSourceFailed = false;
 
+  /// The last queue apply returned normally, so a failure reported before
+  /// its load ends was not surfaced by the load itself.
+  bool _loadedSourceApplied = false;
+
+  /// A failure was reported after the load's source was applied and while
+  /// the load still ran; recovery skipped it, so the load end must act.
+  bool _failedAfterApply = false;
+
   /// Automatic failovers since playback last advanced for
   /// [NavisPlaybackTimeouts.healthyPlayback]; [_maxAutoFailovers] is the cap.
   int _autoFailovers = 0;

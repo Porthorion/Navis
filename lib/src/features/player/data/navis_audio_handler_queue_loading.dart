@@ -34,6 +34,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
     final generation = ++_loadGeneration;
     _activeLoadGeneration = generation;
+    _loadedSourceApplied = false;
+    _failedAfterApply = false;
     _isLoading = isLoading;
     _loadingSongId = isLoading ? loadingSongId : null;
     if (isLoading && loadingSongId != null) {
@@ -191,6 +193,21 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
     _emitSnapshot();
     _continueIntoDeferredTail();
+    // The native player can report a source failure after its load returned
+    // but before this load ends (libmpv opens a file after `open` returns, so
+    // a 404 lands after the first ready). Recovery ignores a song that is
+    // still loading and a failed load throws instead, so only this gap is
+    // left unhandled: without this the song stays idle yet playing.
+    final failedAfterApply = _failedAfterApply;
+    _loadedSourceApplied = false;
+    _failedAfterApply = false;
+    if (!failed && failedAfterApply && _remoteSourceFailed) {
+      unawaited(
+        _recoverCurrentSongFromRemotePlaybackFailure(
+          reason: 'failed while loading',
+        ),
+      );
+    }
   }
 
   void _reportDroppedSongs(List<String> songIds, QueueDropReason reason) {
@@ -1446,6 +1463,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
   }) async {
     // A new load replaces the failed source, even one left unprepared.
     _loadedSourceFailed = false;
+    _loadedSourceApplied = false;
+    _failedAfterApply = false;
     const operations = <String>[
       'active queue apply',
       'active queue apply retry',
@@ -1505,6 +1524,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       }
     }
     token?.checkCancelled();
+    _loadedSourceApplied = true;
     await _restoreActivePlayerVolume();
   }
 
