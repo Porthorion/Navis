@@ -106,7 +106,7 @@ Menus and window:
 - Controls menu, nothing loaded: before anything is queued the items are disabled.
 - Next with the window closed: close the window with the red button (music keeps playing), choose Controls > Next; the next song starts and the window stays hidden.
 - Dock click: clicking the Dock icon reopens the hidden window.
-- Dock menu: right-click the Dock icon; it shows "Title - Artist" plus Play or Pause, Next and Previous, and they work.
+- Dock menu: right-click the Dock icon; it shows "Title — Artist" plus Play or Pause, Next and Previous, and they work.
 - Cmd+Q quits the app and stops the music (closing the window does not).
 - Edit menu: click in the search field and paste with Cmd+V; the text pastes (the stock Edit menu is still in the menu bar).
 

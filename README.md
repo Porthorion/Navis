@@ -99,7 +99,7 @@ The macOS build is not released yet. It plays and caches like the other desktop 
 
 - Streaming needs a server that allows TLS 1.2 or lower: the macOS player backend cannot connect to a TLS 1.3-only server (sign-in still works).
 - Now Playing and the media keys only include Navis after it has played audio once in a launch (a macOS rule).
-- Debug builds use AVFoundation instead of libmpv, so they have no equalizer or Fast Seeking.
+- Debug builds use AVFoundation instead of libmpv (unless `NAVIS_ENABLE_MEDIA_KIT_DEBUG=true`), so they have no equalizer or Fast Seeking.
 
 Open work is tracked in the [macOS parity plan](docs/plans/macOS_Parity_Plan.md).
 
@@ -119,7 +119,7 @@ If you trust the repository, `curl -fsSL https://raw.githubusercontent.com/Porth
 
 ## Build from source
 
-You need Flutter 3.47.5+ (stable) and the toolchain for your platform: Android SDK, Linux desktop packages, or Visual Studio + Rust for Windows. Details are in the [development workflow](docs/development/development-workflow.md).
+You need Flutter 3.47.5+ (stable) and the toolchain for your platform: Android SDK, Linux desktop packages, Visual Studio + Rust for Windows, or Xcode + CocoaPods for macOS (see [release-macos](docs/release/release-macos.md) for the libmpv fetch and `NAVIS_LIBMPV_MACOS_ARCHIVE`). Details are in the [development workflow](docs/development/development-workflow.md).
 The full quality gate additionally needs JDK 21, Android SDK 37 and GNU `timeout`
 for the Android host JVM fixtures.
 

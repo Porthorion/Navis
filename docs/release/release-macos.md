@@ -301,7 +301,7 @@ their own scripts, unchanged):
 - Writes `pending` to `~/Library/Application Support/<bundle id>/navis-update-handshake`
   and opens the new app.
 - The new app rewrites that file as `started` once it has rendered its first frame
-  (`MacosUpdate.confirmLaunch`, a post-frame callback in `main.dart`). The script waits up
+  (`UpdateService.confirmMacosLaunch` → `MacosUpdate.confirmLaunch`, a post-frame callback in `main.dart`). The script waits up
   to 30 s for it.
 - Seen: deletes the backup. Not seen and no process runs from the new bundle (the new app
   crashed or never started), or `open`, a move or the handshake write failed: writes

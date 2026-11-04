@@ -3954,7 +3954,7 @@ unsigned derived fields.
     `<App>.app.backup`, moves the new app in, writes `pending` to
     `~/Library/Application Support/<bundle id>/navis-update-handshake` and opens it.
     The new app writes `started` to that file after its first frame
-    (`MacosUpdate.confirmLaunch`, called from `main.dart`); the script waits up to
+    (`MacosUpdate.confirmLaunch`, via `UpdateService.confirmMacosLaunch` from `main.dart`); the script waits up to
     30 s. If the marker never comes and no process runs from the new bundle (or
     `open`, a move or the handshake write failed) it writes `rollback`, moves the new
     app aside, restores the backup and reopens the old app; a new app that is still
