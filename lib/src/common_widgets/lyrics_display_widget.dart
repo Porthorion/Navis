@@ -242,6 +242,11 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        assert(
+          constraints.hasBoundedHeight,
+          'The follow padding is a fraction of the pane height, so '
+          'LyricsDisplayWidget needs a bounded height.',
+        );
         final inactiveFontSize = _resolveSyncedFontSize(constraints.maxWidth);
         final activeFontSize = inactiveFontSize + 2;
         final horizontalPadding = (constraints.maxWidth * 0.06).clamp(
@@ -290,9 +295,12 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
                   // resting height; with less, the list is clamped at the top
                   // and the active line walks down the screen for the first
                   // lines, then slides back up once scrolling is possible.
+                  // The matching bottom padding lets the last lines reach the
+                  // same height; a fixed 100 left short lyrics and the end of a
+                  // song resting 77-85% down.
                   padding: EdgeInsets.only(
                     top: constraints.maxHeight * _followAlignment,
-                    bottom: 100,
+                    bottom: constraints.maxHeight * (1 - _followAlignment),
                   ),
                   itemCount: lines.length + (hasFooter ? 1 : 0),
                   itemBuilder: (context, index) {

@@ -309,6 +309,42 @@ void main() {
       expect(tester.getTopLeft(find.text('Line 1')).dy, closeTo(reference, 5));
     });
 
+    testWidgets('short lyrics rest at one height from line 0 on', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final shortLyrics = LyricsList(
+        structuredLyrics: [
+          StructuredLyrics(
+            synced: true,
+            line: List.generate(
+              10,
+              (i) => LyricLine(start: i * 3000, value: 'Line $i'),
+            ),
+          ),
+        ],
+      );
+      final reference = await settledActiveY(tester, shortLyrics, 0);
+      for (final line in [1, 2, 3]) {
+        expect(
+          await settledActiveY(tester, shortLyrics, line),
+          closeTo(reference, 5),
+          reason: 'line $line',
+        );
+      }
+    });
+
+    testWidgets('the last line rests at the same height as a middle line', (
+      tester,
+    ) async {
+      final lyrics = lyricsWith();
+      final reference = await settledActiveY(tester, lyrics, 20);
+      expect(await settledActiveY(tester, lyrics, 39), closeTo(reference, 5));
+    });
+
     testWidgets('following never moves away from the active line', (
       tester,
     ) async {
