@@ -196,16 +196,20 @@ restore() {
     if [ -e $t ]; then
       if [ -e $f ] || ! mv $t $f; then rm -rf -- $t; fi
     fi
+    # The handshake stays "rollback" while the backup is the only good copy,
+    # so the app's startup cleanup keeps it.
     if [ -e $t ]; then
       log "could not clear the new app; backup kept"
     elif mv $b $t; then
       log "restored previous app"
       rm -rf -- $f
+      rm -f -- $h
     else
       log "restore FAILED; backup and failed app kept"
     fi
+  else
+    rm -f -- $h
   fi
-  rm -f -- $h
   open $t || log "open of restored app failed"
 }
 log "update started; waiting for pid $pid"

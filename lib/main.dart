@@ -141,9 +141,10 @@ Future<void> _runNavis() async {
       ),
     );
     runApp(diagnosticsPresentation?.wrap(app) ?? app);
-    // A macOS updater script waits for this: only a first frame proves the new
-    // app got past startup (the database opened, the UI built).
-    if (_isDesktopRuntime && !desktopClone) {
+    // A macOS updater script waits for this: only a first frame after a
+    // successful desktop bootstrap (database and settings opened) proves the
+    // new app got past startup.
+    if (_isDesktopRuntime && !desktopClone && desktopBootstrap != null) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => unawaited(UpdateService.confirmMacosLaunch()),
       );
