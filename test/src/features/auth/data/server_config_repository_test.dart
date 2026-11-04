@@ -168,6 +168,7 @@ void main() {
     late ServerConfigRepository repository;
 
     setUp(() {
+      resetUnclearableSecureKeys();
       database = createTestDatabase();
       credentials = _FakeCredentialStore();
       repository = ServerConfigRepository(database, credentials: credentials);

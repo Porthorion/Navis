@@ -65,10 +65,7 @@ class FlutterExternalScrobbleCredentialStore
 
   Future<void> _write(String key, String value) async {
     try {
-      await runSerializedSecureStorage(
-        () => _storage.write(key: key, value: value),
-        storageDeadline,
-      );
+      await writeSecureEntry(_storage, key, value, storageDeadline);
     } on Object catch (error) {
       AppLogger.warning(
         'External credential save failed: ${error.runtimeType}',
@@ -79,10 +76,7 @@ class FlutterExternalScrobbleCredentialStore
 
   Future<String?> _read(String key) async {
     try {
-      return await runSerializedSecureStorage(
-        () => _storage.read(key: key),
-        storageDeadline,
-      );
+      return await readSecureEntry(_storage, key, storageDeadline);
     } on Object catch (error) {
       AppLogger.warning(
         'External credential read failed: ${error.runtimeType}',
@@ -95,10 +89,7 @@ class FlutterExternalScrobbleCredentialStore
 
   Future<void> _delete(String key) async {
     try {
-      await runSerializedSecureStorage(
-        () => _storage.delete(key: key),
-        storageDeadline,
-      );
+      await deleteSecureEntry(_storage, key, storageDeadline);
     } on Object catch (error) {
       AppLogger.warning(
         'External credential clear failed: ${error.runtimeType}',

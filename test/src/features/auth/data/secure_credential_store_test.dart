@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -20,6 +19,7 @@ void main() {
 
     setUp(() async {
       resetSecureStorageQueue();
+      resetUnclearableSecureKeys();
       storage = _Storage();
       when(() => storage.delete(key: any(named: 'key')))
           .thenAnswer((_) async {});
@@ -244,6 +244,38 @@ void main() {
       });
     });
 
+    test(
+      'a read queued during a failed clear never returns the old value',
+      () async {
+        const userInfoKey = 'navis.auth.active_server.user_info';
+        final stuckDelete = Completer<void>();
+        when(() => storage.delete(key: userInfoKey))
+            .thenAnswer((_) => stuckDelete.future);
+        when(
+          () => storage.write(
+            key: userInfoKey,
+            value: any(named: 'value'),
+          ),
+        ).thenThrow(PlatformException(code: '-25244'));
+        when(() => storage.read(key: userInfoKey))
+            .thenAnswer((_) async => 'old:proxy');
+        final clearingStore = FlutterSecureCredentialStore(
+          storage: storage,
+          storageDeadline: const Duration(milliseconds: 20),
+        );
+
+        final clear = clearingStore.clearUserInfo();
+        // Queued behind the stuck delete, ahead of the overwrite.
+        final read = store.readUserInfo();
+        await clear;
+
+        // The delete and overwrite both failed, so the marker is set. Only now
+        // does the queued read reach the keychain and see the old value.
+        stuckDelete.complete();
+        expect(await read, isNull);
+      },
+    );
+
     test('a successful delete stays a plain delete', () async {
       await store.clearPassword();
 
@@ -360,53 +392,6 @@ void main() {
           "Renaming the service name orphans every user's stored items "
           'in the login keychain.',
     );
-  });
-
-  group('runSerializedSecureStorage', () {
-    const deadline = Duration(seconds: 5);
-
-    tearDown(resetSecureStorageQueue);
-
-    test('queue wait does not count against the deadline', () {
-      fakeAsync((async) {
-        resetSecureStorageQueue();
-        final slow = Completer<void>();
-        runSerializedSecureStorage(() => slow.future, deadline).ignore();
-        String? second;
-        runSerializedSecureStorage(() async {
-          await Future<void>.delayed(const Duration(seconds: 3));
-          return 'done';
-        }, deadline).then((value) => second = value);
-
-        async.elapse(const Duration(seconds: 4));
-        slow.complete();
-        async.flushMicrotasks();
-        // Seven seconds after enqueue, but only three after it started.
-        async.elapse(const Duration(seconds: 4));
-        expect(second, 'done');
-      });
-    });
-
-    test('a caller waiting behind a stuck call times out unstarted', () {
-      fakeAsync((async) {
-        resetSecureStorageQueue();
-        final stuck = Completer<void>();
-        runSerializedSecureStorage(() => stuck.future, deadline).ignore();
-        var started = false;
-        Object? error;
-        runSerializedSecureStorage(
-          () async => started = true,
-          deadline,
-        ).then<void>((_) {}, onError: (Object e) => error = e);
-
-        async.elapse(deadline + const Duration(milliseconds: 1));
-        expect(error, isA<TimeoutException>());
-
-        stuck.complete();
-        async.flushMicrotasks();
-        expect(started, isFalse);
-      });
-    });
   });
 
   test('clone diagnostics retries a failed shared backing read', () async {

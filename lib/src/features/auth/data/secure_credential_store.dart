@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -44,39 +43,90 @@ Future<void> _nativeOperations = Future<void>.value();
 /// Runs [operation] after every earlier native secure-storage operation has
 /// settled. The caller gets [deadline] as an error, but the queue advances only
 /// when the native call itself settles, so a stuck call is never overlapped.
-/// The deadline starts when the operation starts, so time spent waiting behind
-/// a slow call does not eat it. A caller still waiting after [deadline] gives
-/// up and its operation is skipped, so a hung call cannot block callers forever.
 /// ponytail: a permanently hung plugin makes later calls time out as
 /// unavailable; the startup Restart Navis recovery covers that.
 Future<T> runSerializedSecureStorage<T>(
   Future<T> Function() operation,
   Duration deadline,
 ) {
-  final result = Completer<T>();
-  void timeOut() {
-    if (!result.isCompleted) {
-      result.completeError(
-        TimeoutException('Secure storage did not respond.', deadline),
+  final task = _nativeOperations.then((_) => operation());
+  _nativeOperations = task.then<void>(
+    (_) {},
+    onError: (Object _, StackTrace _) {},
+  );
+  return task.timeout(deadline);
+}
+
+/// Keys whose delete and empty overwrite both failed. The stored value is
+/// stale, so reads ignore it until a later write of the key succeeds.
+/// ponytail: in memory only. If both the delete and the overwrite fail, a
+/// restart can read the stale value again; persist the marker in app settings
+/// if that ever matters outside ad-hoc rebuilt dev binaries.
+final _unclearableKeys = <String>{};
+
+/// Forgets cleared-key markers so tests do not depend on their order.
+@visibleForTesting
+void resetUnclearableSecureKeys() => _unclearableKeys.clear();
+
+/// Reads [key] through the serialized queue. A cleared key, or an empty value
+/// (the overwrite that stands in for a delete the keychain refused), reads as
+/// absent.
+Future<String?> readSecureEntry(
+  FlutterSecureStorage storage,
+  String key,
+  Duration deadline,
+) async {
+  if (_unclearableKeys.contains(key)) return null;
+  final value = await runSerializedSecureStorage(
+    () => storage.read(key: key),
+    deadline,
+  );
+  // A clear can fail while this read waits in the queue.
+  if (_unclearableKeys.contains(key) || value == null || value.isEmpty) {
+    return null;
+  }
+  return value;
+}
+
+/// Writes [key] through the serialized queue; a successful write ends any
+/// cleared marker.
+Future<void> writeSecureEntry(
+  FlutterSecureStorage storage,
+  String key,
+  String value,
+  Duration deadline,
+) async {
+  await runSerializedSecureStorage(
+    () => storage.write(key: key, value: value),
+    deadline,
+  );
+  _unclearableKeys.remove(key);
+}
+
+/// Deletes [key]. A delete can fail where an overwrite works (-25244 on a
+/// rebuilt macOS binary), so a failed delete is retried as an overwrite with an
+/// empty value. If that fails too the key is marked cleared and the delete
+/// error is rethrown.
+Future<void> deleteSecureEntry(
+  FlutterSecureStorage storage,
+  String key,
+  Duration deadline,
+) async {
+  try {
+    await runSerializedSecureStorage(() => storage.delete(key: key), deadline);
+    _unclearableKeys.remove(key);
+  } on Object catch (error, stackTrace) {
+    try {
+      await runSerializedSecureStorage(
+        () => storage.write(key: key, value: ''),
+        deadline,
       );
+      _unclearableKeys.remove(key);
+    } on Object {
+      _unclearableKeys.add(key);
+      Error.throwWithStackTrace(error, stackTrace);
     }
   }
-
-  final queueTimer = Timer(deadline, timeOut);
-  _nativeOperations = _nativeOperations.then((_) async {
-    queueTimer.cancel();
-    if (result.isCompleted) return;
-    final runTimer = Timer(deadline, timeOut);
-    try {
-      final value = await operation();
-      if (!result.isCompleted) result.complete(value);
-    } on Object catch (error, stackTrace) {
-      if (!result.isCompleted) result.completeError(error, stackTrace);
-    } finally {
-      runTimer.cancel();
-    }
-  });
-  return result.future;
 }
 
 /// Forgets queued native operations so a test's deliberately stuck call cannot
@@ -168,10 +218,6 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
   static bool _didLogReadFallbackWarning = false;
   static bool _didLogClearFallbackWarning = false;
 
-  /// Keys whose delete and empty-overwrite both failed. The stored value is
-  /// stale, so reads ignore it until a later save of the key succeeds.
-  static final _unclearableKeys = <String>{};
-
   final FlutterSecureStorage _storage;
 
   /// Whether a save that cannot reach durable storage must fail instead of
@@ -188,25 +234,8 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
   bool get _mustPersistDurableCredentials =>
       requiresDurableCredentials ?? Platform.isAndroid;
 
-  Future<T> _runSerialized<T>(Future<T> Function() operation) {
-    return runSerializedSecureStorage(operation, storageDeadline);
-  }
-
-  /// A cleared entry reads as absent: an empty value is the overwrite that
-  /// stands in for a delete the keychain refused.
-  Future<String?> _readEntry(String key) async {
-    if (_unclearableKeys.contains(key)) return null;
-    final value = await _runSerialized(() => _storage.read(key: key));
-    return value == null || value.isEmpty ? null : value;
-  }
-
-  Future<void> _writeEntry(String key, String value) {
-    return _runSerialized(() => _storage.write(key: key, value: value));
-  }
-
-  Future<void> _deleteEntry(String key) {
-    return _runSerialized(() => _storage.delete(key: key));
-  }
+  Future<String?> _readEntry(String key) =>
+      readSecureEntry(_storage, key, storageDeadline);
 
   @override
   Future<void> savePassword(String password) {
@@ -266,14 +295,10 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
     await _clearEntry(_userInfoKey);
   }
 
-  /// Never throws, so sign-out always completes. A delete can fail where an
-  /// overwrite works (-25244 on a rebuilt macOS binary); if both fail, the
-  /// key is marked cleared so its stale value is never read back.
+  /// Never throws, so sign-out always completes.
   Future<void> _clearEntry(String key) async {
     try {
-      await _deleteEntry(key);
-      _unclearableKeys.remove(key);
-      return;
+      await deleteSecureEntry(_storage, key, storageDeadline);
     } on Object catch (error) {
       if (!_didLogClearFallbackWarning) {
         _didLogClearFallbackWarning = true;
@@ -281,12 +306,6 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
           'Secure credential clear failed: ${error.runtimeType}.',
         );
       }
-    }
-    try {
-      await _writeEntry(key, '');
-      _unclearableKeys.remove(key);
-    } on Object {
-      _unclearableKeys.add(key);
     }
   }
 
@@ -297,8 +316,7 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
   }) async {
     for (var attempt = 1; ; attempt++) {
       try {
-        await _writeEntry(key, value);
-        _unclearableKeys.remove(key);
+        await writeSecureEntry(_storage, key, value, storageDeadline);
         onSessionFallback(null);
         return;
       } on Object catch (error) {
