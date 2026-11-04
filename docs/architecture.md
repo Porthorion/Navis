@@ -2749,6 +2749,15 @@ strings) and Swift keeps only the last one and shows the stock Dock menu until t
 (`desktop_transport_actions.dart`), the same functions the desktop keyboard
 commands use, so radio mode behaves identically: Next leaves the station and
 Previous does nothing. Disposing the bridge pushes an empty state.
+The same `update` also feeds a menu-bar "Controls" menu (Play or Pause, Next,
+Previous) that `AppDelegate.installControlsMenu` adds to `NSApp.mainMenu` before the
+Window menu, once, after launch. The payload carries a `controlsMenuLabel`;
+until the first `update` the menu reads "Controls" with its items disabled, and
+items are disabled whenever `hasItem` is false. Choosing an item sends the same
+`command` call, so it works with the window hidden. It is native rather than
+Flutter `PlatformMenuBar` because that replaces the whole menu bar and would
+drop the stock Edit menu. It has no key equivalents: the in-window transport keys
+(bare Space and arrows, Option+punctuation) would steal keys from text fields.
 The isolated Desktop-layout diagnostics deliberately shuts down from Mini
 Player and verifies the following launch starts in Desktop View at the last
 validated Desktop bounds.

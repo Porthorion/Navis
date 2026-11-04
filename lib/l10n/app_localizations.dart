@@ -4265,6 +4265,12 @@ abstract class AppLocalizations {
   /// **'Next'**
   String get nowPlayingNext;
 
+  /// No description provided for @macosMenuControls.
+  ///
+  /// In en, this message translates to:
+  /// **'Controls'**
+  String get macosMenuControls;
+
   /// No description provided for @nowPlayingNoNextTrack.
   ///
   /// In en, this message translates to:

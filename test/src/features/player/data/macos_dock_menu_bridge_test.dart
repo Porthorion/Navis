@@ -98,6 +98,7 @@ void main() {
     expect(updates.single, containsPair('playPauseLabel', 'Play'));
     expect(updates.single, containsPair('nextLabel', 'Next'));
     expect(updates.single, containsPair('previousLabel', 'Previous'));
+    expect(updates.single, containsPair('controlsMenuLabel', 'Controls'));
   });
 
   test('pushes the track and playing state, once per change', () async {

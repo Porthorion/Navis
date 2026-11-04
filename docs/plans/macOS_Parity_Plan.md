@@ -36,7 +36,7 @@ assumptions until an item proves them.
 | System media artwork | local file from `_artCache` | `audio_service` fetches `artUri` through the guarded cache manager; unverified | `lib/src/features/player/data/navis_audio_handler.dart:155-161`, `navis_audio_handler_bootstrap.dart:193` |
 | Audio session | not used | `AudioSessionConfiguration.music()` | `lib/src/features/player/data/navis_audio_handler_support.dart:12-13`, `navis_audio_handler.dart:916-919` |
 | Window lifecycle | close persists state and quits | closing hides the window (full screen is left first); playback and the app keep running, Dock click reopens, Cmd+Q quits (M3a) | `lib/src/routing/desktop_window_controller.dart` (`onWindowClose`, `_persistThenHide`), `macos/Runner/AppDelegate.swift`, `macos/Runner/MainFlutterWindow.swift` |
-| Dock menu / app menu playback commands | n/a | Dock menu: now playing, Play or Pause, Next, Previous (M3a); the app menu has **none** (stock `MainMenu.xib`, M3 Controls menu open) | `macos/Runner/AppDelegate.swift`, `lib/src/features/player/data/macos_dock_menu_bridge.dart` |
+| Dock menu / app menu playback commands | n/a | Dock menu: now playing, Play or Pause, Next, Previous (M3a); menu-bar Controls menu (Play or Pause, Next, Previous, no key equivalents; built in Swift, not `PlatformMenuBar`, so the stock Edit menu stays; M3c, built, in review) | `macos/Runner/AppDelegate.swift`, `lib/src/features/player/data/macos_dock_menu_bridge.dart` |
 | Keyboard shortcuts | Ctrl bindings | Cmd bindings, Cmd+[ / Cmd+] (in-window only, same as other platforms) | `lib/src/routing/desktop_commands.dart:53-61,153-166` |
 | Diagnostics API (runtime loop) | profile builds | **excluded** by the platform list; launch scripts hard-code `-d linux` | `lib/main.dart:526-531`, `tool/sync_diagnostics.sh:243` |
 | Self-update | package / portable / installer modes | `macosBundle`: detached shell script replaces the `.app`. Unverified; `tool/macos_notarize.sh` re-signs with `--deep` and no `--entitlements`, so the shipped app is not sandboxed while `flutter build` output is | `lib/src/features/settings/data/update_install_mode.dart:46-58`, `update_service.dart`, `tool/macos_notarize.sh:87-93` |
@@ -54,9 +54,9 @@ plus Opus review for auth/file writes).
 | # | Item | Risk | iOS carry-over | State | Branch / PR |
 |---|---|---|---|---|---|
 | M0 | Diagnostics API on macOS profile builds (`_syncDiagnosticsRuntimeEnabled`; launch sites hard-coding `-d linux`: `tool/lib/diagnostics.sh:202,247,296`, `tool/sync_diagnostics.sh:243`, `tool/presentation_diagnostics.sh:213`; the PulseAudio device that `tool/lib/diagnostics.sh:247-252` injects, which `lib/main.dart:284-290` would pass to libmpv, must not be used on macOS). Drops the App Sandbox from both entitlement files so the sandbox no longer blocks the clone root and handshake under `build/`, matching the notarized app, which `tool/macos_notarize.sh` re-signs without entitlements. Prerequisite for every runtime check below | risky (auth surface, profile only; entitlements) | no | merged (#240); owner approved dropping the sandbox 2026-11-04 | #240 |
-| M1 | Runtime-verify Now Playing and remote commands through `audio_service`: metadata, artwork, position/duration/rate, scrubbing (`changePlaybackPosition`), play/pause/next/previous/seek from media keys, Control Center, AirPods. Fix what fails, then decide whether an app-owned Darwin bridge (like MPRIS/SMTC) is needed | risky (playback) | yes (same MediaPlayer APIs) | phase A done 2026-11-04 (see below); hardware keys, AirPods and the cold-start gap open | – |
+| M1 | Runtime-verify Now Playing and remote commands through `audio_service`: metadata, artwork, position/duration/rate, scrubbing (`changePlaybackPosition`), play/pause/next/previous/seek from media keys, Control Center, AirPods. Fix what fails, then decide whether an app-owned Darwin bridge (like MPRIS/SMTC) is needed | risky (playback) | yes (same MediaPlayer APIs) | phase A done 2026-11-04 (see below); cold-start gap closed 2026-11-04 as macOS behaviour, no code change (see below); hardware keys and AirPods open | – |
 | M2 | Replace the macOS libmpv bundle with a pinned full build (like Windows): system TLS verification, libavfilter equalizer, then lift the macOS gates for EQ and fast seeking. Interim if M2 is slow: `tls-verify=yes` with `tls-ca-file=/etc/ssl/cert.pem`, runtime-proven against a bad certificate | risky (playback, security) | no (iOS uses AVFoundation) | interim TLS merged (#244) (changelog line when released: "macOS: stream connections now verify server certificates."); bundle replacement triaged | – |
-| M3 | Mac app lifecycle: keep running when the window closes, reopen on Dock click, Dock menu (play/pause, next, previous, now playing), Controls menu in the menu bar wired to `desktop_commands` (Flutter `PlatformMenuBar`) | risky (window/close lifecycle) | partly (commands) | M3a (close hides, Dock-click reopen, Dock menu) merged (#242); the Controls menu is still open. Changelog line for the next release (not yet in `changelog_data.dart`): "macOS: closing the window keeps music playing; click the Dock icon to reopen. The Dock menu shows the current track with Play/Pause, Next and Previous." | #242 |
+| M3 | Mac app lifecycle: keep running when the window closes, reopen on Dock click, Dock menu (play/pause, next, previous, now playing), Controls menu in the menu bar (native, from the Dock menu bridge) | risky (window/close lifecycle) | partly (commands) | M3a (close hides, Dock-click reopen, Dock menu) merged (#242); Controls menu (M3c) built, in review, branch `feat/macos-controls-menu`. It is native Swift on the Dock-menu bridge, not Flutter `PlatformMenuBar`, which would replace the whole menu bar and drop the stock Edit menu. Changelog lines for the next release (not yet in `changelog_data.dart`): "macOS: closing the window keeps music playing; click the Dock icon to reopen. The Dock menu shows the current track with Play/Pause, Next and Previous." and "macOS: a Controls menu in the menu bar plays, pauses and skips." | #242 |
 | M4 | Self-update on macOS: prove download → replace → relaunch on a notarized build (unsandboxed after M0) and sign with explicit entitlements and hardened runtime rather than `--deep` re-signing | risky (file writes, updater) | no | triaged | – |
 | M5 | Register the LGPL libmpv/FFmpeg notice on macOS. The bundled build (media-kit libmpv-darwin-build v0.6.0) is mpv 0.36.0 (LGPL-2.1+), FFmpeg 6.0 built `--enable-version3` (LGPL-3.0+) and Mbed TLS 3.4.1 (Apache-2.0), so the macOS entry carries the LGPL-2.1, LGPL-3.0 and Apache-2.0 texts. Hosting the corresponding source on downloads.porthorion.com (as for Windows/Linux) is an owner action; the notice points at the upstream release and build scripts meanwhile. Changelog line for the next release (not yet in `changelog_data.dart`): "macOS: the licences screen lists the bundled libmpv and FFmpeg libraries." | low | no | built, in review | `chore/macos-lgpl-notice` |
 | M6 | Prove, then harden, the sqflite cover-art store against the reported 3.4.5 open/close bugs. Cross-platform: the store is shared with Android and iOS, so Android evidence is required | risky (cache, cross-platform) | yes | triaged | – |
@@ -82,10 +82,24 @@ with `MRMediaRemoteSendCommand`.
   needed for these.
 - Not set by the plugin: queue index and count (`AudioServicePlugin.m:317-320`),
   skip-interval, like and rating commands (`:131-135`).
-- Cold start with a restored paused queue: the system shows no Now Playing,
-  and a system play command opened Music.app instead of resuming Navis. The
-  plugin enables the command centre only on the first `playing` state
-  (`:179-184`); whether that or macOS itself causes it is unproven.
+- Cold start with a restored paused queue (cause proven 2026-11-04, branch
+  `fix/macos-cold-start-now-playing`, no code change): the system shows no Now
+  Playing entry and a system play command does nothing (earlier it opened
+  Music.app) until Navis has played audio once. Navis does push a media item
+  and a paused, ready playback state with play enabled for the restored queue,
+  and the plugin sets Now Playing info with 8 keys (NSLog instrumentation).
+  The plugin enables the command centre only on the first `playing` state
+  (`AudioServicePlugin.m:179-184`), but a patched copy that enables it for a
+  paused loaded item (command centre active, info set, paused playback state)
+  changed nothing: MediaRemote still reported no client. After one real play
+  the entry appears (title, artist, album, duration, rate 0) and stays after
+  pause. So macOS only lists an app that has produced audio output in this
+  launch; that is OS policy and cannot be fixed without playing audio (a silent
+  or momentary play is a hack and was not added). Behaviour to expect: after
+  launch, the play key and Now Playing work once the user has pressed play in
+  Navis. Method: `build/m1c/run.py` (not tracked: fixture server, play, pause,
+  quit, relaunch the same profile, read MediaRemote through a `swift` host,
+  send `MRMediaRemoteSendCommand`).
 - Not verified: hardware media keys and AirPods (scripted key events need
   Accessibility trust, not granted), Control Center and menu-bar visuals.
   Needs one manual pass on the Mac.

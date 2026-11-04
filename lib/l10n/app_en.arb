@@ -1190,6 +1190,7 @@
   "nowPlayingPlay": "Play",
   "nowPlayingPause": "Pause",
   "nowPlayingNext": "Next",
+  "macosMenuControls": "Controls",
   "nowPlayingNoNextTrack": "No next track",
   "nowPlayingRepeatOff": "Repeat Off",
   "nowPlayingRepeatAll": "Repeat All",
