@@ -1231,7 +1231,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     // An abandoned run from an earlier session must not schedule this one.
     if (generation != _sessionGeneration) return result;
     if (automaticCheckIsDue && result.completedAt != null) {
-      if (_armedBusyRetry) {
+      if (_armedBusyRetry || result.needsBusyRetry) {
         // Armed its quick retry in _runSyncOnce; keep it.
       } else if (result.planReason == 'leaseHeld') {
         await _scheduleAfterLeaseExpiry(interval);
@@ -1521,6 +1521,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final engine = ref.read(librarySyncEngineProvider);
     final notifier = ref.read(librarySyncNotifierProvider);
     final generation = _sessionGeneration;
+    // This pass's own flag: a queued pass must not inherit the one a pass
+    // ahead of it armed.
+    _armedBusyRetry = false;
     if (engine == null) {
       if (tolerateUnavailableEngine) {
         // Startup/periodic work is not a user-visible failed sync merely
