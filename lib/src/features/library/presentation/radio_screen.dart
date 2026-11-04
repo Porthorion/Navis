@@ -258,7 +258,6 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
           return const SliverToBoxAdapter(child: SizedBox.shrink());
         }
         final geometry = ContentLayout.radio(width);
-        final inset = padding + (width - geometry.occupiedWidth) / 2;
         // Reserve two scaled name lines and one host line in every card.
         final painter = TextPainter(
           text: TextSpan(
@@ -280,7 +279,7 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
         );
         painter.dispose();
         final grid = SliverPadding(
-          padding: EdgeInsets.all(inset)
+          padding: EdgeInsets.all(padding)
               .copyWith(top: title == null ? padding : 8, bottom: padding),
           sliver: SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -320,8 +319,8 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsetsDirectional.only(
-                  start: inset,
-                  end: inset,
+                  start: padding,
+                  end: padding,
                   top: padding,
                 ),
                 child: Text(

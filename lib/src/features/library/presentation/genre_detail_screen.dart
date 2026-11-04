@@ -213,11 +213,12 @@ Widget _filters({
   required ValueChanged<String> onChanged,
   required VoidCallback onClear,
   required Widget sortRow,
+  bool alignWithGrid = true,
 }) => Column(
   children: <Widget>[
     ListFilterField(
       controller: controller,
-      alignWithContent: true,
+      alignWithContent: alignWithGrid,
       hint: hint,
       onChanged: onChanged,
       onClear: onClear,
@@ -509,7 +510,9 @@ class _GenreSongsTabState extends ConsumerState<_GenreSongsTab>
             hint: l10n.matchFlowSearchHint,
             onChanged: _onSearchChanged,
             onClear: _clearSearch,
+            alignWithGrid: false,
             sortRow: LibrarySortFilterRow<GenreSongSort>(
+              alignWithGrid: false,
               sortKey: const ValueKey<String>('genreSongsSortControl'),
               sortLabel: l10n.genreSongsSortLabel,
               sortValue: _sort,

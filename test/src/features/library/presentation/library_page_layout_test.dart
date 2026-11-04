@@ -18,9 +18,13 @@ import '../../../../helpers/test_theme.dart';
 
 const _sortKey = ValueKey<String>('sortUnderTest');
 
+/// The Artists tab reserves this much at the trailing edge for its letter rail.
+const double _railInset = 28;
+
 Widget _row({
   TextDirection direction = TextDirection.ltr,
   double textScale = 1,
+  bool alignWithGrid = true,
 }) => MaterialApp(
   theme: testTheme(),
   localizationsDelegates: navisLocalizationsDelegates,
@@ -34,6 +38,7 @@ Widget _row({
     body: Align(
       alignment: Alignment.topCenter,
       child: LibrarySortFilterRow<int>(
+        alignWithGrid: alignWithGrid,
         sortKey: _sortKey,
         sortLabel: 'Sort',
         sortValue: 1,
@@ -72,6 +77,15 @@ void main() {
       setAdaptiveTestViewport(tester, const Size(1920, 1080));
       await tester.pumpWidget(_row());
       expect(tester.getSize(find.byKey(_sortKey)).width, 280);
+    });
+
+    testWidgets('above a list the edges sit on the 12 px list inset', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1920, 1080));
+      await tester.pumpWidget(_row(alignWithGrid: false));
+      expect(tester.getRect(find.byKey(_sortKey)).right, 1920 - 12);
+      expect(tester.getRect(find.byType(FilterChip)).left, 12);
     });
 
     testWidgets('right to left mirrors the edges', (tester) async {
@@ -173,6 +187,7 @@ void main() {
                 slivers: <Widget>[
                   ResponsiveContentSliverGrid(
                     artists: true,
+                    trailingInset: _railInset,
                     itemCount: artists.length,
                     itemBuilder: (context, i) =>
                         ArtistCard.grid(artist: artists[i]),
@@ -195,7 +210,7 @@ void main() {
           'the grid gap is the only gutter', (tester) async {
         final rects = await avatars(tester, size);
         final grid = ContentLayout.artists(
-          size.width - ContentLayout.padding(size.width) * 2,
+          size.width - ContentLayout.padding(size.width) * 2 - _railInset,
           GridArtworkSize.auto,
         );
         final gap = ContentLayout.gap(size.width);
@@ -214,7 +229,10 @@ void main() {
         if (size.width < 600) {
           final inset = ContentLayout.padding(size.width);
           expect(first.first.left, closeTo(inset, 0.01));
-          expect(first.last.right, closeTo(size.width - inset, 0.01));
+          expect(
+            first.last.right,
+            closeTo(size.width - inset - _railInset, 0.01),
+          );
           expect(grid.columns, 3);
         }
       });

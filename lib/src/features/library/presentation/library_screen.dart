@@ -1498,6 +1498,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     return Column(
       children: <Widget>[
         LibrarySortFilterRow<_AlbumSort>(
+          alignWithGrid: false,
           sortLabel: l10n.libraryAlbumsSortLabel,
           sortValue: _albumSort,
           sortItems: <DropdownMenuItem<_AlbumSort>>[

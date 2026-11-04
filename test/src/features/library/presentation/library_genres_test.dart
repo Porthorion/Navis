@@ -19,6 +19,7 @@ import 'package:navis/src/features/library/presentation/library_screen.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/library_section_navigation_scope.dart';
@@ -257,6 +258,13 @@ void main() {
         for (final genre in many) tester.getTopLeft(card(genre.key)).dy,
       };
       expect(tops.length, lessThan(many.length));
+      final geometry = ContentLayout.genres(1400 - 48);
+      expect(
+        <double>[
+          for (final genre in many) tester.getTopLeft(card(genre.key)).dx,
+        ].reduce((a, b) => a < b ? a : b),
+        closeTo(24 + (1352 - geometry.occupiedWidth) / 2, 0.01),
+      );
       expect(find.text('40 songs • 5 albums'), findsOneWidget);
 
       await tester.tap(card('hiphop'));

@@ -466,6 +466,7 @@ class LibrarySortFilterRow<T> extends StatelessWidget {
     this.likedOnly = false,
     this.onLikedOnlyChanged,
     this.sortKey = const ValueKey<String>('libraryAlbumSortControl'),
+    this.alignWithGrid = true,
   });
 
   final Key sortKey;
@@ -477,6 +478,10 @@ class LibrarySortFilterRow<T> extends StatelessWidget {
   final ValueChanged<bool> onDownloadedOnlyChanged;
   final bool likedOnly;
   final ValueChanged<bool>? onLikedOnlyChanged;
+
+  /// Insets by `ContentLayout.padding` to match a grid below. Pass false above
+  /// a track or album list, whose rows sit on the fixed 12 px list inset.
+  final bool alignWithGrid;
 
   @override
   Widget build(BuildContext context) {
@@ -496,7 +501,9 @@ class LibrarySortFilterRow<T> extends StatelessWidget {
       builder: (context, outer) {
         // The grids below inset by `ContentLayout.padding`; use the same so
         // the chip lines up with the first card and the sort with the last.
-        final inset = ContentLayout.padding(outer.maxWidth);
+        final inset = alignWithGrid
+            ? ContentLayout.padding(outer.maxWidth)
+            : 12.0;
         final width = outer.maxWidth - inset * 2;
         // At large system text the two controls still fit geometrically,
         // but each loses enough width to truncate its state label. Stack
