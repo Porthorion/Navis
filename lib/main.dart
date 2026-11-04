@@ -11,6 +11,7 @@ import 'package:navis/src/app_licenses.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/bootstrap/android_ui_bootstrap_gate.dart';
 import 'package:navis/src/bootstrap/bundled_libmpv.dart';
+import 'package:navis/src/bootstrap/file_picker_bootstrap.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/android_background_sync_entrypoint.dart'
     as android_background_sync;
@@ -47,6 +48,10 @@ Future<void> main() => runWithCredentialRedactedPrint(_runNavis);
 
 Future<void> _runNavis() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (!kIsWeb && Platform.isMacOS) {
+    // The unsandboxed bundle declares no user-selected-file entitlement.
+    await configureFilePicker();
+  }
   // Errors nothing handled would otherwise be printed by the engine itself,
   // outside the redacting zone.
   PlatformDispatcher.instance.onError = reportUncaughtErrorRedacted;
