@@ -428,6 +428,30 @@ void main() {
     );
   }
 
+  for (final status in [
+    LibrarySyncStatus.running,
+    LibrarySyncStatus.deferred,
+  ]) {
+    testWidgets('a carried databaseBusy category is hidden while $status', (
+      tester,
+    ) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+
+      await _pumpSyncSettings(
+        tester,
+        database,
+        state: LibrarySyncState(
+          status: status,
+          stage: LibrarySyncStage.fetchingArtists,
+          failureCategory: 'databaseBusy',
+        ),
+      );
+
+      expect(find.textContaining('Degraded domain'), findsNothing);
+    });
+  }
+
   testWidgets('phone retains the stacked sync-status reading order', (
     tester,
   ) async {

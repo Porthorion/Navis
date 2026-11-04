@@ -172,9 +172,17 @@ class _RecordingSyncNotifier extends SystemLibrarySyncNotifier {
   new();
 
   int shown = 0;
+  int failedShown = 0;
+  int completeShown = 0;
 
   @override
   Future<void> showProgress(LibrarySyncState state) async => shown++;
+
+  @override
+  Future<void> showFailed(LibrarySyncState state) async => failedShown++;
+
+  @override
+  Future<void> showComplete(LibrarySyncState state) async => completeShown++;
 
   @override
   Future<void> dismissProgress() async {}
@@ -1038,6 +1046,175 @@ void main() {
         }
       },
     );
+
+    LibrarySyncState busyDeferral() => LibrarySyncState(
+      status: LibrarySyncStatus.deferred,
+      stage: LibrarySyncStage.completed,
+      completedAt: DateTime.now(),
+      planReason: 'leaseHeld',
+      failureCategory: 'databaseBusy',
+      nextRetryAt: DateTime.now().add(const Duration(minutes: 1)),
+    );
+
+    Future<(LibrarySyncController, NavisDatabase, int, _RecordingSyncNotifier)>
+    busyDeferralRun(
+      LibrarySyncState Function(int automaticCall) automatic, {
+      List<Override> interval = const <Override>[],
+      Future<void>? manualGate,
+    }) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      var calls = 0;
+      final engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        if (request.isAutomatic) return automatic(++calls);
+        await manualGate;
+        return busyDeferral();
+      });
+      final notifier = _RecordingSyncNotifier();
+      final container = _container(
+        engine,
+        database: database,
+        server: config,
+        reachability: ServerReachabilityStatus.offline,
+        interval: interval.isEmpty ? _hourlyInterval : interval,
+        extra: [librarySyncNotifierProvider.overrideWithValue(notifier)],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(librarySyncControllerProvider.notifier);
+      addTearDown(controller.cancelAndWait);
+      return (controller, database, config.id!, notifier);
+    }
+
+    Future<Duration> dueCheckWait(
+      LibrarySyncController controller,
+      NavisDatabase database,
+      int serverId,
+    ) async {
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: serverId,
+        nextAutomaticCheckAt: DateTime.now().subtract(
+          const Duration(minutes: 1),
+        ),
+      );
+      final startedAt = DateTime.now();
+      await controller.syncIfStale();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      return (await database.librarySyncDao.getOrCreateState(serverId))
+          .nextAutomaticCheckAt!
+          .difference(startedAt);
+    }
+
+    test(
+      'a busy deferral retries in about a minute without a notice',
+      () async {
+        final (controller, database, serverId, notifier) =
+            await busyDeferralRun((_) => busyDeferral());
+
+        final wait = await dueCheckWait(controller, database, serverId);
+
+        expect(wait, greaterThan(const Duration(seconds: 55)));
+        expect(wait, lessThan(const Duration(minutes: 2)));
+        expect(controller.state.status, LibrarySyncStatus.deferred);
+        expect(notifier.failedShown, 0);
+        expect(notifier.completeShown, 0);
+      },
+    );
+
+    test('a plain lease deferral keeps the lease-expiry schedule', () async {
+      final (controller, database, serverId, _) = await busyDeferralRun(
+        (_) => busyDeferral().copyWith(
+          clearFailureCategory: true,
+          clearNextRetryAt: true,
+        ),
+      );
+
+      final wait = await dueCheckWait(controller, database, serverId);
+
+      // No lease row: the 30 s retry floor, not the 1 min busy retry.
+      expect(wait, lessThan(const Duration(seconds: 45)));
+    });
+
+    test('a busy deferral retries after a preserved visible failure', () async {
+      final (controller, database, serverId, _) = await busyDeferralRun(
+        (call) => call == 1
+            ? LibrarySyncState(
+                status: LibrarySyncStatus.failed,
+                stage: LibrarySyncStage.completed,
+                completedAt: DateTime.now(),
+                failureCategory: 'sync',
+                errorMessage: 'Metadata sync failed.',
+              )
+            : busyDeferral(),
+      );
+      await dueCheckWait(controller, database, serverId);
+      expect(controller.state.status, LibrarySyncStatus.failed);
+
+      final wait = await dueCheckWait(controller, database, serverId);
+
+      expect(controller.state.status, LibrarySyncStatus.failed);
+      // About a minute, not the 30 s lease-expiry floor or the full interval.
+      expect(wait, greaterThan(const Duration(seconds: 55)));
+      expect(wait, lessThan(const Duration(minutes: 2)));
+    });
+
+    test(
+      'a due automatic check joining a manual busy deferral keeps its retry',
+      () async {
+        final gate = Completer<void>();
+        final (controller, database, serverId, _) = await busyDeferralRun(
+          (_) => _succeeded,
+          manualGate: gate.future,
+        );
+        await database.librarySyncDao.setNextAutomaticCheckAt(
+          serverId: serverId,
+          nextAutomaticCheckAt: DateTime.now().subtract(
+            const Duration(minutes: 1),
+          ),
+        );
+
+        // The automatic pass joins the manual one (higher priority), which ends
+        // in a busy deferral and arms its quick retry. The join must not
+        // overwrite it with a full-interval completion.
+        final manual = controller.syncNow();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        final startedAt = DateTime.now();
+        final automatic = controller.syncIfStale();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        gate.complete();
+        await manual;
+        await automatic;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+
+        final wait = (await database.librarySyncDao.getOrCreateState(serverId))
+            .nextAutomaticCheckAt!
+            .difference(startedAt);
+        expect(wait, greaterThan(const Duration(seconds: 55)));
+        expect(wait, lessThan(const Duration(minutes: 2)));
+      },
+    );
+
+    test('manual-only mode does not retry a busy deferral', () async {
+      final (controller, database, serverId, _) = await busyDeferralRun(
+        (_) => busyDeferral(),
+        interval: [
+          syncIntervalMinutesProvider.overrideWithValue(0),
+          syncIntervalDurationProvider.overrideWithValue(null),
+        ],
+      );
+
+      final result = await controller.syncNow();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(result.status, LibrarySyncStatus.deferred);
+      expect(result.errorMessage, isNull);
+      expect(controller.state.status, LibrarySyncStatus.deferred);
+      expect(
+        (await database.librarySyncDao.getOrCreateState(serverId))
+            .nextAutomaticCheckAt,
+        isNull,
+      );
+    });
 
     const failNextCheck =
         'CREATE TRIGGER fail_next_check BEFORE UPDATE OF '
