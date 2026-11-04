@@ -66,12 +66,13 @@ class ContentLayout {
   static ContentGridGeometry artists(double width, GridArtworkSize size) {
     final narrow = width < kAdaptiveMediumWidth;
     final bounds = switch (size) {
-      // The avatar fills its cell. Narrow maxima sit above 1.5x the minimum
-      // (less the gap) so a phone's columns fill the pane with no side slack.
-      GridArtworkSize.small => narrow ? (96.0, 152.0) : (120.0, 152.0),
+      // The avatar fills its cell. Maxima sit above 1.5x the minimum (less
+      // the gap) so the columns always fill the pane with no side slack; the
+      // narrow default minimum fits three columns on a 360 dp phone.
+      GridArtworkSize.small => narrow ? (80.0, 124.0) : (120.0, 186.0),
       GridArtworkSize.auto ||
-      GridArtworkSize.medium => narrow ? (112.0, 176.0) : (144.0, 176.0),
-      GridArtworkSize.large => narrow ? (136.0, 208.0) : (176.0, 216.0),
+      GridArtworkSize.medium => narrow ? (96.0, 148.0) : (144.0, 222.0),
+      GridArtworkSize.large => narrow ? (136.0, 208.0) : (176.0, 270.0),
     };
     return ContentGridGeometry.bounded(
       width: width,
@@ -81,12 +82,15 @@ class ContentLayout {
     );
   }
 
-  /// Uniform genre cards (about 220-260 px wide) on wide panes.
+  /// Uniform genre cards on wide panes: 220 px up to 336 px (two columns just
+  /// below the third), about 220-266 px from five columns. The maximum
+  /// sits above 1.5x the minimum (less the gap), so the columns always fill
+  /// the pane and the grid never centres inside the page inset.
   static ContentGridGeometry genres(double width) =>
       ContentGridGeometry.bounded(
         width: width,
         minimum: 220,
-        maximum: 260,
+        maximum: 340,
         gap: gap(width),
       );
 

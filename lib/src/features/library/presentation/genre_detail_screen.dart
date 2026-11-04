@@ -29,6 +29,7 @@ import 'package:navis/src/features/library/presentation/library_sync_provider.da
 import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
@@ -113,28 +114,39 @@ class _GenreDetailScreenState extends ConsumerState<GenreDetailScreen>
         }
         return Column(
           children: <Widget>[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: Row(
-                children: <Widget>[
-                  Expanded(
-                    child: Text(
-                      '${l10n.playlistsSongCount(genre.songCount)} • '
-                      '${l10n.artistCardAlbumCount(genre.albumCount)}',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+            LayoutBuilder(
+              // The same inset as the search field and cards below.
+              builder: (context, constraints) {
+                final inset = ContentLayout.padding(constraints.maxWidth);
+                return Padding(
+                  padding: EdgeInsets.fromLTRB(inset, 8, inset, 8),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(
+                          '${l10n.playlistsSongCount(genre.songCount)} • '
+                          '${l10n.artistCardAlbumCount(genre.albumCount)}',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                        ),
                       ),
-                    ),
+                      EntityActionBar(
+                        compact: MediaQuery.sizeOf(context).width < 400,
+                        playKey: const ValueKey<String>('genrePlayAction'),
+                        shuffleKey: const ValueKey<String>(
+                          'genreShuffleAction',
+                        ),
+                        onPlay: () => _play(shuffle: false),
+                        onShuffle: () => _play(shuffle: true),
+                      ),
+                    ],
                   ),
-                  EntityActionBar(
-                    compact: MediaQuery.sizeOf(context).width < 400,
-                    playKey: const ValueKey<String>('genrePlayAction'),
-                    shuffleKey: const ValueKey<String>('genreShuffleAction'),
-                    onPlay: () => _play(shuffle: false),
-                    onShuffle: () => _play(shuffle: true),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
             TabBar(
               controller: _tabs,
