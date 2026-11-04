@@ -324,31 +324,19 @@ class PlaylistActions {
         ids: before,
       );
     }
-    // Navidrome 0.64 answers ok to a multi-id add but adds nothing, so the
-    // result is verified and what is missing is re-added one id per request.
-    // A failed request leaves its ids missing; the read-backs decide.
-    try {
-      await api.updatePlaylist(id: id, songIdsToAdd: songIds);
-    } on Object {
-      // Counted as missing below.
-    }
-    var after = await _entryIds(api, id);
-    var missing = _missing(songIds, before, after);
-    if (missing.isEmpty) {
-      return (
-        result: (added: songIds.length, alreadyThere: alreadyThere, failed: 0),
-        ids: after,
-      );
-    }
-    for (final song in missing) {
+    // One id per request: Navidrome 0.64 answers ok to a multi-id add, adds
+    // nothing visible and leaves a hidden row that shifts every later
+    // `songIndexToRemove`. A failed request leaves its id missing; the
+    // read-back decides.
+    for (final song in songIds) {
       try {
         await api.updatePlaylist(id: id, songIdsToAdd: [song]);
       } on Object {
         // Counted as missing below.
       }
     }
-    after = await _entryIds(api, id);
-    missing = _missing(songIds, before, after);
+    final after = await _entryIds(api, id);
+    final missing = _missing(songIds, before, after);
     return (
       result: (
         added: songIds.length - missing.length,
@@ -396,11 +384,13 @@ class PlaylistActions {
   }
 
   /// Removes one occurrence of [songId]: the [occurrence]-th (0-based) entry
-  /// with that id, in a list the caller saw with [copies] of it. Never removes
-  /// by position, so a list that moved under the caller cannot take another
-  /// song; a song already gone removes nothing, and a song whose copies
-  /// changed throws [PlaylistChangedException] without writing, since the
-  /// occurrence no longer names the row the user chose.
+  /// with that id, in a list the caller saw with [copies] of it. Rewrites the
+  /// list without that row instead of removing by index: playlists built by
+  /// 1.5.1 may hold a hidden row (Navidrome 0.64) that `getPlaylist` omits but
+  /// `songIndexToRemove` counts, so an index lands one row early. A replace
+  /// drops such rows. A song already gone removes nothing, and a song whose
+  /// copies changed throws [PlaylistChangedException] without writing, since
+  /// the occurrence no longer names the row the user chose.
   Future<void> removeAt(
     PlaylistsTableData playlist, {
     required String songId,
@@ -429,9 +419,21 @@ class PlaylistActions {
       final ids = await _entryIds(api, playlist.id);
       final at = _occurrenceIndex(ids, songId, occurrence, copies);
       if (at < 0) return (result: null, ids: ids);
-      // One index per call: Navidrome 0.64 ignores several.
-      await api.updatePlaylist(id: playlist.id, songIndexesToRemove: [at]);
-      return (result: null, ids: ids..removeAt(at));
+      final kept = ids.toList()..removeAt(at);
+      if (kept.isNotEmpty) {
+        await api.replacePlaylistSongs(playlistId: playlist.id, songIds: kept);
+        return (result: null, ids: kept);
+      }
+      // An empty replace is a no-op on Navidrome 0.64, so the last song goes
+      // by index (one per call: several are ignored). A hidden row in front
+      // takes the first try, so read back and try once more.
+      for (var attempt = 0; attempt < 2; attempt++) {
+        await api.updatePlaylist(id: playlist.id, songIndexesToRemove: [0]);
+        if ((await _entryIds(api, playlist.id)).isEmpty) {
+          return (result: null, ids: const <String>[]);
+        }
+      }
+      throw StateError('The server kept the last song');
     });
   }
 

@@ -164,10 +164,11 @@ void main() {
         ),
       );
       when(
-        () => api.updatePlaylist(id: 'occurrences', songIndexesToRemove: [2]),
-      ).thenAnswer(
-        (_) async => const Playlist(id: 'occurrences', name: 'Occurrences'),
-      );
+        () => api.replacePlaylistSongs(
+          playlistId: 'occurrences',
+          songIds: ['duplicate', 'middle'],
+        ),
+      ).thenAnswer((_) async {});
       final container = await render(tester, database, api, filtered: true);
       expect(find.byType(AdaptiveTrackRow), findsNWidgets(2));
       expect(find.text('1:01:01'), findsNWidgets(2));
@@ -183,7 +184,10 @@ void main() {
       await tester.tap(find.text('Remove from Playlist'));
       await tester.pumpAndSettle();
       verify(
-        () => api.updatePlaylist(id: 'occurrences', songIndexesToRemove: [2]),
+        () => api.replacePlaylistSongs(
+          playlistId: 'occurrences',
+          songIds: ['duplicate', 'middle'],
+        ),
       ).called(1);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());

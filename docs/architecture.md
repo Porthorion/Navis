@@ -3584,8 +3584,12 @@ works like the weekly playlists. `homeTrendingProvider`
   UI state. Remove names the song, not a position: the detail screen captures
   the chosen row's id and its occurrence count when the menu opens, and
   `removeAt` re-reads the server list inside the chain and removes that
-  occurrence with a single `songIndexToRemove` (Navidrome 0.64 ignores
-  several). The caller also passes how many copies the shown list held: none
+  occurrence by replacing the list without it (`createPlaylist` with
+  `playlistId`, as reorder does): Navidrome 0.64 counts hidden rows that
+  `getPlaylist` omits in `songIndexToRemove`, so an index lands a row early,
+  and a replace drops them. An empty replace is a no-op, so the last song goes
+  by index with one read-back retry. Adds send one id per request, since a
+  multi-id add on 0.64 adds nothing visible and leaves such a hidden row. The caller also passes how many copies the shown list held: none
   left removes nothing, and a different count throws
   `PlaylistChangedException` without writing, so a stale or repeated tap never
   removes a copy the user kept. Reorder sends
