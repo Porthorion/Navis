@@ -7,9 +7,12 @@ class MainFlutterWindow: NSWindow {
   // leave a windowless process, e.g. before Dart sets preventClose or after a
   // failed desktop bootstrap. `applicationShouldTerminateAfterLastWindowClosed`
   // cannot do this: AppKit also applies it when the window is merely hidden.
+  /// What a real close does; replaceable so a test need not quit the app.
+  var terminate: () -> Void = { NSApp.terminate(nil) }
+
   override func close() {
     super.close()
-    DispatchQueue.main.async { NSApp.terminate(nil) }
+    DispatchQueue.main.async { [terminate] in terminate() }
   }
 
   override func awakeFromNib() {

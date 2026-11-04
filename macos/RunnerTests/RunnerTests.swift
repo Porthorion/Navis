@@ -67,4 +67,26 @@ class RunnerTests: XCTestCase {
   func testHidingTheLastWindowDoesNotQuit() {
     XCTAssertFalse(AppDelegate().applicationShouldTerminateAfterLastWindowClosed(NSApp))
   }
+
+  func testARealCloseTerminatesTheApp() {
+    let window = MainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+      styleMask: [.titled, .closable], backing: .buffered, defer: true)
+    window.isReleasedWhenClosed = false
+    let terminated = expectation(description: "terminate")
+    window.terminate = { terminated.fulfill() }
+    window.close()
+    wait(for: [terminated], timeout: 2)
+  }
+
+  func testHidingTheWindowDoesNotTerminate() {
+    let window = MainFlutterWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+      styleMask: [.titled, .closable], backing: .buffered, defer: true)
+    let notTerminated = expectation(description: "no terminate")
+    notTerminated.isInverted = true
+    window.terminate = { notTerminated.fulfill() }
+    window.orderOut(nil)
+    wait(for: [notTerminated], timeout: 0.5)
+  }
 }

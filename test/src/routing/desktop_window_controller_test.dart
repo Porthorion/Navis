@@ -30,6 +30,8 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   Rect? fullScreenBounds;
   Rect? windowedBounds;
   Exception? hideError;
+  Exception? fullScreenError;
+  bool emitsLeaveEvent = true;
   Future<void> Function()? onHide;
   int unmaximizeCalls = 0;
   WindowListener? listener;
@@ -63,12 +65,16 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   }
 
   @override
-  Future<bool> isFullScreen() async => fullScreen;
+  Future<bool> isFullScreen() async {
+    final error = fullScreenError;
+    if (error != null) throw error;
+    return fullScreen;
+  }
 
   @override
   Future<void> setFullScreen(bool isFullScreen) async {
     events.add('setFullScreen($isFullScreen)');
-    if (isFullScreen) return;
+    if (isFullScreen || !emitsLeaveEvent) return;
     // The real exit animates; the event arrives after the bounds settle.
     Future<void>.delayed(const Duration(milliseconds: 20), () {
       fullScreen = false;
@@ -339,8 +345,13 @@ void main() {
     );
 
     group('close', () {
+      // Persisting does real file I/O, which an event-queue pump does not await.
+      Future<void> settle() =>
+          Future<void>.delayed(const Duration(milliseconds: 150));
+
       Future<(_FakeWindowManagerAdapter, DesktopWindowController)> start({
         required bool hideOnClose,
+        Duration fullScreenExitTimeout = const Duration(seconds: 3),
       }) async {
         final adapter = _FakeWindowManagerAdapter(
           bounds: const Rect.fromLTWH(70, 90, 1440, 880),
@@ -351,6 +362,7 @@ void main() {
           settingsRepository: repository,
           adapter: adapter,
           hideOnClose: hideOnClose,
+          fullScreenExitTimeout: fullScreenExitTimeout,
         );
         await controller.initialize();
         return (adapter, controller);
@@ -363,9 +375,9 @@ void main() {
           adapter.bounds = const Rect.fromLTWH(100, 120, 1300, 800);
 
           controller.onWindowClose();
-          await pumpEventQueue();
+          await settle();
           controller.onWindowClose();
-          await pumpEventQueue();
+          await settle();
 
           expect(adapter.hideCalls, 2);
           expect(adapter.closeCalls, 0);
@@ -389,7 +401,7 @@ void main() {
         adapter.events.clear();
 
         controller.onWindowClose();
-        await pumpEventQueue();
+        await settle();
 
         expect(adapter.events.last, 'hide');
         expect(adapter.events, contains('getBounds'));
@@ -427,12 +439,55 @@ void main() {
         },
       );
 
+      test(
+        'on macOS a failing full-screen query still persists and hides',
+        () async {
+          final (adapter, controller) = await start(hideOnClose: true);
+          adapter.fullScreenError = Exception('no window');
+          adapter.bounds = const Rect.fromLTWH(100, 120, 1300, 800);
+
+          controller.onWindowClose();
+          await settle();
+
+          expect(adapter.hideCalls, 1);
+          final persisted = jsonDecode(
+            await stateFile.readAsString(),
+          ) as Map<String, dynamic>;
+          expect((persisted['normalBounds'] as Map)['x'], 100);
+        },
+      );
+
+      test('on macOS a missed full-screen exit times out, hides, and a later close works', () async {
+        final (adapter, controller) = await start(
+          hideOnClose: true,
+          fullScreenExitTimeout: const Duration(milliseconds: 50),
+        );
+        adapter
+          ..fullScreen = true
+          ..emitsLeaveEvent = false
+          ..events.clear();
+
+        controller.onWindowClose();
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+
+        expect(
+          adapter.events,
+          containsAllInOrder(['setFullScreen(false)', 'getBounds', 'hide']),
+        );
+        expect(adapter.hideCalls, 1);
+
+        adapter.fullScreen = false;
+        controller.onWindowClose();
+        await settle();
+        expect(adapter.hideCalls, 2);
+      });
+
       test('on macOS a failing hide is logged, not thrown', () async {
         final (adapter, controller) = await start(hideOnClose: true);
         adapter.hideError = Exception('no window');
 
         controller.onWindowClose();
-        await pumpEventQueue();
+        await settle();
 
         expect(adapter.hideCalls, 1);
       });
@@ -445,7 +500,7 @@ void main() {
           adapter.bounds = const Rect.fromLTWH(120, 150, 700, 400);
 
           controller.onWindowClose();
-          await pumpEventQueue();
+          await settle();
 
           expect(controller.isMiniPlayerMode, isTrue);
           expect(adapter.hideCalls, 1);

@@ -2695,7 +2695,8 @@ behaviour): `onWindowClose` persists the same state record, then calls
 `_isClosing` is never set, so every later close hides again, in Mini Player as
 well. A full-screen window leaves full screen first (`setFullScreen(false)`,
 then `onWindowLeaveFullScreen`, bounded at 3 s), so no empty Space remains and
-full-screen bounds are never persisted. A failing `hide()` is logged. Playback
+full-screen bounds are not persisted, unless the exit wait times out (3 s) or
+fails, in which case Navis persists and hides anyway. A failing `hide()` is logged. Playback
 and the audio handler keep running. Cmd+Q and Dock > Quit still terminate.
 `AppDelegate` returns `false` from `applicationShouldTerminateAfterLastWindowClosed`
 (AppKit also applies it to a merely hidden window, so `true` would quit on every

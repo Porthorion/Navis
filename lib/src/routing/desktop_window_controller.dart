@@ -281,6 +281,7 @@ class DesktopWindowController extends ChangeNotifier
     ScreenRetrieverAdapter? screenAdapter,
     bool? alwaysOnTopSupported,
     bool? hideOnClose,
+    @visibleForTesting this._fullScreenExitTimeout = const Duration(seconds: 3),
   }) : _adapter = adapter ?? const WindowManagerDesktopWindowAdapter(),
        _alwaysOnTopSupportedOverride = alwaysOnTopSupported,
        _hideOnCloseOverride = hideOnClose,
@@ -294,6 +295,7 @@ class DesktopWindowController extends ChangeNotifier
       _adapter = null,
       _alwaysOnTopSupportedOverride = null,
       _hideOnCloseOverride = null,
+      _fullScreenExitTimeout = const Duration(seconds: 3),
       _screenAdapter = null;
 
   static const Size normalMinSize = kDesktopMiniPlayerMinimumSize;
@@ -309,8 +311,7 @@ class DesktopWindowController extends ChangeNotifier
   final bool? _hideOnCloseOverride;
   final ScreenRetrieverAdapter? _screenAdapter;
 
-  static const Duration _fullScreenExitTimeout = Duration(seconds: 3);
-
+  final Duration _fullScreenExitTimeout;
   Completer<void>? _leftFullScreen;
   bool _hideInProgress = false;
   Timer? _persistDebounce;
@@ -630,17 +631,7 @@ class DesktopWindowController extends ChangeNotifier
     if (adapter == null || _hideInProgress) return;
     _hideInProgress = true;
     try {
-      if (await adapter.isFullScreen()) {
-        final left = _leftFullScreen = Completer<void>();
-        await adapter.setFullScreen(false);
-        // The exit animation reports through onWindowLeaveFullScreen; a
-        // missed event must not leave the window stuck, so the wait is bounded.
-        try {
-          await left.future.timeout(_fullScreenExitTimeout, onTimeout: () {});
-        } finally {
-          _leftFullScreen = null;
-        }
-      }
+      await _leaveFullScreen(adapter);
       await _persistCurrentState(reason: 'close');
       await adapter.hide();
     } on Object catch (error, stackTrace) {
@@ -650,6 +641,25 @@ class DesktopWindowController extends ChangeNotifier
       );
     } finally {
       _hideInProgress = false;
+    }
+  }
+
+  /// A failure or timeout here is logged and ignored: the window still hides.
+  Future<void> _leaveFullScreen(WindowManagerAdapter adapter) async {
+    try {
+      if (!await adapter.isFullScreen()) return;
+      final left = _leftFullScreen = Completer<void>();
+      await adapter.setFullScreen(false);
+      // The exit animation reports through onWindowLeaveFullScreen; a missed
+      // event must not leave the window stuck, so the wait is bounded.
+      await left.future.timeout(_fullScreenExitTimeout, onTimeout: () {});
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        '[DESKTOP_WINDOW] leaving full screen before hiding failed: '
+        '$error\n$stackTrace',
+      );
+    } finally {
+      _leftFullScreen = null;
     }
   }
 
