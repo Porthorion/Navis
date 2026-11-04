@@ -6685,6 +6685,14 @@ contract.
 
 ### Cache Flow
 
+On Android, iOS and macOS the cache index is sqflite. `NavisCacheObjectProvider`
+(`cover_art_cache_repository.dart`) replaces `flutter_cache_manager` 3.4.5's
+`CacheObjectProvider`, keeping its database path: a failed open deletes the
+disposable index once and retries, then errors rather than hanging; a close
+waits for an open in flight; and repositories of one name share a single
+physical close, so a new manager never inherits a closed database. Linux and
+Windows keep `JsonCacheInfoRepository`.
+
 The shared cover-art manager strips URL user info and Subsonic authentication
 parameters before passing URLs and default URL keys to `flutter_cache_manager`.
 Its guarded HTTP service signs only the active server's exact cover endpoint

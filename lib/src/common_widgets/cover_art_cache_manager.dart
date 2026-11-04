@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:file/file.dart' as files;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_repository.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
@@ -1110,6 +1111,10 @@ CacheManager createCoverArtCacheManager({
     config ??
         Config(
           cacheKey,
+          // Upstream's own choice per platform, with the sqflite one hardened.
+          repo: Platform.isAndroid || Platform.isIOS || Platform.isMacOS
+              ? NavisCacheObjectProvider(databaseName: cacheKey)
+              : JsonCacheInfoRepository(databaseName: cacheKey),
           stalePeriod: const Duration(days: 30),
           maxNrOfCacheObjects: cap,
           fileService:
