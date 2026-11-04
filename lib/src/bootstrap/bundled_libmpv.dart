@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:path/path.dart' as p;
 
 /// Finds the Linux bundle's audio library, or leaves system lookup in place.
@@ -46,4 +47,23 @@ const macosCaFile = '/etc/ssl/cert.pem';
     verify: (isLinux ?? Platform.isLinux) || (isWindows ?? Platform.isWindows),
     caFile: null,
   );
+}
+
+/// Applies [desktopStreamTls] to the desktop libmpv adapter.
+void configureDesktopStreamTls({
+  bool? isLinux,
+  bool? isWindows,
+  bool? isMacOS,
+  bool Function(String)? fileExists,
+  void Function()? onMissingCaFile,
+}) {
+  final tls = desktopStreamTls(
+    isLinux: isLinux,
+    isWindows: isWindows,
+    isMacOS: isMacOS,
+    fileExists: fileExists,
+    onMissingCaFile: onMissingCaFile,
+  );
+  JustAudioMediaKit.tlsVerify = tls.verify;
+  JustAudioMediaKit.tlsCaFile = tls.caFile;
 }

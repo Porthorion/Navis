@@ -4876,18 +4876,22 @@ vendored adapter sets `ytdl=no` on every player beside `force-seekable`; a
 libmpv built without Lua has no hook and ignores the property.
 mpv releases up to 0.41 also open https streams without checking the server
 certificate (`tls-verify` defaults to off), so a man in the middle could read
-the token. `main.dart` sets `JustAudioMediaKit.tlsVerify` on Linux, Windows and macOS
-and the adapter then sets `tls-verify=yes` on every player; Linux and Windows
-libmpv use the system certificate store, and Navis's own API client already
-refuses certificates the system does not trust. macOS's bundled mpv 0.36
-(Mbed TLS) cannot use the system store (with `tls-verify=yes` alone it refuses
-every stream), so `desktopStreamTls` also sets `JustAudioMediaKit.tlsCaFile`
-to `/etc/ssl/cert.pem` and the adapter passes it as `tls-ca-file`. If that
-file is missing, macOS logs a warning and leaves verification off. A server
+the token. `main.dart` calls `configureDesktopStreamTls`, which sets
+`JustAudioMediaKit.tlsVerify` on Linux, Windows and macOS, and the adapter then
+sets `tls-verify=yes` on every player. Linux and Windows libmpv use the system
+certificate store, and Navis's own API client already refuses certificates the
+system does not trust. macOS's bundled mpv 0.36 (Mbed TLS) cannot use the
+system store (with `tls-verify=yes` alone it refuses every stream), so the same
+function sets `JustAudioMediaKit.tlsCaFile` to `/etc/ssl/cert.pem` and the
+adapter passes it as `tls-ca-file`. If that file is missing, macOS logs a
+warning (not shown in release builds) and leaves verification off. A server
 whose private CA is trusted only in the macOS keychain signs in (the API client
-uses the keychain) but its streams are refused. Mbed TLS checks DNS host
-names but not IP-literal hosts.
-`tool/stream_open_diagnostics.py` guards both at runtime on Linux and, for the certificate check, macOS.
+uses the keychain) but its streams are refused. For IP-literal hosts the host
+name is not matched but the certificate chain is still verified.
+`tool/stream_open_diagnostics.py` guards both at runtime on Linux and, for the
+certificate check, on macOS. Its HTTPS fixture is `https://127.0.0.1`, so on
+macOS it proves the self-signed refusal; the wrong-host refusal comes from the
+manual matrix in `build/tls-diagnostics/macos-tls-matrix.jsonl`.
 
 The vendored desktop adapter observes libmpv's `metadata`
 property through media_kit 1.2.6's `NativePlayer.observeProperty`. It reads

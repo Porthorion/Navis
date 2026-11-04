@@ -63,6 +63,7 @@ plus Opus review for auth/file writes).
 | M7 | Commit the Swift Package Manager migration of the macOS Xcode project so builds stop dirtying the tree; the first build after a clean checkout can fail with "Unable to resolve module dependency" and pass on retry | low | yes (iOS project too) | triaged | – |
 | M9 | Saved sign-in on macOS. The plugin's default data-protection keychain needs a `keychain-access-groups` entitlement no build has (`SecItemAdd` returned -34018, so the sign-in lasted one session). Fix: every `FlutterSecureStorage` uses the login keychain with a Navis-specific service name (`macOsLoginKeychain`) and on macOS the shortcut store shares the serialized native queue; ad-hoc dev rebuilds can prompt per item (see `docs/architecture.md`). Changelog line for the next release: "macOS: Navis keeps you signed in across restarts." | risky (auth) | yes (iOS keychain) | fixed, in review (proven at runtime: `-34018` on the data-protection keychain; the login keychain persists across launches) | `fix/macos-keychain-credentials`; follow-up `fix/macos-keychain-followups` (a failed credential or ListenBrainz token delete is overwritten with an empty value or remembered as cleared so a stale account is never read back in the same session, and the service name is pinned by a test; covered by tests only, no runtime proof) |
 | M8 | Docs: macOS status in `README.md`, `docs/architecture.md`, `docs/release/release-macos.md` (TLS gap, updater flow), macOS testing playbook. `docs/development/technical-overview.md` is corrected with this plan and again by M1 | low | – | after M1–M3 | – |
+| M11 | macOS: a failed (404) stream reports `playing: true` with `processingState` idle (`stream_open_diagnostics` check `failedStreamNotPlaying`). Predates the TLS branch; `_playing` is set at `mediakit_player.dart:503/512` and `open(play: _playing)` has no failure handling | risky (playback) | no | triaged | – |
 
 Order: M0 first (enables runtime evidence), then M1 and M2 (playback core),
 M3, M4, with M5 and M7 as small parallel PRs and M8 last.
@@ -105,6 +106,7 @@ with `MRMediaRemoteSendCommand`.
   wanted). The interim (2026-11-04, v0.6.0 libs): `tls-verify=yes` alone refuses
   every HTTPS stream, even a valid public one; with `tls-ca-file` a public
   certificate plays and self-signed or wrong-host certificates are refused.
-  Mbed TLS checks DNS names but not IP-literal hosts.
+  For IP-literal hosts the host name is not matched; the chain is still
+  verified.
 - M3: owner preference on closing the window while playing. Default: keep
   playing (Apple Music, Spotify, Doppler behaviour); quit with Cmd+Q.

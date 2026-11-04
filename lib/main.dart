@@ -277,13 +277,11 @@ void _initializeDesktopAudioBackend() {
     // certificate. The Linux and Windows bundles use the system certificate
     // store; macOS's bundled mpv (Mbed TLS) cannot, so it is pointed at the
     // system CA bundle file instead.
-    final streamTls = desktopStreamTls(
+    configureDesktopStreamTls(
       onMissingCaFile: () => AppLogger.warning(
         'Stream certificate verification is off: $macosCaFile is missing.',
       ),
     );
-    JustAudioMediaKit.tlsVerify = streamTls.verify;
-    JustAudioMediaKit.tlsCaFile = streamTls.caFile;
     // An isolated diagnostics run can capture its own native PCM without
     // changing the user's default output or routing other applications.
     const diagnosticsAudioDevice = String.fromEnvironment(

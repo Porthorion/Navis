@@ -16,8 +16,8 @@ authenticated diagnostics API it then:
    poll, captures an app-owned screenshot, and stops the station;
 4. starts a second station whose stream is served over HTTPS with a
    throw-away self-signed certificate. libmpv must refuse the certificate
-   (`tls-verify`, with the system CA file on macOS): the TLS server sees the connection attempt, no request
-   completes, and the station never plays;
+   (`tls-verify`, with the system CA file on macOS): the TLS server sees the
+   connection attempt, no request completes, and the station never plays;
 5. turns Online services off and starts a third station whose stream host
    (`localhost`) differs from the server's (`127.0.0.1`). The app must refuse
    it without connecting and show why, while the station on the server's own

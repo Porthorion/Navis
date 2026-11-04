@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/bootstrap/bundled_libmpv.dart';
 
 void main() {
@@ -76,6 +77,34 @@ void main() {
       expect(tls.verify, isFalse);
       expect(tls.caFile, isNull);
       expect(warned, isTrue);
+    });
+  });
+
+  group('configureDesktopStreamTls', () {
+    tearDown(() {
+      JustAudioMediaKit.tlsVerify = false;
+      JustAudioMediaKit.tlsCaFile = null;
+    });
+
+    test('macOS hands verification and the CA file to the adapter', () {
+      configureDesktopStreamTls(
+        isLinux: false,
+        isWindows: false,
+        isMacOS: true,
+        fileExists: (_) => true,
+      );
+      expect(JustAudioMediaKit.tlsVerify, isTrue);
+      expect(JustAudioMediaKit.tlsCaFile, '/etc/ssl/cert.pem');
+    });
+
+    test('Linux hands over verification without a CA file', () {
+      configureDesktopStreamTls(
+        isLinux: true,
+        isWindows: false,
+        isMacOS: false,
+      );
+      expect(JustAudioMediaKit.tlsVerify, isTrue);
+      expect(JustAudioMediaKit.tlsCaFile, isNull);
     });
   });
 }

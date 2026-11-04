@@ -74,13 +74,17 @@ certificate store, so Navis sets `tls-verify=yes` with
 `tls-ca-file=/etc/ssl/cert.pem`. Streams from servers with a public or
 system-bundle certificate play; self-signed and wrong-host certificates are
 refused. If `/etc/ssl/cert.pem` is missing, verification stays off and the app
-logs a warning.
+logs a warning. That warning is silent in release builds (the logger shows
+only the development filter's output there); this is acceptable because the
+file is on the SIP-sealed system volume, so it is absent only on a broken
+system.
 
 Known limitation: libmpv does not read the keychain. A server whose private CA
 is trusted only in the macOS keychain signs in (the API client uses the
 keychain) but its streams are refused. Replacing the macOS libmpv (see
-`docs/audits/dependency-audit-2026-10-01.md`) is the planned fix. Mbed TLS also
-does not check IP-literal hosts against the certificate.
+`docs/audits/dependency-audit-2026-10-01.md`) is the planned fix. For
+IP-literal hosts the host name is not matched, but the certificate chain is
+still verified.
 
 ## Code Signing
 
