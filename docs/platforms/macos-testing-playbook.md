@@ -93,6 +93,7 @@ xcrun notarytool store-credentials navis-notary-profile \
 - After a launch with a restored queue, system Now Playing and the play key only include Navis once it has played audio in that launch (macOS policy, not a defect); after the first play they work, also while paused.
 - Desktop window behavior works (open, resize, close, restore bounds).
 - Audio continues across focus changes.
+- Streaming against a TLS 1.3-only server fails on macOS while sign-in works (SecureTransport supports TLS up to 1.2, not a defect); test streams against a server that also allows TLS 1.2.
 - Settings screens open and persist changed values.
 - Update channel behavior is correct (`stable` vs `dev` build define).
 

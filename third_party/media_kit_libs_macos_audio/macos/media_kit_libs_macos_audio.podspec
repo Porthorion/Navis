@@ -27,4 +27,12 @@ Pod::Spec.new do |s|
   s.platform = :osx, '12.0'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
   s.swift_version = '5.0'
+  # pod install only re-runs when Flutter's fingerprint changes, so verify at
+  # build time that the extracted libmpv still matches the pin (no network).
+  s.script_phase = {
+    :name => 'Verify Navis libmpv',
+    :script => '/bin/sh "${PODS_TARGET_SRCROOT}/fetch_libmpv.sh" --check',
+    :execution_position => :before_compile,
+    :always_out_of_date => '1',
+  }
 end

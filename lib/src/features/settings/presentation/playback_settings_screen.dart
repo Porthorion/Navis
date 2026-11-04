@@ -1,5 +1,4 @@
-import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 
 import 'dart:async';
@@ -261,10 +260,7 @@ class _PlaybackSettingsScreenState
                         subtitle: Text(l10n.playbackSettingsLikedQueueSubtitle),
                       ),
                     ),
-                  if (!kIsWeb &&
-                      (defaultTargetPlatform == TargetPlatform.linux ||
-                          defaultTargetPlatform == TargetPlatform.windows ||
-                          defaultTargetPlatform == TargetPlatform.macOS))
+                  if (navisFastSeekSupported())
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       value: _fastSeekingEnabled,

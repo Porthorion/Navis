@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
 
@@ -32,5 +33,42 @@ void main() {
   test('other platforms do not', () {
     expect(supported(mediaKit: true), isFalse);
     expect(supported(), isFalse);
+  });
+
+  test('fast seeking: Linux and Windows regardless of media_kit', () {
+    for (final p in [TargetPlatform.linux, TargetPlatform.windows]) {
+      for (final mk in [true, false]) {
+        expect(
+          navisFastSeekSupportedOn(platform: p, mediaKitRegistered: mk),
+          isTrue,
+        );
+      }
+    }
+  });
+
+  test('fast seeking: macOS only with media_kit registered', () {
+    expect(
+      navisFastSeekSupportedOn(
+        platform: TargetPlatform.macOS,
+        mediaKitRegistered: true,
+      ),
+      isTrue,
+    );
+    expect(
+      navisFastSeekSupportedOn(
+        platform: TargetPlatform.macOS,
+        mediaKitRegistered: false,
+      ),
+      isFalse,
+    );
+  });
+
+  test('fast seeking: Android and iOS never', () {
+    for (final p in [TargetPlatform.android, TargetPlatform.iOS]) {
+      expect(
+        navisFastSeekSupportedOn(platform: p, mediaKitRegistered: true),
+        isFalse,
+      );
+    }
   });
 }

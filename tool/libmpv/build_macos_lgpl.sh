@@ -9,8 +9,10 @@
 #   REUSE_STAGE=1 tool/libmpv/build_macos_lgpl.sh   # skip arches already staged
 #
 # Env: ARTIFACT_DATE (YYYYMMDD), JOBS, WORK (scratch, default
-# ~/Library/Caches/navis-libmpv-build), OUT, MACOS_MIN (default 12.0, must match
-# macos/Podfile and the Runner target).
+# ~/Library/Caches/navis-libmpv-build), BUILD_BASE (per-arch build trees,
+# default /private/tmp/navis-libmpv-build: outside $HOME so mpv's and FFmpeg's
+# compiled-in configuration strings carry no home path), OUT, MACOS_MIN
+# (default 12.0, must match macos/Podfile and the Runner target).
 set -Eeuo pipefail
 
 MPV_COMMIT=eb0ee1031590b3f369a5b783e8aa91eeaaded7e6
@@ -29,6 +31,10 @@ ARTIFACT_DATE="${ARTIFACT_DATE:-$(date -u +%Y%m%d)}"
 WORK="${WORK:-$HOME/Library/Caches/navis-libmpv-build}"
 NAME="libmpv-macos-universal-lgpl-${ARTIFACT_DATE}"
 OUT="${OUT:-$WORK/out/$NAME}"
+BUILD_BASE="${BUILD_BASE:-/private/tmp/navis-libmpv-build}"
+# Compilers record source paths (__FILE__, debug info); map the build root to
+# a neutral one.
+PREFIX_MAP="-ffile-prefix-map=$BUILD_BASE=/navis-build -fdebug-prefix-map=$BUILD_BASE=/navis-build"
 SCRIPT="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 PATCH_DIR="$(dirname "$SCRIPT")/patches"
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
@@ -46,7 +52,7 @@ if [[ -n "${free_kb:-}" && "$free_kb" -lt 3145728 ]]; then
   echo "Less than 3 GB free for $WORK; refusing to build." >&2; exit 1
 fi
 
-mkdir -p "$WORK/src" "$OUT/src" "$WORK/stage"
+mkdir -p "$WORK/src" "$OUT/src" "$WORK/stage" "$BUILD_BASE"
 # Quiet step output goes here; the tail is shown if a step fails.
 STEPS="$WORK/steps.log"; : > "$STEPS"
 trap 'tail -60 "$STEPS" >&2' ERR
@@ -60,7 +66,7 @@ sha_of() { shasum -a 256 "$1" | cut -d' ' -f1; }
 fetch() {
   local url="$1" archive="$2" digest="${3:-}"
   if [[ ! -f "$WORK/src/$archive" ]]; then
-    curl -fsSL --connect-timeout 30 --max-time 600 --retry 3 -o "$WORK/src/$archive.tmp" "$url"
+    curl -fsSL --proto '=https' --proto-redir '=https' --connect-timeout 30 --max-time 600 --retry 3 -o "$WORK/src/$archive.tmp" "$url"
     mv "$WORK/src/$archive.tmp" "$WORK/src/$archive"
   fi
   if [[ -n "$digest" && "$(sha_of "$WORK/src/$archive")" != "$digest" ]]; then
@@ -112,11 +118,11 @@ build_arch() {
     x86_64) triple=x86_64-apple-darwin; ffarch=x86_64; cpu_family=x86_64; cpu_name=x86_64 ;;
     *) echo "unknown arch $arch" >&2; exit 1 ;;
   esac
-  local root="$WORK/build-$arch" prefix="$WORK/build-$arch/prefix"
+  local root="$BUILD_BASE/build-$arch" prefix="$BUILD_BASE/build-$arch/prefix"
   rm -rf "$root"; mkdir -p "$prefix" "$root/tree"
   local flags="-arch $arch -mmacosx-version-min=$MACOS_MIN -isysroot $SDK"
   export CC="clang -arch $arch" CXX="clang++ -arch $arch"
-  export CFLAGS="-O2 -mmacosx-version-min=$MACOS_MIN -isysroot $SDK -I$prefix/include"
+  export CFLAGS="-O2 -mmacosx-version-min=$MACOS_MIN -isysroot $SDK $PREFIX_MAP -I$prefix/include"
   export CXXFLAGS="$CFLAGS"
   export LDFLAGS="-mmacosx-version-min=$MACOS_MIN -isysroot $SDK -L$prefix/lib"
   export PKG_CONFIG_LIBDIR="$prefix/lib/pkgconfig" PKG_CONFIG_PATH=
@@ -140,9 +146,9 @@ endian = 'little'
 [properties]
 needs_exe_wrapper = false
 [built-in options]
-c_args = ['-arch', '$arch', '-mmacosx-version-min=$MACOS_MIN', '-isysroot', '$SDK', '-O2']
-cpp_args = ['-arch', '$arch', '-mmacosx-version-min=$MACOS_MIN', '-isysroot', '$SDK', '-O2']
-objc_args = ['-arch', '$arch', '-mmacosx-version-min=$MACOS_MIN', '-isysroot', '$SDK', '-O2']
+c_args = ['-arch', '$arch', '-mmacosx-version-min=$MACOS_MIN', '-isysroot', '$SDK', '-ffile-prefix-map=$BUILD_BASE=/navis-build', '-fdebug-prefix-map=$BUILD_BASE=/navis-build', '-O2']
+cpp_args = ['-arch', '$arch', '-mmacosx-version-min=$MACOS_MIN', '-isysroot', '$SDK', '-ffile-prefix-map=$BUILD_BASE=/navis-build', '-fdebug-prefix-map=$BUILD_BASE=/navis-build', '-O2']
+objc_args = ['-arch', '$arch', '-mmacosx-version-min=$MACOS_MIN', '-isysroot', '$SDK', '-ffile-prefix-map=$BUILD_BASE=/navis-build', '-fdebug-prefix-map=$BUILD_BASE=/navis-build', '-O2']
 c_link_args = ['-arch', '$arch', '-mmacosx-version-min=$MACOS_MIN', '-isysroot', '$SDK', '-lc++']
 cpp_link_args = ['-arch', '$arch', '-mmacosx-version-min=$MACOS_MIN', '-isysroot', '$SDK']
 objc_link_args = ['-arch', '$arch', '-mmacosx-version-min=$MACOS_MIN', '-isysroot', '$SDK']
@@ -186,7 +192,7 @@ CROSS
     --prefix="$prefix" --target-os=darwin --arch="$ffarch" --enable-cross-compile
     --cc=clang --cxx=clang++ --pkg-config="$root/pkg-config-static"
     "${FFMPEG_FLAGS_COMMON[@]}"
-    --extra-cflags="$flags -I$prefix/include" --extra-ldflags="$flags -L$prefix/lib"
+    --extra-cflags="$flags $PREFIX_MAP -I$prefix/include" --extra-ldflags="$flags -L$prefix/lib"
   )
   ./configure "${ffmpeg_flags[@]}" >> "$STEPS" 2>&1
   make -j"$JOBS" >> "$STEPS" 2>&1 && make install >> "$STEPS" 2>&1
@@ -216,7 +222,7 @@ CROSS
   # dynamic lookup and crash at the first CoreAudio call, so build mpv's own
   # unmodified file here and link the object in.
   local utils_obj="$root/tree/utils-mac.o"
-  clang -arch "$arch" -mmacosx-version-min="$MACOS_MIN" -isysroot "$SDK" -O2 \
+  clang -arch "$arch" -mmacosx-version-min="$MACOS_MIN" -isysroot "$SDK" $PREFIX_MAP -O2 \
     -I"mpv-${MPV_COMMIT}" -c "mpv-${MPV_COMMIT}/osdep/utils-mac.c" -o "$utils_obj"
   local mpv_flags=(
     --cross-file="$cross" --prefix="$prefix/mpv" --libdir=lib --buildtype=release
@@ -320,15 +326,24 @@ while IFS= read -r lib; do
 done < "$OUT/LINKED-LIBRARIES.txt"
 rm -f "$OUT/DEPLOYMENT-TARGETS.txt"
 for arch in arm64 x86_64; do
-  vtool -arch "$arch" -show-build "$BIN" | awk -v a="$arch" '/minos/ {print a ": minos " $2}' >> "$OUT/DEPLOYMENT-TARGETS.txt"
-  vtool -arch "$arch" -show-build "$BIN" | awk '/minos/ {exit !($2 == "'"$MACOS_MIN"'")}' \
-    || { echo "$arch slice minos is not $MACOS_MIN" >&2; exit 1; }
+  build_info="$(vtool -arch "$arch" -show-build "$BIN")" || { echo "vtool failed for the $arch slice" >&2; exit 1; }
+  awk -v a="$arch" '/minos/ {print a ": minos " $2}' <<< "$build_info" >> "$OUT/DEPLOYMENT-TARGETS.txt"
+  # Every minos line must equal MACOS_MIN, and there must be at least one.
+  awk -v want="$MACOS_MIN" '/minos/ {n++; if ($2 != want) bad = 1} END {exit !(n > 0 && !bad)}' <<< "$build_info" \
+    || { echo "$arch slice has no minos $MACOS_MIN (or has another minos)" >&2; exit 1; }
 done
 # A symbol left to dynamic lookup is a link gap that only crashes at runtime.
-if nm -m "$BIN" | grep 'dynamically looked up'; then
+# nm itself failing is also a failure, so its output is captured first.
+nm_out="$(nm -m "$BIN")" || { echo 'nm failed on the framework binary' >&2; exit 1; }
+if grep -q 'dynamically looked up' <<< "$nm_out"; then
+  grep 'dynamically looked up' <<< "$nm_out" >&2
   echo 'Unresolved symbols left for dynamic lookup' >&2; exit 1
 fi
 strings -a "$BIN" > "$WORK/stage/strings.txt"
+# The shipped binary must not carry the builder's home directory.
+if [[ -n "${HOME:-}" && "$HOME" != / ]] && grep -F -- "$HOME" "$WORK/stage/strings.txt" > /dev/null; then
+  echo "The binary contains the builder's home path ($HOME)" >&2; exit 1
+fi
 if grep -E -- '--enable-(gpl|nonfree)|nonfree and unredistributable' "$WORK/stage/strings.txt" > /dev/null; then
   echo 'Forbidden FFmpeg licence configuration' >&2; exit 1
 fi
@@ -406,7 +421,11 @@ cat "$OUT/MACOS-SMOKE.txt"
 rm -rf "$SMOKE"
 
 # ------------------------------------------------------------ metadata
-cp "$WORK/stage/FFMPEG-CONFIGURE.txt" "$WORK/stage/FFMPEG-COMPONENTS.txt" "$WORK/stage/MPV-MESON-FLAGS.txt" "$OUT/"
+cp "$WORK/stage/FFMPEG-COMPONENTS.txt" "$OUT/"
+# Recorded flags name the build root; publish the neutral path instead.
+for f in FFMPEG-CONFIGURE.txt MPV-MESON-FLAGS.txt; do
+  sed -e "s|$BUILD_BASE|/navis-build|g" -e "s|$WORK|/navis-work|g" -e "s|$HOME|~|g" "$WORK/stage/$f" > "$OUT/$f"
+done
 cp "$SCRIPT" "$OUT/build_macos_lgpl.sh"
 mkdir -p "$OUT/patches" && cp "$PATCH_DIR"/*.patch "$OUT/patches/"
 {
@@ -427,6 +446,9 @@ mkdir -p "$OUT/patches" && cp "$PATCH_DIR"/*.patch "$OUT/patches/"
   echo; echo 'Verified: no --enable-gpl/--enable-nonfree strings; mpv gpl=false; FFmpeg LGPL string and securetransport present; compiled volume/equalizer/biquad/atempo/aresample/aformat filters; only Apple system libraries linked; universal arm64+x86_64.'
 } > "$OUT/BUILDINFO.txt"
 rm -f "$OUT/libplacebo-commit.txt" "$OUT/libplacebo-submodules.txt"
+if [[ -n "${HOME:-}" && "$HOME" != / ]] && grep -lF -- "$HOME" "$OUT"/*.txt; then
+  echo "Published metadata contains the builder's home path ($HOME)" >&2; exit 1
+fi
 archive="${NAME}.tar.gz"
 rm -f "$OUT/$archive"
 tar --no-xattrs -czf "$OUT/$archive" -C "$OUT" Mpv.xcframework BUILDINFO.txt build_macos_lgpl.sh patches \

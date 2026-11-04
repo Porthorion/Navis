@@ -94,9 +94,12 @@ framework links only macOS system libraries.
   `NAVIS_LIBMPV_MACOS_ARCHIVE=<path to the tarball>`; the archive must still
   match the pinned SHA-256. CocoaPods runs the fetch script only on
   `pod install`; after a pin or archive change, delete `macos/Pods/Manifest.lock`
-  (or `flutter clean`) so the next build re-runs it.
-- **Release operator**: upload the tarball, `SOURCES.md`, `BUILDINFO.txt` and the
-  source archives from `src/` to the R2 folder above before the first release
+  (or `flutter clean`) so the next build re-runs it. A podspec build phase runs
+  `fetch_libmpv.sh --check` (offline) before every compile and fails the build
+  with that instruction when the extracted framework's stamp does not match the
+  pin, so a stale `Pods` directory cannot keep an old libmpv.
+- **Release operator**: upload the tarball, `SOURCES.md`, `BUILDINFO.txt`,
+  `patches/` and the source archives from `src/` to the R2 folder above before the first release
   that pins them. The in-app notice
   (`assets/licenses/libmpv-macos-NOTICE.txt`) links that `SOURCES.md`.
 
@@ -108,6 +111,11 @@ keychain and the system roots) with no CA file: public certificates play, and
 self-signed, wrong-host, expired and untrusted-root certificates are refused.
 For IP-literal hosts the host name is not matched, but the certificate chain
 is still verified.
+
+The macOS backend (SecureTransport) supports TLS up to 1.2. A server that
+accepts only TLS 1.3 therefore cannot stream on macOS even though sign-in
+(Dart's own TLS stack) works; keep TLS 1.2 enabled on the Navidrome reverse
+proxy.
 
 ## Code Signing
 

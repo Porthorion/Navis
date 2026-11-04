@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
 /// Whether the audio backend on this platform can run the equalizer: Android's
@@ -26,3 +28,22 @@ bool navisEqualizerSupported({bool? android}) => navisEqualizerSupportedOn(
   macos: Platform.isMacOS,
   mediaKitRegistered: JustAudioMediaKit.isRegistered,
 );
+
+/// Whether transcode-offset fast seeking is available: Linux and Windows
+/// always, macOS only when libmpv drives playback (debug builds there use
+/// AVFoundation and skip media_kit).
+bool navisFastSeekSupportedOn({
+  required TargetPlatform platform,
+  required bool mediaKitRegistered,
+}) =>
+    platform == TargetPlatform.linux ||
+    platform == TargetPlatform.windows ||
+    (platform == TargetPlatform.macOS && mediaKitRegistered);
+
+/// [navisFastSeekSupportedOn] for the running platform.
+bool navisFastSeekSupported() =>
+    !kIsWeb &&
+    navisFastSeekSupportedOn(
+      platform: defaultTargetPlatform,
+      mediaKitRegistered: JustAudioMediaKit.isRegistered,
+    );

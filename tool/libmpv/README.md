@@ -127,13 +127,18 @@ tool/libmpv/build_macos_lgpl.sh
 ```
 
 Defaults: scratch in `~/Library/Caches/navis-libmpv-build` (`WORK`, outside the
-repository; downloaded sources are cached in `src/`, each architecture's build
-tree is deleted once its stripped dylib is staged), output in
+repository; downloaded sources are cached in `src/`), per-architecture build
+trees in `/private/tmp/navis-libmpv-build` (`BUILD_BASE`, outside `$HOME` so the
+configuration strings compiled into mpv and FFmpeg carry no home path; compilers
+also map it to `/navis-build`; each tree is deleted once its stripped dylib is
+staged), output in
 `$WORK/out/libmpv-macos-universal-lgpl-<date>/` (`OUT`, `ARTIFACT_DATE`). The
 script verifies that FFmpeg's `config.h` has SecureTransport and neither GPL nor
 nonfree, that the filters are compiled in, that the binary strings carry mpv's
 `-Dgpl=false` and FFmpeg's LGPL line, the deployment target of both slices and
-the system-only linkage and no dynamic-lookup symbols, then runs a native playback smoke on both slices
+the system-only linkage and no dynamic-lookup symbols (a failing `nm` or `vtool`,
+or a missing `minos` line, also fails), that neither the binary's strings nor the
+published metadata contain `$HOME`, then runs a native playback smoke on both slices
 (arm64, and x86_64 under Rosetta), once with the null and once with the real
 CoreAudio output at volume 0 (`SKIP_COREAUDIO_SMOKE=1` on a host without audio),
 with the app's `scaletempo` + `volume` + `biquad` + `equalizer` chain and an

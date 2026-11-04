@@ -68,3 +68,16 @@ if NAVIS_LIBMPV_MACOS_ARCHIVE="${tmp}/missing.tar.gz" sh "${tmp}/macos/fetch_lib
 fi
 grep -q 'does not exist' "${tmp}/err" || fail "missing archive not reported"
 pass "missing local archive fails clearly"
+
+new_copy
+NAVIS_LIBMPV_MACOS_ARCHIVE="${tmp}/good.tar.gz" sh "${tmp}/macos/fetch_libmpv.sh" 2> /dev/null
+sh "${tmp}/macos/fetch_libmpv.sh" --check 2> /dev/null || fail "--check rejected a matching extraction"
+pass "--check passes for the pinned extraction"
+
+echo 0000 > "${tmp}/macos/Frameworks/.libmpv-sha256"
+if sh "${tmp}/macos/fetch_libmpv.sh" --check 2> "${tmp}/err"; then fail "--check accepted a stale stamp"; fi
+grep -q 'pod install' "${tmp}/err" || fail "--check did not say to run pod install"
+rm -rf "${tmp}/macos/Frameworks"
+if sh "${tmp}/macos/fetch_libmpv.sh" --check 2> /dev/null; then fail "--check accepted missing frameworks"; fi
+[[ ! -e "${tmp}/macos/Frameworks" ]] || fail "--check modified the frameworks"
+pass "--check fails on a stale stamp or missing frameworks without touching anything"
