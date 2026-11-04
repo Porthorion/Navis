@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:file/file.dart' as files;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:navis/src/api/subsonic_error.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_repository.dart';
 import 'package:navis/src/common_widgets/cover_art_recovery.dart';
 import 'package:navis/src/features/integrations/data/artwork_call_recorder.dart';
 import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
@@ -1108,12 +1109,10 @@ CacheManager createCoverArtCacheManager({
       : maxNrOfCacheObjects;
   return _CredentialFreeCoverArtCacheManager(
     config ??
-        Config(
+        _defaultConfig(
           cacheKey,
-          stalePeriod: const Duration(days: 30),
-          maxNrOfCacheObjects: cap,
-          fileService:
-              fileService ??
+          cap,
+          fileService ??
               CoverArtHttpFileService(
                 loadCoordinator: loadCoordinator,
                 reportNetworkUsage: reportNetworkUsage,
@@ -1122,10 +1121,47 @@ CacheManager createCoverArtCacheManager({
   );
 }
 
+Config _defaultConfig(String cacheKey, int cap, FileService fileService) {
+  // Upstream's own file system and per-platform repository, with the sqflite
+  // one hardened. The repository gets the file system so it can remove the
+  // image files of an index it has to delete.
+  final fileSystem = IOFileSystem(cacheKey);
+  return Config(
+    cacheKey,
+    repo: Platform.isAndroid || Platform.isIOS || Platform.isMacOS
+        ? NavisCacheObjectProvider(
+            databaseName: cacheKey,
+            fileSystem: fileSystem,
+          )
+        : JsonCacheInfoRepository(databaseName: cacheKey),
+    fileSystem: fileSystem,
+    stalePeriod: const Duration(days: 30),
+    maxNrOfCacheObjects: cap,
+    fileService: fileService,
+  );
+}
+
 // CacheManager persists its input URL, not the URL the FileService requests.
 // Keep every insertion boundary credential-free, including default URL keys.
 class _CredentialFreeCoverArtCacheManager extends CacheManager {
-  new(super.config);
+  new(super.config) : _repo = config.repo;
+
+  final CacheInfoRepository _repo;
+
+  // The index cannot be trusted to list every file (a locked or fallback
+  // index lists none, and fallback sessions never index what they download),
+  // so clearing also removes the image directory itself.
+  @override
+  Future<void> emptyCache() async {
+    try {
+      await super.emptyCache();
+    } finally {
+      final repo = _repo;
+      if (repo is NavisCacheObjectProvider) {
+        await repo.deleteImageFiles();
+      }
+    }
+  }
 
   String _url(String url) => credentialFreeUri(Uri.parse(url)).toString();
   String _key(String url, String? key) {
