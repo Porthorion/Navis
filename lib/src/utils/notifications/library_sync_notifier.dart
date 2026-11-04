@@ -58,9 +58,20 @@ class SystemLibrarySyncNotifier {
   }
 
   Future<void> dismissProgress() async {
+    await _cancel(_progressId);
+  }
+
+  /// Cancels the progress and the completion notice. Normal sync ends keep the
+  /// completion notice, so only sign-out uses this.
+  Future<void> dismissAll() async {
+    await _cancel(_progressId);
+    await _cancel(_summaryId);
+  }
+
+  Future<void> _cancel(int id) async {
     if (!Platform.isAndroid) return;
     try {
-      await _plugin.cancel(id: _progressId);
+      await _plugin.cancel(id: id);
     } on Object {
       // Ignore in tests and unsupported environments.
     }
