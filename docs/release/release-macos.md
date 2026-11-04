@@ -40,6 +40,11 @@ sudo xcodebuild -runFirstLaunch
 brew install cocoapods
 ```
 
+Flutter builds the macOS plugins with Swift Package Manager, and the committed
+`macos/Runner.xcodeproj` already carries that integration, so a build leaves the
+tree clean. CocoaPods is still needed because `media_kit_libs_macos_audio` has no
+Swift package yet.
+
 ### 4. Run the preflight script
 
 ```bash
