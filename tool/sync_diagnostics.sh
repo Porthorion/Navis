@@ -150,8 +150,15 @@ PY
       echo "Last.fm diagnostics key file must be a regular file." >&2
       exit 66
     fi
-    if [[ "$(stat -c '%u' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")" != "$(id -u)" ||
-          "$(stat -c '%a' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")" != "600" ]]; then
+    # macOS: BSD stat by path, since GNU coreutils may shadow it on PATH.
+    if [[ "$(uname -s)" == Darwin ]]; then
+      key_owner="$(/usr/bin/stat -f '%u' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")"
+      key_mode="$(/usr/bin/stat -f '%Lp' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")"
+    else
+      key_owner="$(stat -c '%u' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")"
+      key_mode="$(stat -c '%a' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")"
+    fi
+    if [[ "$key_owner" != "$(id -u)" || "$key_mode" != "600" ]]; then
       echo "Last.fm diagnostics key file must be owned by this user with mode 600." >&2
       exit 77
     fi
@@ -240,7 +247,7 @@ launch_app() {
   if [[ "$MODE" == "throughput" || "$MODE" == "full-rescan" || "$MODE" == "cache-alias" ]]; then
     diagnostics_runtime_mode="clone"
   fi
-  flutter run -d linux --profile \
+  flutter run -d "$(diagnostics_device)" --profile \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define=NAVIS_APP_NAME='Navis Diagnostics' \

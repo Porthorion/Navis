@@ -527,7 +527,10 @@ bool get _syncDiagnosticsRuntimeEnabled =>
     _syncDiagnosticsRequested &&
     kProfileMode &&
     !kIsWeb &&
-    (Platform.isLinux || Platform.isWindows || Platform.isAndroid) &&
+    (Platform.isLinux ||
+        Platform.isWindows ||
+        Platform.isAndroid ||
+        Platform.isMacOS) &&
     _syncDiagnosticsMode != null;
 
 bool get _isCloneBootstrapFailureDiagnostics =>

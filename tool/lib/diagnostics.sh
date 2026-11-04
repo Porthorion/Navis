@@ -4,6 +4,15 @@
 # Local helpers may override these defaults when their behavior differs.
 # Globals below are supplied by the caller, never initialized by this library.
 
+# diagnostics_device; the flutter device id for desktop clone launches:
+# macos on a Mac host, linux everywhere else.
+diagnostics_device() {
+  case "$(uname -s)" in
+    Darwin) echo macos ;;
+    *) echo linux ;;
+  esac
+}
+
 # api <method> <route> [body]; uses BASE_URL and TOKEN, without a curl timeout.
 api() {
   local method="$1"
@@ -199,7 +208,7 @@ launch_app() {
     "$PROJECT_DIR/pubspec.yaml" > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
   (
     cd "$PROJECT_DIR"
-    exec flutter run -d linux --profile \
+    exec flutter run -d "$(diagnostics_device)" --profile \
       --dart-define=NAVIS_UPDATE_CHANNEL=dev \
       --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
       --dart-define="NAVIS_APP_NAME=$DIAGNOSTICS_APP_NAME" \
@@ -231,6 +240,10 @@ launch_app() {
 # OUTPUT_ROOT, APP_LOG and optional NAVIS_DIAGNOSTICS_CREDENTIAL_PATH.
 # Sets FLUTTER_PID, PORT, TOKEN, APP_PID and BASE_URL; preserves the Pulse sink.
 launch_audio_app() {
+  if [[ "$(uname -s)" == Darwin ]]; then
+    echo "Audio capture diagnostics need PulseAudio (Linux)." >&2
+    exit 69
+  fi
   rm -f "$HANDSHAKE"
   # Like presentation_diagnostics.sh: an optional mode-600 password file
   # signs the clone in where the system keyring holds no Navis password.
@@ -244,7 +257,7 @@ launch_audio_app() {
       "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
     )
   fi
-  PULSE_SINK="$AUDIO_SINK" flutter run -d linux --profile \
+  PULSE_SINK="$AUDIO_SINK" flutter run -d "$(diagnostics_device)" --profile \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define="NAVIS_APP_NAME=$1" \
@@ -293,7 +306,7 @@ launch() {
   printf '%s\n' "$version" > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
   (
     cd "$PROJECT_DIR"
-    flutter run -d linux --profile \
+    flutter run -d "$(diagnostics_device)" --profile \
       "$@" \
       >>"$APP_LOG" 2>&1
   ) &

@@ -210,7 +210,7 @@ launch_app() {
       "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
     )
   fi
-  flutter run -d linux --profile \
+  flutter run -d "$(diagnostics_device)" --profile \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define=NAVIS_APP_NAME='Navis Presentation Diagnostics' \
@@ -220,7 +220,7 @@ launch_app() {
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_ROOT=$OUTPUT_ROOT" \
     --dart-define="NAVIS_SYNC_DIAGNOSTICS_DB_PATH=$CLONE_DB" \
     --dart-define="NAVIS_DIAGNOSTICS_AUDIO_BOOTSTRAP_FAIL_ATTEMPTS=$BOOTSTRAP_FAILURE_ATTEMPTS" \
-    "${cache_upgrade_define[@]}" \
+    ${cache_upgrade_define[@]+"${cache_upgrade_define[@]}"} \
     >>"$APP_LOG" 2>&1 &
   FLUTTER_PID=$!
 

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
-/// Runtime overrides used by the Linux sync diagnostics API (clone mode only).
+/// Runtime overrides used by the desktop sync diagnostics API (clone mode only).
 @immutable
 class SyncDiagnosticsOverrides {
   const new({
