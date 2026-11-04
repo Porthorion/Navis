@@ -20,6 +20,21 @@ class CredentialWriteException implements Exception {
   String toString() => 'Secure credentials could not be persisted.';
 }
 
+/// macOS keychain for every `FlutterSecureStorage` Navis builds. The plugin's
+/// default, the data-protection keychain, needs a `keychain-access-groups`
+/// entitlement that no Navis build has, so each write fails with -34018 and the
+/// credential would last only for the session. The login keychain needs no
+/// entitlement. `mOptions` only affects macOS.
+///
+/// The login keychain has no per-app access group, and the plugin maps
+/// `accountName` to `kSecAttrService`. Its default service is shared by every
+/// Flutter app on the Mac that uses the plugin, so Navis uses its own bundle
+/// id and its keys cannot collide with or overwrite another app's.
+const macOsLoginKeychain = MacOsOptions(
+  usesDataProtectionKeychain: false,
+  accountName: 'com.navis.app.navis',
+);
+
 /// Tail of the native secure-storage queue. Top-level so every credential
 /// store in this engine shares it: overlapping native calls race
 /// secure-storage initialization and migration.
@@ -115,6 +130,7 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
   new({
     this._storage = const FlutterSecureStorage(
       aOptions: AndroidOptions(resetOnError: false),
+      mOptions: macOsLoginKeychain,
     ),
     this.requiresDurableCredentials,
     this.storageDeadline = const Duration(seconds: 5),
@@ -135,8 +151,8 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
   /// Whether a save that cannot reach durable storage must fail instead of
   /// keeping the credential only in engine-local memory. Null defers to the
   /// platform: Android requires durable persistence before a login may be
-  /// declared, while desktop keeps the local-dev session fallback for missing
-  /// keychain entitlements.
+  /// declared, while desktop keeps the local-dev session fallback if the
+  /// keychain is unavailable.
   final bool? requiresDurableCredentials;
 
   /// Bound for one native secure-storage operation. A stuck platform channel
@@ -263,8 +279,8 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
           );
           throw const CredentialWriteException();
         }
-        // Keep desktop/macOS local dev usable when keychain entitlements are
-        // unavailable by falling back to in-memory session storage.
+        // Keep desktop usable when the platform keychain is unavailable by
+        // falling back to in-memory session storage.
         onSessionFallback(value);
         if (!_didLogSaveFallbackWarning) {
           _didLogSaveFallbackWarning = true;

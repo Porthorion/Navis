@@ -34,6 +34,7 @@ class FlutterExternalScrobbleCredentialStore
   const new({
     this._storage = const FlutterSecureStorage(
       aOptions: AndroidOptions(resetOnError: false),
+      mOptions: macOsLoginKeychain,
     ),
     this.storageDeadline = const Duration(seconds: 5),
   });
