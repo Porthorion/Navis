@@ -1,3 +1,4 @@
+import 'dart:io' show Directory;
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'dart:ui' show SemanticsAction;
@@ -15,6 +16,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
+import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
@@ -1248,6 +1250,90 @@ void main() {
       await tester.pumpAndSettle();
       expect(tester.getSize(rail).width, 64);
       expect(tester.getRect(label).left, greaterThanOrEqualTo(64));
+    });
+
+    group('diagnostics rail hover target', () {
+      Future<DiagnosticsPresentationController> pumpWithController(
+        WidgetTester tester, {
+        required bool autohide,
+        String style = 'compact',
+      }) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(1280, 1000);
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        final root = Directory.systemTemp.createTempSync('navis_rail_hover_');
+        addTearDown(() => root.deleteSync(recursive: true));
+        final controller = DiagnosticsPresentationController(
+          artifactRoot: root,
+          frameWaiter: () => tester.pump(const Duration(milliseconds: 50)),
+        );
+        final settings = const AppSettingsModel.defaults().copyWith(
+          desktopNavbarAutohide: autohide,
+          desktopNavbarStyle: style,
+        );
+        final container = _createContainerWithDatabase(
+          overrides: <Override>[
+            ..._authenticatedShellOverrides(desktopRuntime: true),
+            appSettingsProvider.overrideWithValue(AsyncData(settings)),
+          ],
+        );
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: controller.wrap(testNavisApp),
+          ),
+        );
+        await tester.pumpAndSettle();
+        return controller;
+      }
+
+      Future<void> hover(
+        WidgetTester tester,
+        DiagnosticsPresentationController controller,
+        String? target,
+      ) async {
+        await tester.runAsync(() => controller.hoverTooltip(target: target));
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('opens the auto-hide rail', (tester) async {
+        final controller = await pumpWithController(tester, autohide: true);
+        expect(tester.getSize(rail).width, 64);
+
+        // The tile is laid out wider than the strip; the aim must still land
+        // inside the visible 64 px. Rail tiles have no tooltip, so the
+        // return value is not the signal: the rail opening is.
+        await hover(tester, controller, 'rail');
+
+        expect(tester.getSize(rail).width, greaterThan(64));
+        await hover(tester, controller, null);
+        expect(tester.takeException(), isNull);
+      });
+
+      for (final style in <String>['compact', 'icons']) {
+        testWidgets('still reaches the stable $style rail tile', (
+          tester,
+        ) async {
+          final controller = await pumpWithController(
+            tester,
+            autohide: false,
+            style: style,
+          );
+          final width = tester.getSize(sidebar).width;
+
+          await hover(tester, controller, 'rail');
+          await hover(tester, controller, null);
+
+          // Stable rails are not clipped: the hover is accepted and the
+          // rail keeps its width.
+          expect(tester.getSize(sidebar).width, width);
+          expect(tester.takeException(), isNull);
+        });
+      }
     });
 
     testWidgets('stable rails keep their reserved width and page edge', (
