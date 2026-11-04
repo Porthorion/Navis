@@ -6685,6 +6685,24 @@ contract.
 
 ### Cache Flow
 
+On Android, iOS and macOS the cache index is sqflite. `NavisCacheObjectProvider`
+(`cover_art_cache_repository.dart`) replaces `flutter_cache_manager` 3.4.5's
+`CacheObjectProvider`, keeping its database path. `CacheStore` calls `open()`
+once and chains its lookups without an error handler, so neither `open()` nor
+any query or write may throw. After opening, `PRAGMA quick_check` runs; a
+damaged index (SQLite NOTADB or CORRUPT by primary result code, or a failed
+check) is deleted with the image files under the cache's file directory and
+reopened. A NOTADB file is deleted only when it is readable and lacks the
+SQLite header, because iOS data protection can make a healthy file unreadable
+before first unlock. Any other failure leaves the file untouched and serves the
+session from an empty in-memory index, so lookups miss and refetch. The cover
+manager's `emptyCache` (sign-out, clear cache, library reset) always removes the
+image directory too on these platforms, because the index may be locked,
+fallback or missing files an earlier fallback session wrote. Queries return empty results instead of throwing, and a
+corrupt-coded query error moves the repository to the in-memory index until the
+next open. A close waits for an open in flight, and repositories of one name
+share a single physical close. Linux and Windows keep `JsonCacheInfoRepository`.
+
 The shared cover-art manager strips URL user info and Subsonic authentication
 parameters before passing URLs and default URL keys to `flutter_cache_manager`.
 Its guarded HTTP service signs only the active server's exact cover endpoint
