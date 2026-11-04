@@ -28,7 +28,7 @@ assumptions until an item proves them.
 | Feature | Linux / Windows | macOS today | Evidence |
 |---|---|---|---|
 | Audio backend | media_kit + libmpv (Linux system bundle, Windows pinned full bundle `third_party/media_kit_libs_windows_audio`) | media_kit + `media_kit_libs_macos_audio` 1.1.4 (mpv 0.36, Mbed TLS, no libavfilter). Debug builds skip media_kit and use just_audio's AVFoundation player unless `NAVIS_ENABLE_MEDIA_KIT_DEBUG=true` | `lib/main.dart:265-297,538-539`, `pubspec.yaml:65,70` |
-| Stream TLS verification | `tls-verify=yes`, system store | **off**: the stream URL carries the auth token, so a man in the middle can read it | `lib/main.dart:281`, `docs/architecture.md:4832-4840` |
+| Stream TLS verification | `tls-verify=yes`, system store | `tls-verify=yes` with `tls-ca-file=/etc/ssl/cert.pem` (Mbed TLS cannot use the system store); a private CA trusted only in the keychain is refused for streams. Branch `fix/macos-stream-tls-verify`, in review | `lib/src/bootstrap/bundled_libmpv.dart`, `docs/architecture.md` |
 | Equalizer | libavfilter chain | **unavailable** (bundle lacks filters) | `lib/src/features/equalizer/data/eq_platform_support.dart:12-17` |
 | Fast seeking (transcode offset) | yes | **off** (platform gate) | `lib/src/features/player/data/navis_audio_handler_recovery.dart:395-399`, `lib/src/features/settings/presentation/playback_settings_screen.dart:264-266` |
 | Speed / pitch, gapless, crossfade, ReplayGain | yes | yes in release; speed/pitch absent in debug | `lib/src/features/player/presentation/playback_adjustment_controller.dart:17-21` |
@@ -55,7 +55,7 @@ plus Opus review for auth/file writes).
 |---|---|---|---|---|---|
 | M0 | Diagnostics API on macOS profile builds (`_syncDiagnosticsRuntimeEnabled`; launch sites hard-coding `-d linux`: `tool/lib/diagnostics.sh:202,247,296`, `tool/sync_diagnostics.sh:243`, `tool/presentation_diagnostics.sh:213`; the PulseAudio device that `tool/lib/diagnostics.sh:247-252` injects, which `lib/main.dart:284-290` would pass to libmpv, must not be used on macOS). Drops the App Sandbox from both entitlement files so the sandbox no longer blocks the clone root and handshake under `build/`, matching the notarized app, which `tool/macos_notarize.sh` re-signs without entitlements. Prerequisite for every runtime check below | risky (auth surface, profile only; entitlements) | no | in review; owner approved dropping the sandbox 2026-11-04 | `chore/macos-diagnostics-api` |
 | M1 | Runtime-verify Now Playing and remote commands through `audio_service`: metadata, artwork, position/duration/rate, scrubbing (`changePlaybackPosition`), play/pause/next/previous/seek from media keys, Control Center, AirPods. Fix what fails, then decide whether an app-owned Darwin bridge (like MPRIS/SMTC) is needed | risky (playback) | yes (same MediaPlayer APIs) | phase A done 2026-11-04 (see below); hardware keys, AirPods and the cold-start gap open | – |
-| M2 | Replace the macOS libmpv bundle with a pinned full build (like Windows): system TLS verification, libavfilter equalizer, then lift the macOS gates for EQ and fast seeking. Interim if M2 is slow: `tls-verify=yes` with `tls-ca-file=/etc/ssl/cert.pem`, runtime-proven against a bad certificate | risky (playback, security) | no (iOS uses AVFoundation) | triaged | – |
+| M2 | Replace the macOS libmpv bundle with a pinned full build (like Windows): system TLS verification, libavfilter equalizer, then lift the macOS gates for EQ and fast seeking. Interim if M2 is slow: `tls-verify=yes` with `tls-ca-file=/etc/ssl/cert.pem`, runtime-proven against a bad certificate | risky (playback, security) | no (iOS uses AVFoundation) | interim TLS in review: branch `fix/macos-stream-tls-verify` (changelog line when released: "macOS: stream connections now verify server certificates."); bundle replacement triaged | – |
 | M3 | Mac app lifecycle: keep running when the window closes, reopen on Dock click, Dock menu (play/pause, next, previous, now playing), Controls menu in the menu bar wired to `desktop_commands` (Flutter `PlatformMenuBar`) | risky (window/close lifecycle) | partly (commands) | M3a (close hides, Dock-click reopen, Dock menu) in review; the Controls menu is still open. Changelog line for the next release (not yet in `changelog_data.dart`): "macOS: closing the window keeps music playing; click the Dock icon to reopen. The Dock menu shows the current track with Play/Pause, Next and Previous." | `feat/macos-dock-lifecycle` |
 | M4 | Self-update on macOS: prove download → replace → relaunch on a notarized build (unsandboxed after M0) and sign with explicit entitlements and hardened runtime rather than `--deep` re-signing | risky (file writes, updater) | no | triaged | – |
 | M5 | Register the LGPL libmpv/FFmpeg notice on macOS | low | no | triaged | – |
@@ -63,6 +63,7 @@ plus Opus review for auth/file writes).
 | M7 | Commit the Swift Package Manager migration of the macOS Xcode project so builds stop dirtying the tree; the first build after a clean checkout can fail with "Unable to resolve module dependency" and pass on retry | low | yes (iOS project too) | triaged | – |
 | M9 | Saved sign-in on macOS. The plugin's default data-protection keychain needs a `keychain-access-groups` entitlement no build has (`SecItemAdd` returned -34018, so the sign-in lasted one session). Fix: every `FlutterSecureStorage` uses the login keychain with a Navis-specific service name (`macOsLoginKeychain`) and on macOS the shortcut store shares the serialized native queue; ad-hoc dev rebuilds can prompt per item (see `docs/architecture.md`). Changelog line for the next release: "macOS: Navis keeps you signed in across restarts." | risky (auth) | yes (iOS keychain) | fixed, in review (proven at runtime: `-34018` on the data-protection keychain; the login keychain persists across launches) | `fix/macos-keychain-credentials`; follow-up `fix/macos-keychain-followups` (a failed credential or ListenBrainz token delete is overwritten with an empty value or remembered as cleared so a stale account is never read back in the same session, and the service name is pinned by a test; covered by tests only, no runtime proof) |
 | M8 | Docs: macOS status in `README.md`, `docs/architecture.md`, `docs/release/release-macos.md` (TLS gap, updater flow), macOS testing playbook. `docs/development/technical-overview.md` is corrected with this plan and again by M1 | low | – | after M1–M3 | – |
+| M11 | macOS: a failed (404) stream reports `playing: true` with `processingState` idle (`stream_open_diagnostics` check `failedStreamNotPlaying`). Predates the TLS branch; `_playing` is set at `mediakit_player.dart:503/512` and `open(play: _playing)` has no failure handling | risky (playback) | no | triaged | – |
 
 Order: M0 first (enables runtime evidence), then M1 and M2 (playback core),
 M3, M4, with M5 and M7 as small parallel PRs and M8 last.
@@ -101,7 +102,11 @@ with `MRMediaRemoteSendCommand`.
   (and an iOS equivalent). Candidate: vendor the macOS libs package under
   `third_party/` pinned to v0.7.3 audio-full with a SHA-256, as Windows does,
   then set `tls-verify=yes` with `tls-ca-file=/etc/ssl/cert.pem` on macOS. Still
-  to prove: filter list, licence flavour (full is LGPL; encodersgpl is not
-  wanted) and a bad-certificate refusal at runtime.
+  to prove: filter list and licence flavour (full is LGPL; encodersgpl is not
+  wanted). The interim (2026-11-04, v0.6.0 libs): `tls-verify=yes` alone refuses
+  every HTTPS stream, even a valid public one; with `tls-ca-file` a public
+  certificate plays and self-signed or wrong-host certificates are refused.
+  For IP-literal hosts the host name is not matched; the chain is still
+  verified.
 - M3: owner preference on closing the window while playing. Default: keep
   playing (Apple Music, Spotify, Doppler behaviour); quit with Cmd+Q.

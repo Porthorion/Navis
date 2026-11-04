@@ -274,11 +274,14 @@ void _initializeDesktopAudioBackend() {
   try {
     JustAudioMediaKit.title = 'Navis';
     // libmpv up to 0.41 opens https streams without checking the server
-    // certificate. The Linux and Windows LGPL bundles use the
-    // system certificate store; macOS's bundled mpv 0.36 (Mbed TLS) is not
-    // verified to find it yet, so it stays as before until that build is
-    // replaced.
-    JustAudioMediaKit.tlsVerify = Platform.isLinux || Platform.isWindows;
+    // certificate. The Linux and Windows bundles use the system certificate
+    // store; macOS's bundled mpv (Mbed TLS) cannot, so it is pointed at the
+    // system CA bundle file instead.
+    configureDesktopStreamTls(
+      onMissingCaFile: () => AppLogger.warning(
+        'Stream certificate verification is off: $macosCaFile is missing.',
+      ),
+    );
     // An isolated diagnostics run can capture its own native PCM without
     // changing the user's default output or routing other applications.
     const diagnosticsAudioDevice = String.fromEnvironment(
