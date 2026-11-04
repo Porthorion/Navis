@@ -55,6 +55,9 @@ class MainFlutterWindow: NSWindow {
       result(nil)
     }
 
+    // The main menu is only guaranteed to exist once the nib has loaded.
+    DispatchQueue.main.async { (NSApp.delegate as? AppDelegate)?.installControlsMenu() }
+
     super.awakeFromNib()
   }
 }

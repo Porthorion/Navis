@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
@@ -1497,6 +1498,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     return Column(
       children: <Widget>[
         LibrarySortFilterRow<_AlbumSort>(
+          alignWithGrid: false,
           sortLabel: l10n.libraryAlbumsSortLabel,
           sortValue: _albumSort,
           sortItems: <DropdownMenuItem<_AlbumSort>>[

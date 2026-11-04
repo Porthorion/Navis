@@ -71,6 +71,13 @@ void main() {
     expect(ContentLayout.shelfLimit(80, 128), 2);
   });
 
+  test('genre cards are bounded and single column only when very narrow', () {
+    expect(ContentLayout.genres(0).columns, 1);
+    expect(ContentLayout.genres(599).columns, 2);
+    expect(ContentLayout.genres(1352).extent, 260);
+    expect(ContentLayout.genres(1352).columns, 5);
+  });
+
   test('radio cards use one narrow column and bounded wide columns', () {
     expect(ContentLayout.radio(599).columns, 1);
     expect(ContentLayout.radio(1040).columns, 3);

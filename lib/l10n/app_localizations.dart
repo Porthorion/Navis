@@ -4265,6 +4265,12 @@ abstract class AppLocalizations {
   /// **'Next'**
   String get nowPlayingNext;
 
+  /// No description provided for @macosMenuControls.
+  ///
+  /// In en, this message translates to:
+  /// **'Controls'**
+  String get macosMenuControls;
+
   /// No description provided for @nowPlayingNoNextTrack.
   ///
   /// In en, this message translates to:
@@ -7096,6 +7102,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Navis cannot update itself from this location. Please download manually.'**
   String get updateNoWriteAccess;
+
+  /// No description provided for @updateMoveToApplications.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Navis to the Applications folder to update it.'**
+  String get updateMoveToApplications;
 
   /// No description provided for @updateUsePackageManager.
   ///

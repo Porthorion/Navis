@@ -257,24 +257,58 @@ Once installed, the auto-updater handles all future updates.
 
 When a new version is detected:
 
-1. **Write-access check:** verifies that `/Applications` (or wherever the `.app` lives) is
+1. **Location check:** verifies that `/Applications` (or wherever the `.app` lives) is
    writable. If not, shows "Download Manually" and links to the release notes page (or
-   the download page on the Navis website).
+   the download page on the Navis website). An app running from a disk image
+   (`/Volumes/...`) or from App Translocation (`/AppTranslocation/...`, what macOS does to
+   a quarantined app opened from Downloads) is read-only: the dialog then says "Move Navis
+   to the Applications folder to update it."
 2. Downloads `navis-vX.Y.Z-macos.zip` to the system temp directory.
 3. Checks its size and SHA-256 against the signed manifest. A mismatch deletes the file
    and shows "The update download was damaged"; nothing is extracted.
 4. Extracts using `ditto -xk`, which preserves the code signature.
-5. Resolves the current `.app` bundle path by walking up from the running executable.
+5. Checks that the extracted `<App>.app` exists and passes
+   `codesign --verify --deep --strict`. If not, the update is refused with the same
+   "damaged" message **while the old app keeps running**.
 6. Writes a bash updater script to temp and launches it detached, then exits.
 
-The updater script:
-- Waits 2 seconds for the app to exit.
-- Backs up the current `.app` as `.app.backup`.
-- Moves the new `.app` into place.
-- Launches using `open Navis.app`.
-- Removes the backup and self-deletes.
-- If moving the new version fails, **automatically restores the backup** so the user's app
-  remains functional.
+The updater script (`UpdateScripts.writeMacosScript`; Linux portable and Windows use
+their own scripts, unchanged):
+- Waits for the old process (by pid, up to 20 s) to exit. If it never does, nothing is
+  touched and the existing app is reopened.
+- Moves the current `.app` to `<App>.app.backup`, then the new `.app` into place.
+- Writes `pending` to `~/Library/Application Support/<bundle id>/navis-update-handshake`
+  and opens the new app.
+- The new app rewrites that file as `started` once it has rendered its first frame
+  (`MacosUpdate.confirmLaunch`, a post-frame callback in `main.dart`). The script waits up
+  to 30 s for it.
+- Seen: deletes the backup. Not seen and no process runs from the new bundle (the new app
+  crashed or never started), or `open`, a move or the handshake write failed: writes
+  `rollback` to the handshake, moves the new app aside, restores the backup and opens the
+  old app, so the user is never left without Navis. If the restore move itself fails,
+  both apps are kept. A leftover that cannot be removed before a move aborts the update
+  instead of nesting one app inside another.
+- Not seen but a process still runs from the new bundle: the new app is alive, so nothing
+  is moved or deleted and the backup stays; the next launch removes it.
+- Appends every step to `~/Library/Logs/Navis/update.log` (trimmed past ~100 KB).
+
+At every launch, with no update script waiting (no fresh `pending` or `rollback`
+handshake file), the app deletes a leftover `<App>.app.backup` next to its bundle. A
+handshake file more than 5 minutes old (or dated that far in the future) is treated as
+left by a killed script. A sync-diagnostics clone skips this cleanup.
+
+Limits: the launch marker is written after the first frame, so it proves the new app got
+past startup, not that it stays up afterwards. A new app that is running but has not
+written the marker (for example a slow first launch) is never rolled back; only an app
+that is not running is. Ad-hoc (non-notarized) zips can still
+be published under the `macosBundle` key by running `tool/release.sh` without
+`--macos-notarize`; the updater only checks the manifest hash and that the bundle's
+signature is intact, not that it is notarized.
+
+`tool/macos_notarize.sh` signs inside-out: nested frameworks, dylibs, XPC services and
+helper apps first, then the app, all with `--options runtime --timestamp` and no `--deep`.
+Only the app gets `--entitlements macos/Runner/Release.entitlements`. Verification still
+uses `--deep --strict`.
 
 ---
 

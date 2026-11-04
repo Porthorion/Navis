@@ -7,8 +7,9 @@ import 'package:navis/src/features/player/data/desktop_transport_actions.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/utils/app_logger.dart';
 
-/// Feeds the macOS Dock menu (`AppDelegate.applicationDockMenu`) and runs its
-/// Play/Pause, Next and Previous items on [NavisPlaybackHandler].
+/// Feeds the macOS Dock menu (`AppDelegate.applicationDockMenu`) and the
+/// menu-bar Controls menu, and runs their Play/Pause, Next and Previous items
+/// on [NavisPlaybackHandler].
 ///
 /// Dart pushes `update` whenever the displayed state changes (identical
 /// states are dropped); Swift sends `command` with an `action` when an item
@@ -48,6 +49,7 @@ class MacosDockMenuBridge {
           : _localizations.nowPlayingPlay,
       'nextLabel': _localizations.nowPlayingNext,
       'previousLabel': _localizations.nowPlayingPrevious,
+      'controlsMenuLabel': _localizations.macosMenuControls,
     };
     if (mapEquals(state, _lastPushed)) return;
     _lastPushed = state;
@@ -72,10 +74,10 @@ class MacosDockMenuBridge {
         case 'previous':
           await desktopPreviousTrack(_handler, snapshot);
         default:
-          AppLogger.warning('Unknown Dock menu action: $action');
+          AppLogger.warning('Unknown menu action: $action');
       }
     } on Object catch (error) {
-      AppLogger.warning('macOS Dock menu action "$action" failed: $error');
+      AppLogger.warning('macOS menu action "$action" failed: $error');
     }
   }
 

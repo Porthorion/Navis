@@ -143,38 +143,37 @@ class _SimilarArtistCard extends ConsumerWidget {
                 anchor: details.globalPosition,
               ),
             ),
-      child: Padding(
-        padding: const EdgeInsets.all(NavisSpace.xs),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Expanded(
-              // Centred so the artwork stays square, and a circle stays
-              // round, when the tile is taller than it is wide.
-              child: Center(
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: libraryArtistId != null
-                      ? CoverArtImage(
-                          coverArtId: artist.coverArt,
-                          size: kCoverArtStandardSize,
-                          shape: ArtworkShapeRole.artist,
-                          placeholderIcon: Icons.person_outline,
-                        )
-                      : _ExternalArtistPhoto(url: artist.imageUrl),
-                ),
+      // No inner padding: the grid's gap is the only gutter, as in the Library
+      // artist grid (the tile height from `artistTileHeight` assumes it).
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Expanded(
+            // Centred so the artwork stays square, and a circle stays
+            // round, when the tile is taller than it is wide.
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: libraryArtistId != null
+                    ? CoverArtImage(
+                        coverArtId: artist.coverArt,
+                        size: kCoverArtStandardSize,
+                        shape: ArtworkShapeRole.artist,
+                        placeholderIcon: Icons.person_outline,
+                      )
+                    : _ExternalArtistPhoto(url: artist.imageUrl),
               ),
             ),
-            const SizedBox(height: 6),
-            Text(
-              artist.name,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            artist.name,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ),
     );
   }

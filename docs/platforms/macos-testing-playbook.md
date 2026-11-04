@@ -90,6 +90,7 @@ xcrun notarytool store-credentials navis-notary-profile \
 - Launches to shell without crash.
 - Can sign in and sync library.
 - Now Playing/queue controls work (play/pause/seek/next/previous).
+- After a launch with a restored queue, system Now Playing and the play key only include Navis once it has played audio in that launch (macOS policy, not a defect); after the first play they work, also while paused.
 - Desktop window behavior works (open, resize, close, restore bounds).
 - Audio continues across focus changes.
 - Settings screens open and persist changed values.

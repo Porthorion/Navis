@@ -12,7 +12,16 @@ class AppDelegate: FlutterAppDelegate {
     var playPauseLabel = ""
     var nextLabel = ""
     var previousLabel = ""
+    /// Title of the menu-bar Controls menu; empty when Dart did not send one.
+    var controlsTitle = ""
   }
+
+  /// The menu-bar "Controls" menu, built from the same pushed state and sent
+  /// through the same `command` call as the Dock menu. It has no key
+  /// equivalents: Navis's in-window transport keys are bare Space and arrows
+  /// or Option+punctuation, which text fields need.
+  private(set) var controlsMenu: NSMenu?
+  private let defaultControlsTitle = "Controls"
 
   /// Nil until the first `update`: before that the Dock shows only its stock
   /// menu rather than transport items with made-up labels.
@@ -58,7 +67,46 @@ class AppDelegate: FlutterAppDelegate {
     state.playPauseLabel = playPauseLabel
     state.nextLabel = nextLabel
     state.previousLabel = previousLabel
+    state.controlsTitle = arguments["controlsMenuLabel"] as? String ?? ""
     dockMenuState = state
+    refreshControlsMenu()
+  }
+
+  /// Adds the Controls menu to the main menu, before the Window menu, once.
+  /// Called after launch because the nib's menu is not guaranteed to be set
+  /// while `MainFlutterWindow.awakeFromNib` runs.
+  func installControlsMenu() {
+    guard controlsMenu == nil, let mainMenu = NSApp.mainMenu else { return }
+    let menu = NSMenu(title: defaultControlsTitle)
+    menu.autoenablesItems = false
+    for (title, action) in [("Play", "playPause"), ("Next", "next"), ("Previous", "previous")] {
+      let item = NSMenuItem(
+        title: title, action: #selector(dockMenuItemSelected(_:)), keyEquivalent: "")
+      item.target = self
+      item.representedObject = action
+      menu.addItem(item)
+    }
+    let barItem = NSMenuItem(title: defaultControlsTitle, action: nil, keyEquivalent: "")
+    barItem.submenu = menu
+    let windowIndex = mainMenu.items.firstIndex { $0.submenu === NSApp.windowsMenu }
+    mainMenu.insertItem(barItem, at: windowIndex ?? mainMenu.items.count)
+    controlsMenu = menu
+    refreshControlsMenu()
+  }
+
+  /// Applies the last pushed state to the Controls menu: localized labels,
+  /// and every item disabled while nothing is loaded.
+  private func refreshControlsMenu() {
+    guard let menu = controlsMenu else { return }
+    let state = dockMenuState
+    let title = state?.controlsTitle.isEmpty == false ? state!.controlsTitle : defaultControlsTitle
+    menu.title = title
+    menu.supermenu?.items.first { $0.submenu === menu }?.title = title
+    let labels = [state?.playPauseLabel, state?.nextLabel, state?.previousLabel]
+    for (item, label) in zip(menu.items, labels) {
+      if let label = label { item.title = label }
+      item.isEnabled = state?.hasItem ?? false
+    }
   }
 
   // Right-click on the Dock icon: now playing (disabled), Play/Pause, Next,
