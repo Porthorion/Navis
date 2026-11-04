@@ -257,24 +257,32 @@ When a new version is detected:
 The updater script (`UpdateScripts.writeMacosScript`; Linux portable and Windows use
 their own scripts, unchanged):
 - Waits for the old process (by pid, up to 20 s) to exit. If it never does, nothing is
-  touched.
+  touched and the existing app is reopened.
 - Moves the current `.app` to `<App>.app.backup`, then the new `.app` into place.
 - Writes `pending` to `~/Library/Application Support/<bundle id>/navis-update-handshake`
   and opens the new app.
-- The new app, at startup (`MacosUpdate.startupHandshake`), rewrites that file as
-  `started`. The script waits up to 30 s for it.
-- Seen: deletes the backup. Not seen (the new app crashed or never started), or `open` or
-  any move failed: moves the new app aside, restores the backup and opens the old app, so
-  the user is never left without Navis.
+- The new app rewrites that file as `started` once it has rendered its first frame
+  (`MacosUpdate.confirmLaunch`, a post-frame callback in `main.dart`). The script waits up
+  to 30 s for it.
+- Seen: deletes the backup. Not seen and no process runs from the new bundle (the new app
+  crashed or never started), or `open`, a move or the handshake write failed: writes
+  `rollback` to the handshake, moves the new app aside, restores the backup and opens the
+  old app, so the user is never left without Navis. If the restore move itself fails,
+  both apps are kept. A leftover that cannot be removed before a move aborts the update
+  instead of nesting one app inside another.
+- Not seen but a process still runs from the new bundle: the new app is alive, so nothing
+  is moved or deleted and the backup stays; the next launch removes it.
 - Appends every step to `~/Library/Logs/Navis/update.log` (trimmed past ~100 KB).
 
-At every launch, with no update script waiting (no fresh handshake file), the app deletes
-a leftover `<App>.app.backup` next to its bundle. A handshake file older than 5 minutes is
-treated as left by a killed script.
+At every launch, with no update script waiting (no fresh `pending` or `rollback`
+handshake file), the app deletes a leftover `<App>.app.backup` next to its bundle. A
+handshake file more than 5 minutes old (or dated that far in the future) is treated as
+left by a killed script. A sync-diagnostics clone skips this cleanup.
 
-Limits: the launch marker is written early in startup, so it proves the new binary loads
-and starts, not that it stays up afterwards; a new app that hangs without writing the
-marker is rolled back while it may still be running. Ad-hoc (non-notarized) zips can still
+Limits: the launch marker is written after the first frame, so it proves the new app got
+past startup, not that it stays up afterwards. A new app that is running but has not
+written the marker (for example a slow first launch) is never rolled back; only an app
+that is not running is. Ad-hoc (non-notarized) zips can still
 be published under the `macosBundle` key by running `tool/release.sh` without
 `--macos-notarize`; the updater only checks the manifest hash and that the bundle's
 signature is intact, not that it is notarized.

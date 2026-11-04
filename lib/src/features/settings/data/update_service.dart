@@ -532,8 +532,13 @@ class UpdateService {
 
   /// Deletes leftover `.backup` directories and this user's private update
   /// work directories. Safe to call on every desktop app launch.
-  static Future<void> cleanupStaledUpdates() async {
-    await _cleanupNextToBundle();
+  ///
+  /// [skipBundleBackup] is set by a sync-diagnostics clone, which shares the
+  /// real app's bundle and must never delete its backup.
+  static Future<void> cleanupStaledUpdates({
+    bool skipBundleBackup = false,
+  }) async {
+    if (!skipBundleBackup) await _cleanupNextToBundle();
     await _cleanupWorkDirs();
   }
 
@@ -551,8 +556,17 @@ class UpdateService {
     } on Object catch (_) {}
   }
 
+  /// Tells a waiting macOS updater script that the new app rendered a frame.
+  /// Call after the first frame; a no-op elsewhere and outside an update.
+  static Future<void> confirmMacosLaunch() async {
+    if (!Platform.isMacOS) return;
+    try {
+      MacosUpdate.confirmLaunch((await getApplicationSupportDirectory()).path);
+    } on Object catch (_) {}
+  }
+
   /// macOS keeps the old app as `<App>.app.backup` next to the bundle, not in
-  /// `Contents/MacOS`. Also answers a waiting updater script's launch check.
+  /// `Contents/MacOS`. A running updater script's fresh handshake keeps it.
   static Future<void> _cleanupMacosBackup() async {
     try {
       final bundle = MacosUpdate.bundlePathOf(Platform.resolvedExecutable);
@@ -618,16 +632,10 @@ class UpdateService {
 
       case UpdateInstallMode.macosBundle:
         // canApplyUpdate needs to confirm we can write to the *directory that
-        // contains* the .app bundle (we rename it in place). Walk up to .app
-        // then return its parent.
+        // contains* the .app bundle (we rename it in place), e.g.
+        // /Applications, not /Applications/Navis.app.
         final exe = Platform.resolvedExecutable;
-        var path = exe;
-        while (path.isNotEmpty && !path.endsWith('.app')) {
-          path = p.dirname(path);
-        }
-        return p.dirname(
-          path,
-        ); // e.g. /Applications, not /Applications/Navis.app
+        return p.dirname(MacosUpdate.bundlePathOf(exe) ?? exe);
 
       case UpdateInstallMode.linuxDeb:
       case UpdateInstallMode.linuxRpm:

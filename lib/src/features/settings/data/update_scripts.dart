@@ -141,13 +141,17 @@ rm -- "\$0" 2>/dev/null || true
 
   /// Creates the macOS updater script. Unlike [writeUnixScript] it never leaves
   /// the user without a working app:
-  /// 1. Waits (up to [exitWaitSeconds]) for process [pid] to exit
+  /// 1. Waits (up to [exitWaitSeconds]) for process [pid] to exit; on timeout
+  ///    it reopens the untouched app
   /// 2. Moves the app to `.backup`, then the staged app into place
   /// 3. Writes `pending` to [handshakePath], opens the app, and waits up to
   ///    [launchTimeoutSeconds] for the new app to rewrite it as `started`
-  ///    (see `MacosUpdate.startupHandshake`)
-  /// 4. Marker seen: deletes the backup. Otherwise (or if `open` or any move
-  ///    fails): moves the new app aside, restores the backup and opens it
+  ///    once it has rendered its first frame (see `MacosUpdate`)
+  /// 4. Marker seen: deletes the backup. Marker missing and a process still
+  ///    runs from the new bundle: the new app is alive, so nothing is touched
+  ///    and the backup is left for the next launch to clean up. Otherwise (or
+  ///    if `open` or any move fails): moves the new app aside, restores the
+  ///    backup and opens it
   ///
   /// Every step is appended to [logPath]. Returns the path to the `.sh` file.
   static Future<String> writeMacosScript({
@@ -174,19 +178,34 @@ rm -- "\$0" 2>/dev/null || true
 LOG=$l
 mkdir -p -- "\$(dirname -- "\$LOG")" 2>/dev/null
 # Keep the log small: drop all but the tail once it passes ~100 KB.
-if [ "\$(wc -c < "\$LOG" 2>/dev/null || echo 0)" -gt 100000 ]; then
+if [ -f "\$LOG" ] && [ "\$(wc -c < "\$LOG")" -gt 100000 ]; then
   tail -n 200 "\$LOG" > "\$LOG.tmp" 2>/dev/null && mv -f "\$LOG.tmp" "\$LOG"
 fi
 log() { printf '%s %s\\n' "\$(date '+%Y-%m-%dT%H:%M:%S')" "\$*" >> "\$LOG" 2>/dev/null || true; }
-# Put the old app back (whatever state the moves reached) and open it.
+finish() { rm -- "\$0" 2>/dev/null; exit "\$1"; }
+# True while any process runs from the (new) bundle's executable directory.
+running() {
+  /bin/ps -axo comm= 2>/dev/null | P=$t/Contents/MacOS/ awk 'index(\$0, ENVIRON["P"]) == 1 { f = 1 } END { exit !f }'
+}
+# Put the old app back (whatever state the moves reached) and open it. The
+# handshake says rollback first so a late-starting new app cannot confirm.
 restore() {
-  rm -f -- $h
+  printf rollback > $h 2>/dev/null
   if [ -e $b ]; then
     rm -rf -- $f
-    if [ -e $t ]; then mv $t $f || rm -rf -- $t; fi
-    if mv $b $t; then log "restored previous app"; else log "restore FAILED, backup kept"; fi
-    rm -rf -- $f
+    if [ -e $t ]; then
+      if [ -e $f ] || ! mv $t $f; then rm -rf -- $t; fi
+    fi
+    if [ -e $t ]; then
+      log "could not clear the new app; backup kept"
+    elif mv $b $t; then
+      log "restored previous app"
+      rm -rf -- $f
+    else
+      log "restore FAILED; backup and failed app kept"
+    fi
   fi
+  rm -f -- $h
   open $t || log "open of restored app failed"
 }
 log "update started; waiting for pid $pid"
@@ -194,23 +213,33 @@ i=0
 while kill -0 $pid 2>/dev/null; do
   if [ \$i -ge ${exitWaitSeconds * 5} ]; then
     log "old app still running after ${exitWaitSeconds}s; aborting without changes"
-    exit 1
+    open $t || log "open failed"
+    finish 1
   fi
   sleep 0.2; i=\$((i + 1))
 done
 rm -rf -- $b
+if [ -e $b ]; then
+  log "could not clear the previous backup; keeping the old app"
+  open $t || log "open failed"
+  finish 1
+fi
 if ! mv $t $b; then
   log "could not move the old app aside; keeping it"
   open $t || log "open failed"
-  exit 1
+  finish 1
 fi
 if ! mv $s $t; then
   log "could not move the new app into place"
   restore
-  exit 1
+  finish 1
 fi
 mkdir -p -- "\$(dirname -- $h)" 2>/dev/null
-printf pending > $h
+if ! printf pending > $h; then
+  log "could not write the launch handshake"
+  restore
+  finish 1
+fi
 if open $t; then
   log "opened new app; waiting for its launch marker"
 else
@@ -222,15 +251,17 @@ while [ \$i -lt ${launchTimeoutSeconds * 5} ]; do
     rm -f -- $h
     rm -rf -- $b
     log "new app started; update complete"
-    rm -- "\$0" 2>/dev/null || true
-    exit 0
+    finish 0
   fi
   sleep 0.2; i=\$((i + 1))
 done
+if running; then
+  log "no launch marker after ${launchTimeoutSeconds}s but the new app is running; leaving it and the backup in place"
+  finish 0
+fi
 log "new app did not start within ${launchTimeoutSeconds}s; rolling back"
 restore
-rm -- "\$0" 2>/dev/null || true
-exit 1
+finish 1
 ''';
 
     await File(scriptPath).writeAsString(script);

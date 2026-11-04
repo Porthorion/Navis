@@ -17,6 +17,7 @@ void main() {
     late String handshake;
     late String logPath;
     late String openLog;
+    late String pidLog;
     late Directory bin;
 
     String version(String app) =>
@@ -38,6 +39,7 @@ void main() {
       await Directory(p.dirname(handshake)).create();
       logPath = p.join(root.path, 'logs', 'update.log');
       openLog = p.join(root.path, 'open.log');
+      pidLog = p.join(root.path, 'pids.log');
       bin = await Directory(p.join(root.path, 'bin')).create();
       // `open <app>` records the call. A "new" app that STUB_START allows
       // rewrites the handshake as started, like MacosUpdate.startupHandshake;
@@ -45,6 +47,10 @@ void main() {
       final open = File(p.join(bin.path, 'open'));
       await open.writeAsString(r'''#!/bin/bash
 echo "$1" >> "$STUB_OPEN_LOG"
+if [ "$STUB_RUN" = 1 ] && [ -x "$1/Contents/MacOS/sleep" ]; then
+  "$1/Contents/MacOS/sleep" 300 >/dev/null 2>&1 &
+  echo $! >> "$STUB_PIDS"
+fi
 if [ "$STUB_START" = 1 ] && [ "$(cat "$1/version")" = new ]; then
   (
     sleep 0.4
@@ -56,21 +62,44 @@ if [ "$STUB_START" = 1 ] && [ "$(cat "$1/version")" = new ]; then
 fi
 exit 0
 ''');
-      // Fails any rename onto `*.backup`, like a read-only parent would.
+      // Fails any rename onto `*.backup`, like a read-only parent would, or
+      // (STUB_FAIL_RESTORE) any rename out of one.
       final mv = File(p.join(bin.path, 'mv'));
       await mv.writeAsString(r'''#!/bin/bash
 for a; do last=$a; done
 if [ "$STUB_FAIL_BACKUP" = 1 ]; then case "$last" in *.backup) exit 1;; esac; fi
+if [ "$STUB_FAIL_RESTORE" = 1 ]; then case "$1" in *.backup) exit 1;; esac; fi
 exec /bin/mv "$@"
 ''');
-      await Process.run('chmod', ['755', open.path, mv.path]);
+      // STUB_FAIL_RM: `rm` silently cannot remove a `*.backup`.
+      final rm = File(p.join(bin.path, 'rm'));
+      await rm.writeAsString(r'''#!/bin/bash
+if [ "$STUB_FAIL_RM" = 1 ]; then
+  for a; do case "$a" in *.backup) exit 1;; esac; done
+fi
+exec /bin/rm "$@"
+''');
+      await Process.run('chmod', ['755', open.path, mv.path, rm.path]);
     });
 
-    tearDown(() => root.delete(recursive: true));
+    tearDown(() async {
+      // Only the processes the `open` stub started, by pid.
+      final pids = File(pidLog);
+      if (pids.existsSync()) {
+        for (final line in pids.readAsLinesSync()) {
+          final pid = int.tryParse(line);
+          if (pid != null) Process.killPid(pid);
+        }
+      }
+      await root.delete(recursive: true);
+    });
 
     Future<ProcessResult> run({
       bool start = true,
       bool failBackupMove = false,
+      bool failRestore = false,
+      bool failRm = false,
+      bool runProcess = false,
       int pid = 0,
       int launchTimeout = 5,
     }) async {
@@ -94,6 +123,10 @@ exec /bin/mv "$@"
           'STUB_HANDSHAKE': handshake,
           'STUB_START': start ? '1' : '0',
           'STUB_FAIL_BACKUP': failBackupMove ? '1' : '0',
+          'STUB_FAIL_RESTORE': failRestore ? '1' : '0',
+          'STUB_FAIL_RM': failRm ? '1' : '0',
+          'STUB_RUN': runProcess ? '1' : '0',
+          'STUB_PIDS': pidLog,
         },
       );
     }
@@ -164,11 +197,95 @@ exec /bin/mv "$@"
         logPath: logPath,
         exitWaitSeconds: 1,
       );
-      final result = await Process.run('bash', [script]);
+      final result = await Process.run(
+        'bash',
+        [script],
+        environment: {
+          'PATH': '${bin.path}:${Platform.environment['PATH']}',
+          'STUB_OPEN_LOG': openLog,
+        },
+      );
       expect(result.exitCode, 1);
       expect(version(appPath), 'old');
       expect(Directory(stagingPath).existsSync(), isTrue);
+      // Nothing was moved, so the existing app is reopened.
+      expect(opens(), [appPath]);
     });
+
+    test('a running new app without a marker is never rolled back', () async {
+      final exe = Directory(p.join(stagingPath, 'Contents', 'MacOS'));
+      await exe.create(recursive: true);
+      // A copied platform binary is killed unless re-signed.
+      final copy = p.join(exe.path, 'sleep');
+      await File('/bin/sleep').copy(copy);
+      await Process.run('/usr/bin/codesign', ['-f', '-s', '-', copy]);
+      final result = await run(
+        start: false,
+        runProcess: true,
+        launchTimeout: 1,
+      );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(version(appPath), 'new');
+      expect(version(backupPath), 'old');
+      expect(Directory('$appPath.failed').existsSync(), isFalse);
+      expect(opens(), [appPath]);
+      expect(File(handshake).readAsStringSync(), 'pending');
+      expect(File(logPath).readAsStringSync(), contains('is running'));
+      expect(File(logPath).readAsStringSync(), isNot(contains('rolling back')));
+      // The process really ran from the new bundle.
+      final pid = int.parse(File(pidLog).readAsLinesSync().first);
+      expect(Process.killPid(pid, ProcessSignal.sigcont), isTrue);
+    }, skip: !Platform.isMacOS);
+
+    test('a failed restore move keeps the failed app and the backup', () async {
+      final result = await run(
+        start: false,
+        failRestore: true,
+        launchTimeout: 1,
+      );
+      expect(result.exitCode, 1);
+      expect(version('$appPath.failed'), 'new');
+      expect(version(backupPath), 'old');
+      expect(File(logPath).readAsStringSync(), contains('restore FAILED'));
+    });
+
+    test('an undeletable old backup aborts instead of nesting', () async {
+      await Directory(backupPath).create();
+      await File(p.join(backupPath, 'version')).writeAsString('stale');
+      final result = await run(failRm: true);
+      expect(result.exitCode, 1);
+      expect(version(appPath), 'old');
+      expect(version(backupPath), 'stale');
+      expect(
+        Directory(p.join(backupPath, p.basename(appPath))).existsSync(),
+        isFalse,
+      );
+      expect(Directory(stagingPath).existsSync(), isTrue);
+      expect(opens(), [appPath]);
+    });
+
+    test('an unwritable handshake restores the old app', () async {
+      // A directory where the file should be makes `printf >` fail.
+      await Directory(handshake).create();
+      final result = await run();
+      expect(result.exitCode, 1);
+      expect(version(appPath), 'old');
+      expect(Directory(backupPath).existsSync(), isFalse);
+      expect(opens(), [appPath]);
+    });
+
+    test(
+      'abort paths remove the script and a missing log prints nothing',
+      () async {
+        final result = await run(failBackupMove: true);
+        expect(result.stderr, isEmpty);
+        expect(
+          File(p.join(p.dirname(p.dirname(stagingPath)), 'navis_update.sh'))
+              .existsSync(),
+          isFalse,
+        );
+      },
+    );
 
     test('appends to the log and trims it when large', () async {
       await Directory(p.dirname(logPath)).create();
@@ -206,18 +323,43 @@ exec /bin/mv "$@"
       expect(backup.existsSync(), isFalse);
     });
 
-    test('script waiting: confirms the launch and keeps the backup', () async {
-      await handshake.writeAsString('pending');
+    test(
+      'script waiting: startup leaves the marker and backup alone',
+      () async {
+        await handshake.writeAsString('pending');
+        await start();
+        expect(await handshake.readAsString(), 'pending');
+        expect(backup.existsSync(), isTrue);
+      },
+    );
+
+    test('script rolling back: keeps the backup', () async {
+      await handshake.writeAsString('rollback');
       await start();
-      expect(await handshake.readAsString(), 'started');
+      expect(await handshake.readAsString(), 'rollback');
       expect(backup.existsSync(), isTrue);
     });
 
-    test('script finishing: leaves both alone', () async {
-      await handshake.writeAsString('started');
-      await start();
+    test('confirmLaunch answers pending only', () async {
+      await handshake.writeAsString('pending');
+      MacosUpdate.confirmLaunch(root.path);
       expect(await handshake.readAsString(), 'started');
-      expect(backup.existsSync(), isTrue);
+      await handshake.writeAsString('rollback');
+      MacosUpdate.confirmLaunch(root.path);
+      expect(await handshake.readAsString(), 'rollback');
+      await handshake.delete();
+      MacosUpdate.confirmLaunch(root.path);
+      expect(handshake.existsSync(), isFalse);
+    });
+
+    test('a future-dated handshake is stale too', () async {
+      await handshake.writeAsString('pending');
+      handshake.setLastModifiedSync(
+        DateTime.now().add(const Duration(minutes: 10)),
+      );
+      await start();
+      expect(handshake.existsSync(), isFalse);
+      expect(backup.existsSync(), isFalse);
     });
 
     test(
