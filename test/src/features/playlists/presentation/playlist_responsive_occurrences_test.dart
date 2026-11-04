@@ -151,23 +151,25 @@ void main() {
       final database = createTestDatabase();
       addTearDown(database.close);
       final api = _Api();
+      var removed = false;
       when(() => api.getPlaylist('occurrences')).thenAnswer(
-        (_) async => const Playlist(
+        (_) async => Playlist(
           id: 'occurrences',
           name: 'Occurrences',
-          songCount: 3,
+          songCount: removed ? 2 : 3,
           entries: [
-            Song(id: 'duplicate', title: 'Repeated song'),
-            Song(id: 'middle', title: 'Middle song'),
-            Song(id: 'duplicate', title: 'Repeated song'),
+            const Song(id: 'duplicate', title: 'Repeated song'),
+            const Song(id: 'middle', title: 'Middle song'),
+            if (!removed) const Song(id: 'duplicate', title: 'Repeated song'),
           ],
         ),
       );
       when(
         () => api.updatePlaylist(id: 'occurrences', songIndexesToRemove: [2]),
-      ).thenAnswer(
-        (_) async => const Playlist(id: 'occurrences', name: 'Occurrences'),
-      );
+      ).thenAnswer((_) async {
+        removed = true;
+        return const Playlist(id: 'occurrences', name: 'Occurrences');
+      });
       final container = await render(tester, database, api, filtered: true);
       expect(find.byType(AdaptiveTrackRow), findsNWidgets(2));
       expect(find.text('1:01:01'), findsNWidgets(2));

@@ -270,14 +270,12 @@ void main() {
   var inFlight = 0;
   var maxInFlight = 0;
 
-  /// Stateful server: [maxAdd] caps how many `songIdsToAdd` one call honours
-  /// (Navidrome 0.64 ignores 2+ ids). [multiKeep] picks what a refused multi
-  /// call stores anyway, [rejected] ids are never stored, [failing] ids throw
-  /// and [onUpdate] runs on every update (another client writing).
+  /// Stateful server: [maxAdd] caps how many `songIdsToAdd` one call honours;
+  /// [rejected] ids are never stored, [failing] ids throw and [onUpdate] runs
+  /// on every update (another client writing).
   List<String> stubServer(
     List<String> songs, {
     required int maxAdd,
-    Iterable<String> Function(List<String>)? multiKeep,
     Set<String> rejected = const {},
     Set<String> failing = const {},
     void Function()? onUpdate,
@@ -295,7 +293,7 @@ void main() {
       inFlight--;
       onUpdate?.call();
       if (ids.any(failing.contains)) throw StateError('add failed');
-      final kept = ids.length <= maxAdd ? ids : multiKeep?.call(ids) ?? [];
+      final kept = ids.length <= maxAdd ? ids : <String>[];
       songs.addAll(kept.where((id) => !rejected.contains(id)));
       return _response;
     });
@@ -329,17 +327,6 @@ void main() {
     ));
     expect(server.toSet(), {'x', 'z', 'a', 'b', 'c'});
     expect(server.length, 5);
-  });
-
-  test('a server keeping a non-prefix subset is not resent that id', () async {
-    final server = stubServer(['x'], maxAdd: 1, multiKeep: (ids) => [ids.last]);
-    await flush();
-    expect(await actions.addSongs(_playlist, ['a', 'b', 'c']), (
-      added: 3,
-      alreadyThere: 0,
-      failed: 0,
-    ));
-    expect(server, ['x', 'c', 'a', 'b']);
   });
 
   test('an id the server rejects is reported as missing', () async {
@@ -439,21 +426,24 @@ void main() {
     );
   });
 
-  test('add stays one update when the server honours multi-id', () async {
-    final server = stubServer(['x'], maxAdd: 99);
-    await flush();
-    expect(await actions.addSongs(_playlist, ['a', 'b']), (
-      added: 2,
-      alreadyThere: 0,
-      failed: 0,
-    ));
-    expect(server, ['x', 'a', 'b']);
-    verify(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['a', 'b']))
-        .called(1);
-    verifyNever(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['a']));
-    // One read before (baseline) and one after.
-    verify(() => api.getPlaylist('p')).called(2);
-  });
+  test(
+    'an add never sends a multi-id request, even to a server honouring it',
+    () async {
+      final server = stubServer(['x'], maxAdd: 99);
+      await flush();
+      expect(await actions.addSongs(_playlist, ['a', 'b']), (
+        added: 2,
+        alreadyThere: 0,
+        failed: 0,
+      ));
+      expect(server, ['x', 'a', 'b']);
+      verifyNever(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['a', 'b']));
+      verify(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['a'])).called(1);
+      verify(() => api.updatePlaylist(id: 'p', songIdsToAdd: ['b'])).called(1);
+      // One read before (baseline) and one after.
+      verify(() => api.getPlaylist('p')).called(2);
+    },
+  );
 
   test('add never reports success when the server drops every add', () async {
     final server = stubServer(['x'], maxAdd: 0);

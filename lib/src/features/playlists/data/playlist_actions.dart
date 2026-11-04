@@ -324,31 +324,19 @@ class PlaylistActions {
         ids: before,
       );
     }
-    // Navidrome 0.64 answers ok to a multi-id add but adds nothing, so the
-    // result is verified and what is missing is re-added one id per request.
-    // A failed request leaves its ids missing; the read-backs decide.
-    try {
-      await api.updatePlaylist(id: id, songIdsToAdd: songIds);
-    } on Object {
-      // Counted as missing below.
-    }
-    var after = await _entryIds(api, id);
-    var missing = _missing(songIds, before, after);
-    if (missing.isEmpty) {
-      return (
-        result: (added: songIds.length, alreadyThere: alreadyThere, failed: 0),
-        ids: after,
-      );
-    }
-    for (final song in missing) {
+    // One id per request, never a multi-id add (#268): Navidrome 0.64 answers
+    // ok to a multi-id add, adds nothing visible and leaves a hidden row that
+    // shifts every later `songIndexToRemove`. A failed request leaves its id
+    // missing; the read-back decides.
+    for (final song in songIds) {
       try {
         await api.updatePlaylist(id: id, songIdsToAdd: [song]);
       } on Object {
         // Counted as missing below.
       }
     }
-    after = await _entryIds(api, id);
-    missing = _missing(songIds, before, after);
+    final after = await _entryIds(api, id);
+    final missing = _missing(songIds, before, after);
     return (
       result: (
         added: songIds.length - missing.length,
@@ -396,11 +384,13 @@ class PlaylistActions {
   }
 
   /// Removes one occurrence of [songId]: the [occurrence]-th (0-based) entry
-  /// with that id, in a list the caller saw with [copies] of it. Never removes
-  /// by position, so a list that moved under the caller cannot take another
-  /// song; a song already gone removes nothing, and a song whose copies
-  /// changed throws [PlaylistChangedException] without writing, since the
-  /// occurrence no longer names the row the user chose.
+  /// with that id, in a list the caller saw with [copies] of it. Removes by
+  /// index, reads back and, when the index missed (playlists built by 1.5.1
+  /// may hold hidden rows that Navidrome 0.64 counts but `getPlaylist`
+  /// omits), repairs by rewriting the list, which drops such rows. A song
+  /// already gone removes nothing, and a song whose
+  /// copies changed throws [PlaylistChangedException] without writing, since
+  /// the occurrence no longer names the row the user chose.
   Future<void> removeAt(
     PlaylistsTableData playlist, {
     required String songId,
@@ -429,10 +419,58 @@ class PlaylistActions {
       final ids = await _entryIds(api, playlist.id);
       final at = _occurrenceIndex(ids, songId, occurrence, copies);
       if (at < 0) return (result: null, ids: ids);
-      // One index per call: Navidrome 0.64 ignores several.
-      await api.updatePlaylist(id: playlist.id, songIndexesToRemove: [at]);
-      return (result: null, ids: ids..removeAt(at));
+      final expected = ids.toList()..removeAt(at);
+      // Navidrome 0.64 counts hidden rows that `getPlaylist` omits (left by
+      // 1.5.1's multi-id adds), so an index can miss. Classify every read-back
+      // before the next write: removed (maybe with rows another client added),
+      // untouched (the index hit a hidden row: send it again), or a visible
+      // row above the chosen one went (repair), else the list changed under
+      // us and nothing more is written. An empty replace is a no-op, so the
+      // last song only ever goes by index.
+      for (var calls = 1; calls <= 10; calls++) {
+        await api.updatePlaylist(id: playlist.id, songIndexesToRemove: [at]);
+        final now = await _entryIds(api, playlist.id);
+        if (_removedOnly(now, expected, songId, copies - 1)) {
+          return (result: null, ids: now);
+        }
+        if (listEquals(now, ids)) continue;
+        // A hidden row in front shifts the index to an earlier row.
+        if (!List.generate(
+          at,
+          (j) => j,
+        ).any((j) => listEquals(now, ids.toList()..removeAt(j)))) {
+          throw const PlaylistChangedException();
+        }
+        // The replace drops the hidden rows, so later removals are exact.
+        await api.replacePlaylistSongs(
+          playlistId: playlist.id,
+          songIds: expected,
+        );
+        final repaired = await _entryIds(api, playlist.id);
+        if (!listEquals(repaired, expected)) {
+          throw StateError('The server did not apply the removal');
+        }
+        return (result: null, ids: repaired);
+      }
+      throw StateError('The server kept the song');
     });
+  }
+
+  /// Whether [now] is [expected] plus rows another client added meanwhile:
+  /// [expected] is an ordered subsequence of it and it holds [left] copies of
+  /// [songId], so no extra row is one we removed.
+  bool _removedOnly(
+    List<String> now,
+    List<String> expected,
+    String songId,
+    int left,
+  ) {
+    var next = 0;
+    for (final id in now) {
+      if (next < expected.length && id == expected[next]) next++;
+    }
+    return next == expected.length &&
+        now.where((id) => id == songId).length == left;
   }
 
   /// Index of the [occurrence]-th [songId] in [ids], or -1 when none is left.

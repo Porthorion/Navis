@@ -33,10 +33,17 @@ const _server = ServerConfigModel(
 );
 const _pl = PlaylistsTableData(isLocal: false, id: 'p', name: 'Mix');
 
+/// The invisible row a Navidrome 0.64.2 multi-id add leaves behind.
+const _ghost = '\u0000ghost';
+
 /// A Navidrome 0.64.2 stand-in behind the real [PlaylistActions], sync
 /// controller and database. Like the real server, a multi-index removal is
-/// a silent no-op, and a hydration snapshots the server when it starts and
-/// writes it when its gate opens (a slow `getPlaylist`).
+/// a silent no-op; a multi-id add adds nothing visible but inserts one hidden
+/// row ([_ghost]) that `getPlaylist` omits while `songIndexToRemove` still
+/// counts it; an empty replace is a no-op, and a hydration snapshots the
+/// server when it starts and writes it when its gate opens (a slow
+/// `getPlaylist`). [server] holds every row, hidden ones included; [visible]
+/// is what `getPlaylist` returns.
 class _Fixture {
   new(this.db, this.server) {
     when(
@@ -47,7 +54,10 @@ class _Fixture {
     ).thenAnswer((i) async {
       final idx = i.namedArguments[#songIndexesToRemove] as List<int>;
       removeCalls.add(idx);
-      if (idx.length == 1) server.removeAt(idx.single);
+      if (idx.length == 1 && idx.single < server.length) {
+        server.removeAt(idx.single);
+      }
+      onRemove?.call();
       return const Playlist(id: 'p', name: 'Mix');
     });
     when(
@@ -56,7 +66,13 @@ class _Fixture {
         songIdsToAdd: any(named: 'songIdsToAdd'),
       ),
     ).thenAnswer((i) async {
-      server.addAll(i.namedArguments[#songIdsToAdd] as List<String>);
+      final ids = i.namedArguments[#songIdsToAdd] as List<String>;
+      multiAdds += ids.length > 1 ? 1 : 0;
+      if (ids.length > 1) {
+        server.add(_ghost);
+      } else {
+        server.addAll(ids);
+      }
       return const Playlist(id: 'p', name: 'Mix');
     });
     when(
@@ -65,16 +81,19 @@ class _Fixture {
         songIds: any(named: 'songIds'),
       ),
     ).thenAnswer((i) async {
+      final ids = i.namedArguments[#songIds] as List<String>;
+      replaceCalls.add(ids);
+      if (ids.isEmpty) return;
       server
         ..clear()
-        ..addAll(i.namedArguments[#songIds] as List<String>);
+        ..addAll(ids);
     });
     when(() => api.getPlaylist('p')).thenAnswer(
       (_) async => Playlist(
         id: 'p',
         name: 'Mix',
-        songCount: server.length,
-        entries: [for (final id in server) Song(id: id, title: id)],
+        songCount: visible.length,
+        entries: [for (final id in visible) Song(id: id, title: id)],
       ),
     );
     engine = StubLibrarySyncEngine((request, {onProgress}) async {
@@ -84,7 +103,7 @@ class _Fixture {
           stage: LibrarySyncStage.completed,
         );
       }
-      final snapshot = List<String>.of(server);
+      final snapshot = visible;
       final gate = Completer<void>();
       gates.add(gate);
       addTearDown(() {
@@ -124,11 +143,21 @@ class _Fixture {
   final List<String> server;
   final api = _MockApi();
   final removeCalls = <List<int>>[];
+  final replaceCalls = <List<String>>[];
+  int multiAdds = 0;
+
+  /// Another client writing inside the next index removal.
+  void Function()? onRemove;
   final gates = <Completer<void>>[];
   late final StubLibrarySyncEngine engine;
   late final ProviderContainer container;
   late final ProviderSubscription<AsyncValue<List<SongsTableData>>> songs;
   late final PlaylistActions actions;
+
+  List<String> get visible => [
+    for (final id in server)
+      if (id != _ghost) id,
+  ];
 
   List<String> get shown =>
       songs.read().asData!.value.map((s) => s.id).toList();
@@ -172,11 +201,15 @@ Future<void> _knowSong(NavisDatabase db, String id) =>
 
 Future<void> pump() => Future<void>.delayed(const Duration(milliseconds: 50));
 
-Future<_Fixture> _open(List<String> ids, {bool hydrating = true}) async {
+Future<_Fixture> _open(
+  List<String> ids, {
+  bool hydrating = true,
+  int ghosts = 0,
+}) async {
   final db = createTestDatabase();
   addTearDown(db.close);
   await _Fixture.hydrate(db, ids);
-  final f = _Fixture(db, List.of(ids));
+  final f = _Fixture(db, [for (var i = 0; i < ghosts; i++) _ghost, ...ids]);
   await pump();
   if (hydrating) {
     // What the open screen does: the detail sync starts a hydration.
@@ -204,6 +237,7 @@ void main() {
       [1],
       [1],
     ]);
+    expect(f.replaceCalls, isEmpty);
   }, skip: !sqliteAvailable);
 
   test('removes the chosen occurrence of a duplicated song', () async {
@@ -213,6 +247,7 @@ void main() {
     expect(f.removeCalls, [
       [2],
     ]);
+    expect(f.replaceCalls, isEmpty);
     expect(f.server, ['A', 'B', 'C', 'A']);
     expect(f.shown, ['A', 'B', 'C', 'A']);
   }, skip: !sqliteAvailable);
@@ -272,6 +307,7 @@ void main() {
       throwsA(isA<PlaylistChangedException>()),
     );
     expect(f.removeCalls, isEmpty);
+    expect(f.replaceCalls, isEmpty);
     expect(f.server, ['B', 'A', 'A']);
     // The edit still refreshes, so the screen shows the real list.
     await f.landHydrations();
@@ -305,6 +341,7 @@ void main() {
     f.server.remove('B');
     await f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1);
     expect(f.removeCalls, isEmpty);
+    expect(f.replaceCalls, isEmpty);
     expect(f.server, ['A', 'C']);
   }, skip: !sqliteAvailable);
 
@@ -393,4 +430,228 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  group('Navidrome 0.64 ghost row (#268)', () {
+    test('an album add never sends a multi-id request', () async {
+      final f = await _open(['A'], hydrating: false);
+      for (final id in ['X', 'Y', 'Z']) {
+        await _knowSong(f.db, id);
+      }
+      expect(await f.actions.addSongs(_pl, ['X', 'Y', 'Z']), (
+        added: 3,
+        alreadyThere: 0,
+        failed: 0,
+      ));
+      expect(f.multiAdds, 0);
+      expect(f.server, ['A', 'X', 'Y', 'Z'], reason: 'no hidden row left');
+    }, skip: !sqliteAvailable);
+
+    for (final (label, ids, song, occurrence, copies, after)
+        in <(String, List<String>, String, int, int, List<String>)>[
+          ('first', ['A', 'B', 'C', 'D'], 'A', 0, 1, ['B', 'C', 'D']),
+          ('middle', ['A', 'B', 'C', 'D'], 'C', 0, 1, ['A', 'B', 'D']),
+          ('last', ['A', 'B', 'C', 'D'], 'D', 0, 1, ['A', 'B', 'C']),
+          (
+            'second copy of a duplicate',
+            ['A', 'B', 'C', 'B', 'D'],
+            'B',
+            1,
+            2,
+            ['A', 'B', 'C', 'D'],
+          ),
+        ]) {
+      test(
+        'removing the $label row deletes that row despite a ghost on top',
+        () async {
+          final f = await _open(ids, hydrating: false, ghosts: 1);
+          await f.actions.removeAt(
+            _pl,
+            songId: song,
+            occurrence: occurrence,
+            copies: copies,
+          );
+          await f.landHydrations();
+          expect(f.visible, after);
+          expect(f.shown, after);
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
+    test('a clean playlist makes one index call and no replace', () async {
+      final f = await _open(['A', 'B', 'C'], hydrating: false);
+      await f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1);
+      expect(f.server, ['A', 'C']);
+      expect(f.removeCalls, [
+        [1],
+      ]);
+      expect(f.replaceCalls, isEmpty);
+    }, skip: !sqliteAvailable);
+
+    test('a repair makes the next removal one exact index call', () async {
+      final f = await _open(['A', 'B', 'C', 'D'], hydrating: false, ghosts: 1);
+      await f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1);
+      expect(f.replaceCalls, [
+        ['A', 'C', 'D'],
+      ]);
+      expect(f.server, ['A', 'C', 'D'], reason: 'ghost dropped');
+      f.removeCalls.clear();
+      await f.actions.removeAt(_pl, songId: 'C', occurrence: 0, copies: 1);
+      expect(f.removeCalls, [
+        [1],
+      ]);
+      expect(f.replaceCalls.length, 1);
+      expect(f.server, ['A', 'D']);
+    }, skip: !sqliteAvailable);
+
+    test('a repair the server does not apply throws', () async {
+      final f = await _open(['A', 'B', 'C'], hydrating: false, ghosts: 1);
+      when(
+        () => f.api.replacePlaylistSongs(
+          playlistId: 'p',
+          songIds: any(named: 'songIds'),
+        ),
+      ).thenAnswer((_) async {});
+      await expectLater(
+        f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1),
+        throwsStateError,
+      );
+    }, skip: !sqliteAvailable);
+
+    for (final ghosts in [1, 2]) {
+      test(
+        'removing the last song behind $ghosts ghost(s) empties the playlist',
+        () async {
+          final f = await _open(['A'], hydrating: false, ghosts: ghosts);
+          await f.actions.removeAt(_pl, songId: 'A', occurrence: 0, copies: 1);
+          await f.landHydrations();
+          expect(f.server, isEmpty);
+          expect(f.shown, isEmpty);
+          expect(f.removeCalls.length, ghosts + 1);
+          expect(f.replaceCalls, isEmpty);
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
+    test('removing the last song gives up after ten index calls', () async {
+      final f = await _open(['A'], hydrating: false, ghosts: 10);
+      await expectLater(
+        f.actions.removeAt(_pl, songId: 'A', occurrence: 0, copies: 1),
+        throwsStateError,
+      );
+      expect(f.removeCalls.length, 10);
+    }, skip: !sqliteAvailable);
+
+    test('removing the last song of a clean playlist is one call', () async {
+      final f = await _open(['A'], hydrating: false);
+      await f.actions.removeAt(_pl, songId: 'A', occurrence: 0, copies: 1);
+      expect(f.server, isEmpty);
+      expect(f.removeCalls, [
+        [0],
+      ]);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'a removal from a changed list still refuses without writing',
+      () async {
+        final f = await _open(['A', 'B', 'A'], hydrating: false, ghosts: 1);
+        f.server.remove('A');
+        await expectLater(
+          f.actions.removeAt(_pl, songId: 'A', occurrence: 1, copies: 2),
+          throwsA(isA<PlaylistChangedException>()),
+        );
+        expect(f.replaceCalls, isEmpty);
+        expect(f.removeCalls, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+    test(
+      'rows another client adds meanwhile are kept, without a replace',
+      () async {
+        final f = await _open(['A', 'B', 'C'], hydrating: false);
+        f.onRemove = () => f.server.add('Z');
+        await f.actions.removeAt(_pl, songId: 'B', occurrence: 0, copies: 1);
+        expect(f.server, ['A', 'C', 'Z']);
+        expect(f.removeCalls.length, 1);
+        expect(f.replaceCalls, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('the last song goes without taking a row added meanwhile', () async {
+      final f = await _open(['A'], hydrating: false);
+      f.onRemove = () => f.server.add('Z');
+      await f.actions.removeAt(_pl, songId: 'A', occurrence: 0, copies: 1);
+      expect(f.server, ['Z']);
+      expect(f.removeCalls.length, 1);
+    }, skip: !sqliteAvailable);
+
+    test(
+      'a row added inside the index call survives a ghost, no replace',
+      () async {
+        final f = await _open(
+          ['A', 'B', 'C', 'D'],
+          hydrating: false,
+          ghosts: 1,
+        );
+        f.onRemove = () => f.server.add('X');
+        await expectLater(
+          f.actions.removeAt(_pl, songId: 'C', occurrence: 0, copies: 1),
+          throwsA(isA<PlaylistChangedException>()),
+        );
+        expect(f.visible, contains('X'));
+        expect(f.replaceCalls, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'a row another client removed is not resurrected, no replace',
+      () async {
+        final f = await _open(
+          ['A', 'B', 'C', 'D'],
+          hydrating: false,
+          ghosts: 1,
+        );
+        f.onRemove = () => f.server.remove('D');
+        await expectLater(
+          f.actions.removeAt(_pl, songId: 'C', occurrence: 0, copies: 1),
+          throwsA(isA<PlaylistChangedException>()),
+        );
+        expect(f.visible, isNot(contains('D')));
+        expect(f.replaceCalls, isEmpty);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'a row removed elsewhere in front of a hidden-row hit is not repaired',
+      () async {
+        final f = await _open(
+          ['A', 'B', 'C', 'D'],
+          hydrating: false,
+          ghosts: 1,
+        );
+        f.onRemove = () => f.server.remove('D');
+        await expectLater(
+          f.actions.removeAt(_pl, songId: 'A', occurrence: 0, copies: 1),
+          throwsA(isA<PlaylistChangedException>()),
+        );
+        expect(f.replaceCalls, isEmpty);
+        expect(f.visible, ['A', 'B', 'C']);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('three ghosts on top: removing the middle row ends right', () async {
+      final f = await _open(['A', 'B', 'C', 'D'], hydrating: false, ghosts: 3);
+      await f.actions.removeAt(_pl, songId: 'C', occurrence: 0, copies: 1);
+      await f.landHydrations();
+      expect(f.server, ['A', 'B', 'D']);
+      expect(f.shown, ['A', 'B', 'D']);
+      expect(f.removeCalls.length, 2);
+      expect(f.replaceCalls.length, 1);
+    }, skip: !sqliteAvailable);
+  });
 }
