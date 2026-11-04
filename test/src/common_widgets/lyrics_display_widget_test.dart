@@ -216,4 +216,127 @@ void main() {
     expect(find.textContaining('First plain'), findsOneWidget);
     expect(find.text('No Lyrics Available'), findsNothing);
   });
+
+  group('follow position at the start of a song', () {
+    LyricsList lyricsWith({String firstLine = 'Line 0'}) => LyricsList(
+      structuredLyrics: [
+        StructuredLyrics(
+          synced: true,
+          line: List.generate(
+            40,
+            (i) => LyricLine(
+              start: i * 3000,
+              value: i == 0 ? firstLine : 'Line $i',
+            ),
+          ),
+        ),
+      ],
+    );
+
+    Future<double> settledActiveY(
+      WidgetTester tester,
+      LyricsList lyrics,
+      int line,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LyricsDisplayWidget(
+              lyrics: lyrics,
+              currentPosition: Duration(milliseconds: line * 3000),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return tester.getTopLeft(find.text('Line $line')).dy;
+    }
+
+    // Heights agree within 5 px: the first jump and the animated follow differ
+    // by about 3 px (active font size), versus 40-140 px without the fix.
+    //
+    // The active line must rest at one height from the first line on. When the
+    // list could not scroll far enough for the first lines (top padding smaller
+    // than the follow alignment), the active line walked down the screen for
+    // lines 0-2 and then slid back up once scrolling became possible.
+    testWidgets('active line rests at the same height from line 0 on', (
+      tester,
+    ) async {
+      final lyrics = lyricsWith();
+      final reference = await settledActiveY(tester, lyrics, 10);
+      for (final line in [0, 1, 2, 3, 4]) {
+        expect(
+          await settledActiveY(tester, lyrics, line),
+          closeTo(reference, 5),
+          reason: 'line $line',
+        );
+      }
+    });
+
+    testWidgets('seeking back to the start settles at the same height', (
+      tester,
+    ) async {
+      final lyrics = lyricsWith();
+      final reference = await settledActiveY(tester, lyrics, 10);
+      Widget app(int ms) => MaterialApp(
+        home: Scaffold(
+          body: LyricsDisplayWidget(
+            lyrics: lyrics,
+            currentPosition: Duration(milliseconds: ms),
+          ),
+        ),
+      );
+      await tester.pumpWidget(app(0));
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.text('Line 0')).dy, closeTo(reference, 5));
+    });
+
+    testWidgets('a blank first line does not change the resting height', (
+      tester,
+    ) async {
+      final reference = await settledActiveY(tester, lyricsWith(), 10);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: LyricsDisplayWidget(
+              lyrics: lyricsWith(firstLine: ''),
+              currentPosition: const Duration(seconds: 3),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.getTopLeft(find.text('Line 1')).dy, closeTo(reference, 5));
+    });
+
+    testWidgets('following never moves away from the active line', (
+      tester,
+    ) async {
+      final lyrics = lyricsWith();
+      Widget app(int ms) => MaterialApp(
+        home: Scaffold(
+          body: LyricsDisplayWidget(
+            lyrics: lyrics,
+            currentPosition: Duration(milliseconds: ms),
+          ),
+        ),
+      );
+      await tester.pumpWidget(app(0));
+      await tester.pumpAndSettle();
+      final rest = tester.getTopLeft(find.text('Line 0')).dy;
+      for (var line = 1; line <= 6; line++) {
+        await tester.pumpWidget(app(line * 3000));
+        var previous = double.infinity;
+        for (var frame = 0; frame < 25; frame++) {
+          final y = tester.getTopLeft(find.text('Line $line')).dy;
+          // Only ever glides up toward the resting height, never past it.
+          expect(y, lessThanOrEqualTo(previous + 0.5), reason: 'line $line');
+          expect(y, greaterThanOrEqualTo(rest - 5), reason: 'line $line');
+          previous = y;
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        expect(previous, closeTo(rest, 5), reason: 'line $line');
+      }
+    });
+  });
 }

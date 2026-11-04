@@ -75,6 +75,9 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
   int _scrollRevision = 0;
   Timer? _autoScrollReengageTimer;
 
+  /// Where the active line rests: this fraction of the viewport height down.
+  static const _followAlignment = 0.4;
+
   /// Grace period before auto-scroll re-engages after a user interaction.
   static const _autoScrollReengageDelay = Duration(milliseconds: 2500);
 
@@ -157,7 +160,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
         _itemScrollController
             .scrollTo(
               index: index,
-              alignment: 0.4,
+              alignment: _followAlignment,
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOutCubic,
             )
@@ -166,7 +169,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
             }),
       );
     } else {
-      _itemScrollController.jumpTo(index: index, alignment: 0.4);
+      _itemScrollController.jumpTo(index: index, alignment: _followAlignment);
     }
   }
 
@@ -283,7 +286,14 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
                 ScrollablePositionedList.builder(
                   itemScrollController: _itemScrollController,
                   itemPositionsListener: _itemPositionsListener,
-                  padding: const EdgeInsets.symmetric(vertical: 100),
+                  // The top padding lets even the first line scroll down to the
+                  // resting height; with less, the list is clamped at the top
+                  // and the active line walks down the screen for the first
+                  // lines, then slides back up once scrolling is possible.
+                  padding: EdgeInsets.only(
+                    top: constraints.maxHeight * _followAlignment,
+                    bottom: 100,
+                  ),
                   itemCount: lines.length + (hasFooter ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (hasFooter && index == lines.length) {
