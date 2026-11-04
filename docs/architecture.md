@@ -2689,6 +2689,42 @@ Normal native close is intercepted until the controller has finished writing
 the current state record, then released through `window_manager`; a resize
 immediately followed by close must therefore retain the latest valid Desktop
 bounds rather than relying on an unawaited callback.
+On macOS, closing the window hides it instead (Apple Music and Spotify
+behaviour): `onWindowClose` persists the same state record, then calls
+`WindowManagerAdapter.hide()`, while `setPreventClose(true)` stays on and
+`_isClosing` is never set, so every later close hides again, in Mini Player as
+well. A full-screen window leaves full screen first (`setFullScreen(false)`,
+then `onWindowLeaveFullScreen`, bounded at 3 s), so no empty Space remains and
+full-screen bounds are not persisted, unless the exit wait times out (3 s) or
+fails, in which case Navis persists and hides anyway. A failing `hide()` is logged. Playback
+and the audio handler keep running. Cmd+Q and Dock > Quit still terminate.
+`AppDelegate` returns `false` from `applicationShouldTerminateAfterLastWindowClosed`
+(AppKit also applies it to a merely hidden window, so `true` would quit on every
+close-button hide) while `MainFlutterWindow.close()`, reached only by a real
+close, terminates the app so a close that `setPreventClose` does not catch
+leaves no windowless process. `applicationShouldHandleReopen` shows,
+un-minimizes and focuses the main window whenever that window is not visible,
+even if another panel is open. The gate is
+`_hidesOnClose` (tests set it with the `hideOnClose` constructor argument), true
+only for the real `window_manager` adapter on macOS; Linux and Windows still persist, release the close
+prevention, then close.
+
+The Dock menu (`AppDelegate.applicationDockMenu`) lists the current track as a
+disabled "Title — Artist" item when something is loaded, then Play or Pause,
+Next and Previous. `MacosDockMenuBridge`
+(`lib/src/features/player/data/macos_dock_menu_bridge.dart`, started by
+`macosDockMenuProvider` from the app shell, macOS only) uses the
+`com.navis.app/dock_menu` method channel created in `MainFlutterWindow.swift`.
+Dart calls `update` with `{hasItem, title, artist, playing, playPauseLabel,
+nextLabel, previousLabel}` whenever the shown state changes (identical states
+are dropped; labels are localized in Dart from the existing `nowPlaying*`
+strings) and Swift keeps only the last one and shows the stock Dock menu until the first
+`update` arrives. Swift calls `command` with
+`{action: playPause | next | previous}`; the bridge runs it through
+`desktopPlayPause`, `desktopNextTrack` and `desktopPreviousTrack`
+(`desktop_transport_actions.dart`), the same functions the desktop keyboard
+commands use, so radio mode behaves identically: Next leaves the station and
+Previous does nothing. Disposing the bridge pushes an empty state.
 The isolated Desktop-layout diagnostics deliberately shuts down from Mini
 Player and verifies the following launch starts in Desktop View at the last
 validated Desktop bounds.

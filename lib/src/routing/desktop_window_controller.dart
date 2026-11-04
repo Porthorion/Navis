@@ -155,6 +155,11 @@ abstract class WindowManagerAdapter {
   // ignore: avoid_positional_boolean_parameters
   Future<void> setPreventClose(bool preventClose);
   Future<void> close();
+  Future<void> hide();
+  Future<bool> isFullScreen();
+  // Match the positional window_manager backend method contract.
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setFullScreen(bool isFullScreen);
   Future<void> setBounds(Rect bounds);
   Future<Rect> getBounds();
   Future<bool> isMaximized();
@@ -211,6 +216,16 @@ class WindowManagerDesktopWindowAdapter implements WindowManagerAdapter {
   Future<void> close() => windowManager.close();
 
   @override
+  Future<void> hide() => windowManager.hide();
+
+  @override
+  Future<bool> isFullScreen() => windowManager.isFullScreen();
+
+  @override
+  Future<void> setFullScreen(bool isFullScreen) =>
+      windowManager.setFullScreen(isFullScreen);
+
+  @override
   Future<void> setBounds(Rect bounds) => windowManager.setBounds(bounds);
 
   @override
@@ -265,8 +280,11 @@ class DesktopWindowController extends ChangeNotifier
     WindowManagerAdapter? adapter,
     ScreenRetrieverAdapter? screenAdapter,
     bool? alwaysOnTopSupported,
+    bool? hideOnClose,
+    @visibleForTesting this._fullScreenExitTimeout = const Duration(seconds: 3),
   }) : _adapter = adapter ?? const WindowManagerDesktopWindowAdapter(),
        _alwaysOnTopSupportedOverride = alwaysOnTopSupported,
+       _hideOnCloseOverride = hideOnClose,
        _screenAdapter =
            screenAdapter ??
            (adapter == null ? const SystemScreenRetrieverAdapter() : null);
@@ -276,6 +294,8 @@ class DesktopWindowController extends ChangeNotifier
       _settingsRepository = null,
       _adapter = null,
       _alwaysOnTopSupportedOverride = null,
+      _hideOnCloseOverride = null,
+      _fullScreenExitTimeout = const Duration(seconds: 3),
       _screenAdapter = null;
 
   static const Size normalMinSize = kDesktopMiniPlayerMinimumSize;
@@ -288,8 +308,12 @@ class DesktopWindowController extends ChangeNotifier
   final SettingsRepository? _settingsRepository;
   final WindowManagerAdapter? _adapter;
   final bool? _alwaysOnTopSupportedOverride;
+  final bool? _hideOnCloseOverride;
   final ScreenRetrieverAdapter? _screenAdapter;
 
+  final Duration _fullScreenExitTimeout;
+  Completer<void>? _leftFullScreen;
+  bool _hideInProgress = false;
   Timer? _persistDebounce;
   Timer? _viewportDebounce;
   DesktopWindowMode _mode = DesktopWindowMode.desktop;
@@ -306,6 +330,13 @@ class DesktopWindowController extends ChangeNotifier
   bool _lastPersistenceCompleted = false;
 
   bool get desktopRuntime => _desktopRuntime;
+
+  /// Whether closing the window hides it and keeps the app (and playback)
+  /// running, as Apple Music and Spotify do. Only macOS does this; the Dock
+  /// icon or Cmd+Q brings the window back or quits.
+  bool get _hidesOnClose =>
+      _hideOnCloseOverride ??
+      (_adapter is WindowManagerDesktopWindowAdapter && Platform.isMacOS);
   bool get isApplyingMode => _isApplyingMode;
   DesktopWindowMode get mode => _mode;
   bool get isMiniPlayerMode => _mode == DesktopWindowMode.miniPlayer;
@@ -580,10 +611,62 @@ class DesktopWindowController extends ChangeNotifier
 
   @override
   void onWindowClose() {
+    if (_hidesOnClose) {
+      // Not _isClosing: the window can be shown again and closed again.
+      _persistDebounce?.cancel();
+      unawaited(_persistThenHide());
+      return;
+    }
     if (_isClosing) return;
     _isClosing = true;
     _persistDebounce?.cancel();
     unawaited(_persistThenClose());
+  }
+
+  /// Leaves full screen first: hiding a full-screen window would strand an
+  /// empty Space, and full-screen bounds must not be persisted.
+  Future<void> _persistThenHide() async {
+    final adapter = _adapter;
+    // A second close while this one runs is the same close.
+    if (adapter == null || _hideInProgress) return;
+    _hideInProgress = true;
+    try {
+      await _leaveFullScreen(adapter);
+      await _persistCurrentState(reason: 'close');
+      await adapter.hide();
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        '[DESKTOP_WINDOW] hiding the window on close failed: '
+        '$error\n$stackTrace',
+      );
+    } finally {
+      _hideInProgress = false;
+    }
+  }
+
+  /// A failure or timeout here is logged and ignored: the window still hides.
+  Future<void> _leaveFullScreen(WindowManagerAdapter adapter) async {
+    try {
+      if (!await adapter.isFullScreen()) return;
+      final left = _leftFullScreen = Completer<void>();
+      await adapter.setFullScreen(false);
+      // The exit animation reports through onWindowLeaveFullScreen; a missed
+      // event must not leave the window stuck, so the wait is bounded.
+      await left.future.timeout(_fullScreenExitTimeout, onTimeout: () {});
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        '[DESKTOP_WINDOW] leaving full screen before hiding failed: '
+        '$error\n$stackTrace',
+      );
+    } finally {
+      _leftFullScreen = null;
+    }
+  }
+
+  @override
+  void onWindowLeaveFullScreen() {
+    final left = _leftFullScreen;
+    if (left != null && !left.isCompleted) left.complete();
   }
 
   Future<void> _persistThenClose() async {

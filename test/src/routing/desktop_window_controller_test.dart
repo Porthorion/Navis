@@ -24,6 +24,15 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   bool alwaysOnTop = false;
   bool preventClose = false;
   int closeCalls = 0;
+  int hideCalls = 0;
+  final events = <String>[];
+  bool fullScreen = false;
+  Rect? fullScreenBounds;
+  Rect? windowedBounds;
+  Exception? hideError;
+  Exception? fullScreenError;
+  bool emitsLeaveEvent = true;
+  Future<void> Function()? onHide;
   int unmaximizeCalls = 0;
   WindowListener? listener;
   final Completer<void> _closed = Completer<void>();
@@ -47,10 +56,42 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   Future<void> get closed => _closed.future;
 
   @override
+  Future<void> hide() async {
+    events.add('hide');
+    hideCalls++;
+    await onHide?.call();
+    final error = hideError;
+    if (error != null) throw error;
+  }
+
+  @override
+  Future<bool> isFullScreen() async {
+    final error = fullScreenError;
+    if (error != null) throw error;
+    return fullScreen;
+  }
+
+  @override
+  Future<void> setFullScreen(bool isFullScreen) async {
+    events.add('setFullScreen($isFullScreen)');
+    if (isFullScreen || !emitsLeaveEvent) return;
+    // The real exit animates; the event arrives after the bounds settle.
+    Future<void>.delayed(const Duration(milliseconds: 20), () {
+      fullScreen = false;
+      bounds = windowedBounds ?? bounds;
+      events.add('leaveFullScreen');
+      listener?.onWindowLeaveFullScreen();
+    });
+  }
+
+  @override
   Future<void> ensureInitialized() async {}
 
   @override
-  Future<Rect> getBounds() async => bounds;
+  Future<Rect> getBounds() async {
+    events.add('getBounds');
+    return bounds;
+  }
 
   @override
   Future<bool> isMaximized() async => maximized;
@@ -302,6 +343,187 @@ void main() {
         expect(restartedAdapter.alwaysOnTop, isFalse);
       },
     );
+
+    group('close', () {
+      // Persisting does real file I/O, which an event-queue pump does not await.
+      Future<void> settle() =>
+          Future<void>.delayed(const Duration(milliseconds: 150));
+
+      Future<(_FakeWindowManagerAdapter, DesktopWindowController)> start({
+        required bool hideOnClose,
+        Duration fullScreenExitTimeout = const Duration(seconds: 3),
+      }) async {
+        final adapter = _FakeWindowManagerAdapter(
+          bounds: const Rect.fromLTWH(70, 90, 1440, 880),
+        );
+        final controller = DesktopWindowController(
+          desktopRuntime: true,
+          stateFile: stateFile,
+          settingsRepository: repository,
+          adapter: adapter,
+          hideOnClose: hideOnClose,
+          fullScreenExitTimeout: fullScreenExitTimeout,
+        );
+        await controller.initialize();
+        return (adapter, controller);
+      }
+
+      test(
+        'on macOS hides the window, keeps it closable, and persists',
+        () async {
+          final (adapter, controller) = await start(hideOnClose: true);
+          adapter.bounds = const Rect.fromLTWH(100, 120, 1300, 800);
+
+          controller.onWindowClose();
+          await settle();
+          controller.onWindowClose();
+          await settle();
+
+          expect(adapter.hideCalls, 2);
+          expect(adapter.closeCalls, 0);
+          expect(adapter.preventClose, isTrue);
+          final persisted = jsonDecode(
+            await stateFile.readAsString(),
+          ) as Map<String, dynamic>;
+          expect((persisted['normalBounds'] as Map)['x'], 100);
+        },
+      );
+
+      test('on macOS persists before it hides', () async {
+        final (adapter, controller) = await start(hideOnClose: true);
+        adapter.bounds = const Rect.fromLTWH(100, 120, 1300, 800);
+        Object? persistedAtHide;
+        adapter.onHide = () async {
+          persistedAtHide = (jsonDecode(
+            await stateFile.readAsString(),
+          ) as Map<String, dynamic>)['normalBounds'];
+        };
+        adapter.events.clear();
+
+        controller.onWindowClose();
+        await settle();
+
+        expect(adapter.events.last, 'hide');
+        expect(adapter.events, contains('getBounds'));
+        expect((persistedAtHide! as Map)['x'], 100);
+      });
+
+      test(
+        'on macOS leaves full screen before persisting and hiding',
+        () async {
+          final (adapter, controller) = await start(hideOnClose: true);
+          adapter
+            ..windowedBounds = const Rect.fromLTWH(100, 120, 1300, 800)
+            ..bounds = const Rect.fromLTWH(0, 0, 1440, 900)
+            ..fullScreen = true
+            ..events.clear();
+
+          controller.onWindowClose();
+          controller.onWindowClose(); // the same close, not a second exit
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+
+          expect(
+            adapter.events.where((e) => e == 'setFullScreen(false)'),
+            hasLength(1),
+          );
+          expect(
+            adapter.events.indexOf('leaveFullScreen'),
+            lessThan(adapter.events.indexOf('getBounds')),
+          );
+          expect(adapter.events.last, 'hide');
+          expect(adapter.hideCalls, 1);
+          final persisted = jsonDecode(
+            await stateFile.readAsString(),
+          ) as Map<String, dynamic>;
+          expect((persisted['normalBounds'] as Map)['width'], 1300);
+        },
+      );
+
+      test(
+        'on macOS a failing full-screen query still persists and hides',
+        () async {
+          final (adapter, controller) = await start(hideOnClose: true);
+          adapter.fullScreenError = Exception('no window');
+          adapter.bounds = const Rect.fromLTWH(100, 120, 1300, 800);
+
+          controller.onWindowClose();
+          await settle();
+
+          expect(adapter.hideCalls, 1);
+          final persisted = jsonDecode(
+            await stateFile.readAsString(),
+          ) as Map<String, dynamic>;
+          expect((persisted['normalBounds'] as Map)['x'], 100);
+        },
+      );
+
+      test('on macOS a missed full-screen exit times out, hides, and a later close works', () async {
+        final (adapter, controller) = await start(
+          hideOnClose: true,
+          fullScreenExitTimeout: const Duration(milliseconds: 50),
+        );
+        adapter
+          ..fullScreen = true
+          ..emitsLeaveEvent = false
+          ..events.clear();
+
+        controller.onWindowClose();
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+
+        expect(
+          adapter.events,
+          containsAllInOrder(['setFullScreen(false)', 'getBounds', 'hide']),
+        );
+        expect(adapter.hideCalls, 1);
+
+        adapter.fullScreen = false;
+        controller.onWindowClose();
+        await settle();
+        expect(adapter.hideCalls, 2);
+      });
+
+      test('on macOS a failing hide is logged, not thrown', () async {
+        final (adapter, controller) = await start(hideOnClose: true);
+        adapter.hideError = Exception('no window');
+
+        controller.onWindowClose();
+        await settle();
+
+        expect(adapter.hideCalls, 1);
+      });
+
+      test(
+        'on macOS hides from the Mini Player and persists its bounds',
+        () async {
+          final (adapter, controller) = await start(hideOnClose: true);
+          await controller.setMiniPlayerMode(true);
+          adapter.bounds = const Rect.fromLTWH(120, 150, 700, 400);
+
+          controller.onWindowClose();
+          await settle();
+
+          expect(controller.isMiniPlayerMode, isTrue);
+          expect(adapter.hideCalls, 1);
+          expect(adapter.closeCalls, 0);
+          final persisted = jsonDecode(
+            await stateFile.readAsString(),
+          ) as Map<String, dynamic>;
+          expect((persisted['miniBounds'] as Map)['x'], 120);
+        },
+      );
+
+      test('elsewhere still closes the window once', () async {
+        final (adapter, controller) = await start(hideOnClose: false);
+
+        controller.onWindowClose();
+        controller.onWindowClose();
+        await adapter.closed;
+
+        expect(adapter.closeCalls, 1);
+        expect(adapter.hideCalls, 0);
+        expect(adapter.preventClose, isFalse);
+      });
+    });
 
     test(
       'startup ignores legacy Focus Player mode and opens Desktop View',
