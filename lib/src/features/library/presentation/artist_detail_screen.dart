@@ -620,19 +620,26 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
 /// The artist hero height: width-based, and on desktop smaller below the tall
 /// window height band so the page keeps room for its content. Tall and
 /// non-desktop layouts keep the original sizes.
+///
+/// [overlayExtent] is the height the bottom-anchored name overlay needs at the
+/// current text scale; shorter bands grow to it instead of clipping it.
 double _artistHeroHeight(
   BuildContext context,
   double availableWidth, {
   required bool desktopMode,
+  double overlayExtent = 0,
 }) {
   if (!desktopMode) {
     return (availableWidth * 0.43).clamp(260.0, 560.0);
   }
-  return switch (desktopHeightClassOf(context)) {
+  final bandHeight = switch (desktopHeightClassOf(context)) {
     DesktopHeightClass.short => (availableWidth * 0.22).clamp(160.0, 200.0),
     DesktopHeightClass.regular => (availableWidth * 0.28).clamp(200.0, 300.0),
     DesktopHeightClass.tall => (availableWidth * 0.32).clamp(260.0, 420.0),
   };
+  return desktopHeightClassOf(context) == DesktopHeightClass.tall
+      ? bandHeight
+      : math.max(bandHeight, overlayExtent);
 }
 
 String? _nonBlank(String? value) {
@@ -893,10 +900,24 @@ class _ArtistImageHeader extends ConsumerWidget {
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
         final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
+        final text = Theme.of(context).textTheme;
+        // The overlay: 64 px name line, summary, source chip, margins.
+        final overlayExtent =
+            20 +
+            scaledLineHeight(
+              context,
+              const TextStyle(fontSize: 64, height: 1.05),
+            ) +
+            (summary.isEmpty
+                ? 0
+                : 6 + scaledLineHeight(context, text.titleSmall)) +
+            (isExternalSource ? 8 + 32 : 0) +
+            8;
         final headerHeight = _artistHeroHeight(
           context,
           availableWidth,
           desktopMode: desktopMode,
+          overlayExtent: overlayExtent,
         );
 
         // Gradually shift the vertical anchor from top (portrait/narrow screens

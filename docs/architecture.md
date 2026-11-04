@@ -2522,7 +2522,7 @@ Desktop window height has its own bands (`DesktopHeightClass`, from
 (≥ 960 dp) is the original sizing. The persistent player bar
 (`DesktopPlaybackProgress.playerHeight`) is 84 dp in `short` and 100 dp in
 `regular` (never below what the text scale needs; short also uses 36 dp
-transport and action buttons and a 32 dp mute button), and the album,
+transport and action buttons and a 36 dp mute button), and the album,
 playlist and artist headers use smaller covers (album 140 / 200 / 260,
 playlist 140 / 200 / 220, artist hero capped at 200 / 300 / 420). The album
 header is the first sliver of the page's scroll view, so it scrolls away with

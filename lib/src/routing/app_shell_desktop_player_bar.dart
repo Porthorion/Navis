@@ -53,6 +53,26 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
     }
   }
 
+  /// The radio credit [runs] on one line below the tall band: the bar height
+  /// budgets one artist line there, and further credits wrap out of view.
+  Widget _radioArtistLine(
+    BuildContext context,
+    DesktopHeightClass heightClass,
+    Widget runs,
+  ) {
+    if (heightClass == DesktopHeightClass.tall) return runs;
+    return SizedBox(
+      height: scaledLineHeight(context, Theme.of(context).textTheme.bodySmall),
+      child: ClipRect(
+        child: OverflowBox(
+          alignment: Alignment.topLeft,
+          maxHeight: double.infinity,
+          child: runs,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -464,50 +484,55 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                         (widget.songArtist ?? '')
                                             .trim()
                                             .isNotEmpty)
-                                      Wrap(
-                                        spacing: 0,
-                                        runSpacing: 0,
-                                        children: [
-                                          for (final (i, name)
-                                              in splitArtistNames(
-                                                widget.songArtist!,
-                                              ).indexed) ...<Widget>[
-                                            if (i > 0)
-                                              Text(
-                                                ', ',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall
-                                                    ?.copyWith(
-                                                      color: colors
-                                                          .onSurfaceVariant,
-                                                    ),
-                                              ),
-                                            MouseRegion(
-                                              cursor: SystemMouseCursors.click,
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  NavService.openSearch(
-                                                    context,
-                                                    ref,
-                                                    name,
-                                                    filter: SearchResultType
-                                                        .artists,
-                                                  );
-                                                },
-                                                child: Text(
-                                                  name,
+                                      _radioArtistLine(
+                                        context,
+                                        heightClass,
+                                        Wrap(
+                                          spacing: 0,
+                                          runSpacing: 0,
+                                          children: [
+                                            for (final (i, name)
+                                                in splitArtistNames(
+                                                  widget.songArtist!,
+                                                ).indexed) ...<Widget>[
+                                              if (i > 0)
+                                                Text(
+                                                  ', ',
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .bodySmall
                                                       ?.copyWith(
-                                                        color: colors.primary,
+                                                        color: colors
+                                                            .onSurfaceVariant,
                                                       ),
                                                 ),
+                                              MouseRegion(
+                                                cursor:
+                                                    SystemMouseCursors.click,
+                                                child: GestureDetector(
+                                                  onTap: () {
+                                                    NavService.openSearch(
+                                                      context,
+                                                      ref,
+                                                      name,
+                                                      filter: SearchResultType
+                                                          .artists,
+                                                    );
+                                                  },
+                                                  child: Text(
+                                                    name,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: colors.primary,
+                                                        ),
+                                                  ),
+                                                ),
                                               ),
-                                            ),
+                                            ],
                                           ],
-                                        ],
+                                        ),
                                       )
                                     else
                                       Text(

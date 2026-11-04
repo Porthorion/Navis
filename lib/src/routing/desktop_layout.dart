@@ -249,6 +249,12 @@ DesktopHeightClass resolveDesktopHeightClass(double height) {
 DesktopHeightClass desktopHeightClassOf(BuildContext context) =>
     resolveDesktopHeightClass(MediaQuery.sizeOf(context).height);
 
+/// One line of [style] at the current text scale, for sizing fixed-height
+/// desktop chrome that must not clip its text.
+double scaledLineHeight(BuildContext context, TextStyle? style) =>
+    MediaQuery.textScalerOf(context).scale(style?.fontSize ?? 14) *
+    (style?.height ?? 1.3);
+
 /// Width breakpoints of [AdaptiveLayoutClass]: from [kAdaptiveMediumWidth] a
 /// layout is a medium tablet, from [kAdaptiveExpandedWidth] an expanded one.
 const double kAdaptiveMediumWidth = 600;

@@ -44,7 +44,7 @@ class DesktopVolumeSlider extends StatefulWidget {
   /// When true, fills the available width instead of using a fixed preset.
   final bool expanded;
 
-  /// When true, the mute button is 32 px high instead of 40 (short windows).
+  /// When true, the mute button is 36 px square instead of 40 (short windows).
   final bool dense;
 
   @override
@@ -122,11 +122,13 @@ class _DesktopVolumeSliderState extends State<DesktopVolumeSlider>
       children: <Widget>[
         IconButton(
           iconSize: compact ? 18 : 20,
-          visualDensity: VisualDensity.compact,
+          visualDensity: widget.dense
+              ? VisualDensity.standard
+              : VisualDensity.compact,
           style: widget.dense
               ? IconButton.styleFrom(
-                  minimumSize: const Size.square(32),
-                  maximumSize: const Size.square(32),
+                  minimumSize: const Size.square(36),
+                  maximumSize: const Size.square(36),
                   padding: EdgeInsets.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 )

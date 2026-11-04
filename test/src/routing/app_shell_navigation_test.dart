@@ -1817,6 +1817,14 @@ void main() {
           expect(find.byKey(ValueKey<String>(key)), findsOneWidget);
         }
         expect(find.byKey(const ValueKey('desktopProgressInline')), findsOne);
+        final mute = find.descendant(
+          of: find.byKey(const ValueKey<String>('desktopPlayerVolumeSlider')),
+          matching: find.byType(IconButton),
+        );
+        expect(
+          tester.getSize(mute),
+          size.height < 760 ? const Size(36, 36) : const Size(40, 40),
+        );
         expect(tester.takeException(), isNull);
         await tester.pump(const Duration(milliseconds: 201));
       },
@@ -2552,6 +2560,69 @@ void main() {
       );
     });
   }
+
+  testWidgets(
+    'short Desktop player bar keeps a long radio credit on one line at 130%',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1008, 640);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      const radioPlayback = PlaybackSnapshot(
+        queueSongIds: <String>[],
+        currentSongId: null,
+        currentIndex: null,
+        playing: true,
+        processingState: AudioProcessingState.ready,
+        position: Duration.zero,
+        duration: Duration.zero,
+        bufferedPosition: Duration.zero,
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+        radioStation: RadioStationMetadata(
+          stationId: 'radio-1',
+          stationName: 'Test Radio',
+          streamUrl: 'https://example.com/radio',
+          nowPlayingTitle: 'A Very Long Radio Track Title',
+          nowPlayingArtist:
+              'First Credited Artist; Second Credited Artist; '
+              'Third Credited Artist; Fourth Credited Artist; '
+              'Fifth Credited Artist; Sixth Credited Artist',
+        ),
+      );
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(
+          desktopRuntime: true,
+          playback: radioPlayback,
+        ),
+      );
+      await tester.pumpWidget(
+        MediaQuery(
+          data: MediaQueryData.fromView(tester.view)
+              .copyWith(textScaler: const TextScaler.linear(1.3)),
+          child: UncontrolledProviderScope(
+            container: container,
+            child: testNavisApp,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final bar = find.byKey(const ValueKey<String>('desktopPlayerBar'));
+      expect(tester.getSize(bar).height, 84);
+      expect(find.text('First Credited Artist'), findsOneWidget);
+      // The credits sit in a one-line clip: longer runs never overflow the bar.
+      final clip = find.ancestor(
+        of: find.text('First Credited Artist'),
+        matching: find.byType(ClipRect),
+      );
+      expect(tester.getSize(clip.first).height, lessThan(24));
+      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(milliseconds: 201));
+    },
+  );
 
   testWidgets('Desktop radio keeps invalid action slots visibly disabled', (
     tester,

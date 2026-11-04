@@ -37,9 +37,10 @@ class DesktopPlaybackProgress extends StatelessWidget {
   }
 
   /// Narrowest control rail the persistent player bar gives the seek bar: an
-  /// 800 px window (the smallest Desktop View) minus the metadata and action
-  /// regions. Times that cannot sit beside the seek bar there stack under it.
-  static const double _narrowestRailWidth = 370;
+  /// 800 px window (the smallest Desktop View) minus 18 px of padding, the
+  /// 220 px metadata region and the 184 px action region. Times that cannot
+  /// sit beside the seek bar there stack under it.
+  static const double _narrowestRailWidth = 378;
 
   /// Transport button height in the short band.
   static const double shortTransportExtent = 36;
@@ -70,9 +71,7 @@ class DesktopPlaybackProgress extends StatelessWidget {
     // Title, artist and a remote-source line at the current text scale, plus
     // paddings.
     final text = Theme.of(context).textTheme;
-    final scaler = MediaQuery.textScalerOf(context);
-    double line(TextStyle? style) =>
-        scaler.scale(style?.fontSize ?? 14) * (style?.height ?? 1.3);
+    double line(TextStyle? style) => scaledLineHeight(context, style);
     final metadata = line(text.bodyMedium) + line(text.bodySmall) * 2 + 8 + 8;
     return math.max(short ? 84 : 100, math.max(controls, metadata));
   }
