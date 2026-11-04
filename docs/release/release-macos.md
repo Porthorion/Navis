@@ -69,11 +69,18 @@ Releases are published to R2 with a signed update manifest. Add `FORGEJO_URL`,
 
 ## Known security gap: stream certificates
 
-The bundled macOS libmpv (mpv 0.36, Mbed TLS) does not verify HTTPS server
-certificates, and Navis leaves `tls-verify` off there because that build's
-certificate source has not been verified. Linux and Windows verify. Resolve
-this together with replacing the macOS libmpv (see
-`docs/audits/dependency-audit-2026-10-01.md`) before a public macOS release.
+The bundled macOS libmpv (mpv 0.36, Mbed TLS) cannot use the system
+certificate store, so Navis sets `tls-verify=yes` with
+`tls-ca-file=/etc/ssl/cert.pem`. Streams from servers with a public or
+system-bundle certificate play; self-signed and wrong-host certificates are
+refused. If `/etc/ssl/cert.pem` is missing, verification stays off and the app
+logs a warning.
+
+Known limitation: libmpv does not read the keychain. A server whose private CA
+is trusted only in the macOS keychain signs in (the API client uses the
+keychain) but its streams are refused. Replacing the macOS libmpv (see
+`docs/audits/dependency-audit-2026-10-01.md`) is the planned fix. Mbed TLS also
+does not check IP-literal hosts against the certificate.
 
 ## Code Signing
 

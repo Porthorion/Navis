@@ -12,6 +12,7 @@ import 'src/icy_metadata.dart';
 import 'src/icy_property_source.dart';
 import 'src/mpv_errors.dart';
 import 'src/set_property.dart';
+import 'src/tls_options.dart';
 import 'src/equalizer_chain.dart';
 
 /// An [AudioPlayerPlatform] which wraps `package:media_kit`'s [Player]
@@ -60,9 +61,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
     // Navis: stream URLs carry the account's salt and token, so the server
     // certificate must be checked before they are sent.
-    if (JustAudioMediaKit.tlsVerify) {
-      unawaited(setProperty(_player, 'tls-verify', 'yes'));
-    }
+    tlsProperties(
+      verify: JustAudioMediaKit.tlsVerify,
+      caFile: JustAudioMediaKit.tlsCaFile,
+    ).forEach((name, value) => unawaited(setProperty(_player, name, value)));
 
     if (JustAudioMediaKit.prefetchPlaylist) {
       setProperty(_player, 'prefetch-playlist', 'yes');

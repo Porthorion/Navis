@@ -38,4 +38,44 @@ void main() {
       isNull,
     );
   });
+
+  group('desktopStreamTls', () {
+    test("Linux and Windows verify with libmpv's own store", () {
+      for (final platform in ['linux', 'windows']) {
+        final tls = desktopStreamTls(
+          isLinux: platform == 'linux',
+          isWindows: platform == 'windows',
+          isMacOS: false,
+          fileExists: (_) => throw StateError('Must not inspect a CA file'),
+        );
+        expect(tls.verify, isTrue, reason: platform);
+        expect(tls.caFile, isNull, reason: platform);
+      }
+    });
+
+    test('macOS verifies against the system CA bundle file', () {
+      final tls = desktopStreamTls(
+        isLinux: false,
+        isWindows: false,
+        isMacOS: true,
+        fileExists: (path) => path == '/etc/ssl/cert.pem',
+      );
+      expect(tls.verify, isTrue);
+      expect(tls.caFile, '/etc/ssl/cert.pem');
+    });
+
+    test('macOS without the bundle stays off and says so', () {
+      var warned = false;
+      final tls = desktopStreamTls(
+        isLinux: false,
+        isWindows: false,
+        isMacOS: true,
+        fileExists: (_) => false,
+        onMissingCaFile: () => warned = true,
+      );
+      expect(tls.verify, isFalse);
+      expect(tls.caFile, isNull);
+      expect(warned, isTrue);
+    });
+  });
 }

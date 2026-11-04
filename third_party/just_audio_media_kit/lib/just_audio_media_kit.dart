@@ -63,6 +63,11 @@ class JustAudioMediaKit extends JustAudioPlatform {
   /// the bundled libmpv cannot find the system certificates.
   static bool tlsVerify = false;
 
+  /// Navis: CA bundle file for [tlsVerify], passed as libmpv's `--tls-ca-file`
+  /// only when set. Needed where the bundled libmpv (macOS, Mbed TLS) cannot
+  /// read the system certificate store; leave null elsewhere.
+  static String? tlsCaFile;
+
   static final _logger = Logger('JustAudioMediaKit');
   final _players = HashMap<String, MediaKitPlayer>();
 
