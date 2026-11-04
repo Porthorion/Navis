@@ -76,7 +76,8 @@ void main() {
         );
         final bundlesLibmpv =
             platform == TargetPlatform.linux ||
-            platform == TargetPlatform.windows;
+            platform == TargetPlatform.windows ||
+            platform == TargetPlatform.macOS;
         expect(packages.contains('libmpv'), bundlesLibmpv);
         expect(packages.contains('FFmpeg'), bundlesLibmpv);
         for (final license in licenses) {
@@ -91,6 +92,36 @@ void main() {
     final navis = licenses.singleWhere((e) => e.packages.contains('Navis'));
     expect(navis.text, contains('GNU GENERAL PUBLIC LICENSE'));
   });
+
+  test(
+    'macOS lists the bundled libmpv, FFmpeg and Mbed TLS licences',
+    () async {
+      final licenses = await entries(platform: TargetPlatform.macOS);
+      final license = licenses.singleWhere(
+        (entry) => entry.packages.contains('libmpv'),
+      );
+      expect(license.packages, ['libmpv', 'FFmpeg']);
+      final texts = [
+        for (final asset in [
+          'libmpv-macos-NOTICE.txt',
+          'LGPL-2.1.txt',
+          'LGPL-3.0.txt',
+          'Apache-2.0.txt',
+        ])
+          await rootBundle.loadString('assets/licenses/$asset'),
+      ];
+      expect(license.text, texts.join('\n\n'));
+      expect(license.text, contains('support@porthorion.com'));
+      expect(license.text, contains('can be replaced'));
+      expect(license.text, contains('Navis.app/Contents/Frameworks'));
+      expect(license.text, contains('libmpv-darwin-build/releases/tag/v0.6.0'));
+      expect(license.text, contains('Mbed TLS 3.4.1'));
+      expect(license.text, contains('Apache License'));
+      expect(license.text, contains('GNU LESSER GENERAL PUBLIC LICENSE'));
+      expect(license.text, isNot(contains('libmpv-windows-x86_64')));
+      expect(license.text, isNot(contains('libmpv-linux-x86_64')));
+    },
+  );
 
   for (final platform in [TargetPlatform.linux, TargetPlatform.windows]) {
     test(
@@ -112,9 +143,16 @@ void main() {
         expect(license.text, contains('can be replaced'));
         expect(license.text, contains('libmpv-windows-x86_64-lgpl-20261013'));
         expect(license.text, contains('libmpv-linux-x86_64-lgpl-20261007'));
+        expect(license.text, isNot(contains('Mbed TLS')));
       },
     );
+  }
 
+  for (final platform in [
+    TargetPlatform.linux,
+    TargetPlatform.windows,
+    TargetPlatform.macOS,
+  ]) {
     test(
       'system-libmpv builds can disable the bundle notice on $platform',
       () async {
