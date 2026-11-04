@@ -33,7 +33,7 @@ same Python environment active for the final gate and evidence verification.
 
 `registerBundledLicenses` in `lib/src/app_licenses.dart` owns notices for
 non-Dart assets and native libraries. Its tests cover platform filtering and
-the enabled Windows/Linux LGPL notices and optional system-library flag
+the enabled Windows, Linux and macOS LGPL notices and optional system-library flag
 without starting the application. Regenerate Windows Rust notices with `python3 tool/generate_rust_notices.py`; fetch the
 locked dependencies first, then commit `assets/licenses/windows-smtc-crates.txt`.
 The generator matches licence filenames case-insensitively and uses tracked

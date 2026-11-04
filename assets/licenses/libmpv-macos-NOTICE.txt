@@ -2,7 +2,7 @@ Navis for macOS bundles the libmpv (mpv) and FFmpeg libraries, licensed
 under the GNU Lesser General Public License (LGPL): mpv 0.36.0 under version
 2.1 or later, and the FFmpeg 6.0 libraries (libavcodec, libavformat,
 libavfilter, libavutil, libswscale, libswresample) under version 3 or later.
-The full texts of both licences follow this notice.
+The full licence texts (LGPL-2.1, LGPL-3.0 and Apache-2.0) follow this notice.
 
 These libraries are dynamically linked as separate frameworks inside the app
 bundle (Navis.app/Contents/Frameworks) and can be replaced: Mpv.framework,
