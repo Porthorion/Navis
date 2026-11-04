@@ -781,6 +781,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   /// 404 can land after the adapter's first ready). Only the first Play
   /// fails that way; later loads of the song throw, as with a warm libmpv.
   bool failOnPlay = false;
+
+  /// How many more Plays fail that way after the current one; the song's
+  /// loads keep succeeding until the last.
+  int failOnPlayRepeats = 0;
   StateError? loadErrorAfterApply;
 
   @override
@@ -1101,8 +1105,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     isPlaying = true;
     emitPlayerEvent();
     if (failOnPlay) {
-      failOnPlay = false;
-      failLoadSongId = attemptedSongId;
+      failOnPlay = failOnPlayRepeats > 0;
+      if (failOnPlay) {
+        failOnPlayRepeats--;
+      } else {
+        failLoadSongId = attemptedSongId;
+      }
       // The player keeps `playing`; only the processing state fails.
       state = ProcessingState.idle;
       errorCode = 0;
@@ -1174,6 +1182,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     }
     // Like just_audio, only a prepared, non-empty load clears the idle
     // player's error.
+    final clearedError = errorCode != null;
     if (preload && sources.isNotEmpty) errorCode = null;
     if (source != null) attemptedSongId = _sourceId(source);
     if (source != null && hungLoadSongs.contains(_sourceId(source))) {
@@ -1225,6 +1234,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       if (rejectBridgeLoad) throw StateError('bridge load failed');
     }
     _indices.add(index);
+    // A reload after a failure reports its error-free state, as native does.
+    if (clearedError && errorCode == null) _events.add(playbackEvent);
     if (loadErrorAfterApply case final error?) {
       loadErrorAfterApply = null;
       state = ProcessingState.idle;
@@ -2800,6 +2811,49 @@ void main() {
         expect(handler.snapshot.currentSongId, 'song-1');
         expect(player.index, 1);
         expect(player.playing, isTrue);
+      },
+    );
+
+    test('a paused load whose stream fails after apply never starts', () async {
+      final (handler, player, _) = await setup(
+        reconcile: () async => net(online: true),
+        remote: true,
+      );
+      player.failOnPlay = true;
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.playedFrom, isEmpty);
+      expect(player.playing, isFalse);
+      expect(handler.snapshot.playing, isFalse);
+    });
+
+    test(
+      'a retry reload that also fails after apply skips without looping',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          remote: true,
+        );
+        player
+          ..failOnPlay = true
+          ..failOnPlayRepeats = 1;
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.index, 1);
+        expect(player.playing, isTrue);
+        // Both failing Plays were song-0's; song-1 then played without one.
+        expect(player.failOnPlayRepeats, 0);
+        expect(player.playedFrom, hasLength(2));
       },
     );
 

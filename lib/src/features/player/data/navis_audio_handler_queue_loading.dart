@@ -34,6 +34,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
     final generation = ++_loadGeneration;
     _activeLoadGeneration = generation;
+    _loadedSourceApplied = false;
+    _failedAfterApply = false;
     _isLoading = isLoading;
     _loadingSongId = isLoading ? loadingSongId : null;
     if (isLoading && loadingSongId != null) {
