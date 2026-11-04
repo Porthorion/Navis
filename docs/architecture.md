@@ -3584,9 +3584,29 @@ works like the weekly playlists. `homeTrendingProvider`
   UI state. Remove names the song, not a position: the detail screen captures
   the chosen row's id and its occurrence count when the menu opens, and
   `removeAt` re-reads the server list inside the chain and removes that
-  occurrence with a single `songIndexToRemove` (Navidrome 0.64 ignores
-  several). The caller also passes how many copies the shown list held: none
-  left removes nothing, and a different count throws
+  occurrence with a single `songIndexToRemove`, then reads the list back and
+  classifies it before any further write. Navidrome 0.64 counts hidden rows
+  that `getPlaylist` omits (left by 1.5.1's multi-id adds; a ghost stays until
+  an index removal hits it, and a visible delete only renumbers), so an index
+  can miss. Expected list (plus rows another client added): done. Unchanged:
+  the index hit a hidden row, so it is sent again (ten calls at most; this is
+  also how the last song goes, since an empty replace is a no-op). One visible
+  row above the chosen one gone: the repair rewrites the list without the
+  chosen occurrence (`createPlaylist` with `playlistId`, as reorder does),
+  which also drops the rows the server hides from `getPlaylist`. Anything else
+  means another client edited meanwhile and throws `PlaylistChangedException`
+  without writing. Accepted limits, both only on a playlist that already has a
+  hidden row: a network failure between the index call and the repair can leave
+  the wrong row deleted (once per hidden row), and the repair replace is a GET,
+  so a very large playlist (about 500+ songs behind Cloudflare) can fail it,
+  the same limit reorder has. Subsonic has no compare-and-set, so another
+  client's edit landing inside the index call on such a playlist can also go
+  wrong. If it removes a row above the chosen one, the repair restores that row.
+  If the read-back is unrecognised, the wrongly removed row stays deleted.
+  Adds send one id per request, since a multi-id
+  add on 0.64 adds nothing visible and leaves such a hidden row. The caller also passes how many copies the shown
+  list held:
+  none left removes nothing, and a different count throws
   `PlaylistChangedException` without writing, so a stale or repeated tap never
   removes a copy the user kept. Reorder sends
   the list the screen showed; inside the chain it re-reads the playlist and, if
