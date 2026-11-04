@@ -8,7 +8,7 @@ Developer-facing detail moved out of the README. For setup and the quality gate 
 |---|---|---|
 | Android | Supported | Primary mobile target; `audio_service` media session, Android Auto phone projection, and internally gated WorkManager library-sync recovery |
 | iOS | Unreleased scaffold | Configured for iOS 16; requires macOS/Xcode build and runtime validation |
-| macOS | Unreleased | Configured for macOS 12; `flutter build macos` succeeds. Now Playing and media keys go through `audio_service` (`MPNowPlayingInfoCenter`, `MPRemoteCommandCenter`) but are not runtime-verified; gaps and work items are in the [macOS parity plan](../plans/macOS_Parity_Plan.md) |
+| macOS | Unreleased | Configured for macOS 12 (universal). Bundles Navis's own LGPL libmpv (equalizer, Fast Seeking and system-trust TLS in release builds; debug builds use AVFoundation); Now Playing and media keys through `audio_service` (`MPNowPlayingInfoCenter`, `MPRemoteCommandCenter`), Dock and Controls menus, login-keychain sign-in and a self-update that rolls back; hardware media keys, AirPods and a real update are not yet runtime-verified. Gaps and work items are in the [macOS parity plan](../plans/macOS_Parity_Plan.md) |
 | Linux | Supported | Native desktop build with adaptive shell, shortcuts, MPRIS integration, and bundled LGPL libmpv (x86_64); tar.gz, deb, rpm and AUR binary recipe |
 | Windows | Supported | Native desktop build with adaptive shell, shortcuts, SMTC integration, and bundled LGPL libmpv |
 
@@ -50,7 +50,7 @@ Released target baselines:
   MPRIS bridge over `dbus`.
 - Windows: system media transport controls use Navis’s owned manual-SMTC
   Rust/WinRT adapter with a stable Navis session identity.
-- Apple builds are not shipped or certified. On macOS, `audio_service`'s Darwin plugin already publishes `MPNowPlayingInfoCenter` metadata and handles `MPRemoteCommandCenter` commands; runtime verification is item M1 of the [macOS parity plan](../plans/macOS_Parity_Plan.md).
+- Apple builds are not shipped or certified. On macOS, `audio_service`'s Darwin plugin publishes `MPNowPlayingInfoCenter` metadata and handles `MPRemoteCommandCenter` commands; a scripted pass confirmed them, and hardware media keys and AirPods remain a hands-on check in the [macOS testing playbook](../platforms/macos-testing-playbook.md) (see item M1 of the [macOS parity plan](../plans/macOS_Parity_Plan.md)).
 
 ## Tech Stack
 

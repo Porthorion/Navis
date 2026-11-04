@@ -83,7 +83,8 @@ with FFmpeg's `volume`, `biquad` and `equalizer` filters for the equalizer,
 mpv's internal `scaletempo` for tempo and Apple SecureTransport for TLS. The
 framework links only macOS system libraries.
 
-- **Pin**: `libmpv-macos-universal-lgpl-20261104.tar.gz` and its SHA-256 are in
+- **Pin**: `libmpv-macos-universal-lgpl-20261104.tar.gz`, SHA-256
+  `088d49672ebd06db2f41059fca0e02dcee94ea1499ff4ef0079890f4e11e9d9d`, is pinned in
   `third_party/media_kit_libs_macos_audio/macos/fetch_libmpv.sh`; `pod install`
   downloads it from
   `https://downloads.porthorion.com/navis/third-party/libmpv-macos-universal-lgpl-20261104/`,
@@ -98,10 +99,22 @@ framework links only macOS system libraries.
   `fetch_libmpv.sh --check` (offline) before every compile and fails the build
   with that instruction when the extracted framework's stamp does not match the
   pin, so a stale `Pods` directory cannot keep an old libmpv.
-- **Release operator**: upload the tarball, `SOURCES.md`, `BUILDINFO.txt`,
-  `patches/` and the source archives from `src/` to the R2 folder above before the first release
-  that pins them. The in-app notice
-  (`assets/licenses/libmpv-macos-NOTICE.txt`) links that `SOURCES.md`.
+- **Release operator**: before the first release that pins it (a build without
+  the upload cannot fetch libmpv), upload these from
+  `~/Library/Caches/navis-libmpv-build/out/libmpv-macos-universal-lgpl-20261104/`
+  to R2 `navis/third-party/libmpv-macos-universal-lgpl-20261104/` (no flat copy
+  elsewhere):
+  - `libmpv-macos-universal-lgpl-20261104.tar.gz`
+  - `SOURCES.md` and `BUILDINFO.txt`
+  - `patches/` (`mpv-macos-coreaudio-channelmap.patch`)
+  - the seven source archives from `src/` (`ffmpeg-151814650.tar.gz`,
+    `mpv-eb0ee1031590b3f369a5b783e8aa91eeaaded7e6.tar.gz`,
+    `libplacebo-v7.360.1.tar.gz`, `libass-0.17.5.tar.xz`,
+    `freetype-2.13.3.tar.xz`, `fribidi-1.0.16.tar.xz`, `harfbuzz-10.2.0.tar.xz`),
+    next to `SOURCES.md` (it says they are "in this folder").
+
+  Then check `shasum -a 256` of the downloaded tarball against the pin. The in-app
+  notice (`assets/licenses/libmpv-macos-NOTICE.txt`) links that `SOURCES.md`.
 
 ## Stream certificates
 
@@ -304,6 +317,27 @@ At every launch, with no update script waiting (no fresh `pending` or `rollback`
 handshake file), the app deletes a leftover `<App>.app.backup` next to its bundle. A
 handshake file more than 5 minutes old (or dated that far in the future) is treated as
 left by a killed script. A sync-diagnostics clone skips this cleanup.
+
+### Operator checks
+
+- **Before publishing**: `codesign --verify --deep --strict --verbose=2 Navis.app`
+  on the built app, and `spctl --assess --type execute --verbose=4 Navis.app`
+  after notarization. The updater runs the same `codesign --verify --deep --strict`
+  on the extracted app and refuses a zip that fails it, so a bad signature
+  shows up for users as "The update download was damaged. Try again." with the
+  old app still running.
+- **"Move Navis to the Applications folder to update it."**: the app runs from the
+  zip's Downloads copy (App Translocation) or a disk image. The user drags it to
+  `/Applications`, opens it from there and checks again; nothing is wrong with the
+  release.
+- **An update fails or reverts to the old version**: read
+  `~/Library/Logs/Navis/update.log` (every step is timestamped; `restored previous app`
+  marks a rollback, `restore FAILED` and `backup kept` mean `Navis.app.backup`
+  next to the app is the good copy). Then
+  `~/Library/Application Support/com.navis.app.navis/navis-update-handshake` (`pending`,
+  `started` or `rollback`) and, for a refused zip, the app log lines
+  `Staged app failed codesign`. A crash on first start is the usual cause of a rollback,
+  so check the new build launches on a clean machine before publishing.
 
 Limits: the launch marker is written after the first frame, so it proves the new app got
 past startup, not that it stays up afterwards. A new app that is running but has not
