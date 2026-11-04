@@ -226,6 +226,7 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
       children: [
         ListFilterField(
           controller: _filterController,
+          alignWithContent: true,
           hint: l10n.radioFilterHint,
           onChanged: (_) => setState(() {}),
           onClear: _clearFilter,

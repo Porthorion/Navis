@@ -217,6 +217,7 @@ Widget _filters({
   children: <Widget>[
     ListFilterField(
       controller: controller,
+      alignWithContent: true,
       hint: hint,
       onChanged: onChanged,
       onClear: onClear,

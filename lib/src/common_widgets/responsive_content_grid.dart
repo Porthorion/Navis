@@ -13,7 +13,7 @@ double artistTileHeight(BuildContext context, double extent) {
     textDirection: Directionality.of(context),
     textScaler: MediaQuery.textScalerOf(context),
     maxLines: 2,
-  )..layout(maxWidth: (extent - 16).clamp(1, double.infinity));
+  )..layout(maxWidth: extent.clamp(1, double.infinity));
   final height = extent + 6 + painter.height;
   painter.dispose();
   return height;

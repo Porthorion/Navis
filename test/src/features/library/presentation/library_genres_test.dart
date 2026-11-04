@@ -215,6 +215,88 @@ void main() {
     expect(find.text('Songs'), findsOneWidget);
   });
 
+  const many = <GenreSummary>[
+    _hipHop,
+    _rock,
+    GenreSummary(key: 'jazz', name: 'Jazz', songCount: 9, albumCount: 2),
+    GenreSummary(key: 'folk', name: 'Folk', songCount: 8, albumCount: 2),
+    GenreSummary(
+      key: 'a-very-long-genre-name-that-must-ellipsize-on-one-line',
+      name: 'A very long genre name that must ellipsize on one line',
+      songCount: 7,
+      albumCount: 1,
+    ),
+  ];
+
+  group('wide windows', () {
+    Finder card(String key) => find.byKey(ValueKey<String>('genre-row-$key'));
+
+    testWidgets('show uniform cards in a grid and open the genre', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1400, 900));
+      await tester.pumpWidget(
+        _app(<Object?>[
+          ..._commonOverrides(genres: many),
+          genreSummaryProvider.overrideWith((ref, key) async => _hipHop),
+          genreAlbumsProvider.overrideWith((ref, request) async => const []),
+          genreSongsProvider.overrideWith((ref, request) async => const []),
+        ]),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ListTile), findsNothing);
+      final sizes = <Size>{
+        for (final genre in many) tester.getSize(card(genre.key)),
+      };
+      expect(sizes, hasLength(1));
+      expect(sizes.single.width, inInclusiveRange(220, 260));
+      expect(sizes.single.height, 92);
+      // More than one column, and the cards sit on the page inset.
+      final tops = <double>{
+        for (final genre in many) tester.getTopLeft(card(genre.key)).dy,
+      };
+      expect(tops.length, lessThan(many.length));
+      expect(find.text('40 songs • 5 albums'), findsOneWidget);
+
+      await tester.tap(card('hiphop'));
+      await tester.pumpAndSettle();
+      expect(find.text('Albums'), findsOneWidget);
+      expect(find.text('Songs'), findsOneWidget);
+    });
+
+    testWidgets('a single genre is one card, and name sort keeps letters', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1400, 900));
+      await tester.pumpWidget(
+        _app(_commonOverrides(genres: const [_rock, _hipHop])),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey<String>('genresSortControl')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Name (A-Z)').last);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ListTile), findsNothing);
+      expect(card('rock'), findsOneWidget);
+      expect(tester.getSize(card('rock')), tester.getSize(card('hiphop')));
+      expect(find.byKey(const Key('genreAlphabetRail')), findsOneWidget);
+    });
+
+    testWidgets('large text makes the cards taller, not clipped', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(1400, 900));
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpWidget(_app(_commonOverrides(genres: many)));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(card('rock')).height, 184);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   testWidgets('searching asks for the typed text and can be cleared', (
     tester,
   ) async {
