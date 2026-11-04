@@ -186,6 +186,22 @@ void main() {
       );
 
       test(
+        'falls back to the selected seed when the next one errors',
+        () async {
+          final seeds = {0: Completer<int?>(), 1: Completer<int?>()};
+          final container = await resolvedTo(seeds, 0xFFABCDEF);
+
+          container.read(_songIndexProvider.notifier).next();
+          seeds[1]!.completeError(StateError('extract failed'));
+          await expectLater(
+            container.read(dynamicAccentSeedColorProvider.future),
+            throwsA(isA<StateError>()),
+          );
+          expect(container.read(effectiveColorSchemeSeedProvider), 0xFF123456);
+        },
+      );
+
+      test(
         'falls back to the selected seed when the next one is null',
         () async {
           final seeds = {0: Completer<int?>(), 1: Completer<int?>()};

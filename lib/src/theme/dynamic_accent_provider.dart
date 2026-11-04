@@ -69,6 +69,7 @@ final _dynamicAccentSourceProvider = Provider<String?>((ref) {
   return coverArtId.isEmpty ? null : 'id:$coverArtId';
 });
 
+@visibleForTesting
 final dynamicAccentColorCacheProvider = Provider<DynamicAccentColorCache>((_) {
   return DynamicAccentColorCache();
 });
@@ -108,13 +109,16 @@ final effectiveColorSchemeSeedProvider = Provider<int?>((ref) {
   final selectedSeed = ref.watch(colorSchemeSeedProvider);
   // `.value` keeps the previous seed while the next one loads (Riverpod
   // copies the last data into AsyncLoading), so a track change does not flash
-  // the selected scheme in between.
+  // the selected scheme in between. On error that retained data is stale, so
+  // fall back instead of pinning the old album colour forever.
+  final seed = ref.watch(dynamicAccentSeedColorProvider);
   final dynamicSeed =
-      ref.watch(dynamicAccentSeedColorProvider).value ??
+      (seed.hasError ? null : seed.value) ??
       ref.watch(_dynamicAccentCachedSeedProvider);
   return dynamicSeed ?? selectedSeed;
 });
 
+@visibleForTesting
 class DynamicAccentColorCache {
   final Map<String, int> _seedBySource = <String, int>{};
 
