@@ -1144,7 +1144,20 @@ Config _defaultConfig(String cacheKey, int cap, FileService fileService) {
 // CacheManager persists its input URL, not the URL the FileService requests.
 // Keep every insertion boundary credential-free, including default URL keys.
 class _CredentialFreeCoverArtCacheManager extends CacheManager {
-  new(super.config);
+  new(super.config) : _repo = config.repo;
+
+  final CacheInfoRepository _repo;
+
+  // A repository serving its in-memory fallback indexes nothing on disk, so
+  // clearing it must remove the image files itself.
+  @override
+  Future<void> emptyCache() async {
+    await super.emptyCache();
+    final repo = _repo;
+    if (repo is NavisCacheObjectProvider && repo.isFallback) {
+      await repo.deleteImageFiles();
+    }
+  }
 
   String _url(String url) => credentialFreeUri(Uri.parse(url)).toString();
   String _key(String url, String? key) {

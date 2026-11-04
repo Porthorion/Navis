@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_repository.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -286,18 +287,6 @@ void main() {
   });
 
   group('D3 shared database', () {
-    test('a new repository survives the old one closing unawaited', () async {
-      final a = repo();
-      await a.open().timeout(_bound);
-      final b = repo();
-      final opening = b.open();
-      unawaited(a.close());
-      await opening.timeout(_bound);
-      addTearDown(b.close);
-      await b.insert(_object('a')).timeout(_bound);
-      expect((await b.get('a').timeout(_bound))?.key, 'a');
-    });
-
     test('A open in flight, B opens, A closes unawaited', () async {
       final a = repo();
       final aOpen = a.open();
@@ -332,6 +321,155 @@ void main() {
         addTearDown(second.close);
         await second.insert(_object('a')).timeout(_bound);
         expect((await second.get('a').timeout(_bound))?.key, 'a');
+      },
+    );
+  });
+
+  group('query-time failures', () {
+    Future<void> seedMany(int rows) async {
+      final r = repo();
+      await r.open().timeout(_bound);
+      for (var i = 0; i < rows; i++) {
+        await r.insert(_object('k$i' * 20)).timeout(_bound);
+      }
+      await r.close().timeout(_bound);
+    }
+
+    Future<void> overwriteAfterFirstPage() async {
+      final file = await dbFile().open(mode: FileMode.append);
+      final length = await file.length();
+      expect(length, greaterThan(8192));
+      await file.setPosition(4096);
+      await file.writeFrom(List<int>.filled(length - 4096, 0xA5));
+      await file.close();
+    }
+
+    test('corruption beyond the first page is found at open', () async {
+      await seedMany(300);
+      await overwriteAfterFirstPage();
+      final manager = CacheManager(Config(name, repo: repo()));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      expect(await manager.getFileFromCache('k').timeout(_bound), isNull);
+      await manager
+          .putFile('https://example.test/k', Uint8List.fromList([1]), key: 'k')
+          .timeout(_bound);
+      await manager.emptyCache().timeout(_bound);
+      await manager.dispose().timeout(_bound);
+    });
+
+    test('corruption that appears while open switches to memory', () async {
+      await seedMany(300);
+      final r = repo();
+      await r.open().timeout(_bound);
+      await r.db!.rawQuery('PRAGMA cache_size=0');
+      await overwriteAfterFirstPage();
+      expect(await r.get('x').timeout(_bound), isNull);
+      expect(await r.getAllObjects().timeout(_bound), isEmpty);
+      expect(r.isFallback, isTrue);
+      await roundTrip(r, 'fresh');
+      await r.close().timeout(_bound);
+      // The next open finds the damage and starts a new index.
+      final again = repo();
+      await again.open().timeout(_bound);
+      addTearDown(again.close);
+      expect(again.isFallback, isFalse);
+      expect(await again.getAllObjects().timeout(_bound), isEmpty);
+      await roundTrip(again);
+    });
+
+    test('lookups after dispose complete', () async {
+      final manager = CacheManager(Config(name, repo: repo()));
+      await manager
+          .putFile('https://example.test/k', Uint8List.fromList([1]), key: 'k')
+          .timeout(_bound);
+      await manager.dispose().timeout(_bound);
+      expect(await manager.getFileFromCache('missing').timeout(_bound), isNull);
+      await manager.emptyCache().timeout(_bound);
+    });
+
+    test('every query is neutral on a closed repository', () async {
+      final r = repo();
+      await r.open().timeout(_bound);
+      await r.close().timeout(_bound);
+      expect(await r.get('a').timeout(_bound), isNull);
+      expect(await r.getAllObjects().timeout(_bound), isEmpty);
+      expect(await r.getOldObjects(Duration.zero).timeout(_bound), isEmpty);
+      expect(await r.getObjectsOverCapacity(0).timeout(_bound), isEmpty);
+      expect(await r.delete(1).timeout(_bound), 0);
+      expect(await r.deleteAll([1, 2]).timeout(_bound), 0);
+      expect(await r.update(_object('a')).timeout(_bound), 0);
+      await r.insert(_object('a')).timeout(_bound);
+      await r.updateOrInsert(_object('a')).timeout(_bound);
+    });
+
+    test(
+      'fallback emptyCache also removes the earlier sessions images',
+      () async {
+        await seedRow('a');
+        final fileSystem = IOFileSystem(name);
+        final image = await fileSystem.createFile('old.jpg');
+        await image.writeAsBytes([1, 2, 3]);
+        final locker = await databaseFactoryFfi.openDatabase(
+          dbFile().path,
+          options: OpenDatabaseOptions(singleInstance: false),
+        );
+        await locker.rawQuery('PRAGMA locking_mode=EXCLUSIVE');
+        await locker.execute('BEGIN EXCLUSIVE');
+        final manager = createCoverArtCacheManager(
+          config: Config(
+            name,
+            repo: repo(fileSystem: fileSystem),
+            fileSystem: fileSystem,
+          ),
+        );
+        await manager.emptyCache().timeout(_bound);
+        expect(image.existsSync(), isFalse);
+        await manager.dispose().timeout(_bound);
+        await locker.execute('ROLLBACK');
+        await locker.close();
+      },
+    );
+
+    test('a healthy index keeps its images on emptyCache', () async {
+      final fileSystem = IOFileSystem(name);
+      final image = await fileSystem.createFile('old.jpg');
+      await image.writeAsBytes([1, 2, 3]);
+      final manager = createCoverArtCacheManager(
+        config: Config(
+          name,
+          repo: repo(fileSystem: fileSystem),
+          fileSystem: fileSystem,
+        ),
+      );
+      await manager.emptyCache().timeout(_bound);
+      expect(image.existsSync(), isTrue, reason: 'only indexed files go');
+      await manager.dispose().timeout(_bound);
+    });
+
+    test('only the primary result code decides what is corruption', () {
+      expect(NavisCacheObjectProvider.isCorruptResultCode(26), isTrue);
+      expect(NavisCacheObjectProvider.isCorruptResultCode(11), isTrue);
+      expect(NavisCacheObjectProvider.isCorruptResultCode(779), isTrue);
+      expect(NavisCacheObjectProvider.isCorruptResultCode(523), isTrue);
+      expect(NavisCacheObjectProvider.isCorruptResultCode(266), isFalse);
+      expect(NavisCacheObjectProvider.isCorruptResultCode(14), isFalse);
+      expect(NavisCacheObjectProvider.isCorruptResultCode(5), isFalse);
+      expect(NavisCacheObjectProvider.isCorruptResultCode(null), isFalse);
+    });
+
+    test(
+      'a file with a valid SQLite header is never deleted as not-a-db',
+      () async {
+        final bytes = [
+          ...'SQLite format 3\u0000'.codeUnits,
+          ...List<int>.filled(4096, 0),
+        ];
+        await dbFile().writeAsBytes(bytes);
+        final r = repo();
+        await r.open().timeout(_bound);
+        addTearDown(r.close);
+        expect(r.isFallback, isTrue);
+        expect(dbFile().readAsBytesSync(), bytes);
       },
     );
   });
