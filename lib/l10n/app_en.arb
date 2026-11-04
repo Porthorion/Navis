@@ -2164,8 +2164,8 @@
 
   "desktopNavbarSectionLabel": "Desktop Navigation",
   "desktopNavbarStyleLabel": "Navigation Style",
-  "desktopNavbarStyleWide": "Wide",
-  "desktopNavbarStyleNarrow": "Narrow",
+  "desktopNavbarStyleLarge": "Large",
+  "desktopNavbarStyleDefault": "Default",
   "desktopNavbarStyleIcons": "Icons",
   "desktopNavbarAutohideLabel": "Collapse Sidebar",
   "desktopNavbarAutohideSub": "When inactive, the sidebar collapses to icons. Hover it to expand.",

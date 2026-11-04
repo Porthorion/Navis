@@ -2069,9 +2069,9 @@ class _DesktopNavbarSettings extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final selected = (currentStyle == 'compact' || currentStyle == 'icons')
+    final selected = (currentStyle == 'comfortable' || currentStyle == 'icons')
         ? currentStyle
-        : 'comfortable';
+        : 'compact';
 
     final colorStyle = NavisColorStyleData.of(context);
     Widget styleOption({
@@ -2119,15 +2119,15 @@ class _DesktopNavbarSettings extends StatelessWidget {
           child: Row(
             children: <Widget>[
               styleOption(
-                value: 'comfortable',
-                label: l10n.desktopNavbarStyleWide,
-                icon: Icons.view_sidebar_outlined,
+                value: 'compact',
+                label: l10n.desktopNavbarStyleDefault,
+                icon: Icons.view_compact_alt_outlined,
               ),
               const SizedBox(width: 8),
               styleOption(
-                value: 'compact',
-                label: l10n.desktopNavbarStyleNarrow,
-                icon: Icons.view_compact_alt_outlined,
+                value: 'comfortable',
+                label: l10n.desktopNavbarStyleLarge,
+                icon: Icons.view_sidebar_outlined,
               ),
               const SizedBox(width: 8),
               styleOption(

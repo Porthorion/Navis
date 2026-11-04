@@ -38,9 +38,7 @@ void main() {
         raw.execute(
           'ALTER TABLE library_sync_candidate_songs DROP COLUMN genres',
         );
-        raw.execute(
-          'PRAGMA user_version = ${NavisDatabase.currentSchemaVersion - 1}',
-        );
+        raw.execute('PRAGMA user_version = 107');
       } finally {
         raw.close();
       }
@@ -79,7 +77,7 @@ void main() {
   test(
     '107 to 108 adds genres and the Genres page setting, keeping real rows',
     () async {
-      expect(NavisDatabase.currentSchemaVersion, 108);
+      expect(NavisDatabase.currentSchemaVersion, greaterThanOrEqualTo(108));
       final directory = await Directory.systemTemp.createTemp('navis_v107_');
       addTearDown(() => directory.delete(recursive: true));
       final file = File(p.join(directory.path, 'fixture.sqlite'));
@@ -139,7 +137,7 @@ void main() {
       expect(
         (await upgraded.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        108,
+        NavisDatabase.currentSchemaVersion,
       );
       final songs = await upgraded.select(upgraded.songsTable).get();
       expect(
@@ -217,6 +215,45 @@ void main() {
     );
     await upgraded.from106To107(Migrator(upgraded));
   }, skip: !sqliteAvailable);
+
+  test(
+    '108 to 109 moves comfortable sidebars to the new default once',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('navis_v109_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      expect(
+        (await seed.appSettingsDao.getSettings())!.desktopNavbarStyle,
+        'compact',
+        reason: 'new profiles default to the narrow sidebar',
+      );
+      await seed.appSettingsDao.updateDesktopNavbarStyle('comfortable');
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute('PRAGMA user_version = 108');
+      } finally {
+        raw.close();
+      }
+      final upgraded = createTestDatabase(file: file);
+      addTearDown(upgraded.close);
+      expect(
+        (await upgraded.appSettingsDao.getSettings())!.desktopNavbarStyle,
+        'compact',
+      );
+      // A later choice of Large survives: the schema version marks completion.
+      await upgraded.appSettingsDao.updateDesktopNavbarStyle('comfortable');
+      await upgraded.close();
+      final reopened = createTestDatabase(file: file);
+      addTearDown(reopened.close);
+      expect(
+        (await reopened.appSettingsDao.getSettings())!.desktopNavbarStyle,
+        'comfortable',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
 
   test(
     '105 to 106 adds fast seeking with default true and preserves settings',

@@ -2546,6 +2546,22 @@ for them), the Library page shows its own section bar;
 `LibrarySectionNavigationScope` carries the sidebar's decision, which the
 sidebar reports after layout.
 
+The desktop workspace gives pages the whole area beside the rail: it adds no
+inset of its own, so each page owns its gutter (24 px, `NavisSpace.xl`; the
+lyrics overlay is full-bleed). Sidebar styles are stored as `compact` (shown
+as Default, 220 px, the default), `comfortable` (Large, a fixed 260 px with
+18 sp labels and 52 px tiles) and `icons`; schema 109 moved profiles still on
+the old `comfortable` default to `compact` once.
+
+With auto-hide the layout always reserves the 64 px icon strip and
+`DesktopNavigationPresentationScope.iconsOnly` stays true. The rail is laid out
+expanded and clipped to the strip while closed (icons, lock and tiles never
+move between the states; Back/Forward and the labels start past the strip, and
+Library section links are left to the Library page). Hovering for 120 ms, or the
+keyboard expand request, widens the clip over the page (220 ms open, 180 ms
+close) with a right-edge shadow, so pages never reflow. It closes when the
+pointer leaves and as soon as a destination or Library section is chosen.
+
 ### Offline banner and the top inset
 
 While the session's server is unreachable, every shell mode shows

@@ -424,16 +424,16 @@ class _ShowcaseColourWash extends ConsumerWidget {
               ),
               DecoratedBox(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: <Color>[
-                      background,
-                      background.withValues(alpha: veil),
-                      background.withValues(alpha: veil),
-                      background,
+                  // Eased, not piecewise linear: the kinks of a linear veil
+                  // show as lines on high-contrast covers.
+                  gradient: easedFadeGradient(
+                    color: background,
+                    points: <(double, double)>[
+                      (0, 1),
+                      (0.18, veil),
+                      (0.7, veil),
+                      (1, 1),
                     ],
-                    stops: const <double>[0, 0.18, 0.7, 1],
                   ),
                 ),
               ),

@@ -10,6 +10,30 @@ import '../../helpers/adaptive_test_harness.dart';
 import '../../helpers/test_theme.dart';
 
 void main() {
+  testWidgets('content is centred in a row taller than it', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(1000, 600));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const Scaffold(
+          body: AdaptiveTrackRow(
+            key: ValueKey<String>('row'),
+            title: 'Song',
+            minHeight: 96,
+            leading: SizedBox(height: 40),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final row = tester.getRect(find.byKey(const ValueKey<String>('row')));
+    final title = tester.getRect(find.text('Song'));
+    expect(row.height, greaterThanOrEqualTo(96));
+    expect(title.center.dy, closeTo(row.center.dy, 4));
+  });
+
   Future<void> render(
     WidgetTester tester,
     double width, {

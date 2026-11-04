@@ -279,7 +279,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 108;
+  static const currentSchemaVersion = 109;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -407,6 +407,7 @@ class NavisDatabase extends _$NavisDatabase {
       from105To106,
       from106To107,
       from107To108,
+      from108To109,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -437,6 +438,17 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable.showGenresPage,
       );
     }
+  }
+
+  /// The narrow sidebar became the default and 'comfortable' became the
+  /// optional Large one, so profiles still on the old default move to the new
+  /// default once. A user who picks Large afterwards keeps it (the schema
+  /// version is the completion marker).
+  Future<void> from108To109(Migrator migrator) async {
+    await customStatement(
+      "UPDATE app_settings SET desktop_navbar_style = 'compact' "
+      "WHERE desktop_navbar_style = 'comfortable'",
+    );
   }
 
   Future<void> from106To107(Migrator migrator) async {
