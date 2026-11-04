@@ -2621,7 +2621,14 @@ by `AdaptiveContext`. Album and artist grids have no column ceiling: wider
 panes add cards while minimum and maximum extents bound their size. Spare width
 centers the grid, while sparse final rows retain leading alignment.
 `ResponsiveContentSliverGrid` builds collection cells lazily and reserves
-measured two-line artist labels at the current text scale.
+measured two-line artist labels at the current text scale. The artist tile has
+no inner padding, so its avatar fills the cell and the grid gap is the only
+gutter, as for album covers. The Library's Genres tab shows uniform
+`ContentLayout.genres` cards (220-260 px wide, 92 px tall at normal text) in
+rows from 600 px wide and a list below that.
+`LibrarySortFilterRow` insets by `ContentLayout.padding`, keeps the filters on
+the leading edge and a fixed-width (up to 280 px) sort at the trailing edge,
+and stacks them on narrow panes or large text.
 
 Schema 81 adds `grid_artwork_size` (`auto`, `small`, `medium`, `large`) and
 `home_recommendations_auto_advance` (default false). Migration translates the
