@@ -127,6 +127,16 @@ enum ChangelogHighlightIcon {
 /// All changelogs, newest first.
 const List<ChangelogVersion> changelogs = [
   ChangelogVersion(
+    version: '1.5.2',
+    entries: [
+      ChangelogEntry(
+        'macOS: choosing a custom downloads folder (and importing/exporting '
+        'EQ presets) works again',
+        type: ChangelogEntryType.fix,
+      ),
+    ],
+  ),
+  ChangelogVersion(
     version: '1.5.1',
     entries: [
       ChangelogEntry(
