@@ -2691,6 +2691,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingNext => 'Next';
 
   @override
+  String get macosMenuControls => 'Controls';
+
+  @override
   String get nowPlayingNoNextTrack => 'No next track';
 
   @override

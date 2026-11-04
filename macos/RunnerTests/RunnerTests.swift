@@ -62,6 +62,46 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(titles(delegate.applicationDockMenu(NSApp)).first, "Radio One")
   }
 
+  private func menuBarWithWindowMenu() -> NSMenu {
+    let bar = NSMenu(title: "Main")
+    let window = NSMenuItem(title: "Window", action: nil, keyEquivalent: "")
+    window.submenu = NSMenu(title: "Window")
+    bar.addItem(window)
+    NSApp.mainMenu = bar
+    NSApp.windowsMenu = window.submenu
+    return bar
+  }
+
+  func testControlsMenuIsInstalledOnceBeforeTheWindowMenuAndStartsDisabled() {
+    let bar = menuBarWithWindowMenu()
+    let delegate = AppDelegate()
+    delegate.installControlsMenu()
+    delegate.installControlsMenu()
+    XCTAssertEqual(titles(bar), ["Controls", "Window"])
+    XCTAssertEqual(titles(delegate.controlsMenu), ["Play", "Next", "Previous"])
+    XCTAssertTrue(delegate.controlsMenu!.items.allSatisfy { !$0.isEnabled && $0.keyEquivalent == "" })
+  }
+
+  func testControlsMenuFollowsThePushedState() {
+    let bar = menuBarWithWindowMenu()
+    let delegate = AppDelegate()
+    delegate.installControlsMenu()
+    delegate.applyDockMenuUpdate([
+      "hasItem": true, "playing": true, "playPauseLabel": "Pause",
+      "nextLabel": "Suivant", "previousLabel": "Précédent", "controlsMenuLabel": "Commandes",
+    ])
+    XCTAssertEqual(titles(bar), ["Commandes", "Window"])
+    XCTAssertEqual(titles(delegate.controlsMenu), ["Pause", "Suivant", "Précédent"])
+    XCTAssertTrue(delegate.controlsMenu!.items.allSatisfy { $0.isEnabled })
+    XCTAssertEqual(delegate.controlsMenu!.items.map { $0.representedObject as? String },
+                   ["playPause", "next", "previous"])
+    delegate.applyDockMenuUpdate([
+      "hasItem": false, "playPauseLabel": "Play",
+      "nextLabel": "Next", "previousLabel": "Previous", "controlsMenuLabel": "Controls",
+    ])
+    XCTAssertTrue(delegate.controlsMenu!.items.allSatisfy { !$0.isEnabled })
+  }
+
   // AppKit applies this to a merely hidden window too, so true would quit the
   // app on every close-button hide; a real close quits via MainFlutterWindow.
   func testHidingTheLastWindowDoesNotQuit() {
