@@ -1580,8 +1580,7 @@ class SyncDiagnosticsServer {
                   target,
                 ))) {
           await _respond(request, HttpStatus.badRequest, <String, Object?>{
-            'error':
-                'target must be favorite, lyrics, queue, miniPlayer or null',
+            'error': 'target must be favorite, lyrics, queue, miniPlayer, rail or null',
           });
           return;
         }

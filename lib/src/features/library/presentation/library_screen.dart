@@ -761,7 +761,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             layoutClass: resolveDesktopLayoutClass(
               MediaQuery.sizeOf(context).width,
             ),
-            padding: EdgeInsets.zero,
+            // Without the toolbar the first row would touch the window edge.
+            padding: toolbarTrailing == null
+                ? const EdgeInsets.only(top: NavisSpace.md)
+                : EdgeInsets.zero,
             child: toolbarTrailing == null
                 ? bodyContent
                 : Column(
@@ -913,7 +916,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             layoutClass: resolveDesktopLayoutClass(
               MediaQuery.sizeOf(context).width,
             ),
-            padding: EdgeInsets.zero,
+            padding: showDesktopWorkspaceHeader
+                ? EdgeInsets.zero
+                : const EdgeInsets.only(top: NavisSpace.md),
             child: showDesktopWorkspaceHeader
                 ? Column(
                     children: <Widget>[

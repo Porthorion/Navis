@@ -776,7 +776,7 @@ For repeated desktop tooltip accessibility failures, run
 all four persistent player action tooltips three times on Home, with app-owned
 semantics enabled, captures the hovered tooltip, and repeats after clean restart.
 The authenticated clone-only `POST /v1/presentation/tooltip` accepts `target`
-values `favorite`, `lyrics`, `queue`, `miniPlayer`, or `null` to dismiss. It
+values `favorite`, `lyrics`, `queue`, `miniPlayer`, `rail` (hovers the first rail destination, which opens an auto-hide rail), or `null` to dismiss. It
 dispatches Flutter mouse events to the production controls; it does not use the
 operating-system accessibility bridge. Inspect both `*-tooltip` screenshots.
 The runner rejects Flutter exception banners and the `node.built` and

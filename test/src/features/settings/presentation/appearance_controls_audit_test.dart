@@ -952,7 +952,7 @@ void main() {
           expect(c.read(libraryPageOrderProvider).first.name, isNot('albums')),
     ),
     for (final (name, label, value) in <(String, String, String)>[
-      ('Narrow', l10n.desktopNavbarStyleNarrow, 'compact'),
+      ('Large', l10n.desktopNavbarStyleLarge, 'comfortable'),
       ('Icons', l10n.desktopNavbarStyleIcons, 'icons'),
     ])
       _Control(
@@ -962,7 +962,7 @@ void main() {
         columns: {'desktopNavbarStyle'},
         act: (t) async {
           await expandGroup(t, l10n.desktopNavbarSectionLabel);
-          await tap(t, find.text(label));
+          await tap(t, find.widgetWithText(FilledButton, label));
         },
         effect: (c) => expect(c.read(desktopNavbarStyleProvider), value),
       ),

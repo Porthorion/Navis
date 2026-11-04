@@ -71,6 +71,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/theme/navis_theme.dart';
+import 'package:navis/src/theme/eased_fade.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/external_url.dart';
@@ -1133,9 +1134,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final adaptiveContext = resolveAdaptiveContextFor(context);
     final adaptiveLayoutClass = adaptiveContext.adaptiveLayoutClass;
     final compactWideLandscapeMode = adaptiveContext.useCompactWideLandscape;
-    final compactHorizontalInset = compactWideLandscapeMode ? 10.0 : 0.0;
     final desktopRuntime = adaptiveContext.desktopRuntime;
     final desktopMode = adaptiveContext.useDesktopShell;
+    // Home's sections add NavisSpace.md themselves; desktop tops it up to the
+    // page gutter.
+    final compactHorizontalInset = compactWideLandscapeMode
+        ? 10.0
+        : (desktopMode ? NavisSpace.xl - NavisSpace.md : 0.0);
     // Phones get a tighter header (about 40 px less than tablets) so more of
     // You Might Like is visible; tablet portrait keeps the roomier one.
     final phoneHeader = adaptiveLayoutClass == AdaptiveLayoutClass.phoneCompact;

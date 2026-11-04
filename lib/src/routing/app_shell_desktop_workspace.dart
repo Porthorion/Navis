@@ -2,7 +2,6 @@ part of 'app_shell.dart';
 
 class _DesktopWorkspace extends StatefulWidget {
   const new({
-    required this.desktopLayoutClass,
     required this.sidebarWidth,
     required this.navbarStyle,
     required this.navbarAutohide,
@@ -39,7 +38,6 @@ class _DesktopWorkspace extends StatefulWidget {
     this.onSystemBack,
   });
 
-  final DesktopLayoutClass desktopLayoutClass;
   final double sidebarWidth;
   final String navbarStyle;
   final bool navbarAutohide;
@@ -80,8 +78,14 @@ class _DesktopWorkspace extends StatefulWidget {
 }
 
 class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
+  // Opening is a little slower than closing; both ease out.
+  static const Duration _openDuration = Duration(milliseconds: 220);
+  static const Duration _closeDuration = Duration(milliseconds: 180);
   static const Duration _animDuration = Duration(milliseconds: 280);
   static const Curve _animCurve = Curves.easeOutCubic;
+  // Hover intent: the pointer must rest on the strip this long before the
+  // rail opens, so crossing it on the way elsewhere does nothing.
+  static const Duration _openDelay = Duration(milliseconds: 120);
   static const double _collapsedWidth = 64;
   static const Duration _collapseDelay = Duration(milliseconds: 500);
   static const Duration _navExpandHoldDuration = Duration(milliseconds: 1600);
@@ -89,6 +93,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
   bool _sidebarVisible = true;
   bool _mouseIsOverSidebar = false;
   Timer? _collapseTimer;
+  Timer? _openTimer;
   int _lastExpandRequest = 0;
 
   @override
@@ -109,8 +114,12 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
     }
     if (!widget.navbarAutohide) {
       _collapseTimer?.cancel();
+      _openTimer?.cancel();
+      // The overlay's MouseRegion unmounts without an exit event; forget the
+      // pointer so turning auto-hide on again collapses the rail.
+      _mouseIsOverSidebar = false;
       if (!_sidebarVisible) {
-        setState(() => _sidebarVisible = true);
+        _setSidebarVisible(true);
       }
     } else if (!old.navbarAutohide && widget.navbarAutohide) {
       if (!_mouseIsOverSidebar) {
@@ -123,6 +132,7 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
   void dispose() {
     widget.expandRequestNotifier.removeListener(_onExpandRequest);
     _collapseTimer?.cancel();
+    _openTimer?.cancel();
     super.dispose();
   }
 
@@ -133,24 +143,42 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
     _lastExpandRequest = current;
     _collapseTimer?.cancel();
     if (!mounted) return;
-    setState(() => _sidebarVisible = true);
+    _setSidebarVisible(true);
     _collapseTimer = Timer(_navExpandHoldDuration, () {
       if (!mounted || _mouseIsOverSidebar) return;
-      setState(() => _sidebarVisible = false);
+      _setSidebarVisible(false);
     });
+  }
+
+  void _setSidebarVisible(bool visible) {
+    _openTimer?.cancel();
+    setState(() => _sidebarVisible = visible);
+  }
+
+  /// Auto-hide closes the overlay as soon as a destination or library section
+  /// is chosen, even while the pointer is still over it.
+  void _closeAfterSelection() {
+    if (!widget.navbarAutohide) return;
+    _collapseTimer?.cancel();
+    _mouseIsOverSidebar = false;
+    if (_sidebarVisible) _setSidebarVisible(false);
   }
 
   void _onMouseEnterSidebar(PointerEnterEvent _) {
     if (!widget.navbarAutohide) return;
     _collapseTimer?.cancel();
     _mouseIsOverSidebar = true;
-    if (!mounted) return;
-    setState(() => _sidebarVisible = true);
+    if (!mounted || _sidebarVisible) return;
+    _openTimer?.cancel();
+    _openTimer = Timer(_openDelay, () {
+      if (mounted && _mouseIsOverSidebar) _setSidebarVisible(true);
+    });
   }
 
   void _onMouseExitSidebar(PointerExitEvent _) {
     if (!widget.navbarAutohide) return;
     _mouseIsOverSidebar = false;
+    _openTimer?.cancel();
     _scheduleCollapse();
   }
 
@@ -158,22 +186,27 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
     _collapseTimer?.cancel();
     _collapseTimer = Timer(_collapseDelay, () {
       if (!mounted || _mouseIsOverSidebar) return;
-      setState(() => _sidebarVisible = false);
+      _setSidebarVisible(false);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final sidebarIconsOnly =
-        widget.navbarStyle == 'icons' ||
-        (widget.navbarAutohide && !_sidebarVisible);
+    final autohide = widget.navbarAutohide;
+    // Under auto-hide the rail is always laid out expanded and clipped to the
+    // 64 px strip while closed, so icons never move between the two states.
+    final sidebarIconsOnly = widget.navbarStyle == 'icons';
+    final peekStrip = autohide && !sidebarIconsOnly;
     final effectiveNavbarStyle = sidebarIconsOnly
         ? 'icons'
         : widget.navbarStyle;
     final effectiveSidebarWidth = sidebarIconsOnly
         ? _collapsedWidth
         : widget.sidebarWidth;
+    // Pages only ever see the collapsed rail under auto-hide, so hovering it
+    // open never reflows them.
+    final pagesIconsOnly = widget.navbarStyle == 'icons' || autohide;
 
     final oled = NavisColorStyleData.of(context).oled;
     final sidebarContent = Material(
@@ -184,19 +217,33 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
           key: const ValueKey<String>('desktopSidebarRegion'),
           width: effectiveSidebarWidth,
           child: Padding(
-            padding: sidebarIconsOnly
+            padding: sidebarIconsOnly || peekStrip
                 ? const EdgeInsets.fromLTRB(4, 12, 4, 12)
                 : const EdgeInsets.fromLTRB(14, 12, 14, 12),
             child: _RailSidebar(
               navbarStyle: effectiveNavbarStyle,
               selectedIndex: widget.selectedIndex,
-              onDestinationSelected: widget.onDestinationSelected,
+              onDestinationSelected: (index) {
+                widget.onDestinationSelected(index);
+                // After the callback: it also raises the expand request
+                // that keyboard navigation uses to flash the rail open.
+                _closeAfterSelection();
+              },
               destinations: widget.destinations,
-              showLibrarySubNavigation: widget.showLibrarySubNavigation,
+              // Auto-hide leaves the section links to the Library page, so
+              // the tiles below them never move.
+              showLibrarySubNavigation:
+                  widget.showLibrarySubNavigation && !autohide,
+              peekStrip: peekStrip,
+              peekCollapsed: !_sidebarVisible,
+              largeTiles: widget.navbarStyle == 'comfortable',
               allowScrollableRail: widget.allowScrollableRail,
               selectedLibrarySection: widget.selectedLibrarySection,
               visibleLibrarySections: widget.visibleLibrarySections,
-              onLibrarySectionSelected: widget.onLibrarySectionSelected,
+              onLibrarySectionSelected: (section) {
+                widget.onLibrarySectionSelected(section);
+                _closeAfterSelection();
+              },
               showPlayer: false,
               playback: widget.playback,
               songTitle: widget.songTitle,
@@ -225,15 +272,18 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
               Positioned.fill(
                 child: Row(
                   children: <Widget>[
-                    FocusTraversalOrder(
-                      order: const NumericFocusOrder(10),
-                      child: AnimatedContainer(
-                        duration: _animDuration,
-                        curve: _animCurve,
-                        width: effectiveSidebarWidth,
-                        child: sidebarContent,
+                    if (autohide)
+                      const SizedBox(width: _collapsedWidth)
+                    else
+                      FocusTraversalOrder(
+                        order: const NumericFocusOrder(10),
+                        child: AnimatedContainer(
+                          duration: _animDuration,
+                          curve: _animCurve,
+                          width: effectiveSidebarWidth,
+                          child: sidebarContent,
+                        ),
                       ),
-                    ),
                     VerticalDivider(
                       width: 1,
                       thickness: 1,
@@ -247,85 +297,51 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                           top: false,
                           right: false,
                           child: ShellOfflineBannerFrame(
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                final width = constraints.maxWidth;
-                                final horizontalInset =
-                                    switch (widget.desktopLayoutClass) {
-                                      DesktopLayoutClass.compactDesktop => 12.0,
-                                      DesktopLayoutClass.standardDesktop =>
-                                        (width * 0.018).clamp(14.0, 30.0),
-                                      DesktopLayoutClass.ultraWideDesktop =>
-                                        (width * 0.022).clamp(18.0, 44.0),
-                                    };
-                                const verticalInset = 20.0;
-
-                                return NavigatorPopHandler<Object?>(
-                                  enabled: true,
-                                  onPopWithResult: (result) {
-                                    if (widget.hasPlayerOverlay) {
-                                      widget.onSystemBack?.call();
-                                      return;
-                                    }
-                                    final router = GoRouter.of(context);
-                                    if (!router.canPop()) {
-                                      return;
-                                    }
-                                    NavService.clearExitPrompt();
-                                    router.pop(result);
-                                  },
-                                  child: Stack(
-                                    children: <Widget>[
-                                      Positioned.fill(
-                                        child: Padding(
-                                          padding: EdgeInsets.fromLTRB(
-                                            horizontalInset,
-                                            verticalInset,
-                                            horizontalInset,
-                                            verticalInset,
-                                          ),
-                                          child: Stack(
-                                            children: <Widget>[
-                                              Positioned.fill(
-                                                child:
-                                                    DesktopNavigationPresentationScope(
-                                                      iconsOnly:
-                                                          sidebarIconsOnly,
-                                                      child: widget
-                                                          .navigationShell,
-                                                    ),
-                                              ),
-                                              if (widget.showLyricsOverlay)
-                                                Positioned.fill(
-                                                  child: _DesktopLyricsOverlay(
-                                                    onClose:
-                                                        widget.onToggleLyrics,
-                                                    songTitle: widget.songTitle,
-                                                    songArtist:
-                                                        widget.songArtist,
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
+                            child: NavigatorPopHandler<Object?>(
+                              enabled: true,
+                              onPopWithResult: (result) {
+                                if (widget.hasPlayerOverlay) {
+                                  widget.onSystemBack?.call();
+                                  return;
+                                }
+                                final router = GoRouter.of(context);
+                                if (!router.canPop()) {
+                                  return;
+                                }
+                                NavService.clearExitPrompt();
+                                router.pop(result);
+                              },
+                              child: Stack(
+                                children: <Widget>[
+                                  Positioned.fill(
+                                    child: DesktopNavigationPresentationScope(
+                                      iconsOnly: pagesIconsOnly,
+                                      child: widget.navigationShell,
+                                    ),
+                                  ),
+                                  if (widget.showLyricsOverlay)
+                                    Positioned.fill(
+                                      child: _DesktopLyricsOverlay(
+                                        onClose: widget.onToggleLyrics,
+                                        songTitle: widget.songTitle,
+                                        songArtist: widget.songArtist,
+                                      ),
+                                    ),
+                                  if (widget.showPlayer &&
+                                      widget.showQueueOverlay)
+                                    Positioned.fill(
+                                      child: FocusTraversalOrder(
+                                        order: const NumericFocusOrder(5),
+                                        child: _QueueOverlay(
+                                          key: widget.queueOverlayKey,
+                                          fullscreen: false,
+                                          floatingWindow: true,
+                                          onDismiss: widget.onDismissQueue,
                                         ),
                                       ),
-                                      if (widget.showPlayer &&
-                                          widget.showQueueOverlay)
-                                        Positioned.fill(
-                                          child: FocusTraversalOrder(
-                                            order: const NumericFocusOrder(5),
-                                            child: _QueueOverlay(
-                                              key: widget.queueOverlayKey,
-                                              fullscreen: false,
-                                              floatingWindow: true,
-                                              onDismiss: widget.onDismissQueue,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                );
-                              },
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -334,18 +350,50 @@ class _DesktopWorkspaceState extends State<_DesktopWorkspace> {
                   ],
                 ),
               ),
-              if (widget.navbarAutohide)
+              if (autohide)
+                // The one rail instance floats over the page; the Row above
+                // only reserves its collapsed slot.
                 Positioned(
                   left: 0,
                   top: 0,
                   bottom: 0,
-                  width: _sidebarVisible
-                      ? widget.sidebarWidth
-                      : _collapsedWidth,
-                  child: MouseRegion(
-                    opaque: false,
-                    onEnter: _onMouseEnterSidebar,
-                    onExit: _onMouseExitSidebar,
+                  child: FocusTraversalOrder(
+                    order: const NumericFocusOrder(10),
+                    child: MouseRegion(
+                      onEnter: _onMouseEnterSidebar,
+                      onExit: _onMouseExitSidebar,
+                      child: AnimatedContainer(
+                        key: const ValueKey<String>('desktopAutohideRail'),
+                        duration: _sidebarVisible
+                            ? _openDuration
+                            : _closeDuration,
+                        curve: _animCurve,
+                        width: _sidebarVisible
+                            ? effectiveSidebarWidth
+                            : _collapsedWidth,
+                        decoration: BoxDecoration(
+                          boxShadow: <BoxShadow>[
+                            BoxShadow(
+                              color: colors.shadow.withValues(
+                                alpha: _sidebarVisible ? 0.32 : 0,
+                              ),
+                              blurRadius: 24,
+                              offset: const Offset(6, 0),
+                            ),
+                          ],
+                        ),
+                        clipBehavior: Clip.hardEdge,
+                        // Laid out at the full width the whole time: the
+                        // animated width only clips it, so the rail slides in
+                        // and out instead of squeezing its labels.
+                        child: OverflowBox(
+                          alignment: Alignment.centerLeft,
+                          minWidth: effectiveSidebarWidth,
+                          maxWidth: effectiveSidebarWidth,
+                          child: sidebarContent,
+                        ),
+                      ),
+                    ),
                   ),
                 ),
             ],
