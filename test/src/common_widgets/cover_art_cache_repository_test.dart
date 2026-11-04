@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:file/file.dart' as files;
+import 'package:file/local.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
@@ -20,6 +22,16 @@ class _SupportDirProvider extends PathProviderPlatform {
 
   @override
   Future<String?> getTemporaryPath() async => support.path;
+}
+
+class _FixedDirectory implements FileSystem {
+  new(this.directory);
+
+  final Directory directory;
+
+  @override
+  Future<files.File> createFile(String name) async =>
+      const LocalFileSystem().file(p.join(directory.path, name));
 }
 
 const _bound = Duration(seconds: 5);
@@ -238,11 +250,13 @@ void main() {
       'open then immediate close does not throw and closes the database',
       () async {
         final r = repo();
-        final opened = r.open();
+        // Registered before close() waits on the same open, so it sees the db.
+        final opened = r.open().then((_) => r.db);
         final closed = r.close();
-        await opened.timeout(_bound);
+        final database = await opened.timeout(_bound);
+        expect(database, isNotNull);
         expect(await closed.timeout(_bound), isTrue);
-        expect(r.db?.isOpen ?? false, isFalse);
+        expect(database!.isOpen, isFalse);
       },
     );
 
@@ -250,9 +264,10 @@ void main() {
       final r = repo();
       expect(await r.close().timeout(_bound), isFalse);
       await r.open().timeout(_bound);
+      final database = r.db!;
       expect(await r.close().timeout(_bound), isTrue);
+      expect(database.isOpen, isFalse);
       expect(await r.close().timeout(_bound), isFalse);
-      expect(r.db?.isOpen ?? false, isFalse);
     });
 
     test('open, close, open yields a working database', () async {
@@ -430,21 +445,93 @@ void main() {
       },
     );
 
-    test('a healthy index keeps its images on emptyCache', () async {
-      final fileSystem = IOFileSystem(name);
-      final image = await fileSystem.createFile('old.jpg');
-      await image.writeAsBytes([1, 2, 3]);
-      final manager = createCoverArtCacheManager(
-        config: Config(
-          name,
-          repo: repo(fileSystem: fileSystem),
-          fileSystem: fileSystem,
-        ),
-      );
-      await manager.emptyCache().timeout(_bound);
-      expect(image.existsSync(), isTrue, reason: 'only indexed files go');
-      await manager.dispose().timeout(_bound);
-    });
+    test(
+      'emptyCache removes an unindexed orphan file in a healthy index',
+      () async {
+        final fileSystem = IOFileSystem(name);
+        final image = await fileSystem.createFile('orphan.jpg');
+        await image.writeAsBytes([1, 2, 3]);
+        final manager = createCoverArtCacheManager(
+          config: Config(
+            name,
+            repo: repo(fileSystem: fileSystem),
+            fileSystem: fileSystem,
+          ),
+        );
+        await manager.emptyCache().timeout(_bound);
+        expect(image.existsSync(), isFalse);
+        await manager.dispose().timeout(_bound);
+      },
+    );
+
+    test(
+      'emptyCache removes the files when the index locks mid-session',
+      () async {
+        final fileSystem = IOFileSystem(name);
+        final manager = createCoverArtCacheManager(
+          config: Config(
+            name,
+            repo: repo(fileSystem: fileSystem),
+            fileSystem: fileSystem,
+          ),
+        );
+        await manager
+            .putFile(
+              'https://example.test/k',
+              Uint8List.fromList([1]),
+              key: 'k',
+            )
+            .timeout(_bound);
+        final locker = await databaseFactoryFfi.openDatabase(
+          dbFile().path,
+          options: OpenDatabaseOptions(singleInstance: false),
+        );
+        await locker.rawQuery('PRAGMA locking_mode=EXCLUSIVE');
+        await locker.execute('BEGIN EXCLUSIVE');
+        final files = (await fileSystem.createFile('x')).parent;
+        expect(files.listSync(), isNotEmpty);
+        await manager.emptyCache().timeout(_bound);
+        expect(!files.existsSync() || files.listSync().isEmpty, isTrue);
+        await manager.dispose().timeout(_bound);
+        await locker.execute('ROLLBACK');
+        await locker.close();
+      },
+    );
+
+    test(
+      'a reopened repository that opens healthy is not in fallback',
+      () async {
+        await seedRow('a');
+        final locker = await databaseFactoryFfi.openDatabase(
+          dbFile().path,
+          options: OpenDatabaseOptions(singleInstance: false),
+        );
+        await locker.rawQuery('PRAGMA locking_mode=EXCLUSIVE');
+        await locker.execute('BEGIN EXCLUSIVE');
+        final r = repo();
+        await r.open().timeout(_bound);
+        expect(r.isFallback, isTrue);
+        await r.close().timeout(_bound);
+        await locker.execute('ROLLBACK');
+        await locker.close();
+        await r.open().timeout(_bound);
+        addTearDown(r.close);
+        expect(r.isFallback, isFalse);
+        expect((await r.get('a').timeout(_bound))?.key, 'a');
+      },
+    );
+
+    test(
+      'image files are only deleted from a directory named for the index',
+      () async {
+        final other = Directory(p.join(support.path, 'elsewhere'))
+          ..createSync();
+        File(p.join(other.path, 'keep.jpg')).writeAsBytesSync([1]);
+        final r = repo(fileSystem: _FixedDirectory(other));
+        await r.deleteImageFiles();
+        expect(File(p.join(other.path, 'keep.jpg')).existsSync(), isTrue);
+      },
+    );
 
     test('only the primary result code decides what is corruption', () {
       expect(NavisCacheObjectProvider.isCorruptResultCode(26), isTrue);

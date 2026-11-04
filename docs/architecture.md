@@ -6695,9 +6695,10 @@ check) is deleted with the image files under the cache's file directory and
 reopened. A NOTADB file is deleted only when it is readable and lacks the
 SQLite header, because iOS data protection can make a healthy file unreadable
 before first unlock. Any other failure leaves the file untouched and serves the
-session from an empty in-memory index, so lookups miss and refetch; the cover
-manager's `emptyCache` then also removes the image directory, because nothing
-indexes those files. Queries return empty results instead of throwing, and a
+session from an empty in-memory index, so lookups miss and refetch. The cover
+manager's `emptyCache` (sign-out, clear cache, library reset) always removes the
+image directory too on these platforms, because the index may be locked,
+fallback or missing files an earlier fallback session wrote. Queries return empty results instead of throwing, and a
 corrupt-coded query error moves the repository to the in-memory index until the
 next open. A close waits for an open in flight, and repositories of one name
 share a single physical close. Linux and Windows keep `JsonCacheInfoRepository`.

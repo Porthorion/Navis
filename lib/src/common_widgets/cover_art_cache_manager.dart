@@ -1148,13 +1148,14 @@ class _CredentialFreeCoverArtCacheManager extends CacheManager {
 
   final CacheInfoRepository _repo;
 
-  // A repository serving its in-memory fallback indexes nothing on disk, so
-  // clearing it must remove the image files itself.
+  // The index cannot be trusted to list every file (a locked or fallback
+  // index lists none, and fallback sessions never index what they download),
+  // so clearing also removes the image directory itself.
   @override
   Future<void> emptyCache() async {
     await super.emptyCache();
     final repo = _repo;
-    if (repo is NavisCacheObjectProvider && repo.isFallback) {
+    if (repo is NavisCacheObjectProvider) {
       await repo.deleteImageFiles();
     }
   }

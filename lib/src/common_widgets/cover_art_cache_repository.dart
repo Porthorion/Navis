@@ -66,7 +66,8 @@ class NavisCacheObjectProvider extends CacheObjectProvider {
   String get _name => databaseName!;
 
   /// True while this repository serves an empty in-memory index because the
-  /// file could not be used; image files of earlier sessions are unindexed.
+  /// file could not be used.
+  @visibleForTesting
   bool get isFallback => _fallback;
 
   /// Whether a SQLite result code, extended or primary, means a damaged file.
@@ -180,6 +181,10 @@ class NavisCacheObjectProvider extends CacheObjectProvider {
     } on Object {
       // Logged where it happened.
     }
+    // A later open starts from a clean slate and may well be healthy.
+    _fallback = false;
+    _switching = null;
+    _loggedQueryError = false;
     final memory = _memory;
     _memory = null;
     try {
@@ -432,13 +437,20 @@ class NavisCacheObjectProvider extends CacheObjectProvider {
   }
 
   /// Removes the cache's image directory (the one the `Config`'s file system
-  /// uses). Their index is gone or was never usable, so nothing else would
-  /// ever evict them.
+  /// uses), which must be named for this index. Used when the index is gone or
+  /// was never usable, and by the manager's `emptyCache`, which cannot rely on
+  /// the index to list every file.
   Future<void> deleteImageFiles() async {
     final fileSystem = _fileSystem;
     if (fileSystem == null) return;
     try {
       final directory = (await fileSystem.createFile('.navis-reset')).parent;
+      if (_name.isEmpty || p.basename(directory.path) != _name) {
+        AppLogger.warning(
+          'Cover art files of $_name not deleted: unexpected directory',
+        );
+        return;
+      }
       // ignore: avoid_slow_async_io, reason: Runs only after a corrupt index.
       if (await directory.exists()) await directory.delete(recursive: true);
     } on Object catch (error) {
