@@ -31,7 +31,10 @@ ARTIFACT_DATE="${ARTIFACT_DATE:-$(date -u +%Y%m%d)}"
 WORK="${WORK:-$HOME/Library/Caches/navis-libmpv-build}"
 NAME="libmpv-macos-universal-lgpl-${ARTIFACT_DATE}"
 OUT="${OUT:-$WORK/out/$NAME}"
-BUILD_BASE="${BUILD_BASE:-/private/tmp/navis-libmpv-build}"
+BUILD_BASE="${BUILD_BASE:-/private/tmp/navis-libmpv-build-$(id -u)}"
+case "$BUILD_BASE" in
+  "$HOME"/*|*' '*) echo 'BUILD_BASE must be outside $HOME and contain no spaces' >&2; exit 1 ;;
+esac
 # Compilers record source paths (__FILE__, debug info); map the build root to
 # a neutral one.
 PREFIX_MAP="-ffile-prefix-map=$BUILD_BASE=/navis-build -fdebug-prefix-map=$BUILD_BASE=/navis-build"

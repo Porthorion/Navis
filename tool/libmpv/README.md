@@ -128,7 +128,7 @@ tool/libmpv/build_macos_lgpl.sh
 
 Defaults: scratch in `~/Library/Caches/navis-libmpv-build` (`WORK`, outside the
 repository; downloaded sources are cached in `src/`), per-architecture build
-trees in `/private/tmp/navis-libmpv-build` (`BUILD_BASE`, outside `$HOME` so the
+trees in `/private/tmp/navis-libmpv-build-<uid>` (`BUILD_BASE`, outside `$HOME` so the
 configuration strings compiled into mpv and FFmpeg carry no home path; compilers
 also map it to `/navis-build`; each tree is deleted once its stripped dylib is
 staged), output in
