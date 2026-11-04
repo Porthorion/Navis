@@ -95,8 +95,11 @@ final dynamicAccentSeedColorProvider = FutureProvider<int?>((ref) async {
 /// Effective app theme seed: dynamic art-based seed with user-selected fallback.
 final effectiveColorSchemeSeedProvider = Provider<int?>((ref) {
   final selectedSeed = ref.watch(colorSchemeSeedProvider);
+  // `.value` keeps the previous seed while the next one loads (Riverpod
+  // copies the last data into AsyncLoading), so a track change does not flash
+  // the selected scheme in between.
   final dynamicSeed =
-      ref.watch(dynamicAccentSeedColorProvider).asData?.value ??
+      ref.watch(dynamicAccentSeedColorProvider).value ??
       ref.watch(_dynamicAccentCachedSeedProvider);
   return dynamicSeed ?? selectedSeed;
 });

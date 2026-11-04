@@ -104,11 +104,13 @@ class _NavisAppState extends ConsumerState<NavisApp>
     final corners = ref.watch(cornerStyleProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
     // With Dynamic Album Colour, styled schemes repaint backgrounds as well as
-    // accents on every track change, so they ease over a longer transition.
+    // accents on every track change, so they ease over a slightly longer
+    // transition. The seed is held while the next one loads, so one fade
+    // covers the whole change.
     final themeAnimationDuration =
         colorStyle != NavisColorStyle.neutral &&
             ref.watch(dynamicAlbumColorEnabledProvider)
-        ? const Duration(milliseconds: 500)
+        ? const Duration(milliseconds: 250)
         : kThemeAnimationDuration;
     final localeCode = ref.watch(appLocaleProvider);
     final seedColor = resolveColorSchemeSeedColor(colorSeed);
