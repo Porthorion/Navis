@@ -24,6 +24,7 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   bool alwaysOnTop = false;
   bool preventClose = false;
   int closeCalls = 0;
+  int hideCalls = 0;
   int unmaximizeCalls = 0;
   WindowListener? listener;
   final Completer<void> _closed = Completer<void>();
@@ -45,6 +46,11 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   }
 
   Future<void> get closed => _closed.future;
+
+  @override
+  Future<void> hide() async {
+    hideCalls++;
+  }
 
   @override
   Future<void> ensureInitialized() async {}
@@ -302,6 +308,78 @@ void main() {
         expect(restartedAdapter.alwaysOnTop, isFalse);
       },
     );
+
+    group('close', () {
+      Future<(_FakeWindowManagerAdapter, DesktopWindowController)> start({
+        required bool hideOnClose,
+      }) async {
+        final adapter = _FakeWindowManagerAdapter(
+          bounds: const Rect.fromLTWH(70, 90, 1440, 880),
+        );
+        final controller = DesktopWindowController(
+          desktopRuntime: true,
+          stateFile: stateFile,
+          settingsRepository: repository,
+          adapter: adapter,
+          hideOnClose: hideOnClose,
+        );
+        await controller.initialize();
+        return (adapter, controller);
+      }
+
+      test(
+        'on macOS hides the window, keeps it closable, and persists',
+        () async {
+          final (adapter, controller) = await start(hideOnClose: true);
+          adapter.bounds = const Rect.fromLTWH(100, 120, 1300, 800);
+
+          controller.onWindowClose();
+          await pumpEventQueue();
+          controller.onWindowClose();
+          await pumpEventQueue();
+
+          expect(adapter.hideCalls, 2);
+          expect(adapter.closeCalls, 0);
+          expect(adapter.preventClose, isTrue);
+          final persisted = jsonDecode(
+            await stateFile.readAsString(),
+          ) as Map<String, dynamic>;
+          expect((persisted['normalBounds'] as Map)['x'], 100);
+        },
+      );
+
+      test(
+        'on macOS hides from the Mini Player and persists its bounds',
+        () async {
+          final (adapter, controller) = await start(hideOnClose: true);
+          await controller.setMiniPlayerMode(true);
+          adapter.bounds = const Rect.fromLTWH(120, 150, 700, 400);
+
+          controller.onWindowClose();
+          await pumpEventQueue();
+
+          expect(controller.isMiniPlayerMode, isTrue);
+          expect(adapter.hideCalls, 1);
+          expect(adapter.closeCalls, 0);
+          final persisted = jsonDecode(
+            await stateFile.readAsString(),
+          ) as Map<String, dynamic>;
+          expect((persisted['miniBounds'] as Map)['x'], 120);
+        },
+      );
+
+      test('elsewhere still closes the window once', () async {
+        final (adapter, controller) = await start(hideOnClose: false);
+
+        controller.onWindowClose();
+        controller.onWindowClose();
+        await adapter.closed;
+
+        expect(adapter.closeCalls, 1);
+        expect(adapter.hideCalls, 0);
+        expect(adapter.preventClose, isFalse);
+      });
+    });
 
     test(
       'startup ignores legacy Focus Player mode and opens Desktop View',

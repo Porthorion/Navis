@@ -155,6 +155,7 @@ abstract class WindowManagerAdapter {
   // ignore: avoid_positional_boolean_parameters
   Future<void> setPreventClose(bool preventClose);
   Future<void> close();
+  Future<void> hide();
   Future<void> setBounds(Rect bounds);
   Future<Rect> getBounds();
   Future<bool> isMaximized();
@@ -211,6 +212,9 @@ class WindowManagerDesktopWindowAdapter implements WindowManagerAdapter {
   Future<void> close() => windowManager.close();
 
   @override
+  Future<void> hide() => windowManager.hide();
+
+  @override
   Future<void> setBounds(Rect bounds) => windowManager.setBounds(bounds);
 
   @override
@@ -265,8 +269,10 @@ class DesktopWindowController extends ChangeNotifier
     WindowManagerAdapter? adapter,
     ScreenRetrieverAdapter? screenAdapter,
     bool? alwaysOnTopSupported,
+    bool? hideOnClose,
   }) : _adapter = adapter ?? const WindowManagerDesktopWindowAdapter(),
        _alwaysOnTopSupportedOverride = alwaysOnTopSupported,
+       _hideOnCloseOverride = hideOnClose,
        _screenAdapter =
            screenAdapter ??
            (adapter == null ? const SystemScreenRetrieverAdapter() : null);
@@ -276,6 +282,7 @@ class DesktopWindowController extends ChangeNotifier
       _settingsRepository = null,
       _adapter = null,
       _alwaysOnTopSupportedOverride = null,
+      _hideOnCloseOverride = null,
       _screenAdapter = null;
 
   static const Size normalMinSize = kDesktopMiniPlayerMinimumSize;
@@ -288,6 +295,7 @@ class DesktopWindowController extends ChangeNotifier
   final SettingsRepository? _settingsRepository;
   final WindowManagerAdapter? _adapter;
   final bool? _alwaysOnTopSupportedOverride;
+  final bool? _hideOnCloseOverride;
   final ScreenRetrieverAdapter? _screenAdapter;
 
   Timer? _persistDebounce;
@@ -306,6 +314,13 @@ class DesktopWindowController extends ChangeNotifier
   bool _lastPersistenceCompleted = false;
 
   bool get desktopRuntime => _desktopRuntime;
+
+  /// Whether closing the window hides it and keeps the app (and playback)
+  /// running, as Apple Music and Spotify do. Only macOS does this; the Dock
+  /// icon or Cmd+Q brings the window back or quits.
+  bool get _hidesOnClose =>
+      _hideOnCloseOverride ??
+      (_adapter is WindowManagerDesktopWindowAdapter && Platform.isMacOS);
   bool get isApplyingMode => _isApplyingMode;
   DesktopWindowMode get mode => _mode;
   bool get isMiniPlayerMode => _mode == DesktopWindowMode.miniPlayer;
@@ -580,10 +595,21 @@ class DesktopWindowController extends ChangeNotifier
 
   @override
   void onWindowClose() {
+    if (_hidesOnClose) {
+      // Not _isClosing: the window can be shown again and closed again.
+      _persistDebounce?.cancel();
+      unawaited(_persistThenHide());
+      return;
+    }
     if (_isClosing) return;
     _isClosing = true;
     _persistDebounce?.cancel();
     unawaited(_persistThenClose());
+  }
+
+  Future<void> _persistThenHide() async {
+    await _persistCurrentState(reason: 'close');
+    await _adapter?.hide();
   }
 
   Future<void> _persistThenClose() async {

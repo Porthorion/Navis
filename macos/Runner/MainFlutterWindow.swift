@@ -26,6 +26,22 @@ class MainFlutterWindow: NSWindow {
       }
     }
 
+    let dockMenuChannel = FlutterMethodChannel(
+      name: "com.navis.app/dock_menu",
+      binaryMessenger: flutterViewController.engine.binaryMessenger
+    )
+    dockMenuChannel.setMethodCallHandler { call, result in
+      guard call.method == "update",
+            let arguments = call.arguments as? [String: Any],
+            let delegate = NSApp.delegate as? AppDelegate else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      delegate.dockMenuChannel = dockMenuChannel
+      delegate.applyDockMenuUpdate(arguments)
+      result(nil)
+    }
+
     super.awakeFromNib()
   }
 }
