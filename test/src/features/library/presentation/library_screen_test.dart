@@ -17,6 +17,7 @@ import 'package:navis/src/api/models/listenbrainz_playlist.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/library/domain/artist_top_track.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/artist_card.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
@@ -41,6 +42,7 @@ import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
@@ -3408,6 +3410,49 @@ void main() {
         expect(queueSpy.lastReplaceIds, <String>['downloaded-album-song']);
       },
     );
+
+    for (final mode in <String>['grid', 'list']) {
+      for (final width in <double>[412, 1000, 1920]) {
+        _testWidgetsWithCleanup(
+          'artists $mode at $width px: filter chips sit on the letter '
+          'header and first row inset',
+          (tester) async {
+            setAdaptiveTestViewport(tester, Size(width, 900));
+            await _pumpLibraryScreen(
+              tester,
+              artistViewMode: mode,
+              overrides: [
+                artistsProvider.overrideWithValue(
+                  AsyncData(<ArtistsTableData>[
+                    ArtistsTableData(
+                      isProvisional: false,
+                      isExternal: false,
+                      id: 'inset-artist',
+                      name: 'Aardvark',
+                      albumCount: 1,
+                    ),
+                  ]),
+                ),
+                albumCountProvider.overrideWithValue(const AsyncData(0)),
+                pagedAlbumsProvider.overrideWith(
+                  (ref, request) => Stream.value(const <AlbumsTableData>[]),
+                ),
+              ],
+            );
+            await _switchToArtistsTab(tester);
+
+            final chip = tester.getTopLeft(find.byType(FilterChip).first).dx;
+            final header = tester.getTopLeft(find.text('A').first).dx;
+            final firstItem = tester.getTopLeft(find.byType(ArtistCard)).dx;
+            final inset = mode == 'grid' ? ContentLayout.padding(width) : 16.0;
+            expect(chip, inset);
+            expect(header, inset);
+            // List rows run edge to edge; only grid cells sit on the inset.
+            if (mode == 'grid') expect(firstItem, inset);
+          },
+        );
+      }
+    }
   });
 }
 

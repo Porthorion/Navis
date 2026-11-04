@@ -81,12 +81,14 @@ class ContentLayout {
     );
   }
 
-  /// Uniform genre cards (about 220-260 px wide) on wide panes.
+  /// Uniform genre cards (about 220-270 px wide) on wide panes. The maximum
+  /// sits above 1.5x the minimum (less the gap), so the columns always fill
+  /// the pane and the grid never centres inside the page inset.
   static ContentGridGeometry genres(double width) =>
       ContentGridGeometry.bounded(
         width: width,
         minimum: 220,
-        maximum: 260,
+        maximum: 340,
         gap: gap(width),
       );
 

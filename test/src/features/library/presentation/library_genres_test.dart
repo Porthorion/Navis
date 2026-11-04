@@ -251,7 +251,7 @@ void main() {
         for (final genre in many) tester.getSize(card(genre.key)),
       };
       expect(sizes, hasLength(1));
-      expect(sizes.single.width, inInclusiveRange(220, 260));
+      expect(sizes.single.width, inInclusiveRange(220, 267));
       expect(sizes.single.height, 92);
       // More than one column, and the cards sit on the page inset.
       final tops = <double>{
@@ -272,6 +272,37 @@ void main() {
       expect(find.text('Albums'), findsOneWidget);
       expect(find.text('Songs'), findsOneWidget);
     });
+
+    for (final width in <double>[900, 940, 1000, 1120, 1300, 1920]) {
+      testWidgets('$width px: the card grid spans the page insets', (
+        tester,
+      ) async {
+        setAdaptiveTestViewport(tester, Size(width, 900));
+        final genres = <GenreSummary>[
+          for (var i = 0; i < 20; i++)
+            GenreSummary(
+              key: 'g$i',
+              name: 'Genre $i',
+              songCount: 20 - i,
+              albumCount: 1,
+            ),
+        ];
+        await tester.pumpWidget(_app(_commonOverrides(genres: genres)));
+        await tester.pumpAndSettle();
+        final rects = <Rect>[
+          for (final genre in genres) tester.getRect(card(genre.key)),
+        ];
+        final inset = ContentLayout.padding(width);
+        expect(
+          rects.map((r) => r.left).reduce((a, b) => a < b ? a : b),
+          closeTo(inset, 0.01),
+        );
+        expect(
+          rects.map((r) => r.right).reduce((a, b) => a > b ? a : b),
+          closeTo(width - inset, 0.01),
+        );
+      });
+    }
 
     testWidgets('a single genre is one card, and name sort keeps letters', (
       tester,
@@ -458,6 +489,27 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(DesktopFrame), findsOneWidget);
     });
+
+    for (final width in <double>[390, 1280]) {
+      testWidgets('$width px: the count line sits on the search field edge', (
+        tester,
+      ) async {
+        setAdaptiveTestViewport(tester, Size(width, 900));
+        await tester.pumpWidget(
+          _app(<Object?>[
+            ..._commonOverrides(genres: const [_hipHop]),
+            genreSummaryProvider.overrideWith((ref, k) async => _hipHop),
+            genreAlbumsProvider.overrideWith((ref, request) async => const []),
+            genreSongsProvider.overrideWith((ref, request) async => const []),
+          ], initial: AppRoutes.genre('hiphop')),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          tester.getTopLeft(find.text('12 songs • 3 albums')).dx,
+          tester.getTopLeft(find.byType(TextField)).dx,
+        );
+      });
+    }
 
     testWidgets('can open on the Songs tab', (tester) async {
       await pumpDetail(tester, songsTab: true);

@@ -74,7 +74,7 @@ void main() {
   test('genre cards are bounded and single column only when very narrow', () {
     expect(ContentLayout.genres(0).columns, 1);
     expect(ContentLayout.genres(599).columns, 2);
-    expect(ContentLayout.genres(1352).extent, 260);
+    expect(ContentLayout.genres(1352).extent, closeTo(260.8, 0.001));
     expect(ContentLayout.genres(1352).columns, 5);
   });
 
@@ -84,5 +84,16 @@ void main() {
     expect(ContentLayout.radio(2000).columns, 6);
     expect(ContentLayout.radio(600).extent, 294);
     expect(ContentLayout.radio(1100).extent, 358.6666666666667);
+  });
+
+  test('genre cards always fill the pane between the page insets', () {
+    for (var window = 600.0; window <= 1920; window += 20) {
+      for (final rail in <double>[0, 28]) {
+        final width = window - ContentLayout.padding(window) * 2 - rail;
+        final grid = ContentLayout.genres(width);
+        expect(grid.occupiedWidth, closeTo(width, 0.001), reason: '$window');
+        expect(grid.extent, inInclusiveRange(220, 340), reason: '$window');
+      }
+    }
   });
 }

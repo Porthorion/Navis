@@ -980,55 +980,63 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     return Column(
       children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Row(
-            children: <Widget>[
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: <Widget>[
-                    FilterChip(
-                      label: Text(l10n.libraryDownloadedOnlyFilter),
-                      selected: _downloadedOnly,
-                      onSelected: _updateDownloadedOnly,
-                      avatar: Icon(
-                        _downloadedOnly
-                            ? Icons.download_done
-                            : Icons.download_outlined,
-                        size: 18,
-                      ),
+        LayoutBuilder(
+          // Above a grid the chips sit on its page inset; list rows keep 16.
+          builder: (context, constraints) {
+            final inset = isGridMode
+                ? ContentLayout.padding(constraints.maxWidth)
+                : 16.0;
+            return Padding(
+              padding: EdgeInsets.fromLTRB(inset, 8, inset, 12),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: <Widget>[
+                        FilterChip(
+                          label: Text(l10n.libraryDownloadedOnlyFilter),
+                          selected: _downloadedOnly,
+                          onSelected: _updateDownloadedOnly,
+                          avatar: Icon(
+                            _downloadedOnly
+                                ? Icons.download_done
+                                : Icons.download_outlined,
+                            size: 18,
+                          ),
+                        ),
+                        FilterChip(
+                          label: Text(l10n.libraryLikedOnlyFilter),
+                          selected: _artistsLikedOnly,
+                          onSelected: (value) =>
+                              setState(() => _artistsLikedOnly = value),
+                          avatar: Icon(
+                            _artistsLikedOnly
+                                ? Icons.favorite
+                                : Icons.favorite_border_outlined,
+                            size: 18,
+                          ),
+                        ),
+                      ],
                     ),
-                    FilterChip(
-                      label: Text(l10n.libraryLikedOnlyFilter),
-                      selected: _artistsLikedOnly,
-                      onSelected: (value) =>
-                          setState(() => _artistsLikedOnly = value),
-                      avatar: Icon(
-                        _artistsLikedOnly
-                            ? Icons.favorite
-                            : Icons.favorite_border_outlined,
-                        size: 18,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                  IconButton(
+                    icon: Icon(isGridMode ? Icons.view_list : Icons.grid_view),
+                    tooltip: isGridMode
+                        ? l10n.librarySwitchToArtistList
+                        : l10n.librarySwitchToArtistGrid,
+                    onPressed: () async {
+                      await ref
+                          .read(navisDatabaseProvider)
+                          .appSettingsDao
+                          .updateArtistViewMode(isGridMode ? 'list' : 'grid');
+                    },
+                  ),
+                ],
               ),
-              IconButton(
-                icon: Icon(isGridMode ? Icons.view_list : Icons.grid_view),
-                tooltip: isGridMode
-                    ? l10n.librarySwitchToArtistList
-                    : l10n.librarySwitchToArtistGrid,
-                onPressed: () async {
-                  await ref
-                      .read(navisDatabaseProvider)
-                      .appSettingsDao
-                      .updateArtistViewMode(isGridMode ? 'list' : 'grid');
-                },
-              ),
-            ],
-          ),
+            );
+          },
         ),
         Expanded(
           child: RefreshIndicator(
@@ -2302,6 +2310,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final inset = ContentLayout.padding(constraints.maxWidth);
         return CustomScrollView(
           controller: _artistsGridScrollController,
           physics: const AlwaysScrollableScrollPhysics(),
@@ -2310,7 +2319,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               SliverToBoxAdapter(
                 key: _artistGridSectionKeys[letter],
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                  padding: EdgeInsets.fromLTRB(inset, 10, inset, 6),
                   child: Text(
                     letter,
                     style: Theme.of(context).textTheme.titleMedium,
