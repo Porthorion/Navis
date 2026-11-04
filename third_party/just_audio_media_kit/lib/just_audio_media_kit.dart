@@ -59,14 +59,8 @@ class JustAudioMediaKit extends JustAudioPlatform {
   /// [`--tls-verify`](https://mpv.io/manual/stable/#options-tls-verify).
   ///
   /// mpv releases up to 0.41 default it to off, so an `https` stream would
-  /// otherwise be opened without checking who answers. Leave it unset where
-  /// the bundled libmpv cannot find the system certificates.
+  /// otherwise be opened without checking who answers.
   static bool tlsVerify = false;
-
-  /// Navis: CA bundle file for [tlsVerify], passed as libmpv's `--tls-ca-file`
-  /// only when set. Needed where the bundled libmpv (macOS, Mbed TLS) cannot
-  /// read the system certificate store; leave null elsewhere.
-  static String? tlsCaFile;
 
   static final _logger = Logger('JustAudioMediaKit');
   final _players = HashMap<String, MediaKitPlayer>();

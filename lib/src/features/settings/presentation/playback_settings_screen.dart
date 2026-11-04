@@ -263,7 +263,8 @@ class _PlaybackSettingsScreenState
                     ),
                   if (!kIsWeb &&
                       (defaultTargetPlatform == TargetPlatform.linux ||
-                          defaultTargetPlatform == TargetPlatform.windows))
+                          defaultTargetPlatform == TargetPlatform.windows ||
+                          defaultTargetPlatform == TargetPlatform.macOS))
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       value: _fastSeekingEnabled,

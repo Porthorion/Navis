@@ -94,30 +94,33 @@ void main() {
   });
 
   test(
-    'macOS lists the bundled libmpv, FFmpeg and Mbed TLS licences',
+    'macOS lists the Navis-built libmpv and FFmpeg under LGPL-2.1',
     () async {
       final licenses = await entries(platform: TargetPlatform.macOS);
       final license = licenses.singleWhere(
         (entry) => entry.packages.contains('libmpv'),
       );
       expect(license.packages, ['libmpv', 'FFmpeg']);
-      final texts = [
-        for (final asset in [
-          'libmpv-macos-NOTICE.txt',
-          'LGPL-2.1.txt',
-          'LGPL-3.0.txt',
-          'Apache-2.0.txt',
-        ])
-          await rootBundle.loadString('assets/licenses/$asset'),
-      ];
-      expect(license.text, texts.join('\n\n'));
+      final notice = await rootBundle.loadString(
+        'assets/licenses/libmpv-macos-NOTICE.txt',
+      );
+      final lgpl = await rootBundle.loadString('assets/licenses/LGPL-2.1.txt');
+      expect(license.text, '$notice\n\n$lgpl');
       expect(license.text, contains('support@porthorion.com'));
       expect(license.text, contains('can be replaced'));
       expect(license.text, contains('Navis.app/Contents/Frameworks'));
-      expect(license.text, contains('libmpv-darwin-build/releases/tag/v0.6.0'));
-      expect(license.text, contains('Mbed TLS 3.4.1'));
-      expect(license.text, contains('Apache License'));
+      expect(
+        license.text,
+        contains(
+          'https://downloads.porthorion.com/navis/third-party/'
+          'libmpv-macos-universal-lgpl-20261104/SOURCES.md',
+        ),
+      );
+      expect(license.text, contains('SecureTransport'));
       expect(license.text, contains('GNU LESSER GENERAL PUBLIC LICENSE'));
+      expect(license.text, contains('libass 0.17.5'));
+      expect(license.text, isNot(contains('Mbed TLS')));
+      expect(license.text, isNot(contains('libmpv-darwin-build')));
       expect(license.text, isNot(contains('libmpv-windows-x86_64')));
       expect(license.text, isNot(contains('libmpv-linux-x86_64')));
     },

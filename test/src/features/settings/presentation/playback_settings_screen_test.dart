@@ -156,8 +156,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         final toggle = find.widgetWithText(SwitchListTile, 'Fast Seeking');
-        if (platform == TargetPlatform.android ||
-            platform == TargetPlatform.macOS) {
+        if (platform == TargetPlatform.android) {
           expect(toggle, findsNothing);
         } else {
           await tester.ensureVisible(toggle);

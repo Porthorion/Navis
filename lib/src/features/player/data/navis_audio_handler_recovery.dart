@@ -396,7 +396,8 @@ extension _NavisRecovery on NavisAudioHandler {
     final item = _currentMediaItem;
     if (kIsWeb ||
         (defaultTargetPlatform != TargetPlatform.linux &&
-            defaultTargetPlatform != TargetPlatform.windows) ||
+            defaultTargetPlatform != TargetPlatform.windows &&
+            defaultTargetPlatform != TargetPlatform.macOS) ||
         !_readRuntimeSettings().fastSeekingEnabled ||
         !_sourceResolver.supportsFastSeeking ||
         item == null ||
