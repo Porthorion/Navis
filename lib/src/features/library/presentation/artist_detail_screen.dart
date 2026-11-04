@@ -601,6 +601,14 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
                 layoutClass: resolveDesktopLayoutClass(
                   MediaQuery.sizeOf(context).width,
                 ),
+                // The sections add NavisSpace.md themselves, so the page
+                // gutter is xs + md = xl; the hero bleeds md beyond it.
+                padding: const EdgeInsets.fromLTRB(
+                  NavisSpace.xs,
+                  NavisSpace.sm,
+                  NavisSpace.xs,
+                  NavisSpace.lg,
+                ),
                 child: artistBody,
               )
             : artistBody,
@@ -900,7 +908,7 @@ class _ArtistImageHeader extends ConsumerWidget {
               ),
               // Artist name (bottom-left) + heart (bottom-right) overlaid
               Positioned(
-                left: 20,
+                left: desktopMode ? NavisSpace.md : 20,
                 right: 8,
                 bottom: 20,
                 child: Row(

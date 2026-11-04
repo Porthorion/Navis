@@ -143,6 +143,8 @@ class DiagnosticsPresentationController {
     'lyrics': 'desktopPlayerLyricsButton',
     'queue': 'desktopQueueButton',
     'miniPlayer': 'desktopPlayerMiniPlayerButton',
+    // The first rail destination: hovering it opens an auto-hide rail.
+    'rail': 'railNavTile-0',
   };
   static const _tooltipPointerDevice = 904;
   static const libraryActions = {
@@ -903,7 +905,17 @@ class DiagnosticsPresentationController {
         throw const DiagnosticsPresentationUnavailable();
       }
       _tooltipSemantics ??= binding.ensureSemantics();
-      final position = box.localToGlobal(box.size.center(Offset.zero));
+      // The auto-hide rail lays its tiles out full width but clips them to
+      // the 64 px strip, so aim the rail hover at the icon, which is always
+      // visible.
+      final position = box.localToGlobal(
+        target == 'rail'
+            ? Offset(
+                box.size.width < 64 ? box.size.width / 2 : 32,
+                box.size.height / 2,
+              )
+            : box.size.center(Offset.zero),
+      );
       if (!_tooltipPointerAdded) {
         binding.handlePointerEvent(
           PointerAddedEvent(

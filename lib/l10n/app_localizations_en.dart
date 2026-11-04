@@ -4585,10 +4585,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get desktopNavbarStyleLabel => 'Navigation Style';
 
   @override
-  String get desktopNavbarStyleWide => 'Wide';
+  String get desktopNavbarStyleLarge => 'Large';
 
   @override
-  String get desktopNavbarStyleNarrow => 'Narrow';
+  String get desktopNavbarStyleDefault => 'Default';
 
   @override
   String get desktopNavbarStyleIcons => 'Icons';

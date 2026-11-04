@@ -1,3 +1,4 @@
+import 'dart:io' show Directory;
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'dart:ui' show SemanticsAction;
@@ -15,6 +16,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
+import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
@@ -40,6 +42,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:navis/src/common_widgets/cover_art_source.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_field.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_background.dart';
 import 'package:navis/src/features/player/presentation/now_playing_backdrop.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
@@ -962,18 +965,385 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final sidebar = find.byKey(const ValueKey<String>('desktopSidebarRegion'));
-    expect(sidebar, findsOneWidget);
-    expect(tester.getSize(sidebar).width, 64);
-    expect(
-      find.descendant(of: sidebar, matching: find.text('Home')),
-      findsNothing,
+    final rail = find.byKey(const ValueKey<String>('desktopAutohideRail'));
+    expect(rail, findsOneWidget);
+    expect(tester.getSize(rail).width, 64);
+    final home = find.descendant(
+      of: rail,
+      matching: find.byIcon(Icons.home_rounded),
     );
-    expect(
-      find.descendant(of: sidebar, matching: find.byIcon(Icons.home_rounded)),
-      findsOneWidget,
-    );
+    expect(home, findsOneWidget);
+    // The rail is laid out expanded and clipped: its label exists but lies
+    // beyond the 64 px strip.
+    final label = find.descendant(of: rail, matching: find.text('Home'));
+    expect(tester.getRect(label).left, greaterThanOrEqualTo(64));
     expect(tester.takeException(), isNull);
+  });
+
+  group('desktop sidebar sizes', () {
+    test('Default is the narrow style', () {
+      expect(const AppSettingsModel.defaults().desktopNavbarStyle, 'compact');
+    });
+
+    Future<void> pump(WidgetTester tester, String style) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1600, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final settings = const AppSettingsModel.defaults().copyWith(
+        desktopNavbarStyle: style,
+      );
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          appSettingsProvider.overrideWithValue(AsyncData(settings)),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    final sidebar = find.byKey(const ValueKey<String>('desktopSidebarRegion'));
+    final home = find.descendant(of: sidebar, matching: find.text('Home'));
+
+    testWidgets('Default is 220 px wide with regular labels', (tester) async {
+      await pump(tester, 'compact');
+      expect(tester.getSize(sidebar).width, 220);
+      expect(tester.widget<Text>(home).style?.fontSize, 16);
+    });
+
+    testWidgets('Large is a fixed 260 px with bigger labels and 52 px tiles', (
+      tester,
+    ) async {
+      await pump(tester, 'comfortable');
+      expect(tester.getSize(sidebar).width, 260);
+      expect(tester.widget<Text>(home).style?.fontSize, 18);
+      final tile = tester.getSize(find.byKey(const ValueKey('railNavTile-0')));
+      expect(tile.height, greaterThanOrEqualTo(52));
+    });
+  });
+
+  group('desktop sidebar auto-hide overlay', () {
+    Future<ProviderContainer> pumpDesktop(
+      WidgetTester tester, {
+      required bool autohide,
+    }) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final settings = const AppSettingsModel.defaults().copyWith(
+        desktopNavbarAutohide: autohide,
+      );
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          appSettingsProvider.overrideWithValue(AsyncData(settings)),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    final sidebar = find.byKey(const ValueKey<String>('desktopSidebarRegion'));
+    final rail = find.byKey(const ValueKey<String>('desktopAutohideRail'));
+    final page = find.byType(DesktopNavigationPresentationScope);
+
+    testWidgets('hovering expands the rail over a page that does not move', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final pageBefore = tester.getRect(page);
+      expect(pageBefore.left, 65, reason: '64 rail slot + 1 divider, no inset');
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(900, 300));
+      await mouse.moveTo(const Offset(30, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+
+      expect(tester.getSize(rail).width, greaterThan(64));
+      expect(tester.getRect(page), pageBefore);
+      expect(
+        DesktopNavigationPresentationScope.iconsOnlyOf(
+          tester.element(find.byType(StatefulNavigationShell)),
+        ),
+        isTrue,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('selecting a destination closes the overlay at once', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(30, 300));
+      await mouse.moveTo(const Offset(31, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(rail).width, greaterThan(64));
+
+      await mouse.moveTo(
+        tester.getCenter(find.byKey(const ValueKey('railNavTile-1'))),
+      );
+      await mouse.down(
+        tester.getCenter(find.byKey(const ValueKey('railNavTile-1'))),
+      );
+      await mouse.up();
+      await tester.pumpAndSettle();
+
+      expect(tester.getSize(rail).width, 64);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('icons stay put between the collapsed and expanded rail', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final icon = find.descendant(
+        of: rail,
+        matching: find.byIcon(Icons.home_rounded),
+      );
+      final lock = find.byKey(const ValueKey('desktopNavbarAutohideToggle'));
+      final iconCollapsed = tester.getCenter(icon);
+      final lockCollapsed = tester.getCenter(lock);
+      expect(tester.getSize(rail).width, 64);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(900, 300));
+      await mouse.moveTo(const Offset(30, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(rail).width, greaterThan(64));
+
+      expect(tester.getCenter(icon), iconCollapsed);
+      expect(tester.getCenter(lock), lockCollapsed);
+      expect(iconCollapsed.dx, 32);
+    });
+
+    testWidgets('turning auto-hide off and on leaves the rail closed', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1280, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final settings = StreamController<AppSettingsModel>.broadcast();
+      addTearDown(settings.close);
+      const base = AppSettingsModel.defaults();
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          appSettingsProvider.overrideWith((ref) async* {
+            yield base.copyWith(desktopNavbarAutohide: true);
+            yield* settings.stream;
+          }),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+      final rail = find.byKey(const ValueKey<String>('desktopAutohideRail'));
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(900, 300));
+      await mouse.moveTo(const Offset(30, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(rail).width, greaterThan(64));
+
+      // Auto-hide off while the pointer is over the rail, then away, then on.
+      settings.add(base.copyWith(desktopNavbarAutohide: false));
+      await tester.pumpAndSettle();
+      await mouse.moveTo(const Offset(900, 300));
+      await tester.pumpAndSettle();
+      settings.add(base.copyWith(desktopNavbarAutohide: true));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+
+      expect(tester.getSize(rail).width, 64);
+    });
+
+    testWidgets('off-strip controls are out of focus and semantics closed', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final back = find.byKey(const ValueKey('desktopHistoryBack'));
+      ExcludeFocus excludeFocus() => tester.widget<ExcludeFocus>(
+        find.ancestor(of: back, matching: find.byType(ExcludeFocus)).first,
+      );
+      ExcludeSemantics excludeSemantics() => tester.widget<ExcludeSemantics>(
+        find.ancestor(of: back, matching: find.byType(ExcludeSemantics)).first,
+      );
+      expect(excludeFocus().excluding, isTrue);
+      expect(excludeSemantics().excluding, isTrue);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(900, 300));
+      await mouse.moveTo(const Offset(30, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+      expect(excludeFocus().excluding, isFalse);
+      expect(excludeSemantics().excluding, isFalse);
+    });
+
+    testWidgets('a pointer crossing the strip does not open the rail', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(900, 300));
+      await mouse.moveTo(const Offset(30, 300));
+      await tester.pump(const Duration(milliseconds: 60));
+      await mouse.moveTo(const Offset(900, 300));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(rail).width, 64);
+    });
+
+    testWidgets('the rail keeps its labels while it slides closed', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: true);
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: const Offset(30, 300));
+      await mouse.moveTo(const Offset(31, 300));
+      await tester.pump(const Duration(milliseconds: 150));
+      await tester.pumpAndSettle();
+      final tile = tester.getCenter(
+        find.byKey(const ValueKey('railNavTile-1')),
+      );
+      await mouse.moveTo(tile);
+      await mouse.down(tile);
+      await mouse.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final label = find.descendant(of: rail, matching: find.text('Home'));
+      // Mid-close the clip is between the strip and the full rail, and the
+      // label is still laid out: it slides out instead of vanishing.
+      expect(tester.getSize(rail).width, greaterThan(64));
+      expect(tester.getSize(rail).width, lessThan(282));
+      expect(label, findsOneWidget);
+
+      await tester.pumpAndSettle();
+      expect(tester.getSize(rail).width, 64);
+      expect(tester.getRect(label).left, greaterThanOrEqualTo(64));
+    });
+
+    group('diagnostics rail hover target', () {
+      Future<DiagnosticsPresentationController> pumpWithController(
+        WidgetTester tester, {
+        required bool autohide,
+        String style = 'compact',
+      }) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(1280, 1000);
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        final root = Directory.systemTemp.createTempSync('navis_rail_hover_');
+        addTearDown(() => root.deleteSync(recursive: true));
+        final controller = DiagnosticsPresentationController(
+          artifactRoot: root,
+          frameWaiter: () => tester.pump(const Duration(milliseconds: 50)),
+        );
+        final settings = const AppSettingsModel.defaults().copyWith(
+          desktopNavbarAutohide: autohide,
+          desktopNavbarStyle: style,
+        );
+        final container = _createContainerWithDatabase(
+          overrides: <Override>[
+            ..._authenticatedShellOverrides(desktopRuntime: true),
+            appSettingsProvider.overrideWithValue(AsyncData(settings)),
+          ],
+        );
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: controller.wrap(testNavisApp),
+          ),
+        );
+        await tester.pumpAndSettle();
+        return controller;
+      }
+
+      Future<void> hover(
+        WidgetTester tester,
+        DiagnosticsPresentationController controller,
+        String? target,
+      ) async {
+        await tester.runAsync(() => controller.hoverTooltip(target: target));
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('opens the auto-hide rail', (tester) async {
+        final controller = await pumpWithController(tester, autohide: true);
+        expect(tester.getSize(rail).width, 64);
+
+        // The tile is laid out wider than the strip; the aim must still land
+        // inside the visible 64 px. Rail tiles have no tooltip, so the
+        // return value is not the signal: the rail opening is.
+        await hover(tester, controller, 'rail');
+
+        expect(tester.getSize(rail).width, greaterThan(64));
+        await hover(tester, controller, null);
+        expect(tester.takeException(), isNull);
+      });
+
+      for (final style in <String>['compact', 'icons']) {
+        testWidgets('still reaches the stable $style rail tile', (
+          tester,
+        ) async {
+          final controller = await pumpWithController(
+            tester,
+            autohide: false,
+            style: style,
+          );
+          final width = tester.getSize(sidebar).width;
+
+          await hover(tester, controller, 'rail');
+          await hover(tester, controller, null);
+
+          // Stable rails are not clipped: the hover is accepted and the
+          // rail keeps its width.
+          expect(tester.getSize(sidebar).width, width);
+          expect(tester.takeException(), isNull);
+        });
+      }
+    });
+
+    testWidgets('stable rails keep their reserved width and page edge', (
+      tester,
+    ) async {
+      await pumpDesktop(tester, autohide: false);
+      final railWidth = tester.getSize(sidebar).width;
+      expect(railWidth, greaterThan(64));
+      expect(tester.getRect(page).left, railWidth + 1);
+    });
   });
 
   testWidgets('compact Desktop View keeps the persistent desktop player bar', (
