@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
@@ -1140,7 +1141,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               l10n.onboardingCrossfadeDuration(draft.crossfadeDurationSeconds),
               style: Theme.of(context).textTheme.titleSmall,
             ),
-            Slider(
+            NavisSlider(
               value: draft.crossfadeDurationSeconds.toDouble(),
               min: 1,
               max: 12,

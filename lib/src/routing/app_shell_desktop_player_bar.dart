@@ -624,8 +624,8 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                             sliderOverlayRadius,
                                                       ),
                                                 ),
-                                                child: Slider(
-                                                  key: const ValueKey(
+                                                child: NavisSlider(
+                                                  sliderKey: const ValueKey(
                                                     'desktopPlayerSeekSlider',
                                                   ),
                                                   value: sliderValue,
