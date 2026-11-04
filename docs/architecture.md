@@ -6687,11 +6687,15 @@ contract.
 
 On Android, iOS and macOS the cache index is sqflite. `NavisCacheObjectProvider`
 (`cover_art_cache_repository.dart`) replaces `flutter_cache_manager` 3.4.5's
-`CacheObjectProvider`, keeping its database path: a failed open deletes the
-disposable index once and retries, then errors rather than hanging; a close
-waits for an open in flight; and repositories of one name share a single
-physical close, so a new manager never inherits a closed database. Linux and
-Windows keep `JsonCacheInfoRepository`.
+`CacheObjectProvider`, keeping its database path. `open()` never fails, because
+`CacheStore` calls it once and every lookup waits on that future: a corrupt
+index (SQLite NOTADB or CORRUPT) is deleted together with the image files
+under the cache's file directory and reopened, and any other failure (locked,
+unreadable, a second failure) leaves the file untouched and serves the session
+from an empty in-memory index, so lookups miss and refetch. A close waits for
+an open in flight, and repositories of one name share a single physical close,
+so a new manager never inherits a closed database. Linux and Windows keep
+`JsonCacheInfoRepository`.
 
 The shared cover-art manager strips URL user info and Subsonic authentication
 parameters before passing URLs and default URL keys to `flutter_cache_manager`.

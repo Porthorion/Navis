@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_repository.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class _SupportDirProvider extends PathProviderPlatform {
   new(this.support);
@@ -29,12 +31,15 @@ CacheObject _object(String key) => CacheObject(
 );
 
 void main() {
-  // flutter_test_config.dart installs the FFI factory on macOS only; Linux and
-  // Windows use the JSON repository, so the sqflite store is not exercised.
-  final skip = Platform.isMacOS ? null : 'sqflite store runs on macOS tests';
   late Directory support;
   var seq = 0;
   late String name;
+
+  setUpAll(() {
+    // The class has no platform check; run it on whichever host runs the tests.
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  });
 
   setUp(() async {
     support = await Directory.systemTemp.createTemp('cover-store-');
@@ -47,11 +52,31 @@ void main() {
     });
   });
 
-  NavisCacheObjectProvider repo() =>
-      NavisCacheObjectProvider(databaseName: name);
+  NavisCacheObjectProvider repo({FileSystem? fileSystem}) =>
+      NavisCacheObjectProvider(databaseName: name, fileSystem: fileSystem);
   File dbFile() => File(p.join(support.path, '$name.db'));
+  Directory filesDir() => Directory(p.join(support.path, name));
 
-  group('D1 failed open', skip: skip, () {
+  Future<void> roundTrip(NavisCacheObjectProvider r, [String key = 'a']) async {
+    await r.insert(_object(key)).timeout(_bound);
+    expect((await r.get(key).timeout(_bound))?.key, key);
+  }
+
+  Future<void> seedRow(String key) async {
+    final r = repo();
+    await r.open().timeout(_bound);
+    await r.insert(_object(key)).timeout(_bound);
+    await r.close().timeout(_bound);
+  }
+
+  Future<void> expectRowSurvives(String key) async {
+    final r = repo();
+    await r.open().timeout(_bound);
+    addTearDown(r.close);
+    expect((await r.get(key).timeout(_bound))?.key, key);
+  }
+
+  group('D1 failed open', () {
     test('a corrupt index is replaced and the open succeeds', () async {
       await dbFile().writeAsString('this is not a sqlite database' * 50);
       final r = repo();
@@ -61,42 +86,153 @@ void main() {
       expect((await r.get('a').timeout(_bound))?.key, 'a');
     });
 
+    test('an unrecoverable open falls back to memory, then recovers', () async {
+      // A directory where the database file belongs cannot be opened.
+      await Directory(dbFile().path).create();
+      final r = repo();
+      await r.open().timeout(_bound);
+      await roundTrip(r);
+      await r.close().timeout(_bound);
+      await Directory(dbFile().path).delete();
+      await r.open().timeout(_bound);
+      addTearDown(r.close);
+      // The memory index was not persisted; the file index starts empty.
+      expect(await r.get('a').timeout(_bound), isNull);
+      await roundTrip(r);
+    });
+
+    test('lookups on a manager whose index cannot open complete', () async {
+      await Directory(dbFile().path).create();
+      final manager = CacheManager(Config(name, repo: repo()));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      expect(await manager.getFileFromCache('k').timeout(_bound), isNull);
+      await manager
+          .putFile(
+            'https://example.test/k',
+            Uint8List.fromList([1, 2]),
+            key: 'k',
+          )
+          .timeout(_bound);
+      expect(await manager.getFileFromCache('k').timeout(_bound), isNotNull);
+      await manager.emptyCache().timeout(_bound);
+      expect(await manager.getFileFromCache('k').timeout(_bound), isNull);
+      await manager.dispose().timeout(_bound);
+    });
+
+    test('a corrupt index on a manager is replaced for lookups', () async {
+      await dbFile().writeAsString('this is not a sqlite database' * 50);
+      final manager = CacheManager(Config(name, repo: repo()));
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      expect(await manager.getFileFromCache('k').timeout(_bound), isNull);
+      await manager
+          .putFile(
+            'https://example.test/k',
+            Uint8List.fromList([1, 2]),
+            key: 'k',
+          )
+          .timeout(_bound);
+      await manager.dispose().timeout(_bound);
+      await expectRowSurvives('k');
+    });
+
     test(
-      'an unrecoverable open errors instead of hanging, then retries',
+      'a locked index is left untouched and the next open sees its rows',
       () async {
-        // A directory where the database file belongs cannot be deleted as a file.
-        await Directory(dbFile().path).create();
+        await seedRow('a');
+        final locker = await databaseFactoryFfi.openDatabase(
+          dbFile().path,
+          options: OpenDatabaseOptions(singleInstance: false),
+        );
+        await locker.execute('PRAGMA locking_mode=EXCLUSIVE');
+        await locker.execute('BEGIN EXCLUSIVE');
         final r = repo();
-        await expectLater(
-          r.open().timeout(_bound),
-          throwsA(isNot(isA<TimeoutException>())),
-        );
-        // Later callers get the error too, not a never-completing future.
-        await expectLater(
-          r.open().timeout(_bound),
-          throwsA(isNot(isA<TimeoutException>())),
-        );
-        await Directory(dbFile().path).delete();
         await r.open().timeout(_bound);
-        addTearDown(r.close);
-        await r.insert(_object('a')).timeout(_bound);
-        expect((await r.get('a').timeout(_bound))?.key, 'a');
+        expect(
+          await r.get('a').timeout(_bound),
+          isNull,
+          reason: 'memory index',
+        );
+        await r.close().timeout(_bound);
+        await locker.execute('ROLLBACK');
+        await locker.close();
+        await expectRowSurvives('a');
       },
     );
 
-    test('emptyCache on a manager whose open failed completes', () async {
-      await Directory(dbFile().path).create();
-      final manager = CacheManager(Config(name, repo: repo()));
-      // The store's own open error is consumed here, never left unhandled.
-      await expectLater(
-        manager.emptyCache().timeout(_bound),
-        throwsA(isNot(isA<TimeoutException>())),
+    test(
+      'an unreadable index is left untouched and the next open sees its rows',
+      () async {
+        await seedRow('a');
+        await Process.run('chmod', ['000', dbFile().path]);
+        addTearDown(() => Process.run('chmod', ['600', dbFile().path]));
+        try {
+          dbFile().openSync().closeSync();
+          markTestSkipped('permissions are not enforced for this user');
+          return;
+        } on FileSystemException {
+          // Unreadable, as intended.
+        }
+        final r = repo();
+        await r.open().timeout(_bound);
+        await roundTrip(r, 'b');
+        await r.close().timeout(_bound);
+        await Process.run('chmod', ['600', dbFile().path]);
+        await expectRowSurvives('a');
+      },
+    );
+
+    test('a corrupt index also removes the orphaned image files', () async {
+      final fileSystem = IOFileSystem(name);
+      final image = await fileSystem.createFile('a.jpg');
+      await image.writeAsBytes([1, 2, 3]);
+      expect(image.existsSync(), isTrue);
+      await dbFile().writeAsString('this is not a sqlite database' * 50);
+      final r = repo(fileSystem: fileSystem);
+      await r.open().timeout(_bound);
+      addTearDown(r.close);
+      expect(image.existsSync(), isFalse);
+      expect(filesDir().existsSync(), isFalse);
+      // The file system recreates its directory on demand.
+      final again = await fileSystem.createFile('b.jpg');
+      await again.writeAsBytes([4]);
+      expect(again.existsSync(), isTrue);
+    });
+
+    test(
+      'two repositories recovering one corrupt index share the new file',
+      () async {
+        await dbFile().writeAsString('this is not a sqlite database' * 50);
+        final a = repo();
+        final b = repo();
+        await Future.wait([a.open(), b.open()]).timeout(_bound);
+        addTearDown(a.close);
+        addTearDown(b.close);
+        await roundTrip(a);
+        expect((await b.get('a').timeout(_bound))?.key, 'a');
+      },
+    );
+
+    test('a transient failure keeps the image files', () async {
+      await seedRow('a');
+      final fileSystem = IOFileSystem(name);
+      final image = await fileSystem.createFile('a.jpg');
+      await image.writeAsBytes([1, 2, 3]);
+      final locker = await databaseFactoryFfi.openDatabase(
+        dbFile().path,
+        options: OpenDatabaseOptions(singleInstance: false),
       );
-      await manager.dispose().timeout(_bound);
+      await locker.execute('PRAGMA locking_mode=EXCLUSIVE');
+      await locker.execute('BEGIN EXCLUSIVE');
+      final r = repo(fileSystem: fileSystem);
+      await r.open().timeout(_bound);
+      await r.close().timeout(_bound);
+      await locker.execute('ROLLBACK');
+      await locker.close();
+      expect(image.existsSync(), isTrue);
     });
   });
 
-  group('D2 close before open completes', skip: skip, () {
+  group('D2 close before open completes', () {
     test(
       'open then immediate close does not throw and closes the database',
       () async {
@@ -149,7 +285,7 @@ void main() {
     });
   });
 
-  group('D3 shared database', skip: skip, () {
+  group('D3 shared database', () {
     test('a new repository survives the old one closing unawaited', () async {
       final a = repo();
       await a.open().timeout(_bound);
@@ -160,6 +296,17 @@ void main() {
       addTearDown(b.close);
       await b.insert(_object('a')).timeout(_bound);
       expect((await b.get('a').timeout(_bound))?.key, 'a');
+    });
+
+    test('A open in flight, B opens, A closes unawaited', () async {
+      final a = repo();
+      final aOpen = a.open();
+      final b = repo();
+      final bOpen = b.open();
+      unawaited(a.close());
+      await Future.wait([aOpen, bOpen]).timeout(_bound);
+      addTearDown(b.close);
+      await roundTrip(b);
     });
 
     test('same, with B fully open before A closes', () async {

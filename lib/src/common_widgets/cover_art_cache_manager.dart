@@ -1109,21 +1109,35 @@ CacheManager createCoverArtCacheManager({
       : maxNrOfCacheObjects;
   return _CredentialFreeCoverArtCacheManager(
     config ??
-        Config(
+        _defaultConfig(
           cacheKey,
-          // Upstream's own choice per platform, with the sqflite one hardened.
-          repo: Platform.isAndroid || Platform.isIOS || Platform.isMacOS
-              ? NavisCacheObjectProvider(databaseName: cacheKey)
-              : JsonCacheInfoRepository(databaseName: cacheKey),
-          stalePeriod: const Duration(days: 30),
-          maxNrOfCacheObjects: cap,
-          fileService:
-              fileService ??
+          cap,
+          fileService ??
               CoverArtHttpFileService(
                 loadCoordinator: loadCoordinator,
                 reportNetworkUsage: reportNetworkUsage,
               ),
         ),
+  );
+}
+
+Config _defaultConfig(String cacheKey, int cap, FileService fileService) {
+  // Upstream's own file system and per-platform repository, with the sqflite
+  // one hardened. The repository gets the file system so it can remove the
+  // image files of an index it has to delete.
+  final fileSystem = IOFileSystem(cacheKey);
+  return Config(
+    cacheKey,
+    repo: Platform.isAndroid || Platform.isIOS || Platform.isMacOS
+        ? NavisCacheObjectProvider(
+            databaseName: cacheKey,
+            fileSystem: fileSystem,
+          )
+        : JsonCacheInfoRepository(databaseName: cacheKey),
+    fileSystem: fileSystem,
+    stalePeriod: const Duration(days: 30),
+    maxNrOfCacheObjects: cap,
+    fileService: fileService,
   );
 }
 
