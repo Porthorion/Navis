@@ -146,7 +146,7 @@ class SyncSettingsScreen extends ConsumerWidget {
           text: l10n.syncSettingsApplyDuration(syncState.lastApplyDurationMs!),
           key: null,
         ),
-      if (syncState.failureCategory != null && !syncState.isSilentFailure)
+      if (syncState.failureCategory != null && !syncState.needsBusyRetry)
         (
           text: l10n.syncSettingsDegradation(
             _humanize(syncState.failureCategory!),

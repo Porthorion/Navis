@@ -350,7 +350,13 @@ list (header, drag handle) move the sheet even when the list is not at the top.
   so WorkManager retries. The foreground retry write is best-effort and re-arms the periodic timer. In manual-only mode (no interval) nothing would retry, so a busy failure is shown as an ordinary one. From the third failure on the returned state is an
   ordinary failure (`failureCategory: 'sync'`, generic error text) under the
   normal backoff, while the ledger keeps `databaseBusy`. A history row whose
-  reason index this build lacks reads as `unknownFailure`.
+  reason index this build lacks reads as `unknownFailure` A lock timeout before the run starts (request
+  bookkeeping or lease acquire) returns the same `leaseHeld` deferral with
+  `failureCategory: 'databaseBusy'` and a one-minute `nextRetryAt`
+  (`LibrarySyncState.needsBusyRetry`), so the controller arms the same quick
+  retry; a real lease conflict keeps the lease-expiry schedule. A lease release
+  that hits a lock timeout is retried in the background (2, 5, 10 s) by owner
+  token, so the retry is not blocked by our own stale lease.
 - All transactional writes go through `NavisDatabase.transaction`, including
   DAO calls routed by `NavisDaoTransactions`. Drift 2.35 announces nested
   savepoint updates on the root stream store before the outer commit, so WAL

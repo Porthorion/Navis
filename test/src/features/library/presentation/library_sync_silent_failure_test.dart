@@ -29,6 +29,21 @@ void main() {
     );
   });
 
+  test('a busy deferral needs the quick retry but is not a failure', () {
+    const busyDeferral = LibrarySyncState(
+      status: LibrarySyncStatus.deferred,
+      stage: LibrarySyncStage.completed,
+      failureCategory: 'databaseBusy',
+    );
+    expect(busyDeferral.needsBusyRetry, isTrue);
+    expect(_failed('databaseBusy').needsBusyRetry, isTrue);
+    expect(_failed('sync').needsBusyRetry, isFalse);
+    expect(
+      busyDeferral.copyWith(clearFailureCategory: true).needsBusyRetry,
+      isFalse,
+    );
+  });
+
   for (final (category, shown) in [('databaseBusy', false), ('sync', true)]) {
     testWidgets(
       'the sync banner is ${shown ? 'shown' : 'hidden'} for $category',

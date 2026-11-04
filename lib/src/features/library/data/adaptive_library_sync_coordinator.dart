@@ -34,6 +34,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     this._isBackgroundExecution = false,
     Duration? executionLeaseTtl,
     Duration? executionLeaseHeartbeatInterval,
+    this._leaseReleaseRetryDelays = _defaultLeaseReleaseRetryDelays,
   }) : _legacyNetworkType = networkType,
        _readIsForeground = readIsForeground ?? _alwaysForeground,
        _now = now ?? DateTime.now,
@@ -147,6 +148,15 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   final Duration _executionLeaseTtl;
   final Duration _executionLeaseHeartbeatInterval;
 
+  /// Waits between background retries of a lease release that hit a lock
+  /// timeout, so the stuck lease does not outlive the next quick sync retry.
+  static const List<Duration> _defaultLeaseReleaseRetryDelays = [
+    Duration(seconds: 2),
+    Duration(seconds: 5),
+    Duration(seconds: 10),
+  ];
+  final List<Duration> _leaseReleaseRetryDelays;
+
   String _newLeaseToken() {
     final random = Random.secure();
     final bytes = List<int>.generate(24, (_) => random.nextInt(256));
@@ -168,6 +178,20 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
 
   NetworkType get networkType => _syncPolicy.networkType;
 
+  /// A lock timeout before the run started: a deferral like a lease conflict,
+  /// but marked so the scheduler retries in a minute instead of waiting for a
+  /// lease that may not exist.
+  LibrarySyncState _busyDeferral({LibrarySyncPlanKind? planKind}) =>
+      LibrarySyncState(
+        status: LibrarySyncStatus.deferred,
+        stage: LibrarySyncStage.completed,
+        completedAt: _now(),
+        planKind: planKind,
+        planReason: 'leaseHeld',
+        failureCategory: 'databaseBusy',
+        nextRetryAt: _now().add(databaseBusyRetryDelay),
+      );
+
   @override
   Future<LibrarySyncState> requestSync(
     LibrarySyncRequest request, {
@@ -187,12 +211,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       // lock past the busy wait on any write of this request: contention, not
       // a sync failure.
       if (!isDatabaseLockTimeout(error)) rethrow;
-      return LibrarySyncState(
-        status: LibrarySyncStatus.deferred,
-        stage: LibrarySyncStage.completed,
-        completedAt: _now(),
-        planReason: 'leaseHeld',
-      );
+      return _busyDeferral();
     }
     if (request.target.kind != LibrarySyncTargetKind.catalog ||
         cancellationGeneration != _cancellationGeneration ||
@@ -341,10 +360,14 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final providerFingerprint = '${config.url}|${config.apiVersion}';
     if (!_recoveredServers.contains(serverId) ||
         persisted.providerFingerprint != providerFingerprint) {
+      var recoveryBusy = false;
       try {
         final recovered = await _withLease(
           serverId: serverId,
-          unavailable: () async => false,
+          unavailable: ({required busy}) async {
+            recoveryBusy = busy;
+            return false;
+          },
           action: () async {
             if (!_recoveredServers.contains(serverId)) {
               await _database.librarySyncDao.resetInterruptedWork(serverId);
@@ -410,6 +433,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           },
         );
         if (!recovered) {
+          if (recoveryBusy) return _busyDeferral();
           return LibrarySyncState(
             status: LibrarySyncStatus.deferred,
             stage: LibrarySyncStage.completed,
@@ -784,7 +808,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       );
     }
 
-    Future<LibrarySyncState> leaseHeld() async {
+    Future<LibrarySyncState> leaseHeld({bool busy = false}) async {
       return await _finish(
         requestId: durableRunId,
         outcome: const SyncRunOutcome(
@@ -799,6 +823,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           completedAt: _now(),
           planKind: plan.kind,
           planReason: 'leaseHeld',
+          failureCategory: busy ? 'databaseBusy' : null,
+          nextRetryAt: busy ? _now().add(databaseBusyRetryDelay) : null,
           pendingWorkCount: await _database.librarySyncDao.countPendingWork(
             serverId,
           ),
@@ -1236,7 +1262,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   Future<T> _withLease<T>({
     required int serverId,
     required Future<T> Function() action,
-    required Future<T> Function() unavailable,
+    required Future<T> Function({required bool busy}) unavailable,
     bool heartbeat = false,
   }) async {
     final ownerToken = _newLeaseToken();
@@ -1253,9 +1279,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       // Another engine's long transaction (a worker promotion) holds the
       // writer lock: that is lease contention, not a sync failure.
       if (!isDatabaseLockTimeout(error)) rethrow;
-      return await unavailable();
+      return await unavailable(busy: true);
     }
-    if (!acquired) return await unavailable();
+    if (!acquired) return await unavailable(busy: false);
     var leaseActive = true;
     final timer = heartbeat
         ? Timer.periodic(_executionLeaseHeartbeatInterval, (_) {
@@ -1294,9 +1320,30 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           ownerToken: ownerToken,
         );
       } on Object catch (error) {
-        // A busy writer lock must not replace the run's result or error; the
-        // lease expires through its TTL.
+        // A busy writer lock must not replace the run's result or error. Our
+        // lease would block the quick retry until its TTL: release it in the
+        // background (the token match never touches another owner's lease).
         if (!isDatabaseLockTimeout(error)) rethrow;
+        unawaited(_retryLeaseRelease(serverId, ownerToken));
+      }
+    }
+  }
+
+  Future<void> _retryLeaseRelease(int serverId, String ownerToken) async {
+    for (final delay in _leaseReleaseRetryDelays) {
+      await Future<void>.delayed(delay);
+      try {
+        await _database.librarySyncDao.releaseExecutionLease(
+          serverId: serverId,
+          ownerToken: ownerToken,
+        );
+        return;
+      } on Object catch (error) {
+        // Still locked, or the database closed under us: the TTL is the
+        // backstop.
+        AppLogger.warning(
+          'Could not release the sync lease yet: ${error.runtimeType}.',
+        );
       }
     }
   }

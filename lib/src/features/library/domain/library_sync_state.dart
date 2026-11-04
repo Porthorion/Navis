@@ -187,6 +187,13 @@ class LibrarySyncState {
   bool get isSilentFailure =>
       status == LibrarySyncStatus.failed && failureCategory == 'databaseBusy';
 
+  /// A lock timeout the scheduler retries in a minute: [isSilentFailure], or
+  /// a run deferred before it started because the writer lock was held.
+  bool get needsBusyRetry =>
+      (status == LibrarySyncStatus.failed ||
+          status == LibrarySyncStatus.deferred) &&
+      failureCategory == 'databaseBusy';
+
   LibrarySyncState copyWith({
     LibrarySyncStatus? status,
     LibrarySyncStage? stage,
