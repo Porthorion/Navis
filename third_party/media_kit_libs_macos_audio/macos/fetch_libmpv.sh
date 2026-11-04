@@ -13,7 +13,7 @@ set -eu
 
 LIBMPV="libmpv-macos-universal-lgpl-20261104.tar.gz"
 LIBMPV_URL="https://downloads.porthorion.com/navis/third-party/libmpv-macos-universal-lgpl-20261104/${LIBMPV}"
-LIBMPV_SHA256="6930a6847b7edc3ff87fc92b9882b496aaa60dcb0c07d4888358c94de598a380"
+LIBMPV_SHA256="088d49672ebd06db2f41059fca0e02dcee94ea1499ff4ef0079890f4e11e9d9d"
 
 cd "$(dirname "$0")"
 cache=".cache/${LIBMPV}"
