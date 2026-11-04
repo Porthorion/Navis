@@ -156,6 +156,10 @@ abstract class WindowManagerAdapter {
   Future<void> setPreventClose(bool preventClose);
   Future<void> close();
   Future<void> hide();
+  Future<bool> isFullScreen();
+  // Match the positional window_manager backend method contract.
+  // ignore: avoid_positional_boolean_parameters
+  Future<void> setFullScreen(bool isFullScreen);
   Future<void> setBounds(Rect bounds);
   Future<Rect> getBounds();
   Future<bool> isMaximized();
@@ -213,6 +217,13 @@ class WindowManagerDesktopWindowAdapter implements WindowManagerAdapter {
 
   @override
   Future<void> hide() => windowManager.hide();
+
+  @override
+  Future<bool> isFullScreen() => windowManager.isFullScreen();
+
+  @override
+  Future<void> setFullScreen(bool isFullScreen) =>
+      windowManager.setFullScreen(isFullScreen);
 
   @override
   Future<void> setBounds(Rect bounds) => windowManager.setBounds(bounds);
@@ -298,6 +309,10 @@ class DesktopWindowController extends ChangeNotifier
   final bool? _hideOnCloseOverride;
   final ScreenRetrieverAdapter? _screenAdapter;
 
+  static const Duration _fullScreenExitTimeout = Duration(seconds: 3);
+
+  Completer<void>? _leftFullScreen;
+  bool _hideInProgress = false;
   Timer? _persistDebounce;
   Timer? _viewportDebounce;
   DesktopWindowMode _mode = DesktopWindowMode.desktop;
@@ -607,9 +622,41 @@ class DesktopWindowController extends ChangeNotifier
     unawaited(_persistThenClose());
   }
 
+  /// Leaves full screen first: hiding a full-screen window would strand an
+  /// empty Space, and full-screen bounds must not be persisted.
   Future<void> _persistThenHide() async {
-    await _persistCurrentState(reason: 'close');
-    await _adapter?.hide();
+    final adapter = _adapter;
+    // A second close while this one runs is the same close.
+    if (adapter == null || _hideInProgress) return;
+    _hideInProgress = true;
+    try {
+      if (await adapter.isFullScreen()) {
+        final left = _leftFullScreen = Completer<void>();
+        await adapter.setFullScreen(false);
+        // The exit animation reports through onWindowLeaveFullScreen; a
+        // missed event must not leave the window stuck, so the wait is bounded.
+        try {
+          await left.future.timeout(_fullScreenExitTimeout, onTimeout: () {});
+        } finally {
+          _leftFullScreen = null;
+        }
+      }
+      await _persistCurrentState(reason: 'close');
+      await adapter.hide();
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        '[DESKTOP_WINDOW] hiding the window on close failed: '
+        '$error\n$stackTrace',
+      );
+    } finally {
+      _hideInProgress = false;
+    }
+  }
+
+  @override
+  void onWindowLeaveFullScreen() {
+    final left = _leftFullScreen;
+    if (left != null && !left.isCompleted) left.complete();
   }
 
   Future<void> _persistThenClose() async {

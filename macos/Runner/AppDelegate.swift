@@ -9,26 +9,32 @@ class AppDelegate: FlutterAppDelegate {
     var hasItem = false
     var title = ""
     var artist = ""
-    var playPauseLabel = "Play"
-    var nextLabel = "Next"
-    var previousLabel = "Previous"
+    var playPauseLabel = ""
+    var nextLabel = ""
+    var previousLabel = ""
   }
 
-  private(set) var dockMenuState = DockMenuState()
+  /// Nil until the first `update`: before that the Dock shows only its stock
+  /// menu rather than transport items with made-up labels.
+  private(set) var dockMenuState: DockMenuState?
   /// Set by `MainFlutterWindow`; carries the chosen menu action back to Dart.
   var dockMenuChannel: FlutterMethodChannel?
 
-  // Closing the window hides it (window_manager's preventClose plus a Dart
-  // hide), so playback keeps running; Cmd+Q and Dock > Quit still quit.
+  // Must stay false: AppKit also applies it when the last window is only
+  // hidden, and the close button hides (window_manager's preventClose plus a
+  // Dart `hide()`) so playback keeps running. A real close quits through
+  // `MainFlutterWindow.close()`. Cmd+Q and Dock > Quit always quit.
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     return false
   }
 
-  // Dock icon clicked while the window is hidden or minimized: bring it back.
+  // Dock icon clicked while the main window is hidden or minimized: bring it
+  // back. Judged on the main window itself, so an open About or other panel
+  // does not count as "a visible window".
   override func applicationShouldHandleReopen(
     _ sender: NSApplication, hasVisibleWindows flag: Bool
   ) -> Bool {
-    if !flag, let window = NSApp.windows.first(where: { $0 is MainFlutterWindow }) {
+    if let window = NSApp.windows.first(where: { $0 is MainFlutterWindow }), !window.isVisible {
       if window.isMiniaturized { window.deminiaturize(nil) }
       window.makeKeyAndOrderFront(nil)
       NSApp.activate(ignoringOtherApps: true)
@@ -42,20 +48,23 @@ class AppDelegate: FlutterAppDelegate {
 
   /// Handles Dart's `update` call.
   func applyDockMenuUpdate(_ arguments: [String: Any]) {
+    guard let playPauseLabel = arguments["playPauseLabel"] as? String,
+          let nextLabel = arguments["nextLabel"] as? String,
+          let previousLabel = arguments["previousLabel"] as? String else { return }
     var state = DockMenuState()
     state.hasItem = arguments["hasItem"] as? Bool ?? false
     state.title = arguments["title"] as? String ?? ""
     state.artist = arguments["artist"] as? String ?? ""
-    state.playPauseLabel = arguments["playPauseLabel"] as? String ?? state.playPauseLabel
-    state.nextLabel = arguments["nextLabel"] as? String ?? state.nextLabel
-    state.previousLabel = arguments["previousLabel"] as? String ?? state.previousLabel
+    state.playPauseLabel = playPauseLabel
+    state.nextLabel = nextLabel
+    state.previousLabel = previousLabel
     dockMenuState = state
   }
 
   // Right-click on the Dock icon: now playing (disabled), Play/Pause, Next,
   // Previous.
   override func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
-    let state = dockMenuState
+    guard let state = dockMenuState else { return nil }
     let menu = NSMenu()
     menu.autoenablesItems = false
     if state.hasItem {

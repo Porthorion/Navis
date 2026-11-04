@@ -10,8 +10,24 @@ class RunnerTests: XCTestCase {
     return menu?.items.map { $0.title } ?? []
   }
 
+  func testNoDockMenuBeforeTheFirstUpdate() {
+    XCTAssertNil(AppDelegate().applicationDockMenu(NSApp))
+  }
+
+  func testIncompleteUpdateIsIgnored() {
+    let delegate = AppDelegate()
+    delegate.applyDockMenuUpdate(["hasItem": true, "title": "Song"])
+    XCTAssertNil(delegate.applicationDockMenu(NSApp))
+  }
+
   func testDockMenuWithNothingLoadedListsOnlyTransportItems() {
     let delegate = AppDelegate()
+    delegate.applyDockMenuUpdate([
+      "hasItem": false,
+      "playPauseLabel": "Play",
+      "nextLabel": "Next",
+      "previousLabel": "Previous",
+    ])
     let menu = delegate.applicationDockMenu(NSApp)
     XCTAssertEqual(titles(menu), ["Play", "Next", "Previous"])
     XCTAssertTrue(menu?.items.allSatisfy { $0.isEnabled } ?? false)
@@ -39,11 +55,16 @@ class RunnerTests: XCTestCase {
 
   func testDockMenuOmitsEmptyArtistSeparator() {
     let delegate = AppDelegate()
-    delegate.applyDockMenuUpdate(["hasItem": true, "title": "Radio One", "artist": ""])
+    delegate.applyDockMenuUpdate([
+      "hasItem": true, "title": "Radio One", "artist": "",
+      "playPauseLabel": "Play", "nextLabel": "Next", "previousLabel": "Previous",
+    ])
     XCTAssertEqual(titles(delegate.applicationDockMenu(NSApp)).first, "Radio One")
   }
 
-  func testClosingTheLastWindowDoesNotQuit() {
+  // AppKit applies this to a merely hidden window too, so true would quit the
+  // app on every close-button hide; a real close quits via MainFlutterWindow.
+  func testHidingTheLastWindowDoesNotQuit() {
     XCTAssertFalse(AppDelegate().applicationShouldTerminateAfterLastWindowClosed(NSApp))
   }
 }

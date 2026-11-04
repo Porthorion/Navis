@@ -2,6 +2,16 @@ import Cocoa
 import FlutterMacOS
 
 class MainFlutterWindow: NSWindow {
+  // A real close (not the hide that window_manager's preventClose turns the
+  // close button into, which is orderOut and never reaches close()) must not
+  // leave a windowless process, e.g. before Dart sets preventClose or after a
+  // failed desktop bootstrap. `applicationShouldTerminateAfterLastWindowClosed`
+  // cannot do this: AppKit also applies it when the window is merely hidden.
+  override func close() {
+    super.close()
+    DispatchQueue.main.async { NSApp.terminate(nil) }
+  }
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
@@ -30,6 +40,7 @@ class MainFlutterWindow: NSWindow {
       name: "com.navis.app/dock_menu",
       binaryMessenger: flutterViewController.engine.binaryMessenger
     )
+    (NSApp.delegate as? AppDelegate)?.dockMenuChannel = dockMenuChannel
     dockMenuChannel.setMethodCallHandler { call, result in
       guard call.method == "update",
             let arguments = call.arguments as? [String: Any],
@@ -37,7 +48,6 @@ class MainFlutterWindow: NSWindow {
         result(FlutterMethodNotImplemented)
         return
       }
-      delegate.dockMenuChannel = dockMenuChannel
       delegate.applyDockMenuUpdate(arguments)
       result(nil)
     }

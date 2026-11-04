@@ -2693,11 +2693,17 @@ On macOS, closing the window hides it instead (Apple Music and Spotify
 behaviour): `onWindowClose` persists the same state record, then calls
 `WindowManagerAdapter.hide()`, while `setPreventClose(true)` stays on and
 `_isClosing` is never set, so every later close hides again, in Mini Player as
-well. Playback and the audio handler keep running. Cmd+Q and Dock > Quit still
-terminate. `AppDelegate` returns `false` from
-`applicationShouldTerminateAfterLastWindowClosed` and, in
-`applicationShouldHandleReopen`, shows, un-minimizes and focuses the main
-window when a Dock click finds none visible. The gate is
+well. A full-screen window leaves full screen first (`setFullScreen(false)`,
+then `onWindowLeaveFullScreen`, bounded at 3 s), so no empty Space remains and
+full-screen bounds are never persisted. A failing `hide()` is logged. Playback
+and the audio handler keep running. Cmd+Q and Dock > Quit still terminate.
+`AppDelegate` returns `false` from `applicationShouldTerminateAfterLastWindowClosed`
+(AppKit also applies it to a merely hidden window, so `true` would quit on every
+close-button hide) while `MainFlutterWindow.close()`, reached only by a real
+close, terminates the app so a close that `setPreventClose` does not catch
+leaves no windowless process. `applicationShouldHandleReopen` shows,
+un-minimizes and focuses the main window whenever that window is not visible,
+even if another panel is open. The gate is
 `_hidesOnClose` (tests set it with the `hideOnClose` constructor argument), true
 only for the real `window_manager` adapter on macOS; Linux and Windows still persist, release the close
 prevention, then close.
@@ -2711,7 +2717,8 @@ Next and Previous. `MacosDockMenuBridge`
 Dart calls `update` with `{hasItem, title, artist, playing, playPauseLabel,
 nextLabel, previousLabel}` whenever the shown state changes (identical states
 are dropped; labels are localized in Dart from the existing `nowPlaying*`
-strings) and Swift keeps only the last one. Swift calls `command` with
+strings) and Swift keeps only the last one and shows the stock Dock menu until the first
+`update` arrives. Swift calls `command` with
 `{action: playPause | next | previous}`; the bridge runs it through
 `desktopPlayPause`, `desktopNextTrack` and `desktopPreviousTrack`
 (`desktop_transport_actions.dart`), the same functions the desktop keyboard

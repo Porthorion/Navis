@@ -25,6 +25,12 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
   bool preventClose = false;
   int closeCalls = 0;
   int hideCalls = 0;
+  final events = <String>[];
+  bool fullScreen = false;
+  Rect? fullScreenBounds;
+  Rect? windowedBounds;
+  Exception? hideError;
+  Future<void> Function()? onHide;
   int unmaximizeCalls = 0;
   WindowListener? listener;
   final Completer<void> _closed = Completer<void>();
@@ -49,14 +55,37 @@ class _FakeWindowManagerAdapter implements WindowManagerAdapter {
 
   @override
   Future<void> hide() async {
+    events.add('hide');
     hideCalls++;
+    await onHide?.call();
+    final error = hideError;
+    if (error != null) throw error;
+  }
+
+  @override
+  Future<bool> isFullScreen() async => fullScreen;
+
+  @override
+  Future<void> setFullScreen(bool isFullScreen) async {
+    events.add('setFullScreen($isFullScreen)');
+    if (isFullScreen) return;
+    // The real exit animates; the event arrives after the bounds settle.
+    Future<void>.delayed(const Duration(milliseconds: 20), () {
+      fullScreen = false;
+      bounds = windowedBounds ?? bounds;
+      events.add('leaveFullScreen');
+      listener?.onWindowLeaveFullScreen();
+    });
   }
 
   @override
   Future<void> ensureInitialized() async {}
 
   @override
-  Future<Rect> getBounds() async => bounds;
+  Future<Rect> getBounds() async {
+    events.add('getBounds');
+    return bounds;
+  }
 
   @override
   Future<bool> isMaximized() async => maximized;
@@ -347,6 +376,66 @@ void main() {
           expect((persisted['normalBounds'] as Map)['x'], 100);
         },
       );
+
+      test('on macOS persists before it hides', () async {
+        final (adapter, controller) = await start(hideOnClose: true);
+        adapter.bounds = const Rect.fromLTWH(100, 120, 1300, 800);
+        Object? persistedAtHide;
+        adapter.onHide = () async {
+          persistedAtHide = (jsonDecode(
+            await stateFile.readAsString(),
+          ) as Map<String, dynamic>)['normalBounds'];
+        };
+        adapter.events.clear();
+
+        controller.onWindowClose();
+        await pumpEventQueue();
+
+        expect(adapter.events.last, 'hide');
+        expect(adapter.events, contains('getBounds'));
+        expect((persistedAtHide! as Map)['x'], 100);
+      });
+
+      test(
+        'on macOS leaves full screen before persisting and hiding',
+        () async {
+          final (adapter, controller) = await start(hideOnClose: true);
+          adapter
+            ..windowedBounds = const Rect.fromLTWH(100, 120, 1300, 800)
+            ..bounds = const Rect.fromLTWH(0, 0, 1440, 900)
+            ..fullScreen = true
+            ..events.clear();
+
+          controller.onWindowClose();
+          controller.onWindowClose(); // the same close, not a second exit
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+
+          expect(
+            adapter.events.where((e) => e == 'setFullScreen(false)'),
+            hasLength(1),
+          );
+          expect(
+            adapter.events.indexOf('leaveFullScreen'),
+            lessThan(adapter.events.indexOf('getBounds')),
+          );
+          expect(adapter.events.last, 'hide');
+          expect(adapter.hideCalls, 1);
+          final persisted = jsonDecode(
+            await stateFile.readAsString(),
+          ) as Map<String, dynamic>;
+          expect((persisted['normalBounds'] as Map)['width'], 1300);
+        },
+      );
+
+      test('on macOS a failing hide is logged, not thrown', () async {
+        final (adapter, controller) = await start(hideOnClose: true);
+        adapter.hideError = Exception('no window');
+
+        controller.onWindowClose();
+        await pumpEventQueue();
+
+        expect(adapter.hideCalls, 1);
+      });
 
       test(
         'on macOS hides from the Mini Player and persists its bounds',
