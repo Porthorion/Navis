@@ -1,0 +1,57 @@
+Navis for macOS bundles the libmpv (mpv) and FFmpeg libraries, licensed
+under the GNU Lesser General Public License (LGPL): mpv 0.36.0 under version
+2.1 or later, and the FFmpeg 6.0 libraries (libavcodec, libavformat,
+libavfilter, libavutil, libswscale, libswresample) under version 3 or later.
+The full licence texts (LGPL-2.1, LGPL-3.0 and Apache-2.0) follow this notice.
+
+These libraries are dynamically linked as separate frameworks inside the app
+bundle (Navis.app/Contents/Frameworks) and can be replaced: Mpv.framework,
+Avcodec.framework, Avformat.framework, Avfilter.framework, Avutil.framework,
+Swscale.framework and Swresample.framework.
+
+Upstream build
+--------------
+
+The frameworks are the unmodified binaries of the media-kit libmpv-darwin-build
+release v0.6.0, flavour macos-universal-audio-default (arm64 and x86_64),
+delivered through the media_kit_libs_macos_audio 1.1.4 Flutter package:
+
+Release: https://github.com/media-kit/libmpv-darwin-build/releases/tag/v0.6.0
+Archive: libmpv-xcframeworks_v0.6.0_macos-universal-audio-default.tar.gz
+Source, patches and build scripts: https://github.com/media-kit/libmpv-darwin-build/tree/v0.6.0
+
+That build is configured without GPL components (mpv with -Dgpl=false, FFmpeg
+with --enable-version3 and without --enable-gpl). Its downloads.lock names the
+exact upstream source archives it builds, and the patches applied to FFmpeg
+and mpv are in the patches folder of the repository above:
+
+FFmpeg 6.0: https://ffmpeg.org/releases/ffmpeg-6.0.tar.xz
+mpv 0.36.0: https://github.com/mpv-player/mpv/archive/refs/tags/v0.36.0.tar.gz
+Mbed TLS 3.4.1: https://github.com/Mbed-TLS/mbedtls/archive/refs/tags/v3.4.1.tar.gz
+
+For source assistance, write to Porthorion at support@porthorion.com.
+
+Other bundled libraries
+-----------------------
+
+Mbed TLS 3.4.1 (Mbedtls.framework, Mbedcrypto.framework and
+Mbedx509.framework) provides TLS for FFmpeg network streams. It is available
+under Apache-2.0 or GPL-2.0-or-later; Navis uses it under the Apache License,
+Version 2.0, whose full text is registered with this notice.
+
+Copyright The Mbed TLS Contributors
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this file except in compliance with the License. You may obtain a copy of
+the License at http://www.apache.org/licenses/LICENSE-2.0. Unless required by
+applicable law or agreed to in writing, software distributed under the License
+is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied. See the License for the specific language
+governing permissions and limitations under the License.
+
+The frameworks also link the macOS system libraries (CoreAudio, AudioToolbox,
+AppKit and others) and zlib, which ship with macOS and are not redistributed
+by Navis.
+
+LGPL-2.1 (mpv), LGPL-3.0 (FFmpeg) and Apache-2.0 (Mbed TLS) texts
+-----------------------------------------------------------------
