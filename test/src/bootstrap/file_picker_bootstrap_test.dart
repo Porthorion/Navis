@@ -34,7 +34,7 @@ void main() {
 }
 
 class _FakeFilePicker extends FilePickerPlatform {
-  _FakeFilePicker({this.error});
+  new({this.error});
 
   final Exception? error;
   int skipEntitlementsCalls = 0;
