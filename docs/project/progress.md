@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-11-02
+Last updated: 2026-11-04
 
 ---
 
@@ -14,6 +14,7 @@ Last updated: 2026-11-02
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Library page layout (1.5.2), sort row at the trailing edge, Genres card grid on wide panes, even artist grid gutters — 2026-11-04 (evidence: library_page_layout_test.dart, library_genres_test.dart)
 - [x] Issues #102 + #103 (1.5.2), sign-out phases, step timeouts and write
   fence — 2026-11-02 (branch `fix/sign-out-fence`). Every teardown step now has a
   timeout and a logged duration (so the 5-minute stall in #102/#103 names its

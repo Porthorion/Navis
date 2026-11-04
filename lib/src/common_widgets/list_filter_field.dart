@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// Search field above a filterable list (Queue, Downloaded and Playlists).
@@ -10,6 +11,7 @@ class ListFilterField extends StatelessWidget {
     required this.onChanged,
     required this.onClear,
     this.dense = false,
+    this.alignWithContent = false,
   });
 
   final TextEditingController controller;
@@ -18,12 +20,24 @@ class ListFilterField extends StatelessWidget {
   final VoidCallback onClear;
   final bool dense;
 
+  /// Insets by `ContentLayout.padding` (the Library grids' inset) instead of a
+  /// fixed 12, so the field lines up with the chips and cards below it.
+  final bool alignWithContent;
+
   @override
   Widget build(BuildContext context) {
+    if (!alignWithContent || dense) return _field(context, 12);
+    return LayoutBuilder(
+      builder: (context, constraints) =>
+          _field(context, ContentLayout.padding(constraints.maxWidth)),
+    );
+  }
+
+  Widget _field(BuildContext context, double inset) {
     return Padding(
       padding: dense
           ? EdgeInsets.zero
-          : const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          : EdgeInsets.fromLTRB(inset, 8, inset, 4),
       child: TextField(
         controller: controller,
         onChanged: onChanged,
