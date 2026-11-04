@@ -466,6 +466,7 @@ class LibrarySortFilterRow<T> extends StatelessWidget {
     this.likedOnly = false,
     this.onLikedOnlyChanged,
     this.sortKey = const ValueKey<String>('libraryAlbumSortControl'),
+    this.alignWithGrid = true,
   });
 
   final Key sortKey;
@@ -477,6 +478,10 @@ class LibrarySortFilterRow<T> extends StatelessWidget {
   final ValueChanged<bool> onDownloadedOnlyChanged;
   final bool likedOnly;
   final ValueChanged<bool>? onLikedOnlyChanged;
+
+  /// Insets by `ContentLayout.padding` to match a grid below. Pass false above
+  /// a track or album list, whose rows sit on the fixed 12 px list inset.
+  final bool alignWithGrid;
 
   @override
   Widget build(BuildContext context) {
@@ -492,72 +497,72 @@ class LibrarySortFilterRow<T> extends StatelessWidget {
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // At large system text the two controls still fit geometrically,
-          // but each loses enough width to truncate its state label. Stack
-          // them before that happens so both the active filter and sort stay
-          // legible and directly actionable.
-          final useStackedLayout =
-              constraints.maxWidth < 320 ||
-              MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    return LayoutBuilder(
+      builder: (context, outer) {
+        // The grids below inset by `ContentLayout.padding`; use the same so
+        // the chip lines up with the first card and the sort with the last.
+        final inset = alignWithGrid
+            ? ContentLayout.padding(outer.maxWidth)
+            : 12.0;
+        final width = outer.maxWidth - inset * 2;
+        // At large system text the two controls still fit geometrically,
+        // but each loses enough width to truncate its state label. Stack
+        // them before that happens so both the active filter and sort stay
+        // legible and directly actionable.
+        final useStackedLayout =
+            width < 320 || MediaQuery.textScalerOf(context).scale(1) > 1.3;
 
-          final filters = Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: <Widget>[
+        final filters = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: <Widget>[
+            FilterChip(
+              label: Text(l10n.libraryDownloadedOnlyFilter),
+              selected: downloadedOnly,
+              onSelected: onDownloadedOnlyChanged,
+              avatar: Icon(
+                downloadedOnly ? Icons.download_done : Icons.download_outlined,
+                size: 18,
+              ),
+            ),
+            if (onLikedOnlyChanged != null)
               FilterChip(
-                label: Text(l10n.libraryDownloadedOnlyFilter),
-                selected: downloadedOnly,
-                onSelected: onDownloadedOnlyChanged,
+                label: Text(l10n.libraryLikedOnlyFilter),
+                selected: likedOnly,
+                onSelected: onLikedOnlyChanged,
                 avatar: Icon(
-                  downloadedOnly
-                      ? Icons.download_done
-                      : Icons.download_outlined,
+                  likedOnly ? Icons.favorite : Icons.favorite_border_outlined,
                   size: 18,
                 ),
               ),
-              if (onLikedOnlyChanged != null)
-                FilterChip(
-                  label: Text(l10n.libraryLikedOnlyFilter),
-                  selected: likedOnly,
-                  onSelected: onLikedOnlyChanged,
-                  avatar: Icon(
-                    likedOnly ? Icons.favorite : Icons.favorite_border_outlined,
-                    size: 18,
-                  ),
-                ),
-            ],
-          );
+          ],
+        );
 
-          if (useStackedLayout) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                filters,
-                const SizedBox(height: 8),
-                buildSortDropdown(),
-              ],
-            );
-          }
-
-          return Row(
-            children: <Widget>[
-              Expanded(child: filters),
-              const SizedBox(width: 12),
-              Flexible(
-                fit: FlexFit.loose,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 280),
-                  child: buildSortDropdown(),
+        return Padding(
+          padding: EdgeInsets.fromLTRB(inset, 8, inset, 12),
+          child: useStackedLayout
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    filters,
+                    const SizedBox(height: 8),
+                    buildSortDropdown(),
+                  ],
+                )
+              // A fixed-width sort at the trailing edge: it must not share
+              // the row's flex with the filters, or it starts mid-row.
+              : Row(
+                  children: <Widget>[
+                    Expanded(child: filters),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                      width: math.min(280, width * 0.45),
+                      child: buildSortDropdown(),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          );
-        },
-      ),
+        );
+      },
     );
   }
 }

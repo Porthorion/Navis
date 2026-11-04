@@ -4,7 +4,12 @@ part of 'library_screen.dart';
 // Genres tab embedded in the Library screen
 // ---------------------------------------------------------------------------
 
-typedef _GenreItem = ({String letter, GenreSummary? genre});
+/// One list item: a letter header (no genres) or a row of genre cards.
+/// One genre per row on phones, one grid row of cards on wide panes.
+typedef _GenreItem = ({String letter, List<GenreSummary> genres});
+
+/// Height of a genre card at standard text size; it grows with text scale.
+const double _kGenreCardHeight = 92;
 
 /// The rail letter a genre sits under: its first Latin letter, else "#".
 String _genreInitial(String name) {
@@ -44,6 +49,7 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
   GenreSortOrder _sort = GenreSortOrder.songs;
   List<GenreSummary>? _lastGenres;
   List<GenreSummary>? _itemsSource;
+  int _itemsColumns = 1;
   List<_GenreItem> _items = const <_GenreItem>[];
   Map<String, int> _letterStart = const <String, int>{};
   String? _activeLetter;
@@ -94,14 +100,21 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
     widget.onRailScrubbing?.call(value);
   }
 
-  /// Rows grouped under letter headers (A-Z order) when sorted by name.
-  void _rebuildItems(List<GenreSummary> genres) {
-    if (identical(genres, _itemsSource)) return;
+  /// Rows of [columns] genres, grouped under letter headers (A-Z order) when
+  /// sorted by name.
+  void _rebuildItems(List<GenreSummary> genres, int columns) {
+    if (identical(genres, _itemsSource) && columns == _itemsColumns) return;
     _itemsSource = genres;
+    _itemsColumns = columns;
+    List<_GenreItem> rows(String letter, List<GenreSummary> group) => [
+      for (var i = 0; i < group.length; i += columns)
+        (
+          letter: letter,
+          genres: group.sublist(i, math.min(i + columns, group.length)),
+        ),
+    ];
     if (_sort != GenreSortOrder.name) {
-      _items = <_GenreItem>[
-        for (final genre in genres) (letter: '', genre: genre),
-      ];
+      _items = rows('', genres);
       _letterStart = const <String, int>{};
       _activeLetter = null;
       return;
@@ -117,10 +130,8 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
     final starts = <String, int>{};
     for (final letter in letters) {
       starts[letter] = items.length;
-      items.add((letter: letter, genre: null));
-      items.addAll(<_GenreItem>[
-        for (final genre in grouped[letter]!) (letter: letter, genre: genre),
-      ]);
+      items.add((letter: letter, genres: const <GenreSummary>[]));
+      items.addAll(rows(letter, grouped[letter]!));
     }
     _items = items;
     _letterStart = starts;
@@ -170,6 +181,7 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
       children: <Widget>[
         ListFilterField(
           controller: _filterController,
+          alignWithContent: true,
           hint: l10n.genresSearchHint,
           onChanged: (_) => setState(() {}),
           onClear: _clearQuery,
@@ -281,67 +293,183 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
   }
 
   Widget _buildList(AppLocalizations l10n, List<GenreSummary> genres) {
-    _rebuildItems(genres);
     final theme = Theme.of(context);
-    return Stack(
-      children: <Widget>[
-        ScrollablePositionedList.builder(
-          itemCount: _items.length,
-          itemScrollController: widget.itemScrollController,
-          itemPositionsListener: _positionsListener,
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.only(
-            bottom: 16,
-            right: _letterStart.isEmpty ? 0 : 28,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Wide panes show uniform cards in the same grid geometry as the
+        // album and artist grids; phones keep the list.
+        final inset = ContentLayout.padding(constraints.maxWidth);
+        final railInset = _sort == GenreSortOrder.name ? 28.0 : 0.0;
+        final wide = constraints.maxWidth >= kAdaptiveMediumWidth;
+        final grid = wide
+            ? ContentLayout.genres(
+                math.max(0, constraints.maxWidth - inset * 2 - railInset),
+              )
+            : null;
+        _rebuildItems(genres, grid?.columns ?? 1);
+        // Centre a short grid like `ResponsiveContentSliverGrid`.
+        final side = grid == null
+            ? 16.0
+            : inset +
+                  (constraints.maxWidth -
+                          inset * 2 -
+                          railInset -
+                          grid.occupiedWidth) /
+                      2;
+        final cardHeight =
+            _kGenreCardHeight *
+            math.max(1.0, MediaQuery.textScalerOf(context).scale(14) / 14);
+        return Stack(
+          children: <Widget>[
+            ScrollablePositionedList.builder(
+              itemCount: _items.length,
+              itemScrollController: widget.itemScrollController,
+              itemPositionsListener: _positionsListener,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.only(
+                bottom: 16,
+                right: _letterStart.isEmpty ? 0 : 28,
+              ),
+              itemBuilder: (context, index) {
+                final item = _items[index];
+                if (item.genres.isEmpty) {
+                  return Padding(
+                    padding: EdgeInsetsDirectional.fromSTEB(side, 12, 16, 4),
+                    child: Text(
+                      item.letter,
+                      style: theme.textTheme.titleMedium,
+                    ),
+                  );
+                }
+                if (grid == null) {
+                  return _buildGenreRow(l10n, item.genres.single);
+                }
+                return Padding(
+                  padding: EdgeInsetsDirectional.only(
+                    start: side,
+                    bottom: grid.gap,
+                  ),
+                  child: Row(
+                    children: <Widget>[
+                      for (var i = 0; i < item.genres.length; i++) ...<Widget>[
+                        if (i > 0) SizedBox(width: grid.gap),
+                        SizedBox(
+                          width: grid.extent,
+                          height: cardHeight,
+                          child: _GenreCard(
+                            genre: item.genres[i],
+                            subtitle: _genreCounts(l10n, item.genres[i]),
+                            onTap: () => NavService.openGenreDetail(
+                              context,
+                              ref,
+                              item.genres[i].key,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              },
+            ),
+            if (_letterStart.isNotEmpty) ...<Widget>[
+              Positioned(
+                right: 0,
+                top: 8,
+                bottom: 8,
+                child: _SectionRail(
+                  railKey: const Key('genreAlphabetRail'),
+                  activeLabelKey: const Key('genreRailActiveLetter'),
+                  labels: _letterStart.keys.toList(growable: false),
+                  activeLabel: _activeLetter,
+                  onLabelSelected: _scrollToLetter,
+                  onInteractionStart: () => _setScrubbing(true),
+                  onInteractionEnd: () => _setScrubbing(false),
+                ),
+              ),
+              if (_scrubbing && _activeLetter != null)
+                _RailOverlay(
+                  overlayKey: const Key('genreAlphabetOverlay'),
+                  label: _activeLetter!,
+                ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  String _genreCounts(AppLocalizations l10n, GenreSummary genre) =>
+      '${l10n.playlistsSongCount(genre.songCount)} • '
+      '${l10n.artistCardAlbumCount(genre.albumCount)}';
+
+  Widget _buildGenreRow(AppLocalizations l10n, GenreSummary genre) {
+    return ListTile(
+      key: ValueKey<String>('genre-row-${genre.key}'),
+      leading: const Icon(Icons.sell_outlined),
+      title: Text(genre.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(_genreCounts(l10n, genre)),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => NavService.openGenreDetail(context, ref, genre.key),
+    );
+  }
+}
+
+/// A uniform genre tile for wide panes: name and counts on a themed card.
+class _GenreCard extends StatelessWidget {
+  const new({required this.genre, required this.subtitle, required this.onTap});
+
+  final GenreSummary genre;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    return Card(
+      key: ValueKey<String>('genre-row-${genre.key}'),
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      color: colors.surfaceContainerHigh,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(
+            start: NavisSpace.md,
+            end: NavisSpace.sm,
           ),
-          itemBuilder: (context, index) {
-            final item = _items[index];
-            final genre = item.genre;
-            if (genre == null) {
-              return Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: Text(item.letter, style: theme.textTheme.titleMedium),
-              );
-            }
-            return ListTile(
-              key: ValueKey<String>('genre-row-${genre.key}'),
-              leading: const Icon(Icons.sell_outlined),
-              title: Text(
-                genre.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+          child: Row(
+            children: <Widget>[
+              Icon(Icons.sell_outlined, color: colors.onSurfaceVariant),
+              const SizedBox(width: NavisSpace.sm),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      genre.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall,
+                    ),
+                    const SizedBox(height: NavisSpace.xxs),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              subtitle: Text(
-                '${l10n.playlistsSongCount(genre.songCount)} • '
-                '${l10n.artistCardAlbumCount(genre.albumCount)}',
-              ),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => NavService.openGenreDetail(context, ref, genre.key),
-            );
-          },
+            ],
+          ),
         ),
-        if (_letterStart.isNotEmpty) ...<Widget>[
-          Positioned(
-            right: 0,
-            top: 8,
-            bottom: 8,
-            child: _SectionRail(
-              railKey: const Key('genreAlphabetRail'),
-              activeLabelKey: const Key('genreRailActiveLetter'),
-              labels: _letterStart.keys.toList(growable: false),
-              activeLabel: _activeLetter,
-              onLabelSelected: _scrollToLetter,
-              onInteractionStart: () => _setScrubbing(true),
-              onInteractionEnd: () => _setScrubbing(false),
-            ),
-          ),
-          if (_scrubbing && _activeLetter != null)
-            _RailOverlay(
-              overlayKey: const Key('genreAlphabetOverlay'),
-              label: _activeLetter!,
-            ),
-        ],
-      ],
+      ),
     );
   }
 }

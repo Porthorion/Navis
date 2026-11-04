@@ -66,10 +66,12 @@ class ContentLayout {
   static ContentGridGeometry artists(double width, GridArtworkSize size) {
     final narrow = width < kAdaptiveMediumWidth;
     final bounds = switch (size) {
-      GridArtworkSize.small => narrow ? (104.0, 128.0) : (120.0, 152.0),
+      // The avatar fills its cell. Narrow maxima sit above 1.5x the minimum
+      // (less the gap) so a phone's columns fill the pane with no side slack.
+      GridArtworkSize.small => narrow ? (96.0, 152.0) : (120.0, 152.0),
       GridArtworkSize.auto ||
-      GridArtworkSize.medium => narrow ? (120.0, 152.0) : (144.0, 176.0),
-      GridArtworkSize.large => narrow ? (144.0, 176.0) : (176.0, 216.0),
+      GridArtworkSize.medium => narrow ? (112.0, 176.0) : (144.0, 176.0),
+      GridArtworkSize.large => narrow ? (136.0, 208.0) : (176.0, 216.0),
     };
     return ContentGridGeometry.bounded(
       width: width,
@@ -78,6 +80,15 @@ class ContentLayout {
       gap: gap(width),
     );
   }
+
+  /// Uniform genre cards (about 220-260 px wide) on wide panes.
+  static ContentGridGeometry genres(double width) =>
+      ContentGridGeometry.bounded(
+        width: width,
+        minimum: 220,
+        maximum: 260,
+        gap: gap(width),
+      );
 
   /// The square card size of a horizontal album shelf: Home's album
   /// carousels and an artist page's Missing Albums. [compact] is Home's

@@ -155,47 +155,46 @@ class _ArtistGridTile extends ConsumerWidget {
               unawaited(HapticFeedback.mediumImpact());
               onLongPress!();
             },
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final side = constraints.maxWidth < constraints.maxHeight
-                      ? constraints.maxWidth
-                      : constraints.maxHeight;
-                  return Align(
-                    alignment: Alignment.topCenter,
-                    child: SizedBox(
+      // No inner padding: the cell is the tile, so the grid's gap is the only
+      // gutter, like the album grid (an 8 px inset here doubled it).
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final side = constraints.maxWidth < constraints.maxHeight
+                    ? constraints.maxWidth
+                    : constraints.maxHeight;
+                return Align(
+                  alignment: Alignment.topCenter,
+                  child: SizedBox(
+                    width: side,
+                    height: side,
+                    child: CoverArtImage(
+                      coverArtId: artist.coverArt,
+                      revision: artist.coverArtRevision ?? 0,
+                      size: kCoverArtStandardSize,
                       width: side,
                       height: side,
-                      child: CoverArtImage(
-                        coverArtId: artist.coverArt,
-                        revision: artist.coverArtRevision ?? 0,
-                        size: kCoverArtStandardSize,
-                        width: side,
-                        height: side,
-                        borderRadius: borderRadius,
-                        placeholderIcon: Icons.person_outline,
-                        isExternalSource: artist.isExternal,
-                      ),
+                      borderRadius: borderRadius,
+                      placeholderIcon: Icons.person_outline,
+                      isExternalSource: artist.isExternal,
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
-            const SizedBox(height: 6),
-            Text(
-              artist.name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            artist.name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ),
     );
   }
