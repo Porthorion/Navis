@@ -43,6 +43,16 @@ void main() {
     );
   });
 
+  test('resolveDesktopHeightClass bands the window height', () {
+    expect(resolveDesktopHeightClass(600), DesktopHeightClass.short);
+    expect(resolveDesktopHeightClass(759), DesktopHeightClass.short);
+    expect(resolveDesktopHeightClass(760), DesktopHeightClass.regular);
+    expect(resolveDesktopHeightClass(959), DesktopHeightClass.regular);
+    expect(resolveDesktopHeightClass(960), DesktopHeightClass.tall);
+    expect(resolveDesktopHeightClass(2160), DesktopHeightClass.tall);
+    expect(DesktopHeightClass.regular.pick(short: 1, regular: 2, tall: 3), 2);
+  });
+
   test('resolveAdaptiveLayoutClass uses expected breakpoints', () {
     expect(resolveAdaptiveLayoutClass(599), AdaptiveLayoutClass.phoneCompact);
     expect(resolveAdaptiveLayoutClass(600), AdaptiveLayoutClass.tabletMedium);

@@ -19,6 +19,7 @@ class DesktopVolumeSlider extends StatefulWidget {
     required this.unmuteTooltip,
     this.compact = false,
     this.expanded = false,
+    this.dense = false,
   });
 
   /// Current volume in the range [0, 1].
@@ -42,6 +43,9 @@ class DesktopVolumeSlider extends StatefulWidget {
 
   /// When true, fills the available width instead of using a fixed preset.
   final bool expanded;
+
+  /// When true, the mute button is 32 px high instead of 40 (short windows).
+  final bool dense;
 
   @override
   State<DesktopVolumeSlider> createState() => _DesktopVolumeSliderState();
@@ -119,6 +123,14 @@ class _DesktopVolumeSliderState extends State<DesktopVolumeSlider>
         IconButton(
           iconSize: compact ? 18 : 20,
           visualDensity: VisualDensity.compact,
+          style: widget.dense
+              ? IconButton.styleFrom(
+                  minimumSize: const Size.square(32),
+                  maximumSize: const Size.square(32),
+                  padding: EdgeInsets.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                )
+              : null,
           tooltip: widget.volume <= 0.001
               ? widget.unmuteTooltip
               : widget.muteTooltip,

@@ -617,6 +617,24 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   }
 }
 
+/// The artist hero height: width-based, and on desktop smaller below the tall
+/// window height band so the page keeps room for its content. Tall and
+/// non-desktop layouts keep the original sizes.
+double _artistHeroHeight(
+  BuildContext context,
+  double availableWidth, {
+  required bool desktopMode,
+}) {
+  if (!desktopMode) {
+    return (availableWidth * 0.43).clamp(260.0, 560.0);
+  }
+  return switch (desktopHeightClassOf(context)) {
+    DesktopHeightClass.short => (availableWidth * 0.22).clamp(160.0, 200.0),
+    DesktopHeightClass.regular => (availableWidth * 0.28).clamp(200.0, 300.0),
+    DesktopHeightClass.tall => (availableWidth * 0.32).clamp(260.0, 420.0),
+  };
+}
+
 String? _nonBlank(String? value) {
   final trimmed = value?.trim();
   return trimmed == null || trimmed.isEmpty ? null : trimmed;
@@ -639,8 +657,11 @@ class _ArtistDetailLoadingState extends StatelessWidget {
         final availableWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
-        final headerHeight = (availableWidth * (desktopMode ? 0.32 : 0.43))
-            .clamp(260.0, desktopMode ? 420.0 : 560.0);
+        final headerHeight = _artistHeroHeight(
+          context,
+          availableWidth,
+          desktopMode: desktopMode,
+        );
 
         return Semantics(
           label: l10n.artistDetailLoadingLabel,
@@ -872,8 +893,11 @@ class _ArtistImageHeader extends ConsumerWidget {
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
         final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
-        final headerHeight = (availableWidth * (desktopMode ? 0.32 : 0.43))
-            .clamp(260.0, desktopMode ? 420.0 : 560.0);
+        final headerHeight = _artistHeroHeight(
+          context,
+          availableWidth,
+          desktopMode: desktopMode,
+        );
 
         // Gradually shift the vertical anchor from top (portrait/narrow screens
         // where topCenter works well for portrait artist shots) toward center

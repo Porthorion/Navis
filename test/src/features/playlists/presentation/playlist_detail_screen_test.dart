@@ -251,6 +251,60 @@ void main() {
     expect(find.text('#'), findsNothing);
   });
 
+  for (final (size, cover) in const <(Size, double)>[
+    (Size(1000, 640), 140),
+    (Size(1000, 800), 200),
+    (Size(1000, 1000), 220),
+  ]) {
+    testWidgets('desktop playlist header cover is ${cover.toInt()} px at '
+        '${size.width.toInt()}x${size.height.toInt()}', (tester) async {
+      setAdaptiveTestViewport(tester, size);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            playlistViewerProvider.overrideWithValue(null),
+            playlistByIdProvider(_playlistId)
+                .overrideWith((ref) => Stream.value(_playlist)),
+            playlistSongsProvider(_playlistId)
+                .overrideWith((ref) => Stream.value(const <SongsTableData>[])),
+            playlistDetailSyncProvider(_playlistId)
+                .overrideWith((ref) async {}),
+            appSettingsProvider.overrideWithValue(
+              const AsyncData(AppSettingsModel.defaults()),
+            ),
+          ],
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: AdaptiveContextScope(
+              adaptiveContext: resolveAdaptiveContext(
+                desktopRuntime: true,
+                viewportSize: size,
+                safePadding: EdgeInsets.zero,
+              ),
+              child: const PlaylistDetailScreen(playlistId: _playlistId),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final header = find.byKey(
+        const ValueKey<String>('playlist-detail-desktop-header'),
+      );
+      expect(
+        tester
+            .getSize(
+              find.descendant(of: header, matching: find.byType(CoverArtImage)),
+            )
+            .height,
+        cover,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('desktop playlist detail uses a continuous tonal header', (
     tester,
   ) async {

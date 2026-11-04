@@ -134,6 +134,13 @@ const List<ChangelogVersion> changelogs = [
         'EQ presets) works again',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Short desktop windows show more of the page: the player bar and '
+        'the album, playlist and artist headers are smaller below 760 px '
+        'high (and a little smaller below 960 px), and the header now '
+        'scrolls away with the track list. Taller windows look as before',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(

@@ -59,6 +59,8 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
     final colors = Theme.of(context).colorScheme;
     final playback = widget.playback;
     final playbackVolume = ref.watch(playbackVolumeProvider);
+    final heightClass = desktopHeightClassOf(context);
+    final shortBar = heightClass == DesktopHeightClass.short;
     final hasPlayback =
         playback.isRadioMode ||
         (playback.currentSongId ?? '').trim().isNotEmpty;
@@ -124,7 +126,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         child: SafeArea(
           top: false,
           child: SizedBox(
-            height: DesktopPlaybackProgress.playerHeight(context),
+            height: DesktopPlaybackProgress.playerHeight(context, heightClass),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final maxWidth = constraints.maxWidth;
@@ -145,14 +147,20 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                 final useCompactVolume = maxWidth < 1008;
                 // Keep transport sizes stable when text increases bar height.
                 const controlButtonExtent = 36.0;
-                const primaryControlExtent = 44.0;
+                final primaryControlExtent = shortBar
+                    ? DesktopPlaybackProgress.shortTransportExtent
+                    : 44.0;
+                // Action buttons share the transport height in the short band.
+                final actionButtonExtent = shortBar
+                    ? DesktopPlaybackProgress.shortTransportExtent
+                    : 44.0;
                 const controlIconSize = 20.0;
                 const primaryIconSize = 24.0;
                 const verticalInset = 4.0;
                 const sliderTrackHeight = 2.5;
                 const sliderThumbRadius = 4.0;
                 const sliderOverlayRadius = 8.0;
-                const controlsAreaHeight = primaryControlExtent;
+                final controlsAreaHeight = primaryControlExtent;
                 final quickControlStyle = IconButton.styleFrom(
                   minimumSize: const Size.square(controlButtonExtent),
                   maximumSize: const Size.square(controlButtonExtent),
@@ -232,8 +240,8 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                       child: IconButton(
                         focusNode: focusNode,
                         style: IconButton.styleFrom(
-                          minimumSize: const Size.square(44),
-                          maximumSize: const Size.square(44),
+                          minimumSize: Size.square(actionButtonExtent),
+                          maximumSize: Size.square(actionButtonExtent),
                           padding: EdgeInsets.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
@@ -947,7 +955,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: <Widget>[
                             SizedBox(
-                              height: 44,
+                              height: actionButtonExtent,
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: <Widget>[
@@ -1034,6 +1042,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                               ),
                               volume: playbackVolume,
                               compact: useCompactVolume,
+                              dense: shortBar,
                               semanticLabel: l10n.playbackVolumeSemanticLabel,
                               muteTooltip: l10n.playbackMuteTooltip,
                               unmuteTooltip: l10n.playbackUnmuteTooltip,

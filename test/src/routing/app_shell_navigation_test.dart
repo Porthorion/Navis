@@ -1408,7 +1408,10 @@ void main() {
       final finder = find.byKey(ValueKey<String>(key));
       expect(finder, findsOneWidget);
       expect(desktopActionButton(tester, key).onPressed, isNull);
-      expect(tester.getSize(finder), const Size(44, 44));
+      expect(
+        tester.getSize(finder),
+        const Size(36, 36),
+      ); // short band (800x600)
       final semantics = tester.getSemantics(finder);
       expect(semantics.label, 'Unavailable Until Something Is Playing');
       expect(
@@ -1774,6 +1777,51 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final (size, height) in const <(Size, double)>[
+    (Size(1008, 640), 84),
+    (Size(800, 600), 84),
+    (Size(1008, 800), 100),
+    (Size(1440, 1000), 120),
+  ]) {
+    testWidgets(
+      '${size.width.toInt()}x${size.height.toInt()} Desktop player bar is $height high',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = size;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        final container = _createContainerWithDatabase(
+          overrides: _authenticatedShellOverrides(desktopRuntime: true),
+        );
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: container, child: testNavisApp),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          tester
+              .getSize(find.byKey(const ValueKey<String>('desktopPlayerBar')))
+              .height,
+          height,
+        );
+        // Every control stays, whatever the band.
+        for (final key in <String>[
+          'desktopPlayerPlayPauseButton',
+          'desktopPlayerFavoriteButton',
+          'desktopQueueButton',
+          'desktopPlayerVolumeSlider',
+        ]) {
+          expect(find.byKey(ValueKey<String>(key)), findsOneWidget);
+        }
+        expect(find.byKey(const ValueKey('desktopProgressInline')), findsOne);
+        expect(tester.takeException(), isNull);
+        await tester.pump(const Duration(milliseconds: 201));
+      },
+    );
+  }
 
   testWidgets('restored Desktop queue enables only resumable Play', (
     tester,
@@ -2551,7 +2599,10 @@ void main() {
       final finder = find.byKey(ValueKey<String>(key));
       expect(finder, findsOneWidget);
       expect(desktopActionButton(tester, key).onPressed, isNull);
-      expect(tester.getSize(finder), const Size(44, 44));
+      expect(
+        tester.getSize(finder),
+        const Size(36, 36),
+      ); // short band (800x600)
       final semantics = tester.getSemantics(finder);
       expect(semantics.label, entry.$2);
       expect(
