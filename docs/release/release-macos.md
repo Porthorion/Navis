@@ -72,24 +72,42 @@ Releases are published to R2 with a signed update manifest. Add `FORGEJO_URL`,
 
 ---
 
-## Known security gap: stream certificates
+## Bundled libmpv
 
-The bundled macOS libmpv (mpv 0.36, Mbed TLS) cannot use the system
-certificate store, so Navis sets `tls-verify=yes` with
-`tls-ca-file=/etc/ssl/cert.pem`. Streams from servers with a public or
-system-bundle certificate play; self-signed and wrong-host certificates are
-refused. If `/etc/ssl/cert.pem` is missing, verification stays off and the app
-logs a warning. That warning is silent in release builds (the logger shows
-only the development filter's output there); this is acceptable because the
-file is on the SIP-sealed system volume, so it is absent only on a broken
-system.
+macOS bundles Navis's own audio-only LGPL libmpv (universal arm64 + x86_64,
+deployment target 12.0) through the vendored
+`third_party/media_kit_libs_macos_audio` package (see its `NAVIS.md`), not
+media-kit's libmpv-darwin-build. It is mpv `eb0ee1031590b3f369a5b783e8aa91eeaaded7e6`
+(`-Dgpl=false`) and FFmpeg `151814650`, the same commits as Linux and Windows,
+with FFmpeg's `volume`, `biquad` and `equalizer` filters for the equalizer,
+mpv's internal `scaletempo` for tempo and Apple SecureTransport for TLS. The
+framework links only macOS system libraries.
 
-Known limitation: libmpv does not read the keychain. A server whose private CA
-is trusted only in the macOS keychain signs in (the API client uses the
-keychain) but its streams are refused. Replacing the macOS libmpv (see
-`docs/audits/dependency-audit-2026-10-01.md`) is the planned fix. For
-IP-literal hosts the host name is not matched, but the certificate chain is
-still verified.
+- **Pin**: `libmpv-macos-universal-lgpl-20261104.tar.gz` and its SHA-256 are in
+  `third_party/media_kit_libs_macos_audio/macos/fetch_libmpv.sh`; `pod install`
+  downloads it from
+  `https://downloads.porthorion.com/navis/third-party/libmpv-macos-universal-lgpl-20261104/`,
+  verifies the SHA-256 and fails the build otherwise. There is no upstream
+  fallback.
+- **Local build or rebuild**: run `tool/libmpv/build_macos_lgpl.sh` (see
+  [the recipe README](../../tool/libmpv/README.md#macos)) and build with
+  `NAVIS_LIBMPV_MACOS_ARCHIVE=<path to the tarball>`; the archive must still
+  match the pinned SHA-256. CocoaPods runs the fetch script only on
+  `pod install`; after a pin or archive change, delete `macos/Pods/Manifest.lock`
+  (or `flutter clean`) so the next build re-runs it.
+- **Release operator**: upload the tarball, `SOURCES.md`, `BUILDINFO.txt` and the
+  source archives from `src/` to the R2 folder above before the first release
+  that pins them. The in-app notice
+  (`assets/licenses/libmpv-macos-NOTICE.txt`) links that `SOURCES.md`.
+
+## Stream certificates
+
+Navis sets `tls-verify=yes` on every desktop player. On macOS the libmpv's
+SecureTransport verifies stream servers against the system trust store (the
+keychain and the system roots) with no CA file: public certificates play, and
+self-signed, wrong-host, expired and untrusted-root certificates are refused.
+For IP-literal hosts the host name is not matched, but the certificate chain
+is still verified.
 
 ## Code Signing
 

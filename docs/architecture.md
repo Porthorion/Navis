@@ -4852,7 +4852,7 @@ the current or next song, including when the budget is lowered in Cache &
 Storage (`rollingCacheProtectedSongIds`). Startup maintenance reads the saved
 queue in play order to protect its current and next song before restoration.
 
-On Linux and Windows, **Fast Seeking** (on by default) can bridge a remote
+On Linux, Windows and macOS, **Fast Seeking** (on by default) can bridge a remote
 lossless original with an Opus 256 kbps stream opened at the requested
 `timeOffset`. It requires server offset support and is disabled for radio,
 external catalog songs, existing transcodes and lossy originals. A seek more
@@ -4894,20 +4894,16 @@ mpv releases up to 0.41 also open https streams without checking the server
 certificate (`tls-verify` defaults to off), so a man in the middle could read
 the token. `main.dart` calls `configureDesktopStreamTls`, which sets
 `JustAudioMediaKit.tlsVerify` on Linux, Windows and macOS, and the adapter then
-sets `tls-verify=yes` on every player. Linux and Windows libmpv use the system
-certificate store, and Navis's own API client already refuses certificates the
-system does not trust. macOS's bundled mpv 0.36 (Mbed TLS) cannot use the
-system store (with `tls-verify=yes` alone it refuses every stream), so the same
-function sets `JustAudioMediaKit.tlsCaFile` to `/etc/ssl/cert.pem` and the
-adapter passes it as `tls-ca-file`. If that file is missing, macOS logs a
-warning (not shown in release builds) and leaves verification off. A server
-whose private CA is trusted only in the macOS keychain signs in (the API client
-uses the keychain) but its streams are refused. For IP-literal hosts the host
-name is not matched but the certificate chain is still verified.
-`tool/stream_open_diagnostics.py` guards both at runtime on Linux and, for the
-certificate check, on macOS. Its HTTPS fixture is `https://127.0.0.1`, so on
-macOS it proves the self-signed refusal; the wrong-host refusal comes from the
-manual matrix in `build/tls-diagnostics/macos-tls-matrix.jsonl`.
+sets `tls-verify=yes` on every player. All three bundles are Navis's own
+libmpv builds (`tool/libmpv/`) whose FFmpeg TLS reads the system certificate
+store (GnuTLS on Linux, Schannel on Windows, SecureTransport on macOS), so no
+CA file is passed; Navis's own API client already refuses certificates the
+system does not trust. macOS's trust evaluation also covers certificates the
+user trusted in the keychain (a private CA); that case is not covered by a
+runtime check. For IP-literal hosts the host name is not matched but the
+certificate chain is still verified. `tool/stream_open_diagnostics.py` guards
+the self-signed refusal at runtime on Linux and macOS (its HTTPS fixture is
+`https://127.0.0.1`).
 
 The vendored desktop adapter observes libmpv's `metadata`
 property through media_kit 1.2.6's `NativePlayer.observeProperty`. It reads
