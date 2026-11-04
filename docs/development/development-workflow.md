@@ -48,7 +48,9 @@ checks (downloads are simulated). Linux retains its verified cache/fallback
 approach; check it with
 `cmake -DDOWNLOAD_SOURCE="$PWD/linux/CMakeLists.txt" -P tool/libmpv_download_test.cmake`.
 Run `cmake -P tool/libmpv_bundle_test.cmake` for offline extraction/installation
-and opt-out checks. See the Windows/Linux release guides for pin updates.
+and opt-out checks. Run `tool/libmpv_fetch_macos_test.sh` (macOS hosts) for the offline
+SHA-256, cache and local-override checks of the macOS libmpv fetch script. See the
+Windows/Linux release guides for pin updates.
 The Linux and Windows LGPL recipes under `tool/libmpv/` build separately;
 normal app builds consume the published archive and do not invoke Docker.
 

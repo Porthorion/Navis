@@ -156,6 +156,8 @@ void main() {
         );
         await tester.pumpAndSettle();
         final toggle = find.widgetWithText(SwitchListTile, 'Fast Seeking');
+        // macOS shows it only with media_kit registered, which the unit test
+        // environment never does (see eq_platform_support_test.dart).
         if (platform == TargetPlatform.android ||
             platform == TargetPlatform.macOS) {
           expect(toggle, findsNothing);

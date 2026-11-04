@@ -1572,8 +1572,10 @@ target-selection rules.
   Rust notice generator matches upstream licence files without case sensitivity
   and supplies tracked SPDX full-text templates for missing files, preserving
   Cargo authors for MIT attribution. Every crate references full licence text.
-  Windows and Linux register the bundled libmpv/FFmpeg source offer and full
-  LGPL-2.1 text. Both release bundles use LGPL builds. About supplies the
+  Windows, Linux and macOS register the bundled libmpv/FFmpeg source offer and
+  full LGPL-2.1 text (macOS has its own notice,
+  `assets/licenses/libmpv-macos-NOTICE.txt`, which links the SOURCES.md on R2).
+  All three release bundles use LGPL builds. About supplies the
   Porthorion copyright line.
 - Guard: `test/src/theme/design_token_guard_test.dart` ratchets literal radii,
   font sizes and colours per file outside `lib/src/theme/`.
@@ -2176,9 +2178,10 @@ all display paths find them and pruning retains them. Empty cover IDs remain
 missing; there is no synthetic display key or cover provenance. A Deezer cover
 therefore persists even if server art is added later.
 
-Apple runners remain unreleased scaffolds. Their native configuration floors
-are iOS 16 and macOS 12; Linux validation does not certify either runner. This
-upgrade reconciles Podfile/project settings without adding Apple media features.
+The iOS runner remains an unreleased scaffold and macOS is not released yet.
+Their native configuration floors are iOS 16 and macOS 12; Linux validation does
+not certify either runner. macOS status and open work are in the
+[macOS parity plan](plans/macOS_Parity_Plan.md).
 
 ## UI libraries and localization
 
@@ -3937,11 +3940,28 @@ unsigned derived fields.
   - **Linux AUR/unknown package owner:** `linuxPackageManaged` shows the system
     package-manager instructions without downloading. Its offer uses `linuxPortable`
     for version/notes. See [release-linux.md](release/release-linux.md).
-  - **Linux portable / Windows portable / macOS:** extracts the archive to a staging
+  - **Linux portable / Windows portable:** extracts the archive to a staging
     subdirectory of the downloaded artifact's private work directory, writes a
     self-deleting shell/batch script inside that same work directory, launches it
     detached, and exits. The script replaces the running bundle, relaunches the app, and
     cleans up automatically.
+  - **macOS (`macosBundle`):** an app running from `/Volumes/...` or App
+    Translocation is read-only, so the dialog asks the user to move Navis to
+    Applications instead. Otherwise the zip is extracted with `ditto` and the staged
+    `.app` must pass `codesign --verify --deep --strict` before Navis exits (else the
+    update is refused and the old app keeps running). `UpdateScripts.writeMacosScript`
+    then waits up to 20 s for the old pid to exit, moves the app to
+    `<App>.app.backup`, moves the new app in, writes `pending` to
+    `~/Library/Application Support/<bundle id>/navis-update-handshake` and opens it.
+    The new app writes `started` to that file after its first frame
+    (`MacosUpdate.confirmLaunch`, via `UpdateService.confirmMacosLaunch` from `main.dart`); the script waits up to
+    30 s. If the marker never comes and no process runs from the new bundle (or
+    `open`, a move or the handshake write failed) it writes `rollback`, moves the new
+    app aside, restores the backup and reopens the old app; a new app that is still
+    running is never rolled back. Every step is appended to
+    `~/Library/Logs/Navis/update.log` (trimmed past about 100 KB). At each launch with
+    no fresh `pending`/`rollback` handshake, `MacosUpdate.startupHandshake` deletes a
+    leftover `.app.backup`. Operator view: [release-macos.md](release/release-macos.md#auto-updater-behavior).
   - **Windows installer:** launches the Inno Setup installer with `/SILENT /CLOSEAPPLICATIONS`.
     Its silent relaunch uses `runasoriginaluser` so Navis resumes without installer elevation.
 - `data/update_install_mode.dart` — `UpdateInstallMode` enum and `detectInstallMode()`
@@ -4606,6 +4626,20 @@ Linux startup uses `bootstrap/bundled_libmpv.dart` to select
 `lib/libmpv.so.2` beside the resolved executable when present, otherwise it
 leaves media_kit system lookup in place. CMake bundles the verified x86_64 pin
 by default; `NAVIS_BUNDLE_LIBMPV=OFF` supports system-mpv development builds.
+macOS bundles a Navis-built, audio-only LGPL libmpv (`tool/libmpv/build_macos_lgpl.sh`:
+universal arm64 + x86_64, deployment target 12.0, the same mpv and FFmpeg commits
+as Linux and Windows, FFmpeg's `volume`, `biquad` and `equalizer` filters,
+SecureTransport TLS, CoreAudio output, system libraries only) through the vendored
+`third_party/media_kit_libs_macos_audio`. Its podspec runs
+`macos/fetch_libmpv.sh` on `pod install`, which takes a verified cached archive,
+then `NAVIS_LIBMPV_MACOS_ARCHIVE`, then the per-build R2 URL, and fails unless
+the archive's SHA-256 equals the pin (there is no upstream fallback). A podspec
+build phase runs `fetch_libmpv.sh --check` (offline) before every compile and
+fails the build when the extracted `Mpv.xcframework`'s stamp does not match the
+pin, so a stale `macos/Pods` cannot keep an old libmpv; see
+[release-macos.md](release/release-macos.md#bundled-libmpv). Debug macOS builds
+skip media_kit and use just_audio's AVFoundation player unless
+`NAVIS_ENABLE_MEDIA_KIT_DEBUG=true`, so they have no equalizer or Fast Seeking.
 `navisEqualizerSupported()` decides availability for both the controller and the
 handler; unsupported backends disable the entry. Modes, exact preset semantics, AutoEQ provenance,
 headroom, migration, and validation limits are maintained in
@@ -4868,7 +4902,8 @@ the current or next song, including when the budget is lowered in Cache &
 Storage (`rollingCacheProtectedSongIds`). Startup maintenance reads the saved
 queue in play order to protect its current and next song before restoration.
 
-On Linux and Windows, **Fast Seeking** (on by default) can bridge a remote
+On Linux, Windows and macOS (only when media_kit drives playback, so not in
+debug builds, which use AVFoundation), **Fast Seeking** (on by default) can bridge a remote
 lossless original with an Opus 256 kbps stream opened at the requested
 `timeOffset`. It requires server offset support and is disabled for radio,
 external catalog songs, existing transcodes and lossy originals. A seek more
@@ -4910,20 +4945,17 @@ mpv releases up to 0.41 also open https streams without checking the server
 certificate (`tls-verify` defaults to off), so a man in the middle could read
 the token. `main.dart` calls `configureDesktopStreamTls`, which sets
 `JustAudioMediaKit.tlsVerify` on Linux, Windows and macOS, and the adapter then
-sets `tls-verify=yes` on every player. Linux and Windows libmpv use the system
-certificate store, and Navis's own API client already refuses certificates the
-system does not trust. macOS's bundled mpv 0.36 (Mbed TLS) cannot use the
-system store (with `tls-verify=yes` alone it refuses every stream), so the same
-function sets `JustAudioMediaKit.tlsCaFile` to `/etc/ssl/cert.pem` and the
-adapter passes it as `tls-ca-file`. If that file is missing, macOS logs a
-warning (not shown in release builds) and leaves verification off. A server
-whose private CA is trusted only in the macOS keychain signs in (the API client
-uses the keychain) but its streams are refused. For IP-literal hosts the host
-name is not matched but the certificate chain is still verified.
-`tool/stream_open_diagnostics.py` guards both at runtime on Linux and, for the
-certificate check, on macOS. Its HTTPS fixture is `https://127.0.0.1`, so on
-macOS it proves the self-signed refusal; the wrong-host refusal comes from the
-manual matrix in `build/tls-diagnostics/macos-tls-matrix.jsonl`.
+sets `tls-verify=yes` on every player. All three bundles are Navis's own
+libmpv builds (`tool/libmpv/`) whose FFmpeg TLS reads the system certificate
+store (GnuTLS on Linux, Schannel on Windows, SecureTransport on macOS), so no
+CA file is passed; Navis's own API client already refuses certificates the
+system does not trust. macOS's trust evaluation also covers certificates the
+user trusted in the keychain (a private CA); that case is not covered by a
+runtime check. SecureTransport supports TLS up to 1.2, so a TLS 1.3-only server
+cannot stream on macOS although sign-in (Dart's own TLS stack) works. For IP-literal hosts the host name is not matched but the
+certificate chain is still verified. `tool/stream_open_diagnostics.py` guards
+the self-signed refusal at runtime on Linux and macOS (its HTTPS fixture is
+`https://127.0.0.1`).
 
 The vendored desktop adapter observes libmpv's `metadata`
 property through media_kit 1.2.6's `NativePlayer.observeProperty`. It reads

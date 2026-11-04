@@ -68,7 +68,9 @@ dependencies:
     path: third_party/navis_windows_smtc
   window_manager: ^0.5.2
   screen_retriever: ^0.2.2
-  media_kit_libs_macos_audio: ^1.1.4
+  # Vendored to bundle Navis's own LGPL libmpv (see the package's NAVIS.md).
+  media_kit_libs_macos_audio:
+    path: third_party/media_kit_libs_macos_audio
   cryptography: ^2.9.0
 
 dev_dependencies:

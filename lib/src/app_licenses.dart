@@ -41,25 +41,18 @@ void registerBundledLicenses({
         (target == TargetPlatform.windows ||
             target == TargetPlatform.linux ||
             target == TargetPlatform.macOS)) {
-      // macOS ships the media-kit build: FFmpeg is LGPL-3.0 and Mbed TLS is
-      // Apache-2.0, so those texts follow the LGPL-2.1 one.
-      final macOS = target == TargetPlatform.macOS;
+      // Every desktop bundles a Navis-built libmpv under LGPL-2.1+; macOS has
+      // its own source offer and static dependency notices.
       final notice = await rootBundle.loadString(
-        macOS
+        target == TargetPlatform.macOS
             ? 'assets/licenses/libmpv-macos-NOTICE.txt'
             : 'assets/licenses/libmpv-ffmpeg-NOTICE.txt',
       );
-      final licenses = [
-        await rootBundle.loadString('assets/licenses/LGPL-2.1.txt'),
-        if (macOS) ...[
-          await rootBundle.loadString('assets/licenses/LGPL-3.0.txt'),
-          await rootBundle.loadString('assets/licenses/Apache-2.0.txt'),
-        ],
-      ];
+      final lgpl = await rootBundle.loadString('assets/licenses/LGPL-2.1.txt');
       yield LicenseEntryWithLineBreaks(const [
         'libmpv',
         'FFmpeg',
-      ], [notice, ...licenses].join('\n\n'));
+      ], '$notice\n\n$lgpl');
     }
   });
 }

@@ -69,7 +69,6 @@ Future<Map<String, String>> _propertiesSet() async {
 void main() {
   tearDown(() {
     JustAudioMediaKit.tlsVerify = false;
-    JustAudioMediaKit.tlsCaFile = null;
   });
 
   test('verification off sets neither TLS option', () async {
@@ -78,18 +77,10 @@ void main() {
     expect(set, isNot(contains('tls-ca-file')));
   });
 
-  test('verification without a CA file sets only tls-verify', () async {
+  test('verification sets tls-verify and no CA file', () async {
     JustAudioMediaKit.tlsVerify = true;
     final set = await _propertiesSet();
     expect(set['tls-verify'], 'yes');
     expect(set, isNot(contains('tls-ca-file')));
-  });
-
-  test('the CA file reaches libmpv as tls-ca-file', () async {
-    JustAudioMediaKit.tlsVerify = true;
-    JustAudioMediaKit.tlsCaFile = '/etc/ssl/cert.pem';
-    final set = await _propertiesSet();
-    expect(set['tls-verify'], 'yes');
-    expect(set['tls-ca-file'], '/etc/ssl/cert.pem');
   });
 }

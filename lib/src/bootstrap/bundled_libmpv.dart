@@ -20,50 +20,23 @@ String? bundledLibmpvPath({
       : null;
 }
 
-/// Where macOS's libmpv finds trusted roots. Its bundled Mbed TLS cannot read
-/// the system store, so verification needs this file; roots that exist only in
-/// the keychain (a private CA) are not trusted for streams.
-const macosCaFile = '/etc/ssl/cert.pem';
+/// Whether the desktop libmpv checks stream certificates. Every desktop
+/// bundle (Linux, Windows, macOS) is Navis's own build whose TLS reads the
+/// system certificate store, so there is no CA file to supply.
+bool desktopStreamTlsVerify({bool? isLinux, bool? isWindows, bool? isMacOS}) =>
+    (isLinux ?? Platform.isLinux) ||
+    (isWindows ?? Platform.isWindows) ||
+    (isMacOS ?? Platform.isMacOS);
 
-/// Stream certificate checking for the desktop libmpv: `verify` and, on macOS,
-/// the CA bundle `caFile`. macOS stays unverified, with [onMissingCaFile]
-/// called, when the bundle is absent, because verifying with no roots would
-/// refuse every stream.
-({bool verify, String? caFile}) desktopStreamTls({
-  bool? isLinux,
-  bool? isWindows,
-  bool? isMacOS,
-  bool Function(String)? fileExists,
-  void Function()? onMissingCaFile,
-}) {
-  if (isMacOS ?? Platform.isMacOS) {
-    if ((fileExists ?? (path) => File(path).existsSync())(macosCaFile)) {
-      return (verify: true, caFile: macosCaFile);
-    }
-    onMissingCaFile?.call();
-    return (verify: false, caFile: null);
-  }
-  return (
-    verify: (isLinux ?? Platform.isLinux) || (isWindows ?? Platform.isWindows),
-    caFile: null,
-  );
-}
-
-/// Applies [desktopStreamTls] to the desktop libmpv adapter.
+/// Applies [desktopStreamTlsVerify] to the desktop libmpv adapter.
 void configureDesktopStreamTls({
   bool? isLinux,
   bool? isWindows,
   bool? isMacOS,
-  bool Function(String)? fileExists,
-  void Function()? onMissingCaFile,
 }) {
-  final tls = desktopStreamTls(
+  JustAudioMediaKit.tlsVerify = desktopStreamTlsVerify(
     isLinux: isLinux,
     isWindows: isWindows,
     isMacOS: isMacOS,
-    fileExists: fileExists,
-    onMissingCaFile: onMissingCaFile,
   );
-  JustAudioMediaKit.tlsVerify = tls.verify;
-  JustAudioMediaKit.tlsCaFile = tls.caFile;
 }

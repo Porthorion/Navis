@@ -40,71 +40,52 @@ void main() {
     );
   });
 
-  group('desktopStreamTls', () {
-    test("Linux and Windows verify with libmpv's own store", () {
-      for (final platform in ['linux', 'windows']) {
-        final tls = desktopStreamTls(
-          isLinux: platform == 'linux',
-          isWindows: platform == 'windows',
-          isMacOS: false,
-          fileExists: (_) => throw StateError('Must not inspect a CA file'),
+  group('desktopStreamTlsVerify', () {
+    test('Linux, Windows and macOS verify with the system store', () {
+      for (final platform in ['linux', 'windows', 'macos']) {
+        expect(
+          desktopStreamTlsVerify(
+            isLinux: platform == 'linux',
+            isWindows: platform == 'windows',
+            isMacOS: platform == 'macos',
+          ),
+          isTrue,
+          reason: platform,
         );
-        expect(tls.verify, isTrue, reason: platform);
-        expect(tls.caFile, isNull, reason: platform);
       }
     });
 
-    test('macOS verifies against the system CA bundle file', () {
-      final tls = desktopStreamTls(
-        isLinux: false,
-        isWindows: false,
-        isMacOS: true,
-        fileExists: (path) => path == '/etc/ssl/cert.pem',
+    test('other platforms leave verification to their own audio stack', () {
+      expect(
+        desktopStreamTlsVerify(
+          isLinux: false,
+          isWindows: false,
+          isMacOS: false,
+        ),
+        isFalse,
       );
-      expect(tls.verify, isTrue);
-      expect(tls.caFile, '/etc/ssl/cert.pem');
-    });
-
-    test('macOS without the bundle stays off and says so', () {
-      var warned = false;
-      final tls = desktopStreamTls(
-        isLinux: false,
-        isWindows: false,
-        isMacOS: true,
-        fileExists: (_) => false,
-        onMissingCaFile: () => warned = true,
-      );
-      expect(tls.verify, isFalse);
-      expect(tls.caFile, isNull);
-      expect(warned, isTrue);
     });
   });
 
   group('configureDesktopStreamTls', () {
-    tearDown(() {
-      JustAudioMediaKit.tlsVerify = false;
-      JustAudioMediaKit.tlsCaFile = null;
-    });
+    tearDown(() => JustAudioMediaKit.tlsVerify = false);
 
-    test('macOS hands verification and the CA file to the adapter', () {
+    test('macOS hands verification to the adapter, with no CA file', () {
       configureDesktopStreamTls(
         isLinux: false,
         isWindows: false,
         isMacOS: true,
-        fileExists: (_) => true,
       );
       expect(JustAudioMediaKit.tlsVerify, isTrue);
-      expect(JustAudioMediaKit.tlsCaFile, '/etc/ssl/cert.pem');
     });
 
-    test('Linux hands over verification without a CA file', () {
+    test('Linux hands over verification', () {
       configureDesktopStreamTls(
         isLinux: true,
         isWindows: false,
         isMacOS: false,
       );
       expect(JustAudioMediaKit.tlsVerify, isTrue);
-      expect(JustAudioMediaKit.tlsCaFile, isNull);
     });
   });
 }

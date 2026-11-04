@@ -61,10 +61,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
     // Navis: stream URLs carry the account's salt and token, so the server
     // certificate must be checked before they are sent.
-    tlsProperties(
-      verify: JustAudioMediaKit.tlsVerify,
-      caFile: JustAudioMediaKit.tlsCaFile,
-    ).forEach((name, value) => unawaited(setProperty(_player, name, value)));
+    tlsProperties(verify: JustAudioMediaKit.tlsVerify).forEach(
+      (name, value) => unawaited(setProperty(_player, name, value)),
+    );
 
     if (JustAudioMediaKit.prefetchPlaylist) {
       setProperty(_player, 'prefetch-playlist', 'yes');
