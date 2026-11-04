@@ -775,6 +775,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   /// Loads succeed and then fail at once, as a stream that drops.
   bool failAfterLoad = false;
+
+  /// The load is reported ready, and the native failure arrives only once
+  /// Play has been issued (libmpv opens a file after `open` returns, so a
+  /// 404 can land after the adapter's first ready). Only the first Play
+  /// fails that way; later loads of the song throw, as with a warm libmpv.
+  bool failOnPlay = false;
   StateError? loadErrorAfterApply;
 
   @override
@@ -1094,6 +1100,14 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     _positionUpdated = DateTime.now();
     isPlaying = true;
     emitPlayerEvent();
+    if (failOnPlay) {
+      failOnPlay = false;
+      failLoadSongId = attemptedSongId;
+      // The player keeps `playing`; only the processing state fails.
+      state = ProcessingState.idle;
+      errorCode = 0;
+      _events.add(playbackEvent);
+    }
     if (playCompletesOnPause) {
       _events.add(playbackEvent);
       await (_playing = Completer<void>()).future;
@@ -2751,6 +2765,43 @@ void main() {
         isNot(AudioProcessingState.buffering),
       );
     });
+
+    test(
+      'a stream that fails right after its load reported ready ends paused',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          remote: true,
+        );
+        player.failOnPlay = true;
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(player.state, ProcessingState.idle);
+        expect(player.playing, isFalse);
+        expect(handler.snapshot.playing, isFalse);
+      },
+    );
+
+    test(
+      'a mid-queue stream that fails right after its load skips to the next',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          remote: true,
+        );
+        player.failOnPlay = true;
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.index, 1);
+        expect(player.playing, isTrue);
+      },
+    );
 
     test('an error event that is not idle still counts as a failure', () async {
       var online = false;

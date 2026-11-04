@@ -1805,6 +1805,7 @@ extension _NavisRecovery on NavisAudioHandler {
     Object? error,
     StackTrace? stackTrace,
   }) async {
+    if (_isLoading && _loadedSourceApplied) _failedAfterApply = true;
     if (_isLoading ||
         _pendingLogicalQueueSongIds != null ||
         _pendingSeek != null ||
