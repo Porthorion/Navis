@@ -139,6 +139,111 @@ rm -- "\$0" 2>/dev/null || true
     return scriptPath;
   }
 
+  /// Creates the macOS updater script. Unlike [writeUnixScript] it never leaves
+  /// the user without a working app:
+  /// 1. Waits (up to [exitWaitSeconds]) for process [pid] to exit
+  /// 2. Moves the app to `.backup`, then the staged app into place
+  /// 3. Writes `pending` to [handshakePath], opens the app, and waits up to
+  ///    [launchTimeoutSeconds] for the new app to rewrite it as `started`
+  ///    (see `MacosUpdate.startupHandshake`)
+  /// 4. Marker seen: deletes the backup. Otherwise (or if `open` or any move
+  ///    fails): moves the new app aside, restores the backup and opens it
+  ///
+  /// Every step is appended to [logPath]. Returns the path to the `.sh` file.
+  static Future<String> writeMacosScript({
+    required String workDir,
+    required String targetPath,
+    required String stagingPath,
+    required int pid,
+    required String handshakePath,
+    required String logPath,
+    int exitWaitSeconds = 20,
+    int launchTimeoutSeconds = 30,
+  }) async {
+    final scriptPath = p.join(workDir, 'navis_update.sh');
+    final t = _shEsc(targetPath);
+    final s = _shEsc(stagingPath);
+    final b = _shEsc('$targetPath.backup');
+    final f = _shEsc('$targetPath.failed');
+    final h = _shEsc(handshakePath);
+    final l = _shEsc(logPath);
+
+    final script =
+        '''
+#!/usr/bin/env bash
+LOG=$l
+mkdir -p -- "\$(dirname -- "\$LOG")" 2>/dev/null
+# Keep the log small: drop all but the tail once it passes ~100 KB.
+if [ "\$(wc -c < "\$LOG" 2>/dev/null || echo 0)" -gt 100000 ]; then
+  tail -n 200 "\$LOG" > "\$LOG.tmp" 2>/dev/null && mv -f "\$LOG.tmp" "\$LOG"
+fi
+log() { printf '%s %s\\n' "\$(date '+%Y-%m-%dT%H:%M:%S')" "\$*" >> "\$LOG" 2>/dev/null || true; }
+# Put the old app back (whatever state the moves reached) and open it.
+restore() {
+  rm -f -- $h
+  if [ -e $b ]; then
+    rm -rf -- $f
+    if [ -e $t ]; then mv $t $f || rm -rf -- $t; fi
+    if mv $b $t; then log "restored previous app"; else log "restore FAILED, backup kept"; fi
+    rm -rf -- $f
+  fi
+  open $t || log "open of restored app failed"
+}
+log "update started; waiting for pid $pid"
+i=0
+while kill -0 $pid 2>/dev/null; do
+  if [ \$i -ge ${exitWaitSeconds * 5} ]; then
+    log "old app still running after ${exitWaitSeconds}s; aborting without changes"
+    exit 1
+  fi
+  sleep 0.2; i=\$((i + 1))
+done
+rm -rf -- $b
+if ! mv $t $b; then
+  log "could not move the old app aside; keeping it"
+  open $t || log "open failed"
+  exit 1
+fi
+if ! mv $s $t; then
+  log "could not move the new app into place"
+  restore
+  exit 1
+fi
+mkdir -p -- "\$(dirname -- $h)" 2>/dev/null
+printf pending > $h
+if open $t; then
+  log "opened new app; waiting for its launch marker"
+else
+  log "open of new app failed"
+fi
+i=0
+while [ \$i -lt ${launchTimeoutSeconds * 5} ]; do
+  if [ "\$(cat -- $h 2>/dev/null)" = started ]; then
+    rm -f -- $h
+    rm -rf -- $b
+    log "new app started; update complete"
+    rm -- "\$0" 2>/dev/null || true
+    exit 0
+  fi
+  sleep 0.2; i=\$((i + 1))
+done
+log "new app did not start within ${launchTimeoutSeconds}s; rolling back"
+restore
+rm -- "\$0" 2>/dev/null || true
+exit 1
+''';
+
+    await File(scriptPath).writeAsString(script);
+    final chmodResult = await Process.run('chmod', ['700', scriptPath]);
+    if (chmodResult.exitCode != 0) {
+      AppLogger.warning(
+        'chmod 700 on updater script failed (exit ${chmodResult.exitCode}); '
+        'continuing since script is invoked via bash.',
+      );
+    }
+    return scriptPath;
+  }
+
   // ---------------------------------------------------------------------------
   // Escaping helpers
   // ---------------------------------------------------------------------------

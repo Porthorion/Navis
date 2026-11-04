@@ -11,6 +11,7 @@ import 'package:navis/src/features/integrations/domain/update_source.dart';
 import 'package:navis/src/features/settings/data/update_transport.dart';
 import 'package:navis/src/features/integrations/data/integration_guard_interceptor.dart';
 import 'package:navis/src/features/settings/data/archive_utils.dart';
+import 'package:navis/src/features/settings/data/macos_update.dart';
 import 'package:navis/src/features/settings/data/update_install_mode.dart';
 import 'package:navis/src/features/settings/data/update_scripts.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
@@ -381,31 +382,65 @@ class UpdateService {
     // Resolve the .app bundle path: walk up from the executable to the
     // first ancestor that ends with ".app".
     final exe = Platform.resolvedExecutable;
-    var appBundlePath = exe;
-    while (appBundlePath.isNotEmpty && !appBundlePath.endsWith('.app')) {
-      appBundlePath = p.dirname(appBundlePath);
-    }
-    if (!appBundlePath.endsWith('.app')) {
+    final appBundlePath = MacosUpdate.bundlePathOf(exe);
+    if (appBundlePath == null) {
       throw StateError('Could not locate .app bundle for executable: $exe');
     }
 
     final workDir = p.dirname(zipPath);
     final stagingDir = p.join(workDir, 'staging');
+    final stagedApp = p.join(stagingDir, p.basename(appBundlePath));
 
     AppLogger.info('Extracting macOS zip to $stagingDir');
     await ArchiveUtils.extractZipMacos(zipPath, stagingDir);
+    // Refuse before exiting: past this point the old app is gone.
+    await verifyStagedMacosBundle(stagedApp);
 
-    final script = await UpdateScripts.writeUnixScript(
+    final support = await getApplicationSupportDirectory();
+    final home = Platform.environment['HOME'] ?? '';
+    final script = await UpdateScripts.writeMacosScript(
       workDir: workDir,
       targetPath: appBundlePath,
-      stagingPath: p.join(stagingDir, p.basename(appBundlePath)),
-      isMacos: true,
-      relaunchCommand: appBundlePath,
+      stagingPath: stagedApp,
+      pid: pid,
+      handshakePath: p.join(support.path, MacosUpdate.handshakeFileName),
+      logPath: home.isEmpty
+          ? p.join(workDir, 'update.log')
+          : p.join(home, 'Library', 'Logs', 'Navis', 'update.log'),
     );
 
     AppLogger.info('Launching macOS updater script: $script');
     await Process.start('bash', [script], mode: ProcessStartMode.detached);
     exit(0);
+  }
+
+  /// Throws [UpdateIntegrityException] unless [stagedApp] exists and passes
+  /// `codesign --verify --deep --strict`.
+  Future<void> verifyStagedMacosBundle(String stagedApp) async {
+    if (!Directory(stagedApp).existsSync()) {
+      AppLogger.error('Staged app missing: $stagedApp');
+      throw const UpdateIntegrityException();
+    }
+    final result = await _processRunner('/usr/bin/codesign', [
+      '--verify',
+      '--deep',
+      '--strict',
+      stagedApp,
+    ]);
+    if (result.exitCode != 0) {
+      AppLogger.error(
+        'Staged app failed codesign (exit ${result.exitCode}): ${result.stderr}',
+      );
+      throw const UpdateIntegrityException();
+    }
+  }
+
+  /// True when this macOS app runs from a translocated or disk-image copy, so
+  /// the user must move it to the Applications folder before it can update.
+  bool needsMoveToApplications(UpdateInstallMode mode) {
+    if (mode != UpdateInstallMode.macosBundle) return false;
+    final bundle = MacosUpdate.bundlePathOf(Platform.resolvedExecutable);
+    return bundle != null && MacosUpdate.isTranslocatedOrOnVolume(bundle);
   }
 
   // ---- Linux system package ------------------------------------------------
@@ -503,6 +538,7 @@ class UpdateService {
   }
 
   static Future<void> _cleanupNextToBundle() async {
+    if (Platform.isMacOS) return _cleanupMacosBackup();
     try {
       final exeDir = File(Platform.resolvedExecutable).parent;
       await for (final entity in exeDir.list(followLinks: false)) {
@@ -512,6 +548,19 @@ class UpdateService {
           await entity.delete(recursive: true);
         }
       }
+    } on Object catch (_) {}
+  }
+
+  /// macOS keeps the old app as `<App>.app.backup` next to the bundle, not in
+  /// `Contents/MacOS`. Also answers a waiting updater script's launch check.
+  static Future<void> _cleanupMacosBackup() async {
+    try {
+      final bundle = MacosUpdate.bundlePathOf(Platform.resolvedExecutable);
+      if (bundle == null) return;
+      await MacosUpdate.startupHandshake(
+        supportDir: (await getApplicationSupportDirectory()).path,
+        bundlePath: bundle,
+      );
     } on Object catch (_) {}
   }
 
