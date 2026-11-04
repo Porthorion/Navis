@@ -871,7 +871,7 @@ void main() {
 
         for (final wipe in [false, true]) {
           test(
-            'sign-out dismisses the sync progress notification, wipe=$wipe',
+            'sign-out dismisses every sync notification, wipe=$wipe',
             () async {
               await _seedAuthenticatedData(
                 database,
@@ -883,12 +883,13 @@ void main() {
                 credentials: CloneDiagnosticsExternalScrobbleCredentialStore(),
                 serverConfigRepository: repository,
                 database: database,
-                dismissSyncProgress: () async =>
+                dismissSyncNotifications: () async =>
                     passwordAtDismiss.add(credentials.password),
                 timeoutScale: 0.02,
               );
               await service.signOut(wipeLocalData: wipe);
-              // Once early, and once more after the credentials are gone.
+              // Both the progress and the completion notice go, once early
+              // and once more after the credentials are gone.
               expect(passwordAtDismiss, ['secret', null]);
             },
             skip: !sqliteAvailable,
