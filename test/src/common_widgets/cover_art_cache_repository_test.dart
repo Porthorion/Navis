@@ -491,7 +491,7 @@ void main() {
         final files = (await fileSystem.createFile('x')).parent;
         expect(files.listSync(), isNotEmpty);
         await manager.emptyCache().timeout(_bound);
-        expect(!files.existsSync() || files.listSync().isEmpty, isTrue);
+        expect(files.existsSync(), isFalse);
         await manager.dispose().timeout(_bound);
         await locker.execute('ROLLBACK');
         await locker.close();

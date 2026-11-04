@@ -1153,10 +1153,13 @@ class _CredentialFreeCoverArtCacheManager extends CacheManager {
   // so clearing also removes the image directory itself.
   @override
   Future<void> emptyCache() async {
-    await super.emptyCache();
-    final repo = _repo;
-    if (repo is NavisCacheObjectProvider) {
-      await repo.deleteImageFiles();
+    try {
+      await super.emptyCache();
+    } finally {
+      final repo = _repo;
+      if (repo is NavisCacheObjectProvider) {
+        await repo.deleteImageFiles();
+      }
     }
   }
 
