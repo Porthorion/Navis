@@ -74,7 +74,7 @@ void main() {
   test('genre cards are bounded and single column only when very narrow', () {
     expect(ContentLayout.genres(0).columns, 1);
     expect(ContentLayout.genres(599).columns, 2);
-    expect(ContentLayout.genres(1352).extent, 260);
+    expect(ContentLayout.genres(1352).extent, closeTo(260.8, 0.001));
     expect(ContentLayout.genres(1352).columns, 5);
   });
 
@@ -84,5 +84,45 @@ void main() {
     expect(ContentLayout.radio(2000).columns, 6);
     expect(ContentLayout.radio(600).extent, 294);
     expect(ContentLayout.radio(1100).extent, 358.6666666666667);
+  });
+
+  test('genre cards always fill the pane between the page insets', () {
+    for (var window = 600.0; window <= 1920; window += 20) {
+      for (final rail in <double>[0, 28]) {
+        final width = window - ContentLayout.padding(window) * 2 - rail;
+        final grid = ContentLayout.genres(width);
+        expect(grid.occupiedWidth, closeTo(width, 0.001), reason: '$window');
+        expect(grid.extent, inInclusiveRange(220, 340), reason: '$window');
+      }
+    }
+  });
+
+  test('artist cells fill the pane on every size, with the letter rail', () {
+    for (final size in GridArtworkSize.values) {
+      for (var window = 600.0; window <= 1920; window += 20) {
+        final width = window - ContentLayout.padding(window) * 2 - 28;
+        final grid = ContentLayout.artists(width, size);
+        expect(
+          grid.occupiedWidth,
+          closeTo(width, 0.001),
+          reason: '$size at $window',
+        );
+      }
+    }
+  });
+
+  test('phones get three artists per row at the default size', () {
+    for (final phone in <double>[360, 375, 390, 412]) {
+      final width = phone - ContentLayout.padding(phone) * 2 - 28;
+      final grid = ContentLayout.artists(width, GridArtworkSize.auto);
+      expect(grid.columns, 3, reason: '$phone');
+      expect(grid.occupiedWidth, closeTo(width, 0.001), reason: '$phone');
+    }
+  });
+
+  test('genre cards reach their widest just below three columns', () {
+    final grid = ContentLayout.genres(683);
+    expect(grid.columns, 2);
+    expect(grid.extent, closeTo(335.5, 0.001));
   });
 }
