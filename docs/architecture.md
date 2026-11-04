@@ -571,17 +571,16 @@ scrub legacy URLs once; signed-out profiles are scrubbed without restoring secre
 Both sign-out modes delete both keys. A full wipe also clears the ListenBrainz
 secure token, username, token-valid flag and scrobbling enablement through the
 existing store and targeted settings writer; keep-data sign-out retains them.
-The auth store logs credential deletion failures and never throws, so
-sign-out always completes; the ListenBrainz token clear still throws into
-teardown warning reporting. When a delete fails (for example -25244 on a
-rebuilt macOS binary) both stores overwrite the key with an empty value, which
-reads as absent. If the overwrite fails too, the
-key is remembered as cleared in memory until a later save succeeds, so the
-previous account's user info, password or token is never read back in the
-same session. After a restart the empty overwrite still covers it when it
-succeeded; when both failed the old value can return, a known gap that mainly
-affects ad-hoc rebuilt dev binaries. Profile identity
-excludes URL credentials.
+The auth store logs credential deletion failures and never throws, so sign-out
+always completes; the ListenBrainz token clear throws into teardown warning
+reporting only when the overwrite also fails. When a delete fails (for example
+-25244 on a rebuilt macOS binary) both stores overwrite the key with an empty
+value, which reads as absent. If the overwrite fails too, the key is remembered
+as cleared in memory until a later save succeeds, so the previous account's user
+info, password or token is never read back in the same session. After a restart
+the empty overwrite still covers it when it succeeded; when both failed the old
+value can return, a known gap that mainly affects ad-hoc rebuilt dev binaries.
+Profile identity excludes URL credentials.
 
 Credential read failures are transient and must never sign the user out or
 delete secure data. Auth and external scrobble storage disable Android's

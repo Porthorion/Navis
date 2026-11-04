@@ -248,9 +248,9 @@ void main() {
       'a read queued during a failed clear never returns the old value',
       () async {
         const userInfoKey = 'navis.auth.active_server.user_info';
-        final stuckDelete = Completer<void>();
+        final gate = Completer<void>();
         when(() => storage.delete(key: userInfoKey))
-            .thenAnswer((_) => stuckDelete.future);
+            .thenAnswer((_) => gate.future);
         when(
           () => storage.write(
             key: userInfoKey,
@@ -259,22 +259,53 @@ void main() {
         ).thenThrow(PlatformException(code: '-25244'));
         when(() => storage.read(key: userInfoKey))
             .thenAnswer((_) async => 'old:proxy');
-        final clearingStore = FlutterSecureCredentialStore(
-          storage: storage,
-          storageDeadline: const Duration(milliseconds: 20),
-        );
 
-        final clear = clearingStore.clearUserInfo();
-        // Queued behind the stuck delete, ahead of the overwrite.
+        final clear = store.clearUserInfo();
+        // The marker is not set yet, so this read passes the first check and
+        // queues behind the clear.
         final read = store.readUserInfo();
+        gate.completeError(PlatformException(code: '-25244'));
         await clear;
 
-        // The delete and overwrite both failed, so the marker is set. Only now
-        // does the queued read reach the keychain and see the old value.
-        stuckDelete.complete();
         expect(await read, isNull);
       },
     );
+
+    for (final overwriteWorks in [true, false]) {
+      test('a save queued during a failed delete survives '
+          '(overwrite works: $overwriteWorks)', () async {
+        const key = 'navis.auth.active_server.user_info';
+        const deadline = Duration(seconds: 5);
+        final persisted = <String, String>{key: 'old:proxy'};
+        final gate = Completer<void>();
+        when(() => storage.delete(key: key)).thenAnswer((_) => gate.future);
+        when(
+          () => storage.write(
+            key: key,
+            value: any(named: 'value'),
+          ),
+        ).thenAnswer((invocation) async {
+          final value = invocation.namedArguments[#value]! as String;
+          if (value.isEmpty && !overwriteWorks) {
+            throw PlatformException(code: '-25244');
+          }
+          persisted[key] = value;
+        });
+        when(() => storage.read(key: key))
+            .thenAnswer((_) async => persisted[key]);
+
+        final delete = deleteSecureEntry(storage, key, deadline);
+        // Queued while the delete is in flight.
+        final save = writeSecureEntry(storage, key, 'new:proxy', deadline);
+        gate.completeError(PlatformException(code: '-25244'));
+        await Future.wait([
+          delete.then<void>((_) {}, onError: (Object _) {}),
+          save,
+        ]);
+
+        expect(await readSecureEntry(storage, key, deadline), 'new:proxy');
+      });
+    }
 
     test('a successful delete stays a plain delete', () async {
       await store.clearPassword();

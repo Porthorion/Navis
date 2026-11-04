@@ -95,38 +95,37 @@ Future<void> writeSecureEntry(
   String key,
   String value,
   Duration deadline,
-) async {
-  await runSerializedSecureStorage(
-    () => storage.write(key: key, value: value),
-    deadline,
-  );
-  _unclearableKeys.remove(key);
+) {
+  return runSerializedSecureStorage(() async {
+    await storage.write(key: key, value: value);
+    _unclearableKeys.remove(key);
+  }, deadline);
 }
 
 /// Deletes [key]. A delete can fail where an overwrite works (-25244 on a
 /// rebuilt macOS binary), so a failed delete is retried as an overwrite with an
 /// empty value. If that fails too the key is marked cleared and the delete
-/// error is rethrown.
+/// error is rethrown. All steps run as one queued operation, so a save queued
+/// meanwhile runs after them and is neither overwritten nor hidden.
 Future<void> deleteSecureEntry(
   FlutterSecureStorage storage,
   String key,
   Duration deadline,
-) async {
-  try {
-    await runSerializedSecureStorage(() => storage.delete(key: key), deadline);
-    _unclearableKeys.remove(key);
-  } on Object catch (error, stackTrace) {
+) {
+  return runSerializedSecureStorage(() async {
     try {
-      await runSerializedSecureStorage(
-        () => storage.write(key: key, value: ''),
-        deadline,
-      );
+      await storage.delete(key: key);
       _unclearableKeys.remove(key);
-    } on Object {
-      _unclearableKeys.add(key);
-      Error.throwWithStackTrace(error, stackTrace);
+    } on Object catch (error, stackTrace) {
+      try {
+        await storage.write(key: key, value: '');
+        _unclearableKeys.remove(key);
+      } on Object {
+        _unclearableKeys.add(key);
+        Error.throwWithStackTrace(error, stackTrace);
+      }
     }
-  }
+  }, deadline);
 }
 
 /// Forgets queued native operations so a test's deliberately stuck call cannot
