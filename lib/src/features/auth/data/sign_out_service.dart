@@ -62,8 +62,8 @@ final signOutServiceProvider = Provider<SignOutService>((ref) {
     },
     cancelSync: () =>
         ref.read(librarySyncControllerProvider.notifier).cancelAndWait(),
-    dismissSyncProgress: () =>
-        ref.read(librarySyncNotifierProvider).dismissProgress(),
+    dismissSyncNotifications: () =>
+        ref.read(librarySyncNotifierProvider).dismissAll(),
     cancelAndroidBackgroundSync: () async {
       final config = await ref
           .read(serverConfigRepositoryProvider)
@@ -111,7 +111,7 @@ class SessionLifecycleService implements SignOutService {
     this._cancelApiRequests,
     this._cancelSync,
     this._cancelAndroidBackgroundSync,
-    this._dismissSyncProgress,
+    this._dismissSyncNotifications,
     this._stopDownloads,
     this._resetPlayback,
     this._resetTransientUi,
@@ -133,7 +133,7 @@ class SessionLifecycleService implements SignOutService {
   final Future<void> Function()? _cancelApiRequests;
   final Future<void> Function()? _cancelSync;
   final Future<void> Function()? _cancelAndroidBackgroundSync;
-  final Future<void> Function()? _dismissSyncProgress;
+  final Future<void> Function()? _dismissSyncNotifications;
   final Future<void> Function()? _stopDownloads;
   final Future<void> Function()? _resetPlayback;
   final Future<void> Function()? _resetTransientUi;
@@ -305,7 +305,7 @@ class SessionLifecycleService implements SignOutService {
       // A run abandoned by its timeout can leave the sync progress
       // notification up; its own tail no longer dismisses it.
       await attempt('dismiss sync notification', () async {
-        await _dismissSyncProgress?.call();
+        await _dismissSyncNotifications?.call();
       }, timeout: const Duration(seconds: 5));
 
       await attempt('clear cover artwork cache', () async {
@@ -331,7 +331,7 @@ class SessionLifecycleService implements SignOutService {
       // Again: by now the sync controller has left the old session, so a
       // run that reposted after the earlier dismiss cannot do it again.
       await attempt('dismiss sync notification after sign-out', () async {
-        await _dismissSyncProgress?.call();
+        await _dismissSyncNotifications?.call();
       }, timeout: const Duration(seconds: 5));
       await attempt('invalidate session providers', () async {
         _invalidateSessionProviders?.call();
