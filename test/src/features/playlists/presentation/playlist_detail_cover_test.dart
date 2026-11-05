@@ -93,7 +93,8 @@ void main() {
         find.byType(PlaylistCoverMosaic),
       );
       expect(mosaic.coverArtIds.toSet(), {'art-a', 'art-b'});
-      expect(mosaic.size, mobile ? 180 : 220);
+      // 900 px tall is the regular desktop height band.
+      expect(mosaic.size, mobile ? 180 : 200);
     });
 
     testWidgets('$layout server header keeps its own cover', (tester) async {

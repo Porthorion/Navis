@@ -50,6 +50,9 @@ import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/common_widgets/artwork_scrim.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
+/// The hero's artist-name size; the header height reserves its line.
+const double _artistNameFontSize = 64;
+
 /// The album count an artist page shows: the larger of the artist row's
 /// [stored] count and the [listed] albums on the page. A server whose artist
 /// list counts only its local albums (Octo-Fiesta) leaves the row short of
@@ -906,7 +909,7 @@ class _ArtistImageHeader extends ConsumerWidget {
             20 +
             scaledLineHeight(
               context,
-              const TextStyle(fontSize: 64, height: 1.05),
+              const TextStyle(fontSize: _artistNameFontSize, height: 1.05),
             ) +
             (summary.isEmpty
                 ? 0
@@ -975,7 +978,7 @@ class _ArtistImageHeader extends ConsumerWidget {
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: -1,
                                     height: 1.05,
-                                    fontSize: 64,
+                                    fontSize: _artistNameFontSize,
                                     shadows: const <Shadow>[
                                       Shadow(
                                         blurRadius: 4,
