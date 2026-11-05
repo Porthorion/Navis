@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Recently Added on Home now shows the play button on hover, like '
+        'the other album shelves',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Albums and downloads can be added to a playlist from their menu',
         type: ChangelogEntryType.improvement,
       ),
