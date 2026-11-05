@@ -28,6 +28,14 @@ static NSNumber *fastForwardInterval = nil;
 static NSNumber *rewindInterval = nil;
 static MPMediaItemArtwork* artwork = nil;
 static NSMutableDictionary *nowPlayingInfo = nil;
+// Navis: what the system was last told, so its own clock can be checked.
+static BOOL hasPublishedElapsed = NO;
+static double publishedPositionMs = 0;
+static double publishedTimeMs = 0;
+static double publishedRate = 0;
+// Navis: largest gap between the app's position and the system's
+// extrapolation before Now Playing is corrected.
+static const double kNowPlayingDriftMs = 250.0;
 
 @implementation AudioServicePlugin {
     FlutterMethodChannel *_channel;
@@ -165,11 +173,11 @@ static NSMutableDictionary *nowPlayingInfo = nil;
             int actionCode = 1 << [actionIndex intValue];
             actionBits |= actionCode;
         }
+        enum AudioProcessingState oldProcessingState = processingState;
         processingState = [stateMap[@"processingState"] intValue];
         BOOL oldPlaying = playing;
         NSNumber *oldSpeed = speed;
         NSNumber *oldPosition = position;
-        NSNumber *oldUpdateTime = updateTime;
         playing = [stateMap[@"playing"] boolValue];
         position = stateMap[@"updatePosition"];
         bufferedPosition = stateMap[@"bufferedPosition"];
@@ -184,19 +192,27 @@ static NSMutableDictionary *nowPlayingInfo = nil;
             [self activateCommandCenter];
         }
         [self updateControls];
-        // Navis: while playing, the system extrapolates
-        // elapsed time from the rate, so only republish a position that drifts
-        // from that extrapolation by more than 1 s. Play/pause/speed changes
-        // always publish at once.
-        BOOL positionDrifted = YES;
-        if (playing && oldPlaying && oldPosition != nil && oldUpdateTime != nil) {
-            double expected = oldPosition.doubleValue +
-                (updateTime.doubleValue - oldUpdateTime.doubleValue) * oldSpeed.doubleValue;
-            positionDrifted = fabs(position.doubleValue - expected) > 1000.0;
+        // Navis: Navis sends a state on every player tick (about 35 a second),
+        // but the system extrapolates elapsed time from the published rate.
+        // While playing, republish only when the app's position differs from
+        // the system's extrapolation of the last published elapsed time by
+        // more than kNowPlayingDriftMs (seeks, stalls, speed changes). Play,
+        // pause, speed and processing-state changes always publish.
+        BOOL publish;
+        if (playing && oldPlaying && hasPublishedElapsed &&
+            speed.doubleValue == oldSpeed.doubleValue &&
+            processingState == oldProcessingState) {
+            double expected = publishedPositionMs +
+                (updateTime.doubleValue - publishedTimeMs) * publishedRate;
+            publish = fabs(position.doubleValue - expected) > kNowPlayingDriftMs;
+        } else {
+            publish = playing != oldPlaying ||
+                speed.doubleValue != oldSpeed.doubleValue ||
+                processingState != oldProcessingState ||
+                position.longLongValue != oldPosition.longLongValue ||
+                !hasPublishedElapsed;
         }
-        if (playing != oldPlaying ||
-            speed.doubleValue != oldSpeed.doubleValue ||
-            positionDrifted) {
+        if (publish) {
             [self updateNowPlayingInfo];
         }
         result(@{});
@@ -243,6 +259,9 @@ static NSMutableDictionary *nowPlayingInfo = nil;
         [commandCenter.togglePlayPauseCommand setEnabled:NO];
         [commandCenter.togglePlayPauseCommand removeTarget:nil];
         [MPNowPlayingInfoCenter defaultCenter].nowPlayingInfo = nil;
+        // Navis: the next session starts from an empty Now Playing entry.
+        [nowPlayingInfo removeAllObjects];
+        hasPublishedElapsed = NO;
         processingState = ApsIdle;
         actionBits = 0;
         [self updateControls];
@@ -303,11 +322,17 @@ static NSMutableDictionary *nowPlayingInfo = nil;
     if (@available(iOS 10.0, macOS 10.12.2, *)) {
         updated |= [self updateNowPlayingField:MPNowPlayingInfoPropertyIsLiveStream value:mediaItem[@"isLive"]];
     }
-    // Navis: publish the new elapsed time before the
-    // paused state, so Control Center never shows paused with a stale base.
-    if (updated) {
-        center.nowPlayingInfo = nowPlayingInfo;
-    }
+    // Navis: always reassign. A correction back to the last published elapsed
+    // value leaves the dictionary unchanged, but the system clock has moved
+    // on, so skipping the assignment would lose it. Callers already limit how
+    // often this runs. The elapsed time is set before the paused state, so
+    // Control Center never shows paused with a stale base.
+    (void)updated;
+    center.nowPlayingInfo = nowPlayingInfo;
+    hasPublishedElapsed = YES;
+    publishedPositionMs = [position doubleValue];
+    publishedTimeMs = [updateTime doubleValue];
+    publishedRate = playing ? [speed doubleValue] : 0.0;
 #if TARGET_OS_OSX
     if (@available(iOS 13.0, macOS 10.12.2, *)) {
         center.playbackState = playing ? MPNowPlayingPlaybackStatePlaying : MPNowPlayingPlaybackStatePaused;
