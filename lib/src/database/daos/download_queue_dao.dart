@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/download_queue_table.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -151,6 +152,19 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
         .map((r) => r.read(downloadQueueTable.songId))
         .whereType<String>()
         .toSet();
+  }
+
+  /// Delete stale failed rows for [songIds] in one statement, so a fresh
+  /// queue row replaces them instead of sitting beside them.
+  Future<void> removeFailedForSongIds(Iterable<String> songIds) async {
+    for (final chunk in chunked(songIds.toList(growable: false), 500)) {
+      await (delete(downloadQueueTable)..where(
+            (t) =>
+                t.songId.isIn(chunk) &
+                t.status.equalsValue(DownloadStatus.failed),
+          ))
+          .go();
+    }
   }
 
   /// Batch-insert multiple queue items in a single transaction.

@@ -3632,6 +3632,33 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cacheSettingsAutoDownloadCellularWarningContinue => 'Continue';
 
   @override
+  String downloadsAutoDownloadLikedConfirmTitle(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Download $countString liked songs?',
+      one: 'Download 1 liked song?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String downloadsAutoDownloadLikedConfirmMessage(String size) {
+    return 'About $size will be downloaded to this device. Songs you have already downloaded are skipped.';
+  }
+
+  @override
+  String get downloadsAutoDownloadLikedConfirmMessageNoSize =>
+      'Your liked songs will be downloaded to this device. Songs you have already downloaded are skipped.';
+
+  @override
+  String get downloadsAutoDownloadLikedConfirmAction => 'Download';
+
+  @override
   String get externalSourceBadgeLabel =>
       'Remote source — not in your server library.';
 
