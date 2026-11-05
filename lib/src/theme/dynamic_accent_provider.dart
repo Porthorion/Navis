@@ -9,7 +9,9 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/connectivity.dart';
 
 final dynamicAccentEnabledProvider = Provider<bool>((ref) {
   return ref.watch(dynamicAlbumColorEnabledProvider);
@@ -103,20 +105,52 @@ final dynamicAccentSeedColorProvider = FutureProvider<int?>((ref) async {
   );
 });
 
-/// Seed colour of the server cover `coverArtId`, from the same cache the
-/// player's album colour uses, for a flat tint behind a card. It does not
+/// Whether a cover may be fetched only to read its colour: the same
+/// offline and metered rule as the audio handler's next-song prefetch.
+final _coverColourFetchAllowedProvider = Provider<bool>(
+  (ref) => nextSongPrefetchAllowed(
+    setting: ref.watch(
+      appSettingsProvider.select(
+        (settings) =>
+            settings.asData?.value.prefetchNextOnMobileData ??
+            const AppSettingsModel.defaults().prefetchNextOnMobileData,
+      ),
+    ),
+    networkType: ref.watch(networkTypeProvider),
+    nativeMetered: ref.watch(nativeNetworkMeteredProvider).asData?.value,
+  ),
+);
+
+/// A cover and the pixel size the screen shows it at.
+typedef ArtworkSeedRequest = ({String coverArtId, int size});
+
+/// Seed colour of the server cover in [ArtworkSeedRequest], for a flat tint
+/// behind a card. It follows the player's album colour cache, and does not
 /// follow the Dynamic Album Color setting (that one replaces the app accent).
-/// `null` while it resolves, or when the cover has no usable colour.
+///
+/// A colour the player already read is reused. Otherwise the cover is read at
+/// the size the card shows, so it is served by the image cache rather than
+/// downloaded again, and only where [_coverColourFetchAllowedProvider] allows.
+/// A cover that failed is not asked for again this session. `null` while it
+/// resolves, or when the cover has no usable colour.
 final artworkSeedColorProvider = FutureProvider.autoDispose
-    .family<int?, String>(
-      (ref, coverArtId) => ref
-          .watch(dynamicAccentColorCacheProvider)
-          .resolve(
-            source: 'id:$coverArtId',
-            api: ref.watch(subsonicApiProvider),
-            cacheManager: ref.watch(coverArtCacheManagerProvider),
-          ),
-    );
+    .family<int?, ArtworkSeedRequest>((ref, request) async {
+      final cache = ref.watch(dynamicAccentColorCacheProvider);
+      final known = cache.peekArtwork(request);
+      if (known != null) return known;
+      if (!ref.watch(_coverColourFetchAllowedProvider)) return null;
+      final source = DynamicAccentColorCache.artworkSource(request);
+      if (cache.hasFailed(source)) return null;
+      final api = ref.watch(subsonicApiProvider);
+      final seed = await cache.resolve(
+        source: source,
+        api: api,
+        cacheManager: ref.watch(coverArtCacheManagerProvider),
+      );
+      // Without an API there is nothing to blame the cover for.
+      if (seed == null && api != null) cache.markFailed(source);
+      return seed;
+    });
 
 /// Effective app theme seed: dynamic art-based seed with user-selected fallback.
 final effectiveColorSchemeSeedProvider = Provider<int?>((ref) {
@@ -136,6 +170,22 @@ class DynamicAccentColorCache {
   final Map<String, int> _seedBySource = <String, int>{};
 
   int? peek(String source) => _seedBySource[source];
+
+  /// Source of a cover read at `ArtworkSeedRequest.size` pixels, the size the
+  /// visible image uses (`id:<cover>` reads the 128 px thumbnail).
+  static String artworkSource(ArtworkSeedRequest request) =>
+      'id:${request.coverArtId}@${request.size}';
+
+  /// The seed of the cover in [request], from either source.
+  int? peekArtwork(ArtworkSeedRequest request) =>
+      peek('id:${request.coverArtId}') ?? peek(artworkSource(request));
+
+  final Set<String> _failed = <String>{};
+
+  /// Whether [source] came back without a colour; asked for once per session.
+  bool hasFailed(String source) => _failed.contains(source);
+
+  void markFailed(String source) => _failed.add(source);
 
   Future<int?> resolve({
     required String source,
@@ -204,11 +254,16 @@ class DynamicAccentColorCache {
       if (id.isEmpty || api == null) {
         return null;
       }
+      // `id:<cover>@<size>` is a cover read at the size a screen shows it.
+      final at = id.lastIndexOf('@');
+      final size = at < 0 ? null : int.tryParse(id.substring(at + 1));
+      final cover = size == null ? id : id.substring(0, at);
+      final pixels = size ?? 128;
       return boundedDecode(
         CachedNetworkImageProvider(
-          api.getCoverArtUrl(id: id, size: 128).toString(),
+          api.getCoverArtUrl(id: cover, size: pixels).toString(),
           cacheManager: cacheManager,
-          cacheKey: coverArtImageCacheKey(id, 128),
+          cacheKey: coverArtImageCacheKey(cover, pixels),
         ),
         width: kPaletteDecodeEdge,
         height: kPaletteDecodeEdge,

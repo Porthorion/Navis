@@ -5,14 +5,13 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/album_context_menu.dart';
-import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/common_widgets/artist_playback_action.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
-import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/search/domain/deezer_search_boost.dart';
@@ -121,6 +120,11 @@ class _TopView {
   final String? coverArtId;
   final bool isRemote;
   final Widget Function(double extent) cover;
+
+  /// What a screen reader says: the indicator in the subtitle is not read.
+  String semanticLabel(BuildContext context) => isRemote
+      ? '$title, $subtitle, ${AppLocalizations.of(context)!.externalSourceBadgeLabel}'
+      : '$title, $subtitle';
   final VoidCallback open;
   final void Function(Offset? anchor) menu;
 }
@@ -287,17 +291,24 @@ class _TopHero extends ConsumerWidget {
     // for a cover without one, and for a remote cover. Keyed by cover, so a
     // new query never shows the previous hero's colour.
     final coverId = view.coverArtId?.trim() ?? '';
+    final request = (coverArtId: coverId, size: (_artwork * 2).round());
     final seed = coverId.isEmpty || view.isRemote
         ? null
-        : ref.watch(artworkSeedColorProvider(coverId)).value ??
-              ref.watch(dynamicAccentColorCacheProvider).peek('id:$coverId');
+        : ref.watch(artworkSeedColorProvider(request)).value ??
+              ref.watch(dynamicAccentColorCacheProvider).peekArtwork(request);
     final color = seed == null
         ? base
         : Color.alphaBlend(Color(seed).withValues(alpha: 0.28), base);
     final radius = NavisShapeData.of(context).lgAll;
     final secondary = switch (result) {
       TopSongResult(:final song) =>
-        view.isRemote ? const SizedBox.shrink() : _LikeButton(songId: song.id),
+        view.isRemote
+            ? const SizedBox.shrink()
+            : SongHeartButton(
+                songId: song.id,
+                keyPrefix: 'search-top-song',
+                outlined: true,
+              ),
       TopArtistResult(:final artist) => IconButton.outlined(
         tooltip: l10n.albumDetailShuffleAction,
         icon: const Icon(Icons.shuffle_rounded),
@@ -312,7 +323,7 @@ class _TopHero extends ConsumerWidget {
       TopAlbumResult(:final album) => IconButton.outlined(
         tooltip: l10n.albumDetailShuffleAction,
         icon: const Icon(Icons.shuffle_rounded),
-        onPressed: () => _playAlbum(context, ref, album, view, shuffle: true),
+        onPressed: () => unawaited(playAlbumById(ref, album.id, shuffle: true)),
       ),
     };
 
@@ -332,7 +343,7 @@ class _TopHero extends ConsumerWidget {
                 button: true,
                 container: true,
                 excludeSemantics: true,
-                label: '${view.title}, ${view.subtitle}',
+                label: view.semanticLabel(context),
                 onTap: view.open,
                 onLongPress: () => view.menu(null),
                 child: InkWell(
@@ -411,55 +422,10 @@ class _TopHero extends ConsumerWidget {
           ),
         );
       case TopAlbumResult(:final album):
-        _playAlbum(context, ref, album, view, shuffle: false);
+        unawaited(playAlbumById(ref, album.id));
       case TopSongResult():
         view.open();
     }
-  }
-
-  /// A remote album has no tracks in the library yet: its page fetches them.
-  void _playAlbum(
-    BuildContext context,
-    WidgetRef ref,
-    Album album,
-    _TopView view, {
-    required bool shuffle,
-  }) {
-    if (view.isRemote) {
-      view.open();
-    } else {
-      unawaited(playAlbumById(ref, album.id, shuffle: shuffle));
-    }
-  }
-}
-
-class _LikeButton extends ConsumerWidget {
-  const new({required this.songId});
-
-  final String songId;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context)!;
-    final liked = ref.watch(songStarredProvider(songId)).asData?.value ?? false;
-    return IconButton.outlined(
-      key: ValueKey<String>('search-top-song-heart-$songId'),
-      tooltip: liked ? l10n.actionLiked : l10n.actionLike,
-      isSelected: liked,
-      icon: const Icon(Icons.favorite_border),
-      selectedIcon: const Icon(Icons.favorite),
-      onPressed: () => unawaited(
-        toggleSongStar(songId, ref).catchError((_) {
-          if (context.mounted) {
-            showAppNotice(
-              context,
-              message: l10n.albumDetailStarFailure,
-              level: AppNoticeLevel.error,
-            );
-          }
-        }),
-      ),
-    );
   }
 }
 
@@ -483,7 +449,7 @@ class _TopTile extends ConsumerWidget {
         button: true,
         container: true,
         excludeSemantics: true,
-        label: '${view.title}, ${view.subtitle}',
+        label: view.semanticLabel(context),
         onTap: view.open,
         onLongPress: () => view.menu(null),
         child: InkWell(

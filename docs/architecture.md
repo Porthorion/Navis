@@ -3863,7 +3863,13 @@ measure the cap. The Search screen draws Top Results in
 Like, More; a flat tint from the cover colour through `artworkSeedColorProvider`, which
 shares `DynamicAccentColorCache` with the player's album colour), the others are
 tiles; on desktop all share one row at 2 : 1 : 1, on mobile the tiles sit under the
-hero. Taps and menus are the ones the result rows use; covers follow Artwork Shape and
+hero. A tap does what the result row's tap does; the hero's More and a long-press or
+right-click on a hero or tile open the artist, album or song menu (album rows have no
+menu of their own); Play and Shuffle on an album go through `playAlbumById`, which
+fetches an album the library has not stored yet. The tint shares the player's colour
+cache but reads the cover at the size the card shows (so the image cache serves it), only
+where the next-song prefetch rule (`nextSongPrefetchAllowed`) allows, and a cover that
+failed is not asked for again that session. Covers follow Artwork Shape and
 Artist Card Shape, cards follow Corner Style.
 
 ## Update Checker

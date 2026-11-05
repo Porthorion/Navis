@@ -540,6 +540,27 @@ void main() {
         expect(_topIds(boost), <String>['artist:ar2', 'album:al', 'song:s1']);
       });
 
+      test('a kind\'s exact match beats a better-ranked non-exact one', () {
+        const live = SearchResult3(
+          songs: <Song>[
+            Song(id: 'live', title: 'Creep - Live', artist: 'Radiohead'),
+            Song(id: 'studio', title: 'Creep', artist: 'Radiohead'),
+          ],
+        );
+        final boost = matchDeezerSearchHits(
+          result: live,
+          hits: DeezerSearchHits(
+            tracks: [
+              _track(1, 'Creep - Live', 'Radiohead'),
+              _track(2, 'Creep', 'Radiohead'),
+            ],
+          ),
+          query: 'creep',
+          onePerKind: true,
+        );
+        expect(_topIds(boost), <String>['song:studio']);
+      });
+
       test('several exact matches keep position, then artist, album, song', () {
         const same = SearchResult3(
           artists: <Artist>[Artist(id: 'ar', name: 'Creep')],

@@ -177,18 +177,13 @@ DeezerSearchBoost matchDeezerSearchHits({
   );
 }
 
-/// The first entry of each kind in [sorted] (Deezer order), those named
-/// [wanted] (already normalized, may be empty) first.
+/// One entry per kind: the one named [wanted] (already normalized, may be
+/// empty) if the kind has one, else the first in [sorted] (Deezer order).
+/// Those named [wanted] lead, then Deezer order, then artist, album, song.
 List<SearchTopResult> _bestOfEachKind(
   List<({int position, int type, SearchTopResult item})> sorted,
   String wanted,
 ) {
-  final best =
-      {for (final entry in sorted.reversed) entry.type: entry}.values.toList()
-        ..sort((a, b) {
-          final byPosition = a.position.compareTo(b.position);
-          return byPosition != 0 ? byPosition : a.type.compareTo(b.type);
-        });
   bool exact(SearchTopResult item) =>
       wanted.isNotEmpty &&
       normalizeMetadata(switch (item) {
@@ -197,12 +192,24 @@ List<SearchTopResult> _bestOfEachKind(
             TopSongResult(:final song) => song.title,
           }) ==
           wanted;
-  return [
-    for (final entry in best)
-      if (exact(entry.item)) entry.item,
-    for (final entry in best)
-      if (!exact(entry.item)) entry.item,
-  ];
+  final picks = <({int position, int type, SearchTopResult item})>[];
+  for (var type = 0; type < 3; type++) {
+    final ofKind = [
+      for (final entry in sorted)
+        if (entry.type == type) entry,
+    ];
+    if (ofKind.isEmpty) continue;
+    picks.add(
+      ofKind.firstWhere((e) => exact(e.item), orElse: () => ofKind.first),
+    );
+  }
+  picks.sort((a, b) {
+    final byExact = (exact(a.item) ? 0 : 1).compareTo(exact(b.item) ? 0 : 1);
+    if (byExact != 0) return byExact;
+    final byPosition = a.position.compareTo(b.position);
+    return byPosition != 0 ? byPosition : a.type.compareTo(b.type);
+  });
+  return [for (final pick in picks) pick.item];
 }
 
 /// [items] with those on the server ahead of remote ones, each group in its

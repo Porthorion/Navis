@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 
 /// The menu of a song in Search: a popup at [anchor] (desktop), else a bottom
@@ -20,7 +21,7 @@ void showSearchSongMenu(
   Offset? anchor,
 }) {
   final l10n = AppLocalizations.of(context)!;
-  if (anchor != null) {
+  if (anchor != null && isDesktopRuntime) {
     final result = showDesktopContextMenu<String>(
       context: context,
       anchor: anchor,

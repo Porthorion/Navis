@@ -1,3 +1,5 @@
+import 'package:drift/drift.dart' show InsertMode, Value;
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -8,7 +10,14 @@ import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
+import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/features/search/domain/deezer_search_boost.dart';
 import 'package:navis/src/features/search/presentation/search_top_results.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -35,8 +44,72 @@ const _song = TopSongResult(
   ),
 );
 
+/// Stores an album and its songs the way opening an unsynced album does.
+class _HydratingSync extends LibrarySyncController {
+  new(this._database, this._songIds);
+
+  final NavisDatabase _database;
+  final List<String> _songIds;
+  final List<String> hydrated = <String>[];
+
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState?> hydrateOpenedAlbum(String albumId) async {
+    hydrated.add(albumId);
+    await _database
+        .into(_database.albumsTable)
+        .insert(
+          AlbumsTableCompanion.insert(
+            id: albumId,
+            name: 'Fetched Album',
+            songsHydrated: const Value(true),
+            isProvisional: const Value(false),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
+    for (final (index, songId) in _songIds.indexed) {
+      await _database
+          .into(_database.songsTable)
+          .insert(
+            SongsTableCompanion.insert(
+              id: songId,
+              title: 'Song $songId',
+              albumId: Value(albumId),
+              artistName: const Value('Artist'),
+              albumName: const Value('Fetched Album'),
+              track: Value(index + 1),
+              duration: const Value(210),
+              isProvisional: const Value(false),
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
+    }
+    return const LibrarySyncState.idle();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _RecordingColourCache extends DynamicAccentColorCache {
+  final List<String> sources = <String>[];
+
+  @override
+  Future<int?> resolve({
+    required String source,
+    required SubsonicApiClient? api,
+    required BaseCacheManager cacheManager,
+  }) async {
+    sources.add(source);
+    return null;
+  }
+}
+
 void main() {
   late QueueReplaceSpy queue;
+  late NavisDatabase db;
 
   Future<void> pump(
     WidgetTester tester,
@@ -45,6 +118,7 @@ void main() {
     Size size = const Size(400, 900),
     double textScale = 1,
     NavisShapeData? shape,
+    SubsonicApiClient? api,
     List<Override> overrides = const <Override>[],
   }) async {
     if (!sqliteAvailable) return;
@@ -52,13 +126,14 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     final database = createTestDatabase();
+    db = database;
     queue = QueueReplaceSpy();
     final container = ProviderContainer(
       overrides: withTestDatabase(
         database,
         overrides: <Override>[
           queueProvider.overrideWith(() => queue),
-          subsonicApiProvider.overrideWithValue(null),
+          subsonicApiProvider.overrideWithValue(api),
           ...overrides,
         ],
       ),
@@ -292,7 +367,7 @@ void main() {
         tester,
         [_artist],
         overrides: [
-          artworkSeedColorProvider('ar-art')
+          artworkSeedColorProvider((coverArtId: 'ar-art', size: 208))
               .overrideWith((ref) async => 0xFFFF0000),
         ],
       );
@@ -456,5 +531,200 @@ void main() {
       await tester.pump();
       expect(queue.lastReplaceIds, <String>['s']);
     });
+  });
+
+  group('review fixes', () {
+    testWidgets('on a phone, More opens the bottom sheet, not the popup', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      debugDesktopRuntimeOverride = false;
+      addTearDown(() => debugDesktopRuntimeOverride = null);
+      await pump(tester, [
+        const TopSongResult(
+          Song(id: 's', title: 'Creep', album: 'Pablo Honey', albumId: 'alb'),
+        ),
+      ]);
+      await tester.tap(find.byTooltip('More'));
+      await tester.pumpAndSettle();
+      expect(find.text('Go to Album'), findsOneWidget);
+    });
+
+    testWidgets('a remote hero and tile are read as Remote', (tester) async {
+      if (!sqliteAvailable) return;
+      final handle = tester.ensureSemantics();
+      await pump(tester, [
+        const TopSongResult(
+          Song(id: 'ext-deezer-song-1', title: 'Creep', isExternal: true),
+        ),
+        const TopAlbumResult(
+          Album(id: 'ext-deezer-album-2', name: 'Pablo', isExternal: true),
+        ),
+        _artist,
+      ]);
+      expect(
+        find.bySemanticsLabel(RegExp('^Creep, Song, Remote source')),
+        findsOneWidget,
+      );
+      expect(
+        find.bySemanticsLabel(RegExp('^Pablo, Album, Remote source')),
+        findsOneWidget,
+      );
+      // A library item's label has no Remote part.
+      expect(
+        find.bySemanticsLabel('Radiohead, Artist · 9 albums'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
+    for (final shuffle in <bool>[false, true]) {
+      testWidgets(
+        'an unsynced album is fetched, then ${shuffle ? 'shuffled' : 'played'}',
+        (tester) async {
+          if (!sqliteAvailable) return;
+          late _HydratingSync sync;
+          await pump(
+            tester,
+            [const TopAlbumResult(Album(id: 'ext-deezer-album-9', name: 'X'))],
+            overrides: [
+              librarySyncControllerProvider.overrideWith(
+                () => sync = _HydratingSync(db, <String>['a1', 'a2']),
+              ),
+            ],
+          );
+          await tester.tap(
+            shuffle ? find.byTooltip('Shuffle') : find.text('Play'),
+          );
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(sync.hydrated, contains('ext-deezer-album-9'));
+          expect(queue.lastReplaceIds?.toSet(), <String>{'a1', 'a2'});
+        },
+      );
+    }
+
+    testWidgets('the tint reads the cover at the size the card shows', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      final cache = _RecordingColourCache();
+      await pump(
+        tester,
+        [_artist],
+        api: SubsonicApiClient(
+          baseUrl: 'https://example.com',
+          authConfig: const SubsonicAuthConfig(
+            username: 'a',
+            password: 'b',
+            apiVersion: '1.16.1',
+          ),
+          enableLogging: false,
+        ),
+        overrides: [
+          dynamicAccentColorCacheProvider.overrideWithValue(cache),
+          networkTypeProvider.overrideWithValue(NetworkType.wifi),
+        ],
+      );
+      await tester.pump();
+      expect(cache.sources, <String>['id:ar-art@208']);
+    });
+
+    for (final (setting, expected) in <(String, BoxShape)>[
+      ('circle', BoxShape.circle),
+      ('square', BoxShape.rectangle),
+    ]) {
+      testWidgets('the artist tile follows Artist Card Shape ($setting)', (
+        tester,
+      ) async {
+        if (!sqliteAvailable) return;
+        await pump(
+          tester,
+          [_song, _artist],
+          overrides: [artistCardShapeProvider.overrideWithValue(setting)],
+        );
+        final decoration =
+            tester
+                    .widget<DecoratedBox>(
+                      find
+                          .descendant(
+                            of: key('search-top-result-1'),
+                            matching: find.descendant(
+                              of: find.byType(CoverArtImage),
+                              matching: find.byType(DecoratedBox),
+                            ),
+                          )
+                          .first,
+                    )
+                    .decoration
+                as BoxDecoration;
+        expect(decoration.shape, expected);
+      });
+    }
+
+    for (final (setting, square) in <(String, bool)>[
+      ('square', true),
+      ('rounded', false),
+    ]) {
+      testWidgets('the album tile follows Artwork Shape ($setting)', (
+        tester,
+      ) async {
+        if (!sqliteAvailable) return;
+        await pump(
+          tester,
+          [_song, _album],
+          overrides: [coverArtShapeProvider.overrideWithValue(setting)],
+        );
+        final radius = tester
+            .widget<HeroCoverArt>(
+              find.descendant(
+                of: key('search-top-result-1'),
+                matching: find.byType(HeroCoverArt),
+              ),
+            )
+            .borderRadius;
+        expect(radius == BorderRadius.zero, square);
+      });
+    }
+
+    testWidgets('the song tile cover uses the cover shape role', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      await pump(tester, [_artist, _song]);
+      expect(
+        tester
+            .widget<CoverArtImage>(
+              find.descendant(
+                of: key('search-top-result-1'),
+                matching: find.byType(CoverArtImage),
+              ),
+            )
+            .shape,
+        ArtworkShapeRole.cover,
+      );
+    });
+
+    for (final style in <NavisShapeData>[
+      NavisShapeData.square,
+      NavisShapeData.soft,
+    ]) {
+      testWidgets(
+        'the tile corners follow Corner Style (${style.style.name})',
+        (tester) async {
+          if (!sqliteAvailable) return;
+          await pump(tester, [_song, _artist], shape: style);
+          await tester.pumpAndSettle();
+          final material = tester.widget<Material>(
+            find
+                .descendant(
+                  of: key('search-top-result-1'),
+                  matching: find.byType(Material),
+                )
+                .first,
+          );
+          expect(material.shape, style.lgShape);
+        },
+      );
+    }
   });
 }

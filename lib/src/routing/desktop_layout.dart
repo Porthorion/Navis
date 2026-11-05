@@ -218,7 +218,13 @@ class DesktopNavigationPresentationScope extends InheritedWidget {
   }
 }
 
+/// Forces [isDesktopRuntime] in tests, which run on a desktop host.
+@visibleForTesting
+bool? debugDesktopRuntimeOverride;
+
 bool get isDesktopRuntime {
+  final override = debugDesktopRuntimeOverride;
+  if (override != null) return override;
   if (kIsWeb) {
     return false;
   }

@@ -308,6 +308,43 @@ void main() {
       List<String> songIds(SearchResultsState state) =>
           state.result.songs.map((song) => song.id).toList();
 
+      test(
+        'All leads with the exact name match, through the controller',
+        () async {
+          if (!sqliteAvailable) return;
+          final run = await start(
+            _FakeDeezerCatalog(
+              artists: const [DeezerArtist(id: 7, name: 'Hello Band')],
+              tracks: [
+                DeezerTrack(
+                  id: 8,
+                  title: 'Nobody',
+                  artist: const DeezerArtist(id: 9, name: 'Nobody'),
+                ),
+                adeleHello,
+              ],
+            ),
+            server: const SearchResult3(
+              artists: <Artist>[Artist(id: 'band', name: 'Hello Band')],
+              songs: <Song>[Song(id: 'adele', title: 'Hello', artist: 'Adele')],
+            ),
+          );
+          run.container.read(searchQueryProvider.notifier).submit('Hello');
+          await _waitForEmissions(run.emissions, 2);
+          // The artist ranks first at Deezer, but only the song is named Hello.
+          expect(
+            run.emissions.last.topResults.map(
+              (top) => switch (top) {
+                TopArtistResult(:final artist) => 'artist:${artist.id}',
+                TopAlbumResult(:final album) => 'album:${album.id}',
+                TopSongResult(:final song) => 'song:${song.id}',
+              },
+            ),
+            <String>['song:adele', 'artist:band'],
+          );
+        },
+      );
+
       test('All keeps one song, a Songs filter keeps up to three', () async {
         if (!sqliteAvailable) return;
         final tracks = [
