@@ -130,13 +130,6 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
-        'Desktop: a new Media info button in the player bar shows the '
-        "playing song's format, bitrate, tags, library data and, when the "
-        'stream is transcoded, source versus streamed quality (admins also '
-        'see the file path on the server)',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
         'Search puts the most popular matches first and shows Top Results '
         '(Deezer; switch in Integrations)',
         type: ChangelogEntryType.newFeature,
