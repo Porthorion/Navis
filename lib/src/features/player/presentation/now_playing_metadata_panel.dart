@@ -775,111 +775,27 @@ String _formatAudioQuality({
       ((extras?['bridgeFormat'] ?? extras?['resolvedFormat']) as String?)
           ?.trim();
   final formatLabel =
-      _formatAudioFormatLabel(resolvedFormat) ??
+      audioFormatLabel(resolvedFormat) ??
       song?.suffix?.trim().toUpperCase() ??
-      _inferAudioFormat(song?.contentType);
+      inferAudioFormat(song?.contentType);
   final bitRate =
       (extras?['bridgeBitRate'] as int?) ??
       (extras?['resolvedBitRate'] as int?) ??
       song?.bitRate;
   final sampleRate = bridging
       ? null
-      : _readSampleRateFromExtras(extras) ?? song?.sampleRate;
+      : readSampleRateFromExtras(extras) ?? song?.sampleRate;
 
   final parts = <String>[
     if (formatLabel != null && formatLabel.isNotEmpty) formatLabel,
-    if (bitRate != null && bitRate > 0) _formatBitRate(bitRate),
-    if (sampleRate != null && sampleRate > 0) _formatSampleRate(sampleRate),
+    if (bitRate != null && bitRate > 0) formatBitRate(bitRate),
+    if (sampleRate != null && sampleRate > 0) formatSampleRate(sampleRate),
   ];
 
   if (parts.isEmpty) {
     return '-';
   }
   return parts.join(' • ');
-}
-
-int? _readSampleRateFromExtras(Map<String, dynamic>? extras) {
-  if (extras == null || extras.isEmpty) {
-    return null;
-  }
-
-  const keys = <String>[
-    'resolvedSampleRate',
-    'sampleRate',
-    'samplingRate',
-    'sample_rate',
-    'sampling_rate',
-  ];
-
-  for (final key in keys) {
-    final raw = extras[key];
-    if (raw == null) {
-      continue;
-    }
-    if (raw is int) {
-      return raw > 0 ? raw : null;
-    }
-    if (raw is double) {
-      final rounded = raw.round();
-      return rounded > 0 ? rounded : null;
-    }
-    if (raw is String) {
-      final parsed = int.tryParse(raw.trim());
-      if (parsed != null && parsed > 0) {
-        return parsed;
-      }
-      final parsedDouble = double.tryParse(raw.trim());
-      if (parsedDouble != null) {
-        final rounded = parsedDouble.round();
-        if (rounded > 0) {
-          return rounded;
-        }
-      }
-    }
-  }
-
-  return null;
-}
-
-String? _formatAudioFormatLabel(String? format) {
-  final normalized = format?.trim();
-  if (normalized != null && normalized.isNotEmpty) {
-    if (normalized.toLowerCase() == 'transcoded') {
-      return null;
-    }
-    return normalized.toUpperCase();
-  }
-  return null;
-}
-
-String? _inferAudioFormat(String? contentType) {
-  if (contentType == null || !contentType.contains('/')) {
-    return null;
-  }
-  final subtype = contentType.split('/').last.trim();
-  if (subtype.isEmpty) {
-    return null;
-  }
-  return subtype.toUpperCase();
-}
-
-String _formatBitRate(int bitRate) {
-  if (bitRate >= 1024) {
-    final mbps = bitRate / 1024;
-    final text = mbps % 1 == 0
-        ? mbps.toStringAsFixed(0)
-        : mbps.toStringAsFixed(1);
-    return '$text Mb/s';
-  }
-  return '$bitRate Kb/s';
-}
-
-String _formatSampleRate(int sampleRateHz) {
-  final sampleRateKhz = sampleRateHz / 1000;
-  final text = sampleRateKhz % 1 == 0
-      ? sampleRateKhz.toStringAsFixed(0)
-      : sampleRateKhz.toStringAsFixed(1);
-  return '$text kHz';
 }
 
 String _formatReleaseDate(SongsTableData? song, AlbumsTableData? album) {

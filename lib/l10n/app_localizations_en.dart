@@ -6470,4 +6470,86 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchGenresSection => 'Genres';
+
+  @override
+  String get mediaInfoTitle => 'Media info';
+
+  @override
+  String get mediaInfoSectionTrack => 'Track';
+
+  @override
+  String get mediaInfoSectionFile => 'File';
+
+  @override
+  String get mediaInfoSectionTranscode => 'Transcoding';
+
+  @override
+  String get mediaInfoSectionLibrary => 'Library data';
+
+  @override
+  String get mediaInfoYear => 'Year';
+
+  @override
+  String get mediaInfoFormat => 'Format';
+
+  @override
+  String get mediaInfoBitrate => 'Bitrate';
+
+  @override
+  String get mediaInfoSampleRate => 'Sample rate';
+
+  @override
+  String get mediaInfoBitDepth => 'Bit depth';
+
+  @override
+  String get mediaInfoChannels => 'Channels';
+
+  @override
+  String get mediaInfoSize => 'Size';
+
+  @override
+  String get mediaInfoDuration => 'Duration';
+
+  @override
+  String get mediaInfoTranscodeSource => 'Source';
+
+  @override
+  String get mediaInfoTranscodeStreamed => 'Streamed as';
+
+  @override
+  String get mediaInfoPlayCount => 'Play count';
+
+  @override
+  String get mediaInfoReplayGain => 'ReplayGain';
+
+  @override
+  String mediaInfoReplayGainTrack(String gain) {
+    return 'Track $gain';
+  }
+
+  @override
+  String mediaInfoReplayGainAlbum(String gain) {
+    return 'Album $gain';
+  }
+
+  @override
+  String get mediaInfoRecordingId => 'MusicBrainz recording ID';
+
+  @override
+  String get mediaInfoAlbumId => 'MusicBrainz release ID';
+
+  @override
+  String get mediaInfoArtistId => 'MusicBrainz artist ID';
+
+  @override
+  String get mediaInfoBpm => 'BPM';
+
+  @override
+  String get mediaInfoComment => 'Comment';
+
+  @override
+  String get mediaInfoServerPath => 'File path on server';
+
+  @override
+  String get mediaInfoClose => 'Close';
 }

@@ -11,6 +11,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -47,7 +48,7 @@ Future<AlbumWithSongs?> _readAlbumOnce(WidgetRef ref, String albumId) async {
   }
 }
 
-/// Actions: Open, Play, Add to Queue, Like/Unlike, Download.
+/// Actions: Open, Play, Add to Queue, Add to Playlist, Like/Unlike, Download.
 Future<void> showAlbumContextMenu(
   BuildContext context,
   WidgetRef ref,
@@ -146,6 +147,21 @@ Future<void> showAlbumContextMenu(
                         },
                 ),
                 ListTile(
+                  enabled: songs.isNotEmpty,
+                  leading: const Icon(Icons.playlist_add),
+                  title: Text(l10n.librarySongMenuAddToPlaylist),
+                  onTap: songs.isEmpty
+                      ? null
+                      : () {
+                          Navigator.of(sheetContext).pop();
+                          unawaited(
+                            showAddToPlaylistSheet(context, ref, <String>[
+                              for (final song in songs) song.id,
+                            ]),
+                          );
+                        },
+                ),
+                ListTile(
                   leading: Icon(
                     isStarred ? Icons.favorite : Icons.favorite_border,
                   ),
@@ -195,6 +211,7 @@ enum _AlbumContextAction {
   open,
   play,
   addToQueue,
+  addToPlaylist,
   toggleLike,
   download,
   deleteDownload,
@@ -236,6 +253,11 @@ Future<void> _showDesktopAlbumContextMenu(
         value: _AlbumContextAction.addToQueue,
         enabled: songs.isNotEmpty,
         child: Text(l10n.libraryAlbumMenuAddToQueue),
+      ),
+      PopupMenuItem<_AlbumContextAction>(
+        value: _AlbumContextAction.addToPlaylist,
+        enabled: songs.isNotEmpty,
+        child: Text(l10n.librarySongMenuAddToPlaylist),
       ),
       PopupMenuItem<_AlbumContextAction>(
         value: _AlbumContextAction.toggleLike,
@@ -289,6 +311,14 @@ Future<void> _showDesktopAlbumContextMenu(
       if (context.mounted) {
         _showQueueActionToast(context, localizations.libraryAlbumAddedToQueue);
       }
+      return;
+    case _AlbumContextAction.addToPlaylist:
+      if (songs.isEmpty) {
+        return;
+      }
+      await showAddToPlaylistSheet(context, ref, <String>[
+        for (final song in songs) song.id,
+      ]);
       return;
     case _AlbumContextAction.toggleLike:
       await _toggleAlbumStar(ref, albumId, isStarred);

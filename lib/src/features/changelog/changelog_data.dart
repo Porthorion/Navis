@@ -135,6 +135,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Albums and downloads can be added to a playlist from their menu',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Search puts the most popular matches first and shows Top Results '
         '(Deezer; switch in Integrations)',
         type: ChangelogEntryType.newFeature,
