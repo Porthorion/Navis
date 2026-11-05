@@ -115,6 +115,34 @@ void main() {
     client = DeezerApiClient(dio: dio, limiter: limiter);
   });
 
+  test('searchAlbums reads the albums with their artist', () async {
+    adapter.queue('/search/album', <String, Object?>{
+      'data': <Object>[
+        <String, Object?>{
+          'id': 302127,
+          'title': '25',
+          'record_type': 'album',
+          'artist': <String, Object?>{'id': 75798, 'name': 'Adele'},
+        },
+        <String, Object?>{'id': 0, 'title': 'Broken'},
+      ],
+    });
+    final albums = await client.searchAlbums(' 25 ', limit: 10);
+    expect(albums.single.title, '25');
+    expect(albums.single.artist?.name, 'Adele');
+    expect(
+      DeezerAlbum.fromJson(albums.single.toJson()).artist?.id,
+      75798,
+      reason: 'the artist survives the cache round trip',
+    );
+    expect(adapter.requests.single.queryParameters, <String, String>{
+      'q': '25',
+      'limit': '10',
+    });
+    expect(await client.searchAlbums('   '), isEmpty);
+    expect(adapter.requests, hasLength(1));
+  });
+
   test('cancelled waiters spend neither foreground nor background budget', () {
     fakeAsync((async) {
       final shared = RequestLimiter(elapsed: () => async.elapsed);

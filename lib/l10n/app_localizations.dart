@@ -2721,7 +2721,7 @@ abstract class AppLocalizations {
   /// No description provided for @integrationsDeezerSends.
   ///
   /// In en, this message translates to:
-  /// **'Sends artist, album and track names to {host} and loads images from Deezer\'s image servers.'**
+  /// **'Sends artist, album and track names, and what you type in Search, to {host} and loads images from Deezer\'s image servers.'**
   String integrationsDeezerSends(String host);
 
   /// No description provided for @integrationsLastFmSends.
@@ -2867,6 +2867,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Deezer\'s chart in You Might Like and your playlists.'**
   String get integrationsFeatureDeezerTrendingSubtitle;
+
+  /// No description provided for @integrationsFeatureDeezerSearchRankingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rank search results by popularity'**
+  String get integrationsFeatureDeezerSearchRankingTitle;
+
+  /// No description provided for @integrationsFeatureDeezerSearchRankingSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Puts the most popular matches first and shows Top Results. Sends what you type in Search to Deezer.'**
+  String get integrationsFeatureDeezerSearchRankingSubtitle;
 
   /// No description provided for @integrationsFeatureLastFmSameVibesTitle.
   ///
@@ -4624,6 +4636,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could Not Load Search Results'**
   String get searchLoadError;
+
+  /// No description provided for @searchTopResultsSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Top Results'**
+  String get searchTopResultsSection;
 
   /// No description provided for @searchArtistsSection.
   ///

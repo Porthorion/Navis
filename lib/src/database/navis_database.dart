@@ -12,6 +12,7 @@ import 'package:drift/native.dart';
 import 'package:drift/remote.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/database/daos/eq_dao.dart';
 import 'package:navis/src/database/tables/eq_tables.dart';
 import 'package:navis/src/database/tables/artist_ref_converter.dart';
@@ -279,7 +280,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 109;
+  static const currentSchemaVersion = 110;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -408,6 +409,7 @@ class NavisDatabase extends _$NavisDatabase {
       from106To107,
       from107To108,
       from108To109,
+      from109To110,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -438,6 +440,38 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable.showGenresPage,
       );
     }
+  }
+
+  /// Search ranking by Deezer popularity (`deezer.searchRanking`) is on by
+  /// default, but it sends what you type in Search to Deezer. A profile that
+  /// already had Deezer off, or Online services off, starts with it off too,
+  /// so an update never begins sending searches for someone who opted out of
+  /// Deezer. Data only; damaged JSON is left as it is (readers ignore it) and
+  /// re-running changes nothing.
+  Future<void> from109To110(Migrator migrator) async {
+    final row = await customSelect(
+      'SELECT disabled_integrations, external_integrations_enabled '
+      'FROM app_settings WHERE id = 1',
+    ).getSingleOrNull();
+    if (row == null) return;
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(row.read<String>('disabled_integrations'));
+    } on FormatException {
+      return;
+    }
+    if (decoded is! List) return;
+    final keys = decoded.whereType<String>().toSet();
+    final deezerOff =
+        keys.contains(IntegrationService.deezer.key) ||
+        !row.read<bool>('external_integrations_enabled');
+    if (!deezerOff || !keys.add(IntegrationFeature.deezerSearchRanking.key)) {
+      return;
+    }
+    await customStatement(
+      'UPDATE app_settings SET disabled_integrations = ? WHERE id = 1',
+      <Object>[encodeDisabledIntegrationKeys(keys)],
+    );
   }
 
   /// The narrow sidebar became the default and 'comfortable' became the

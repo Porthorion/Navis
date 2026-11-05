@@ -11,6 +11,12 @@ import 'package:navis/src/api/subsonic_auth_interceptor.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/integrations/data/deezer_catalog.dart';
+import 'package:navis/src/features/integrations/data/integration_call_recorder.dart';
+import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/api/deezer_api_client.dart';
+import 'package:navis/src/features/search/domain/deezer_search_boost.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -82,6 +88,7 @@ ProviderContainer _createContainer(
   NavisDatabase database, {
   SubsonicApiClient? api,
   bool online = true,
+  IntegrationPolicy policy = const IntegrationPolicy.denyAll(),
   List<Override> overrides = const <Override>[],
 }) {
   return ProviderContainer(
@@ -98,10 +105,61 @@ ProviderContainer _createContainer(
           ),
         ),
         subsonicApiProvider.overrideWithValue(api),
+        integrationPolicyProvider.overrideWithValue(policy),
         ...overrides,
       ],
     ),
   );
+}
+
+/// A Deezer catalogue that answers from [tracks] and [artists] (or
+/// from [gate] once it completes) and records every search it receives.
+class _FakeDeezerCatalog extends DeezerCatalog {
+  new({
+    this.tracks = const <DeezerTrack>[],
+    this.artists = const <DeezerArtist>[],
+    this.gate,
+    this.fail = false,
+  }) : super(
+         client: DeezerApiClient(dio: Dio()),
+         cache: IntegrationJsonCache(),
+       );
+
+  final List<DeezerTrack> tracks;
+  final List<DeezerArtist> artists;
+  final Completer<void>? gate;
+  final bool fail;
+  final List<String> calls = <String>[];
+  final List<CancelToken?> tokens = <CancelToken?>[];
+
+  Future<T> _answer<T>(String call, T value, CancelToken? token) async {
+    calls.add(call);
+    tokens.add(token);
+    await gate?.future;
+    if (fail) throw const DeezerApiException(code: 4);
+    return value;
+  }
+
+  @override
+  Future<List<DeezerTrack>> searchTracks(
+    String query, {
+    int limit = DeezerCatalog.searchLimit,
+    CancelToken? cancelToken,
+  }) => _answer('tracks:$query', tracks, cancelToken);
+
+  @override
+  Future<List<DeezerArtist>> searchArtists(
+    String query, {
+    int limit = DeezerCatalog.searchLimit,
+    CancelToken? cancelToken,
+  }) => _answer('artists:$query', artists, cancelToken);
+
+  @override
+  Future<List<DeezerAlbum>> searchAlbums(
+    String query, {
+    int limit = DeezerCatalog.searchLimit,
+    CancelToken? cancelToken,
+  }) => _answer('albums:$query', const <DeezerAlbum>[], cancelToken);
 }
 
 Future<void> _insertArtist(
@@ -194,6 +252,222 @@ void main() {
   });
 
   group('debouncedSearchProvider', () {
+    group('Deezer ranking', () {
+      const allowed = IntegrationPolicy();
+      const karaokeAndAdele = SearchResult3(
+        songs: <Song>[
+          Song(id: 'karaoke', title: 'Hello', artist: 'Karaoke Stars'),
+          Song(id: 'adele', title: 'Hello', artist: 'Adele'),
+        ],
+      );
+      final adeleHello = DeezerTrack(
+        id: 1,
+        title: 'Hello',
+        artist: const DeezerArtist(id: 2, name: 'Adele'),
+      );
+
+      Future<
+        ({
+          ProviderContainer container,
+          List<SearchResultsState> emissions,
+          IntegrationCallRecorder recorder,
+        })
+      >
+      start(
+        _FakeDeezerCatalog catalog, {
+        IntegrationPolicy policy = allowed,
+        bool online = true,
+        SearchResultType? filter,
+        SearchResult3 server = karaokeAndAdele,
+      }) async {
+        final database = createTestDatabase();
+        final recorder = IntegrationCallRecorder();
+        final container = _createContainer(
+          database,
+          online: online,
+          policy: policy,
+          api: _FakeSearchApiClient((_) async => server),
+          overrides: <Override>[
+            deezerCatalogProvider.overrideWithValue(catalog),
+            integrationCallRecorderProvider.overrideWithValue(recorder),
+          ],
+        );
+        addTearDown(() async {
+          container.dispose();
+          await database.close();
+        });
+        final emissions = <SearchResultsState>[];
+        final subscription = _listenToSearch(container, emissions);
+        addTearDown(subscription.close);
+        if (filter != null) {
+          container.read(searchFilterProvider.notifier).select(filter);
+        }
+        return (container: container, emissions: emissions, recorder: recorder);
+      }
+
+      List<String> songIds(SearchResultsState state) =>
+          state.result.songs.map((song) => song.id).toList();
+
+      test(
+        'an answer in time gives one ranked emission with Top Results',
+        () async {
+          if (!sqliteAvailable) return;
+          final catalog = _FakeDeezerCatalog(tracks: [adeleHello]);
+          final run = await start(catalog);
+
+          run.container.read(searchQueryProvider.notifier).submit('Hello');
+          await _waitForEmissions(run.emissions, 2);
+
+          expect(run.emissions.first.isWaitingForApi, isTrue);
+          expect(run.emissions.first.topResults, isEmpty);
+          final ranked = run.emissions.last;
+          expect(songIds(ranked), <String>['adele', 'karaoke']);
+          expect(ranked.topResults, hasLength(1));
+          expect((ranked.topResults.single as TopSongResult).song.id, 'adele');
+          // Never reshuffles afterwards.
+          await Future<void>.delayed(const Duration(milliseconds: 500));
+          expect(run.emissions, hasLength(2));
+          expect(catalog.calls, <String>[
+            'artists:Hello',
+            'albums:Hello',
+            'tracks:Hello',
+          ]);
+          expect(
+            run.recorder.recentSpans().map((span) => span.name),
+            contains(kSearchDeezerSpan),
+          );
+        },
+      );
+
+      test(
+        "an answer after the cap keeps today's order and never reshuffles",
+        () async {
+          if (!sqliteAvailable) return;
+          final gate = Completer<void>();
+          final catalog = _FakeDeezerCatalog(tracks: [adeleHello], gate: gate);
+          final run = await start(catalog);
+
+          run.container.read(searchQueryProvider.notifier).submit('Hello');
+          await _waitForEmissions(run.emissions, 2);
+          expect(songIds(run.emissions.last), <String>['karaoke', 'adele']);
+          expect(run.emissions.last.topResults, isEmpty);
+          expect(run.emissions.last.isWaitingForApi, isFalse);
+
+          gate.complete();
+          await Future<void>.delayed(const Duration(milliseconds: 200));
+          expect(run.emissions, hasLength(2));
+        },
+      );
+
+      test(
+        "a Deezer failure keeps today's order, silently and at once",
+        () async {
+          if (!sqliteAvailable) return;
+          final catalog = _FakeDeezerCatalog(tracks: [adeleHello], fail: true);
+          final run = await start(catalog);
+
+          run.container.read(searchQueryProvider.notifier).submit('Hello');
+          await _waitForEmissions(run.emissions, 2);
+
+          expect(songIds(run.emissions.last), <String>['karaoke', 'adele']);
+          expect(run.emissions.last.topResults, isEmpty);
+          expect(run.emissions.last.remoteSearchFailed, isFalse);
+        },
+      );
+
+      test('a query typed further drops and cancels the old answer', () async {
+        if (!sqliteAvailable) return;
+        final gate = Completer<void>();
+        final catalog = _FakeDeezerCatalog(tracks: [adeleHello], gate: gate);
+        final run = await start(catalog);
+
+        run.container.read(searchQueryProvider.notifier).submit('Hello');
+        await _waitForEmissions(run.emissions, 1);
+        while (catalog.calls.length < 3) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        run.container.read(searchQueryProvider.notifier).submit('Hello world');
+        // The local-only emissions of both queries, then the final one after
+        // the cap: 'Hello' never reaches it.
+        await _waitForEmissions(run.emissions, 3);
+
+        expect(
+          catalog.tokens.take(3).every((t) => t?.isCancelled ?? false),
+          isTrue,
+        );
+        gate.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+        expect(run.emissions, hasLength(3));
+        expect(run.emissions.last.topResults, isEmpty);
+      });
+
+      test(
+        'the switch off, the service off or Online services off send nothing',
+        () async {
+          if (!sqliteAvailable) return;
+          for (final policy in <IntegrationPolicy>[
+            const IntegrationPolicy(disabledKeys: {'deezer.searchRanking'}),
+            const IntegrationPolicy(disabledKeys: {'deezer'}),
+            const IntegrationPolicy(masterEnabled: false),
+            const IntegrationPolicy.denyAll(),
+          ]) {
+            final catalog = _FakeDeezerCatalog(tracks: [adeleHello]);
+            final run = await start(catalog, policy: policy);
+            run.container.read(searchQueryProvider.notifier).submit('Hello');
+            await _waitForEmissions(run.emissions, 2);
+            expect(catalog.calls, isEmpty, reason: '$policy');
+            expect(songIds(run.emissions.last), <String>['karaoke', 'adele']);
+            expect(run.emissions.last.topResults, isEmpty);
+            expect(run.recorder.recentSpans(), isEmpty);
+          }
+        },
+      );
+
+      test('offline sends nothing to Deezer', () async {
+        if (!sqliteAvailable) return;
+        final catalog = _FakeDeezerCatalog(tracks: [adeleHello]);
+        final run = await start(catalog, online: false);
+        run.container.read(searchQueryProvider.notifier).submit('Hello');
+        await _waitForEmissions(run.emissions, 1);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        expect(catalog.calls, isEmpty);
+      });
+
+      test(
+        'a type filter asks only that endpoint and shows only that type',
+        () async {
+          if (!sqliteAvailable) return;
+          final catalog = _FakeDeezerCatalog(
+            tracks: [adeleHello],
+            artists: const [DeezerArtist(id: 2, name: 'Adele')],
+          );
+          final run = await start(
+            catalog,
+            filter: SearchResultType.songs,
+            server: const SearchResult3(
+              songs: <Song>[Song(id: 'adele', title: 'Hello', artist: 'Adele')],
+              artists: <Artist>[Artist(id: 'ar', name: 'Adele')],
+            ),
+          );
+          run.container.read(searchQueryProvider.notifier).submit('Hello');
+          await _waitForEmissions(run.emissions, 2);
+
+          expect(catalog.calls, <String>['tracks:Hello']);
+          expect(run.emissions.last.topResults.single, isA<TopSongResult>());
+
+          run.container
+              .read(searchFilterProvider.notifier)
+              .select(SearchResultType.playlists);
+          await _waitForEmissions(run.emissions, 3);
+          expect(
+            catalog.calls,
+            hasLength(1),
+            reason: 'collections skip Deezer',
+          );
+        },
+      );
+    });
+
     test('emits local results before delayed API results', () async {
       if (!sqliteAvailable) return;
 

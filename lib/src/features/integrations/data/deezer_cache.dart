@@ -32,4 +32,8 @@ abstract final class DeezerCache {
 
   static const trackSearchTtl = Duration(hours: 24);
   static const chartTtl = Duration(hours: 6);
+
+  /// Search results change little; a query typed back and forth is reused
+  /// (in memory only, by `DeezerCatalog`).
+  static const searchTtl = Duration(minutes: 10);
 }
