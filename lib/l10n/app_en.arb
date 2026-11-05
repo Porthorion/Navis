@@ -1287,6 +1287,53 @@
   "searchNoResultsSubtitle": "Try a different search term.",
   "searchLoadError": "Could Not Load Search Results",
   "searchTopResultsSection": "Top Results",
+  "searchTopArtist": "Artist",
+  "searchTopArtistAlbums": "Artist · {count, plural, =1{1 album} other{{count} albums}}",
+  "@searchTopArtistAlbums": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "searchTopAlbum": "Album",
+  "searchTopAlbumYear": "Album · {year}",
+  "@searchTopAlbumYear": {
+    "placeholders": {
+      "year": {
+        "type": "String"
+      }
+    }
+  },
+  "searchTopSong": "Song",
+  "searchTopSongDuration": "Song · {duration}",
+  "@searchTopSongDuration": {
+    "placeholders": {
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
+  "searchTopSongAlbum": "Song · {album}",
+  "@searchTopSongAlbum": {
+    "placeholders": {
+      "album": {
+        "type": "String"
+      }
+    }
+  },
+  "searchTopSongAlbumDuration": "Song · {album} · {duration}",
+  "@searchTopSongAlbumDuration": {
+    "placeholders": {
+      "album": {
+        "type": "String"
+      },
+      "duration": {
+        "type": "String"
+      }
+    }
+  },
   "searchArtistsSection": "Artists",
   "searchAlbumsSection": "Albums",
   "searchSongsSection": "Songs",

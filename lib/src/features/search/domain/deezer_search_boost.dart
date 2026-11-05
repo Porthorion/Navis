@@ -65,12 +65,19 @@ class DeezerSearchBoost {
 /// `ext-deezer-song-<id>` id, else by the track matcher the top songs use;
 /// artists by id or name; albums by id or by title and artist. Every copy of
 /// a hit shares its rank; for Top Results an item on the server beats a remote
-/// one, then the first in [result]'s order. Top Results are the matched hits in Deezer order (an
-/// artist, album and song at the same position in that order), at most
-/// [kMaxTopResults], each item once.
+/// one, then the first in [result]'s order.
+///
+/// Top Results are the matched hits in Deezer order (an artist, album and song
+/// at the same position in that order), each item once. With [onePerKind]
+/// (the All tab) they are the best hit of each kind, at most one artist, one
+/// album and one song, and one whose name equals [query] (normalized) leads.
+/// Otherwise (a type filter, where [result] holds one kind) they are the
+/// first [kMaxTopResults].
 DeezerSearchBoost matchDeezerSearchHits({
   required SearchResult3 result,
   required DeezerSearchHits hits,
+  String query = '',
+  bool onePerKind = false,
 }) {
   final top = <({int position, int type, SearchTopResult item})>[];
 
@@ -164,8 +171,45 @@ DeezerSearchBoost matchDeezerSearchHits({
       albums: albumRanks,
       songs: songRanks,
     ),
-    topResults: [for (final entry in top.take(kMaxTopResults)) entry.item],
+    topResults: onePerKind
+        ? _bestOfEachKind(top, normalizeMetadata(query))
+        : [for (final entry in top.take(kMaxTopResults)) entry.item],
   );
+}
+
+/// One entry per kind: the one named [wanted] (already normalized, may be
+/// empty) if the kind has one, else the first in [sorted] (Deezer order).
+/// Those named [wanted] lead, then Deezer order, then artist, album, song.
+List<SearchTopResult> _bestOfEachKind(
+  List<({int position, int type, SearchTopResult item})> sorted,
+  String wanted,
+) {
+  bool exact(SearchTopResult item) =>
+      wanted.isNotEmpty &&
+      normalizeMetadata(switch (item) {
+            TopArtistResult(:final artist) => artist.name,
+            TopAlbumResult(:final album) => album.name,
+            TopSongResult(:final song) => song.title,
+          }) ==
+          wanted;
+  final picks = <({int position, int type, SearchTopResult item})>[];
+  for (var type = 0; type < 3; type++) {
+    final ofKind = [
+      for (final entry in sorted)
+        if (entry.type == type) entry,
+    ];
+    if (ofKind.isEmpty) continue;
+    picks.add(
+      ofKind.firstWhere((e) => exact(e.item), orElse: () => ofKind.first),
+    );
+  }
+  picks.sort((a, b) {
+    final byExact = (exact(a.item) ? 0 : 1).compareTo(exact(b.item) ? 0 : 1);
+    if (byExact != 0) return byExact;
+    final byPosition = a.position.compareTo(b.position);
+    return byPosition != 0 ? byPosition : a.type.compareTo(b.type);
+  });
+  return [for (final pick in picks) pick.item];
 }
 
 /// [items] with those on the server ahead of remote ones, each group in its

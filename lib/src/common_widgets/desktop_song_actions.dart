@@ -96,24 +96,7 @@ class DesktopSongActions extends ConsumerWidget {
           if (showDirectActions) ...<Widget>[
             _ActionEmphasis(
               keep: isLiked,
-              child: IconButton(
-                key: ValueKey<String>('$keyPrefix-heart-$songId'),
-                tooltip: isLiked ? l10n.actionLiked : l10n.actionLike,
-                icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border),
-                onPressed: () {
-                  unawaited(
-                    toggleSongStar(songId, ref).catchError((_) {
-                      if (context.mounted) {
-                        showAppNotice(
-                          context,
-                          message: l10n.albumDetailStarFailure,
-                          level: AppNoticeLevel.error,
-                        );
-                      }
-                    }),
-                  );
-                },
-              ),
+              child: SongHeartButton(songId: songId, keyPrefix: keyPrefix),
             ),
             _ActionEmphasis(
               keep: hasDownloadState,
@@ -228,5 +211,49 @@ class _ActionEmphasis extends StatelessWidget {
           : const Duration(milliseconds: 120),
       child: child,
     );
+  }
+}
+
+/// Like or unlike a library song: a heart that shows the current state and
+/// reports a failed update. [outlined] draws it as an outlined icon button.
+class SongHeartButton extends ConsumerWidget {
+  const new({
+    required this.songId,
+    super.key,
+    this.keyPrefix = 'desktop-song',
+    this.outlined = false,
+  });
+
+  final String songId;
+  final String keyPrefix;
+  final bool outlined;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final isLiked =
+        ref.watch(songStarredProvider(songId)).asData?.value ?? false;
+    void toggle() => unawaited(
+      toggleSongStar(songId, ref).catchError((_) {
+        if (context.mounted) {
+          showAppNotice(
+            context,
+            message: l10n.albumDetailStarFailure,
+            level: AppNoticeLevel.error,
+          );
+        }
+      }),
+    );
+    final key = ValueKey<String>('$keyPrefix-heart-$songId');
+    final tooltip = isLiked ? l10n.actionLiked : l10n.actionLike;
+    final icon = Icon(isLiked ? Icons.favorite : Icons.favorite_border);
+    return outlined
+        ? IconButton.outlined(
+            key: key,
+            tooltip: tooltip,
+            icon: icon,
+            onPressed: toggle,
+          )
+        : IconButton(key: key, tooltip: tooltip, icon: icon, onPressed: toggle);
   }
 }

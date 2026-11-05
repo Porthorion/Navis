@@ -2911,6 +2911,50 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchTopResultsSection => 'Top Results';
 
   @override
+  String get searchTopArtist => 'Artist';
+
+  @override
+  String searchTopArtistAlbums(int count) {
+    final intl.NumberFormat countNumberFormat =
+        intl.NumberFormat.decimalPattern(localeName);
+    final String countString = countNumberFormat.format(count);
+
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$countString albums',
+      one: '1 album',
+    );
+    return 'Artist · $_temp0';
+  }
+
+  @override
+  String get searchTopAlbum => 'Album';
+
+  @override
+  String searchTopAlbumYear(String year) {
+    return 'Album · $year';
+  }
+
+  @override
+  String get searchTopSong => 'Song';
+
+  @override
+  String searchTopSongDuration(String duration) {
+    return 'Song · $duration';
+  }
+
+  @override
+  String searchTopSongAlbum(String album) {
+    return 'Song · $album';
+  }
+
+  @override
+  String searchTopSongAlbumDuration(String album, String duration) {
+    return 'Song · $album · $duration';
+  }
+
+  @override
   String get searchArtistsSection => 'Artists';
 
   @override

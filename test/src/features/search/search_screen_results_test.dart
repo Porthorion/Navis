@@ -300,16 +300,20 @@ void main() {
         expect(find.byKey(ValueKey('search-top-result-$i')), findsOneWidget);
       }
       expect(find.byKey(const ValueKey('search-top-result-3')), findsNothing);
-      // The header and its rows lead the list, in order.
+      // The header leads the list, then the hero and its tiles in order.
       final header = tester.getTopLeft(find.text('Top Results')).dy;
-      final firstHit = tester
-          .getTopLeft(find.byKey(const ValueKey('search-top-result-0')))
-          .dy;
-      final lastHit = tester
-          .getTopLeft(find.byKey(const ValueKey('search-top-result-2')))
-          .dy;
-      expect(header, lessThan(firstHit));
-      expect(firstHit, lessThan(lastHit));
+      final hero = tester.getTopLeft(
+        find.byKey(const ValueKey('search-top-result-0')),
+      );
+      final tile = tester.getTopLeft(
+        find.byKey(const ValueKey('search-top-result-1')),
+      );
+      final lastTile = tester.getTopLeft(
+        find.byKey(const ValueKey('search-top-result-2')),
+      );
+      expect(header, lessThan(hero.dy));
+      expect(hero.dx, lessThan(tile.dx));
+      expect(tile.dx, lessThan(lastTile.dx));
     });
   });
 
