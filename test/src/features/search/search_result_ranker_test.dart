@@ -98,4 +98,96 @@ void main() {
       SearchRelevanceTier.other,
     );
   });
+
+  group('popularity', () {
+    const karaoke = Song(id: 'karaoke', title: 'Hello', isExternal: false);
+    const adele = Song(id: 'adele', title: 'Hello', isExternal: false);
+    const cover = Song(id: 'cover', title: 'Hello', isExternal: false);
+    const songs = SearchResult3(songs: <Song>[karaoke, cover, adele]);
+
+    List<String> ids(SearchResult3 result) =>
+        result.songs.map((song) => song.id).toList();
+
+    test('equal-tier songs reorder by popularity, unranked last', () {
+      final result = rankSearchResult(
+        songs,
+        'Hello',
+        popularity: const SearchPopularity(
+          songs: <String, int>{'cover': 1, 'adele': 0},
+        ),
+      );
+      expect(ids(result), <String>['adele', 'cover', 'karaoke']);
+    });
+
+    test("without popularity the order is exactly today's", () {
+      final today = rankSearchResult(songs, 'Hello');
+      expect(ids(today), <String>['karaoke', 'cover', 'adele']);
+      expect(
+        ids(rankSearchResult(songs, 'Hello', popularity: null)),
+        ids(today),
+      );
+      expect(
+        ids(
+          rankSearchResult(
+            songs,
+            'Hello',
+            popularity: const SearchPopularity(),
+          ),
+        ),
+        ids(today),
+      );
+    });
+
+    test('popularity never lifts an item over a better text tier', () {
+      final result = rankSearchResult(
+        const SearchResult3(
+          songs: <Song>[
+            Song(id: 'prefix-hit', title: 'Hello World'),
+            Song(id: 'exact', title: 'Hello'),
+          ],
+        ),
+        'Hello',
+        popularity: const SearchPopularity(
+          songs: <String, int>{'prefix-hit': 0},
+        ),
+      );
+      expect(ids(result), <String>['exact', 'prefix-hit']);
+    });
+
+    test('popularity outranks source inside a tier', () {
+      final result = rankSearchResult(
+        const SearchResult3(
+          albums: <Album>[
+            Album(id: 'on-server', name: 'Hello', isExternal: false),
+            Album(id: 'remote-hit', name: 'Hello', isExternal: true),
+          ],
+        ),
+        'Hello',
+        popularity: const SearchPopularity(
+          albums: <String, int>{'remote-hit': 0},
+        ),
+      );
+      expect(result.albums.map((album) => album.id), <String>[
+        'remote-hit',
+        'on-server',
+      ]);
+    });
+
+    test('each type reads its own map', () {
+      final result = rankSearchResult(
+        const SearchResult3(
+          artists: <Artist>[
+            Artist(id: '1', name: 'Hello'),
+            Artist(id: '2', name: 'Hello'),
+          ],
+        ),
+        'Hello',
+        popularity: const SearchPopularity(
+          songs: <String, int>{'2': 0},
+          albums: <String, int>{'2': 0},
+        ),
+      );
+      expect(result.artists.map((artist) => artist.id), <String>['1', '2']);
+    });
+  });
 }

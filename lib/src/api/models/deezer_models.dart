@@ -55,7 +55,7 @@ class DeezerArtist {
   };
 }
 
-/// A Deezer album (`/artist/{id}/albums`, a track's `album`).
+/// A Deezer album (`/artist/{id}/albums`, `/search/album`, a track's `album`).
 class DeezerAlbum {
   const new({
     required this.id,
@@ -67,9 +67,11 @@ class DeezerAlbum {
     this.releaseDate,
     this.recordType,
     this.trackCount,
+    this.artist,
   });
 
   factory fromJson(Map<String, dynamic> json) {
+    final artist = json['artist'];
     return DeezerAlbum(
       id: _int(json['id']) ?? 0,
       title: _string(json['title']) ?? '',
@@ -80,6 +82,9 @@ class DeezerAlbum {
       releaseDate: _string(json['release_date']),
       recordType: _string(json['record_type']),
       trackCount: _int(json['nb_tracks']),
+      artist: artist is Map
+          ? DeezerArtist.fromJson(Map<String, dynamic>.from(artist))
+          : null,
     );
   }
 
@@ -97,6 +102,10 @@ class DeezerAlbum {
   final String? recordType;
   final int? trackCount;
 
+  /// The album's artist as `/search/album` sends it; absent on albums from
+  /// `/artist/{id}/albums` and on the album embedded in a track.
+  final DeezerArtist? artist;
+
   Map<String, dynamic> toJson() => <String, dynamic>{
     'id': id,
     'title': title,
@@ -107,6 +116,7 @@ class DeezerAlbum {
     'release_date': ?releaseDate,
     'record_type': ?recordType,
     'nb_tracks': ?trackCount,
+    if (artist case final artist?) 'artist': artist.toJson(),
   };
 }
 

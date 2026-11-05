@@ -26,6 +26,7 @@ import 'package:navis/src/features/player/presentation/radio_playback.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
+import 'package:navis/src/features/search/domain/deezer_search_boost.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -451,6 +452,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ? const EdgeInsets.fromLTRB(16, 6, 16, 20)
                     : EdgeInsets.zero,
                 children: <Widget>[
+                  if (state.topResults.isNotEmpty)
+                    _TopResultsSection(
+                      topResults: state.topResults,
+                      desktopMode: desktopMode,
+                    ),
                   if (data.artists.isNotEmpty)
                     _ArtistResultsSection(
                       artists: data.artists,
@@ -741,17 +747,76 @@ class _OfflineSearchBanner extends ConsumerWidget {
   }
 }
 
+void _noop() {}
+
+/// The best matches across artists, albums and songs, each drawn by the
+/// section that draws it below (so rows, menus and taps are the same), under
+/// one header.
+class _TopResultsSection extends StatelessWidget {
+  const new({required this.topResults, this.desktopMode = false});
+
+  final List<SearchTopResult> topResults;
+  final bool desktopMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        NavisSectionHeader(
+          title: l10n.searchTopResultsSection,
+          compact: true,
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+        ),
+        for (final (index, top) in topResults.indexed)
+          KeyedSubtree(
+            key: ValueKey<String>('search-top-result-$index'),
+            child: switch (top) {
+              TopArtistResult(:final artist) => _ArtistResultsSection(
+                artists: <Artist>[artist],
+                showHeader: false,
+                expanded: false,
+                onToggleExpanded: _noop,
+                desktopMode: desktopMode,
+              ),
+              TopAlbumResult(:final album) => _AlbumResultsSection(
+                albums: <Album>[album],
+                showHeader: false,
+                heroContext: 'search_top_album',
+                expanded: false,
+                onToggleExpanded: _noop,
+                desktopMode: desktopMode,
+              ),
+              TopSongResult(:final song) => _SongResultsSection(
+                songs: <Song>[song],
+                showHeader: false,
+                expanded: false,
+                onToggleExpanded: _noop,
+                desktopMode: desktopMode,
+              ),
+            },
+          ),
+      ],
+    );
+  }
+}
+
 class _ArtistResultsSection extends ConsumerWidget {
   const new({
     required this.artists,
     required this.expanded,
     required this.onToggleExpanded,
     this.desktopMode = false,
+    this.showHeader = true,
   });
 
   final List<Artist> artists;
   final bool expanded;
   final bool desktopMode;
+
+  /// False inside Top Results, which has its own header.
+  final bool showHeader;
   final VoidCallback onToggleExpanded;
 
   @override
@@ -764,13 +829,14 @@ class _ArtistResultsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        NavisSectionHeader(
-          title: l10n.searchArtistsSection,
-          compact: true,
-          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
-          onSeeAll: artists.length > 5 ? onToggleExpanded : null,
-          seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
-        ),
+        if (showHeader)
+          NavisSectionHeader(
+            title: l10n.searchArtistsSection,
+            compact: true,
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+            onSeeAll: artists.length > 5 ? onToggleExpanded : null,
+            seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
+          ),
         ...visible.map((artist) {
           final isRemote = isExternalCatalogSource(
             id: artist.id,
@@ -1081,11 +1147,20 @@ class _AlbumResultsSection extends ConsumerWidget {
     required this.expanded,
     required this.onToggleExpanded,
     this.desktopMode = false,
+    this.showHeader = true,
+    this.heroContext = 'search_album',
   });
 
   final List<Album> albums;
   final bool expanded;
   final bool desktopMode;
+
+  /// False inside Top Results, which has its own header.
+  final bool showHeader;
+
+  /// Part of the cover's hero tag: Top Results repeats an album shown below,
+  /// and two heroes on a page must not share a tag.
+  final String heroContext;
   final VoidCallback onToggleExpanded;
 
   @override
@@ -1098,13 +1173,14 @@ class _AlbumResultsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        NavisSectionHeader(
-          title: l10n.searchAlbumsSection,
-          compact: true,
-          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
-          onSeeAll: albums.length > 5 ? onToggleExpanded : null,
-          seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
-        ),
+        if (showHeader)
+          NavisSectionHeader(
+            title: l10n.searchAlbumsSection,
+            compact: true,
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+            onSeeAll: albums.length > 5 ? onToggleExpanded : null,
+            seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
+          ),
         ...visible.map((album) {
           final isRemote = isExternalCatalogSource(
             id: album.id,
@@ -1112,7 +1188,7 @@ class _AlbumResultsSection extends ConsumerWidget {
           );
           final heroTag = buildCoverArtHeroTag(
             coverArtId: album.coverArt,
-            context: 'search_album',
+            context: heroContext,
             entityId: album.id,
           );
           final leading = HeroCoverArt(
@@ -1172,11 +1248,15 @@ class _SongResultsSection extends ConsumerWidget {
     required this.expanded,
     required this.onToggleExpanded,
     this.desktopMode = false,
+    this.showHeader = true,
   });
 
   final List<Song> songs;
   final bool expanded;
   final bool desktopMode;
+
+  /// False inside Top Results, which has its own header.
+  final bool showHeader;
   final VoidCallback onToggleExpanded;
 
   @override
@@ -1189,13 +1269,14 @@ class _SongResultsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        NavisSectionHeader(
-          title: l10n.searchSongsSection,
-          compact: true,
-          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
-          onSeeAll: songs.length > 5 ? onToggleExpanded : null,
-          seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
-        ),
+        if (showHeader)
+          NavisSectionHeader(
+            title: l10n.searchSongsSection,
+            compact: true,
+            padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+            onSeeAll: songs.length > 5 ? onToggleExpanded : null,
+            seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
+          ),
         if (expanded && visible.isNotEmpty)
           AdaptiveTrackHeader(actionExtent: desktopMode ? null : 0),
         ...visible.asMap().entries.map((entry) {

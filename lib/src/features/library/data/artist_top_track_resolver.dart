@@ -119,7 +119,7 @@ class ArtistTopTrackResolver {
       final ids = <String>{
         for (final entry in remembered.values) ?entry.songId,
         for (final seed in seeds)
-          if (seed.deezerTrackId case final id?) _deezerSongId(id),
+          if (seed.deezerTrackId case final id?) remoteDeezerSongId(id),
       };
       for (final row in await _libraryDao.getSongsByIds(ids)) {
         if (row.serverDeletedAt == null) rowsById[row.id] = row;
@@ -148,7 +148,7 @@ class ArtistTopTrackResolver {
       final deezerId = seeds[i].deezerTrackId;
       final deezerRow = deezerId == null
           ? null
-          : rowsById[_deezerSongId(deezerId)];
+          : rowsById[remoteDeezerSongId(deezerId)];
       if (deezerRow != null) {
         songs[i] = _songFromRow(deezerRow);
         if (_isRemote(songs[i]!)) {
@@ -474,9 +474,6 @@ class ArtistTopTrackResolver {
         isMatching: songs[i] == null && (matching?[i] ?? false),
       ),
   ]);
-
-  static String _deezerSongId(int deezerTrackId) =>
-      'ext-deezer-song-$deezerTrackId';
 
   /// The row as a song, keeping whether it comes from a remote catalogue.
   static Song _songFromRow(SongsTableData row) =>

@@ -14,6 +14,7 @@ Last updated: 2026-11-04
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #236 (1.5.2), Search ranked by Deezer popularity with Top Results — 2026-11-05 (branch `feat/search-deezer-ranking`; evidence: deezer_search_boost_test.dart, search_controller_provider_test.dart "Deezer ranking", navis_migration_test.dart "109 to 110"; runtime check on a phone over mobile data pending, to tune the 350 ms cap from the `search.deezerRank` span)
 - [x] Library page layout (1.5.2), sort row at the trailing edge, Genres card grid on wide panes, even artist grid gutters — 2026-11-04 (evidence: library_page_layout_test.dart, library_genres_test.dart)
 - [x] Issues #102 + #103 (1.5.2), sign-out phases, step timeouts and write
   fence — 2026-11-02 (branch `fix/sign-out-fence`). Every teardown step now has a

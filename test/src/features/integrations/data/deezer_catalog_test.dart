@@ -46,6 +46,51 @@ class _FakeDeezer extends DeezerApiClient {
   }
 
   @override
+  Future<List<DeezerTrack>> searchTracks(
+    String query, {
+    int limit = 100,
+    CancelToken? cancelToken,
+  }) async {
+    calls.add('search/track?q=$query&limit=$limit');
+    if (error case final error?) throw error;
+    return const [
+      DeezerTrack(
+        id: 3135556,
+        title: 'Hello',
+        artist: DeezerArtist(id: 75798, name: 'Adele'),
+        rank: 900000,
+      ),
+    ];
+  }
+
+  @override
+  Future<List<DeezerArtist>> searchArtists(
+    String name, {
+    int limit = 25,
+    CancelToken? cancelToken,
+    bool background = false,
+  }) async {
+    calls.add('search/artist?q=$name&limit=$limit');
+    return const [DeezerArtist(id: 75798, name: 'Adele')];
+  }
+
+  @override
+  Future<List<DeezerAlbum>> searchAlbums(
+    String query, {
+    int limit = 25,
+    CancelToken? cancelToken,
+  }) async {
+    calls.add('search/album?q=$query&limit=$limit');
+    return const [
+      DeezerAlbum(
+        id: 302127,
+        title: '25',
+        artist: DeezerArtist(id: 75798, name: 'Adele'),
+      ),
+    ];
+  }
+
+  @override
   Future<List<DeezerTrack>> getChartTracks({
     int limit = 100,
     CancelToken? cancelToken,
@@ -147,6 +192,57 @@ void main() {
     now = now.add(const Duration(minutes: 1));
     await catalog.chartTracks();
     expect(deezer.calls, hasLength(2));
+  });
+
+  test('search results are kept 10 minutes per query, ignoring case', () async {
+    final tracks = await catalog.searchTracks('Hello');
+    expect(tracks.single.artist.name, 'Adele');
+    expect((await catalog.searchArtists('Hello')).single.name, 'Adele');
+    final albums = await catalog.searchAlbums('Hello');
+    expect(albums.single.artist?.name, 'Adele');
+    now = now.add(const Duration(minutes: 9, seconds: 59));
+    await catalog.searchTracks('  hello ');
+    await catalog.searchArtists('HELLO');
+    await catalog.searchAlbums('hello');
+    expect(deezer.calls, [
+      'search/track?q=Hello&limit=25',
+      'search/artist?q=Hello&limit=25',
+      'search/album?q=Hello&limit=25',
+    ]);
+
+    now = now.add(const Duration(seconds: 1));
+    await catalog.searchTracks('hello');
+    expect(deezer.calls, hasLength(4));
+    await catalog.searchTracks('hello again');
+    expect(deezer.calls, hasLength(5));
+  });
+
+  test("a new session removes the earlier session's searches", () async {
+    await catalog.searchTracks('hello');
+    await catalog.searchTracks('hello');
+    expect(deezer.calls, hasLength(1));
+
+    final nextSession = DeezerCatalog(
+      client: deezer,
+      cache: IntegrationJsonCache(
+        readRootDirectory: () async => root,
+        now: () => now,
+      ),
+    );
+    await nextSession.searchTracks('hello');
+    expect(deezer.calls, hasLength(2));
+    await nextSession.searchTracks('hello');
+    expect(deezer.calls, hasLength(2));
+  });
+
+  test('a failed search is not cached', () async {
+    deezer.error = const DeezerApiException(code: 4);
+    await expectLater(
+      catalog.searchTracks('hello'),
+      throwsA(isA<DeezerApiException>()),
+    );
+    deezer.error = null;
+    expect(await catalog.searchTracks('hello'), hasLength(1));
   });
 
   test('"not on Deezer" is cached too', () async {

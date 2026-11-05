@@ -16,6 +16,8 @@ import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/search/domain/deezer_search_boost.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -93,6 +95,10 @@ ProviderContainer _createContainerWithDatabase(
           ),
         ),
         subsonicApiProvider.overrideWithValue(api),
+        // Nothing here asks Deezer; the controller tests cover that.
+        integrationPolicyProvider.overrideWithValue(
+          const IntegrationPolicy.denyAll(),
+        ),
         // Search also lists radio stations; the fake API has none.
         radioStationsProvider.overrideWith(
           (ref) async => const <InternetRadioStation>[],
@@ -207,6 +213,84 @@ Future<void> _pumpUntilGone(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  group('SearchScreen Top Results', () {
+    const songs = <Song>[
+      Song(id: 's1', title: 'Hello', artist: 'Adele'),
+      Song(id: 's2', title: 'Easy On Me', artist: 'Adele'),
+    ];
+
+    Future<void> pumpWith(
+      WidgetTester tester,
+      List<SearchTopResult> topResults,
+    ) async {
+      final database = createTestDatabase();
+      final container = _createContainerWithDatabase(
+        database,
+        api: _FakeSearchApiClient((_) async => const SearchResult3()),
+        overrides: <Override>[
+          debouncedSearchProvider.overrideWith(
+            (ref) => Stream<SearchResultsState?>.value(
+              SearchResultsState(
+                result: const SearchResult3(
+                  artists: <Artist>[Artist(id: 'ar', name: 'Adele')],
+                  albums: <Album>[Album(id: 'al', name: '25', artist: 'Adele')],
+                  songs: songs,
+                ),
+                isWaitingForApi: false,
+                isLocalOnly: false,
+                remoteSearchFailed: false,
+                topResults: topResults,
+              ),
+            ),
+          ),
+        ],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await database.close();
+      });
+      await _pumpSearchScreen(tester, container);
+      await _enterSearchQuery(tester, 'adele');
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    testWidgets('are hidden when nothing matched', (tester) async {
+      if (!sqliteAvailable) return;
+      await pumpWith(tester, const <SearchTopResult>[]);
+
+      expect(find.text('Top Results'), findsNothing);
+      expect(find.text('Hello'), findsOneWidget);
+    });
+
+    testWidgets('lead the screen with up to three matched hits', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      await pumpWith(tester, <SearchTopResult>[
+        const TopArtistResult(Artist(id: 'ar', name: 'Adele')),
+        const TopAlbumResult(Album(id: 'al', name: '25', artist: 'Adele')),
+        TopSongResult(songs.first),
+      ]);
+
+      expect(find.text('Top Results'), findsOneWidget);
+      for (var i = 0; i < 3; i++) {
+        expect(find.byKey(ValueKey('search-top-result-$i')), findsOneWidget);
+      }
+      expect(find.byKey(const ValueKey('search-top-result-3')), findsNothing);
+      // The header and its rows lead the list, in order.
+      final header = tester.getTopLeft(find.text('Top Results')).dy;
+      final firstHit = tester
+          .getTopLeft(find.byKey(const ValueKey('search-top-result-0')))
+          .dy;
+      final lastHit = tester
+          .getTopLeft(find.byKey(const ValueKey('search-top-result-2')))
+          .dy;
+      expect(header, lessThan(firstHit));
+      expect(firstHit, lessThan(lastHit));
+    });
+  });
+
   group('SearchScreen results', () {
     testWidgets('names the query when a completed search has no matches', (
       tester,

@@ -24,6 +24,12 @@ abstract final class DeezerCache {
   /// `/chart/0/tracks`, for Trending on Home.
   static const chartNamespace = 'deezer.chart';
 
+  /// Normalized query → `/search/track`, `/search/artist` and
+  /// `/search/album` for Search's popularity ranking.
+  static const searchTracksNamespace = 'deezer.search-tracks';
+  static const searchArtistsNamespace = 'deezer.search-artists';
+  static const searchAlbumsNamespace = 'deezer.search-albums';
+
   static const artistFoundTtl = Duration(days: 30);
   static const artistNotFoundTtl = Duration(days: 7);
   static const artistDetailsTtl = Duration(days: 7);
@@ -32,4 +38,7 @@ abstract final class DeezerCache {
 
   static const trackSearchTtl = Duration(hours: 24);
   static const chartTtl = Duration(hours: 6);
+
+  /// Search results change little; a query typed back and forth is reused.
+  static const searchTtl = Duration(minutes: 10);
 }
