@@ -28,7 +28,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart'
-    show expectedDownloadBytes;
+    show expectedDownloadBytes, isCacheQualityCompatible;
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/downloads/domain/download_failure_message.dart';
 import 'package:navis/src/features/downloads/presentation/download_missing_section.dart';
@@ -1139,25 +1139,68 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
         .updateWifiOnlyDownloads(enabled: enabled);
   }
 
+  /// True while a confirmation is loading or open; further taps are ignored.
+  bool _confirmingAutoDownloadLiked = false;
+
   Future<void> _updateAutoDownloadLiked(bool enabled) async {
+    if (_confirmingAutoDownloadLiked) return;
     final db = ref.read(navisDatabaseProvider);
-    if (enabled && !await _confirmAutoDownloadLiked(db)) return;
-    if (!mounted) return;
+    if (enabled) {
+      _confirmingAutoDownloadLiked = true;
+      try {
+        if (!await _confirmAutoDownloadLiked(db)) return;
+      } finally {
+        _confirmingAutoDownloadLiked = false;
+      }
+      if (!mounted) return;
+    }
     await db.appSettingsDao.updateAutoDownloadStarredOnWifi(enabled: enabled);
   }
 
   /// Asks before Auto-Download Liked queues the liked library, with the song
-  /// count and size and, off Wi-Fi-only, the mobile-data warning in the same
-  /// dialog. With nothing to download there is nothing to ask.
+  /// count and an estimated size and, off Wi-Fi-only, the mobile-data warning
+  /// in the same dialog. With nothing to download only the warning (when it
+  /// applies) is asked, as before.
   Future<bool> _confirmAutoDownloadLiked(NavisDatabase db) async {
-    final candidates = await db.libraryDao.getLikedDownloadCandidates();
+    final List<SongsTableData> candidates;
+    final String? quality;
+    try {
+      // The quality and format the dispatcher uses off mobile data.
+      final saved =
+          (await db.appSettingsDao.getDownloadQualityPreference()).savedChoice;
+      quality = saved?.quality;
+      final liked = await db.libraryDao.getLikedDownloadCandidates();
+      final cached = await db.cacheDao.getCachedTracksForSongIds(
+        liked.map((song) => song.id),
+      );
+      // A permanent download of a compatible quality is skipped, as the
+      // download service skips it.
+      candidates = liked
+          .where((song) {
+            final track = cached[song.id];
+            return track == null ||
+                track.cacheType != CacheType.permanent ||
+                !isCacheQualityCompatible(
+                  track,
+                  quality,
+                  saved?.format,
+                  song: song,
+                );
+          })
+          .toList(growable: false);
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Auto-Download Liked candidates failed to load. $error\n$stackTrace',
+      );
+      if (!mounted) return false;
+      return ref.read(wifiOnlyDownloadsProvider) ||
+          await _confirmCellularAutoDownload();
+    }
     if (!mounted) return false;
-    if (candidates.isEmpty) return true;
-    // The quality the dispatcher uses off mobile data.
-    final quality = (await db.appSettingsDao.getDownloadQualityPreference())
-        .savedChoice
-        ?.quality;
-    if (!mounted) return false;
+    if (candidates.isEmpty) {
+      return ref.read(wifiOnlyDownloadsProvider) ||
+          await _confirmCellularAutoDownload();
+    }
     final bytes = candidates.fold<int>(
       0,
       (sum, song) => sum + expectedDownloadBytes(song, quality),
@@ -1166,12 +1209,13 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
     final cellularWarning = !ref.read(wifiOnlyDownloadsProvider)
         ? '\n\n${l10n.cacheSettingsAutoDownloadCellularWarning}'
         : '';
+    final summary = bytes > 0
+        ? l10n.downloadsAutoDownloadLikedConfirmMessage(formatBytes(bytes))
+        : l10n.downloadsAutoDownloadLikedConfirmMessageNoSize;
     return await showConfirmDialog(
       context,
       title: l10n.downloadsAutoDownloadLikedConfirmTitle(candidates.length),
-      message:
-          '${l10n.downloadsAutoDownloadLikedConfirmMessage(formatBytes(bytes))}'
-          '$cellularWarning',
+      message: '$summary$cellularWarning',
       confirmLabel: l10n.downloadsAutoDownloadLikedConfirmAction,
       confirmKey: const ValueKey<String>('downloadsAutoDownloadLikedConfirm'),
     );

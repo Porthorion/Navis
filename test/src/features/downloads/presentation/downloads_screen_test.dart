@@ -563,6 +563,7 @@ void main() {
       WidgetTester tester, {
       required List<SongsTableCompanion> liked,
       bool wifiOnly = true,
+      List<CachedTracksTableCompanion> cached = const [],
     }) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(800, 1800);
@@ -572,6 +573,9 @@ void main() {
       });
       await tester.runAsync(() async {
         await database.libraryDao.upsertSongs(liked);
+        for (final track in cached) {
+          await database.cacheDao.upsertCachedTrack(track);
+        }
         await database.appSettingsDao.updateWifiOnlyDownloads(
           enabled: wifiOnly,
         );
@@ -675,6 +679,93 @@ void main() {
       await tester.tap(likedSwitch);
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
+      expect(await enabled(tester), isTrue);
+    });
+
+    testWidgets('one liked song uses the singular title', (tester) async {
+      await openSettings(tester, liked: threeLiked().take(1).toList());
+      await tester.tap(likedSwitch);
+      await tester.pumpAndSettle();
+      expect(find.text('Download 1 liked song?'), findsOneWidget);
+    });
+
+    testWidgets('a download too low in quality still counts; a good one '
+        'does not', (tester) async {
+      final songs = <SongsTableCompanion>[
+        for (final id in ['low', 'good'])
+          SongsTableCompanion.insert(
+            id: id,
+            title: id,
+            suffix: const Value('mp3'),
+            bitRate: const Value(320),
+            size: const Value(1000000),
+            starred: Value(DateTime(2026)),
+          ),
+      ];
+      await openSettings(
+        tester,
+        liked: songs,
+        cached: [
+          for (final (id, rate) in [('low', 128), ('good', 320)])
+            CachedTracksTableCompanion.insert(
+              songId: id,
+              filePath: '/fake/$id.mp3',
+              fileSize: 1,
+              format: 'mp3',
+              bitRate: Value(rate),
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+              lastAccessedAt: DateTime(2026),
+            ),
+        ],
+      );
+      await tester.tap(likedSwitch);
+      await tester.pumpAndSettle();
+      // Only the 128 kbps copy would be fetched again, in original quality.
+      expect(find.text('Download 1 liked song?'), findsOneWidget);
+      expect(find.textContaining('About 976.6 KB'), findsOneWidget);
+    });
+
+    testWidgets('an unknown size drops the size line', (tester) async {
+      await openSettings(
+        tester,
+        liked: [
+          SongsTableCompanion.insert(
+            id: 'nosize',
+            title: 'No size',
+            starred: Value(DateTime(2026)),
+          ),
+        ],
+      );
+      await tester.tap(likedSwitch);
+      await tester.pumpAndSettle();
+      expect(find.text('Download 1 liked song?'), findsOneWidget);
+      expect(find.textContaining('About'), findsNothing);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.textContaining('0 B'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('nothing to download still warns about mobile data', (
+      tester,
+    ) async {
+      await openSettings(
+        tester,
+        liked: const <SongsTableCompanion>[],
+        wifiOnly: false,
+      );
+      await tester.tap(likedSwitch);
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Allow Liked Downloads on Mobile Data?'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
       expect(await enabled(tester), isTrue);
     });
 

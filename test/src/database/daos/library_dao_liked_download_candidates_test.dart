@@ -19,7 +19,7 @@ void main() {
         starred: liked ? Value(DateTime(2026)) : const Value.absent(),
       );
 
-  test('liked songs and liked-album songs count once; downloaded, queued and '
+  test('liked songs and liked-album songs count once; queued and '
       'deleted songs are left out', () async {
     final dao = database.libraryDao;
     await dao.upsertAlbums(<AlbumsTableCompanion>[
@@ -70,7 +70,8 @@ void main() {
     }
 
     final ids = (await dao.getLikedDownloadCandidates()).map((s) => s.id);
-    // A failed row is retried by the dispatcher, so it still counts.
+    // A failed row is retried by the dispatcher, so it still counts. A
+    // permanent download stays: the caller judges its quality.
     expect(
       ids,
       unorderedEquals(<String>[
@@ -78,6 +79,7 @@ void main() {
         'both',
         'album-only',
         'failed-before',
+        'downloaded',
       ]),
     );
   }, skip: sqliteAvailable ? null : 'sqlite3 not available');

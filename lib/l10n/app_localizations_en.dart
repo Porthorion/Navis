@@ -3652,6 +3652,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get downloadsAutoDownloadLikedConfirmMessageNoSize =>
+      'Your liked songs will be downloaded to this device. Songs you have already downloaded are skipped.';
+
+  @override
   String get downloadsAutoDownloadLikedConfirmAction => 'Download';
 
   @override

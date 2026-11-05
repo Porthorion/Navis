@@ -1697,6 +1697,7 @@
       }
     }
   },
+  "downloadsAutoDownloadLikedConfirmMessageNoSize": "Your liked songs will be downloaded to this device. Songs you have already downloaded are skipped.",
   "downloadsAutoDownloadLikedConfirmAction": "Download",
 
   "externalSourceBadgeLabel": "Remote source — not in your server library.",

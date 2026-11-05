@@ -69,6 +69,58 @@ class _BackfillGate {
   Future<void>? inFlight;
 }
 
+/// Returns `true` if the rolling-cached track's quality is compatible with
+/// the requested download quality, meaning we can promote instead of
+/// re-downloading.
+///
+/// Rules:
+/// * If both quality and format are null (original), a cached track with no
+///   bitrate/format restriction (also original) is compatible.
+/// * If a specific format is requested and matches the cached format, we
+///   further check bitrate: if the cached bitrate is null (original) or ≥
+///   the requested bitrate, the cache is at least as good.
+/// * If no specific quality/format is requested (original download) the
+///   cached entry is compatible when it is original: no bitrate, or the
+///   song's own format at no less than its bitrate (see
+///   [isOriginalQualityDownload]).
+bool isCacheQualityCompatible(
+  CachedTracksTableData cached,
+  String? requestedQuality,
+  String? requestedFormat, {
+  SongsTableData? song,
+}) {
+  final requestedBitRate = requestedQuality != null
+      ? int.tryParse(requestedQuality)
+      : null;
+
+  // User wants "original" quality (no transcoding).
+  if (requestedBitRate == null && requestedFormat == null) {
+    return isOriginalQualityDownload(
+      format: cached.format,
+      bitRate: cached.bitRate,
+      songSuffix: song?.suffix,
+      songBitRate: song?.bitRate,
+    );
+  }
+
+  // Check format compatibility.
+  if (requestedFormat != null &&
+      !sameAudioFormat(cached.format, requestedFormat)) {
+    return false;
+  }
+
+  // Check bitrate: cached must be ≥ requested (or original).
+  if (requestedBitRate != null) {
+    if (cached.bitRate == null) {
+      // Cached at original quality — always ≥ any transcoded bitrate.
+      return true;
+    }
+    return cached.bitRate! >= requestedBitRate;
+  }
+
+  return true;
+}
+
 /// Estimated size of [song] when downloaded at [quality] (kbps, or null for
 /// the original file): the stored `size` for originals, otherwise
 /// duration x bitrate.
@@ -1341,7 +1393,7 @@ class DownloadService {
       final song = libraryRows.firstOrNull;
       if (cached != null &&
           cached.cacheType == CacheType.permanent &&
-          _isCacheQualityCompatible(cached, quality, format, song: song)) {
+          isCacheQualityCompatible(cached, quality, format, song: song)) {
         return;
       }
 
@@ -1350,7 +1402,7 @@ class DownloadService {
       if (folderUsable &&
           cached != null &&
           cached.cacheType == CacheType.rolling) {
-        if (_isCacheQualityCompatible(cached, quality, format, song: song)) {
+        if (isCacheQualityCompatible(cached, quality, format, song: song)) {
           final promoted = await promoteToPermanent(songId);
           if (promoted) {
             AppLogger.info(
@@ -1362,26 +1414,36 @@ class DownloadService {
         }
       }
     }
-    // Remove any stale failed entry before re-enqueueing.
-    if (existing != null) {
-      await _downloadQueueDao.remove(existing.id);
-    }
     AppLogger.info(
       'DownloadService: Enqueuing song $songId '
       '(albumId=$albumId, quality=$quality, format=$format).',
     );
-    await _downloadQueueDao.enqueue(
-      DownloadQueueTableCompanion.insert(
-        songId: Value(songId),
-        albumId: Value(albumId),
-        playlistId: Value(playlistId),
-        quality: Value(quality),
-        format: Value(format),
-        status: DownloadStatus.queued,
-        addedAt: DateTime.now(),
-        priority: Value(priority),
-      ),
-    );
+    // Check again where nothing can interleave: a batch enqueue may have
+    // queued this song since the dedup above.
+    final queued = await _downloadQueueDao.transaction(() async {
+      final current = await _downloadQueueDao.findBySongId(songId);
+      if (current != null &&
+          (current.status == DownloadStatus.queued ||
+              current.status == DownloadStatus.downloading)) {
+        return false;
+      }
+      // Remove any stale failed entry before re-enqueueing.
+      if (current != null) await _downloadQueueDao.remove(current.id);
+      await _downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: Value(songId),
+          albumId: Value(albumId),
+          playlistId: Value(playlistId),
+          quality: Value(quality),
+          format: Value(format),
+          status: DownloadStatus.queued,
+          addedAt: DateTime.now(),
+          priority: Value(priority),
+        ),
+      );
+      return true;
+    });
+    if (!queued) return;
     if (_folderProblem != null) await _recordQueueHold();
   }
 
@@ -1472,6 +1534,7 @@ class DownloadService {
 
     final toEnqueue = <DownloadQueueTableCompanion>[];
     var promotedCount = 0;
+    var queuedCount = 0;
 
     for (final songId in uniqueIds) {
       // Skip if already queued or downloading.
@@ -1484,14 +1547,14 @@ class DownloadService {
       // Skip if already permanently cached.
       final cached = cachedTracks[songId];
       if (cached?.cacheType == CacheType.permanent &&
-          _isCacheQualityCompatible(cached!, quality, format, song: song)) {
+          isCacheQualityCompatible(cached!, quality, format, song: song)) {
         continue;
       }
 
       // Try rolling → permanent promotion.
       if (folderUsable &&
           cached?.cacheType == CacheType.rolling &&
-          _isCacheQualityCompatible(cached!, quality, format, song: song)) {
+          isCacheQualityCompatible(cached!, quality, format, song: song)) {
         final promoted = await promoteToPermanent(songId);
         if (promoted) {
           promotedCount++;
@@ -1521,12 +1584,20 @@ class DownloadService {
         });
         if (expected > 0) await _checkSpace(expected, notice: true);
       }
-      await _downloadQueueDao.transaction(() async {
+      // The active ids above are stale by now: another enqueue may have
+      // queued the same song. Check again where nothing can interleave.
+      final inserted = await _downloadQueueDao.transaction(() async {
+        final activeNow = await _downloadQueueDao.getActiveSongIds();
+        final rows = toEnqueue
+            .where((c) => !activeNow.contains(c.songId.value))
+            .toList(growable: false);
         await _downloadQueueDao.removeFailedForSongIds(
-          toEnqueue.map((c) => c.songId.value!),
+          rows.map((c) => c.songId.value!),
         );
-        await _downloadQueueDao.enqueueBatch(toEnqueue);
+        await _downloadQueueDao.enqueueBatch(rows);
+        return rows.length;
       });
+      queuedCount = inserted;
       if (_folderProblem != null) await _recordQueueHold();
     }
 
@@ -1536,7 +1607,7 @@ class DownloadService {
         'to permanent (saved bandwidth).',
       );
     }
-    return toEnqueue.length;
+    return queuedCount;
   }
 
   /// Promote a rolling-cache track to permanent (no re-download needed).
@@ -1608,58 +1679,6 @@ class DownloadService {
         _prefetchLyrics(songId, song, api).then<void>((_) {}),
       );
     }
-    return true;
-  }
-
-  /// Returns `true` if the rolling-cached track's quality is compatible with
-  /// the requested download quality, meaning we can promote instead of
-  /// re-downloading.
-  ///
-  /// Rules:
-  /// * If both quality and format are null (original), a cached track with no
-  ///   bitrate/format restriction (also original) is compatible.
-  /// * If a specific format is requested and matches the cached format, we
-  ///   further check bitrate: if the cached bitrate is null (original) or ≥
-  ///   the requested bitrate, the cache is at least as good.
-  /// * If no specific quality/format is requested (original download) the
-  ///   cached entry is compatible when it is original: no bitrate, or the
-  ///   song's own format at no less than its bitrate (see
-  ///   [isOriginalQualityDownload]).
-  bool _isCacheQualityCompatible(
-    CachedTracksTableData cached,
-    String? requestedQuality,
-    String? requestedFormat, {
-    SongsTableData? song,
-  }) {
-    final requestedBitRate = requestedQuality != null
-        ? int.tryParse(requestedQuality)
-        : null;
-
-    // User wants "original" quality (no transcoding).
-    if (requestedBitRate == null && requestedFormat == null) {
-      return isOriginalQualityDownload(
-        format: cached.format,
-        bitRate: cached.bitRate,
-        songSuffix: song?.suffix,
-        songBitRate: song?.bitRate,
-      );
-    }
-
-    // Check format compatibility.
-    if (requestedFormat != null &&
-        !sameAudioFormat(cached.format, requestedFormat)) {
-      return false;
-    }
-
-    // Check bitrate: cached must be ≥ requested (or original).
-    if (requestedBitRate != null) {
-      if (cached.bitRate == null) {
-        // Cached at original quality — always ≥ any transcoded bitrate.
-        return true;
-      }
-      return cached.bitRate! >= requestedBitRate;
-    }
-
     return true;
   }
 
@@ -2563,7 +2582,7 @@ class DownloadService {
 
     final song = (await _libraryDao.getSongsByIds(<String>[songId]))
         .firstOrNull;
-    if (!_isCacheQualityCompatible(
+    if (!isCacheQualityCompatible(
       cached,
       item.quality,
       item.format,

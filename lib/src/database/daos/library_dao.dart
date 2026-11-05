@@ -2889,11 +2889,14 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.get();
   }
 
-  /// Songs Auto-Download Liked would queue right now: liked songs plus the
-  /// songs of liked albums, each once, minus local-only deleted songs, songs
-  /// with a permanent download and songs already queued or downloading.
+  /// Songs Auto-Download Liked may queue right now: liked songs plus the
+  /// songs of liked albums, each once, minus local-only deleted songs and
+  /// songs already queued or downloading.
   ///
-  /// Mirrors what the dispatcher hands to `enqueueSongs` and `enqueueAlbum`.
+  /// Permanent downloads are kept: whether one already satisfies the wanted
+  /// quality is the download service's rule (`isCacheQualityCompatible`),
+  /// applied by the caller. Mirrors what the dispatcher hands to
+  /// `enqueueSongs` and `enqueueAlbum`.
   Future<List<SongsTableData>> getLikedDownloadCandidates() {
     final likedAlbumSong = CustomExpression<bool>(
       'songs.album_id IN (SELECT albums.id FROM albums '
@@ -2902,10 +2905,8 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
       "!= 'confirmedMissing') "
       'AND (songs.is_provisional = 0 OR songs.is_external = 1)',
     );
-    const notDownloadedOrQueued = CustomExpression<bool>(
-      'NOT EXISTS (SELECT 1 FROM cached_tracks c WHERE c.song_id = songs.id '
-      "AND c.cache_type = 'permanent') "
-      'AND NOT EXISTS (SELECT 1 FROM download_queue q '
+    const notQueued = CustomExpression<bool>(
+      'NOT EXISTS (SELECT 1 FROM download_queue q '
       'WHERE q.song_id = songs.id '
       "AND q.status IN ('queued', 'downloading'))",
     );
@@ -2914,7 +2915,7 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
         (t) =>
             t.serverDeletedAt.isNull() &
             (t.starred.isNotNull() & _selectableForBulkUse | likedAlbumSong) &
-            notDownloadedOrQueued,
+            notQueued,
       );
     return query.get();
   }

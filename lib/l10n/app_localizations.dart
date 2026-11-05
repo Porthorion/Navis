@@ -5705,6 +5705,12 @@ abstract class AppLocalizations {
   /// **'About {size} will be downloaded to this device. Songs you have already downloaded are skipped.'**
   String downloadsAutoDownloadLikedConfirmMessage(String size);
 
+  /// No description provided for @downloadsAutoDownloadLikedConfirmMessageNoSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Your liked songs will be downloaded to this device. Songs you have already downloaded are skipped.'**
+  String get downloadsAutoDownloadLikedConfirmMessageNoSize;
+
   /// No description provided for @downloadsAutoDownloadLikedConfirmAction.
   ///
   /// In en, this message translates to:

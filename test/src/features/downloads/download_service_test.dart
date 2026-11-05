@@ -489,6 +489,23 @@ void main() {
       expect(items.map((i) => i.songId).toSet(), hasLength(300));
     }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
+    for (final batchFirst in <bool>[true, false]) {
+      test('concurrent enqueueSongs and enqueueSong leave one row '
+          '(${batchFirst ? 'batch' : 'single'} first)', () async {
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          for (final id in ['x', 'y'])
+            SongsTableCompanion.insert(id: id, title: id),
+        ]);
+        await Future.wait<Object?>([
+          if (batchFirst) service.enqueueSongs(['x', 'y']),
+          service.enqueueSong('x'),
+          if (!batchFirst) service.enqueueSongs(['x', 'y']),
+        ]);
+        final items = await database.downloadQueueDao.watchQueue().first;
+        expect(items.map((i) => i.songId), unorderedEquals(['x', 'y']));
+      }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+    }
+
     test('batch enqueue applies the single-song rules', () async {
       await database.libraryDao.upsertSongs(<SongsTableCompanion>[
         for (final id in ['fresh', 'cached', 'deleted', 'failed', 'active'])
