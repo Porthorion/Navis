@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Synced lyrics no longer jump around at the start of a song: '
+        'the current line now stays in one place from the first line on',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'macOS: choosing a custom downloads folder (and importing/exporting '
         'EQ presets) works again',
         type: ChangelogEntryType.fix,
