@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:android_file_picker/android_file_picker.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
@@ -34,6 +32,7 @@ import 'package:navis/src/features/downloads/domain/download_failure_message.dar
 import 'package:navis/src/features/downloads/presentation/download_missing_section.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
+import 'package:navis/src/features/downloads/data/download_directory_picker.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
 import 'package:navis/src/features/downloads/presentation/download_reconciliation_screen.dart';
 import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
@@ -262,17 +261,8 @@ Future<void> _pickCustomDownloadFolder(
   WidgetRef ref,
 ) async {
   final l10n = AppLocalizations.of(context)!;
-  final selectedPath = await FilePicker.getDirectoryPath(
-    dialogTitle: l10n.downloadsCustomFolderChooseAction,
-    androidOptions: Platform.isAndroid
-        ? FilePickerAndroidOptions(
-            safOptions: AndroidSAFOptions(
-              grant: AndroidSAFGrant.lifetime,
-              accessMode: AndroidSAFAccessMode.readWrite,
-              persistGrant: true,
-            ),
-          )
-        : const AndroidOptions(),
+  final selectedPath = await pickDownloadDirectory(
+    title: l10n.downloadsCustomFolderChooseAction,
   );
   if (!context.mounted || selectedPath == null) {
     return;

@@ -13,6 +13,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -489,6 +490,11 @@ void main() {
       final previous = FilePickerPlatform.instance;
       FilePickerPlatform.instance = picker;
       addTearDown(() => FilePickerPlatform.instance = previous);
+      // A macOS host asks the Runner's folder panel instead of file_picker.
+      const panel = MethodChannel('com.navis.app/directory_picker');
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(panel, (_) async => '/music/navis');
+      addTearDown(() => messenger.setMockMethodCallHandler(panel, null));
       final service = _FolderService(database);
 
       await tester.pumpWidget(
