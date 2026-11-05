@@ -30,10 +30,11 @@ Future<void> playAlbumById(
   String albumId, {
   bool shuffle = false,
 }) async {
-  var songs = <SongsTableData>[
-    ...?(await _readAlbumOnce(ref, albumId))?.songs,
-  ];
+  var songs = <SongsTableData>[...?(await _readAlbumOnce(ref, albumId))?.songs];
   if (songs.isEmpty) {
+    // The fetch can take up to kDetailHydrationTimeout; do not override a
+    // queue the user changed while it was in flight.
+    final selection = ref.read(queueProvider.notifier).reserveSelection();
     try {
       await ref
           .read(librarySyncControllerProvider.notifier)
@@ -44,9 +45,8 @@ Future<void> playAlbumById(
     }
     if (!ref.context.mounted) return;
     ref.invalidate(albumProvider(albumId));
-    songs = <SongsTableData>[
-      ...?(await _readAlbumOnce(ref, albumId))?.songs,
-    ];
+    songs = <SongsTableData>[...?(await _readAlbumOnce(ref, albumId))?.songs];
+    if (!ref.read(queueProvider.notifier).ownsSelection(selection)) return;
   }
   if (songs.isEmpty) return;
   if (shuffle) songs.shuffle();

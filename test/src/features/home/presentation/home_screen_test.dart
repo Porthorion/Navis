@@ -86,10 +86,14 @@ class _StaticLibrarySyncController extends LibrarySyncController {
 
 /// Stores an album and its songs the way opening an unsynced album does.
 class _HydratingLibrarySyncController extends LibrarySyncController {
-  new(this._database, this._songIds);
+  new(this._database, this._songIds, {this.gate});
 
   final NavisDatabase _database;
   final List<String> _songIds;
+  final Completer<void>? gate;
+  final Completer<void> _started = Completer<void>();
+
+  bool get hydrateStarted => _started.isCompleted;
 
   @override
   LibrarySyncState build() => const LibrarySyncState.idle();
@@ -108,29 +112,35 @@ class _HydratingLibrarySyncController extends LibrarySyncController {
 
   @override
   Future<LibrarySyncState?> hydrateOpenedAlbum(String albumId) async {
-    await _database.into(_database.albumsTable).insert(
-      AlbumsTableCompanion.insert(
-        id: albumId,
-        name: 'Fetched Album',
-        songsHydrated: const Value(true),
-        isProvisional: const Value(false),
-      ),
-      mode: InsertMode.insertOrReplace,
-    );
+    if (!_started.isCompleted) _started.complete();
+    await gate?.future;
+    await _database
+        .into(_database.albumsTable)
+        .insert(
+          AlbumsTableCompanion.insert(
+            id: albumId,
+            name: 'Fetched Album',
+            songsHydrated: const Value(true),
+            isProvisional: const Value(false),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
     for (final (index, songId) in _songIds.indexed) {
-      await _database.into(_database.songsTable).insert(
-        SongsTableCompanion.insert(
-          id: songId,
-          title: 'Song $songId',
-          albumId: Value(albumId),
-          artistName: const Value('Artist'),
-          albumName: const Value('Fetched Album'),
-          track: Value(index + 1),
-          duration: const Value(210),
-          isProvisional: const Value(false),
-        ),
-        mode: InsertMode.insertOrReplace,
-      );
+      await _database
+          .into(_database.songsTable)
+          .insert(
+            SongsTableCompanion.insert(
+              id: songId,
+              title: 'Song $songId',
+              albumId: Value(albumId),
+              artistName: const Value('Artist'),
+              albumName: const Value('Fetched Album'),
+              track: Value(index + 1),
+              duration: const Value(210),
+              isProvisional: const Value(false),
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
     }
     return const LibrarySyncState.idle();
   }
@@ -5071,17 +5081,42 @@ void main() {
       expect(play, findsOneWidget);
     });
 
+    // The shared database: a second NavisDatabase trips drift's warning.
+    tearDown(() async {
+      await (database.delete(
+        database.songsTable,
+      )..where((song) => song.albumId.equals('album-1'))).go();
+      await (database.delete(
+        database.albumsTable,
+      )..where((row) => row.id.equals('album-1'))).go();
+    });
+
+    Future<void> tapHoverPlay(WidgetTester tester) async {
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byType(AlbumCardContent)));
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('albumCardHoverPlay')),
+      );
+      // No pumpAndSettle: the card's hover animation never stops settling.
+      await tester.pump();
+    }
+
+    QueueReplaceSpy queueSpyOf(WidgetTester tester) =>
+        ProviderScope.containerOf(
+          tester.element(find.byType(HomeScreen, skipOffstage: false)),
+        ).read(queueProvider.notifier) as QueueReplaceSpy;
+
     testWidgets(
       'playing an unsynced Recently Added card fetches the album first',
       (tester) async {
-        final localDatabase = createTestDatabase();
-        addTearDown(localDatabase.close);
         await pumpRecentlyAdded(
           tester,
           mode: AlbumTitleShade.classic,
-          localDatabase: localDatabase,
           librarySyncController: () => _HydratingLibrarySyncController(
-            localDatabase,
+            database,
             <String>['recent-1', 'recent-2'],
           ),
           overrides: <Override>[
@@ -5089,25 +5124,46 @@ void main() {
           ],
         );
 
-        final mouse = await tester.createGesture(
-          kind: PointerDeviceKind.mouse,
-        );
-        addTearDown(mouse.removePointer);
-        await mouse.addPointer(location: Offset.zero);
-        await mouse.moveTo(tester.getCenter(find.byType(AlbumCardContent)));
-        await tester.pump(const Duration(milliseconds: 250));
+        await tapHoverPlay(tester);
+        await tester.pump(const Duration(milliseconds: 300));
 
-        await tester.tap(
-          find.byKey(const ValueKey<String>('albumCardHoverPlay')),
+        expect(queueSpyOf(tester).lastReplaceIds, <String>[
+          'recent-1',
+          'recent-2',
+        ]);
+      },
+    );
+
+    testWidgets(
+      'hover play does not override a queue changed while the album loads',
+      (tester) async {
+        final gate = Completer<void>();
+        final controller = _HydratingLibrarySyncController(database, <String>[
+          'recent-1',
+          'recent-2',
+        ], gate: gate);
+        await pumpRecentlyAdded(
+          tester,
+          mode: AlbumTitleShade.classic,
+          librarySyncController: () => controller,
+          overrides: <Override>[
+            queueProvider.overrideWith(QueueReplaceSpy.new),
+          ],
         );
-        // No pumpAndSettle: the card's hover animation never stops settling.
+
+        await tapHoverPlay(tester);
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(controller.hydrateStarted, isTrue);
+
+        final queueSpy = queueSpyOf(tester);
+        // Stands in for the user starting other playback mid-fetch.
+        queueSpy.reserveSelection();
+
+        gate.complete();
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
-        final queueSpy = ProviderScope.containerOf(
-          tester.element(find.byType(HomeScreen, skipOffstage: false)),
-        ).read(queueProvider.notifier) as QueueReplaceSpy;
-        expect(queueSpy.lastReplaceIds, <String>['recent-1', 'recent-2']);
+        expect(queueSpy.lastReplaceIds, isNull);
       },
     );
   });
