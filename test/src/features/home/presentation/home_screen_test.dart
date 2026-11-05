@@ -27,6 +27,7 @@ import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
+import 'package:drift/drift.dart' show InsertMode, Value;
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
@@ -79,6 +80,58 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   Future<LibrarySyncState> syncNow({
     bool allowMeteredBroadOverride = false,
   }) async {
+    return const LibrarySyncState.idle();
+  }
+}
+
+/// Stores an album and its songs the way opening an unsynced album does.
+class _HydratingLibrarySyncController extends LibrarySyncController {
+  new(this._database, this._songIds);
+
+  final NavisDatabase _database;
+  final List<String> _songIds;
+
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState> syncIfStale() async {
+    return const LibrarySyncState.idle();
+  }
+
+  @override
+  Future<LibrarySyncState> syncNow({
+    bool allowMeteredBroadOverride = false,
+  }) async {
+    return const LibrarySyncState.idle();
+  }
+
+  @override
+  Future<LibrarySyncState?> hydrateOpenedAlbum(String albumId) async {
+    await _database.into(_database.albumsTable).insert(
+      AlbumsTableCompanion.insert(
+        id: albumId,
+        name: 'Fetched Album',
+        songsHydrated: const Value(true),
+        isProvisional: const Value(false),
+      ),
+      mode: InsertMode.insertOrReplace,
+    );
+    for (final (index, songId) in _songIds.indexed) {
+      await _database.into(_database.songsTable).insert(
+        SongsTableCompanion.insert(
+          id: songId,
+          title: 'Song $songId',
+          albumId: Value(albumId),
+          artistName: const Value('Artist'),
+          albumName: const Value('Fetched Album'),
+          track: Value(index + 1),
+          duration: const Value(210),
+          isProvisional: const Value(false),
+        ),
+        mode: InsertMode.insertOrReplace,
+      );
+    }
     return const LibrarySyncState.idle();
   }
 }
@@ -4873,6 +4926,9 @@ void main() {
       WidgetTester tester, {
       required AlbumTitleShade mode,
       bool flat = false,
+      NavisDatabase? localDatabase,
+      LibrarySyncController Function()? librarySyncController,
+      List<Override> overrides = const <Override>[],
     }) async {
       tester.view.physicalSize = const Size(900, 1200);
       tester.view.devicePixelRatio = 1;
@@ -4880,8 +4936,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: withTestDatabase(
-            database,
+            localDatabase ?? database,
             overrides: <Override>[
+              ...overrides,
               appSettingsProvider.overrideWithValue(
                 AsyncData(
                   const AppSettingsModel.defaults().copyWith(
@@ -4900,7 +4957,7 @@ void main() {
               ),
               subsonicApiProvider.overrideWithValue(null),
               librarySyncControllerProvider.overrideWith(
-                _StaticLibrarySyncController.new,
+                librarySyncController ?? _StaticLibrarySyncController.new,
               ),
               homeRecentlyAddedProvider.overrideWithValue(
                 const AsyncData(<Album>[album]),
@@ -5013,6 +5070,46 @@ void main() {
       await tester.pump(const Duration(milliseconds: 250));
       expect(play, findsOneWidget);
     });
+
+    testWidgets(
+      'playing an unsynced Recently Added card fetches the album first',
+      (tester) async {
+        final localDatabase = createTestDatabase();
+        addTearDown(localDatabase.close);
+        await pumpRecentlyAdded(
+          tester,
+          mode: AlbumTitleShade.classic,
+          localDatabase: localDatabase,
+          librarySyncController: () => _HydratingLibrarySyncController(
+            localDatabase,
+            <String>['recent-1', 'recent-2'],
+          ),
+          overrides: <Override>[
+            queueProvider.overrideWith(QueueReplaceSpy.new),
+          ],
+        );
+
+        final mouse = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        addTearDown(mouse.removePointer);
+        await mouse.addPointer(location: Offset.zero);
+        await mouse.moveTo(tester.getCenter(find.byType(AlbumCardContent)));
+        await tester.pump(const Duration(milliseconds: 250));
+
+        await tester.tap(
+          find.byKey(const ValueKey<String>('albumCardHoverPlay')),
+        );
+        // No pumpAndSettle: the card's hover animation never stops settling.
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        final queueSpy = ProviderScope.containerOf(
+          tester.element(find.byType(HomeScreen, skipOffstage: false)),
+        ).read(queueProvider.notifier) as QueueReplaceSpy;
+        expect(queueSpy.lastReplaceIds, <String>['recent-1', 'recent-2']);
+      },
+    );
   });
 
   group('HomeSectionIds', () {

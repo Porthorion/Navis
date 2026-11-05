@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/presentation/download_quality_sheet.dart';
+import 'package:navis/src/features/library/presentation/detail_load_states.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
@@ -21,16 +22,35 @@ import 'package:navis/src/routing/navigation_service.dart';
 /// Replaces the queue with [albumId]'s tracks, as the menu's Play action does.
 ///
 /// Used by quick-play affordances such as the desktop album-card hover
-/// button. Does nothing when the album has no tracks yet.
+/// button, which can show an album the library has not synced yet. Fetches
+/// that album from the server first, and does nothing if it still has no
+/// tracks (or the fetch fails).
 Future<void> playAlbumById(
   WidgetRef ref,
   String albumId, {
   bool shuffle = false,
 }) async {
-  final album = await _readAlbumOnce(ref, albumId);
-  final songs = <SongsTableData>[...?album?.songs];
+  var songs = <SongsTableData>[
+    ...?(await _readAlbumOnce(ref, albumId))?.songs,
+  ];
+  if (songs.isEmpty) {
+    try {
+      await ref
+          .read(librarySyncControllerProvider.notifier)
+          .hydrateOpenedAlbum(albumId)
+          .timeout(kDetailHydrationTimeout);
+    } on Object {
+      return;
+    }
+    if (!ref.context.mounted) return;
+    ref.invalidate(albumProvider(albumId));
+    songs = <SongsTableData>[
+      ...?(await _readAlbumOnce(ref, albumId))?.songs,
+    ];
+  }
   if (songs.isEmpty) return;
   if (shuffle) songs.shuffle();
+  if (!ref.context.mounted) return;
   ref
       .read(librarySyncControllerProvider.notifier)
       .registerAlbumInteraction(albumId);
