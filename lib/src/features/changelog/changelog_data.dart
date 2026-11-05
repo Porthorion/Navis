@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'macOS: pausing from Control Center no longer shows the old '
+        'position for a moment',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Search puts the most popular matches first and shows Top Results '
         '(Deezer; switch in Integrations)',
         type: ChangelogEntryType.newFeature,
