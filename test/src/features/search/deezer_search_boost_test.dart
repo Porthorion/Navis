@@ -180,6 +180,68 @@ void main() {
       ]);
     });
 
+    test('every duplicate copy in the library shares the rank', () {
+      const result = SearchResult3(
+        songs: <Song>[
+          Song(id: 'l1', title: 'Hello', artist: 'Adele', album: '25'),
+          Song(id: 'l3', title: 'Hello', artist: 'Lionel Richie'),
+          Song(
+            id: 'l2',
+            title: 'Hello',
+            artist: 'Adele',
+            album: 'Greatest Hits',
+          ),
+        ],
+      );
+      final boost = matchDeezerSearchHits(
+        result: result,
+        hits: DeezerSearchHits(
+          tracks: [
+            _track(1, 'Hello', 'Adele'),
+            _track(2, 'Hello', 'Lionel Richie'),
+          ],
+        ),
+      );
+      expect(boost.popularity.songs, <String, int>{'l1': 0, 'l2': 0, 'l3': 1});
+      final ranked = rankSearchResult(
+        result,
+        'Hello',
+        popularity: boost.popularity,
+      );
+      expect(ranked.songs.map((song) => song.id), <String>['l1', 'l2', 'l3']);
+    });
+
+    test('cover versions in any bracket or dash suffix are skipped', () {
+      for (final title in <String>[
+        'Hello (Piano Cover)',
+        'Hello - Piano Cover',
+        'Hello (Acoustic Cover)',
+        'Hello [Cover]',
+      ]) {
+        final boost = matchDeezerSearchHits(
+          result: SearchResult3(
+            songs: <Song>[Song(id: 'c', title: title, artist: 'Adele')],
+          ),
+          hits: DeezerSearchHits(tracks: [_track(1, 'Hello', 'Adele')]),
+        );
+        expect(boost.popularity.songs, isEmpty, reason: title);
+      }
+    });
+
+    test('a bare title containing "cover" still matches', () {
+      final boost = matchDeezerSearchHits(
+        result: const SearchResult3(
+          songs: <Song>[
+            Song(id: 'cm', title: 'Cover Me', artist: 'Bruce Springsteen'),
+          ],
+        ),
+        hits: DeezerSearchHits(
+          tracks: [_track(1, 'Cover Me', 'Bruce Springsteen')],
+        ),
+      );
+      expect(boost.popularity.songs, <String, int>{'cm': 0});
+    });
+
     test('a karaoke or tribute copy is not the song Deezer ranked', () {
       final boost = matchDeezerSearchHits(
         result: const SearchResult3(

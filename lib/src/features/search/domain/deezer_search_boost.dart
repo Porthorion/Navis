@@ -189,7 +189,8 @@ List<T> _libraryFirst<T>(
 /// their "(Karaoke Version)" into the title, so they would match the original.
 final RegExp _derivativeMarker = RegExp(
   r'\b(karaoke|instrumental|tribute|backing track|made famous|'
-  r'originally performed|in the style of|cover version)\b|[(\[-]\s*cover\b',
+  r'originally performed|in the style of|cover version)\b|'
+  r'[(\[-][^)\]]*\bcover\b',
   caseSensitive: false,
 );
 
@@ -213,20 +214,28 @@ List<Song> _matchSongs(List<Song> songs, DeezerTrack hit) {
       if (song.id == direct) song.id,
   };
   for (final source in CatalogSource.values) {
-    final match = pickBestArtistTopTrackMatch(
-      track: query,
-      candidates: [
-        for (final song in songs)
-          if (classifyCatalogSource(
-                    id: song.id,
-                    apiIsExternal: song.isExternal,
-                  ) ==
-                  source &&
-              (hitIsDerivative || !_derivativeMarker.hasMatch(song.title)))
-            song,
-      ],
-    );
-    if (match != null) ids.add(match.id);
+    final group = [
+      for (final song in songs)
+        if (classifyCatalogSource(
+                  id: song.id,
+                  apiIsExternal: song.isExternal,
+                ) ==
+                source &&
+            (hitIsDerivative || !_derivativeMarker.hasMatch(song.title)))
+          song,
+    ];
+    final match = pickBestArtistTopTrackMatch(track: query, candidates: group);
+    if (match == null) continue;
+    // The matcher picks one; a duplicate of it (same title and artist, say
+    // another album) is the same song and shares the rank.
+    final title = normalizeMetadata(match.title);
+    final artist = normalizeMetadata(match.artist ?? '');
+    for (final song in group) {
+      if (normalizeMetadata(song.title) == title &&
+          normalizeMetadata(song.artist ?? '') == artist) {
+        ids.add(song.id);
+      }
+    }
   }
   return [
     for (final song in songs)

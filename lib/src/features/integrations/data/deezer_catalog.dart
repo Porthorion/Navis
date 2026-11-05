@@ -151,6 +151,7 @@ class DeezerCatalog {
   }) => _searchCached(
     'track',
     query,
+    limit,
     () => _client.searchTracks(query, limit: limit, cancelToken: cancelToken),
   );
 
@@ -162,6 +163,7 @@ class DeezerCatalog {
   }) => _searchCached(
     'artist',
     query,
+    limit,
     () => _client.searchArtists(query, limit: limit, cancelToken: cancelToken),
   );
 
@@ -173,6 +175,7 @@ class DeezerCatalog {
   }) => _searchCached(
     'album',
     query,
+    limit,
     () => _client.searchAlbums(query, limit: limit, cancelToken: cancelToken),
   );
 
@@ -186,10 +189,11 @@ class DeezerCatalog {
   Future<List<T>> _searchCached<T>(
     String kind,
     String query,
+    int limit,
     Future<List<T>> Function() fetch,
   ) async {
     final key =
-        '$kind:${query.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ')}';
+        '$kind:$limit:${query.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ')}';
     final hit = _searches[key];
     if (hit != null && _now().isBefore(hit.expiresAt)) {
       return hit.value.cast<T>();

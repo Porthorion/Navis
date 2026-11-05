@@ -270,6 +270,16 @@ void main() {
     );
   });
 
+  test('the kept answer is per limit', () async {
+    await catalog.searchTracks('hello', limit: 5);
+    await catalog.searchTracks('hello', limit: 5);
+    await catalog.searchTracks('hello', limit: 10);
+    expect(deezer.calls, [
+      'search/track?q=hello&limit=5',
+      'search/track?q=hello&limit=10',
+    ]);
+  });
+
   test('a failed search is not cached', () async {
     deezer.error = const DeezerApiException(code: 4);
     await expectLater(
