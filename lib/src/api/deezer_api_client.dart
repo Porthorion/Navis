@@ -105,6 +105,22 @@ class DeezerApiClient {
     return data.map(DeezerArtist.fromJson).where(_hasId).toList();
   }
 
+  /// `/search/album?q=<query>`: albums matching [query], in Deezer's
+  /// relevance order, each with its artist.
+  Future<List<DeezerAlbum>> searchAlbums(
+    String query, {
+    int limit = 25,
+    CancelToken? cancelToken,
+  }) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+    final data = await _getData('search/album', <String, Object>{
+      'q': trimmed,
+      'limit': limit,
+    }, cancelToken: cancelToken);
+    return data.map(DeezerAlbum.fromJson).where((a) => a.id > 0).toList();
+  }
+
   /// `/artist/{id}/top`: the artist's most popular tracks.
   ///
   /// In some regions this returns no tracks for every artist; callers fall

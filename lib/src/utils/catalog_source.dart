@@ -24,3 +24,7 @@ String remoteDeezerAlbumId(int deezerId) => 'ext-deezer-album-$deezerId';
 /// The id a server with a Deezer-backed remote catalogue gives the Deezer
 /// artist [deezerId].
 String remoteDeezerArtistId(int deezerId) => 'ext-deezer-artist-$deezerId';
+
+/// The id a server with a Deezer-backed remote catalogue gives the Deezer
+/// track [deezerId].
+String remoteDeezerSongId(int deezerId) => 'ext-deezer-song-$deezerId';

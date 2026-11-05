@@ -256,7 +256,7 @@ void main() {
     for (final line in <String>[
       'Online Services',
       'Off: Navis only talks to your server.',
-      "Sends artist, album and track names to api.deezer.com and loads images from Deezer's image servers.",
+      "Sends artist, album and track names, and what you type in Search, to api.deezer.com and loads images from Deezer's image servers.",
       'Sends track and artist names to ws.audioscrobbler.com, using the API key included with Navis or your own.',
       'Key included with this build',
       'Sends your listens and likes to api.listenbrainz.org.',
