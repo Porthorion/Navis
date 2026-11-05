@@ -221,8 +221,14 @@ void main() {
 
     Future<void> pumpWith(
       WidgetTester tester,
-      List<SearchTopResult> topResults,
-    ) async {
+      List<SearchTopResult> topResults, {
+      Size? size,
+    }) async {
+      if (size != null) {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+      }
       final database = createTestDatabase();
       final container = _createContainerWithDatabase(
         database,
@@ -261,6 +267,22 @@ void main() {
 
       expect(find.text('Top Results'), findsNothing);
       expect(find.text('Hello'), findsOneWidget);
+    });
+
+    testWidgets('song rows keep their own keys on desktop', (tester) async {
+      if (!sqliteAvailable) return;
+      await pumpWith(tester, <SearchTopResult>[
+        TopSongResult(songs.first),
+      ], size: const Size(1400, 1200));
+
+      expect(
+        find.byKey(const ValueKey<String>('search-top-song-menu-s1')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('search-song-menu-s1')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('lead the screen with up to three matched hits', (

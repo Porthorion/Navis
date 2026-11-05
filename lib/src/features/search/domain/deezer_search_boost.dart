@@ -63,9 +63,9 @@ class DeezerSearchBoost {
 ///
 /// A rank is the hit's position in its own Deezer list. Songs match by the
 /// `ext-deezer-song-<id>` id, else by the track matcher the top songs use;
-/// artists by id or name; albums by id or by title and artist. Of several
-/// copies, an item on the server beats a remote one, then the first in
-/// [result]'s order. Top Results are the matched hits in Deezer order (an
+/// artists by id or name; albums by id or by title and artist. Every copy of
+/// a hit shares its rank; for Top Results an item on the server beats a remote
+/// one, then the first in [result]'s order. Top Results are the matched hits in Deezer order (an
 /// artist, album and song at the same position in that order), at most
 /// [kMaxTopResults], each item once.
 DeezerSearchBoost matchDeezerSearchHits({
@@ -141,11 +141,16 @@ DeezerSearchBoost matchDeezerSearchHits({
   final songRanks = <String, int>{};
   final seenSongs = <String>{};
   for (final (position, hit) in hits.tracks.indexed) {
-    final song = _matchSong(songs, hit);
-    if (song == null) continue;
-    songRanks.putIfAbsent(song.id, () => position);
-    if (seenSongs.add(song.id)) {
-      top.add((position: position, type: 2, item: TopSongResult(song)));
+    final matches = _matchSongs(songs, hit);
+    for (final song in matches) {
+      songRanks.putIfAbsent(song.id, () => position);
+    }
+    if (matches.isNotEmpty && seenSongs.add(matches.first.id)) {
+      top.add((
+        position: position,
+        type: 2,
+        item: TopSongResult(matches.first),
+      ));
     }
   }
 
@@ -180,33 +185,53 @@ List<T> _libraryFirst<T>(
         item,
 ];
 
-Song? _matchSong(List<Song> songs, DeezerTrack hit) {
+/// Karaoke, instrumental, tribute and cover versions: the matcher folds
+/// their "(Karaoke Version)" into the title, so they would match the original.
+final RegExp _derivativeMarker = RegExp(
+  r'\b(karaoke|instrumental|tribute|backing track|made famous|'
+  r'originally performed|in the style of|cover version)\b|[(\[-]\s*cover\b',
+  caseSensitive: false,
+);
+
+/// Every copy in [songs] (library-first order) of the track [hit]: the
+/// `ext-deezer-song-<id>` row, and the best fuzzy match of each source group.
+/// A copy that is a karaoke, instrumental, tribute or cover version is skipped
+/// unless Deezer's own title says so too. All copies share the hit's rank, so
+/// the source tie-break keeps the library copy first, and the first copy is
+/// the one Top Results shows.
+List<Song> _matchSongs(List<Song> songs, DeezerTrack hit) {
   final direct = remoteDeezerSongId(hit.id);
-  for (final song in songs) {
-    if (song.id == direct) return song;
-  }
+  final hitIsDerivative = _derivativeMarker.hasMatch(hit.title);
   final query = TrackMatchQuery(
     title: hit.title,
     artist: hit.artist.name,
     album: hit.album?.title,
     durationSeconds: hit.durationSeconds,
   );
+  final ids = <String>{
+    for (final song in songs)
+      if (song.id == direct) song.id,
+  };
   for (final source in CatalogSource.values) {
     final match = pickBestArtistTopTrackMatch(
       track: query,
       candidates: [
         for (final song in songs)
           if (classifyCatalogSource(
-                id: song.id,
-                apiIsExternal: song.isExternal,
-              ) ==
-              source)
+                    id: song.id,
+                    apiIsExternal: song.isExternal,
+                  ) ==
+                  source &&
+              (hitIsDerivative || !_derivativeMarker.hasMatch(song.title)))
             song,
       ],
     );
-    if (match != null) return match;
+    if (match != null) ids.add(match.id);
   }
-  return null;
+  return [
+    for (final song in songs)
+      if (ids.contains(song.id)) song,
+  ];
 }
 
 bool _sameArtist(Album album, DeezerArtist? artist) {

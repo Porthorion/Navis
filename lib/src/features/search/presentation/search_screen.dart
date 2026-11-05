@@ -791,6 +791,7 @@ class _TopResultsSection extends StatelessWidget {
               TopSongResult(:final song) => _SongResultsSection(
                 songs: <Song>[song],
                 showHeader: false,
+                keyPrefix: 'search-top-song',
                 expanded: false,
                 onToggleExpanded: _noop,
                 desktopMode: desktopMode,
@@ -1249,6 +1250,7 @@ class _SongResultsSection extends ConsumerWidget {
     required this.onToggleExpanded,
     this.desktopMode = false,
     this.showHeader = true,
+    this.keyPrefix = 'search-song',
   });
 
   final List<Song> songs;
@@ -1257,6 +1259,9 @@ class _SongResultsSection extends ConsumerWidget {
 
   /// False inside Top Results, which has its own header.
   final bool showHeader;
+
+  /// Prefix of the row action keys; Top Results repeats a song shown below.
+  final String keyPrefix;
   final VoidCallback onToggleExpanded;
 
   @override
@@ -1313,7 +1318,7 @@ class _SongResultsSection extends ConsumerWidget {
                 ? DesktopSongActions.forSongId(
                     songId: song.id,
                     isExternal: isRemote,
-                    keyPrefix: 'search-song',
+                    keyPrefix: keyPrefix,
                     onMore: (anchor) => _showSongContextMenu(
                       context,
                       ref,

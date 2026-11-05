@@ -323,6 +323,41 @@ void main() {
       expect(await upgraded109(disabled: 'not json'), 'not json');
     });
 
+    test('only the settings row (id 1) is read and rewritten', () async {
+      final directory = await Directory.systemTemp.createTemp('navis_v110_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.appSettingsDao.getSettings();
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute('CREATE TEMP TABLE copy AS SELECT * FROM app_settings');
+        raw.execute("UPDATE copy SET id = 2, disabled_integrations = '[]'");
+        raw.execute('INSERT INTO app_settings SELECT * FROM copy');
+        raw.execute(
+          "UPDATE app_settings SET disabled_integrations = '[\"deezer\"]' "
+          'WHERE id = 1',
+        );
+        raw.execute('PRAGMA user_version = 109');
+      } finally {
+        raw.close();
+      }
+      final db = createTestDatabase(file: file);
+      addTearDown(db.close);
+      await db.appSettingsDao.getSettings();
+      final rows = await db
+          .customSelect('SELECT id, disabled_integrations FROM app_settings')
+          .get();
+      expect(
+        {
+          for (final row in rows)
+            row.read<int>('id'): row.read<String>('disabled_integrations'),
+        },
+        <int, String>{1: '["deezer","deezer.searchRanking"]', 2: '[]'},
+      );
+    });
+
     test('a fresh profile has the switch on', () async {
       if (!sqliteAvailable) return;
       final db = createTestDatabase();

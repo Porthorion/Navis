@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/features/integrations/data/deezer_catalog.dart';
 import 'package:navis/src/features/integrations/data/integration_json_cache.dart';
+import 'package:navis/src/providers/app_providers.dart';
 
 class _FakeDeezer extends DeezerApiClient {
   new() : super(dio: Dio());
@@ -107,6 +109,16 @@ class _FakeDeezer extends DeezerApiClient {
   }
 }
 
+class _Scope extends Notifier<String?> {
+  @override
+  String? build() => 'account-1';
+
+  // ignore: use_setters_to_change_properties // a test hook, not a property
+  void change(String? value) => state = value;
+}
+
+final _scopeProvider = NotifierProvider<_Scope, String?>(_Scope.new);
+
 String _mark(bool background) => background ? ' (background)' : '';
 
 void main() {
@@ -125,6 +137,7 @@ void main() {
         readRootDirectory: () async => root,
         now: () => now,
       ),
+      now: () => now,
     );
   });
 
@@ -217,22 +230,44 @@ void main() {
     expect(deezer.calls, hasLength(5));
   });
 
-  test("a new session removes the earlier session's searches", () async {
-    await catalog.searchTracks('hello');
-    await catalog.searchTracks('hello');
+  test('an account change drops the searches kept in memory', () async {
+    final container = ProviderContainer(
+      overrides: [
+        deezerApiClientProvider.overrideWithValue(deezer),
+        integrationJsonCacheProvider.overrideWithValue(
+          IntegrationJsonCache(readRootDirectory: () async => root),
+        ),
+        integrationAccountScopeProvider.overrideWith(
+          (ref) => ref.watch(_scopeProvider),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final first = container.read(deezerCatalogProvider);
+    await first.searchTracks('hello');
+    await first.searchTracks('hello');
     expect(deezer.calls, hasLength(1));
 
-    final nextSession = DeezerCatalog(
-      client: deezer,
-      cache: IntegrationJsonCache(
-        readRootDirectory: () async => root,
-        now: () => now,
-      ),
+    container.read(_scopeProvider.notifier).change(null);
+    final second = container.read(deezerCatalogProvider);
+    expect(second, isNot(same(first)));
+    await second.searchTracks('hello');
+    expect(deezer.calls, hasLength(2));
+  });
+
+  test('typed queries are never written to disk', () async {
+    await catalog.searchTracks('private query');
+    await catalog.searchArtists('private query');
+    await catalog.searchAlbums('private query');
+    final files = root
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.readAsStringSync().contains('private query'));
+    expect(files, isEmpty);
+    expect(
+      root.listSync(recursive: true).map((entity) => entity.path),
+      everyElement(isNot(contains('search'))),
     );
-    await nextSession.searchTracks('hello');
-    expect(deezer.calls, hasLength(2));
-    await nextSession.searchTracks('hello');
-    expect(deezer.calls, hasLength(2));
   });
 
   test('a failed search is not cached', () async {

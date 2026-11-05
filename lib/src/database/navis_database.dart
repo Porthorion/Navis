@@ -451,7 +451,7 @@ class NavisDatabase extends _$NavisDatabase {
   Future<void> from109To110(Migrator migrator) async {
     final row = await customSelect(
       'SELECT disabled_integrations, external_integrations_enabled '
-      'FROM app_settings LIMIT 1',
+      'FROM app_settings WHERE id = 1',
     ).getSingleOrNull();
     if (row == null) return;
     final Object? decoded;
@@ -469,7 +469,7 @@ class NavisDatabase extends _$NavisDatabase {
       return;
     }
     await customStatement(
-      'UPDATE app_settings SET disabled_integrations = ?',
+      'UPDATE app_settings SET disabled_integrations = ? WHERE id = 1',
       <Object>[encodeDisabledIntegrationKeys(keys)],
     );
   }

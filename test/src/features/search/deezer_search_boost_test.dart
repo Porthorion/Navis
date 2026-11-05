@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/features/search/domain/deezer_search_boost.dart';
+import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 
 DeezerTrack _track(
   int id,
@@ -80,29 +81,35 @@ void main() {
       expect(boost.topResults, isEmpty);
     });
 
-    test('of several library copies, the on-server one wins over remote', () {
-      final boost = matchDeezerSearchHits(
-        result: const SearchResult3(
-          songs: <Song>[
-            Song(
-              id: 'remote-copy',
-              title: 'Hello',
-              artist: 'Adele',
-              isExternal: true,
-            ),
-            Song(
-              id: 'library-copy',
-              title: 'Hello',
-              artist: 'Adele',
-              isExternal: false,
-            ),
-          ],
-        ),
-        hits: DeezerSearchHits(tracks: [_track(1, 'Hello', 'Adele')]),
-      );
-      expect(boost.popularity.songs, <String, int>{'library-copy': 0});
-      expect(_topIds(boost), <String>['song:library-copy']);
-    });
+    test(
+      'of several copies, all share the rank and the on-server one leads',
+      () {
+        final boost = matchDeezerSearchHits(
+          result: const SearchResult3(
+            songs: <Song>[
+              Song(
+                id: 'remote-copy',
+                title: 'Hello',
+                artist: 'Adele',
+                isExternal: true,
+              ),
+              Song(
+                id: 'library-copy',
+                title: 'Hello',
+                artist: 'Adele',
+                isExternal: false,
+              ),
+            ],
+          ),
+          hits: DeezerSearchHits(tracks: [_track(1, 'Hello', 'Adele')]),
+        );
+        expect(boost.popularity.songs, <String, int>{
+          'library-copy': 0,
+          'remote-copy': 0,
+        });
+        expect(_topIds(boost), <String>['song:library-copy']);
+      },
+    );
 
     test('a remote copy still matches when the library has none', () {
       final boost = matchDeezerSearchHits(
@@ -119,6 +126,112 @@ void main() {
         hits: DeezerSearchHits(tracks: [_track(1, 'Hello', 'Adele')]),
       );
       expect(boost.popularity.songs, <String, int>{'remote-copy': 0});
+    });
+  });
+
+  group('copies of one song', () {
+    test('a remote direct-id copy never outranks the library copy', () {
+      const result = SearchResult3(
+        songs: <Song>[
+          Song(
+            id: 'local1',
+            title: 'Hello',
+            artist: 'Adele',
+            isExternal: false,
+          ),
+          Song(
+            id: 'ext-deezer-song-5',
+            title: 'Hello',
+            artist: 'Adele',
+            isExternal: true,
+          ),
+          Song(
+            id: 'local2',
+            title: 'Hello',
+            artist: 'Lionel Richie',
+            isExternal: false,
+          ),
+        ],
+      );
+      final boost = matchDeezerSearchHits(
+        result: result,
+        hits: DeezerSearchHits(
+          tracks: [
+            _track(5, 'Hello', 'Adele'),
+            _track(6, 'Hello', 'Lionel Richie'),
+          ],
+        ),
+      );
+      expect(boost.popularity.songs, <String, int>{
+        'local1': 0,
+        'ext-deezer-song-5': 0,
+        'local2': 1,
+      });
+      expect(_topIds(boost).first, 'song:local1');
+      final ranked = rankSearchResult(
+        result,
+        'Hello',
+        popularity: boost.popularity,
+      );
+      expect(ranked.songs.map((song) => song.id), <String>[
+        'local1',
+        'ext-deezer-song-5',
+        'local2',
+      ]);
+    });
+
+    test('a karaoke or tribute copy is not the song Deezer ranked', () {
+      final boost = matchDeezerSearchHits(
+        result: const SearchResult3(
+          songs: <Song>[
+            Song(
+              id: 'karaoke',
+              title: 'Hello (Karaoke Version)',
+              artist: 'Adele',
+            ),
+            Song(
+              id: 'tribute',
+              title: 'Hello - Tribute to Adele',
+              artist: 'Adele',
+            ),
+            Song(id: 'instr', title: 'Hello [Instrumental]', artist: 'Adele'),
+          ],
+        ),
+        hits: DeezerSearchHits(tracks: [_track(1, 'Hello', 'Adele')]),
+      );
+      expect(boost.popularity.songs, isEmpty);
+      expect(boost.topResults, isEmpty);
+    });
+
+    test('a karaoke marker the Deezer title shares is no reason to skip', () {
+      final boost = matchDeezerSearchHits(
+        result: const SearchResult3(
+          songs: <Song>[
+            Song(id: 'k', title: 'Hello (Karaoke Version)', artist: 'Adele'),
+          ],
+        ),
+        hits: DeezerSearchHits(
+          tracks: [_track(1, 'Hello (Karaoke Version)', 'Adele')],
+        ),
+      );
+      expect(boost.popularity.songs, <String, int>{'k': 0});
+    });
+
+    test('the original is picked when a karaoke copy sits beside it', () {
+      final boost = matchDeezerSearchHits(
+        result: const SearchResult3(
+          songs: <Song>[
+            Song(
+              id: 'karaoke',
+              title: 'Hello (Karaoke Version)',
+              artist: 'Adele',
+            ),
+            Song(id: 'original', title: 'Hello', artist: 'Adele'),
+          ],
+        ),
+        hits: DeezerSearchHits(tracks: [_track(1, 'Hello', 'Adele')]),
+      );
+      expect(boost.popularity.songs, <String, int>{'original': 0});
     });
   });
 

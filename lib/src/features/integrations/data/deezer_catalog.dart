@@ -10,13 +10,14 @@ import 'package:navis/src/utils/app_logger.dart';
 /// Each read returns the cached value while it is fresh and otherwise asks
 /// Deezer and caches the answer for the [DeezerCache] lifetime of its kind:
 /// artist details and related artists 7 days, an artist's albums 24 hours, an
-/// album 7 days, the chart 6 hours, a Search query's results 10 minutes. "Not
+/// album 7 days, the chart 6 hours, a Search query's results 10 minutes (in memory only). "Not
 /// on Deezer" is cached too. Request errors propagate and
 /// are not cached. Callers check the feature switch first; the client's
 /// guard checks only the service. Reads for Home's warm-up pass
 /// `background`, so the Deezer limiter serves what the user opened first.
 class DeezerCatalog {
-  new({required this._client, required this._cache});
+  new({required this._client, required this._cache, DateTime Function()? now})
+    : _now = now ?? DateTime.now;
 
   /// Albums requested per artist; enough for any discography Navis shows.
   static const artistAlbumLimit = 100;
@@ -37,6 +38,7 @@ class DeezerCatalog {
 
   final DeezerApiClient _client;
   final IntegrationJsonCache _cache;
+  final DateTime Function() _now;
 
   /// `/artist/{id}`: photo and fan count.
   Future<DeezerArtist?> artist(int artistId, {CancelToken? cancelToken}) =>
@@ -140,89 +142,67 @@ class DeezerCatalog {
   );
 
   /// `/search/track` for Search's popularity ranking, in Deezer's order.
-  /// Cached per query, ignoring case and spacing.
+  /// Kept in memory only (see [_searchCached]), per query ignoring case and
+  /// spacing.
   Future<List<DeezerTrack>> searchTracks(
     String query, {
     int limit = searchLimit,
     CancelToken? cancelToken,
-  }) async {
-    await _forgetEarlierSearches();
-    return await _cached(
-      namespace: DeezerCache.searchTracksNamespace,
-      key: _searchKey(query),
-      ttl: DeezerCache.searchTtl,
-      fetch: () =>
-          _client.searchTracks(query, limit: limit, cancelToken: cancelToken),
-      encode: (tracks) => [for (final track in tracks) track.toJson()],
-      decode: (json) => [
-        if (json is List)
-          for (final item in json.whereType<Map<Object?, Object?>>())
-            DeezerTrack.fromJson(Map<String, dynamic>.from(item)),
-      ],
-    );
-  }
+  }) => _searchCached(
+    'track',
+    query,
+    () => _client.searchTracks(query, limit: limit, cancelToken: cancelToken),
+  );
 
   /// `/search/artist`, like [searchTracks].
   Future<List<DeezerArtist>> searchArtists(
     String query, {
     int limit = searchLimit,
     CancelToken? cancelToken,
-  }) async {
-    await _forgetEarlierSearches();
-    return await _cached(
-      namespace: DeezerCache.searchArtistsNamespace,
-      key: _searchKey(query),
-      ttl: DeezerCache.searchTtl,
-      fetch: () =>
-          _client.searchArtists(query, limit: limit, cancelToken: cancelToken),
-      encode: (artists) => [for (final artist in artists) artist.toJson()],
-      decode: (json) => [
-        if (json is List)
-          for (final item in json.whereType<Map<Object?, Object?>>())
-            DeezerArtist.fromJson(Map<String, dynamic>.from(item)),
-      ],
-    );
-  }
+  }) => _searchCached(
+    'artist',
+    query,
+    () => _client.searchArtists(query, limit: limit, cancelToken: cancelToken),
+  );
 
   /// `/search/album`, like [searchTracks].
   Future<List<DeezerAlbum>> searchAlbums(
     String query, {
     int limit = searchLimit,
     CancelToken? cancelToken,
-  }) async {
-    await _forgetEarlierSearches();
-    return await _cached(
-      namespace: DeezerCache.searchAlbumsNamespace,
-      key: _searchKey(query),
-      ttl: DeezerCache.searchTtl,
-      fetch: () =>
-          _client.searchAlbums(query, limit: limit, cancelToken: cancelToken),
-      encode: (albums) => [for (final album in albums) album.toJson()],
-      decode: (json) => [
-        if (json is List)
-          for (final item in json.whereType<Map<Object?, Object?>>())
-            DeezerAlbum.fromJson(Map<String, dynamic>.from(item)),
-      ],
+  }) => _searchCached(
+    'album',
+    query,
+    () => _client.searchAlbums(query, limit: limit, cancelToken: cancelToken),
+  );
+
+  /// What the user typed is kept in memory only, for [DeezerCache.searchTtl],
+  /// to reuse a query typed back and forth. It never reaches the disk cache,
+  /// which keeps its keys in plain text and outlives the session and the
+  /// user's switches. The provider builds a new catalog on an account
+  /// change, which drops it. Errors are not kept.
+  final Map<String, ({DateTime expiresAt, List<Object?> value})> _searches = {};
+
+  Future<List<T>> _searchCached<T>(
+    String kind,
+    String query,
+    Future<List<T>> Function() fetch,
+  ) async {
+    final key =
+        '$kind:${query.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ')}';
+    final hit = _searches[key];
+    if (hit != null && _now().isBefore(hit.expiresAt)) {
+      return hit.value.cast<T>();
+    }
+    final value = await fetch();
+    final now = _now();
+    _searches.removeWhere((_, entry) => !now.isBefore(entry.expiresAt));
+    _searches[key] = (
+      expiresAt: now.add(DeezerCache.searchTtl),
+      value: List<Object?>.of(value),
     );
+    return value;
   }
-
-  Future<void>? _searchesForgotten;
-
-  /// Search queries are what the user typed, kept in the cache only to reuse
-  /// them while typing back and forth. Entries never expire off the disk by
-  /// themselves, so the first search of a session removes those of earlier
-  /// ones (all long expired).
-  Future<void> _forgetEarlierSearches() => _searchesForgotten ??= Future.wait([
-    for (final namespace in [
-      DeezerCache.searchTracksNamespace,
-      DeezerCache.searchArtistsNamespace,
-      DeezerCache.searchAlbumsNamespace,
-    ])
-      _cache.clearNamespace(namespace),
-  ]);
-
-  static String _searchKey(String query) =>
-      query.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
   Future<T> _cached<T>({
     required String namespace,

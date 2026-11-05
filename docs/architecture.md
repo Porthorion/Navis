@@ -3833,9 +3833,9 @@ out; damaged JSON is left alone.
 
 `debouncedSearchProvider` (`features/search/presentation/search_controller_provider.dart`)
 starts the three Deezer searches (`DeezerCatalog.searchArtists`, `searchAlbums`,
-`searchTracks`, 25 results each, cached 10 minutes per query ignoring case and
-spacing; the first search of a session deletes earlier sessions' entries, since
-the cache keeps the typed query) right after the local-only emission and in parallel with `search3`,
+`searchTracks`, 25 results each, kept in memory only for 10 minutes per query
+ignoring case and spacing, never in the disk cache, which stores keys in plain
+text; an account change builds a new catalog and drops them) right after the local-only emission and in parallel with `search3`,
 only when `IntegrationPolicy.allows(deezerSearchRanking)`; offline, a
 Playlists or Radio filter and a missing server never reach it. A type filter
 asks only that endpoint. They share the per-query `CancelToken`, so typing on
@@ -3846,11 +3846,14 @@ merged results and the second `rankSearchResult` pass uses the ranks
 (`SearchPopularity`) as the tie-break inside a text tier, ahead of source and
 server order, unranked items last; one emission carries the ranked results and
 up to `kMaxTopResults` Top Results. Late or failed: today's order, no Top
-Results, and no later emission. Matching reorders only (a hit with no
-library or server item is dropped): songs by `ext-deezer-song-<id>`, else the
-top-songs track matcher (`pickBestArtistTopTrackMatch`); artists by
+Results, and no later emission (a late answer is still kept for the 10 minutes,
+so a rebuild of the same query can rank it at once). Matching reorders only (a hit with no
+library or server item is dropped): songs by `ext-deezer-song-<id>` and by the
+top-songs track matcher (`pickBestArtistTopTrackMatch`, per source group,
+skipping karaoke, instrumental, tribute and cover versions the Deezer title
+does not name), every copy sharing the hit's rank; artists by
 `ext-deezer-artist-<id>` or loose name; albums by `ext-deezer-album-<id>` or
-title plus artist; copies on the server beat remote ones. `search.deezer`
+title plus artist; Top Results show the on-server copy before a remote one. `search.deezer`
 (Deezer's own time and hit counts) and `search.deezerRank` (how long Search
 waited and whether the answer was in time) spans on `IntegrationCallRecorder`
 measure the cap. The Search screen draws Top Results with the same row

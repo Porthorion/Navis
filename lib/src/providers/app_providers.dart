@@ -1017,6 +1017,9 @@ final deezerArtistResolverProvider = Provider<DeezerArtistResolver>((ref) {
 /// Deezer artist details, related artists, albums and album details, cached
 /// on disk. Each feature checks its own switch before reading.
 final deezerCatalogProvider = Provider<DeezerCatalog>((ref) {
+  // A new account or sign-out builds a new catalog, dropping the Search
+  // answers it kept in memory.
+  ref.watch(integrationAccountScopeProvider);
   return DeezerCatalog(
     client: ref.watch(deezerApiClientProvider),
     cache: ref.watch(integrationJsonCacheProvider),
