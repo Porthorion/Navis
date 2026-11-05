@@ -51,6 +51,7 @@ import 'package:navis/src/features/player/presentation/now_playing_artwork_scope
 import 'package:navis/src/features/player/presentation/now_playing_backdrop.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/now_playing_lyrics_screen.dart';
+import 'package:navis/src/features/player/presentation/desktop_media_info_dialog.dart';
 import 'package:navis/src/features/player/presentation/desktop_volume_slider.dart';
 import 'package:navis/src/features/player/presentation/normal_playback_metadata_navigation.dart';
 import 'package:navis/src/features/player/presentation/playback_seek_bar_style.dart';

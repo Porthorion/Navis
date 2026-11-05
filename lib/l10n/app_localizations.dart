@@ -10394,6 +10394,162 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Genres'**
   String get searchGenresSection;
+
+  /// No description provided for @mediaInfoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Media info'**
+  String get mediaInfoTitle;
+
+  /// No description provided for @mediaInfoSectionTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Track'**
+  String get mediaInfoSectionTrack;
+
+  /// No description provided for @mediaInfoSectionFile.
+  ///
+  /// In en, this message translates to:
+  /// **'File'**
+  String get mediaInfoSectionFile;
+
+  /// No description provided for @mediaInfoSectionTranscode.
+  ///
+  /// In en, this message translates to:
+  /// **'Transcoding'**
+  String get mediaInfoSectionTranscode;
+
+  /// No description provided for @mediaInfoSectionLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Library data'**
+  String get mediaInfoSectionLibrary;
+
+  /// No description provided for @mediaInfoYear.
+  ///
+  /// In en, this message translates to:
+  /// **'Year'**
+  String get mediaInfoYear;
+
+  /// No description provided for @mediaInfoFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Format'**
+  String get mediaInfoFormat;
+
+  /// No description provided for @mediaInfoBitrate.
+  ///
+  /// In en, this message translates to:
+  /// **'Bitrate'**
+  String get mediaInfoBitrate;
+
+  /// No description provided for @mediaInfoSampleRate.
+  ///
+  /// In en, this message translates to:
+  /// **'Sample rate'**
+  String get mediaInfoSampleRate;
+
+  /// No description provided for @mediaInfoBitDepth.
+  ///
+  /// In en, this message translates to:
+  /// **'Bit depth'**
+  String get mediaInfoBitDepth;
+
+  /// No description provided for @mediaInfoChannels.
+  ///
+  /// In en, this message translates to:
+  /// **'Channels'**
+  String get mediaInfoChannels;
+
+  /// No description provided for @mediaInfoSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Size'**
+  String get mediaInfoSize;
+
+  /// No description provided for @mediaInfoDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Duration'**
+  String get mediaInfoDuration;
+
+  /// No description provided for @mediaInfoTranscodeSource.
+  ///
+  /// In en, this message translates to:
+  /// **'Source'**
+  String get mediaInfoTranscodeSource;
+
+  /// No description provided for @mediaInfoTranscodeStreamed.
+  ///
+  /// In en, this message translates to:
+  /// **'Streamed as'**
+  String get mediaInfoTranscodeStreamed;
+
+  /// No description provided for @mediaInfoPlayCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Play count'**
+  String get mediaInfoPlayCount;
+
+  /// No description provided for @mediaInfoReplayGain.
+  ///
+  /// In en, this message translates to:
+  /// **'ReplayGain'**
+  String get mediaInfoReplayGain;
+
+  /// No description provided for @mediaInfoReplayGainTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'Track {gain}'**
+  String mediaInfoReplayGainTrack(String gain);
+
+  /// No description provided for @mediaInfoReplayGainAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Album {gain}'**
+  String mediaInfoReplayGainAlbum(String gain);
+
+  /// No description provided for @mediaInfoRecordingId.
+  ///
+  /// In en, this message translates to:
+  /// **'MusicBrainz recording ID'**
+  String get mediaInfoRecordingId;
+
+  /// No description provided for @mediaInfoAlbumId.
+  ///
+  /// In en, this message translates to:
+  /// **'MusicBrainz release ID'**
+  String get mediaInfoAlbumId;
+
+  /// No description provided for @mediaInfoArtistId.
+  ///
+  /// In en, this message translates to:
+  /// **'MusicBrainz artist ID'**
+  String get mediaInfoArtistId;
+
+  /// No description provided for @mediaInfoBpm.
+  ///
+  /// In en, this message translates to:
+  /// **'BPM'**
+  String get mediaInfoBpm;
+
+  /// No description provided for @mediaInfoComment.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment'**
+  String get mediaInfoComment;
+
+  /// No description provided for @mediaInfoServerPath.
+  ///
+  /// In en, this message translates to:
+  /// **'File path on server'**
+  String get mediaInfoServerPath;
+
+  /// No description provided for @mediaInfoClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get mediaInfoClose;
 }
 
 class _AppLocalizationsDelegate
