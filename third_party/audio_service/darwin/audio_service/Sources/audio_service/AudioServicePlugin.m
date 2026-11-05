@@ -210,9 +210,12 @@ static const double kNowPlayingDriftMs = 100.0;
                 speed.doubleValue != oldSpeed.doubleValue ||
                 processingState != oldProcessingState ||
                 position.longLongValue != oldPosition.longLongValue ||
-                // After stopService an idle state must not bring back the
-                // cleared entry.
-                (!hasPublishedElapsed && (playing || processingState != ApsIdle));
+                !hasPublishedElapsed;
+        }
+        // After stopService (or before the first publish) an idle, paused
+        // state must not bring back the cleared entry.
+        if (!hasPublishedElapsed && !playing && processingState == ApsIdle) {
+            publish = NO;
         }
         if (publish) {
             [self updateNowPlayingInfo];
