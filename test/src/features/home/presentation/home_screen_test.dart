@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:navis/src/features/settings/data/update_check_store.dart';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
@@ -26,6 +27,7 @@ import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
+import 'package:drift/drift.dart' show InsertMode, Value;
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
@@ -78,6 +80,68 @@ class _StaticLibrarySyncController extends LibrarySyncController {
   Future<LibrarySyncState> syncNow({
     bool allowMeteredBroadOverride = false,
   }) async {
+    return const LibrarySyncState.idle();
+  }
+}
+
+/// Stores an album and its songs the way opening an unsynced album does.
+class _HydratingLibrarySyncController extends LibrarySyncController {
+  new(this._database, this._songIds, {this.gate});
+
+  final NavisDatabase _database;
+  final List<String> _songIds;
+  final Completer<void>? gate;
+  final Completer<void> _started = Completer<void>();
+
+  bool get hydrateStarted => _started.isCompleted;
+
+  @override
+  LibrarySyncState build() => const LibrarySyncState.idle();
+
+  @override
+  Future<LibrarySyncState> syncIfStale() async {
+    return const LibrarySyncState.idle();
+  }
+
+  @override
+  Future<LibrarySyncState> syncNow({
+    bool allowMeteredBroadOverride = false,
+  }) async {
+    return const LibrarySyncState.idle();
+  }
+
+  @override
+  Future<LibrarySyncState?> hydrateOpenedAlbum(String albumId) async {
+    if (!_started.isCompleted) _started.complete();
+    await gate?.future;
+    await _database
+        .into(_database.albumsTable)
+        .insert(
+          AlbumsTableCompanion.insert(
+            id: albumId,
+            name: 'Fetched Album',
+            songsHydrated: const Value(true),
+            isProvisional: const Value(false),
+          ),
+          mode: InsertMode.insertOrReplace,
+        );
+    for (final (index, songId) in _songIds.indexed) {
+      await _database
+          .into(_database.songsTable)
+          .insert(
+            SongsTableCompanion.insert(
+              id: songId,
+              title: 'Song $songId',
+              albumId: Value(albumId),
+              artistName: const Value('Artist'),
+              albumName: const Value('Fetched Album'),
+              track: Value(index + 1),
+              duration: const Value(210),
+              isProvisional: const Value(false),
+            ),
+            mode: InsertMode.insertOrReplace,
+          );
+    }
     return const LibrarySyncState.idle();
   }
 }
@@ -4872,6 +4936,9 @@ void main() {
       WidgetTester tester, {
       required AlbumTitleShade mode,
       bool flat = false,
+      NavisDatabase? localDatabase,
+      LibrarySyncController Function()? librarySyncController,
+      List<Override> overrides = const <Override>[],
     }) async {
       tester.view.physicalSize = const Size(900, 1200);
       tester.view.devicePixelRatio = 1;
@@ -4879,8 +4946,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: withTestDatabase(
-            database,
+            localDatabase ?? database,
             overrides: <Override>[
+              ...overrides,
               appSettingsProvider.overrideWithValue(
                 AsyncData(
                   const AppSettingsModel.defaults().copyWith(
@@ -4899,7 +4967,7 @@ void main() {
               ),
               subsonicApiProvider.overrideWithValue(null),
               librarySyncControllerProvider.overrideWith(
-                _StaticLibrarySyncController.new,
+                librarySyncController ?? _StaticLibrarySyncController.new,
               ),
               homeRecentlyAddedProvider.overrideWithValue(
                 const AsyncData(<Album>[album]),
@@ -4996,6 +5064,108 @@ void main() {
       expect(tester.getRect(caption).top, closeTo(cover.bottom, 0.01));
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets('hovering a Recently Added card reveals the play button', (
+      tester,
+    ) async {
+      await pumpRecentlyAdded(tester, mode: AlbumTitleShade.classic);
+
+      final play = find.byKey(const ValueKey<String>('albumCardHoverPlay'));
+      expect(play, findsNothing);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byType(AlbumCardContent)));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(play, findsOneWidget);
+    });
+
+    // The shared database: a second NavisDatabase trips drift's warning.
+    tearDown(() async {
+      await (database.delete(
+        database.songsTable,
+      )..where((song) => song.albumId.equals('album-1'))).go();
+      await (database.delete(
+        database.albumsTable,
+      )..where((row) => row.id.equals('album-1'))).go();
+    });
+
+    Future<void> tapHoverPlay(WidgetTester tester) async {
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byType(AlbumCardContent)));
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(
+        find.byKey(const ValueKey<String>('albumCardHoverPlay')),
+      );
+      // No pumpAndSettle: the card's hover animation never stops settling.
+      await tester.pump();
+    }
+
+    QueueReplaceSpy queueSpyOf(WidgetTester tester) =>
+        ProviderScope.containerOf(
+          tester.element(find.byType(HomeScreen, skipOffstage: false)),
+        ).read(queueProvider.notifier) as QueueReplaceSpy;
+
+    testWidgets(
+      'playing an unsynced Recently Added card fetches the album first',
+      (tester) async {
+        await pumpRecentlyAdded(
+          tester,
+          mode: AlbumTitleShade.classic,
+          librarySyncController: () => _HydratingLibrarySyncController(
+            database,
+            <String>['recent-1', 'recent-2'],
+          ),
+          overrides: <Override>[
+            queueProvider.overrideWith(QueueReplaceSpy.new),
+          ],
+        );
+
+        await tapHoverPlay(tester);
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(queueSpyOf(tester).lastReplaceIds, <String>[
+          'recent-1',
+          'recent-2',
+        ]);
+      },
+    );
+
+    testWidgets(
+      'hover play does not override a queue changed while the album loads',
+      (tester) async {
+        final gate = Completer<void>();
+        final controller = _HydratingLibrarySyncController(database, <String>[
+          'recent-1',
+          'recent-2',
+        ], gate: gate);
+        await pumpRecentlyAdded(
+          tester,
+          mode: AlbumTitleShade.classic,
+          librarySyncController: () => controller,
+          overrides: <Override>[
+            queueProvider.overrideWith(QueueReplaceSpy.new),
+          ],
+        );
+
+        await tapHoverPlay(tester);
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(controller.hydrateStarted, isTrue);
+
+        final queueSpy = queueSpyOf(tester);
+        // Stands in for the user starting other playback mid-fetch.
+        queueSpy.reserveSelection();
+
+        gate.complete();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(queueSpy.lastReplaceIds, isNull);
+      },
+    );
   });
 
   group('HomeSectionIds', () {
