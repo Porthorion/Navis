@@ -140,19 +140,20 @@ void main() {
       expect(cache.sources, isEmpty);
     });
 
-    test('a failed cover is not asked for again this session', () async {
+    test('a cover that failed is asked again when read afresh', () async {
       final cache = _RecordingCache(null);
-      final container = _container(cache);
+      final first = _container(cache);
       expect(
-        await container.read(artworkSeedColorProvider(_request).future),
+        await first.read(artworkSeedColorProvider(_request).future),
         isNull,
       );
-      container.invalidate(artworkSeedColorProvider(_request));
+      first.dispose();
+      final second = _container(cache);
       expect(
-        await container.read(artworkSeedColorProvider(_request).future),
+        await second.read(artworkSeedColorProvider(_request).future),
         isNull,
       );
-      expect(cache.sources, hasLength(1));
+      expect(cache.sources, <String>['id:c1@208', 'id:c1@208']);
     });
   });
 }

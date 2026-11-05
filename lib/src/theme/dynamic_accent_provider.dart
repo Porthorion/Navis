@@ -131,25 +131,22 @@ typedef ArtworkSeedRequest = ({String coverArtId, int size});
 /// A colour the player already read is reused. Otherwise the cover is read at
 /// the size the card shows, so it is served by the image cache rather than
 /// downloaded again, and only where [_coverColourFetchAllowedProvider] allows.
-/// A cover that failed is not asked for again this session. `null` while it
-/// resolves, or when the cover has no usable colour.
+/// A cover that failed is asked for again when the card is shown again.
+/// `null` while it resolves, or when the cover has no usable colour.
 final artworkSeedColorProvider = FutureProvider.autoDispose
-    .family<int?, ArtworkSeedRequest>((ref, request) async {
+    .family<int?, ArtworkSeedRequest>((ref, request) {
       final cache = ref.watch(dynamicAccentColorCacheProvider);
       final known = cache.peekArtwork(request);
-      if (known != null) return known;
-      if (!ref.watch(_coverColourFetchAllowedProvider)) return null;
+      if (known != null) return Future<int?>.value(known);
+      if (!ref.watch(_coverColourFetchAllowedProvider)) {
+        return Future<int?>.value();
+      }
       final source = DynamicAccentColorCache.artworkSource(request);
-      if (cache.hasFailed(source)) return null;
-      final api = ref.watch(subsonicApiProvider);
-      final seed = await cache.resolve(
+      return cache.resolve(
         source: source,
-        api: api,
+        api: ref.watch(subsonicApiProvider),
         cacheManager: ref.watch(coverArtCacheManagerProvider),
       );
-      // Without an API there is nothing to blame the cover for.
-      if (seed == null && api != null) cache.markFailed(source);
-      return seed;
     });
 
 /// Effective app theme seed: dynamic art-based seed with user-selected fallback.
@@ -179,13 +176,6 @@ class DynamicAccentColorCache {
   /// The seed of the cover in [request], from either source.
   int? peekArtwork(ArtworkSeedRequest request) =>
       peek('id:${request.coverArtId}') ?? peek(artworkSource(request));
-
-  final Set<String> _failed = <String>{};
-
-  /// Whether [source] came back without a colour; asked for once per session.
-  bool hasFailed(String source) => _failed.contains(source);
-
-  void markFailed(String source) => _failed.add(source);
 
   Future<int?> resolve({
     required String source,

@@ -3868,8 +3868,8 @@ right-click on a hero or tile open the artist, album or song menu (album rows ha
 menu of their own); Play and Shuffle on an album go through `playAlbumById`, which
 fetches an album the library has not stored yet. The tint shares the player's colour
 cache but reads the cover at the size the card shows (so the image cache serves it), only
-where the next-song prefetch rule (`nextSongPrefetchAllowed`) allows, and a cover that
-failed is not asked for again that session. Covers follow Artwork Shape and
+where the next-song prefetch rule (`nextSongPrefetchAllowed`) allows; a cover that
+failed is asked for again when the card is shown again. Covers follow Artwork Shape and
 Artist Card Shape, cards follow Corner Style.
 
 ## Update Checker
