@@ -35,7 +35,7 @@ static double publishedTimeMs = 0;
 static double publishedRate = 0;
 // Navis: largest gap between the app's position and the system's
 // extrapolation before Now Playing is corrected.
-static const double kNowPlayingDriftMs = 250.0;
+static const double kNowPlayingDriftMs = 100.0;
 
 @implementation AudioServicePlugin {
     FlutterMethodChannel *_channel;
@@ -210,7 +210,9 @@ static const double kNowPlayingDriftMs = 250.0;
                 speed.doubleValue != oldSpeed.doubleValue ||
                 processingState != oldProcessingState ||
                 position.longLongValue != oldPosition.longLongValue ||
-                !hasPublishedElapsed;
+                // After stopService an idle state must not bring back the
+                // cleared entry.
+                (!hasPublishedElapsed && (playing || processingState != ApsIdle));
         }
         if (publish) {
             [self updateNowPlayingInfo];
@@ -329,10 +331,13 @@ static const double kNowPlayingDriftMs = 250.0;
     // Control Center never shows paused with a stale base.
     (void)updated;
     center.nowPlayingInfo = nowPlayingInfo;
+    // The system stamps the elapsed time when it is assigned, which can be
+    // later than the state's updateTime (e.g. setMediaItem after a gap).
+    double nowMs = [[NSDate date] timeIntervalSince1970] * 1000.0;
     hasPublishedElapsed = YES;
-    publishedPositionMs = [position doubleValue];
-    publishedTimeMs = [updateTime doubleValue];
     publishedRate = playing ? [speed doubleValue] : 0.0;
+    publishedPositionMs = [position doubleValue];
+    publishedTimeMs = nowMs;
 #if TARGET_OS_OSX
     if (@available(iOS 13.0, macOS 10.12.2, *)) {
         center.playbackState = playing ? MPNowPlayingPlaybackStatePlaying : MPNowPlayingPlaybackStatePaused;
