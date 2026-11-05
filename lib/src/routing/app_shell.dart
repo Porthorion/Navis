@@ -989,6 +989,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       viewportSize: mediaSize,
       safePadding: mediaPadding,
     );
+    final adaptiveHeightClass = resolveDesktopHeightClass(mediaSize.height);
     final adaptiveInputPolicy = resolveAdaptiveInputPolicy(
       adaptiveContext: adaptiveContext,
     );
@@ -2144,6 +2145,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                               bottomOffset: useDesktopShell && !isMiniPlayerMode
                                   ? DesktopPlaybackProgress.playerHeight(
                                           context,
+                                          adaptiveHeightClass,
                                         ) +
                                         12
                                   : null,

@@ -236,7 +236,14 @@ class _ListenBrainzWeeklyDetailContentState
     _enqueuePendingDownloads(serverSongs);
 
     if (adaptiveContext.useDesktopShell) {
-      const artSize = 260.0;
+      // Cover and padding follow the window height band; tall is the original.
+      final heightClass = desktopHeightClassOf(context);
+      final shortHeader = heightClass == DesktopHeightClass.short;
+      final artSize = heightClass.pick<double>(
+        short: 140,
+        regular: 200,
+        tall: 260,
+      );
       return SafeArea(
         bottom: false,
         child: DesktopFrame(
@@ -244,67 +251,76 @@ class _ListenBrainzWeeklyDetailContentState
             MediaQuery.sizeOf(context).width,
           ),
           padding: EdgeInsets.zero,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              ColoredBox(
-                key: const ValueKey<String>('albumDetailDesktopHeader'),
-                color: colors.surfaceContainerHigh,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: <Widget>[
-                      SizedBox.square(
-                        dimension: artSize,
-                        child: _ListenBrainzArtwork(
-                          playlist: playlist,
-                          size: artSize,
-                        ),
+          // The header is the first sliver: it scrolls away with the tracks.
+          child: CustomScrollView(
+            slivers: <Widget>[
+              SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    ColoredBox(
+                      key: const ValueKey<String>(
+                        'listenBrainzWeeklyDesktopHeader',
                       ),
-                      const SizedBox(width: 28),
-                      Expanded(
-                        child: _VirtualAlbumHeaderText(
-                          playlist: playlist,
-                          textAlign: TextAlign.start,
-                          titleStyle: textTheme.displaySmall?.copyWith(
-                            fontWeight: FontWeight.w800,
-                            height: 1.1,
-                          ),
-                          metadataStyle: textTheme.bodyMedium?.copyWith(
-                            color: colors.onSurfaceVariant,
-                          ),
-                          actions: _buildActions(serverSongs),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Container(
-                height: 28,
-                // Flat: a hard step to the solid end colour.
-                decoration: NavisColorStyleData.of(context).flatSurfaces
-                    ? BoxDecoration(color: colors.surface)
-                    : BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: <Color>[
-                            colors.surfaceContainerHigh,
-                            colors.surface,
+                      color: colors.surfaceContainerHigh,
+                      child: Padding(
+                        padding: shortHeader
+                            ? const EdgeInsets.fromLTRB(24, 12, 24, 12)
+                            : const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: <Widget>[
+                            SizedBox.square(
+                              dimension: artSize,
+                              child: _ListenBrainzArtwork(
+                                playlist: playlist,
+                                size: artSize,
+                              ),
+                            ),
+                            SizedBox(width: shortHeader ? 16 : 28),
+                            Expanded(
+                              child: _VirtualAlbumHeaderText(
+                                playlist: playlist,
+                                textAlign: TextAlign.start,
+                                titleStyle:
+                                    (shortHeader
+                                            ? textTheme.headlineLarge
+                                            : textTheme.displaySmall)
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.w800,
+                                          height: 1.1,
+                                        ),
+                                metadataStyle: textTheme.bodyMedium?.copyWith(
+                                  color: colors.onSurfaceVariant,
+                                ),
+                                actions: _buildActions(serverSongs),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-              ),
-              Expanded(
-                child: CustomScrollView(
-                  slivers: <Widget>[
-                    _buildTrackSliver(compact: false),
-                    const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                    ),
+                    Container(
+                      height: 28,
+                      // Flat: a hard step to the solid end colour.
+                      decoration: NavisColorStyleData.of(context).flatSurfaces
+                          ? BoxDecoration(color: colors.surface)
+                          : BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: <Color>[
+                                  colors.surfaceContainerHigh,
+                                  colors.surface,
+                                ],
+                              ),
+                            ),
+                    ),
                   ],
                 ),
               ),
+              _buildTrackSliver(compact: false),
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
             ],
           ),
         ),

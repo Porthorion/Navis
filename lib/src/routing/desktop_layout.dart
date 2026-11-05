@@ -9,6 +9,29 @@ import 'package:flutter/widgets.dart';
 /// Desktop width buckets used by desktop adaptive UI composition.
 enum DesktopLayoutClass { compactDesktop, standardDesktop, ultraWideDesktop }
 
+/// Desktop height bands: the desktop workspace sizes its player bar and detail
+/// headers by window height so a short window keeps room for the content.
+/// [tall] is the original sizing.
+enum DesktopHeightClass {
+  short,
+  regular,
+  tall;
+
+  /// The value of the current band.
+  T pick<T>({required T short, required T regular, required T tall}) =>
+      switch (this) {
+        DesktopHeightClass.short => short,
+        DesktopHeightClass.regular => regular,
+        DesktopHeightClass.tall => tall,
+      };
+}
+
+/// Below this logical window height the desktop workspace is [DesktopHeightClass.short].
+const double kDesktopShortHeightBelow = 760;
+
+/// From this logical window height the desktop workspace is [DesktopHeightClass.tall].
+const double kDesktopTallHeightFrom = 960;
+
 /// Smallest logical viewport that can present the full desktop workspace.
 const Size kDesktopViewMinimumSize = Size(800, 600);
 
@@ -211,6 +234,26 @@ DesktopLayoutClass resolveDesktopLayoutClass(double width) {
   }
   return DesktopLayoutClass.compactDesktop;
 }
+
+DesktopHeightClass resolveDesktopHeightClass(double height) {
+  if (height >= kDesktopTallHeightFrom) {
+    return DesktopHeightClass.tall;
+  }
+  if (height >= kDesktopShortHeightBelow) {
+    return DesktopHeightClass.regular;
+  }
+  return DesktopHeightClass.short;
+}
+
+/// The [DesktopHeightClass] of the window hosting [context].
+DesktopHeightClass desktopHeightClassOf(BuildContext context) =>
+    resolveDesktopHeightClass(MediaQuery.sizeOf(context).height);
+
+/// One line of [style] at the current text scale, for sizing fixed-height
+/// desktop chrome that must not clip its text.
+double scaledLineHeight(BuildContext context, TextStyle? style) =>
+    MediaQuery.textScalerOf(context).scale(style?.fontSize ?? 14) *
+    (style?.height ?? 1.3);
 
 /// Width breakpoints of [AdaptiveLayoutClass]: from [kAdaptiveMediumWidth] a
 /// layout is a medium tablet, from [kAdaptiveExpandedWidth] an expanded one.

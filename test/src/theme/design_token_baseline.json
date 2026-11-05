@@ -21,7 +21,7 @@
     "fontSize": 2
   },
   "lib/src/features/library/presentation/artist_detail_screen.dart": {
-    "fontSize": 3,
+    "fontSize": 2,
     "colorLiteral": 3
   },
   "lib/src/features/player/presentation/now_playing_screen.dart": {

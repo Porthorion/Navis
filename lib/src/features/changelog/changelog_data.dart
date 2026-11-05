@@ -150,6 +150,13 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Short desktop windows show more of the page: the player bar and '
+        'the album, playlist and artist headers are smaller below 760 px '
+        'high (and a little smaller below 960 px), and the header now '
+        'scrolls away with the track list. Taller windows look as before',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Fixed a crash on macOS, and frozen screen-reader output on '
         'Windows, when an accessibility tool such as VoiceOver or Narrator '
         'is running',
