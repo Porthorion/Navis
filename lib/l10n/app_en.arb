@@ -719,7 +719,7 @@
       "service": { "type": "String" }
     }
   },
-  "integrationsDeezerSends": "Sends artist, album and track names to {host} and loads images from Deezer's image servers.",
+  "integrationsDeezerSends": "Sends artist, album and track names, and what you type in Search, to {host} and loads images from Deezer's image servers.",
   "@integrationsDeezerSends": {
     "placeholders": {
       "host": { "type": "String" }
@@ -773,6 +773,8 @@
   "integrationsFeatureDeezerNewReleasesSubtitle": "New releases from your artists on Home.",
   "integrationsFeatureDeezerTrendingTitle": "Trending",
   "integrationsFeatureDeezerTrendingSubtitle": "Deezer's chart in You Might Like and your playlists.",
+  "integrationsFeatureDeezerSearchRankingTitle": "Rank search results by popularity",
+  "integrationsFeatureDeezerSearchRankingSubtitle": "Puts the most popular matches first and shows Top Results. Sends what you type in Search to Deezer.",
   "integrationsFeatureLastFmSameVibesTitle": "Same Vibes Mixes",
   "integrationsFeatureLastFmSameVibesSubtitle": "On: Instant Mix finds similar songs through Last.fm. Off: Instant Mix uses your server's mix.",
   "integrationsFeatureLastFmRadioTitle": "Instant Radio",
@@ -1285,6 +1287,7 @@
   },
   "searchNoResultsSubtitle": "Try a different search term.",
   "searchLoadError": "Could Not Load Search Results",
+  "searchTopResultsSection": "Top Results",
   "searchArtistsSection": "Artists",
   "searchAlbumsSection": "Albums",
   "searchSongsSection": "Songs",

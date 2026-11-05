@@ -21,9 +21,35 @@ SearchRelevanceTier searchRelevanceTier(String field, String query) {
   return SearchRelevanceTier.other;
 }
 
-SearchResult3 rankSearchResult(SearchResult3 result, String query) {
+/// How popular Deezer finds the items of a search, by item id and type: 0 is
+/// the most popular. An item missing here is unranked.
+class SearchPopularity {
+  const new({
+    this.artists = const <String, int>{},
+    this.albums = const <String, int>{},
+    this.songs = const <String, int>{},
+  });
+
+  final Map<String, int> artists;
+  final Map<String, int> albums;
+  final Map<String, int> songs;
+}
+
+/// Orders unranked items after every ranked one.
+const int _unranked = 1 << 30;
+
+/// Ranks [result] by text relevance, then source and server order. With
+/// [popularity], Deezer's rank breaks ties inside a relevance tier, ahead of
+/// source: ranked items first by rank, unranked after. Without it, or with
+/// nothing ranked, the order is exactly the one without popularity.
+SearchResult3 rankSearchResult(
+  SearchResult3 result,
+  String query, {
+  SearchPopularity? popularity,
+}) {
   List<T> rank<T>(
-    List<T> items, {
+    List<T> items,
+    Map<String, int>? ranks, {
     required String Function(T) id,
     required String Function(T) label,
     required bool? Function(T) isExternal,
@@ -40,6 +66,12 @@ SearchResult3 rankSearchResult(SearchResult3 result, String query) {
         query,
       ).index.compareTo(searchRelevanceTier(label(rightItem), query).index);
       if (relevanceDifference != 0) return relevanceDifference;
+
+      if (ranks != null && ranks.isNotEmpty) {
+        final popularityDifference = (ranks[id(leftItem)] ?? _unranked)
+            .compareTo(ranks[id(rightItem)] ?? _unranked);
+        if (popularityDifference != 0) return popularityDifference;
+      }
 
       final sourceDifference =
           classifyCatalogSource(
@@ -60,18 +92,21 @@ SearchResult3 rankSearchResult(SearchResult3 result, String query) {
   return SearchResult3(
     artists: rank(
       result.artists,
+      popularity?.artists,
       id: (artist) => artist.id,
       label: (artist) => artist.name,
       isExternal: (artist) => artist.isExternal,
     ),
     albums: rank(
       result.albums,
+      popularity?.albums,
       id: (album) => album.id,
       label: (album) => album.name,
       isExternal: (album) => album.isExternal,
     ),
     songs: rank(
       result.songs,
+      popularity?.songs,
       id: (song) => song.id,
       label: (song) => song.title,
       isExternal: (song) => song.isExternal,

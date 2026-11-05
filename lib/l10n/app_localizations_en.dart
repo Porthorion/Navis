@@ -1752,7 +1752,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String integrationsDeezerSends(String host) {
-    return 'Sends artist, album and track names to $host and loads images from Deezer\'s image servers.';
+    return 'Sends artist, album and track names, and what you type in Search, to $host and loads images from Deezer\'s image servers.';
   }
 
   @override
@@ -1847,6 +1847,14 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get integrationsFeatureDeezerTrendingSubtitle =>
       'Deezer\'s chart in You Might Like and your playlists.';
+
+  @override
+  String get integrationsFeatureDeezerSearchRankingTitle =>
+      'Rank search results by popularity';
+
+  @override
+  String get integrationsFeatureDeezerSearchRankingSubtitle =>
+      'Puts the most popular matches first and shows Top Results. Sends what you type in Search to Deezer.';
 
   @override
   String get integrationsFeatureLastFmSameVibesTitle => 'Same Vibes Mixes';
@@ -2901,6 +2909,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get searchLoadError => 'Could Not Load Search Results';
+
+  @override
+  String get searchTopResultsSection => 'Top Results';
 
   @override
   String get searchArtistsSection => 'Artists';

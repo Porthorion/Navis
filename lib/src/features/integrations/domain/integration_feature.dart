@@ -130,6 +130,7 @@ enum IntegrationFeature {
   deezerMissingAlbums('deezer.missingAlbums', IntegrationService.deezer),
   deezerNewReleases('deezer.newReleases', IntegrationService.deezer),
   deezerTrending('deezer.trending', IntegrationService.deezer),
+  deezerSearchRanking('deezer.searchRanking', IntegrationService.deezer),
   lastFmSameVibes(
     'lastfm.sameVibes',
     IntegrationService.lastFm,

@@ -11,9 +11,12 @@ import 'package:navis/src/database/daos/library_dao.dart' show GenreSummary;
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
+import 'package:navis/src/features/search/domain/deezer_search_boost.dart';
 import 'package:navis/src/features/search/domain/search_result_ranker.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 
 class SearchQueryNotifier extends Notifier<String> {
@@ -95,9 +98,14 @@ class SearchResultsState {
     required this.isLocalOnly,
     required this.remoteSearchFailed,
     this.genres = const <GenreSummary>[],
+    this.topResults = const <SearchTopResult>[],
   });
 
   final SearchResult3 result;
+
+  /// Up to [kMaxTopResults] items Deezer's popularity ranking matched to the
+  /// results; empty without Deezer's answer in time.
+  final List<SearchTopResult> topResults;
 
   /// Genres matching the query from the local index, so they work offline;
   /// empty while the Genres page is hidden or a type filter is active.
@@ -110,6 +118,16 @@ class SearchResultsState {
   /// result would otherwise look like an authoritative empty search.
   final bool remoteSearchFailed;
 }
+
+/// How long Search waits for Deezer past the server's answer. A later answer
+/// is ignored: the results never reshuffle after they show.
+const Duration kSearchDeezerWait = Duration(milliseconds: 350);
+
+/// Span names on `IntegrationCallRecorder`, for the diagnostics endpoint:
+/// Deezer's own time, and what Search made of it (how long it waited, and
+/// whether the answer was in time).
+const String kSearchDeezerSpan = 'search.deezer';
+const String kSearchDeezerRankSpan = 'search.deezerRank';
 
 final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
   (ref) async* {
@@ -171,6 +189,9 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
       ),
     );
 
+    // Deezer starts with the server search and is waited for only briefly.
+    final deezer = _startDeezerSearch(ref, query, filter, cancelToken);
+
     const defaultCount = 20;
     yield SearchResultsState(
       genres: genres,
@@ -203,16 +224,56 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
         ),
         filter,
       );
+      var merged = _filterResultByType(
+        mergeAndRankSearchResults(
+          local: localResult,
+          api: apiResult,
+          query: query,
+        ),
+        filter,
+      );
+      var topResults = const <SearchTopResult>[];
+      if (deezer != null) {
+        final waited = Stopwatch()..start();
+        final hits = await deezer.timeout(
+          kSearchDeezerWait,
+          onTimeout: () => null,
+        );
+        // The query changed while waiting: this answer is dropped.
+        if (!ref.mounted) return;
+        var ranked = 0;
+        if (hits != null) {
+          try {
+            final boost = matchDeezerSearchHits(result: merged, hits: hits);
+            merged = rankSearchResult(
+              merged,
+              query,
+              popularity: boost.popularity,
+            );
+            topResults = boost.topResults;
+            ranked =
+                boost.popularity.artists.length +
+                boost.popularity.albums.length +
+                boost.popularity.songs.length;
+          } on Object catch (error) {
+            // Ranking is an extra: keep today's order.
+            AppLogger.debug('Search: Deezer ranking failed: $error');
+          }
+        }
+        ref.read(integrationCallRecorderProvider).span(
+          kSearchDeezerRankSpan,
+          <String, int>{
+            'inTime': hits == null ? 0 : 1,
+            'ranked': ranked,
+            'topResults': topResults.length,
+          },
+          waited.elapsed,
+        );
+      }
       yield SearchResultsState(
         genres: genres,
-        result: _filterResultByType(
-          mergeAndRankSearchResults(
-            local: localResult,
-            api: apiResult,
-            query: query,
-          ),
-          filter,
-        ),
+        result: merged,
+        topResults: topResults,
         isWaitingForApi: false,
         isLocalOnly: false,
         remoteSearchFailed: false,
@@ -228,6 +289,72 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
     }
   },
 );
+
+/// Starts Deezer's search for [query] when `deezer.searchRanking` allows it
+/// (switch, service and master on), asking only the endpoint a type [filter]
+/// shows. The future never throws: an endpoint that fails or is cancelled
+/// reads as no hits, and the span records Deezer's own time. (Nullable only
+/// so the caller's timeout can answer null.) Null when nothing may be sent.
+Future<DeezerSearchHits?>? _startDeezerSearch(
+  Ref ref,
+  String query,
+  SearchResultType? filter,
+  CancelToken cancelToken,
+) {
+  if (!ref
+      .read(integrationPolicyProvider)
+      .allows(IntegrationFeature.deezerSearchRanking)) {
+    return null;
+  }
+  final catalog = ref.read(deezerCatalogProvider);
+  final recorder = ref.read(integrationCallRecorderProvider);
+  final timer = Stopwatch()..start();
+  var failed = 0;
+  Future<List<T>> ask<T>(
+    SearchResultType type,
+    Future<List<T>> Function() fetch,
+  ) async {
+    if (filter != null && filter != type) return <T>[];
+    try {
+      return await fetch();
+    } on Object catch (error) {
+      failed++;
+      AppLogger.debug('Search: Deezer ${type.name} search failed: $error');
+      return <T>[];
+    }
+  }
+
+  Future<DeezerSearchHits?> run() async {
+    final artists = ask(
+      SearchResultType.artists,
+      () => catalog.searchArtists(query, cancelToken: cancelToken),
+    );
+    final albums = ask(
+      SearchResultType.albums,
+      () => catalog.searchAlbums(query, cancelToken: cancelToken),
+    );
+    final tracks = ask(
+      SearchResultType.songs,
+      () => catalog.searchTracks(query, cancelToken: cancelToken),
+    );
+    final hits = DeezerSearchHits(
+      artists: await artists,
+      albums: await albums,
+      tracks: await tracks,
+    );
+    if (!cancelToken.isCancelled) {
+      recorder.span(kSearchDeezerSpan, <String, int>{
+        'artists': hits.artists.length,
+        'albums': hits.albums.length,
+        'tracks': hits.tracks.length,
+        'failed': failed,
+      }, timer.elapsed);
+    }
+    return hits;
+  }
+
+  return run();
+}
 
 SearchResult3 _filterResultByType(
   SearchResult3 result,

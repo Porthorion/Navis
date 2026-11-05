@@ -255,6 +255,120 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('109 to 110 search ranking switch', () {
+    // Opens a 109 profile holding [disabled] and [master], upgrades it and
+    // returns the stored disabled-integrations JSON.
+    Future<String> upgraded109({
+      String disabled = '[]',
+      bool master = true,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis_v110_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.appSettingsDao.getSettings();
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute(
+          'UPDATE app_settings SET disabled_integrations = ?, '
+          'external_integrations_enabled = ?',
+          [disabled, if (master) 1 else 0],
+        );
+        raw.execute('PRAGMA user_version = 109');
+      } finally {
+        raw.close();
+      }
+      final db = createTestDatabase(file: file);
+      addTearDown(db.close);
+      final settings = (await db.appSettingsDao.getSettings())!;
+      expect(
+        (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+          'user_version',
+        ),
+        NavisDatabase.currentSchemaVersion,
+      );
+      // Idempotent: running the step again changes nothing.
+      await db.from109To110(Migrator(db));
+      expect(
+        (await db.appSettingsDao.getSettings())!.disabledIntegrations,
+        settings.disabledIntegrations,
+      );
+      return settings.disabledIntegrations;
+    }
+
+    test('the schema version is 110', () {
+      expect(NavisDatabase.currentSchemaVersion, 110);
+    });
+
+    test('a profile with Deezer switched off starts with it off', () async {
+      expect(
+        await upgraded109(disabled: '["deezer","lastfm"]'),
+        '["deezer","deezer.searchRanking","lastfm"]',
+      );
+    });
+
+    test('a profile with Online services off starts with it off', () async {
+      expect(
+        await upgraded109(disabled: '["deezer.trending"]', master: false),
+        '["deezer.searchRanking","deezer.trending"]',
+      );
+    });
+
+    test('a profile using Deezer keeps it on', () async {
+      expect(await upgraded109(disabled: '["lastfm"]'), '["lastfm"]');
+    });
+
+    test('damaged JSON is left untouched', () async {
+      expect(await upgraded109(disabled: 'not json'), 'not json');
+    });
+
+    test('only the settings row (id 1) is read and rewritten', () async {
+      final directory = await Directory.systemTemp.createTemp('navis_v110_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.appSettingsDao.getSettings();
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        raw.execute('CREATE TEMP TABLE copy AS SELECT * FROM app_settings');
+        raw.execute("UPDATE copy SET id = 2, disabled_integrations = '[]'");
+        raw.execute('INSERT INTO app_settings SELECT * FROM copy');
+        raw.execute(
+          "UPDATE app_settings SET disabled_integrations = '[\"deezer\"]' "
+          'WHERE id = 1',
+        );
+        raw.execute('PRAGMA user_version = 109');
+      } finally {
+        raw.close();
+      }
+      final db = createTestDatabase(file: file);
+      addTearDown(db.close);
+      await db.appSettingsDao.getSettings();
+      final rows = await db
+          .customSelect('SELECT id, disabled_integrations FROM app_settings')
+          .get();
+      expect(
+        {
+          for (final row in rows)
+            row.read<int>('id'): row.read<String>('disabled_integrations'),
+        },
+        <int, String>{1: '["deezer","deezer.searchRanking"]', 2: '[]'},
+      );
+    });
+
+    test('a fresh profile has the switch on', () async {
+      if (!sqliteAvailable) return;
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      expect(
+        (await db.appSettingsDao.getSettings())!.disabledIntegrations,
+        '[]',
+      );
+    });
+  }, skip: !sqliteAvailable);
+
   test(
     '105 to 106 adds fast seeking with default true and preserves settings',
     () async {

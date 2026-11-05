@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Search puts the most popular matches first and shows Top Results '
+        '(Deezer; switch in Integrations)',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Turning on Auto-Download Liked now asks first, showing how many '
         'songs and roughly how much space it will download',
         type: ChangelogEntryType.improvement,

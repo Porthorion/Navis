@@ -58,6 +58,7 @@ void main() {
         'deezer.missingAlbums',
         'deezer.newReleases',
         'deezer.trending',
+        'deezer.searchRanking',
         'lastfm.sameVibes',
         'lastfm.radio',
         'lastfm.topSongs',
@@ -70,6 +71,20 @@ void main() {
         'radio.nowPlaying',
         'artwork.serverLinked',
       });
+    });
+
+    test('search ranking is a JSON-stored Deezer feature, on by default', () {
+      const feature = IntegrationFeature.deezerSearchRanking;
+      expect(feature.key, 'deezer.searchRanking');
+      expect(feature.service, IntegrationService.deezer);
+      expect(feature.legacyColumn, isNull);
+      expect(_policy().allows(feature), isTrue);
+      expect(
+        _policy(disabledJson: '["deezer.searchRanking"]').allows(feature),
+        isFalse,
+      );
+      expect(_policy(disabledJson: '["deezer"]').allows(feature), isFalse);
+      expect(_policy(master: false).allows(feature), isFalse);
     });
 
     test('only the four legacy-column features are column-backed', () {

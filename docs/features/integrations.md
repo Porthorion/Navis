@@ -17,6 +17,16 @@ Navis only talks to your server. Everything is on by default.
   release you don't have opens as a normal page loaded from your server's remote
   catalogue (such as Octo-Fiesta), with a search only when your server cannot
   provide it.
+  **Rank search results by popularity** (`deezer.searchRanking`) sends what you
+  type in Search to Deezer's track, artist and album search, in parallel with
+  your server's search, and uses Deezer's order only to rank: the library and
+  server results are reordered (popularity breaks ties inside a text-match tier)
+  and up to three matched hits lead the screen as Top Results, never adding
+  anything your library does not already return. Search waits at most 350 ms past
+  your server's answer; a later Deezer answer is ignored, so results never
+  reshuffle. Nothing is sent offline, while a Playlists or Radio filter is on,
+  or with the switch, Deezer or Online services off. A profile that already had
+  Deezer or Online services off when this arrived starts with the switch off.
 - **Last.fm** — Same Vibes mixes (the Instant Mix mode: on is Same Vibes, off
   is your server's mix), the Instant Radio fill and a top-songs fallback. No
   Last.fm scrobbling. Release builds bundle an API key, masked at build time to
