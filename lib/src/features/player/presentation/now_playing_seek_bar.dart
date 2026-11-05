@@ -115,8 +115,8 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
               unawaited(handler.seek(Duration(milliseconds: targetMs)));
             },
             child: ExcludeSemantics(
-              child: Slider(
-                key: const ValueKey('nowPlayingSeekSlider'),
+              child: NavisSlider(
+                sliderKey: const ValueKey('nowPlayingSeekSlider'),
                 value: sliderValue.clamp(0, sliderMax),
                 secondaryTrackValue: bufferedValue,
                 secondaryActiveColor: resolveBufferedSeekColor(context),

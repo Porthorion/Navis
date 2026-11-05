@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:android_file_picker/android_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -1523,8 +1524,8 @@ class _ConcurrentDownloadsTileState
                 ? description
                 : l10n.downloadsSettingsConcurrentCellular(description),
           ),
-          Slider(
-            key: const ValueKey<String>('downloadsConcurrentSlider'),
+          NavisSlider(
+            sliderKey: const ValueKey<String>('downloadsConcurrentSlider'),
             min: 1,
             max: kMaxConcurrentDownloads.toDouble(),
             divisions: kMaxConcurrentDownloads - 1,

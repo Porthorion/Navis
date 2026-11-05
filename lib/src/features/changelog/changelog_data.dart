@@ -139,6 +139,12 @@ const List<ChangelogVersion> changelogs = [
         'EQ presets) works again',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Fixed a crash on macOS, and frozen screen-reader output on '
+        'Windows, when an accessibility tool such as VoiceOver or Narrator '
+        'is running',
+        type: ChangelogEntryType.fix,
+      ),
     ],
   ),
   ChangelogVersion(

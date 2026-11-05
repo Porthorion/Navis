@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/domain/eq_response.dart';
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
@@ -527,8 +528,8 @@ class EqGraphEditorState extends State<EqGraphEditor> {
             width: 150,
             child: Listener(
               onPointerCancel: widget.enabled ? (_) => widget.onCancel() : null,
-              child: Slider(
-                key: const ValueKey('eq-graph-preamp'),
+              child: NavisSlider(
+                sliderKey: const ValueKey('eq-graph-preamp'),
                 value: current.preampDb,
                 min: -60,
                 max: 24,

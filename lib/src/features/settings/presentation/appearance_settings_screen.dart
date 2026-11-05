@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/features/settings/domain/color_namer.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
@@ -1619,7 +1620,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
               children: <Widget>[
                 const Icon(Icons.water_drop_outlined, size: 18),
                 Expanded(
-                  child: Slider(
+                  child: NavisSlider(
                     value: _saturation,
                     onChanged: (value) {
                       setState(() => _saturation = value);
@@ -1634,7 +1635,7 @@ class _ColorPickerDialogState extends State<_ColorPickerDialog> {
               children: <Widget>[
                 const Icon(Icons.brightness_6_outlined, size: 18),
                 Expanded(
-                  child: Slider(
+                  child: NavisSlider(
                     value: _value,
                     onChanged: (value) {
                       setState(() => _value = value);
@@ -1699,7 +1700,7 @@ class _HueSlider extends StatelessWidget {
             ),
           ),
         ),
-        Slider(value: hue, max: 359, onChanged: onChanged),
+        NavisSlider(value: hue, max: 359, onChanged: onChanged),
       ],
     );
   }
