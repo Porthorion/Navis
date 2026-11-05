@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:audio_service/audio_service.dart' show AudioServiceRepeatMode;
+import 'package:audio_service/audio_service.dart'
+    show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:file/file.dart' show File;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,6 +15,7 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
+import 'package:navis/src/utils/connectivity.dart';
 
 class _SongIndexNotifier extends Notifier<int> {
   @override
@@ -85,6 +87,7 @@ class _RecordingAccentCache extends DynamicAccentColorCache {
   final Map<String, int> seeds = <String, int>{};
   Completer<int?>? holdCurrent;
   bool failResolve = false;
+  bool nullCurrent = false;
 
   @override
   int? peek(String source) => seeds[source];
@@ -99,6 +102,7 @@ class _RecordingAccentCache extends DynamicAccentColorCache {
     if (failResolve) return Future<int?>.error(StateError('offline'));
     final hold = holdCurrent;
     if (hold != null && requested.length == 1) return hold.future;
+    if (nullCurrent) return Future<int?>.value();
     return Future<int?>.value(seeds[source] = 0xFF000000 + source.length);
   }
 }
@@ -119,8 +123,10 @@ PlaybackSnapshot _queueAt(
   List<String> ids,
   int index, {
   AudioServiceRepeatMode repeat = AudioServiceRepeatMode.none,
+  AudioServiceShuffleMode shuffle = AudioServiceShuffleMode.none,
   RadioStationMetadata? radio,
 }) => const PlaybackSnapshot.idle().copyWith(
+  shuffleMode: shuffle,
   queueSongIds: ids,
   currentSongId: ids[index],
   currentIndex: index,
@@ -529,6 +535,9 @@ void main() {
 
     Future<void> setUpContainer({
       bool enabled = true,
+      NetworkType network = NetworkType.wifi,
+      bool? metered,
+      bool prefetchOnMobileData = true,
       Map<String, String?> covers = const {'a': 'ca', 'b': 'cb', 'c': 'cc'},
     }) async {
       cache = _RecordingAccentCache();
@@ -536,6 +545,15 @@ void main() {
         overrides: [
           colorSchemeSeedProvider.overrideWith((_) => 0xFF123456),
           dynamicAccentEnabledProvider.overrideWith((_) => enabled),
+          networkTypeProvider.overrideWithValue(network),
+          nativeNetworkMeteredProvider.overrideWith((_) async => metered),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                prefetchNextOnMobileData: prefetchOnMobileData,
+              ),
+            ),
+          ),
           subsonicApiProvider.overrideWithValue(null),
           coverArtCacheManagerProvider.overrideWithValue(_unusedCacheManager()),
           dynamicAccentColorCacheProvider.overrideWithValue(cache),
@@ -601,6 +619,58 @@ void main() {
       await setUpContainer(covers: {'a': 'same', 'b': 'same'});
       await play(_queueAt(['a', 'b'], 0));
       expect(cache.requested, ['id:same']);
+    });
+
+    test(
+      'skips a next cover equal to the current one when it is unknown',
+      () async {
+        await setUpContainer(covers: {'a': 'same', 'b': 'same'});
+        cache.nullCurrent = true;
+        await play(_queueAt(['a', 'b'], 0));
+        // The current resolve returned null, so nothing is cached for 'same':
+        // only the equality guard keeps the prefetch from asking again.
+        expect(cache.requested, ['id:same']);
+      },
+    );
+
+    test('does nothing on cellular with the mobile-data setting off', () async {
+      await setUpContainer(
+        network: NetworkType.cellular,
+        prefetchOnMobileData: false,
+      );
+      await play(_queueAt(['a', 'b'], 0));
+      expect(cache.requested, ['id:ca']);
+    });
+
+    test('does nothing on a metered link with the setting off', () async {
+      await setUpContainer(metered: true, prefetchOnMobileData: false);
+      await play(_queueAt(['a', 'b'], 0));
+      expect(cache.requested, ['id:ca']);
+    });
+
+    test('prefetches on cellular when the setting allows it', () async {
+      await setUpContainer(network: NetworkType.cellular);
+      await play(_queueAt(['a', 'b'], 0));
+      expect(cache.requested, ['id:ca', 'id:cb']);
+    });
+
+    test('does nothing offline', () async {
+      await setUpContainer(network: NetworkType.offline);
+      await play(_queueAt(['a', 'b'], 0));
+      expect(cache.requested, ['id:ca']);
+    });
+
+    test('does not guess the next item when a shuffle pass restarts', () async {
+      await setUpContainer();
+      await play(
+        _queueAt(
+          ['a', 'b'],
+          1,
+          repeat: AudioServiceRepeatMode.all,
+          shuffle: AudioServiceShuffleMode.all,
+        ),
+      );
+      expect(cache.requested, ['id:cb']);
     });
 
     test('skips a next song without a cover or row', () async {

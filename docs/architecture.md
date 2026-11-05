@@ -1567,8 +1567,10 @@ target-selection rules.
   stay best-effort. Caption tints use the separate `CoverColourWorker` path.
   `DynamicAccentColorCache` shares one in-flight extraction per source, and
   `dynamicAccentNextPrefetchProvider` (watched by the app root) resolves the
-  next queue item's cover into it once the current seed is ready, so a normal
-  track change starts the theme fade from a cached seed. The Now Playing tint
+  next queue item's cover into it once the current seed is ready (same
+  offline/metered rule as the audio next-song prefetch; none for the last item
+  of a shuffled repeat-all queue), so a normal track change starts the theme
+  fade from a cached seed. The Now Playing tint
   is a separate extraction (768px image, current brightness, tonal-spot
   variant) and is not derived from this seed. `NavisColorStyleData.lerp` fades
   `accentHue` along the shortest hue arc; its discrete fields switch at 0.5.

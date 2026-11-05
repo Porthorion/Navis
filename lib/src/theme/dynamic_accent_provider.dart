@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import 'package:audio_service/audio_service.dart' show AudioServiceRepeatMode;
+import 'package:audio_service/audio_service.dart'
+    show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,7 +12,9 @@ import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/connectivity.dart';
 
 final dynamicAccentEnabledProvider = Provider<bool>((ref) {
   return ref.watch(dynamicAlbumColorEnabledProvider);
@@ -109,7 +112,8 @@ final dynamicAccentSeedColorProvider = FutureProvider<int?>((ref) async {
 /// The song that plays after the current one, using the order and repeat mode
 /// the player itself follows (the logical queue, wrapping only on repeat all).
 /// Null for radio, repeat one, the end of the queue, or a queue the snapshot
-/// has not caught up with.
+/// has not caught up with, and for the last item of a shuffled repeat-all
+/// queue (the handler reshuffles there, so `ids.first` would be a wrong guess).
 String? _nextSongId(PlaybackSnapshot snapshot) {
   final ids = snapshot.queueSongIds;
   final index = snapshot.currentIndex;
@@ -122,14 +126,33 @@ String? _nextSongId(PlaybackSnapshot snapshot) {
     return null;
   }
   if (index + 1 < ids.length) return ids[index + 1];
-  return snapshot.repeatMode == AudioServiceRepeatMode.all ? ids.first : null;
+  if (snapshot.repeatMode != AudioServiceRepeatMode.all ||
+      (snapshot.shuffleMode == AudioServiceShuffleMode.all && ids.length > 1)) {
+    return null;
+  }
+  return ids.first;
 }
 
 /// Cover source of the next queue item, under the same enabled guard as
-/// [_dynamicAccentSourceProvider]. Null when there is nothing worth warming,
+/// [_dynamicAccentSourceProvider] and the same metered/offline rule as the
+/// audio handler's next-song prefetch. Null when there is nothing worth warming,
 /// including when the next cover is the current one (same album).
 final _dynamicAccentNextSourceProvider = Provider<String?>((ref) {
   if (!ref.watch(dynamicAccentEnabledProvider)) {
+    return null;
+  }
+  final allowed = nextSongPrefetchAllowed(
+    setting: ref.watch(
+      appSettingsProvider.select(
+        (settings) =>
+            settings.asData?.value.prefetchNextOnMobileData ??
+            const AppSettingsModel.defaults().prefetchNextOnMobileData,
+      ),
+    ),
+    networkType: ref.watch(networkTypeProvider),
+    nativeMetered: ref.watch(nativeNetworkMeteredProvider).asData?.value,
+  );
+  if (!allowed) {
     return null;
   }
   final nextId = ref.watch(
