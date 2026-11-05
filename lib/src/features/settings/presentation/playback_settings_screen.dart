@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 
 import 'dart:async';
@@ -312,7 +313,7 @@ class _PlaybackSettingsScreenState
                               ),
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
-                            Slider(
+                            NavisSlider(
                               value: _crossfadeDurationSeconds.toDouble(),
                               min: 1,
                               max: 12,
@@ -435,7 +436,7 @@ class _PlaybackSettingsScreenState
                       '${_replayGainPreamp.toStringAsFixed(1)} dB',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    Slider(
+                    NavisSlider(
                       value: _replayGainPreamp.clamp(
                         _minReplayGainPreamp,
                         _maxReplayGainPreamp,

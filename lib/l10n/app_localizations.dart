@@ -5693,6 +5693,30 @@ abstract class AppLocalizations {
   /// **'Continue'**
   String get cacheSettingsAutoDownloadCellularWarningContinue;
 
+  /// No description provided for @downloadsAutoDownloadLikedConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Download 1 liked song?} other{Download {count} liked songs?}}'**
+  String downloadsAutoDownloadLikedConfirmTitle(int count);
+
+  /// No description provided for @downloadsAutoDownloadLikedConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'About {size} will be downloaded to this device. Songs you have already downloaded are skipped.'**
+  String downloadsAutoDownloadLikedConfirmMessage(String size);
+
+  /// No description provided for @downloadsAutoDownloadLikedConfirmMessageNoSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Your liked songs will be downloaded to this device. Songs you have already downloaded are skipped.'**
+  String get downloadsAutoDownloadLikedConfirmMessageNoSize;
+
+  /// No description provided for @downloadsAutoDownloadLikedConfirmAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get downloadsAutoDownloadLikedConfirmAction;
+
   /// No description provided for @externalSourceBadgeLabel.
   ///
   /// In en, this message translates to:

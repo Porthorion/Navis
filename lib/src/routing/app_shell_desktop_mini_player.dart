@@ -482,8 +482,8 @@ class _DesktopMiniPlayerTightPlaybackState
                               ref,
                               playback,
                             );
-                            return Slider(
-                              key: const ValueKey<String>(
+                            return NavisSlider(
+                              sliderKey: const ValueKey<String>(
                                 'desktopMiniPlayerSeekSlider',
                               ),
                               value: canSeek

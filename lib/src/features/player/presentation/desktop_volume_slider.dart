@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// A desktop volume slider with a floating percentage tooltip that tracks the
@@ -174,7 +175,7 @@ class _DesktopVolumeSliderState extends State<DesktopVolumeSlider>
                       child: Semantics(
                         label: widget.semanticLabel,
                         value: '$percent%',
-                        child: Slider(
+                        child: NavisSlider(
                           value: displayVolume,
                           min: 0,
                           max: 1,

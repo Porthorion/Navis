@@ -4,6 +4,7 @@ library;
 export 'now_playing_artwork_background.dart'
     show nowPlayingShowsArtworkLayer, nowPlayingSurfaceDecoration;
 
+import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
@@ -624,7 +625,7 @@ void _showNowPlayingSettingsSheet(
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Slider(
+                          child: NavisSlider(
                             value: sheetVolume,
                             min: 0,
                             max: 1,

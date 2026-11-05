@@ -586,7 +586,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                             overlayRadius: 12,
                           ),
                         ),
-                        child: Slider(
+                        child: NavisSlider(
                           value: sliderValue,
                           secondaryTrackValue: bufferedValue,
                           secondaryActiveColor: resolveBufferedSeekColor(
