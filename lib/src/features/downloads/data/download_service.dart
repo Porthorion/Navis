@@ -69,6 +69,16 @@ class _BackfillGate {
   Future<void>? inFlight;
 }
 
+/// Estimated size of [song] when downloaded at [quality] (kbps, or null for
+/// the original file): the stored `size` for originals, otherwise
+/// duration x bitrate.
+int expectedDownloadBytes(SongsTableData song, String? quality) {
+  if (quality == null && (song.size ?? 0) > 0) return song.size!;
+  return (song.duration ?? 0) *
+      (int.tryParse(quality ?? '') ?? song.bitRate ?? 320) *
+      125;
+}
+
 /// Orchestrates permanent downloads of tracks from a Subsonic server.
 ///
 /// Up to [kMaxConcurrentDownloads] transfers run at once (the user's setting,
@@ -418,13 +428,6 @@ class DownloadService {
     }
     _setFolderProblem(null);
     return true;
-  }
-
-  int _expectedBytes(SongsTableData song, String? quality) {
-    if (quality == null && (song.size ?? 0) > 0) return song.size!;
-    return (song.duration ?? 0) *
-        (int.tryParse(quality ?? '') ?? song.bitRate ?? 320) *
-        125;
   }
 
   Future<bool> _checkSpace(int expected, {bool notice = false}) async {
@@ -1426,12 +1429,29 @@ class DownloadService {
     );
   }
 
-  /// Core batch enqueue logic shared by [enqueueAlbum] and [enqueuePlaylist].
+  /// Enqueue many songs (no album or playlist) in one batch, for example the
+  /// liked songs. Same rules as [enqueueSong]. Returns the number newly queued.
+  Future<int> enqueueSongs(
+    List<String> songIds, {
+    String? quality,
+    String? format,
+  }) async {
+    if (songIds.isEmpty) return 0;
+    return await _batchEnqueue(
+      songIds: songIds,
+      quality: quality,
+      format: format,
+    );
+  }
+
+  /// Core batch enqueue logic shared by [enqueueAlbum], [enqueuePlaylist] and
+  /// [enqueueSongs].
   ///
   /// 1. Batch-fetch existing queue entries + cache entries (2 queries).
-  /// 2. Filter out songs already queued/downloading or permanently cached.
+  /// 2. Filter out duplicates, local-only deleted songs, songs already
+  ///    queued/downloading or permanently cached.
   /// 3. Attempt rolling→permanent promotion for compatible cached songs.
-  /// 4. Bulk-insert remaining songs in a single transaction.
+  /// 4. Replace stale failed rows and bulk-insert the rest.
   Future<int> _batchEnqueue({
     required List<String> songIds,
     String? albumId,
@@ -1440,24 +1460,29 @@ class DownloadService {
     String? format,
   }) async {
     final folderUsable = await _checkRequestedFolder();
+    // The same id twice would insert two queue rows.
+    final uniqueIds = songIds.toSet().toList(growable: false);
     // Batch dedup: one query per data source instead of N queries per song.
     final activeSongIds = await _downloadQueueDao.getActiveSongIds();
-    final cachedTracks = await _cacheDao.getCachedTracksForSongIds(songIds);
+    final cachedTracks = await _cacheDao.getCachedTracksForSongIds(uniqueIds);
     final songsById = <String, SongsTableData>{
-      for (final song in await _libraryDao.getSongsByIds(songIds))
+      for (final song in await _libraryDao.getSongsByIds(uniqueIds))
         song.id: song,
     };
 
     final toEnqueue = <DownloadQueueTableCompanion>[];
     var promotedCount = 0;
 
-    for (final songId in songIds) {
+    for (final songId in uniqueIds) {
       // Skip if already queued or downloading.
       if (activeSongIds.contains(songId)) continue;
 
+      final song = songsById[songId];
+      // Local-only deleted songs have nothing left to download.
+      if (song?.serverDeletedAt != null) continue;
+
       // Skip if already permanently cached.
       final cached = cachedTracks[songId];
-      final song = songsById[songId];
       if (cached?.cacheType == CacheType.permanent &&
           _isCacheQualityCompatible(cached!, quality, format, song: song)) {
         continue;
@@ -1491,11 +1516,17 @@ class DownloadService {
       if (folderUsable) {
         final expected = toEnqueue.fold<int>(0, (sum, item) {
           final song = songsById[item.songId.value];
-          return sum + (song == null ? 0 : _expectedBytes(song, quality));
+          return sum +
+              (song == null ? 0 : expectedDownloadBytes(song, quality));
         });
         if (expected > 0) await _checkSpace(expected, notice: true);
       }
-      await _downloadQueueDao.enqueueBatch(toEnqueue);
+      await _downloadQueueDao.transaction(() async {
+        await _downloadQueueDao.removeFailedForSongIds(
+          toEnqueue.map((c) => c.songId.value!),
+        );
+        await _downloadQueueDao.enqueueBatch(toEnqueue);
+      });
       if (_folderProblem != null) await _recordQueueHold();
     }
 
@@ -1810,7 +1841,7 @@ class DownloadService {
         return;
       }
 
-      final expected = _expectedBytes(song, item.quality);
+      final expected = expectedDownloadBytes(song, item.quality);
       final hasSpace = await _serializedFinalize(() async {
         if (_folderProblem != null) return false;
         if (!await _checkSpace(expected)) return false;

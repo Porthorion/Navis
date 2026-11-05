@@ -464,6 +464,87 @@ void main() {
     }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
     // -----------------------------------------------------------------------
+    // enqueueSongs
+    // -----------------------------------------------------------------------
+
+    test('enqueueSongs queues 300 songs in one queue emission', () async {
+      final ids = [for (var i = 0; i < 300; i++) 'song-$i'];
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        for (final id in ids) SongsTableCompanion.insert(id: id, title: id),
+      ]);
+      var emissions = 0;
+      final sub = database.downloadQueueDao.watchQueue().listen(
+        (_) => emissions++,
+      );
+      addTearDown(sub.cancel);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(emissions, 1); // The empty queue.
+
+      expect(await service.enqueueSongs(ids), 300);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      expect(emissions, lessThanOrEqualTo(2));
+      final items = await database.downloadQueueDao.watchQueue().first;
+      expect(items, hasLength(300));
+      expect(items.map((i) => i.songId).toSet(), hasLength(300));
+    }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+    test('batch enqueue applies the single-song rules', () async {
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        for (final id in ['fresh', 'cached', 'deleted', 'failed', 'active'])
+          SongsTableCompanion.insert(id: id, title: id),
+      ]);
+      await (database.update(database.songsTable)
+            ..where((t) => t.id.equals('deleted')))
+          .write(SongsTableCompanion(serverDeletedAt: Value(DateTime(2026))));
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'cached',
+          filePath: '/fake/cached.mp3',
+          fileSize: 1000,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
+      for (final (id, status) in <(String, DownloadStatus)>[
+        ('failed', DownloadStatus.failed),
+        ('active', DownloadStatus.queued),
+      ]) {
+        await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: Value(id),
+            status: status,
+            addedAt: DateTime(2026),
+          ),
+        );
+      }
+
+      // 'fresh' twice: one row. Same rules for the playlist path.
+      final queued = await service.enqueueSongs([
+        'fresh',
+        'cached',
+        'deleted',
+        'failed',
+        'active',
+        'fresh',
+      ]);
+      expect(queued, 2);
+      expect(await service.enqueuePlaylist('pl', ['deleted', 'failed']), 0);
+
+      final items = await database.downloadQueueDao.watchQueue().first;
+      expect(
+        items.map((i) => (i.songId, i.status)),
+        unorderedEquals(<(String?, DownloadStatus)>[
+          ('active', DownloadStatus.queued),
+          ('fresh', DownloadStatus.queued),
+          ('failed', DownloadStatus.queued),
+        ]),
+      );
+    }, skip: sqliteAvailable ? null : 'sqlite3 not available');
+
+    // -----------------------------------------------------------------------
     // Lyrics backfill on start()
     // -----------------------------------------------------------------------
 

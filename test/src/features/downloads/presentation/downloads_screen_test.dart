@@ -551,6 +551,148 @@ void main() {
     },
   );
 
+  group('Auto-Download Liked confirmation', () {
+    final likedSwitch = find.byKey(
+      const ValueKey('downloadsAutoDownloadLikedSwitch'),
+    );
+    final confirm = find.byKey(
+      const ValueKey('downloadsAutoDownloadLikedConfirm'),
+    );
+
+    Future<void> openSettings(
+      WidgetTester tester, {
+      required List<SongsTableCompanion> liked,
+      bool wifiOnly = true,
+    }) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(800, 1800);
+      addTearDown(() {
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPhysicalSize();
+      });
+      await tester.runAsync(() async {
+        await database.libraryDao.upsertSongs(liked);
+        await database.appSettingsDao.updateWifiOnlyDownloads(
+          enabled: wifiOnly,
+        );
+      });
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: withTestDatabase(
+            database,
+            overrides: [
+              downloadFolderProblemProvider.overrideWithValue(
+                const AsyncData(null),
+              ),
+              downloadQueueProvider.overrideWithValue(
+                const AsyncData(<DownloadQueueTableData>[]),
+              ),
+              permanentCachedTracksProvider.overrideWithValue(
+                const AsyncData(<CachedTracksTableData>[]),
+              ),
+            ],
+          ),
+          child: MaterialApp(
+            theme: testTheme(),
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const DownloadsScreen(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Settings'));
+      await tester.pumpAndSettle();
+    }
+
+    Future<bool> enabled(WidgetTester tester) async =>
+        (await tester.runAsync(database.appSettingsDao.getSettings))!
+            .autoDownloadStarredOnWifi;
+
+    // 1 MB, 2 MB and one without a size: 200 s at 320 kbps = 8,000,000 B.
+    List<SongsTableCompanion> threeLiked() => <SongsTableCompanion>[
+      SongsTableCompanion.insert(
+        id: 'a',
+        title: 'A',
+        size: const Value(1000000),
+        starred: Value(DateTime(2026)),
+      ),
+      SongsTableCompanion.insert(
+        id: 'b',
+        title: 'B',
+        size: const Value(2000000),
+        starred: Value(DateTime(2026)),
+      ),
+      SongsTableCompanion.insert(
+        id: 'c',
+        title: 'C',
+        duration: const Value(200),
+        bitRate: const Value(320),
+        starred: Value(DateTime(2026)),
+      ),
+    ];
+
+    testWidgets('shows the count and size; Cancel leaves it off', (
+      tester,
+    ) async {
+      await openSettings(tester, liked: threeLiked());
+      await tester.tap(likedSwitch);
+      await tester.pumpAndSettle();
+      expect(find.text('Download 3 liked songs?'), findsOneWidget);
+      // 11,000,000 B = 10.5 MB.
+      expect(find.textContaining('About 10.5 MB'), findsOneWidget);
+      expect(find.textContaining('mobile data'), findsNothing);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(await enabled(tester), isFalse);
+    });
+
+    testWidgets('Download turns it on', (tester) async {
+      await openSettings(tester, liked: threeLiked());
+      await tester.tap(likedSwitch);
+      await tester.pumpAndSettle();
+      await tester.tap(confirm);
+      await tester.pumpAndSettle();
+      expect(await enabled(tester), isTrue);
+    });
+
+    testWidgets('mobile-data warning shares the one dialog', (tester) async {
+      await openSettings(tester, liked: threeLiked(), wifiOnly: false);
+      await tester.tap(likedSwitch);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.textContaining('mobile data'), findsOneWidget);
+      await tester.tap(confirm);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(await enabled(tester), isTrue);
+    });
+
+    testWidgets('with nothing to download it turns on without asking', (
+      tester,
+    ) async {
+      await openSettings(tester, liked: const <SongsTableCompanion>[]);
+      await tester.tap(likedSwitch);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(await enabled(tester), isTrue);
+    });
+
+    testWidgets('turning it off never asks', (tester) async {
+      await openSettings(tester, liked: threeLiked());
+      await tester.runAsync(
+        () => database.appSettingsDao.updateAutoDownloadStarredOnWifi(
+          enabled: true,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(likedSwitch);
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(await enabled(tester), isFalse);
+    });
+  });
+
   testWidgets('failed downloads explain the reason and Retry clears it', (
     tester,
   ) async {

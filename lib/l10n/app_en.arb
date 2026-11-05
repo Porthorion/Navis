@@ -1680,6 +1680,24 @@
   "cacheSettingsAutoDownloadCellularWarningTitle": "Allow Liked Downloads on Mobile Data?",
   "cacheSettingsAutoDownloadCellularWarning": "Your liked library can use a large amount of storage and mobile data when Wi-Fi-only downloads are off.",
   "cacheSettingsAutoDownloadCellularWarningContinue": "Continue",
+  "downloadsAutoDownloadLikedConfirmTitle": "{count, plural, =1{Download 1 liked song?} other{Download {count} liked songs?}}",
+  "@downloadsAutoDownloadLikedConfirmTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "downloadsAutoDownloadLikedConfirmMessage": "About {size} will be downloaded to this device. Songs you have already downloaded are skipped.",
+  "@downloadsAutoDownloadLikedConfirmMessage": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "downloadsAutoDownloadLikedConfirmAction": "Download",
 
   "externalSourceBadgeLabel": "Remote source — not in your server library.",
   "remoteSourceLabel": "Remote",
