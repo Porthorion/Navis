@@ -103,6 +103,7 @@ class _NavisAppState extends ConsumerState<NavisApp>
     final density = ref.watch(densityProvider);
     final corners = ref.watch(cornerStyleProvider);
     final colorSeed = ref.watch(effectiveColorSchemeSeedProvider);
+    ref.watch(dynamicAccentNextPrefetchProvider);
     // With Dynamic Album Colour, styled schemes repaint backgrounds as well as
     // accents on every track change, so they ease over a slightly longer
     // transition. The seed is held while the next one loads, so one fade

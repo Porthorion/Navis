@@ -1565,6 +1565,13 @@ target-selection rules.
   scaling can truncate an edge to zero. Extremely thin artwork keeps the default
   tint/theme seed; loading retains its five-second timeout and extraction errors
   stay best-effort. Caption tints use the separate `CoverColourWorker` path.
+  `DynamicAccentColorCache` shares one in-flight extraction per source, and
+  `dynamicAccentNextPrefetchProvider` (watched by the app root) resolves the
+  next queue item's cover into it once the current seed is ready, so a normal
+  track change starts the theme fade from a cached seed. The Now Playing tint
+  is a separate extraction (768px image, current brightness, tonal-spot
+  variant) and is not derived from this seed. `NavisColorStyleData.lerp` fades
+  `accentHue` along the shortest hue arc; its discrete fields switch at 0.5.
 - Custom accent labels use `settings/domain/color_namer.dart`: nearest CIE76
   colour in CIELAB (sRGB D65), ignoring alpha, with lazily cached table Lab
   values. The MIT meodai/color-names table is generated from the pinned
