@@ -33,6 +33,8 @@ import 'package:navis/src/features/downloads/presentation/custom_download_folder
 import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/playlists/data/playlist_actions.dart';
+import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
@@ -1134,6 +1136,106 @@ void main() {
     },
   );
 
+  for (final desktop in <bool>[false, true]) {
+    testWidgets(
+      '${desktop ? 'desktop' : 'mobile'} track menu adds the song to a playlist',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(900, 700));
+        const mine = PlaylistsTableData(
+          isLocal: false,
+          id: 'mine',
+          name: 'My Mix',
+          owner: 'me',
+          songCount: 0,
+        );
+        registerFallbackValue(mine);
+        registerFallbackValue(<String>[]);
+        final actions = _MockPlaylistActions();
+        when(() => actions.addSongs(any(), any()))
+            .thenAnswer((_) async => (added: 1, alreadyThere: 0, failed: 0));
+        const song = SongsTableData(
+          id: 'pl-song',
+          title: 'Playlist Song',
+          isProvisional: false,
+          isExternal: false,
+        );
+        final track = CachedTracksTableData(
+          songId: song.id,
+          filePath: '/tmp/pl-song.mp3',
+          storageKind: 'filesystem',
+          fileSize: 1000000,
+          format: 'mp3',
+          bitRate: 320,
+          lastAccessedAt: DateTime(2026),
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: withTestDatabase(
+              database,
+              overrides: [
+                downloadFolderProblemProvider.overrideWithValue(
+                  const AsyncData(null),
+                ),
+                downloadQueueProvider.overrideWithValue(
+                  const AsyncData(<DownloadQueueTableData>[]),
+                ),
+                permanentCachedTracksProvider.overrideWithValue(
+                  AsyncData([track]),
+                ),
+                downloadRelatedSongsProvider.overrideWith(
+                  (ref) => Stream.value({song.id: song}),
+                ),
+                songByIdProvider.overrideWith((ref, id) => Stream.value(song)),
+                playlistViewerProvider.overrideWithValue('me'),
+                playlistActionsProvider.overrideWithValue(actions),
+                playlistListProvider.overrideWithValue(
+                  const AsyncData(<PlaylistsTableData>[mine]),
+                ),
+              ],
+            ),
+            child: MaterialApp(
+              theme: testTheme(),
+              localizationsDelegates: navisLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: AdaptiveContextScope(
+                adaptiveContext: resolveAdaptiveContext(
+                  desktopRuntime: desktop,
+                  viewportSize: const Size(900, 700),
+                  safePadding: EdgeInsets.zero,
+                ),
+                child: const DownloadsScreen(),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Downloaded'));
+        await tester.pumpAndSettle();
+
+        if (desktop) {
+          final gesture = await tester.startGesture(
+            tester.getCenter(find.text(song.title)),
+            kind: PointerDeviceKind.mouse,
+            buttons: kSecondaryButton,
+          );
+          await gesture.up();
+        } else {
+          await tester.longPress(find.text(song.title));
+        }
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Add to Playlist'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('My Mix'));
+        await tester.pumpAndSettle();
+
+        verify(() => actions.addSongs(mine, const <String>['pl-song']))
+            .called(1);
+      },
+    );
+  }
+
   testWidgets('Downloads search empty state can restore the full queue', (
     tester,
   ) async {
@@ -1929,6 +2031,8 @@ class _FolderService extends Fake implements DownloadService {
     );
   }
 }
+
+class _MockPlaylistActions extends Mock implements PlaylistActions {}
 
 class _MockDownloadDio extends Mock implements Dio;
 

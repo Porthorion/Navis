@@ -23,6 +23,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/player/presentation/play_song_in_collection.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart'
@@ -870,6 +871,10 @@ class _DownloadedTrackTile extends ConsumerWidget {
             child: Text(l10n.librarySongMenuAddToQueue),
           ),
           PopupMenuItem<_DownloadedTrackAction>(
+            value: _DownloadedTrackAction.addToPlaylist,
+            child: Text(l10n.librarySongMenuAddToPlaylist),
+          ),
+          PopupMenuItem<_DownloadedTrackAction>(
             value: _DownloadedTrackAction.openFolder,
             child: Text(l10n.downloadsOpenFolderAction),
           ),
@@ -945,6 +950,20 @@ class _DownloadedTrackTile extends ConsumerWidget {
                     track,
                     l10n,
                     _DownloadedTrackAction.addQueue,
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.playlist_add),
+                title: Text(l10n.librarySongMenuAddToPlaylist),
+                onTap: () async {
+                  Navigator.of(sheetContext).pop();
+                  await _handleTrackMenuAction(
+                    context,
+                    ref,
+                    track,
+                    l10n,
+                    _DownloadedTrackAction.addToPlaylist,
                   );
                 },
               ),
@@ -1053,6 +1072,9 @@ class _DownloadedTrackTile extends ConsumerWidget {
           );
         }
         return;
+      case _DownloadedTrackAction.addToPlaylist:
+        await showAddToPlaylistSheet(context, ref, <String>[track.songId]);
+        return;
       case _DownloadedTrackAction.openFolder:
         final opened = await openDirectoryInFileManager(
           File(track.filePath).parent.path,
@@ -1076,6 +1098,7 @@ enum _DownloadedTrackAction {
   playNow,
   changeQuality,
   addQueue,
+  addToPlaylist,
   openFolder,
   removeDownload,
 }
