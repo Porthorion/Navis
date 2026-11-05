@@ -74,6 +74,9 @@ class RankedVirtualPlaylistContent extends ConsumerWidget {
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     const desktopTrackPadding = EdgeInsets.symmetric(horizontal: 24);
     final colors = Theme.of(context).colorScheme;
+    // The desktop header follows the window height band; tall is the original.
+    final heightClass = desktopHeightClassOf(context);
+    final shortHeader = heightClass == DesktopHeightClass.short;
 
     return CustomScrollView(
       slivers: <Widget>[
@@ -83,12 +86,21 @@ class RankedVirtualPlaylistContent extends ConsumerWidget {
                   key: ValueKey<String>('$keyPrefix-desktop-header'),
                   color: colors.surfaceContainerHigh,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                    padding: shortHeader
+                        ? const EdgeInsets.fromLTRB(24, 12, 24, 12)
+                        : const EdgeInsets.fromLTRB(24, 24, 24, 20),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: <Widget>[
-                        artworkBuilder(coverArtIds, 260),
-                        const SizedBox(width: 28),
+                        artworkBuilder(
+                          coverArtIds,
+                          heightClass.pick<double>(
+                            short: 140,
+                            regular: 200,
+                            tall: 260,
+                          ),
+                        ),
+                        SizedBox(width: shortHeader ? 16 : 28),
                         Expanded(
                           child: _PlaylistHeaderText(
                             title: title,

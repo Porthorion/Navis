@@ -53,12 +53,34 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
     }
   }
 
+  /// The radio credit [runs] on one line below the tall band: the bar height
+  /// budgets one artist line there, and further credits wrap out of view.
+  Widget _radioArtistLine(
+    BuildContext context,
+    DesktopHeightClass heightClass,
+    Widget runs,
+  ) {
+    if (heightClass == DesktopHeightClass.tall) return runs;
+    return SizedBox(
+      height: scaledLineHeight(context, Theme.of(context).textTheme.bodySmall),
+      child: ClipRect(
+        child: OverflowBox(
+          alignment: Alignment.topLeft,
+          maxHeight: double.infinity,
+          child: runs,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final colors = Theme.of(context).colorScheme;
     final playback = widget.playback;
     final playbackVolume = ref.watch(playbackVolumeProvider);
+    final heightClass = desktopHeightClassOf(context);
+    final shortBar = heightClass == DesktopHeightClass.short;
     final hasPlayback =
         playback.isRadioMode ||
         (playback.currentSongId ?? '').trim().isNotEmpty;
@@ -124,7 +146,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         child: SafeArea(
           top: false,
           child: SizedBox(
-            height: DesktopPlaybackProgress.playerHeight(context),
+            height: DesktopPlaybackProgress.playerHeight(context, heightClass),
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final maxWidth = constraints.maxWidth;
@@ -145,14 +167,20 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                 final useCompactVolume = maxWidth < 1008;
                 // Keep transport sizes stable when text increases bar height.
                 const controlButtonExtent = 36.0;
-                const primaryControlExtent = 44.0;
+                final primaryControlExtent = shortBar
+                    ? DesktopPlaybackProgress.shortTransportExtent
+                    : 44.0;
+                // Action buttons share the transport height in the short band.
+                final actionButtonExtent = shortBar
+                    ? DesktopPlaybackProgress.shortTransportExtent
+                    : 44.0;
                 const controlIconSize = 20.0;
                 const primaryIconSize = 24.0;
                 const verticalInset = 4.0;
                 const sliderTrackHeight = 2.5;
                 const sliderThumbRadius = 4.0;
                 const sliderOverlayRadius = 8.0;
-                const controlsAreaHeight = primaryControlExtent;
+                final controlsAreaHeight = primaryControlExtent;
                 final quickControlStyle = IconButton.styleFrom(
                   minimumSize: const Size.square(controlButtonExtent),
                   maximumSize: const Size.square(controlButtonExtent),
@@ -232,8 +260,8 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                       child: IconButton(
                         focusNode: focusNode,
                         style: IconButton.styleFrom(
-                          minimumSize: const Size.square(44),
-                          maximumSize: const Size.square(44),
+                          minimumSize: Size.square(actionButtonExtent),
+                          maximumSize: Size.square(actionButtonExtent),
                           padding: EdgeInsets.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
@@ -456,50 +484,55 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                         (widget.songArtist ?? '')
                                             .trim()
                                             .isNotEmpty)
-                                      Wrap(
-                                        spacing: 0,
-                                        runSpacing: 0,
-                                        children: [
-                                          for (final (i, name)
-                                              in splitArtistNames(
-                                                widget.songArtist!,
-                                              ).indexed) ...<Widget>[
-                                            if (i > 0)
-                                              Text(
-                                                ', ',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall
-                                                    ?.copyWith(
-                                                      color: colors
-                                                          .onSurfaceVariant,
-                                                    ),
-                                              ),
-                                            MouseRegion(
-                                              cursor: SystemMouseCursors.click,
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  NavService.openSearch(
-                                                    context,
-                                                    ref,
-                                                    name,
-                                                    filter: SearchResultType
-                                                        .artists,
-                                                  );
-                                                },
-                                                child: Text(
-                                                  name,
+                                      _radioArtistLine(
+                                        context,
+                                        heightClass,
+                                        Wrap(
+                                          spacing: 0,
+                                          runSpacing: 0,
+                                          children: [
+                                            for (final (i, name)
+                                                in splitArtistNames(
+                                                  widget.songArtist!,
+                                                ).indexed) ...<Widget>[
+                                              if (i > 0)
+                                                Text(
+                                                  ', ',
                                                   style: Theme.of(context)
                                                       .textTheme
                                                       .bodySmall
                                                       ?.copyWith(
-                                                        color: colors.primary,
+                                                        color: colors
+                                                            .onSurfaceVariant,
                                                       ),
                                                 ),
+                                              MouseRegion(
+                                                cursor:
+                                                    SystemMouseCursors.click,
+                                                child: GestureDetector(
+                                                  onTap: () {
+                                                    NavService.openSearch(
+                                                      context,
+                                                      ref,
+                                                      name,
+                                                      filter: SearchResultType
+                                                          .artists,
+                                                    );
+                                                  },
+                                                  child: Text(
+                                                    name,
+                                                    style: Theme.of(context)
+                                                        .textTheme
+                                                        .bodySmall
+                                                        ?.copyWith(
+                                                          color: colors.primary,
+                                                        ),
+                                                  ),
+                                                ),
                                               ),
-                                            ),
+                                            ],
                                           ],
-                                        ],
+                                        ),
                                       )
                                     else
                                       Text(
@@ -624,8 +657,8 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                                             sliderOverlayRadius,
                                                       ),
                                                 ),
-                                                child: Slider(
-                                                  key: const ValueKey(
+                                                child: NavisSlider(
+                                                  sliderKey: const ValueKey(
                                                     'desktopPlayerSeekSlider',
                                                   ),
                                                   value: sliderValue,
@@ -947,7 +980,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: <Widget>[
                             SizedBox(
-                              height: 44,
+                              height: actionButtonExtent,
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: <Widget>[
@@ -1034,6 +1067,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                               ),
                               volume: playbackVolume,
                               compact: useCompactVolume,
+                              dense: shortBar,
                               semanticLabel: l10n.playbackVolumeSemanticLabel,
                               muteTooltip: l10n.playbackMuteTooltip,
                               unmuteTooltip: l10n.playbackUnmuteTooltip,

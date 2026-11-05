@@ -200,6 +200,9 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
         .toList(growable: false);
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
     const desktopTrackPadding = EdgeInsets.fromLTRB(24, 0, 24, 0);
+    // The desktop header follows the window height band; tall is the original.
+    final heightClass = desktopHeightClassOf(context);
+    final shortHeader = heightClass == DesktopHeightClass.short;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -216,21 +219,35 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                     ),
                     color: Theme.of(context).colorScheme.surfaceContainerHigh,
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                      padding: shortHeader
+                          ? const EdgeInsets.fromLTRB(24, 12, 24, 12)
+                          : const EdgeInsets.fromLTRB(24, 24, 24, 20),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
-                          _headerCover(playlist, songs, 220),
-                          const SizedBox(width: 24),
+                          _headerCover(
+                            playlist,
+                            songs,
+                            heightClass.pick<double>(
+                              short: 140,
+                              regular: 200,
+                              tall: 220,
+                            ),
+                          ),
+                          SizedBox(width: shortHeader ? 16 : 24),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: <Widget>[
                                 Text(
                                   playlist.name,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .headlineMedium,
+                                  style: shortHeader
+                                      ? Theme.of(context)
+                                            .textTheme
+                                            .headlineSmall
+                                      : Theme.of(context)
+                                            .textTheme
+                                            .headlineMedium,
                                 ),
                                 const SizedBox(height: 6),
                                 Text(
@@ -253,7 +270,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
                                     ),
                                   ),
                                 ],
-                                const SizedBox(height: 16),
+                                SizedBox(height: shortHeader ? 8 : 16),
                                 _playlistActions(
                                   playlist,
                                   visibleSongs,

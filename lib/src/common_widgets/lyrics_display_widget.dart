@@ -75,6 +75,9 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
   int _scrollRevision = 0;
   Timer? _autoScrollReengageTimer;
 
+  /// Where the active line rests: this fraction of the viewport height down.
+  static const _followAlignment = 0.4;
+
   /// Grace period before auto-scroll re-engages after a user interaction.
   static const _autoScrollReengageDelay = Duration(milliseconds: 2500);
 
@@ -157,7 +160,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
         _itemScrollController
             .scrollTo(
               index: index,
-              alignment: 0.4,
+              alignment: _followAlignment,
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeInOutCubic,
             )
@@ -166,7 +169,7 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
             }),
       );
     } else {
-      _itemScrollController.jumpTo(index: index, alignment: 0.4);
+      _itemScrollController.jumpTo(index: index, alignment: _followAlignment);
     }
   }
 
@@ -239,6 +242,11 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        assert(
+          constraints.hasBoundedHeight,
+          'The follow padding is a fraction of the pane height, so '
+          'LyricsDisplayWidget needs a bounded height.',
+        );
         final inactiveFontSize = _resolveSyncedFontSize(constraints.maxWidth);
         final activeFontSize = inactiveFontSize + 2;
         final horizontalPadding = (constraints.maxWidth * 0.06).clamp(
@@ -283,7 +291,17 @@ class _LyricsDisplayWidgetState extends State<LyricsDisplayWidget> {
                 ScrollablePositionedList.builder(
                   itemScrollController: _itemScrollController,
                   itemPositionsListener: _itemPositionsListener,
-                  padding: const EdgeInsets.symmetric(vertical: 100),
+                  // The top padding lets even the first line scroll down to the
+                  // resting height; with less, the list is clamped at the top
+                  // and the active line walks down the screen for the first
+                  // lines, then slides back up once scrolling is possible.
+                  // The matching bottom padding lets the last lines reach the
+                  // same height; a fixed 100 left short lyrics and the end of a
+                  // song resting 77-85% down.
+                  padding: EdgeInsets.only(
+                    top: constraints.maxHeight * _followAlignment,
+                    bottom: constraints.maxHeight * (1 - _followAlignment),
+                  ),
                   itemCount: lines.length + (hasFooter ? 1 : 0),
                   itemBuilder: (context, index) {
                     if (hasFooter && index == lines.length) {

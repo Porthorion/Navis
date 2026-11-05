@@ -50,6 +50,9 @@ import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/common_widgets/artwork_scrim.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 
+/// The hero's artist-name size; the header height reserves its line.
+const double _artistNameFontSize = 64;
+
 /// The album count an artist page shows: the larger of the artist row's
 /// [stored] count and the [listed] albums on the page. A server whose artist
 /// list counts only its local albums (Octo-Fiesta) leaves the row short of
@@ -617,6 +620,31 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
   }
 }
 
+/// The artist hero height: width-based, and on desktop smaller below the tall
+/// window height band so the page keeps room for its content. Tall and
+/// non-desktop layouts keep the original sizes.
+///
+/// [overlayExtent] is the height the bottom-anchored name overlay needs at the
+/// current text scale; shorter bands grow to it instead of clipping it.
+double _artistHeroHeight(
+  BuildContext context,
+  double availableWidth, {
+  required bool desktopMode,
+  double overlayExtent = 0,
+}) {
+  if (!desktopMode) {
+    return (availableWidth * 0.43).clamp(260.0, 560.0);
+  }
+  final bandHeight = switch (desktopHeightClassOf(context)) {
+    DesktopHeightClass.short => (availableWidth * 0.22).clamp(160.0, 200.0),
+    DesktopHeightClass.regular => (availableWidth * 0.28).clamp(200.0, 300.0),
+    DesktopHeightClass.tall => (availableWidth * 0.32).clamp(260.0, 420.0),
+  };
+  return desktopHeightClassOf(context) == DesktopHeightClass.tall
+      ? bandHeight
+      : math.max(bandHeight, overlayExtent);
+}
+
 String? _nonBlank(String? value) {
   final trimmed = value?.trim();
   return trimmed == null || trimmed.isEmpty ? null : trimmed;
@@ -639,8 +667,11 @@ class _ArtistDetailLoadingState extends StatelessWidget {
         final availableWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
-        final headerHeight = (availableWidth * (desktopMode ? 0.32 : 0.43))
-            .clamp(260.0, desktopMode ? 420.0 : 560.0);
+        final headerHeight = _artistHeroHeight(
+          context,
+          availableWidth,
+          desktopMode: desktopMode,
+        );
 
         return Semantics(
           label: l10n.artistDetailLoadingLabel,
@@ -872,8 +903,25 @@ class _ArtistImageHeader extends ConsumerWidget {
             ? constraints.maxWidth
             : MediaQuery.sizeOf(context).width;
         final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
-        final headerHeight = (availableWidth * (desktopMode ? 0.32 : 0.43))
-            .clamp(260.0, desktopMode ? 420.0 : 560.0);
+        final text = Theme.of(context).textTheme;
+        // The overlay: 64 px name line, summary, source chip, margins.
+        final overlayExtent =
+            20 +
+            scaledLineHeight(
+              context,
+              const TextStyle(fontSize: _artistNameFontSize, height: 1.05),
+            ) +
+            (summary.isEmpty
+                ? 0
+                : 6 + scaledLineHeight(context, text.titleSmall)) +
+            (isExternalSource ? 8 + 32 : 0) +
+            8;
+        final headerHeight = _artistHeroHeight(
+          context,
+          availableWidth,
+          desktopMode: desktopMode,
+          overlayExtent: overlayExtent,
+        );
 
         // Gradually shift the vertical anchor from top (portrait/narrow screens
         // where topCenter works well for portrait artist shots) toward center
@@ -930,7 +978,7 @@ class _ArtistImageHeader extends ConsumerWidget {
                                     fontWeight: FontWeight.w900,
                                     letterSpacing: -1,
                                     height: 1.05,
-                                    fontSize: 64,
+                                    fontSize: _artistNameFontSize,
                                     shadows: const <Shadow>[
                                       Shadow(
                                         blurRadius: 4,

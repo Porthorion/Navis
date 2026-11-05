@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// A desktop volume slider with a floating percentage tooltip that tracks the
@@ -19,6 +20,7 @@ class DesktopVolumeSlider extends StatefulWidget {
     required this.unmuteTooltip,
     this.compact = false,
     this.expanded = false,
+    this.dense = false,
   });
 
   /// Current volume in the range [0, 1].
@@ -42,6 +44,9 @@ class DesktopVolumeSlider extends StatefulWidget {
 
   /// When true, fills the available width instead of using a fixed preset.
   final bool expanded;
+
+  /// When true, the mute button is 36 px square instead of 40 (short windows).
+  final bool dense;
 
   @override
   State<DesktopVolumeSlider> createState() => _DesktopVolumeSliderState();
@@ -118,7 +123,17 @@ class _DesktopVolumeSliderState extends State<DesktopVolumeSlider>
       children: <Widget>[
         IconButton(
           iconSize: compact ? 18 : 20,
-          visualDensity: VisualDensity.compact,
+          visualDensity: widget.dense
+              ? VisualDensity.standard
+              : VisualDensity.compact,
+          style: widget.dense
+              ? IconButton.styleFrom(
+                  minimumSize: const Size.square(36),
+                  maximumSize: const Size.square(36),
+                  padding: EdgeInsets.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                )
+              : null,
           tooltip: widget.volume <= 0.001
               ? widget.unmuteTooltip
               : widget.muteTooltip,
@@ -160,7 +175,7 @@ class _DesktopVolumeSliderState extends State<DesktopVolumeSlider>
                       child: Semantics(
                         label: widget.semanticLabel,
                         value: '$percent%',
-                        child: Slider(
+                        child: NavisSlider(
                           value: displayVolume,
                           min: 0,
                           max: 1,

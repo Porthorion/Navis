@@ -92,19 +92,17 @@ class AutoDownloadStarredDispatchController extends Notifier<int> {
       final likedAlbums = await db.libraryDao.getLikedAlbums();
       final likedSongs = await db.libraryDao.getAllStarredSongs();
 
-      // Use batch enqueue — each call does a single bulk insert internally,
-      // so sequential awaits here are fine (2 DB round-trips per album, not
-      // 3n). This also avoids blocking the UI because the service only writes
-      // to the DB; actual downloading is handled by the background loop.
+      // Batch enqueue: each call is one bulk insert, so the queue stream
+      // emits once per call, not once per song. The flag stays set until
+      // every call finishes, so a network flip cannot dispatch again midway.
       for (final album in likedAlbums) {
         await service.enqueueAlbum(album.id, quality: quality, format: format);
       }
-      for (final song in likedSongs) {
-        // Fire-and-forget individual songs — enqueueSong is lightweight.
-        unawaited(
-          service.enqueueSong(song.id, quality: quality, format: format),
-        );
-      }
+      await service.enqueueSongs(
+        [for (final song in likedSongs) song.id],
+        quality: quality,
+        format: format,
+      );
     } finally {
       _isDispatching = false;
     }

@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/cached_tracks_table.dart';
 import 'package:navis/src/database/tables/listenbrainz_weekly_cache_table.dart';
@@ -239,9 +240,16 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
   ) async {
     final ids = songIds.where((id) => id.trim().isNotEmpty).toList();
     if (ids.isEmpty) return {};
-    final query = select(cachedTracksTable)..where((t) => t.songId.isIn(ids));
-    final rows = await query.get();
-    return {for (final r in rows) r.songId: r};
+    final result = <String, CachedTracksTableData>{};
+    for (final chunk in chunked(ids, 500)) {
+      final rows = await (select(
+        cachedTracksTable,
+      )..where((t) => t.songId.isIn(chunk))).get();
+      for (final r in rows) {
+        result[r.songId] = r;
+      }
+    }
+    return result;
   }
 
   Future<List<ListenBrainzWeeklyCacheTableData>>
