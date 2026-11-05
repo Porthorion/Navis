@@ -308,6 +308,36 @@ void main() {
       List<String> songIds(SearchResultsState state) =>
           state.result.songs.map((song) => song.id).toList();
 
+      test('All keeps one song, a Songs filter keeps up to three', () async {
+        if (!sqliteAvailable) return;
+        final tracks = [
+          adeleHello,
+          DeezerTrack(
+            id: 3,
+            title: 'Hello',
+            artist: const DeezerArtist(id: 4, name: 'Karaoke Stars'),
+          ),
+        ];
+        final all = await start(_FakeDeezerCatalog(tracks: tracks));
+        all.container.read(searchQueryProvider.notifier).submit('Hello');
+        await _waitForEmissions(all.emissions, 2);
+        expect(all.emissions.last.topResults, hasLength(1));
+
+        final songs = await start(
+          _FakeDeezerCatalog(tracks: tracks),
+          filter: SearchResultType.songs,
+        );
+        songs.container.read(searchQueryProvider.notifier).submit('Hello');
+        await _waitForEmissions(songs.emissions, 2);
+        expect(
+          [
+            for (final top in songs.emissions.last.topResults)
+              (top as TopSongResult).song.id,
+          ],
+          <String>['adele', 'karaoke'],
+        );
+      });
+
       test(
         'an answer in time gives one ranked emission with Top Results',
         () async {

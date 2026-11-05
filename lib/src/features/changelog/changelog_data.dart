@@ -139,6 +139,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'Search Top Results show the best match as a large card with Play, '
+        'Shuffle or Like, and the next two as tiles',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Turning on Auto-Download Liked now asks first, showing how many '
         'songs and roughly how much space it will download',
         type: ChangelogEntryType.improvement,

@@ -69,7 +69,6 @@ final _dynamicAccentSourceProvider = Provider<String?>((ref) {
   return coverArtId.isEmpty ? null : 'id:$coverArtId';
 });
 
-@visibleForTesting
 final dynamicAccentColorCacheProvider = Provider<DynamicAccentColorCache>((_) {
   return DynamicAccentColorCache();
 });
@@ -104,6 +103,21 @@ final dynamicAccentSeedColorProvider = FutureProvider<int?>((ref) async {
   );
 });
 
+/// Seed colour of the server cover `coverArtId`, from the same cache the
+/// player's album colour uses, for a flat tint behind a card. It does not
+/// follow the Dynamic Album Color setting (that one replaces the app accent).
+/// `null` while it resolves, or when the cover has no usable colour.
+final artworkSeedColorProvider = FutureProvider.autoDispose
+    .family<int?, String>(
+      (ref, coverArtId) => ref
+          .watch(dynamicAccentColorCacheProvider)
+          .resolve(
+            source: 'id:$coverArtId',
+            api: ref.watch(subsonicApiProvider),
+            cacheManager: ref.watch(coverArtCacheManagerProvider),
+          ),
+    );
+
 /// Effective app theme seed: dynamic art-based seed with user-selected fallback.
 final effectiveColorSchemeSeedProvider = Provider<int?>((ref) {
   final selectedSeed = ref.watch(colorSchemeSeedProvider);
@@ -118,7 +132,6 @@ final effectiveColorSchemeSeedProvider = Provider<int?>((ref) {
   return dynamicSeed ?? selectedSeed;
 });
 
-@visibleForTesting
 class DynamicAccentColorCache {
   final Map<String, int> _seedBySource = <String, int>{};
 
