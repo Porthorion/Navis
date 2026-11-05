@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
@@ -480,7 +481,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                             ],
                           ),
                         ),
-                        Slider(
+                        NavisSlider(
                           value: _budgetMb!.toDouble(),
                           min: _minBudgetMb.toDouble(),
                           max: _maxBudgetMb.toDouble(),
@@ -580,7 +581,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                               ],
                             ),
                           ),
-                          Slider(
+                          NavisSlider(
                             value: _coverArtMax!.toDouble(),
                             min: _minCoverArt.toDouble(),
                             max: _maxCoverArt.toDouble(),

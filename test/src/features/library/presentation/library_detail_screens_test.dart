@@ -844,65 +844,76 @@ void main() {
       );
     }
 
-    testWidgets('artist top tracks uses the continuous desktop detail header', (
-      tester,
-    ) async {
-      setAdaptiveTestViewport(tester, const Size(1440, 900));
-      await tester.pumpWidget(
-        _buildApp(
-          child: const ArtistTopTracksPlaylistDetailScreen(
-            artistId: 'artist-top-tracks',
-          ),
-          database: database,
-          adaptiveContext: _desktopContext,
-          overrides: [
-            artistByIdProvider('artist-top-tracks').overrideWithValue(
-              const AsyncData(
-                ArtistsTableData(
-                  isProvisional: false,
-                  isExternal: false,
-                  id: 'artist-top-tracks',
-                  name: 'Test Artist',
-                ),
+    for (final (size, cover) in const <(Size, double)>[
+      (Size(1440, 640), 140),
+      (Size(1440, 900), 200),
+      (Size(1440, 1000), 260),
+    ])
+      testWidgets(
+        'artist top tracks uses the continuous desktop detail header at '
+        '${size.width.toInt()}x${size.height.toInt()}',
+        (tester) async {
+          setAdaptiveTestViewport(tester, size);
+          await tester.pumpWidget(
+            _buildApp(
+              child: const ArtistTopTracksPlaylistDetailScreen(
+                artistId: 'artist-top-tracks',
               ),
-            ),
-            artistInfoProvider('artist-top-tracks')
-                .overrideWithValue(const AsyncData(null)),
-            artistTopTracksPlaylistProvider((
-              artistId: 'artist-top-tracks',
-              name: 'Test Artist',
-            )).overrideWithValue(
-              const AsyncData(<ResolvedArtistTopTrack>[
-                ResolvedArtistTopTrack(
-                  rank: 1,
-                  title: 'North Star',
-                  artist: 'Test Artist',
+              database: database,
+              adaptiveContext: _desktopContext,
+              overrides: [
+                artistByIdProvider('artist-top-tracks').overrideWithValue(
+                  const AsyncData(
+                    ArtistsTableData(
+                      isProvisional: false,
+                      isExternal: false,
+                      id: 'artist-top-tracks',
+                      name: 'Test Artist',
+                    ),
+                  ),
                 ),
-              ]),
+                artistInfoProvider('artist-top-tracks')
+                    .overrideWithValue(const AsyncData(null)),
+                artistTopTracksPlaylistProvider((
+                  artistId: 'artist-top-tracks',
+                  name: 'Test Artist',
+                )).overrideWithValue(
+                  const AsyncData(<ResolvedArtistTopTrack>[
+                    ResolvedArtistTopTrack(
+                      rank: 1,
+                      title: 'North Star',
+                      artist: 'Test Artist',
+                    ),
+                  ]),
+                ),
+              ],
             ),
-          ],
-        ),
-      );
-      await tester.pumpAndSettle();
+          );
+          await tester.pumpAndSettle();
 
-      expect(
-        find.byKey(const ValueKey<String>('artist-top-tracks-desktop-header')),
-        findsOneWidget,
+          expect(
+            find.byKey(
+              const ValueKey<String>('artist-top-tracks-desktop-header'),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(
+              const ValueKey<String>('artist-top-tracks-desktop-fade'),
+            ),
+            findsOneWidget,
+          );
+          final artwork = tester.widget<ArtistVirtualPlaylistArtwork>(
+            find.byType(ArtistVirtualPlaylistArtwork),
+          );
+          expect(artwork.size, cover);
+          expect(find.text('This Is Test Artist'), findsAtLeastNWidgets(1));
+          expect(find.text('Test Artist · 1 song'), findsOneWidget);
+          expect(find.text('North Star'), findsOneWidget);
+          expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
+          await _disposeApp(tester);
+        },
       );
-      expect(
-        find.byKey(const ValueKey<String>('artist-top-tracks-desktop-fade')),
-        findsOneWidget,
-      );
-      final artwork = tester.widget<ArtistVirtualPlaylistArtwork>(
-        find.byType(ArtistVirtualPlaylistArtwork),
-      );
-      expect(artwork.size, 260);
-      expect(find.text('This Is Test Artist'), findsAtLeastNWidgets(1));
-      expect(find.text('Test Artist · 1 song'), findsOneWidget);
-      expect(find.text('North Star'), findsOneWidget);
-      expect(find.widgetWithText(FilledButton, 'Play'), findsOneWidget);
-      await _disposeApp(tester);
-    });
 
     testWidgets('artist top tracks keeps the playlist hierarchy on phone', (
       tester,
@@ -1083,6 +1094,43 @@ void main() {
       );
       await _disposeApp(tester);
     });
+
+    for (final (size, maxHero) in const <(Size, double)>[
+      (Size(1440, 640), 200),
+      (Size(1440, 800), 300),
+      (Size(1440, 1000), 420),
+    ]) {
+      testWidgets('artist detail desktop hero is sized by window height at '
+          '${size.width.toInt()}x${size.height.toInt()}', (tester) async {
+        setAdaptiveTestViewport(tester, size);
+        await tester.pumpWidget(
+          _buildApp(
+            child: const ArtistDetailScreen(artistId: 'artist-loading'),
+            database: database,
+            adaptiveContext: _desktopContext,
+            overrides: [
+              artistByIdProvider('artist-loading')
+                  .overrideWithValue(const AsyncLoading()),
+              artistAlbumSectionsProvider('artist-loading')
+                  .overrideWithValue(const AsyncLoading()),
+              artistInfoProvider('artist-loading')
+                  .overrideWithValue(const AsyncLoading()),
+            ],
+          ),
+        );
+        await tester.pump();
+
+        // Wide windows reach each band's cap; the first block is the hero.
+        final hero = find
+            .descendant(
+              of: find.byType(ListView),
+              matching: find.byType(SizedBox),
+            )
+            .first;
+        expect(tester.getSize(hero).height, maxHero);
+        await _disposeApp(tester);
+      });
+    }
 
     testWidgets(
       'artist detail desktop loading preserves page hierarchy golden',
@@ -1965,6 +2013,76 @@ void main() {
         await _disposeApp(tester);
       },
     );
+
+    for (final (size, cover) in const <(Size, double)>[
+      (Size(1008, 640), 140),
+      (Size(1008, 800), 200),
+      (Size(1440, 1000), 260),
+    ]) {
+      testWidgets(
+        '${size.width.toInt()}x${size.height.toInt()} desktop album header '
+        'is sized by window height and scrolls away',
+        (tester) async {
+          setAdaptiveTestViewport(tester, size);
+          await _pumpAlbumDetail(
+            tester,
+            database: database,
+            adaptiveContext: _desktopContext,
+            album: _albumWithSongs(<SongsTableData>[
+              for (var i = 1; i <= 16; i++)
+                SongsTableData(
+                  isProvisional: false,
+                  isExternal: false,
+                  id: 'band-track-$i',
+                  title: 'Band Track $i',
+                  track: i,
+                ),
+            ]),
+          );
+
+          final header = find.byKey(
+            const ValueKey<String>('albumDetailDesktopHeader'),
+          );
+          expect(tester.getSize(find.byType(HeroCoverArt)).height, cover);
+          final headerHeight = tester.getSize(header).height;
+          // Cover plus the band's padding; tall keeps 24 + 20.
+          expect(headerHeight, lessThanOrEqualTo(cover + 64));
+          if (size.height >= 960) {
+            expect(headerHeight, 304);
+          } else if (size.height < 760) {
+            expect(headerHeight, lessThanOrEqualTo(184));
+          }
+
+          // Rows fully visible above a player bar of this band before
+          // scrolling, measured from the page top (the header's top).
+          final pageTop = tester.getTopLeft(header).dy;
+          final barHeight = size.height >= 960
+              ? 120
+              : (size.height >= 760 ? 100 : 84);
+          final visibleRows = find.byType(TrackListTile).evaluate().where((e) {
+            final box = e.renderObject! as RenderBox;
+            return box.localToGlobal(Offset.zero).dy +
+                    box.size.height -
+                    pageTop <=
+                size.height - barHeight;
+          }).length;
+          if (size.height < 760) {
+            expect(visibleRows, greaterThanOrEqualTo(5));
+          }
+
+          // The header is part of the scroll view: scrolling moves it away.
+          final top = tester.getTopLeft(header).dy;
+          await tester.drag(
+            find.byType(CustomScrollView).first,
+            const Offset(0, -120),
+          );
+          await tester.pump();
+          expect(tester.getTopLeft(header).dy, lessThan(top));
+          expect(tester.takeException(), isNull);
+          await _disposeApp(tester);
+        },
+      );
+    }
 
     testWidgets('compact desktop album header remains usable at 130% text', (
       tester,

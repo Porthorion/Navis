@@ -2889,6 +2889,37 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
     return query.get();
   }
 
+  /// Songs Auto-Download Liked may queue right now: liked songs plus the
+  /// songs of liked albums, each once, minus local-only deleted songs and
+  /// songs already queued or downloading.
+  ///
+  /// Permanent downloads are kept: whether one already satisfies the wanted
+  /// quality is the download service's rule (`isCacheQualityCompatible`),
+  /// applied by the caller. Mirrors what the dispatcher hands to
+  /// `enqueueSongs` and `enqueueAlbum`.
+  Future<List<SongsTableData>> getLikedDownloadCandidates() {
+    final likedAlbumSong = CustomExpression<bool>(
+      'songs.album_id IN (SELECT albums.id FROM albums '
+      "WHERE ${_likedAlbumPredicate('albums')} "
+      "AND COALESCE(albums.catalog_availability, 'present') "
+      "!= 'confirmedMissing') "
+      'AND (songs.is_provisional = 0 OR songs.is_external = 1)',
+    );
+    const notQueued = CustomExpression<bool>(
+      'NOT EXISTS (SELECT 1 FROM download_queue q '
+      'WHERE q.song_id = songs.id '
+      "AND q.status IN ('queued', 'downloading'))",
+    );
+    final query = select(songsTable)
+      ..where(
+        (t) =>
+            t.serverDeletedAt.isNull() &
+            (t.starred.isNotNull() & _selectableForBulkUse | likedAlbumSong) &
+            notQueued,
+      );
+    return query.get();
+  }
+
   /// Whether a song may appear in bulk/automatic selection (shuffle, Play
   /// All, auto-download): anything the catalog still lists, plus absent rows
   /// that hold a complete local copy so offline favorites stay playable

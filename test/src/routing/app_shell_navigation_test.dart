@@ -1408,7 +1408,10 @@ void main() {
       final finder = find.byKey(ValueKey<String>(key));
       expect(finder, findsOneWidget);
       expect(desktopActionButton(tester, key).onPressed, isNull);
-      expect(tester.getSize(finder), const Size(44, 44));
+      expect(
+        tester.getSize(finder),
+        const Size(36, 36),
+      ); // short band (800x600)
       final semantics = tester.getSemantics(finder);
       expect(semantics.label, 'Unavailable Until Something Is Playing');
       expect(
@@ -1774,6 +1777,59 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final (size, height) in const <(Size, double)>[
+    (Size(1008, 640), 84),
+    (Size(800, 600), 84),
+    (Size(1008, 800), 100),
+    (Size(1440, 1000), 120),
+  ]) {
+    testWidgets(
+      '${size.width.toInt()}x${size.height.toInt()} Desktop player bar is $height high',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = size;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        final container = _createContainerWithDatabase(
+          overrides: _authenticatedShellOverrides(desktopRuntime: true),
+        );
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: container, child: testNavisApp),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          tester
+              .getSize(find.byKey(const ValueKey<String>('desktopPlayerBar')))
+              .height,
+          height,
+        );
+        // Every control stays, whatever the band.
+        for (final key in <String>[
+          'desktopPlayerPlayPauseButton',
+          'desktopPlayerFavoriteButton',
+          'desktopQueueButton',
+          'desktopPlayerVolumeSlider',
+        ]) {
+          expect(find.byKey(ValueKey<String>(key)), findsOneWidget);
+        }
+        expect(find.byKey(const ValueKey('desktopProgressInline')), findsOne);
+        final mute = find.descendant(
+          of: find.byKey(const ValueKey<String>('desktopPlayerVolumeSlider')),
+          matching: find.byType(IconButton),
+        );
+        expect(
+          tester.getSize(mute),
+          size.height < 760 ? const Size(36, 36) : const Size(40, 40),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pump(const Duration(milliseconds: 201));
+      },
+    );
+  }
 
   testWidgets('restored Desktop queue enables only resumable Play', (
     tester,
@@ -2505,6 +2561,69 @@ void main() {
     });
   }
 
+  testWidgets(
+    'short Desktop player bar keeps a long radio credit on one line at 130%',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1008, 640);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      const radioPlayback = PlaybackSnapshot(
+        queueSongIds: <String>[],
+        currentSongId: null,
+        currentIndex: null,
+        playing: true,
+        processingState: AudioProcessingState.ready,
+        position: Duration.zero,
+        duration: Duration.zero,
+        bufferedPosition: Duration.zero,
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+        radioStation: RadioStationMetadata(
+          stationId: 'radio-1',
+          stationName: 'Test Radio',
+          streamUrl: 'https://example.com/radio',
+          nowPlayingTitle: 'A Very Long Radio Track Title',
+          nowPlayingArtist:
+              'First Credited Artist; Second Credited Artist; '
+              'Third Credited Artist; Fourth Credited Artist; '
+              'Fifth Credited Artist; Sixth Credited Artist',
+        ),
+      );
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(
+          desktopRuntime: true,
+          playback: radioPlayback,
+        ),
+      );
+      await tester.pumpWidget(
+        MediaQuery(
+          data: MediaQueryData.fromView(tester.view)
+              .copyWith(textScaler: const TextScaler.linear(1.3)),
+          child: UncontrolledProviderScope(
+            container: container,
+            child: testNavisApp,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final bar = find.byKey(const ValueKey<String>('desktopPlayerBar'));
+      expect(tester.getSize(bar).height, 84);
+      expect(find.text('First Credited Artist'), findsOneWidget);
+      // The credits sit in a one-line clip: longer runs never overflow the bar.
+      final clip = find.ancestor(
+        of: find.text('First Credited Artist'),
+        matching: find.byType(ClipRect),
+      );
+      expect(tester.getSize(clip.first).height, lessThan(24));
+      expect(tester.takeException(), isNull);
+      await tester.pump(const Duration(milliseconds: 201));
+    },
+  );
+
   testWidgets('Desktop radio keeps invalid action slots visibly disabled', (
     tester,
   ) async {
@@ -2551,7 +2670,10 @@ void main() {
       final finder = find.byKey(ValueKey<String>(key));
       expect(finder, findsOneWidget);
       expect(desktopActionButton(tester, key).onPressed, isNull);
-      expect(tester.getSize(finder), const Size(44, 44));
+      expect(
+        tester.getSize(finder),
+        const Size(36, 36),
+      ); // short band (800x600)
       final semantics = tester.getSemantics(finder);
       expect(semantics.label, entry.$2);
       expect(

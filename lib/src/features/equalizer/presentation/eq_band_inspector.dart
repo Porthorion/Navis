@@ -2,6 +2,7 @@ import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
@@ -396,8 +397,8 @@ class EqQControl extends StatelessWidget {
         Expanded(
           child: Listener(
             onPointerCancel: enabled ? (_) => onCancel() : null,
-            child: Slider(
-              key: const ValueKey('eq-graph-q'),
+            child: NavisSlider(
+              sliderKey: const ValueKey('eq-graph-q'),
               value: EqGraphGeometry.qPosition(q).clamp(0, 1),
               label: 'Q ${eqNumber(q, decimals: 3)}',
               semanticFormatterCallback: (value) =>

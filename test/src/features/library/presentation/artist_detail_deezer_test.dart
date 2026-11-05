@@ -91,6 +91,19 @@ const _mobileContext = AdaptiveContext(
   useRailNavigation: false,
 );
 
+const _desktopContext = AdaptiveContext(
+  desktopRuntime: true,
+  desktopWide: true,
+  desktopLayoutClass: DesktopLayoutClass.compactDesktop,
+  adaptiveLayoutClass: AdaptiveLayoutClass.tabletExpanded,
+  adaptiveShellMode: AdaptiveShellMode.standardRail,
+  isPhoneFormFactor: false,
+  useDesktopShell: true,
+  useStandardRailNavigation: false,
+  useCompactWideLandscape: false,
+  useRailNavigation: false,
+);
+
 AlbumsTableData _album(String id, String name, {int year = 2022}) =>
     AlbumsTableData(
       isProvisional: false,
@@ -339,6 +352,31 @@ void main() {
   });
 
   group('header photo', () {
+    testWidgets('a short desktop hero grows to hold its name at 200% text', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(800, 600));
+      await tester.pumpWidget(
+        MediaQuery(
+          data: MediaQueryData.fromView(tester.view)
+              .copyWith(textScaler: const TextScaler.linear(2)),
+          child: app(
+            adaptiveContext: _desktopContext,
+            info: const ArtistInfo(largeImageUrl: _serverPhoto),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final hero = tester.getRect(headerImage(_serverPhoto));
+      final name = tester.getRect(find.text('ONE OK ROCK').first);
+      expect(name.top, greaterThanOrEqualTo(hero.top));
+      expect(name.bottom, lessThanOrEqualTo(hero.bottom));
+      // Grown past the 160-200 px short band, never clipped.
+      expect(hero.height, greaterThan(200));
+      await dispose(tester);
+    });
+
     testWidgets('the server photo comes first', (tester) async {
       await tester.pumpWidget(
         app(

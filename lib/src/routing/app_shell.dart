@@ -6,6 +6,7 @@ import 'dart:ui';
 import 'package:audio_service/audio_service.dart' show AudioServiceShuffleMode;
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/features/settings/presentation/settings_scroll_provider.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/home_activity_scope.dart';
@@ -991,6 +992,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       viewportSize: mediaSize,
       safePadding: mediaPadding,
     );
+    final adaptiveHeightClass = resolveDesktopHeightClass(mediaSize.height);
     final adaptiveInputPolicy = resolveAdaptiveInputPolicy(
       adaptiveContext: adaptiveContext,
     );
@@ -2131,6 +2133,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                               bottomOffset: useDesktopShell && !isMiniPlayerMode
                                   ? DesktopPlaybackProgress.playerHeight(
                                           context,
+                                          adaptiveHeightClass,
                                         ) +
                                         12
                                   : null,

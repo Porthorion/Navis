@@ -3952,6 +3952,54 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  for (final (size, cover) in const <(Size, double)>[
+    (Size(1366, 640), 140),
+    (Size(1366, 800), 200),
+    (Size(1366, 1000), 260),
+  ]) {
+    testWidgets(
+      'desktop weekly header is sized by window height and scrolls away at '
+      '${size.width.toInt()}x${size.height.toInt()}',
+      (tester) async {
+        setAdaptiveTestViewport(tester, size);
+        await _pumpWeeklyDetail(
+          tester,
+          sourcePatch: 'weekly-exploration',
+          database: database,
+          playlists: Stream<List<ListenBrainzDiscoverPlaylist>>.value(
+            <ListenBrainzDiscoverPlaylist>[
+              _listenBrainzPlaylistWithTableSongs(),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final header = find.byKey(
+          const ValueKey<String>('listenBrainzWeeklyDesktopHeader'),
+        );
+        expect(header, findsOneWidget);
+        expect(
+          find.descendant(
+            of: header,
+            matching: find.byWidgetPredicate(
+              (w) => w is SizedBox && w.width == cover && w.height == cover,
+            ),
+          ),
+          findsAtLeastNWidgets(1),
+        );
+        final top = tester.getTopLeft(header).dy;
+        await tester.drag(
+          find.byType(CustomScrollView).first,
+          const Offset(0, -120),
+        );
+        await tester.pump();
+        expect(tester.getTopLeft(header).dy, lessThan(top));
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      },
+    );
+  }
+
   testWidgets('desktop weekly marker aligns with inactive track numbers', (
     tester,
   ) async {

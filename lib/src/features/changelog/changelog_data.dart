@@ -130,8 +130,36 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Turning on Auto-Download Liked now asks first, showing how many '
+        'songs and roughly how much space it will download',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Auto-Download Liked queues a large liked library in one step, '
+        'and no longer risks queueing a song twice',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Synced lyrics no longer jump around at the start of a song: '
+        'the current line now stays in one place from the first line on',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'macOS: choosing a custom downloads folder (and importing/exporting '
         'EQ presets) works again',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Short desktop windows show more of the page: the player bar and '
+        'the album, playlist and artist headers are smaller below 760 px '
+        'high (and a little smaller below 960 px), and the header now '
+        'scrolls away with the track list. Taller windows look as before',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Fixed a crash on macOS, and frozen screen-reader output on '
+        'Windows, when an accessibility tool such as VoiceOver or Narrator '
+        'is running',
         type: ChangelogEntryType.fix,
       ),
     ],
