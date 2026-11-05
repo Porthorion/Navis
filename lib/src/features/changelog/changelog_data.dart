@@ -167,6 +167,12 @@ const List<ChangelogVersion> changelogs = [
         'is running',
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Dynamic Album Colour fades smoothly between albums instead of '
+        "stepping partway through, and the next track's colour is prepared "
+        'while the current one plays so the change starts sooner',
+        type: ChangelogEntryType.improvement,
+      ),
     ],
   ),
   ChangelogVersion(
