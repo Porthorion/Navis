@@ -19,6 +19,8 @@ Future<String?> pickDownloadDirectory({
           .invokeMethod<String>('pick', {'title': title});
     } on MissingPluginException {
       // Older Runner without the channel: the picker still works.
+    } on PlatformException {
+      // A failed native panel must not leave the user without a picker.
     }
   }
   return await FilePicker.getDirectoryPath(

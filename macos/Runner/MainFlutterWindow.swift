@@ -40,6 +40,7 @@ class MainFlutterWindow: NSWindow {
     }
 
     // file_picker's folder panel cannot create folders; this one can.
+    // NSOpenPanel's runtime default is false, despite the SDK header.
     FlutterMethodChannel(
       name: "com.navis.app/directory_picker",
       binaryMessenger: flutterViewController.engine.binaryMessenger
@@ -54,6 +55,7 @@ class MainFlutterWindow: NSWindow {
       panel.canCreateDirectories = true
       panel.allowsMultipleSelection = false
       if let title = (call.arguments as? [String: Any])?["title"] as? String {
+        panel.title = title
         panel.message = title
       }
       panel.beginSheetModal(for: self) { response in

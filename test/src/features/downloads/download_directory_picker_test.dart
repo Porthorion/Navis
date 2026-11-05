@@ -31,6 +31,19 @@ void main() {
     );
   });
 
+  test('a failed native panel falls back to file_picker', () async {
+    messenger.setMockMethodCallHandler(channel, (_) async {
+      throw PlatformException(code: 'PANEL_FAILED');
+    });
+    final previous = FilePickerPlatform.instance;
+    FilePickerPlatform.instance = _FakePicker('/fallback');
+    addTearDown(() => FilePickerPlatform.instance = previous);
+    expect(
+      await pickDownloadDirectory(title: 'Choose', useNativeMacPanel: true),
+      '/fallback',
+    );
+  });
+
   test('a Runner without the channel falls back to file_picker', () async {
     final previous = FilePickerPlatform.instance;
     FilePickerPlatform.instance = _FakePicker('/fallback');

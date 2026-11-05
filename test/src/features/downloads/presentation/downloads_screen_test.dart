@@ -1375,7 +1375,7 @@ void main() {
   });
 
   Future<void> settle(WidgetTester tester) async {
-    for (var i = 0; i < 10; i++) {
+    for (var i = 0; i < 3; i++) {
       await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       await tester.pumpAndSettle();
     }
