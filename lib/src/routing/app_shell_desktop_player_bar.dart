@@ -163,7 +163,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                 final controlRailMaxWidth = math
                     .min(760, math.max(280, maxWidth * 0.58))
                     .toDouble();
-                final actionRegionWidth = (maxWidth * 0.20).clamp(184.0, 240.0);
+                final actionRegionWidth = (maxWidth * 0.20).clamp(228.0, 264.0);
                 final useCompactVolume = maxWidth < 1008;
                 // Keep transport sizes stable when text increases bar height.
                 const controlButtonExtent = 36.0;
@@ -1045,6 +1045,21 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                             )
                                         ? l10n.queueShuffleOnStatus(
                                             l10n.queueTitle,
+                                          )
+                                        : null,
+                                  ),
+                                  persistentActionButton(
+                                    keyName: 'desktopPlayerMediaInfoButton',
+                                    tooltip:
+                                        hasPlayback && !playback.isRadioMode
+                                        ? l10n.mediaInfoTitle
+                                        : l10n.desktopPlaybackUnavailableTooltip,
+                                    semanticLabel: l10n.mediaInfoTitle,
+                                    icon: Icons.info_outline,
+                                    onPressed:
+                                        hasPlayback && !playback.isRadioMode
+                                        ? () => unawaited(
+                                            showDesktopMediaInfoDialog(context),
                                           )
                                         : null,
                                   ),

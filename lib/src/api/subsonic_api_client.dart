@@ -192,12 +192,21 @@ class SubsonicApiClient {
   }
 
   Future<Song> getSong(String id, {CancelToken? cancelToken}) async {
+    return Song.fromJson(await getSongPayload(id, cancelToken: cancelToken));
+  }
+
+  /// The raw getSong `song` object, for fields [Song] does not keep (path,
+  /// bit depth, channels, BPM, comment).
+  Future<Map<String, dynamic>> getSongPayload(
+    String id, {
+    CancelToken? cancelToken,
+  }) async {
     final root = await _readRoot(
       '/rest/getSong.view',
       query: {'id': id},
       cancelToken: cancelToken,
     );
-    return Song.fromJson(_asMap(root['song']));
+    return _asMap(root['song']);
   }
 
   Future<ArtistInfo> getArtistInfo2(

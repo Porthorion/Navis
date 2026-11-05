@@ -1874,6 +1874,7 @@ void main() {
     expect(button('desktopPlayerFavoriteButton').onPressed, isNull);
     expect(button('desktopPlayerLyricsButton').onPressed, isNull);
     expect(button('desktopQueueButton').onPressed, isNull);
+    expect(button('desktopPlayerMediaInfoButton').onPressed, isNull);
     expect(find.text('Nothing playing'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -2221,6 +2222,7 @@ void main() {
           'desktopPlayerFavoriteButton',
           'desktopPlayerLyricsButton',
           'desktopQueueButton',
+          'desktopPlayerMediaInfoButton',
           'desktopPlayerMiniPlayerButton',
           'desktopPlayerVolumeSlider',
         ]) {
@@ -2234,6 +2236,46 @@ void main() {
       },
     );
   }
+
+  testWidgets('desktop media info button opens the dialog and Esc closes it', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1008, 640);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(desktopRuntime: true),
+        songByIdProvider.overrideWith(
+          (ref, songId) => Stream.value(_longMetadataSong),
+        ),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    final button = find.byKey(
+      const ValueKey<String>('desktopPlayerMediaInfoButton'),
+    );
+    expect(find.bySemanticsLabel('Media info'), findsWidgets);
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey<String>('desktopMediaInfoDialog')),
+      findsOneWidget,
+    );
+    await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey<String>('desktopMediaInfoDialog')),
+      findsNothing,
+    );
+  });
 
   testWidgets('compact Desktop player actions remain direct and operable', (
     tester,
