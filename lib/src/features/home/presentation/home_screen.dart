@@ -2313,6 +2313,7 @@ class _ServerAlbumCarousel extends ConsumerWidget {
           name: album.name,
           artist: album.artist,
           coverArtId: album.coverArt,
+          albumId: album.id,
           size: AlbumCardSize.compact,
           extent: cardSize,
           isExternalSource: isExternalCatalogSource(

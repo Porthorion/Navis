@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:navis/src/features/settings/data/update_check_store.dart';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
@@ -4995,6 +4996,22 @@ void main() {
       );
       expect(tester.getRect(caption).top, closeTo(cover.bottom, 0.01));
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('hovering a Recently Added card reveals the play button', (
+      tester,
+    ) async {
+      await pumpRecentlyAdded(tester, mode: AlbumTitleShade.classic);
+
+      final play = find.byKey(const ValueKey<String>('albumCardHoverPlay'));
+      expect(play, findsNothing);
+
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(find.byType(AlbumCardContent)));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(play, findsOneWidget);
     });
   });
 
