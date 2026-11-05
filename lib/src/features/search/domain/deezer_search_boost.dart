@@ -190,7 +190,7 @@ List<T> _libraryFirst<T>(
 final RegExp _derivativeMarker = RegExp(
   r'\b(karaoke|instrumental|tribute|backing track|made famous|'
   r'originally performed|in the style of|cover version)\b|'
-  r'[(\[-][^)\]]*\bcover\b',
+  r'(?:[(\[]|\s[-–—]\s)[^)\]]*\bcovers?\b',
   caseSensitive: false,
 );
 
@@ -226,12 +226,13 @@ List<Song> _matchSongs(List<Song> songs, DeezerTrack hit) {
     ];
     final match = pickBestArtistTopTrackMatch(track: query, candidates: group);
     if (match == null) continue;
-    // The matcher picks one; a duplicate of it (same title and artist, say
-    // another album) is the same song and shares the rank.
-    final title = normalizeMetadata(match.title);
+    // The matcher picks one; a duplicate of it (same title, edition and artist,
+    // say another album) is the same song and shares the rank. A live, remix
+    // or language version is another recording.
+    final title = normalizeMetadataKeepingEdition(match.title);
     final artist = normalizeMetadata(match.artist ?? '');
     for (final song in group) {
-      if (normalizeMetadata(song.title) == title &&
+      if (normalizeMetadataKeepingEdition(song.title) == title &&
           normalizeMetadata(song.artist ?? '') == artist) {
         ids.add(song.id);
       }

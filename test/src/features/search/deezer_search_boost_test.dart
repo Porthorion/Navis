@@ -211,6 +211,51 @@ void main() {
       expect(ranked.songs.map((song) => song.id), <String>['l1', 'l2', 'l3']);
     });
 
+    test('live, language and remix copies do not share the studio rank', () {
+      const result = SearchResult3(
+        songs: <Song>[
+          Song(id: 'live', title: 'Hello (Live)', artist: 'Adele'),
+          Song(id: 'es', title: 'Hello (Spanish Version)', artist: 'Adele'),
+          Song(id: 'rmx', title: 'Hello (Remix)', artist: 'Adele'),
+          Song(id: 'studio', title: 'Hello', artist: 'Adele'),
+          Song(id: 'studio2', title: 'Hello', artist: 'Adele', album: 'Hits'),
+          Song(id: 'richie', title: 'Hello', artist: 'Lionel Richie'),
+        ],
+      );
+      final boost = matchDeezerSearchHits(
+        result: result,
+        hits: DeezerSearchHits(
+          tracks: [
+            _track(1, 'Hello', 'Adele'),
+            _track(2, 'Hello', 'Lionel Richie'),
+          ],
+        ),
+      );
+      expect(boost.popularity.songs, <String, int>{
+        'studio': 0,
+        'studio2': 0,
+        'richie': 1,
+      });
+      expect(_topIds(boost).first, 'song:studio');
+    });
+
+    test('hyphens alone are not a cover marker, " - Piano Covers" is', () {
+      for (final (title, hitTitle, ranked) in <(String, String, bool)>[
+        ('Under-Cover Lover', 'Under Cover Lover', true),
+        ('Jay-Z Cover Girl', 'Jay Z Cover Girl', true),
+        ('Hello - Piano Covers', 'Hello', false),
+        ('Hello (Cover Art Version)', 'Hello', false),
+      ]) {
+        final boost = matchDeezerSearchHits(
+          result: SearchResult3(
+            songs: <Song>[Song(id: 'c', title: title, artist: 'Adele')],
+          ),
+          hits: DeezerSearchHits(tracks: [_track(1, hitTitle, 'Adele')]),
+        );
+        expect(boost.popularity.songs.isNotEmpty, ranked, reason: title);
+      }
+    });
+
     test('cover versions in any bracket or dash suffix are skipped', () {
       for (final title in <String>[
         'Hello (Piano Cover)',
