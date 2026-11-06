@@ -47,19 +47,24 @@ simulator or device yet; every runtime claim is *unverified*.
 | Licences | – | nothing extra (no libmpv in the iOS bundle) | `lib/src/app_licenses.dart:39-49` |
 | CI / docs | Android in CI | no iOS job; docs call iOS an unreleased scaffold; README lists no iOS | `.github/workflows/ci.yml`, `docs/development/technical-overview.md:10` |
 
-## Items (triage, awaiting owner approval)
+## Items (triage approved by the owner, 2026-11-07)
 
 | # | Item | Risk | State | PR |
 |---|---|---|---|---|
-| I0 | Runtime loop on the iOS simulator: enable the diagnostics API in iOS **debug** simulator builds (iOS uses AVFoundation in debug and release alike, so debug evidence holds for playback logic; profile needs a device), and teach `tool/lib/diagnostics.sh` an `ios` device | low (diagnostics only) | triaged | – |
-| I1 | Runtime-verify playback on the simulator: stream through the loopback proxy, permanent download, rolling cache, seek, gapless, crossfade, ReplayGain, speed, queue, background and interruptions. Fix what fails | risky (playback) | triaged | – |
-| I2 | Network: add `NSLocalNetworkUsageDescription`; prove a LAN-IP server and an https server stream; keep the Android-equivalent https-only policy unless I1 proves the loopback proxy needs an ATS exception | risky (network) | triaged | – |
-| I3 | Credentials: `IOSOptions` (accessibility `first_unlock` so background playback can read the session while locked, Navis service name), durable write required on iOS as on Android | risky (auth) | triaged | – |
-| I4 | Downloads folder: hide the custom-folder picker on iOS (the app container is the only durable place without bookmarks); optionally expose downloads in the Files app | low | triaged | – |
-| I5 | Device pass: lock screen, Control Center, AirPods, artwork, scrubbing, background survival on the owner's iPhone (free Personal Team signing, 7-day install) | risky (system integration) | needs owner device | – |
-| I6 | Native project: drop the leftover CocoaPods integration, real launch screen, `ITSAppUsesNonExemptEncryption`, privacy manifest entries for the APIs used | low | triaged | – |
-| I7 | Release path: TestFlight/App Store upload in `tool/release.sh` (App Store Connect API key, export options), App Store privacy answers | risky (release) | blocked on the paid Apple Developer Program | – |
-| I8 | Docs and CI: iOS status in README and `technical-overview.md`, an iOS testing playbook, an iOS build check (`flutter build ios --no-codesign`) on a macOS runner if CI minutes allow | low | triaged | – |
+| I0 | Runtime loop on the iOS simulator: enable the diagnostics API in iOS **debug** simulator builds (iOS uses AVFoundation in debug and release alike, so debug evidence holds for playback logic; profile needs a device), and teach `tool/lib/diagnostics.sh` an `ios` device | low (diagnostics only) | approved | – |
+| I1 | Runtime-verify playback on the simulator: stream through the loopback proxy, permanent download, rolling cache, seek, gapless, crossfade, ReplayGain, speed, queue, background and interruptions. Fix what fails | risky (playback) | approved | – |
+| I2 | Network: add `NSLocalNetworkUsageDescription`; prove a LAN-IP server and an https server stream; keep the Android-equivalent https-only policy unless I1 proves the loopback proxy needs an ATS exception | risky (network) | approved | – |
+| I3 | Credentials: `IOSOptions` (accessibility `first_unlock` so background playback can read the session while locked, Navis service name), durable write required on iOS as on Android | risky (auth) | approved | – |
+| I4 | Downloads folder: hide the custom-folder picker on iOS (the app container is the only durable place without bookmarks); optionally expose downloads in the Files app | low | approved | – |
+| I5 | Device pass: lock screen, Control Center, AirPods, artwork, scrubbing, background survival on the owner's iPhone (free Personal Team signing, 7-day install) | risky (system integration) | approved; device only when really needed, owner told beforehand (borrowed iPhone) | – |
+| I6 | Native project: drop the leftover CocoaPods integration, real launch screen, `ITSAppUsesNonExemptEncryption`, privacy manifest entries for the APIs used | low | approved | – |
+| I7 | Release path: TestFlight/App Store upload in `tool/release.sh` (App Store Connect API key, export options), App Store privacy answers | risky (release) | approved (owner: TestFlight/App Store); needs the paid Apple Developer Program | – |
+| I8 | Docs and CI: iOS status in README and `technical-overview.md`, an iOS testing playbook, an iOS build check (`flutter build ios --no-codesign`) on a macOS runner if CI minutes allow | low | approved | – |
+
+Owner decisions (2026-11-07): distribution is TestFlight and the App Store.
+Testing is simulator-first; the iPhone is borrowed, so a device pass is
+requested only when the simulator cannot answer, with notice. CarPlay scope
+is open (the owner asked what it takes; see the CarPlay note below).
 
 Out of scope for 1.5.2 unless the owner decides otherwise: CarPlay (needs an
 Apple-granted entitlement), equalizer and pitch on AVFoundation (new native
@@ -75,4 +80,17 @@ exists, I8 last.
 - Apple Developer Program (paid) for TestFlight and App Store, and for a
   notarized macOS release; until then iOS installs only on the owner's own
   device with the free Personal Team (re-sign every 7 days).
-- An iPhone for the I5 device pass.
+- An iPhone for the I5 device pass (borrowed: give notice, keep passes rare).
+
+## CarPlay note (open owner decision)
+
+CarPlay apps need Apple's CarPlay audio entitlement
+(`com.apple.developer.carplay-audio`). It is requested with Apple's CarPlay
+entitlement form by a paid Developer Program member, reviewed by Apple
+(typically days to weeks), then added to the App ID and provisioning profile.
+Work: a UIScene-based CarPlay scene in Swift using CarPlay templates (a tab
+bar of browse lists plus the system Now Playing template), fed from the
+existing Android Auto browse tree in the handler over a method channel; Now
+Playing reuses the MPNowPlayingInfoCenter integration. It can be built and
+tested in the Xcode simulator's CarPlay display before approval (*unverified*
+for the entitlement check on the simulator).
