@@ -140,6 +140,39 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'macOS: closing the window keeps music playing; click the Dock icon '
+        'to reopen. The Dock menu shows the current track with Play/Pause, '
+        'Next and Previous',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'macOS: a Controls menu in the menu bar plays, pauses and skips',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'macOS: Navis keeps you signed in across restarts',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'macOS: a song that fails to load no longer shows as playing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'macOS: app updates now restore the previous version if the new one '
+        'fails to start',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'macOS: the licences screen lists the bundled libmpv and FFmpeg '
+        'libraries',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        "macOS: the equalizer and fast seeking now work, and stream "
+        "connections use the system's trusted certificates",
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Search no longer lists a song twice when a Deezer copy of it matches '
         'a song in your library, and its quality now shows your file',
         type: ChangelogEntryType.fix,
