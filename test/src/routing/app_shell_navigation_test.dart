@@ -2262,7 +2262,7 @@ void main() {
     final button = find.byKey(
       const ValueKey<String>('desktopPlayerMediaInfoButton'),
     );
-    expect(find.bySemanticsLabel('Media info'), findsWidgets);
+    expect(find.bySemanticsLabel('Track Info'), findsWidgets);
     await tester.tap(button);
     await tester.pumpAndSettle();
     expect(

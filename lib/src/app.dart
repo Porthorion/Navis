@@ -9,7 +9,7 @@ import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
-import 'package:navis/src/features/player/presentation/desktop_media_info_dialog.dart';
+import 'package:navis/src/features/player/presentation/media_info.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
