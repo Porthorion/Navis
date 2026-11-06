@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show InsertMode, Value;
+import 'package:drift/drift.dart' show InsertMode, Value, driftRuntimeOptions;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -383,6 +383,11 @@ void main() {
       tester,
     ) async {
       if (!sqliteAvailable) return;
+      // The second pump opens a second database while the first is open.
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+      addTearDown(
+        () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+      );
       Color? fill() =>
           (tester
                       .widget<AnimatedContainer>(
