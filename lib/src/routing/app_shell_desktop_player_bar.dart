@@ -244,13 +244,14 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                   FocusNode? focusNode,
                   Widget Function(Widget icon)? decorateIcon,
                   String? semanticLabel,
+                  bool semanticsEnabled = true,
                 }) {
                   final iconWidget = Icon(icon, color: iconColor);
                   return Semantics(
                     key: ValueKey<String>(keyName),
                     container: true,
                     button: true,
-                    enabled: onPressed != null,
+                    enabled: onPressed != null && semanticsEnabled,
                     label: semanticLabel ?? tooltip,
                     onTap: onPressed,
                     excludeSemantics: true,
@@ -986,8 +987,13 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                 children: <Widget>[
                                   persistentActionButton(
                                     keyName: 'desktopPlayerFavoriteButton',
+                                    semanticsEnabled: !_isRemoteSong(
+                                      playback.currentSongId,
+                                    ),
                                     tooltip: playback.isRadioMode
                                         ? l10n.desktopFavoriteUnavailableForRadio
+                                        : _isRemoteSong(playback.currentSongId)
+                                        ? l10n.actionLikeUnavailableRemote
                                         : hasPlayback
                                         ? (playback.isCurrentSongLiked
                                               ? l10n.actionLiked
@@ -995,16 +1001,21 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                         : l10n.desktopPlaybackUnavailableTooltip,
                                     onPressed:
                                         hasPlayback && !playback.isRadioMode
-                                        ? () => unawaited(
-                                            ref
-                                                .read(audioHandlerProvider)
-                                                ?.toggleLike(),
+                                        ? () => _miniToggleLike(
+                                            context,
+                                            ref,
+                                            playback.currentSongId,
                                           )
                                         : null,
                                     icon: playback.isCurrentSongLiked
                                         ? Icons.favorite
                                         : Icons.favorite_border,
-                                    iconColor: playback.isCurrentSongLiked
+                                    iconColor:
+                                        _isRemoteSong(playback.currentSongId)
+                                        ? colors.onSurface.withValues(
+                                            alpha: 0.38,
+                                          )
+                                        : playback.isCurrentSongLiked
                                         ? colors.primary
                                         : null,
                                   ),

@@ -11,6 +11,7 @@ import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/listenbrainz_playlist.dart';
@@ -269,6 +270,7 @@ Widget _buildApp({
   AdaptiveContext? adaptiveContext,
   TextScaler? textScaler,
   ThemeData? theme,
+  AppNoticeController? notices,
 }) {
   return ProviderScope(
     overrides: [
@@ -291,12 +293,18 @@ Widget _buildApp({
       theme: testTheme(theme),
       localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      builder: textScaler == null
-          ? null
-          : (context, child) => MediaQuery(
-              data: MediaQuery.of(context).copyWith(textScaler: textScaler),
-              child: child!,
-            ),
+      builder: (context, child) {
+        var app = child!;
+        if (textScaler != null) {
+          app = MediaQuery(
+            data: MediaQuery.of(context).copyWith(textScaler: textScaler),
+            child: app,
+          );
+        }
+        return notices == null
+            ? app
+            : AppNoticeScope(notifier: notices, child: app);
+      },
       home: adaptiveContext == null
           ? child
           : AdaptiveContextScope(
@@ -479,9 +487,11 @@ Future<void> _pumpAlbumDetail(
   List<dynamic> overrides = const <dynamic>[],
   TextScaler? textScaler,
   ThemeData? theme,
+  AppNoticeController? notices,
 }) async {
   await tester.pumpWidget(
     _buildApp(
+      notices: notices,
       child: AlbumDetailScreen(
         albumId: 'album-1',
         openingHeroTag: openingHeroTag,
@@ -1765,6 +1775,62 @@ void main() {
         expect(copied, expected);
         await _disposeApp(tester);
       });
+    }
+
+    for (final desktop in <bool>[false, true]) {
+      testWidgets(
+        'the ${desktop ? 'desktop popup' : 'mobile sheet'} explains why a '
+        'remote track cannot be liked',
+        (tester) async {
+          setAdaptiveTestViewport(
+            tester,
+            desktop ? const Size(1200, 900) : const Size(390, 844),
+          );
+          final notices = AppNoticeController();
+          addTearDown(notices.dispose);
+          await _pumpAlbumDetail(
+            tester,
+            database: database,
+            adaptiveContext: desktop ? _desktopContext : _mobileContext,
+            notices: notices,
+            album: _albumWithSongs(const <SongsTableData>[
+              SongsTableData(
+                isProvisional: true,
+                isExternal: true,
+                id: 'ext-deezer-song-1',
+                title: 'Remote Track',
+                track: 1,
+              ),
+            ]),
+          );
+          if (desktop) {
+            await tester.tap(
+              find.text('Remote Track'),
+              buttons: kSecondaryButton,
+            );
+          } else {
+            await tester.longPress(find.text('Remote Track'));
+          }
+          await tester.pump(const Duration(milliseconds: 500));
+          if (desktop) {
+            // The popup sits off-screen in this harness, so click through the
+            // item itself. A disabled item would swallow the click.
+            final like = find.byWidgetPredicate(
+              (w) => w is PopupMenuItem && (w.child as Text).data == 'Like',
+            );
+            expect(tester.widget<PopupMenuItem<Object?>>(like).enabled, isTrue);
+            (tester.state(like) as dynamic).handleTap();
+          } else {
+            await tester.tap(find.text('Like').last);
+          }
+          await tester.pump(const Duration(milliseconds: 500));
+          await tester.pump(const Duration(milliseconds: 500));
+
+          expect(notices.notice?.message, 'Not available for remote tracks.');
+          await tester.pump(const Duration(seconds: 3));
+          await _disposeApp(tester);
+        },
+      );
     }
 
     testWidgets('mobile album title follows the selected theme surface', (

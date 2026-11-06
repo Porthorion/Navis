@@ -5453,6 +5453,12 @@ abstract class AppLocalizations {
   /// **'Retry Failed'**
   String get downloadsRetryFailed;
 
+  /// No description provided for @downloadsErrorDetailsCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Error details copied'**
+  String get downloadsErrorDetailsCopied;
+
   /// No description provided for @downloadsStatusFailed.
   ///
   /// In en, this message translates to:
@@ -7636,6 +7642,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Like'**
   String get actionLike;
+
+  /// No description provided for @actionLikeUnavailableRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Like unavailable for remote songs'**
+  String get actionLikeUnavailableRemote;
 
   /// No description provided for @actionLiked.
   ///
@@ -10706,12 +10718,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Disc'**
   String get mediaInfoDiscNumber;
-
-  /// No description provided for @mediaInfoAdminTag.
-  ///
-  /// In en, this message translates to:
-  /// **'admin'**
-  String get mediaInfoAdminTag;
 
   /// No description provided for @mediaInfoTrackInfoAction.
   ///

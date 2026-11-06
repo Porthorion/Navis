@@ -53,6 +53,15 @@ Last updated: 2026-11-06
   Failing-first: add tests `Expected: (added: 1, alreadyThere: 2, failed: 0)
   Actual: 1`; with `requireFresh: false` the stale-hydration test ends
   `['A','B','C','D']` instead of `['A','D']`.
+- [x] Item J (1.5.2), remote likes and downloads — 2026-11-06
+  (branch `fix/i152j-remote-likes-downloads`). Remote `ext-` songs cannot be
+  liked anywhere (disabled heart, notice on tap, DAO refusal); downloads map
+  them to the library song; leftover remote likes are moved or dropped on the
+  next starred sync; download failures are logged and their detail is
+  copyable. Failing-first tests in `star_sync_dao_test`,
+  `toggle_song_star_test`, `desktop_song_actions_test`,
+  `download_service_queue_test`, `downloads_screen_test`,
+  `library_sync_engine_test`, `app_shell_navigation_test`.
 - [x] Issue #212 B4+B5 (1.5.2), kept upload and ownership — 2026-11-02
   (branch `fix/playlist-edits`). The kept-device-copy re-upload now uses
   `replacePlaylistSongs` plus a name-only `updatePlaylist` (empty list cleared

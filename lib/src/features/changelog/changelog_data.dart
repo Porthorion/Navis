@@ -173,6 +173,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'Songs from Deezer can no longer be liked (their heart is greyed '
+        'out); likes of them that were never sent to your server move to '
+        'your library copy when there is one. Liked songs now download from '
+        'your library, and a failed download can be long-pressed to copy its '
+        'error details',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Volume normalization (ReplayGain) now evens out loudness between '
         'songs, including songs without ReplayGain tags. It was applying '
         'too much on desktop and ignoring untagged songs. New installs start '

@@ -3412,6 +3412,29 @@ reads "Not Found".
   albums and songs announcements remain as belt-and-braces protection. The
   pages also re-read their artist or album stream when it still misses a row
   the request stored.
+- A remote `ext-…` song cannot be liked (owner decision, 1.5.2): the server
+  resolves such an id to the library song it duplicates, so a like would star
+  that song while the app kept a separate local like. Every heart and menu
+  item shows disabled for one and a tap shows `remoteSourceActionUnavailable`;
+  `StarSyncDao.toggleSongStarred` refuses it (no local star, no API call), the
+  safety net for the media-session like. A queue entry relinked to its library
+  id is an ordinary library song. A dimmed remote heart exposes disabled
+  semantics ("Like unavailable for remote songs", `RemoteLikeSemantics`) yet
+  stays tappable for the notice. Downloads map a remote copy to its library
+  song first (`DownloadService._libraryIdsFor`: relink, then alias; a failed
+  mapping falls back to the given ids). The annotation dispatcher never sends
+  an annotation for a remote song id (`StarSyncDao.nextDue` skips it). Each
+  starred sync relinks the unsent remote likes first
+  (`_moveRemoteLikesToLibrary`, best effort, through the serialized
+  `relinkExternalCopiesProvider`) and then drops what remains locally
+  (`StarSyncDao.dropRemoteSongLikes`, nothing sent). `remapSongIdentity` of a
+  remote id moves its like only while the star was never sent and the library
+  song has no pending unlike, and drops the copy's queue rows instead of
+  moving them; a like the server already received is left to the starred
+  snapshot. If the relink fails, unsent likes stay for the next sync. A failed
+  or held download is
+  logged with its reason and a path-free detail, and long-press (right-click
+  on desktop) copies "<reason>: <detail>".
 - An `ext-…` id is remote whatever its row's flag says. Until the page has
   its minimum (artist: the stored artist with albums the request stored,
   even before the page's album list has read them, or a successful

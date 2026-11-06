@@ -10,6 +10,9 @@ import 'package:flutter/foundation.dart' show debugPrint, describeIdentity;
 import 'package:flutter/rendering.dart' show debugPrintLayouts;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'dart:ui' show Tristate;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -2335,6 +2338,86 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(queueOverlayVisibleProvider), isTrue);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('desktop like on a remote track is refused with the notice', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(887, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final playbackHandler = _RecordingLikePlaybackHandler();
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(
+          desktopRuntime: true,
+          playback: _activePlayback.copyWith(
+            currentSongId: 'ext-deezer-song-1',
+          ),
+        ),
+        audioHandlerProvider.overrideWithValue(playbackHandler),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('desktopPlayerFavoriteButton')),
+    );
+    await tester.pump();
+
+    expect(playbackHandler.toggleLikeCalls, 0);
+    expect(find.text('Not available for remote tracks.'), findsOneWidget);
+    final semantics = tester.ensureSemantics();
+    expect(
+      tester
+          .getSemantics(
+            find.byKey(const ValueKey<String>('desktopPlayerFavoriteButton')),
+          )
+          .flagsCollection
+          .isEnabled,
+      isNot(Tristate.isTrue),
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('mobile mini player like on a remote track is disabled', (
+    tester,
+  ) async {
+    final playbackHandler = _RecordingLikePlaybackHandler();
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(
+          playback: _activePlayback.copyWith(
+            currentSongId: 'ext-deezer-song-1',
+          ),
+        ),
+        audioHandlerProvider.overrideWithValue(playbackHandler),
+      ],
+    );
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    final like = find.byTooltip('Like unavailable for remote songs');
+    expect(like, findsOneWidget);
+    expect(
+      tester.getSemantics(like).flagsCollection.isEnabled,
+      isNot(Tristate.isTrue),
+    );
+    await tester.tap(like);
+    await tester.pump();
+
+    expect(playbackHandler.toggleLikeCalls, 0);
+    expect(find.text('Not available for remote tracks.'), findsOneWidget);
+    semantics.dispose();
   });
 
   testWidgets('desktop Lyrics shows instrumental status', (tester) async {

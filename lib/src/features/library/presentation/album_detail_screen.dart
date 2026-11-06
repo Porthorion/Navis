@@ -39,6 +39,7 @@ import 'package:navis/src/features/player/presentation/play_song_in_collection.d
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/api/models/album_info.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
@@ -1633,7 +1634,16 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                               .asData
                               ?.value ??
                           song.starred != null;
+                      // A remote copy cannot be liked: shown disabled, the
+                      // tap explains why.
+                      final isRemote = !isServerAddressableSongId(song.id);
+                      final disabledColor = Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.38);
                       return ListTile(
+                        iconColor: isRemote ? disabledColor : null,
+                        textColor: isRemote ? disabledColor : null,
                         leading: Icon(
                           isLiked ? Icons.favorite : Icons.favorite_border,
                         ),
@@ -1641,6 +1651,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           isLiked ? l10n.actionLiked : l10n.actionLike,
                         ),
                         onTap: () {
+                          if (isRemote) {
+                            showAppNotice(
+                              context,
+                              message: l10n.remoteSourceActionUnavailable,
+                              level: AppNoticeLevel.error,
+                            );
+                            return;
+                          }
                           unawaited(
                             toggleSongStar(song.id, ref).catchError((_) {
                               if (mounted) {
@@ -1650,6 +1668,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                                   level: AppNoticeLevel.error,
                                 );
                               }
+                              return false;
                             }),
                           );
                         },
@@ -1784,6 +1803,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         const PopupMenuDivider(),
         PopupMenuItem<_AlbumSongContextAction>(
           value: _AlbumSongContextAction.toggleLike,
+          // Dimmed but clickable: a click explains why (a disabled popup
+          // item swallows it).
+          textStyle: isServerAddressableSongId(song.id)
+              ? null
+              : TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface
+                      .withValues(alpha: 0.38),
+                ),
           child: Text(isLiked ? l10n.actionLiked : l10n.actionLike),
         ),
         PopupMenuItem<_AlbumSongContextAction>(
@@ -1835,6 +1862,14 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         _playNext(song);
         return;
       case _AlbumSongContextAction.toggleLike:
+        if (!isServerAddressableSongId(song.id)) {
+          showAppNotice(
+            context,
+            message: l10n.remoteSourceActionUnavailable,
+            level: AppNoticeLevel.error,
+          );
+          return;
+        }
         try {
           await toggleSongStar(song.id, ref);
         } on Object {

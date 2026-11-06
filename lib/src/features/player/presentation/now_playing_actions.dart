@@ -101,7 +101,11 @@ class _ActionRowState extends ConsumerState<_ActionRow>
                       : colorScheme.onSurfaceVariant,
                 ),
               ),
-        label: widget.isLiked ? l10n.actionLiked : l10n.actionLike,
+        label: isRemote
+            ? l10n.actionLikeUnavailableRemote
+            : widget.isLiked
+            ? l10n.actionLiked
+            : l10n.actionLike,
         isDisabled: isRemote,
         onTap: widget.songId == null
             ? null
@@ -238,14 +242,15 @@ class _NowPlayingActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final button = IconButton(
+      key: buttonKey,
+      tooltip: label,
+      onPressed: onTap,
+      icon: icon,
+    );
     return Opacity(
       opacity: (onTap == null || isDisabled) ? 0.42 : 1,
-      child: IconButton(
-        key: buttonKey,
-        tooltip: label,
-        onPressed: onTap,
-        icon: icon,
-      ),
+      child: isDisabled ? RemoteLikeSemantics(child: button) : button,
     );
   }
 }

@@ -21,6 +21,7 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/update_pull_check.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -196,6 +197,10 @@ final librarySyncEngineProvider = Provider<LibrarySyncEngine?>((ref) {
       SongIdentityCacheEpoch.invalidate();
       await ref.read(audioHandlerProvider)?.applySongIdentityAliases(aliases);
     },
+    // The app's serialized relink, shared with the queue and downloads.
+    relinkExternalCopies: (ids) => ref.mounted
+        ? ref.read(relinkExternalCopiesProvider)(ids)
+        : Future.value(const <String, String>{}),
     readActiveSongId: () {
       if (!ref.mounted) {
         return null;
