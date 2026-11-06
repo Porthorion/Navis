@@ -471,11 +471,11 @@ void main() {
             ),
           );
 
-      final count = await reconciler.relinkExternalCopies(<String>[
+      final linked = await reconciler.relinkExternalCopies(<String>[
         'ext-deezer-song-8086130',
       ]);
 
-      expect(count, 1);
+      expect(linked, {'ext-deezer-song-8086130': 'lib'});
       expect(
         await database.libraryDao.getSongById('ext-deezer-song-8086130'),
         isNull,
@@ -489,6 +489,24 @@ void main() {
         'lib',
       );
     }, skip: !sqliteAvailable);
+
+    for (final title in ['Été Indien', 'Группа крови']) {
+      test('relinks a non-ASCII title ($title)', () async {
+        await insert(library().copyWith(title: title));
+        await insert(remote().copyWith(title: title.toUpperCase()));
+
+        expect(
+          await reconciler.relinkExternalCopies(<String>[
+            'ext-deezer-song-8086130',
+          ]),
+          hasLength(1),
+        );
+        expect(
+          await database.libraryDao.getSongById('ext-deezer-song-8086130'),
+          isNull,
+        );
+      }, skip: !sqliteAvailable);
+    }
 
     test('local search then returns one copy', () async {
       await insert(library());
@@ -526,7 +544,7 @@ void main() {
         await reconciler.relinkExternalCopies(<String>[
           'ext-deezer-song-8086130',
         ]),
-        0,
+        isEmpty,
       );
       expect(
         await database.libraryDao.getSongById('ext-deezer-song-8086130'),
@@ -543,7 +561,7 @@ void main() {
         await reconciler.relinkExternalCopies(<String>[
           'ext-deezer-song-8086130',
         ]),
-        0,
+        isEmpty,
       );
       expect(
         await database.libraryDao.getSongById('ext-deezer-song-8086130'),

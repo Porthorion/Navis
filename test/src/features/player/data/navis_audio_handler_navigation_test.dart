@@ -9112,6 +9112,57 @@ void main() {
     }
   }
 
+  group('relinked remote copy ids', () {
+    // A remote copy relinked to its library song (#209) is deleted, but
+    // callers can still hand the handler its old id. Every entry resolves it.
+    for (final nonEmpty in [false, true]) {
+      for (final op in [
+        'addToQueue',
+        'playNext',
+        'replaceQueue',
+        'replaceQueueWithData',
+      ]) {
+        test('$op resolves the retired id (nonEmptyQueue=$nonEmpty)', () async {
+          final directory = await Directory.systemTemp.createTemp('navis-ext-');
+          final (handler, _, database) = await createHandler(directory, 3);
+          addTearDown(() async {
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+          if (nonEmpty) {
+            await handler.replaceQueue(['song-1'], expandMatchFlows: false);
+          }
+          await handler.applySongIdentityAliases({
+            'ext-deezer-song-1': 'song-0',
+          });
+
+          switch (op) {
+            case 'addToQueue':
+              await handler.addToQueue(['ext-deezer-song-1']);
+            case 'playNext':
+              await handler.playNext(['ext-deezer-song-1']);
+            case 'replaceQueue':
+              await handler.replaceQueue([
+                'ext-deezer-song-1',
+              ], expandMatchFlows: false);
+            case _:
+              final rows = await database.libraryDao.getSongsByIds(['song-0']);
+              await handler.replaceQueueWithData([
+                rows.single.copyWith(id: 'ext-deezer-song-1'),
+              ], expandMatchFlows: false);
+          }
+
+          expect(handler.snapshot.queueSongIds, contains('song-0'));
+          expect(
+            handler.snapshot.queueSongIds,
+            isNot(contains('ext-deezer-song-1')),
+          );
+        });
+      }
+    }
+  });
+
   group('queue replacement input contracts', () {
     for (final newerReplacement in [false, true]) {
       test('cancelled empty ID resolution preserves the newer queue command '

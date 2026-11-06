@@ -96,19 +96,25 @@ class SongIdentityReconciler {
   /// Relinks external provisional rows in [songIds] (a remote catalog copy
   /// written after the library already holds the same track) to their unique
   /// library song, using the same matcher and remap as catalog promotion.
-  /// Returns how many rows were relinked.
-  Future<int> relinkExternalCopies(Iterable<String> songIds) async {
+  /// Returns the relinked ids (old id to library id).
+  Future<Map<String, String>> relinkExternalCopies(
+    Iterable<String> songIds,
+  ) async {
     final copies = await _identityDao.getExternalProvisionalSongs(songIds);
     if (copies.isEmpty) {
-      return 0;
+      return const <String, String>{};
     }
-    final candidates = await _identityDao.getLibrarySongsByTitle(
-      copies.map((song) => song.title),
-    );
+    final candidates = await _identityDao.getLibrarySongsNearDurations([
+      for (final song in copies)
+        if (song.duration != null) song.duration!,
+    ]);
     final session = await startSession(provisionalSongs: copies);
     await session.reconcile(candidates);
     await session.finalize();
-    return session.summary.aliases.length;
+    return <String, String>{
+      for (final alias in session.summary.aliases)
+        alias.oldSongId: alias.canonicalSongId,
+    };
   }
 
   Future<SongIdentityReconciliationSession> startSession({

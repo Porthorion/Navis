@@ -135,7 +135,7 @@ class QueueController extends Notifier<List<String>> {
     final selectionEpoch = ++_regularSelectionEpoch;
     final handler = _requireHandler();
     _markRegularQueueReplacement(notify: notifyMixSessionReset);
-    final normalized = _normalizeSongIds(ids);
+    final normalized = await _relinkedIds(_normalizeSongIds(ids));
     if (normalized.isEmpty) {
       await handler.clearQueue();
       return;
@@ -159,7 +159,7 @@ class QueueController extends Notifier<List<String>> {
   /// audio handler can skip the library DAO read.  Use this from screens that
   /// already have the song data in memory to avoid a DB read during sync.
   Future<void> replaceWithTableData(
-    List<SongsTableData> songs, {
+    List<SongsTableData> rows, {
     int startIndex = 0,
     bool autoPlay = true,
     bool expandMatchFlows = true,
@@ -169,6 +169,7 @@ class QueueController extends Notifier<List<String>> {
     final selectionEpoch = ++_regularSelectionEpoch;
     final handler = _requireHandler();
     _markRegularQueueReplacement(notify: notifyMixSessionReset);
+    final songs = await _relinkedRows(rows);
     if (songs.isEmpty) {
       await handler.clearQueue();
       return;
@@ -194,12 +195,14 @@ class QueueController extends Notifier<List<String>> {
       return;
     }
     final handler = _requireHandler();
-    await handler.addToQueue(<String>[normalizedId]);
-    _prewarmLyricsForIds(<String>[normalizedId]);
+    final queued = await _relinkedIds(<String>[normalizedId]);
+    await handler.addToQueue(queued);
+    _prewarmLyricsForIds(queued);
   }
 
-  Future<void> addTableData(List<SongsTableData> songs) async {
-    if (songs.isEmpty) return;
+  Future<void> addTableData(List<SongsTableData> rows) async {
+    if (rows.isEmpty) return;
+    final songs = await _relinkedRows(rows);
     await _requireHandler().addToQueue(
       songs.map((song) => song.id).toList(growable: false),
       expandMatchFlows: false,
@@ -211,11 +214,12 @@ class QueueController extends Notifier<List<String>> {
   /// without touching songs already handed to the player. Returns the ids
   /// that could not be queued. Handlers without batched edits append instead.
   Future<List<String>> mergeIntoUpcoming(
-    List<SongsTableData> songs, {
+    List<SongsTableData> rows, {
     required int notBefore,
     Random? random,
   }) async {
-    if (songs.isEmpty) return const <String>[];
+    if (rows.isEmpty) return const <String>[];
+    final songs = await _relinkedRows(rows);
     final handler = _requireHandler();
     if (handler is QueueBatchEditor) {
       final result = await (handler as QueueBatchEditor).mergeIntoUpcoming(
@@ -232,7 +236,11 @@ class QueueController extends Notifier<List<String>> {
   /// Inserts each run's songs contiguously at its queue index, in one batched
   /// edit. Returns the ids that could not be queued. Handlers without batched
   /// edits append instead.
-  Future<List<String>> insertRuns(List<QueueInsertRun> runs) async {
+  Future<List<String>> insertRuns(List<QueueInsertRun> queued) async {
+    final runs = [
+      for (final run in queued)
+        QueueInsertRun(run.index, await _relinkedRows(run.songs)),
+    ];
     final songs = <SongsTableData>[for (final run in runs) ...run.songs];
     if (songs.isEmpty) return const <String>[];
     final handler = _requireHandler();
@@ -250,8 +258,9 @@ class QueueController extends Notifier<List<String>> {
       return;
     }
     final handler = _requireHandler();
-    await handler.playNext(<String>[normalizedId]);
-    _prewarmLyricsForIds(<String>[normalizedId]);
+    final queued = await _relinkedIds(<String>[normalizedId]);
+    await handler.playNext(queued);
+    _prewarmLyricsForIds(queued);
   }
 
   /// Like [replace], but accepts [Song] API model objects and ensures they
@@ -516,7 +525,14 @@ class QueueController extends Notifier<List<String>> {
 
       // 3. Upsert the song rows themselves.
       await _upsertSongRows(db, songs);
-      await _relinkExternalCopies(db, songs);
+      await _relink([
+        for (final song in songs)
+          if (isExternalCatalogSource(
+            id: song.id,
+            apiIsExternal: song.isExternal,
+          ))
+            song.id,
+      ]);
     } on Object {
       // FK upsert failed (unexpected schema issue, etc.).  Retry with
       // foreign-key columns nulled out so playback still works.
@@ -524,37 +540,35 @@ class QueueController extends Notifier<List<String>> {
     }
   }
 
-  /// A remote catalog copy (Deezer) of a track the library already holds is
-  /// relinked to the library song right after it is stored, so Search and the
-  /// media info show one song. Lives here, not in the DAO, because the remap
-  /// must tell the audio handler first (the same hand-off catalog sync uses).
-  /// Failure never blocks playback: the full promotion relinks it later.
-  Future<void> _relinkExternalCopies(NavisDatabase db, List<Song> songs) async {
-    final ids = [
-      for (final song in songs)
-        if (isExternalCatalogSource(
-          id: song.id,
-          apiIsExternal: song.isExternal,
-        ))
-          song.id,
-    ];
-    if (ids.isEmpty) return;
-    try {
-      await SongIdentityReconciler(
-        db.songIdentityDao,
-        onBeforeRemap: (aliases) async {
-          SongIdentityCacheEpoch.invalidate();
-          await ref
-              .read(audioHandlerProvider)
-              ?.applySongIdentityAliases(aliases);
-        },
-        readActiveSongId: () =>
-            ref.read(audioHandlerProvider)?.snapshot.currentSongId,
-      ).relinkExternalCopies(ids);
-    } on Object catch (error) {
-      AppLogger.debug('Remote copy relink skipped: $error');
-    }
+  /// The old-to-library id map after relinking the remote copies among [ids].
+  Future<Map<String, String>> _relink(Iterable<String> ids) =>
+      ref.read(relinkExternalCopiesProvider)(ids);
+
+  Future<List<String>> _relinkedIds(List<String> ids) async {
+    final aliases = await _relink(ids.where(_isRemoteId));
+    return aliases.isEmpty ? ids : [for (final id in ids) aliases[id] ?? id];
   }
+
+  /// [songs] with relinked remote copies swapped for their library rows, so the
+  /// handler never receives a row that was just deleted.
+  Future<List<SongsTableData>> _relinkedRows(List<SongsTableData> songs) async {
+    final aliases = await _relink([
+      for (final song in songs)
+        if (song.isExternal) song.id,
+    ]);
+    if (aliases.isEmpty) return songs;
+    final library = {
+      for (final row
+          in await ref
+              .read(navisDatabaseProvider)
+              .libraryDao
+              .getSongsByIds(aliases.values.toSet()))
+        row.id: row,
+    };
+    return [for (final song in songs) library[aliases[song.id]] ?? song];
+  }
+
+  static bool _isRemoteId(String id) => isExternalCatalogSource(id: id);
 
   Future<void> _upsertSongRows(
     NavisDatabase db,
@@ -732,6 +746,38 @@ ValueKey<(String, int)> queueRowKey(List<String> queueIds, int index) {
   }();
   return ValueKey<(String, int)>((queueIds[index], occurrences[index]));
 }
+
+/// Relinks remote catalog copies (Deezer) among the given song ids to the
+/// library song they duplicate and returns the old-to-library id map.
+///
+/// The one entry for every writer or reader of such rows (queue entry points,
+/// song menus). It lives here, not in the DAO, because a remap must tell the
+/// audio handler first, the same hand-off catalog sync uses. A failure is
+/// logged and ignored: it never blocks playback, and the next full promotion
+/// relinks the copy.
+final relinkExternalCopiesProvider =
+    Provider<Future<Map<String, String>> Function(Iterable<String>)>((ref) {
+      return (ids) async {
+        final remote = ids.toSet();
+        if (remote.isEmpty) return const <String, String>{};
+        try {
+          return await SongIdentityReconciler(
+            ref.read(navisDatabaseProvider).songIdentityDao,
+            onBeforeRemap: (aliases) async {
+              SongIdentityCacheEpoch.invalidate();
+              await ref
+                  .read(audioHandlerProvider)
+                  ?.applySongIdentityAliases(aliases);
+            },
+            readActiveSongId: () =>
+                ref.read(audioHandlerProvider)?.snapshot.currentSongId,
+          ).relinkExternalCopies(remote);
+        } on Object catch (error) {
+          AppLogger.debug('Remote copy relink skipped: $error');
+          return const <String, String>{};
+        }
+      };
+    });
 
 final queueProvider = NotifierProvider<QueueController, List<String>>(
   QueueController.new,

@@ -113,21 +113,41 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         .get();
   }
 
-  /// Present library rows whose title equals one of [titles] (case-insensitive),
-  /// the candidates for relinking remote copies of the same track.
-  // ponytail: the exact lowercase title narrows the SQL; the reconciler's
-  // punctuation-normalised key still decides, so a title that differs only in
-  // punctuation is not found here.
-  Future<List<SongsTableData>> getLibrarySongsByTitle(Iterable<String> titles) {
-    final lowered = titles.map((title) => title.toLowerCase()).toSet().toList();
-    return (select(songsTable)..where(
-          (table) =>
-              table.title.lower().isIn(lowered) &
-              table.isExternal.equals(false) &
-              table.isProvisional.equals(false) &
-              table.serverDeletedAt.isNull(),
-        ))
-        .get();
+  /// Present library rows whose duration is within the match tolerance of one
+  /// of [durations] (seconds), the candidates for relinking remote copies of
+  /// the same track. Narrowed by duration, not title: SQLite `lower()` folds
+  /// ASCII only, so a title predicate would never find "Été Indien" or a
+  /// Cyrillic title. The reconciler's own normalised key decides the match.
+  Future<List<SongsTableData>> getLibrarySongsNearDurations(
+    Iterable<int> durations,
+  ) async {
+    final unique = durations.toSet().toList(growable: false);
+    final found = <String, SongsTableData>{};
+    // Chunked so the OR chain stays far below SQLite's expression depth limit.
+    for (var i = 0; i < unique.length; i += 50) {
+      final chunk = unique.skip(i).take(50);
+      final rows =
+          await (select(songsTable)..where(
+                (table) =>
+                    table.isExternal.equals(false) &
+                    table.isProvisional.equals(false) &
+                    table.serverDeletedAt.isNull() &
+                    chunk
+                        .map((d) {
+                          final window = (d * 0.025).ceil().clamp(3, 1 << 30);
+                          return table.duration.isBetweenValues(
+                            d - window,
+                            d + window,
+                          );
+                        })
+                        .reduce((a, b) => a | b),
+              ))
+              .get();
+      for (final row in rows) {
+        found[row.id] = row;
+      }
+    }
+    return found.values.toList(growable: false);
   }
 
   Future<List<SongIdentityAlias>> getAliases() => _songAliases().get();
