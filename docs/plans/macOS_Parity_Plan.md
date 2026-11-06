@@ -5,9 +5,10 @@ playback works, caching keeps the permanent download → rolling cache → strea
 order, every Linux/Windows desktop feature works as well or better, and the
 system integration matches popular Mac players (Now Playing in Control Center
 and the menu bar with artwork, metadata and scrubbing; media keys; AirPods and
-headphone controls; keyboard shortcuts; Dock menu). iOS is not a target yet,
-but work that also serves iOS (AVFoundation/MediaPlayer, `audio_session`,
-Darwin plugins) is preferred.
+headphone controls; keyboard shortcuts; Dock menu). iOS was not a target when
+this plan started; since 2026-11-07 it has its own plan,
+[iOS_Parity_Plan.md](iOS_Parity_Plan.md). Work that also serves iOS
+(AVFoundation/MediaPlayer, `audio_session`, Darwin plugins) is preferred.
 
 macOS work must not change Linux or Windows behaviour (owner): gate changes
 on `Platform.isMacOS` (or `isMacOS || isIOS` for shared Darwin code). A change

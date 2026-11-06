@@ -27,7 +27,7 @@ simulator or device yet; every runtime claim is *unverified*.
 | Feature | Android (reference) | iOS today | Evidence |
 |---|---|---|---|
 | Audio backend | just_audio + Media3 | just_audio on AVFoundation (vendored `third_party/just_audio` Darwin source) in debug and release; media_kit is desktop-only | `lib/main.dart:277-311`, `pubspec.yaml`, `third_party/just_audio/pubspec.yaml` |
-| Equalizer | Media3 PCM EQ | off (capability false; only Media3 implements it) | `lib/src/features/equalizer/data/eq_platform_support.dart:12-46` |
+| Equalizer | Media3 PCM EQ | off (capability false; Media3 on Android and libmpv on desktop implement it, AVFoundation does not) | `lib/src/features/equalizer/data/eq_platform_support.dart:12-46` |
 | Fast seeking (transcode offset) | yes | off, setting hidden | `eq_platform_support.dart:35-46`, `playback_settings_screen.dart:264-270` |
 | Speed / pitch | speed + independent pitch | speed yes, pitch off (UI hidden) | `playback_adjustments.dart:146-169`, `navis_audio_handler.dart:3081-3088` |
 | Gapless, crossfade, ReplayGain | yes | no iOS gate; *unverified* on AVFoundation | `navis_audio_handler_crossfade.dart`, `navis_audio_handler.dart` |
@@ -36,7 +36,7 @@ simulator or device yet; every runtime claim is *unverified*.
 | Background audio | foreground service + audio focus | `UIBackgroundModes: audio`, `AudioSessionConfiguration.music()`, interruptions handled manually | `Info.plist`, `navis_audio_handler_support.dart`, `navis_audio_handler.dart:905-928` |
 | System media controls | audio_service notification + AVRCP | vendored audio_service Darwin plugin (M12 fixes shared with macOS); `projectTime` true (real-time projection kept, M13); never run on iOS | `navis_audio_handler_bootstrap.dart:164-211`, `real_time_projection_audio_handler.dart` |
 | Car | Android Auto media tree | no CarPlay entitlement or scene | `ios/Runner/Info.plist`, `docs/project/progress.md` |
-| Credentials | Keystore, durable write required | plugin default keychain, no `IOSOptions`; `requiresDurableCredentials` false, so a failed write degrades to a session-only login silently | `secure_credential_store.dart:202-234` |
+| Credentials | Keystore, durable write required | plugin default keychain, no `IOSOptions`; `requiresDurableCredentials` unset, so it falls back to `Platform.isAndroid` (false): a failed write degrades to a session-only login with only a log warning | `secure_credential_store.dart:202-234` |
 | Downloads folder | app storage or SAF tree | app-support default; the custom-folder picker is offered but has no security-scoped bookmark (*unverified*: likely lost after relaunch); downloads not visible in Files | `permanent_download_path_resolver.dart:47-56`, `downloads_screen.dart:1156-1161` |
 | Self-update | APK | correctly off (repository returns null, update UI hidden) | `update_repository.dart:114`, `about_screen.dart:55-56` |
 | Notifications, background sync | Android-only | none (early returns) | `library_sync_notifier.dart:30`, `notification_bootstrap.dart:21` |
@@ -55,7 +55,7 @@ simulator or device yet; every runtime claim is *unverified*.
 | I1 | Runtime-verify playback on the simulator: stream through the loopback proxy, permanent download, rolling cache, seek, gapless, crossfade, ReplayGain, speed, queue, background and interruptions. Fix what fails | risky (playback) | approved | – |
 | I2 | Network: add `NSLocalNetworkUsageDescription`; prove a LAN-IP server and an https server stream; keep the Android-equivalent https-only policy unless I1 proves the loopback proxy needs an ATS exception | risky (network) | approved | – |
 | I3 | Credentials: `IOSOptions` (accessibility `first_unlock` so background playback can read the session while locked, Navis service name), durable write required on iOS as on Android | risky (auth) | approved | – |
-| I4 | Downloads folder: hide the custom-folder picker on iOS (the app container is the only durable place without bookmarks); optionally expose downloads in the Files app | low | approved | – |
+| I4 | Downloads folder: hide the custom-folder picker on iOS (the app container is the only durable place without bookmarks); mark permanent downloads and caches excluded from iCloud backup (`isExcludedFromBackup`; nothing sets it today, and App Review rejects backed-up re-downloadable media); optionally expose downloads in the Files app | low | approved | – |
 | I5 | Device pass: lock screen, Control Center, AirPods, artwork, scrubbing, background survival on the owner's iPhone (free Personal Team signing, 7-day install) | risky (system integration) | approved; device only when really needed, owner told beforehand (borrowed iPhone) | – |
 | I6 | Native project: drop the leftover CocoaPods integration, real launch screen, `ITSAppUsesNonExemptEncryption`, privacy manifest entries for the APIs used | low | approved | – |
 | I7 | Release path: TestFlight/App Store upload in `tool/release.sh` (App Store Connect API key, export options), App Store privacy answers | risky (release) | approved (owner: TestFlight/App Store); needs the paid Apple Developer Program | – |
@@ -76,7 +76,6 @@ exists, I8 last.
 
 ## Owner actions
 
-- Approve the triage table and the scope line above.
 - Apple Developer Program (paid) for TestFlight and App Store, and for a
   notarized macOS release; until then iOS installs only on the owner's own
   device with the free Personal Team (re-sign every 7 days).

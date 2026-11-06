@@ -52,6 +52,8 @@ required validation or acceptance is open:
   and release-acceptance evidence remain open.
 - [macOS parity](plans/macOS_Parity_Plan.md) — gap table and risk-ordered work
   items for a complete macOS client.
+- [iOS parity](plans/iOS_Parity_Plan.md) — inventory and triaged items for the
+  first iOS release (TestFlight and App Store).
 - [Remote song handling](plans/Remote_Song_Handling_Plan.md) — cold remote
   playback and Android runtime validation remain unresolved.
 - [Sync audit remediation](plans/Sync_Audit_Remediation_Plan.md) — consolidated
