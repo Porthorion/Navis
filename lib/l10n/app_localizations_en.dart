@@ -3457,13 +3457,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsStatusFailed => 'Failed';
 
   @override
-  String get downloadsRetryAllFailed => 'Retry All Failed';
+  String get downloadsRetryAllFailed => 'Retry All Failed Downloads';
 
   @override
   String get downloadsErrorLoadingQueue => 'Could Not Load Download Queue.';
 
   @override
   String get downloadsClearQueue => 'Clear Queue';
+
+  @override
+  String get downloadsClearShort => 'Clear';
 
   @override
   String get downloadsClearQueueConfirm =>
