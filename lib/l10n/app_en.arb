@@ -3144,7 +3144,6 @@
   "@mediaInfoBitDepthValue": {"placeholders": {"bits": {"type": "int"}}},
   "mediaInfoTrackNumber": "Track number",
   "mediaInfoDiscNumber": "Disc",
-  "mediaInfoAdminTag": "admin",
   "mediaInfoTrackInfoAction": "Track info",
   "mediaInfoTrackInfoRow": "Track Info",
   "mediaInfoTrackInfoRowHint": "Source, quality and file details",

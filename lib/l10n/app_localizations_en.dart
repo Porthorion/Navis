@@ -6659,9 +6659,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mediaInfoDiscNumber => 'Disc';
 
   @override
-  String get mediaInfoAdminTag => 'admin';
-
-  @override
   String get mediaInfoTrackInfoAction => 'Track info';
 
   @override

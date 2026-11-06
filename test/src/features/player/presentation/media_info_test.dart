@@ -280,7 +280,6 @@ void main() {
       'FLAC',
       '/music/a/aurora.flac',
       'File path on server',
-      'admin',
       'BPM',
       'hello',
     ]) {
@@ -460,7 +459,7 @@ void main() {
     expect(find.text('admin'), findsNothing);
   });
 
-  testWidgets('admins see the server path tagged admin', (tester) async {
+  testWidgets('admins see the server path, untagged', (tester) async {
     await pump(
       tester,
       admin: true,
@@ -468,7 +467,30 @@ void main() {
     );
     expect(find.text('File path on server'), findsOneWidget);
     expect(find.text('/music/a/aurora.flac'), findsOneWidget);
-    expect(find.text('admin'), findsOneWidget);
+    expect(find.text('admin'), findsNothing);
+  });
+
+  testWidgets('phone: the path sits under its label, 360 dp at 1.3x', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      desktop: false,
+      size: const Size(360, 640),
+      textScale: 1.3,
+      admin: true,
+      details: const <String, dynamic>{
+        'path':
+            '/music/Some Long Artist Name/An Equally Long Album/01 - '
+            'A Very Long Track Title That Wraps.flac',
+      },
+    );
+    final label = tester.getTopLeft(find.text('File path on server'));
+    final path = tester.getTopLeft(find.textContaining('/music/Some Long'));
+    expect(path.dy, greaterThan(label.dy));
+    expect(path.dx, label.dx);
+    expect(find.text('admin'), findsNothing);
+    expectNoOverflow(tester);
   });
 
   testWidgets('desktop at 800x600 fits without scrolling, Library open', (
@@ -536,9 +558,7 @@ void main() {
     expect(find.bySemanticsLabel('Format: FLAC'), findsOneWidget);
     expect(find.bySemanticsLabel('Play count: 7'), findsOneWidget);
     expect(
-      find.bySemanticsLabel(
-        'File path on server (admin): /music/a/aurora.flac',
-      ),
+      find.bySemanticsLabel('File path on server: /music/a/aurora.flac'),
       findsOneWidget,
     );
     expect(find.bySemanticsLabel('Track Info'), findsWidgets);
