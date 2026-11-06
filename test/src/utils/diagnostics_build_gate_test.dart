@@ -44,4 +44,8 @@ void main() {
     expect(allowed(), isFalse);
     expect(allowed(ios: true, executablePath: simulator), isFalse);
   });
+
+  test('the host test runner (debug, not iOS) is off', () {
+    expect(diagnosticsBuildEnabled, isFalse);
+  });
 }

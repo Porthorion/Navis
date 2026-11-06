@@ -826,7 +826,10 @@ physical iPhone or on any other platform stay off; a physical iPhone needs a
 profile build like the other platforms. iOS plays through just_audio and
 AVFoundation in debug and release alike, so debug evidence on the simulator is
 valid for playback logic, but timing and performance numbers are not. Boot a
-simulator, then run any launcher with `NAVIS_DIAGNOSTICS_DEVICE=ios`:
+simulator, then run a launcher that uses `diagnostics_device`
+(`tool/sync_diagnostics.sh`, `tool/presentation_diagnostics.sh`) with
+`NAVIS_DIAGNOSTICS_DEVICE=ios`; scripts that hard-code `-d linux` do not
+support iOS:
 `diagnostics_device` resolves the booted simulator's UDID (`xcrun simctl list
 devices booted`) and `diagnostics_build_mode` passes `--debug`. Audio capture
 (`launch_audio_app`) stays Linux-only. A simulator app is a host process that
@@ -837,9 +840,10 @@ token from the handshake file as usual. The clone has no separate bundle id on
 iOS (the Xcode project has one); a fresh simulator install is isolated from the
 user's data, and the scripts clone the *host* primary database into the run
 root. The first cold `flutter run` to a simulator can take 7 minutes; the
-launcher in `tool/lib/diagnostics.sh` now fails fast when the app throws before
-the handshake instead of waiting out `flutter run`, which stays alive on a white
-screen. Android production
+`launch_app` in `tool/lib/diagnostics.sh` waits 600 seconds and, for iOS,
+fails fast when the app throws before the handshake instead of waiting out
+`flutter run`, which stays alive on a white screen; the older `launch()` helper
+still waits only 180 seconds, so build once first. Android production
 builds remain observation-only. The planned SAF
 download-folder diagnostics must be sidecar-only, restricted to an emulator
 fixture tree, reject arbitrary paths, and never be enabled by the stable

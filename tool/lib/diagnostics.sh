@@ -13,6 +13,9 @@ diagnostics_device() {
     udid="$(xcrun simctl list devices booted | sed -n 's/.*(\([0-9A-F-]\{36\}\)) (Booted).*/\1/p' | head -n 1)"
     if [[ -z "$udid" ]]; then
       echo "NAVIS_DIAGNOSTICS_DEVICE=ios needs a booted iOS simulator." >&2
+      # An unknown id makes `flutter run -d` exit at once, so launchers fail
+      # fast instead of letting flutter pick another device.
+      echo no-booted-ios-simulator
       return 1
     fi
     echo "$udid"
@@ -243,7 +246,8 @@ launch_app() {
     kill -0 "$FLUTTER_PID" >/dev/null 2>&1 ||
       fail "Navis exited before diagnostics startup"
     # flutter run outlives an app that died before runApp (iOS: white screen).
-    grep -q 'Unhandled Exception' "$APP_LOG" 2>/dev/null &&
+    [[ "${NAVIS_DIAGNOSTICS_DEVICE:-}" == ios ]] &&
+      grep -q 'Unhandled Exception' "$APP_LOG" 2>/dev/null &&
       fail "Navis threw during startup"
     sleep 1
   done

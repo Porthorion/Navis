@@ -68,7 +68,7 @@ Future<void> _runNavis() async {
       _syncDiagnosticsRequested &&
       _syncDiagnosticsMode == SyncDiagnosticsMode.clone &&
       _syncDiagnosticsRoot.isNotEmpty &&
-      (_isDesktopRuntime || _isIosRuntime);
+      (_isDesktopRuntime || (_isIosRuntime && diagnosticsBuildEnabled));
   if (hostClone) {
     PathProviderPlatform.instance = CloneDiagnosticsPathProvider(
       root: _syncDiagnosticsRoot,
