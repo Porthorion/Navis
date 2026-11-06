@@ -228,11 +228,17 @@ class AppSettingsTable extends Table {
   BoolColumn get legacyInstantMixEnabled =>
       boolean().withDefault(const Constant(false))();
 
-  /// ReplayGain mode: 'off', 'track', or 'album'. Default 'off'.
-  TextColumn get replayGainMode => text().withDefault(const Constant('off'))();
+  /// ReplayGain mode: 'off', 'track', or 'album'. New profiles start on
+  /// 'track'; profiles that already exist keep their stored value.
+  TextColumn get replayGainMode =>
+      text().withDefault(const Constant('track'))();
 
   /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0). Default 0.
   RealColumn get replayGainPreamp => real().withDefault(const Constant(0))();
+
+  /// Level in dB (-15..0) for songs without ReplayGain data. Null = Automatic,
+  /// the library's median tagged track gain.
+  RealColumn get replayGainUntaggedDb => real().nullable()();
 
   /// Playback speed multiplier. Default 1.0.
   RealColumn get playbackSpeed => real().withDefault(const Constant(1))();

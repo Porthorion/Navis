@@ -70,6 +70,7 @@ class SettingsRepository {
       backgroundSyncUnmeteredOnly: settings.backgroundSyncUnmeteredOnly,
       replayGainMode: settings.replayGainMode,
       replayGainPreamp: settings.replayGainPreamp,
+      replayGainUntaggedDb: settings.replayGainUntaggedDb,
       // Playback adjustments have a dedicated writer; stale screen snapshots
       // must not overwrite the current sound or selected preset.
       homeRecommendationsAutoAdvance: settings.homeRecommendationsAutoAdvance,
@@ -404,6 +405,7 @@ class SettingsRepository {
       legacyInstantMixEnabled: row.legacyInstantMixEnabled,
       replayGainMode: row.replayGainMode,
       replayGainPreamp: row.replayGainPreamp,
+      replayGainUntaggedDb: row.replayGainUntaggedDb,
       playbackSpeed: row.playbackSpeed,
       playbackPitchSemitones: row.playbackPitchSemitones,
       lockPitchToSpeed: row.lockPitchToSpeed,

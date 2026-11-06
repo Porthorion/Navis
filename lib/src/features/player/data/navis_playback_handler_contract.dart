@@ -258,6 +258,7 @@ class PlaybackRuntimeSettings {
     required this.crossfadeType,
     required this.replayGainMode,
     required this.replayGainPreamp,
+    this.replayGainUntaggedDb = replayGainFallbackUntaggedDb,
     required this.playbackSpeed,
     this.playbackPitchSemitones = 0,
     this.lockPitchToSpeed = false,
@@ -274,8 +275,9 @@ class PlaybackRuntimeSettings {
       crossfadeAllowStreaming = true,
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
-      replayGainMode = 'off',
+      replayGainMode = 'track',
       replayGainPreamp = 0.0,
+      replayGainUntaggedDb = replayGainFallbackUntaggedDb,
       playbackSpeed = 1.0,
       playbackPitchSemitones = 0,
       lockPitchToSpeed = false,
@@ -301,6 +303,10 @@ class PlaybackRuntimeSettings {
 
   /// ReplayGain pre-amp adjustment in dB (-6 to +6).
   final double replayGainPreamp;
+
+  /// Level in dB for songs without ReplayGain data: the user's fixed value,
+  /// or the library median when set to Automatic. Already resolved here.
+  final double replayGainUntaggedDb;
 
   /// Playback speed multiplier.
   final double playbackSpeed;

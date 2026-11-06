@@ -1,5 +1,62 @@
 part of 'navis_audio_handler.dart';
 
+/// Untagged-song level when the library has too few tagged songs to measure.
+const replayGainFallbackUntaggedDb = -8.0;
+
+/// Fewest tagged songs before the library median is trusted.
+const replayGainMinTaggedSongs = 20;
+
+/// Largest believable ReplayGain value in dB; anything beyond is tag garbage.
+const replayGainMaxAbsDb = 24.0;
+
+/// Lowest fixed untagged level the user can pick, in dB.
+const replayGainMinUntaggedDb = -15.0;
+
+/// The Automatic untagged level: the median tagged track gain, or the fixed
+/// fallback when fewer than [replayGainMinTaggedSongs] songs are tagged.
+double automaticUntaggedGainDb({required int taggedCount, double? median}) {
+  if (taggedCount < replayGainMinTaggedSongs || median == null) {
+    return replayGainFallbackUntaggedDb;
+  }
+  return median.clamp(replayGainMinUntaggedDb, 0.0);
+}
+
+/// The ReplayGain adjustment in dB for one song, or null when [mode] is 'off'.
+///
+/// Track and album gain fall back to each other; a gain beyond
+/// [replayGainMaxAbsDb] is garbage and counts as missing, and a song with no
+/// usable gain takes [untaggedDb]. The pre-amp (clamped to -6..6) is added,
+/// the song's known peak limits the result, and it never boosts (0 dB cap).
+double? replayGainDb({
+  required String mode,
+  double? trackGain,
+  double? albumGain,
+  double? trackPeak,
+  double? albumPeak,
+  double preampDb = 0,
+  required double untaggedDb,
+}) {
+  if (mode == 'off') return null;
+  bool usable(double? gain) =>
+      gain != null && gain.isFinite && gain.abs() <= replayGainMaxAbsDb;
+  final preferAlbum = mode == 'album';
+  final (gain, peak) = switch ((
+    preferAlbum,
+    usable(trackGain),
+    usable(albumGain),
+  )) {
+    (false, true, _) || (true, true, false) => (trackGain, trackPeak),
+    (_, _, true) => (albumGain, albumPeak),
+    _ => (null, null),
+  };
+  var db = (gain ?? untaggedDb) + preampDb.clamp(-6.0, 6.0);
+  // A peak is a sample ratio near 1; anything else is tag garbage.
+  if (gain != null && peak != null && peak.isFinite && peak > 0 && peak <= 4) {
+    db = math.min(db, -20 * math.log(peak) / math.ln10);
+  }
+  return math.min(db, 0);
+}
+
 /// Whether a native source failure can recover after reconnecting a station.
 ///
 /// Android reports Media3 `PlaybackException.errorCode`: network and timeout

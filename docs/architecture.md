@@ -4950,6 +4950,22 @@ Desktop volume follows a parallel local-settings path:
    transport and mini-player volume controls are desktop-only. Crossfade,
    ReplayGain and ducking scale relative to that 1.0 user volume.
 
+   ReplayGain (`replayGainDb`, `navis_playback_rules.dart`) only turns songs
+   down. Track and album gain fall back to each other; a gain beyond +-24 dB is
+   garbage and counts as untagged, and a known peak limits the result. The dB is
+   added to the clamped pre-amp and capped at 0 dB. A song with no usable gain
+   (untagged, a remote copy) takes the untagged level: the user's fixed value
+   (`replayGainUntaggedDb`, -15..0 dB) or Automatic, the median track gain of
+   the library from `LibraryDao.trackGainMedian` (-8 dB while fewer than 20
+   songs are tagged), cached in `replayGainAutoUntaggedDbProvider` and
+   recomputed when a sync publishes or finishes. `_replayGainVolumeFor`
+   converts dB to a player volume: `10^(dB/20)` on ExoPlayer and AVPlayer, where
+   volume is linear, and `10^(dB/60)` on media_kit/mpv, whose volume is cubic
+   (the backend is `playbackAdjustmentCapabilities`). Radio stays at the user
+   volume. New profiles start in Track mode; stored modes are never rewritten.
+   Schema 111 (`from110To111`) adds the nullable `replay_gain_untagged_db`
+   column (null = Automatic) and leaves the stored mode and pre-amp as they are.
+
 Linux, Windows, and macOS play remote audio via direct HTTPS (Range-seekable
 through media_kit/libmpv) and fill the rolling cache with a sidecar download to
 the same quality-keyed path. `LockCachingAudioSource` remains the mobile
