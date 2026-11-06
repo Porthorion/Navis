@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/provisional_search_songs.dart';
+import 'package:navis/src/features/library/data/song_identity_cache_epoch.dart';
+import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/catalog_source.dart';
@@ -514,10 +516,43 @@ class QueueController extends Notifier<List<String>> {
 
       // 3. Upsert the song rows themselves.
       await _upsertSongRows(db, songs);
+      await _relinkExternalCopies(db, songs);
     } on Object {
       // FK upsert failed (unexpected schema issue, etc.).  Retry with
       // foreign-key columns nulled out so playback still works.
       await _upsertSongRows(db, songs, nullForeignKeys: true);
+    }
+  }
+
+  /// A remote catalog copy (Deezer) of a track the library already holds is
+  /// relinked to the library song right after it is stored, so Search and the
+  /// media info show one song. Lives here, not in the DAO, because the remap
+  /// must tell the audio handler first (the same hand-off catalog sync uses).
+  /// Failure never blocks playback: the full promotion relinks it later.
+  Future<void> _relinkExternalCopies(NavisDatabase db, List<Song> songs) async {
+    final ids = [
+      for (final song in songs)
+        if (isExternalCatalogSource(
+          id: song.id,
+          apiIsExternal: song.isExternal,
+        ))
+          song.id,
+    ];
+    if (ids.isEmpty) return;
+    try {
+      await SongIdentityReconciler(
+        db.songIdentityDao,
+        onBeforeRemap: (aliases) async {
+          SongIdentityCacheEpoch.invalidate();
+          await ref
+              .read(audioHandlerProvider)
+              ?.applySongIdentityAliases(aliases);
+        },
+        readActiveSongId: () =>
+            ref.read(audioHandlerProvider)?.snapshot.currentSongId,
+      ).relinkExternalCopies(ids);
+    } on Object catch (error) {
+      AppLogger.debug('Remote copy relink skipped: $error');
     }
   }
 

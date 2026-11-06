@@ -93,6 +93,24 @@ class SongIdentityReconciler {
     required List<SongsTableData> provisionalSongs,
   }) => _ProvisionalIdentityIndex(this, provisionalSongs).match(canonicalSong);
 
+  /// Relinks external provisional rows in [songIds] (a remote catalog copy
+  /// written after the library already holds the same track) to their unique
+  /// library song, using the same matcher and remap as catalog promotion.
+  /// Returns how many rows were relinked.
+  Future<int> relinkExternalCopies(Iterable<String> songIds) async {
+    final copies = await _identityDao.getExternalProvisionalSongs(songIds);
+    if (copies.isEmpty) {
+      return 0;
+    }
+    final candidates = await _identityDao.getLibrarySongsByTitle(
+      copies.map((song) => song.title),
+    );
+    final session = await startSession(provisionalSongs: copies);
+    await session.reconcile(candidates);
+    await session.finalize();
+    return session.summary.aliases.length;
+  }
+
   Future<SongIdentityReconciliationSession> startSession({
     List<SongsTableData>? provisionalSongs,
   }) async {
@@ -110,6 +128,19 @@ class SongIdentityReconciler {
     final left = normalizeMusicBrainzId(a);
     final right = normalizeMusicBrainzId(b);
     return left != null && right != null && left != right;
+  }
+
+  /// Within 3 s, or within 2% when track and disc numbers are present and
+  /// equal on both sides: remote catalogs (Deezer) often differ from the
+  /// library file by a few seconds.
+  bool _durationsCompatible(SongsTableData canonical, SongsTableData other) {
+    final gap = (other.duration! - canonical.duration!).abs();
+    final samePosition =
+        canonical.track != null &&
+        canonical.track == other.track &&
+        canonical.discNumber != null &&
+        canonical.discNumber == other.discNumber;
+    return gap <= 3 || (samePosition && gap <= canonical.duration! * 0.02);
   }
 
   bool _positionsCompatible(int? canonical, int? provisional) {
@@ -329,7 +360,7 @@ class _ProvisionalIdentityIndex {
                 candidate.recordingMbid,
               ) &&
               candidate.duration != null &&
-              (candidate.duration! - duration).abs() <= 3 &&
+              _reconciler._durationsCompatible(canonicalSong, candidate) &&
               _reconciler._positionsCompatible(
                 canonicalSong.track,
                 candidate.track,

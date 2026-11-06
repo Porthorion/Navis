@@ -100,6 +100,36 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     return query.get();
   }
 
+  /// External provisional rows among [ids] (remote catalog copies).
+  Future<List<SongsTableData>> getExternalProvisionalSongs(
+    Iterable<String> ids,
+  ) {
+    return (select(songsTable)..where(
+          (table) =>
+              table.id.isIn(ids.toList()) &
+              table.isExternal.equals(true) &
+              table.isProvisional.equals(true),
+        ))
+        .get();
+  }
+
+  /// Present library rows whose title equals one of [titles] (case-insensitive),
+  /// the candidates for relinking remote copies of the same track.
+  // ponytail: the exact lowercase title narrows the SQL; the reconciler's
+  // punctuation-normalised key still decides, so a title that differs only in
+  // punctuation is not found here.
+  Future<List<SongsTableData>> getLibrarySongsByTitle(Iterable<String> titles) {
+    final lowered = titles.map((title) => title.toLowerCase()).toSet().toList();
+    return (select(songsTable)..where(
+          (table) =>
+              table.title.lower().isIn(lowered) &
+              table.isExternal.equals(false) &
+              table.isProvisional.equals(false) &
+              table.serverDeletedAt.isNull(),
+        ))
+        .get();
+  }
+
   Future<List<SongIdentityAlias>> getAliases() => _songAliases().get();
 
   Selectable<SongIdentityAlias> _songAliases({
