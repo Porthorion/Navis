@@ -4,6 +4,7 @@ library;
 export 'now_playing_artwork_background.dart'
     show nowPlayingShowsArtworkLayer, nowPlayingSurfaceDecoration;
 
+import 'package:navis/src/features/player/presentation/audio_quality_format.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
