@@ -407,31 +407,35 @@ class _TopHero extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: <Widget>[
-                    FilledButton.icon(
-                      icon: const Icon(Icons.play_arrow_rounded),
-                      label: Text(l10n.albumDetailPlayAction),
-                      onPressed: () => _play(context, ref, view),
-                    ),
-                    secondary,
-                    Builder(
-                      builder: (buttonContext) => IconButton(
-                        key: result is TopSongResult
-                            ? ValueKey<String>(
-                                'search-top-song-menu-'
-                                '${(result as TopSongResult).song.id}',
-                              )
-                            : const ValueKey<String>('search-top-menu'),
-                        tooltip: l10n.actionMore,
-                        icon: const Icon(Icons.more_horiz_rounded),
-                        onPressed: () => view.menu(_centerOf(buttonContext)),
+                // A long press or right-click on a button is the button's own;
+                // the card's menu gestures reach only the space around them.
+                _OwnGestures(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: <Widget>[
+                      FilledButton.icon(
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: Text(l10n.albumDetailPlayAction),
+                        onPressed: () => _play(context, ref, view),
                       ),
-                    ),
-                  ],
+                      secondary,
+                      Builder(
+                        builder: (buttonContext) => IconButton(
+                          key: result is TopSongResult
+                              ? ValueKey<String>(
+                                  'search-top-song-menu-'
+                                  '${(result as TopSongResult).song.id}',
+                                )
+                              : const ValueKey<String>('search-top-menu'),
+                          tooltip: l10n.actionMore,
+                          icon: const Icon(Icons.more_horiz_rounded),
+                          onPressed: () => view.menu(_centerOf(buttonContext)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -457,6 +461,22 @@ class _TopHero extends ConsumerWidget {
         view.open();
     }
   }
+}
+
+/// Takes the long press and right-click that land on [child]'s widgets, so the
+/// card behind it does not also open its menu. It hit-tests only where a child
+/// does: the empty space around the buttons still belongs to the card.
+class _OwnGestures extends StatelessWidget {
+  const new({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onLongPress: () {},
+    onSecondaryTapDown: (_) {},
+    child: child,
+  );
 }
 
 class _TopTile extends ConsumerWidget {

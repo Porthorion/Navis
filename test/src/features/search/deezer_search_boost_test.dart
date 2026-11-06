@@ -640,6 +640,51 @@ void main() {
         },
       );
 
+      test('a blank artist or album id builds no tile', () {
+        const blank = SearchResult3(
+          songs: <Song>[
+            Song(
+              id: 'hello',
+              title: 'Hello',
+              artist: 'Adele',
+              artistId: '',
+              album: '25',
+              albumId: ' ',
+            ),
+          ],
+        );
+        final boost = matchDeezerSearchHits(
+          result: blank,
+          hits: DeezerSearchHits(tracks: [_track(1, 'Hello', 'Adele')]),
+          query: 'hello',
+          onePerKind: true,
+        );
+        expect(_topIds(boost), <String>['song:hello']);
+      });
+
+      test('an album hero\'s top song is by the album\'s artist', () {
+        const heroes = SearchResult3(
+          albums: <Album>[Album(id: 'al', name: 'Heroes', artist: 'Bowie')],
+          songs: <Song>[
+            Song(id: 'other', title: 'Other Song', artist: 'Shinedown'),
+            Song(id: 'bowie', title: 'Sound', artist: 'Bowie'),
+          ],
+        );
+        final boost = matchDeezerSearchHits(
+          result: heroes,
+          hits: DeezerSearchHits(
+            albums: [_album(1, 'Heroes', 'Bowie')],
+            tracks: [
+              _track(2, 'Other Song', 'Shinedown', album: 'Heroes'),
+              _track(3, 'Sound', 'Bowie', album: 'Heroes'),
+            ],
+          ),
+          query: 'heroes',
+          onePerKind: true,
+        );
+        expect(_topIds(boost), <String>['album:al', 'song:bowie']);
+      });
+
       test('a song\'s artist and album missing from the result are built', () {
         const lone = SearchResult3(
           songs: <Song>[

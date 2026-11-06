@@ -278,7 +278,11 @@ List<SearchTopResult> _relatives(
                   normalizeMetadata(
                         (match.hit as DeezerTrack).album?.title ?? '',
                       ) ==
-                      normalizeMetadata(album.name),
+                      normalizeMetadata(album.name) &&
+                  _sameName(
+                    (match.hit as DeezerTrack).artist.name,
+                    album.artist,
+                  ),
             )
             .firstOrNull
             ?.item,
@@ -363,23 +367,19 @@ TopArtistResult? _artistOfAlbum(SearchResult3 result, Album album) {
 /// An artist tile for the artist [song] names, when its id and name are known.
 /// It has no art id: the tile finds it the way the artist page does.
 TopArtistResult? _artistFromSong(Song song) {
-  final id = song.artistId;
-  final name = song.artist;
-  return id == null || name == null
-      ? null
-      : TopArtistResult(Artist(id: id, name: name));
+  return _builtArtist(song.artistId, song.artist);
 }
 
 /// An album tile for the album [song] names, when its id and name are known.
 TopAlbumResult? _albumFromSong(Song song) {
   final id = song.albumId;
   final name = song.album;
-  return id == null || name == null
+  return _blank(id) || _blank(name)
       ? null
       : TopAlbumResult(
           Album(
-            id: id,
-            name: name,
+            id: id!,
+            name: name!,
             artist: song.artist,
             artistId: song.artistId,
             year: song.year,
@@ -388,12 +388,16 @@ TopAlbumResult? _albumFromSong(Song song) {
 }
 
 TopArtistResult? _artistFromAlbum(Album album) {
-  final id = album.artistId;
-  final name = album.artist;
-  return id == null || name == null
-      ? null
-      : TopArtistResult(Artist(id: id, name: name));
+  return _builtArtist(album.artistId, album.artist);
 }
+
+/// An artist tile from an id and a name, none when either is missing or blank.
+TopArtistResult? _builtArtist(String? id, String? name) =>
+    _blank(id) || _blank(name)
+    ? null
+    : TopArtistResult(Artist(id: id!, name: name!));
+
+bool _blank(String? value) => value == null || value.trim().isEmpty;
 
 String _nameOf(SearchTopResult item) => switch (item) {
   TopArtistResult(:final artist) => artist.name,

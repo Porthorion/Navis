@@ -2,6 +2,7 @@ import 'package:drift/drift.dart' show InsertMode, Value, driftRuntimeOptions;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:flutter/gestures.dart' show kSecondaryMouseButton;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -639,6 +640,41 @@ void main() {
           await tester.tap(find.byTooltip('More'));
           await tester.pumpAndSettle();
           expect(opened, isEmpty);
+        });
+
+        testWidgets('$name: a long press or right-click on a $kind hero '
+            'button opens no item menu', (tester) async {
+          if (!sqliteAvailable) return;
+          await pump(tester, [top], desktop: desktop, size: size, routed: true);
+          final menu = find.text(
+            kind == 'artist' ? 'Open Artist' : 'Open Album',
+          );
+          for (final button in <Finder>[
+            find.text('Play'),
+            find.byTooltip('Shuffle'),
+            find.byTooltip('More'),
+          ]) {
+            await tester.longPress(button);
+            await tester.pump(const Duration(milliseconds: 300));
+            expect(menu, findsNothing, reason: 'long press');
+            await tester.tap(button, buttons: kSecondaryMouseButton);
+            await tester.pump(const Duration(milliseconds: 300));
+            expect(menu, findsNothing, reason: 'right-click');
+          }
+          expect(opened, isEmpty);
+        });
+
+        testWidgets('$name: a long press on the $kind hero\'s empty corner '
+            'still opens its menu', (tester) async {
+          if (!sqliteAvailable) return;
+          await pump(tester, [top], desktop: desktop, size: size, routed: true);
+          final rect = tester.getRect(key('search-top-result-0'));
+          await tester.longPressAt(rect.bottomRight - const Offset(8, 8));
+          await tester.pumpAndSettle();
+          expect(
+            find.text(kind == 'artist' ? 'Open Artist' : 'Open Album'),
+            findsOneWidget,
+          );
         });
       }
 
