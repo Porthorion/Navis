@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart' show ValueKey;
+import 'package:flutter/foundation.dart' show ValueKey, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/data/provisional_search_songs.dart';
+import 'package:navis/src/features/library/data/song_identity_cache_epoch.dart';
+import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/catalog_source.dart';
@@ -146,6 +148,7 @@ class QueueController extends Notifier<List<String>> {
       expandMatchFlows: expandMatchFlows,
       originalOrder: originalOrder,
     );
+    _relinkLater(normalized.where(_isRemoteId));
     if (selectionEpoch != _regularSelectionEpoch) return;
     _prewarmLyricsForIds(
       normalized,
@@ -179,6 +182,7 @@ class QueueController extends Notifier<List<String>> {
       expandMatchFlows: expandMatchFlows,
       originalOrder: originalOrder,
     );
+    _relinkLater(_remoteRowIds(songs));
     if (selectionEpoch != _regularSelectionEpoch) return;
     _prewarmLyricsForIds(
       songs.map((song) => song.id),
@@ -193,6 +197,7 @@ class QueueController extends Notifier<List<String>> {
     }
     final handler = _requireHandler();
     await handler.addToQueue(<String>[normalizedId]);
+    _relinkLater(<String>[normalizedId].where(_isRemoteId));
     _prewarmLyricsForIds(<String>[normalizedId]);
   }
 
@@ -202,6 +207,7 @@ class QueueController extends Notifier<List<String>> {
       songs.map((song) => song.id).toList(growable: false),
       expandMatchFlows: false,
     );
+    _relinkLater(_remoteRowIds(songs));
     _prewarmLyricsForIds(songs.map((song) => song.id));
   }
 
@@ -221,6 +227,7 @@ class QueueController extends Notifier<List<String>> {
         notBefore: notBefore,
         random: random,
       );
+      _relinkLater(_remoteRowIds(songs));
       return result.skippedSongIds;
     }
     await addTableData(songs);
@@ -236,6 +243,7 @@ class QueueController extends Notifier<List<String>> {
     final handler = _requireHandler();
     if (handler is QueueBatchEditor) {
       final result = await (handler as QueueBatchEditor).insertQueueRuns(runs);
+      _relinkLater(_remoteRowIds(songs));
       return result.skippedSongIds;
     }
     await addTableData(songs);
@@ -249,6 +257,7 @@ class QueueController extends Notifier<List<String>> {
     }
     final handler = _requireHandler();
     await handler.playNext(<String>[normalizedId]);
+    _relinkLater(<String>[normalizedId].where(_isRemoteId));
     _prewarmLyricsForIds(<String>[normalizedId]);
   }
 
@@ -400,6 +409,7 @@ class QueueController extends Notifier<List<String>> {
       }
       final after = handler.snapshot.queueSongIds;
       final insertedIds = _insertedSongIds(before: before, after: after);
+      _relinkLater(ids.where(_isRemoteId));
       _prewarmLyricsForIds(insertedIds);
       return RecommendationQueueResult(insertedIds);
     } finally {
@@ -447,8 +457,18 @@ class QueueController extends Notifier<List<String>> {
   /// Stores [songs] the library lacks as provisional rows, as playing a
   /// search result does, without touching the queue. Rows the server
   /// catalogue already owns are left as they are.
-  Future<void> storeProvisionalSongs(List<Song> songs) =>
-      _ensureSongsInDatabase(songs);
+  Future<void> storeProvisionalSongs(List<Song> songs) async {
+    await _ensureSongsInDatabase(songs);
+    // Nothing is handed to the player here, so there is no order to keep.
+    await ref.read(relinkExternalCopiesProvider)([
+      for (final song in songs)
+        if (isExternalCatalogSource(
+          id: song.id,
+          apiIsExternal: song.isExternal,
+        ))
+          song.id,
+    ]);
+  }
 
   Future<void> _ensureSongsInDatabase(List<Song> songs) async {
     if (songs.isEmpty) return;
@@ -520,6 +540,25 @@ class QueueController extends Notifier<List<String>> {
       await _upsertSongRows(db, songs, nullForeignKeys: true);
     }
   }
+
+  /// Relinks remote copies among [ids] to their library songs once the
+  /// queue has been handed to the player, never before: the handler maps
+  /// aliases on every lookup and learns each one before its remap commits
+  /// (the sequence catalog sync uses while songs are queued), so this adds no
+  /// await and no swapped ids to the tap path. One batch per call; failures
+  /// are logged by the provider and never block playback.
+  void _relinkLater(Iterable<String> ids) {
+    final remote = ids.toList(growable: false);
+    if (remote.isEmpty) return;
+    unawaited(ref.read(relinkExternalCopiesProvider)(remote));
+  }
+
+  static bool _isRemoteId(String id) => isExternalCatalogSource(id: id);
+
+  static List<String> _remoteRowIds(List<SongsTableData> songs) => [
+    for (final song in songs)
+      if (song.isExternal) song.id,
+  ];
 
   Future<void> _upsertSongRows(
     NavisDatabase db,
@@ -696,6 +735,54 @@ ValueKey<(String, int)> queueRowKey(List<String> queueIds, int index) {
     ]);
   }();
   return ValueKey<(String, int)>((queueIds[index], occurrences[index]));
+}
+
+/// Relinks remote catalog copies (Deezer) among the given song ids to the
+/// library song they duplicate and returns the old-to-library id map.
+///
+/// The one entry for every writer or reader of such rows (queue entry points,
+/// song menus). It lives here, not in the DAO, because a remap must tell the
+/// audio handler first, the same hand-off catalog sync uses. A failure is
+/// logged and ignored: it never blocks playback, and the next full promotion
+/// relinks the copy.
+final relinkExternalCopiesProvider =
+    Provider<Future<Map<String, String>> Function(Iterable<String>)>((ref) {
+      return serializeRelinks((ids) async {
+        final remote = ids.toSet();
+        if (remote.isEmpty) return const <String, String>{};
+        try {
+          return await SongIdentityReconciler(
+            ref.read(navisDatabaseProvider).songIdentityDao,
+            onBeforeRemap: (aliases) async {
+              SongIdentityCacheEpoch.invalidate();
+              await ref
+                  .read(audioHandlerProvider)
+                  ?.applySongIdentityAliases(aliases);
+            },
+            readActiveSongId: () =>
+                ref.read(audioHandlerProvider)?.snapshot.currentSongId,
+          ).relinkExternalCopies(remote);
+        } on Object catch (error) {
+          AppLogger.debug('Remote copy relink skipped: $error');
+          return const <String, String>{};
+        }
+      });
+    });
+
+/// Runs [relink] calls one at a time: a later call starts after the earlier
+/// one finishes, so two relinks of one id never overlap (the second would see
+/// the first's alias already moved the playing song and could delete the
+/// cache file the first kept).
+@visibleForTesting
+Future<Map<String, String>> Function(Iterable<String>) serializeRelinks(
+  Future<Map<String, String>> Function(Iterable<String>) relink,
+) {
+  var tail = Future<void>.value();
+  return (ids) {
+    final run = tail.then((_) => relink(ids));
+    tail = run.then((_) {}, onError: (Object _) {});
+    return run;
+  };
 }
 
 final queueProvider = NotifierProvider<QueueController, List<String>>(

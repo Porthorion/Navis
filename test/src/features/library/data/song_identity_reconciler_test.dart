@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
+import 'package:navis/src/utils/metadata_normalization.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -351,6 +355,299 @@ void main() {
     expect(await database.libraryDao.getSongById('remote-a'), isNull);
     expect(await database.libraryDao.getSongById('canonical-a'), isNotNull);
   }, skip: !sqliteAvailable);
+
+  // Real server data (2026-11-06, issue #209 item C): Octo-Fiesta still serves
+  // Deezer's copy of Adele "Set Fire to the Rain" (21, track 5, 242 s, no
+  // MBID) although getSong on that id answers with the library FLAC (238 s).
+  // The provisional remote row is never relinked, so Search lists both and
+  // the media-info dialog mixes the remote row with the server file.
+  test(
+    'relinks a remote Deezer copy to the library file of the same track',
+    () {
+      final result = reconciler.matchCanonicalSong(
+        canonicalSong: _song(
+          id: '7BSVXncc5oeoNO26ypkQrw',
+          provisional: false,
+          title: 'Set Fire to the Rain',
+          artist: 'Adele',
+          album: '21',
+          duration: 238,
+          track: 5,
+          recordingMbid: 'd1e0a99e-1894-457b-ba6a-985eeef4d0c4',
+        ),
+        provisionalSongs: <SongsTableData>[
+          _song(
+            id: 'ext-deezer-song-8086130',
+            provisional: true,
+            title: 'Set Fire to the Rain',
+            artist: 'Adele',
+            album: '21',
+            duration: 242,
+            track: 5,
+          ),
+        ],
+      );
+
+      expect(result, isA<SongIdentityMatched>());
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('a 4 s gap without track and disc numbers is not matched', () {
+    final result = reconciler.matchCanonicalSong(
+      canonicalSong: _song(
+        id: 'lib',
+        provisional: false,
+        duration: 238,
+        track: null,
+        disc: null,
+      ),
+      provisionalSongs: <SongsTableData>[
+        _song(
+          id: 'ext-deezer-song-1',
+          provisional: true,
+          duration: 242,
+          track: null,
+          disc: null,
+        ),
+      ],
+    );
+
+    expect(result, isA<SongIdentityUnmatched>());
+  }, skip: !sqliteAvailable);
+
+  test(
+    'a gap past 2% of the duration is not matched even with equal positions',
+    () {
+      final result = reconciler.matchCanonicalSong(
+        canonicalSong: _song(id: 'lib', provisional: false, duration: 238),
+        provisionalSongs: <SongsTableData>[
+          _song(id: 'ext-deezer-song-1', provisional: true, duration: 244),
+        ],
+      );
+
+      expect(result, isA<SongIdentityUnmatched>());
+    },
+    skip: !sqliteAvailable,
+  );
+
+  group('relinkExternalCopies', () {
+    Future<void> insert(SongsTableData song) =>
+        database.into(database.songsTable).insert(song);
+
+    // Candidates come from the search index, so bring it up to date first.
+    Future<Map<String, String>> refreshAndRelink(List<String> ids) async {
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+      return reconciler.relinkExternalCopies(ids);
+    }
+
+    SongsTableData library({
+      String id = 'lib',
+      String artist = 'Adele',
+      String album = '21',
+    }) => _song(
+      id: id,
+      provisional: false,
+      title: 'Set Fire to the Rain',
+      artist: artist,
+      album: album,
+      duration: 238,
+      track: 5,
+      recordingMbid: 'd1e0a99e-1894-457b-ba6a-985eeef4d0c4',
+    );
+
+    SongsTableData remote({String artist = 'Adele', String album = '21'}) =>
+        _song(
+          id: 'ext-deezer-song-8086130',
+          provisional: true,
+          external: true,
+          title: 'Set Fire to the Rain',
+          artist: artist,
+          album: album,
+          duration: 242,
+          track: 5,
+        );
+
+    test('moves a late remote copy onto the library song', () async {
+      final playedAt = DateTime.utc(2026, 11, 6);
+      await insert(library());
+      await insert(remote());
+      await database
+          .into(database.playHistoryTable)
+          .insert(
+            PlayHistoryTableCompanion.insert(
+              songId: 'ext-deezer-song-8086130',
+              playedAt: playedAt,
+            ),
+          );
+
+      final linked = await refreshAndRelink(<String>[
+        'ext-deezer-song-8086130',
+      ]);
+
+      expect(linked, {'ext-deezer-song-8086130': 'lib'});
+      expect(
+        await database.libraryDao.getSongById('ext-deezer-song-8086130'),
+        isNull,
+      );
+      final history = await database.select(database.playHistoryTable).get();
+      expect(history.single.songId, 'lib');
+      expect(
+        await database.songIdentityDao.resolveCanonicalId(
+          'ext-deezer-song-8086130',
+        ),
+        'lib',
+      );
+    }, skip: !sqliteAvailable);
+
+    for (final title in ['Été Indien', 'Группа крови']) {
+      test('relinks a non-ASCII title ($title)', () async {
+        await insert(library().copyWith(title: title));
+        await insert(remote().copyWith(title: title.toUpperCase()));
+
+        expect(
+          await refreshAndRelink(<String>['ext-deezer-song-8086130']),
+          hasLength(1),
+        );
+        expect(
+          await database.libraryDao.getSongById('ext-deezer-song-8086130'),
+          isNull,
+        );
+      }, skip: !sqliteAvailable);
+    }
+
+    // The candidate query uses the indexed match_title (normalizeMetadata).
+    // Titles the reconciler treats as equal must share it, or the relink
+    // would never see the library song. Known gap (ponytail comment on the
+    // DAO query): "Song (Live)" vs "Song [Live]" differ in match_title.
+    for (final (a, b) in <(String, String)>[
+      ('Été Indien', 'ÉTÉ INDIEN'),
+      ('Группа крови', 'ГРУППА КРОВИ'),
+      ("Rock'n'Roll", 'Rock n Roll'),
+      ('AC/DC', 'AC DC'),
+      ('Hello!', 'hello'),
+    ]) {
+      test('match_title agrees with the reconciler key: $a / $b', () async {
+        final result = reconciler.matchCanonicalSong(
+          canonicalSong: library().copyWith(title: a),
+          provisionalSongs: <SongsTableData>[remote().copyWith(title: b)],
+        );
+        expect(result, isA<SongIdentityMatched>());
+        expect(normalizeMetadata(a), normalizeMetadata(b));
+
+        await insert(library().copyWith(title: a));
+        await insert(remote().copyWith(title: b));
+        await database.libraryDao.scheduleSongSearchIndexRefresh();
+        expect(
+          await refreshAndRelink(<String>['ext-deezer-song-8086130']),
+          hasLength(1),
+        );
+      }, skip: !sqliteAvailable);
+    }
+
+    test('the playing remote copy keeps its cache file', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-relink-');
+      addTearDown(() => directory.delete(recursive: true));
+      final remoteFile = File('${directory.path}/remote.audio')
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+      final libraryFile = File('${directory.path}/library.audio')
+        ..writeAsBytesSync(<int>[4, 5, 6, 7]);
+      await insert(library());
+      await insert(remote());
+      for (final (id, file, type) in [
+        ('ext-deezer-song-8086130', remoteFile, CacheType.rolling),
+        ('lib', libraryFile, CacheType.permanent),
+      ]) {
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: id,
+            filePath: file.path,
+            fileSize: file.lengthSync(),
+            format: 'mp3',
+            lastAccessedAt: DateTime.now(),
+            cacheType: type,
+            downloadStatus: DownloadStatus.complete,
+          ),
+        );
+      }
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+
+      final linked = await SongIdentityReconciler(
+        database.songIdentityDao,
+        readActiveSongId: () => 'ext-deezer-song-8086130',
+      ).relinkExternalCopies(<String>['ext-deezer-song-8086130']);
+
+      expect(linked, hasLength(1));
+      expect(remoteFile.existsSync(), isTrue);
+    }, skip: !sqliteAvailable);
+
+    test('a batch of more than 1000 ids still relinks', () async {
+      await insert(library());
+      await insert(remote());
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+      final ids = <String>[
+        for (var i = 0; i < 1500; i++) 'ext-deezer-song-none-$i',
+        'ext-deezer-song-8086130',
+      ];
+
+      expect(await reconciler.relinkExternalCopies(ids), hasLength(1));
+    }, skip: !sqliteAvailable);
+
+    test('local search then returns one copy', () async {
+      await insert(library());
+      await insert(remote());
+      await database
+          .into(database.playHistoryTable)
+          .insert(
+            PlayHistoryTableCompanion.insert(
+              songId: 'ext-deezer-song-8086130',
+              playedAt: DateTime.utc(2026, 11, 6),
+            ),
+          );
+      expect(
+        (await database.libraryDao.searchCachedSongs('set fire'))
+            .map((song) => song.id),
+        containsAll(<String>['lib', 'ext-deezer-song-8086130']),
+      );
+
+      await refreshAndRelink(<String>['ext-deezer-song-8086130']);
+
+      expect(
+        (await database.libraryDao.searchCachedSongs('set fire'))
+            .map((song) => song.id),
+        <String>['lib'],
+      );
+    }, skip: !sqliteAvailable);
+
+    test('leaves a cover by another artist alone', () async {
+      await insert(library(artist: 'Adele'));
+      await insert(remote(artist: 'No Resolve', album: 'Covers'));
+
+      expect(
+        await refreshAndRelink(<String>['ext-deezer-song-8086130']),
+        isEmpty,
+      );
+      expect(
+        await database.libraryDao.getSongById('ext-deezer-song-8086130'),
+        isNotNull,
+      );
+    }, skip: !sqliteAvailable);
+
+    test('two library candidates are ambiguous and nothing moves', () async {
+      await insert(library());
+      await insert(library(id: 'lib-2'));
+      await insert(remote());
+
+      expect(
+        await refreshAndRelink(<String>['ext-deezer-song-8086130']),
+        isEmpty,
+      );
+      expect(
+        await database.libraryDao.getSongById('ext-deezer-song-8086130'),
+        isNotNull,
+      );
+    }, skip: !sqliteAvailable);
+  });
 }
 
 SongsTableData _song({
@@ -363,6 +660,7 @@ SongsTableData _song({
   int? track = 1,
   int? disc = 1,
   String? recordingMbid,
+  bool external = false,
 }) {
   return SongsTableData(
     id: id,
@@ -374,6 +672,6 @@ SongsTableData _song({
     discNumber: disc,
     recordingMbid: recordingMbid,
     isProvisional: provisional,
-    isExternal: false,
+    isExternal: external,
   );
 }
