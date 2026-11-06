@@ -5747,7 +5747,8 @@ Permanent-download pruning and orphan rolling-file cleanup still run before
 readiness because they guard partial-file ownership.
 
 On Android and Apple platforms audio_service is given
-`RealTimeProjectionAudioHandler`, a `CompositeAudioHandler` around the real
+`RealTimeProjectionAudioHandler` (real-time projection on Android and iOS;
+macOS below), a `CompositeAudioHandler` around the real
 handler; the app itself keeps the unwrapped handler. The app, lyrics and
 seeking use track time with a separate speed, but Bluetooth AVRCP has no rate
 field and many head units, headphones and lock screens tick at 1×. The
@@ -5766,6 +5767,14 @@ descriptors generate MPRIS introspection and individual/bulk reads; method and
 property-write dispatch remain separate. Windows SMTC has no rate,
 so `WindowsSmtcBridge` publishes its timeline in real listening time and
 converts SMTC seek and skip requests back to track time.
+
+On macOS the projection is constructed with `projectTime: false`:
+MediaPlayer's Now Playing info has a native playback rate and extrapolates the
+elapsed time itself, so position, buffered position, duration and seeks stay
+in track time and the real speed is published (the vendored audio_service
+plugin sends `PlaybackRate` as the speed while playing and 0 when paused, and
+`DefaultPlaybackRate` as 1.0). The queue window, system art and the
+`navisServiceRecreated` republish behave the same with either value.
 
 A scrobble and play-history session belongs to the playing queue entry: songs
 inserted, released, or moved before it shift its index without starting a new

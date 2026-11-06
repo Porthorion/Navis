@@ -195,6 +195,8 @@ Future<NavisPlaybackHandler> initNavisAudioHandler({
                   final base = createBaseHandler();
                   return RealTimeProjectionAudioHandler(
                     base,
+                    // macOS shows track time and extrapolates with the rate.
+                    projectTime: !_isMacOSRuntime,
                     // The manifest's NavisArtworkProvider authority.
                     systemArt: packageName == null
                         ? null

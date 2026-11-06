@@ -18,6 +18,12 @@ kept; `example/` and `test/` are dropped. Only the Darwin plugin is changed
   clears the cached entry, and a later idle state does not bring it back. With the flood, pausing from Control Center showed
   the position from when playback started (for example 1:00 after 10 s at 1:00)
   for about a second before the paused update landed.
+- **Default playback rate is 1.0.** `MPNowPlayingInfoPropertyDefaultPlaybackRate`
+  is always 1.0 (Apple: the normal rate) instead of the current speed while
+  playing and 0 when paused. `PlaybackRate` still carries the speed (0 when
+  paused) and the drift check above still uses it. With the Dart handler
+  publishing track time on macOS, the system extrapolates the elapsed time with
+  that rate, so Control Center matches the app at non-1x speeds.
 - **Elapsed time before playback state (macOS).** `updateNowPlayingInfo`
   assigns `nowPlayingInfo` before `MPNowPlayingInfoCenter.playbackState`, so
   the system never sees the paused state with a stale elapsed time.

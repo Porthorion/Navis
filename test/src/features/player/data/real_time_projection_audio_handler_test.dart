@@ -182,4 +182,206 @@ void main() {
     expect(projection.queue.value.first.id, 'song-150');
     expect(projection.playbackState.value.queueIndex, 20);
   });
+
+  group(
+    'projectTime: false (macOS publishes track time and the real rate)',
+    () {
+      for (final speed in <double>[0.8, 1.5]) {
+        test('publishes track-time values at $speed×', () async {
+          final inner = _InnerHandler();
+          final projection = RealTimeProjectionAudioHandler(
+            inner,
+            projectTime: false,
+          );
+          addTearDown(projection.dispose);
+          inner.mediaItem.add(item);
+          inner.playbackState.add(
+            PlaybackState(
+              playing: true,
+              updatePosition: const Duration(seconds: 90),
+              bufferedPosition: const Duration(seconds: 120),
+              speed: speed,
+            ),
+          );
+          await pumpEventQueue();
+
+          final state = projection.playbackState.value;
+          expect(state.updatePosition, const Duration(seconds: 90));
+          expect(state.bufferedPosition, const Duration(seconds: 120));
+          expect(state.speed, speed);
+          expect(projection.mediaItem.value!.duration, item.duration);
+        });
+      }
+
+      test('system seeks reach the inner handler unchanged', () async {
+        final inner = _InnerHandler();
+        final projection = RealTimeProjectionAudioHandler(
+          inner,
+          projectTime: false,
+        );
+        addTearDown(projection.dispose);
+        inner.playbackState.add(PlaybackState(playing: true, speed: 0.8));
+        await pumpEventQueue();
+        await projection.seek(const Duration(seconds: 60));
+        expect(inner.seeks, <Duration>[const Duration(seconds: 60)]);
+      });
+
+      test('a speed change mid-song never changes the duration', () async {
+        final inner = _InnerHandler();
+        final projection = RealTimeProjectionAudioHandler(
+          inner,
+          projectTime: false,
+        );
+        addTearDown(projection.dispose);
+        final durations = <Duration?>[];
+        final speeds = <double>[];
+        projection.mediaItem.listen((value) => durations.add(value?.duration));
+        projection.playbackState.listen((value) => speeds.add(value.speed));
+        inner.mediaItem.add(item);
+        for (final speed in <double>[1, 0.8, 1.5]) {
+          inner.playbackState.add(PlaybackState(playing: true, speed: speed));
+          await pumpEventQueue();
+          expect(projection.playbackState.value.speed, speed);
+        }
+        expect(durations.whereType<Duration>().toSet(), {item.duration});
+        // Track-time metadata does not depend on the speed, so it is not
+        // republished (each republish reloads the Now Playing artwork).
+        expect(durations.whereType<Duration>(), hasLength(1));
+        expect(speeds.toSet(), containsAll(<double>[1, 0.8, 1.5]));
+      });
+
+      test('paused at 0.8 keeps the speed and track time; speed change while '
+          'paused republishes', () async {
+        final inner = _InnerHandler();
+        final projection = RealTimeProjectionAudioHandler(
+          inner,
+          projectTime: false,
+        );
+        addTearDown(projection.dispose);
+        inner.mediaItem.add(item);
+        inner.playbackState.add(
+          PlaybackState(
+            updatePosition: const Duration(seconds: 50),
+            speed: 0.8,
+          ),
+        );
+        await pumpEventQueue();
+        var state = projection.playbackState.value;
+        expect(state.playing, isFalse);
+        expect(state.speed, 0.8);
+        expect(state.updatePosition, const Duration(seconds: 50));
+
+        inner.playbackState.add(
+          PlaybackState(
+            updatePosition: const Duration(seconds: 50),
+            speed: 1.5,
+          ),
+        );
+        await pumpEventQueue();
+        state = projection.playbackState.value;
+        expect(state.speed, 1.5);
+        expect(state.playing, isFalse);
+      });
+
+      test('queue windowing still applies', () async {
+        final inner = _InnerHandler();
+        final projection = RealTimeProjectionAudioHandler(
+          inner,
+          projectTime: false,
+        );
+        addTearDown(projection.dispose);
+        inner.queue.add(_items(5000));
+        inner.playbackState.add(PlaybackState(queueIndex: 2500, speed: 1.5));
+        await pumpEventQueue();
+        expect(
+          projection.queue.value.length,
+          RealTimeProjectionAudioHandler.queueWindowBefore +
+              RealTimeProjectionAudioHandler.queueWindowAfter +
+              1,
+        );
+        expect(projection.playbackState.value.queueIndex, 20);
+        expect(projection.playbackState.value.speed, 1.5);
+        await projection.skipToQueueItem(25);
+        expect(inner.skips, <int>[2505]);
+      });
+    },
+  );
+
+  group('projectTime: true (default, Android and iOS)', () {
+    test('seek at 0.8× converts the system position to track time', () async {
+      final inner = _InnerHandler();
+      final projection = RealTimeProjectionAudioHandler(inner);
+      addTearDown(projection.dispose);
+      inner.playbackState.add(PlaybackState(playing: true, speed: 0.8));
+      await pumpEventQueue();
+      await projection.seek(const Duration(seconds: 60));
+      expect(inner.seeks, <Duration>[const Duration(seconds: 48)]);
+    });
+
+    test('speed 0.8 still projects', () async {
+      final inner = _InnerHandler();
+      final projection = RealTimeProjectionAudioHandler(inner);
+      addTearDown(projection.dispose);
+      inner.mediaItem.add(item);
+      inner.playbackState.add(
+        PlaybackState(
+          playing: true,
+          updatePosition: const Duration(seconds: 80),
+          speed: 0.8,
+        ),
+      );
+      await pumpEventQueue();
+      expect(
+        projection.playbackState.value.updatePosition,
+        const Duration(seconds: 100),
+      );
+      expect(projection.playbackState.value.speed, 1.0);
+      expect(
+        projection.mediaItem.value!.duration,
+        const Duration(seconds: 225),
+      );
+    });
+
+    test('a speed change re-projects the duration', () async {
+      final inner = _InnerHandler();
+      final projection = RealTimeProjectionAudioHandler(inner);
+      addTearDown(projection.dispose);
+      inner.mediaItem.add(item);
+      final seen = <Duration?>[];
+      for (final speed in <double>[1, 0.8, 1.5]) {
+        inner.playbackState.add(PlaybackState(playing: true, speed: speed));
+        await pumpEventQueue();
+        seen.add(projection.mediaItem.value!.duration);
+      }
+      expect(seen, <Duration>[
+        const Duration(minutes: 3),
+        const Duration(seconds: 225),
+        const Duration(minutes: 2),
+      ]);
+    });
+
+    test(
+      'non-finite and non-positive speeds are published unchanged',
+      () async {
+        final inner = _InnerHandler();
+        final projection = RealTimeProjectionAudioHandler(inner);
+        addTearDown(projection.dispose);
+        inner.mediaItem.add(item);
+        for (final speed in <double>[0, -1, double.nan]) {
+          inner.playbackState.add(
+            PlaybackState(
+              updatePosition: const Duration(seconds: 90),
+              speed: speed,
+            ),
+          );
+          await pumpEventQueue();
+          expect(
+            projection.playbackState.value.updatePosition,
+            const Duration(seconds: 90),
+          );
+          expect(projection.mediaItem.value!.duration, item.duration);
+        }
+      },
+    );
+  });
 }
