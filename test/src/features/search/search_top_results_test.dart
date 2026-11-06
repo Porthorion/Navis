@@ -3,6 +3,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
@@ -16,6 +17,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
+import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/features/search/domain/deezer_search_boost.dart';
@@ -111,6 +113,9 @@ void main() {
   late QueueReplaceSpy queue;
   late NavisDatabase db;
 
+  /// The pages a tap opened (set when a test pumps with [pump]'s `routed`).
+  final opened = <String>[];
+
   Future<void> pump(
     WidgetTester tester,
     List<SearchTopResult> tops, {
@@ -120,8 +125,10 @@ void main() {
     NavisShapeData? shape,
     SubsonicApiClient? api,
     List<Override> overrides = const <Override>[],
+    bool routed = false,
   }) async {
     if (!sqliteAvailable) return;
+    opened.clear();
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -142,28 +149,60 @@ void main() {
       container.dispose();
       await database.close();
     });
+    final home = MediaQuery(
+      data: MediaQueryData(
+        size: size,
+        textScaler: TextScaler.linear(textScale),
+      ),
+      child: Scaffold(
+        body: SingleChildScrollView(
+          child: SearchTopResultsSection(
+            topResults: tops,
+            desktopMode: desktop,
+          ),
+        ),
+      ),
+    );
+    final theme = ThemeData(extensions: <ThemeExtension<dynamic>>[?shape]);
+    // A router only for tests that follow a tap to its page.
+    GoRouter? router;
+    if (routed) {
+      Widget page(GoRouterState state) {
+        opened.add(state.uri.toString());
+        return Scaffold(body: Text('page ${state.uri.path}'));
+      }
+
+      router = GoRouter(
+        routes: <RouteBase>[
+          GoRoute(path: '/', builder: (context, state) => home),
+          GoRoute(
+            path: '${AppRoutes.library}/${AppRoutes.artistSegment}',
+            builder: (context, state) => page(state),
+          ),
+          GoRoute(
+            path: '${AppRoutes.library}/${AppRoutes.albumSegment}',
+            builder: (context, state) => page(state),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+    }
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(
-          theme: ThemeData(extensions: <ThemeExtension<dynamic>>[?shape]),
-          localizationsDelegates: navisLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: MediaQuery(
-            data: MediaQueryData(
-              size: size,
-              textScaler: TextScaler.linear(textScale),
-            ),
-            child: Scaffold(
-              body: SingleChildScrollView(
-                child: SearchTopResultsSection(
-                  topResults: tops,
-                  desktopMode: desktop,
-                ),
+        child: router == null
+            ? MaterialApp(
+                theme: theme,
+                localizationsDelegates: navisLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: home,
+              )
+            : MaterialApp.router(
+                theme: theme,
+                localizationsDelegates: navisLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                routerConfig: router,
               ),
-            ),
-          ),
-        ),
       ),
     );
     await tester.pump();
@@ -530,6 +569,232 @@ void main() {
       await tester.tap(find.text('Creep'));
       await tester.pump();
       expect(queue.lastReplaceIds, <String>['s']);
+    });
+  });
+
+  group('the whole card opens its item', () {
+    for (final (name, desktop, size) in <(String, bool, Size)>[
+      ('mobile', false, const Size(400, 900)),
+      ('desktop', true, const Size(1200, 700)),
+    ]) {
+      Future<void> tapCorner(WidgetTester tester, String card) async {
+        final rect = tester.getRect(key(card));
+        await tester.tapAt(rect.bottomRight - const Offset(8, 8));
+        await tester.pumpAndSettle();
+      }
+
+      for (final (kind, top, page) in <(String, SearchTopResult, String)>[
+        ('artist', _artist, '/library/artists/ar'),
+        ('album', _album, '/library/albums/al'),
+      ]) {
+        testWidgets('$name: the $kind hero opens from its empty corner', (
+          tester,
+        ) async {
+          if (!sqliteAvailable) return;
+          await pump(tester, [top], desktop: desktop, size: size, routed: true);
+          await tapCorner(tester, 'search-top-result-0');
+          expect(opened.map(Uri.parse).map((uri) => uri.path), [page]);
+        });
+
+        testWidgets('$name: the $kind hero opens from its text', (
+          tester,
+        ) async {
+          if (!sqliteAvailable) return;
+          await pump(tester, [top], desktop: desktop, size: size, routed: true);
+          await tester.tap(
+            find.text(top is TopArtistResult ? 'Radiohead' : 'Pablo Honey'),
+          );
+          await tester.pumpAndSettle();
+          expect(opened.map(Uri.parse).map((uri) => uri.path), [page]);
+        });
+
+        testWidgets('$name: the $kind tile opens its page', (tester) async {
+          if (!sqliteAvailable) return;
+          await pump(
+            tester,
+            [_song, top],
+            desktop: desktop,
+            size: size,
+            routed: true,
+          );
+          await tester.tapAt(tester.getCenter(key('search-top-result-1')));
+          await tester.pumpAndSettle();
+          expect(opened.map(Uri.parse).map((uri) => uri.path), [page]);
+          expect(queue.lastReplaceIds, isNull);
+        });
+
+        testWidgets('$name: Play, Shuffle and More on the $kind hero do not '
+            'also open it', (tester) async {
+          if (!sqliteAvailable) return;
+          await pump(tester, [top], desktop: desktop, size: size, routed: true);
+          await tester.tap(find.text('Play'));
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.tap(find.byTooltip('Shuffle'));
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.tap(find.byTooltip('More'));
+          await tester.pumpAndSettle();
+          expect(opened, isEmpty);
+        });
+      }
+
+      testWidgets('$name: the song hero plays from its empty corner', (
+        tester,
+      ) async {
+        if (!sqliteAvailable) return;
+        await pump(tester, [_song], desktop: desktop, size: size, routed: true);
+        await tapCorner(tester, 'search-top-result-0');
+        expect(queue.lastReplaceIds, <String>['s']);
+        expect(opened, isEmpty);
+      });
+
+      testWidgets('$name: Like and More on a song hero do not also play it', (
+        tester,
+      ) async {
+        if (!sqliteAvailable) return;
+        await pump(tester, [_song], desktop: desktop, size: size, routed: true);
+        await tester.tap(find.byTooltip('Like'));
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.tap(find.byTooltip('More'));
+        await tester.pumpAndSettle();
+        expect(queue.lastReplaceIds, isNull);
+        expect(opened, isEmpty);
+      });
+
+      testWidgets('$name: a song tile plays like a song row tap', (
+        tester,
+      ) async {
+        if (!sqliteAvailable) return;
+        await pump(
+          tester,
+          [_artist, _song],
+          desktop: desktop,
+          size: size,
+          routed: true,
+        );
+        await tester.tapAt(tester.getCenter(key('search-top-result-1')));
+        await tester.pumpAndSettle();
+        expect(queue.lastReplaceIds, <String>['s']);
+        expect(opened, isEmpty);
+      });
+    }
+
+    testWidgets('the hero is read as one button above its buttons', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      final handle = tester.ensureSemantics();
+      await pump(tester, [_artist]);
+      expect(
+        tester.getSemantics(
+          find.bySemanticsLabel('Radiohead, Artist · 9 albums'),
+        ),
+        matchesSemantics(
+          label: 'Radiohead, Artist · 9 albums',
+          isButton: true,
+          hasTapAction: true,
+          hasLongPressAction: true,
+        ),
+      );
+      // Play stays its own node, not folded into the card.
+      expect(find.bySemanticsLabel('Play'), findsOneWidget);
+      handle.dispose();
+    });
+  });
+
+  group('built tiles', () {
+    const adele = TopArtistResult(Artist(id: 'adele', name: 'Adele'));
+    const album25 = TopAlbumResult(
+      Album(id: 'album-25', name: '25', artist: 'Adele', artistId: 'adele'),
+    );
+
+    String? coverOf(WidgetTester tester, String card) => tester
+        .widget<CoverArtImage>(
+          find.descendant(of: key(card), matching: find.byType(CoverArtImage)),
+        )
+        .coverArtId;
+
+    testWidgets('an artist tile shows the placeholder, then the stored art', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      await pump(tester, [_song, adele]);
+      expect(coverOf(tester, 'search-top-result-1'), isNull);
+      // The library stores the artist (a sync, or opening its page).
+      await tester.runAsync(
+        () => db
+            .into(db.artistsTable)
+            .insert(
+              ArtistsTableCompanion.insert(
+                id: 'adele',
+                name: 'Adele',
+                coverArt: const Value('ar-adele_1'),
+              ),
+            ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(coverOf(tester, 'search-top-result-1'), 'ar-adele_1');
+    });
+
+    testWidgets('an album tile shows the placeholder, then the stored art', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      await pump(tester, [_song, album25]);
+      expect(
+        tester
+            .widget<HeroCoverArt>(
+              find.descendant(
+                of: key('search-top-result-1'),
+                matching: find.byType(HeroCoverArt),
+              ),
+            )
+            .coverArtId,
+        isNull,
+      );
+      await tester.runAsync(
+        () => db
+            .into(db.albumsTable)
+            .insert(
+              AlbumsTableCompanion.insert(
+                id: 'album-25',
+                name: '25',
+                coverArt: const Value('al-album-25_1'),
+              ),
+            ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        tester
+            .widget<HeroCoverArt>(
+              find.descendant(
+                of: key('search-top-result-1'),
+                matching: find.byType(HeroCoverArt),
+              ),
+            )
+            .coverArtId,
+        'al-album-25_1',
+      );
+    });
+
+    testWidgets('a remote tile without an art id asks for its own id', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      await pump(tester, [
+        _song,
+        const TopArtistResult(Artist(id: 'ext-deezer-artist-3', name: 'Luis')),
+      ]);
+      expect(coverOf(tester, 'search-top-result-1'), 'ext-deezer-artist-3');
+    });
+
+    testWidgets('a tile that has its art id never reads the library', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      await pump(tester, [_song, _artist]);
+      expect(coverOf(tester, 'search-top-result-1'), 'ar-art');
     });
   });
 

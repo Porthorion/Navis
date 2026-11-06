@@ -331,7 +331,8 @@ void main() {
           );
           run.container.read(searchQueryProvider.notifier).submit('Hello');
           await _waitForEmissions(run.emissions, 2);
-          // The artist ranks first at Deezer, but only the song is named Hello.
+          // The artist ranks first at Deezer, but only the song is named Hello;
+          // an unrelated artist is not a tile for it.
           expect(
             run.emissions.last.topResults.map(
               (top) => switch (top) {
@@ -340,7 +341,7 @@ void main() {
                 TopSongResult(:final song) => 'song:${song.id}',
               },
             ),
-            <String>['song:adele', 'artist:band'],
+            <String>['song:adele'],
           );
         },
       );

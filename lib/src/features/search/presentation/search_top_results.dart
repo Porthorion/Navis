@@ -138,15 +138,21 @@ _TopView _viewOf(BuildContext context, WidgetRef ref, SearchTopResult result) {
         apiIsExternal: artist.isExternal,
       );
       final count = artist.albumCount ?? 0;
+      final coverArt = _coverArtOf(
+        artist.coverArt,
+        id: artist.id,
+        isRemote: isRemote,
+        stored: () => ref.watch(artistByIdProvider(artist.id)).value?.coverArt,
+      );
       return _TopView(
         title: artist.name,
         subtitle: count > 0
             ? l10n.searchTopArtistAlbums(count)
             : l10n.searchTopArtist,
-        coverArtId: artist.coverArt,
+        coverArtId: coverArt,
         isRemote: isRemote,
         cover: (extent) => CoverArtImage(
-          coverArtId: artist.coverArt,
+          coverArtId: coverArt,
           size: (extent * 2).round(),
           width: extent,
           height: extent,
@@ -170,8 +176,14 @@ _TopView _viewOf(BuildContext context, WidgetRef ref, SearchTopResult result) {
         id: album.id,
         apiIsExternal: album.isExternal,
       );
+      final coverArt = _coverArtOf(
+        album.coverArt,
+        id: album.id,
+        isRemote: isRemote,
+        stored: () => ref.watch(albumProvider(album.id)).value?.album.coverArt,
+      );
       final heroTag = buildCoverArtHeroTag(
-        coverArtId: album.coverArt,
+        coverArtId: coverArt,
         context: 'search_top_album',
         entityId: album.id,
       );
@@ -181,10 +193,10 @@ _TopView _viewOf(BuildContext context, WidgetRef ref, SearchTopResult result) {
         subtitle: year != null && year > 0
             ? l10n.searchTopAlbumYear('$year')
             : l10n.searchTopAlbum,
-        coverArtId: album.coverArt,
+        coverArtId: coverArt,
         isRemote: isRemote,
         cover: (extent) => HeroCoverArt(
-          coverArtId: album.coverArt,
+          coverArtId: coverArt,
           heroTag: heroTag,
           size: (extent * 2).round(),
           width: extent,
@@ -242,6 +254,22 @@ _TopView _viewOf(BuildContext context, WidgetRef ref, SearchTopResult result) {
             showSearchSongMenu(context, ref, song, anchor: anchor),
       );
   }
+}
+
+/// The art id a Top Result shows: its own, else (an artist or album built from
+/// a song's ids, which carries none) the one the library stored for it, the
+/// way the item's page reads it, else a remote item's own id, which the server
+/// serves as its cover. Null shows the placeholder until the library has it.
+String? _coverArtOf(
+  String? own, {
+  required String id,
+  required bool isRemote,
+  required String? Function() stored,
+}) {
+  if (own != null && own.trim().isNotEmpty) return own;
+  final fromLibrary = stored();
+  if (fromLibrary != null && fromLibrary.trim().isNotEmpty) return fromLibrary;
+  return isRemote ? id : null;
 }
 
 Offset? _centerOf(BuildContext context) {
@@ -333,25 +361,27 @@ class _TopHero extends ConsumerWidget {
       clipBehavior: Clip.antiAlias,
       child: Material(
         type: MaterialType.transparency,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              Semantics(
-                button: true,
-                container: true,
-                excludeSemantics: true,
-                label: view.semanticLabel(context),
-                onTap: view.open,
-                onLongPress: () => view.menu(null),
-                child: InkWell(
-                  borderRadius: NavisShapeData.of(context).mdAll,
+        // The whole card opens the result; Play, the second action and More
+        // sit on it and take their own taps. The header below carries the
+        // semantics, so the buttons stay separate nodes for a screen reader.
+        child: InkWell(
+          excludeFromSemantics: true,
+          onTap: view.open,
+          onLongPress: () => view.menu(null),
+          onSecondaryTapDown: (details) => view.menu(details.globalPosition),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Semantics(
+                  button: true,
+                  container: true,
+                  excludeSemantics: true,
+                  label: view.semanticLabel(context),
                   onTap: view.open,
                   onLongPress: () => view.menu(null),
-                  onSecondaryTapDown: (details) =>
-                      view.menu(details.globalPosition),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: <Widget>[
@@ -376,35 +406,35 @@ class _TopHero extends ConsumerWidget {
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: <Widget>[
-                  FilledButton.icon(
-                    icon: const Icon(Icons.play_arrow_rounded),
-                    label: Text(l10n.albumDetailPlayAction),
-                    onPressed: () => _play(context, ref, view),
-                  ),
-                  secondary,
-                  Builder(
-                    builder: (buttonContext) => IconButton(
-                      key: result is TopSongResult
-                          ? ValueKey<String>(
-                              'search-top-song-menu-'
-                              '${(result as TopSongResult).song.id}',
-                            )
-                          : const ValueKey<String>('search-top-menu'),
-                      tooltip: l10n.actionMore,
-                      icon: const Icon(Icons.more_horiz_rounded),
-                      onPressed: () => view.menu(_centerOf(buttonContext)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: <Widget>[
+                    FilledButton.icon(
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: Text(l10n.albumDetailPlayAction),
+                      onPressed: () => _play(context, ref, view),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    secondary,
+                    Builder(
+                      builder: (buttonContext) => IconButton(
+                        key: result is TopSongResult
+                            ? ValueKey<String>(
+                                'search-top-song-menu-'
+                                '${(result as TopSongResult).song.id}',
+                              )
+                            : const ValueKey<String>('search-top-menu'),
+                        tooltip: l10n.actionMore,
+                        icon: const Icon(Icons.more_horiz_rounded),
+                        onPressed: () => view.menu(_centerOf(buttonContext)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
