@@ -35,7 +35,7 @@ void main() {
       final c = Ctx(f);
       out.writeln(
         '== ${f.query}  (exact kinds: ${c.exactKinds}, '
-        'Deezer #1 song: ${c.topTrack?.title} — ${c.topTrack?.artist.name})',
+        'Deezer first matched song (position ${c.topSong?.position}): ${c.topTrack?.title} — ${c.topTrack?.artist.name})',
       );
       for (final entry in variants.entries) {
         final picks = entry.value(c);
@@ -54,11 +54,11 @@ void main() {
         });
       }
     }
-    // The report is the output.
-    // ignore: avoid_print
-    print(out);
     final dir = Platform.environment['TOP_RESULTS_REPORT_DIR'];
     if (dir != null) {
+      // The report is the output.
+      // ignore: avoid_print
+      print(out);
       Directory(dir).createSync(recursive: true);
       File('$dir/variants.txt').writeAsStringSync(out.toString());
       File('$dir/rows.json').writeAsStringSync(jsonEncode(rows));
