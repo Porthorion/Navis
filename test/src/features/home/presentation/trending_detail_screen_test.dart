@@ -25,8 +25,12 @@ import '../../../../helpers/test_theme.dart';
 
 void main() {
   late NavisDatabase database;
+  final relinkCalls = <List<String>>[];
 
-  setUp(() => database = createTestDatabase());
+  setUp(() {
+    database = createTestDatabase();
+    relinkCalls.clear();
+  });
   tearDown(() => database.close());
 
   Future<ProviderContainer> pump(
@@ -47,6 +51,10 @@ void main() {
               ),
             ),
             queueProvider.overrideWith(QueueReplaceSpy.new),
+            relinkExternalCopiesProvider.overrideWithValue((ids) async {
+              relinkCalls.add(ids.toList());
+              return const <String, String>{};
+            }),
             homeTrendingProvider.overrideWith(tracks),
             songDownloadStateProvider.overrideWith(
               (ref, songId) => SongDownloadState.none,
@@ -237,6 +245,14 @@ void main() {
       );
       expect(stored?.albumId, 'ext-deezer-album-7');
       expect(stored?.isExternal, isTrue);
+      // The menu leaves the stored row alone (queue entries do the relink),
+      // so its own actions, such as Add to playlist, still find it.
+      expect(relinkCalls, isEmpty);
+      final dropped = await tester.runAsync(() async {
+        final id = await database.playlistDao.createLocalPlaylist('Mine', []);
+        return database.playlistDao.setLocalPlaylistSongs(id, [remote.id]);
+      });
+      expect(dropped, 0);
     },
   );
 

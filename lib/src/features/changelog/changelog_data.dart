@@ -140,6 +140,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Search no longer lists a song twice when a Deezer copy of it matches '
+        'a song in your library, and its quality now shows your file',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Recently Added on Home now shows the play button on hover, like '
         'the other album shelves',
         type: ChangelogEntryType.fix,

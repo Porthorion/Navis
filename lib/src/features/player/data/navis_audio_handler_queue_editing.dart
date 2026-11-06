@@ -697,13 +697,15 @@ extension _NavisQueueEditing on NavisAudioHandler {
     for (var index = 0; index < _queueItems.length; index++) {
       _queueItems.replaceAt(index, remap(_queueItems[index]));
     }
-    for (var index = 0; index < _deferredTail.length; index++) {
-      final entry = _deferredTail[index];
-      // A remote row keeps its own id and source.
-      if (entry.song != null) continue;
-      final canonicalId = _canonicalSongId(entry.id);
-      if (canonicalId != entry.id) {
-        _deferredTail.replaceAt(index, _DeferredQueueEntry(canonicalId));
+    // Deferred entries too, head and tail, even when they carry a remote row:
+    // a retired id would fail every queue save (the row is gone). A canonical
+    // song is a library row, so the entry is re-read by its id when loaded.
+    for (final deferred in [_deferredHead, _deferredTail]) {
+      for (var index = 0; index < deferred.length; index++) {
+        final canonicalId = _canonicalSongId(deferred[index].id);
+        if (canonicalId != deferred[index].id) {
+          deferred.replaceAt(index, _DeferredQueueEntry(canonicalId));
+        }
       }
     }
     final original = _originalOrder;
