@@ -9,6 +9,7 @@ import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
+import 'package:navis/src/features/player/presentation/desktop_media_info_dialog.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
@@ -90,6 +91,8 @@ class _NavisAppState extends ConsumerState<NavisApp>
   @override
   Widget build(BuildContext context) {
     final router = ref.watch(appRouterProvider);
+    // Media info is ready before the dialog opens (desktop and mobile).
+    ref.listen(mediaInfoPrefetchProvider, (_, _) {});
     if (isDesktopRuntime) {
       // Keep history recording from launch, not from the first Back press.
       ref.listen(navigationHistoryProvider, (_, _) {});

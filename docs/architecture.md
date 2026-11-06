@@ -4569,6 +4569,12 @@ startup timeline and does not publish a playback-failure notice.
 
 ### Playback Flow
 
+Media info is prefetched: `mediaInfoPrefetchProvider` (listened from `app.dart`)
+keeps the current song's row, getSong details (`songServerDetailsProvider`)
+and album alive (the admin flag loads when the dialog opens), one request per song, cancelled on skip, deferred
+while offline or reconciling, never auto-retried (the dialog's open asks again
+once). Open it through `showDesktopMediaInfoDialog` only.
+
 Radio accepts only hosted HTTP(S) stream URLs and keeps them in handler memory,
 never `MediaItem.extras`. AzuraCast polling is derived only from `/listen/` or
 `/hls/` stream paths; station homepages do not create polling endpoints.

@@ -7,6 +7,7 @@ import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
+import 'package:navis/src/features/player/presentation/desktop_media_info_dialog.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -112,6 +113,23 @@ void main() {
       expect(app().darkTheme!.colorScheme, oled);
     },
   );
+
+  testWidgets('the app root keeps media info prefetched', (tester) async {
+    var built = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _noDbOverrides(
+          extras: [
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+            mediaInfoPrefetchProvider.overrideWith((_) => built++),
+          ],
+        ),
+        child: testNavisApp,
+      ),
+    );
+    await tester.pump();
+    expect(built, 1);
+  });
 
   testWidgets('resuming re-checks the scheduled Night style', (tester) async {
     var clock = DateTime(2026, 10, 8, 12);
