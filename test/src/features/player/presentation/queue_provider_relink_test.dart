@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -79,154 +81,199 @@ void main() {
     skip: !sqliteAvailable,
   );
 
-  group('queue entry points hand the library id to the player', () {
+  group('queue entry points hand over first, then relink once', () {
     const extId = 'ext-deezer-song-8086130';
-    final library = SongsTableData(
-      id: 'lib',
+    SongsTableData row(String id, {required bool external}) => SongsTableData(
+      id: id,
       title: 'Set Fire to the Rain',
       artistName: 'Adele',
       albumName: '21',
       duration: 238,
       track: 5,
       discNumber: 1,
-      isProvisional: false,
-      isExternal: false,
-    );
-    final remote = SongsTableData(
-      id: extId,
-      title: 'Set Fire to the Rain',
-      artistName: 'Adele',
-      albumName: '21',
-      duration: 242,
-      track: 5,
-      discNumber: 1,
-      isProvisional: true,
-      isExternal: true,
+      isProvisional: external,
+      isExternal: external,
     );
 
-    for (final entry in <String>[
-      'replace',
-      'replaceWithTableData',
-      'add',
-      'addTableData',
-      'playNext',
-    ]) {
-      test(entry, () async {
-        final database = createTestDatabase();
-        addTearDown(database.close);
-        final handler = _Handler();
-        when(() => handler.applySongIdentityAliases(any()))
-            .thenAnswer((_) async {});
-        when(() => handler.snapshotStream)
-            .thenAnswer((_) => const Stream<PlaybackSnapshot>.empty());
-        when(() => handler.snapshot).thenReturn(const PlaybackSnapshot.idle());
-        when(
-          () => handler.replaceQueue(
-            any(),
-            startIndex: any(named: 'startIndex'),
-            autoPlay: any(named: 'autoPlay'),
-            expandMatchFlows: any(named: 'expandMatchFlows'),
-            originalOrder: any(named: 'originalOrder'),
-          ),
-        ).thenAnswer((_) async {});
-        when(
-          () => handler.replaceQueueWithData(
-            any(),
-            startIndex: any(named: 'startIndex'),
-            autoPlay: any(named: 'autoPlay'),
-            expandMatchFlows: any(named: 'expandMatchFlows'),
-            originalOrder: any(named: 'originalOrder'),
-          ),
-        ).thenAnswer((_) async {});
-        when(
-          () => handler.addToQueue(
-            any(),
-            expandMatchFlows: any(named: 'expandMatchFlows'),
-          ),
-        ).thenAnswer((_) async {});
-        when(
-          () => handler.playNext(
-            any(),
-            expandMatchFlows: any(named: 'expandMatchFlows'),
-          ),
-        ).thenAnswer((_) async {});
-        await database.into(database.songsTable).insert(library);
-        await database.into(database.songsTable).insert(remote);
-        final container = ProviderContainer(
-          overrides: [
-            ...withTestDatabase(database),
-            audioHandlerProvider.overrideWithValue(handler),
-            lyricsPrewarmProvider.overrideWithValue((_) async {}),
-          ],
+    late _BatchHandler handler;
+    late List<List<String>> relinkCalls;
+    late Completer<Map<String, String>> gate;
+    late ProviderContainer container;
+    late List<String> events;
+
+    setUp(() async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      handler = _BatchHandler();
+      relinkCalls = [];
+      events = [];
+      gate = Completer<Map<String, String>>();
+      when(() => handler.snapshotStream)
+          .thenAnswer((_) => const Stream<PlaybackSnapshot>.empty());
+      when(() => handler.snapshot).thenReturn(const PlaybackSnapshot.idle());
+      when(
+        () => handler.replaceQueue(
+          any(),
+          startIndex: any(named: 'startIndex'),
+          autoPlay: any(named: 'autoPlay'),
+          expandMatchFlows: any(named: 'expandMatchFlows'),
+          originalOrder: any(named: 'originalOrder'),
+        ),
+      ).thenAnswer((invocation) async {
+        events.add(
+          'replace ${(invocation.positionalArguments.first as List).join(',')}',
         );
-        addTearDown(container.dispose);
-        final queue = container.read(queueProvider.notifier);
+      });
+      when(
+        () => handler.replaceQueueWithData(
+          any(),
+          startIndex: any(named: 'startIndex'),
+          autoPlay: any(named: 'autoPlay'),
+          expandMatchFlows: any(named: 'expandMatchFlows'),
+          originalOrder: any(named: 'originalOrder'),
+        ),
+      ).thenAnswer((invocation) async {
+        events.add(
+          'replaceData ${(invocation.positionalArguments.first as List<SongsTableData>).map((r) => r.id).join(',')}',
+        );
+      });
+      when(
+        () => handler.addToQueue(
+          any(),
+          expandMatchFlows: any(named: 'expandMatchFlows'),
+        ),
+      ).thenAnswer((invocation) async {
+        events.add(
+          'add ${(invocation.positionalArguments.first as List).join(',')}',
+        );
+      });
+      when(
+        () => handler.playNext(
+          any(),
+          expandMatchFlows: any(named: 'expandMatchFlows'),
+        ),
+      ).thenAnswer((invocation) async {
+        events.add(
+          'next ${(invocation.positionalArguments.first as List).join(',')}',
+        );
+      });
+      when(
+        () => handler.mergeIntoUpcoming(
+          any(),
+          notBefore: any(named: 'notBefore'),
+          random: any(named: 'random'),
+        ),
+      ).thenAnswer(
+        (_) async =>
+            const QueueBatchEditResult(skippedSongIds: <String>[extId]),
+      );
+      when(() => handler.insertQueueRuns(any())).thenAnswer(
+        (_) async =>
+            const QueueBatchEditResult(skippedSongIds: <String>[extId]),
+      );
+      container = ProviderContainer(
+        overrides: [
+          ...withTestDatabase(database),
+          audioHandlerProvider.overrideWithValue(handler),
+          lyricsPrewarmProvider.overrideWithValue((_) async {}),
+          relinkExternalCopiesProvider.overrideWithValue((ids) {
+            relinkCalls.add(ids.toList());
+            events.add('relink');
+            return gate.future;
+          }),
+        ],
+      );
+      addTearDown(container.dispose);
+    });
 
-        switch (entry) {
-          case 'replace':
-            await queue.replace(<String>[extId]);
-            expect(
-              verify(
-                () => handler.replaceQueue(
-                  captureAny(),
-                  startIndex: any(named: 'startIndex'),
-                  autoPlay: any(named: 'autoPlay'),
-                  expandMatchFlows: any(named: 'expandMatchFlows'),
-                  originalOrder: any(named: 'originalOrder'),
-                ),
-              ).captured.single,
-              <String>['lib'],
-            );
-          case 'replaceWithTableData':
-            await queue.replaceWithTableData(<SongsTableData>[remote]);
-            final rows =
-                verify(
-                      () => handler.replaceQueueWithData(
-                        captureAny(),
-                        startIndex: any(named: 'startIndex'),
-                        autoPlay: any(named: 'autoPlay'),
-                        expandMatchFlows: any(named: 'expandMatchFlows'),
-                        originalOrder: any(named: 'originalOrder'),
-                      ),
-                    ).captured.single
-                    as List<SongsTableData>;
-            expect(rows.map((row) => row.id), <String>['lib']);
-          case 'add':
-            await queue.add(extId);
-            expect(
-              verify(
-                () => handler.addToQueue(
-                  captureAny(),
-                  expandMatchFlows: any(named: 'expandMatchFlows'),
-                ),
-              ).captured.single,
-              <String>['lib'],
-            );
-          case 'addTableData':
-            await queue.addTableData(<SongsTableData>[remote]);
-            expect(
-              verify(
-                () => handler.addToQueue(
-                  captureAny(),
-                  expandMatchFlows: any(named: 'expandMatchFlows'),
-                ),
-              ).captured.single,
-              <String>['lib'],
-            );
-          case _:
-            await queue.playNext(extId);
-            expect(
-              verify(
-                () => handler.playNext(
-                  captureAny(),
-                  expandMatchFlows: any(named: 'expandMatchFlows'),
-                ),
-              ).captured.single,
-              <String>['lib'],
-            );
-        }
-        expect(await database.libraryDao.getSongById(extId), isNull);
-      }, skip: !sqliteAvailable);
-    }
+    test('replace hands the ids over unchanged, then relinks them', () async {
+      await container.read(queueProvider.notifier).replace(<String>[extId]);
+
+      expect(events, <String>['replace $extId', 'relink']);
+      expect(relinkCalls, [
+        [extId],
+      ]);
+    }, skip: !sqliteAvailable);
+
+    test('a held relink never reorders a newer tap', () async {
+      final queue = container.read(queueProvider.notifier);
+      await queue.replace(<String>[extId]);
+      await queue.replace(<String>['song-b']);
+
+      // The relink is still open (gate): the newer tap went straight through.
+      expect(events, <String>['replace $extId', 'relink', 'replace song-b']);
+      gate.complete(const <String, String>{});
+    }, skip: !sqliteAvailable);
+
+    test('a library song and its remote copy are queued once each', () async {
+      await container.read(queueProvider.notifier).replaceWithTableData(
+        <SongsTableData>[
+          row('lib', external: false),
+          row(extId, external: true),
+        ],
+      );
+
+      expect(events, <String>['replaceData lib,$extId', 'relink']);
+      expect(relinkCalls, [
+        [extId],
+      ]);
+      verify(
+        () => handler.replaceQueueWithData(
+          any(),
+          startIndex: any(named: 'startIndex'),
+          autoPlay: any(named: 'autoPlay'),
+          expandMatchFlows: any(named: 'expandMatchFlows'),
+          originalOrder: any(named: 'originalOrder'),
+        ),
+      ).called(1);
+    }, skip: !sqliteAvailable);
+
+    test('add, addTableData and playNext keep their ids', () async {
+      final queue = container.read(queueProvider.notifier);
+      await queue.add(extId);
+      await queue.addTableData(<SongsTableData>[row(extId, external: true)]);
+      await queue.playNext(extId);
+
+      expect(events, <String>[
+        'add $extId',
+        'relink',
+        'add $extId',
+        'relink',
+        'next $extId',
+        'relink',
+      ]);
+    }, skip: !sqliteAvailable);
+
+    test('mergeIntoUpcoming and insertRuns return the ids the editor '
+        'skipped and relink all runs once', () async {
+      final queue = container.read(queueProvider.notifier);
+      final remote = row(extId, external: true);
+
+      expect(
+        await queue.mergeIntoUpcoming(<SongsTableData>[remote], notBefore: 0),
+        <String>[extId],
+      );
+      relinkCalls.clear();
+      expect(
+        await queue.insertRuns(<QueueInsertRun>[
+          QueueInsertRun(0, <SongsTableData>[remote]),
+          QueueInsertRun(3, <SongsTableData>[
+            row('ext-deezer-song-2', external: true),
+          ]),
+        ]),
+        <String>[extId],
+      );
+      expect(relinkCalls, [
+        [extId, 'ext-deezer-song-2'],
+      ]);
+    }, skip: !sqliteAvailable);
+
+    test('a library-only batch does not relink', () async {
+      await container.read(queueProvider.notifier).replace(<String>['lib']);
+
+      expect(relinkCalls, isEmpty);
+    }, skip: !sqliteAvailable);
   });
 }
+
+class _BatchHandler extends _Handler implements QueueBatchEditor {}

@@ -491,19 +491,19 @@ class _RankedTopTrackRow extends ConsumerWidget {
     Offset? anchor,
   }) async {
     final dao = ref.read(navisDatabaseProvider).libraryDao;
+    final relink = ref.read(relinkExternalCopiesProvider);
     var row = await dao.getSongById(song.id);
+    final stored = row == null;
     if (row == null) {
       await persistProvisionalSearchSongs(dao, <Song>[song]);
-      final linked =
-          isExternalCatalogSource(id: song.id, apiIsExternal: song.isExternal)
-          ? (await ref.read(relinkExternalCopiesProvider)([song.id]))[song.id]
-          : null;
-      row =
-          await dao.getSongById(linked ?? song.id) ??
-          provisionalSongTableData(song);
+      row = await dao.getSongById(song.id) ?? provisionalSongTableData(song);
     }
     if (!context.mounted) return;
     await showSongContextMenu(context, ref, row, anchor: anchor);
+    // After the menu, as queue taps do: its actions still see the stored row.
+    if (stored && row.isExternal) {
+      unawaited(relink(<String>[row.id]));
+    }
   }
 
   Future<void> _downloadSong(

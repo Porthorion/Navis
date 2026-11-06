@@ -104,10 +104,9 @@ class SongIdentityReconciler {
     if (copies.isEmpty) {
       return const <String, String>{};
     }
-    final candidates = await _identityDao.getLibrarySongsNearDurations([
-      for (final song in copies)
-        if (song.duration != null) song.duration!,
-    ]);
+    final candidates = await _identityDao.getLibrarySongsByMatchTitle(
+      copies.map((song) => song.title),
+    );
     final session = await startSession(provisionalSongs: copies);
     await session.reconcile(candidates);
     await session.finalize();

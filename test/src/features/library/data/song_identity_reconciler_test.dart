@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
+import 'package:navis/src/utils/metadata_normalization.dart';
 
 import '../../../../helpers/test_database.dart';
 
@@ -507,6 +511,73 @@ void main() {
         );
       }, skip: !sqliteAvailable);
     }
+
+    // The candidate query uses the indexed match_title (normalizeMetadata).
+    // Titles the reconciler treats as equal must share it, or the relink
+    // would never see the library song. Known gap (ponytail comment on the
+    // DAO query): "Song (Live)" vs "Song [Live]" differ in match_title.
+    for (final (a, b) in <(String, String)>[
+      ('Été Indien', 'ÉTÉ INDIEN'),
+      ('Группа крови', 'ГРУППА КРОВИ'),
+      ("Rock'n'Roll", 'Rock n Roll'),
+      ('AC/DC', 'AC DC'),
+      ('Hello!', 'hello'),
+    ]) {
+      test('match_title agrees with the reconciler key: $a / $b', () async {
+        final result = reconciler.matchCanonicalSong(
+          canonicalSong: library().copyWith(title: a),
+          provisionalSongs: <SongsTableData>[remote().copyWith(title: b)],
+        );
+        expect(result, isA<SongIdentityMatched>());
+        expect(normalizeMetadata(a), normalizeMetadata(b));
+
+        await insert(library().copyWith(title: a));
+        await insert(remote().copyWith(title: b));
+        await database.libraryDao.scheduleSongSearchIndexRefresh();
+        expect(
+          await reconciler.relinkExternalCopies(<String>[
+            'ext-deezer-song-8086130',
+          ]),
+          hasLength(1),
+        );
+      }, skip: !sqliteAvailable);
+    }
+
+    test('the playing remote copy keeps its cache file', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-relink-');
+      addTearDown(() => directory.delete(recursive: true));
+      final remoteFile = File('${directory.path}/remote.audio')
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+      final libraryFile = File('${directory.path}/library.audio')
+        ..writeAsBytesSync(<int>[4, 5, 6, 7]);
+      await insert(library());
+      await insert(remote());
+      for (final (id, file, type) in [
+        ('ext-deezer-song-8086130', remoteFile, CacheType.rolling),
+        ('lib', libraryFile, CacheType.permanent),
+      ]) {
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: id,
+            filePath: file.path,
+            fileSize: file.lengthSync(),
+            format: 'mp3',
+            lastAccessedAt: DateTime.now(),
+            cacheType: type,
+            downloadStatus: DownloadStatus.complete,
+          ),
+        );
+      }
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+
+      final linked = await SongIdentityReconciler(
+        database.songIdentityDao,
+        readActiveSongId: () => 'ext-deezer-song-8086130',
+      ).relinkExternalCopies(<String>['ext-deezer-song-8086130']);
+
+      expect(linked, hasLength(1));
+      expect(remoteFile.existsSync(), isTrue);
+    }, skip: !sqliteAvailable);
 
     test('local search then returns one copy', () async {
       await insert(library());

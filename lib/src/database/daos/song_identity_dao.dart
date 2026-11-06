@@ -113,41 +113,23 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
         .get();
   }
 
-  /// Present library rows whose duration is within the match tolerance of one
-  /// of [durations] (seconds), the candidates for relinking remote copies of
-  /// the same track. Narrowed by duration, not title: SQLite `lower()` folds
-  /// ASCII only, so a title predicate would never find "Été Indien" or a
-  /// Cyrillic title. The reconciler's own normalised key decides the match.
-  Future<List<SongsTableData>> getLibrarySongsNearDurations(
-    Iterable<int> durations,
+  /// Present library rows whose indexed match title (`normalizeMetadata`
+  /// form, case, accent and punctuation folded) equals one of [titles]'s, the
+  /// candidates for relinking remote copies of the same track. Reuses the
+  /// track-match index query; the reconciler's own key still decides.
+  // ponytail: match_title drops round-bracket qualifiers but keeps square
+  // ones, so "Song (Live)" never meets "Song [Live]" here (a miss, never a
+  // false merge); the next full promotion compares every pair.
+  Future<List<SongsTableData>> getLibrarySongsByMatchTitle(
+    Iterable<String> titles,
   ) async {
-    final unique = durations.toSet().toList(growable: false);
-    final found = <String, SongsTableData>{};
-    // Chunked so the OR chain stays far below SQLite's expression depth limit.
-    for (var i = 0; i < unique.length; i += 50) {
-      final chunk = unique.skip(i).take(50);
-      final rows =
-          await (select(songsTable)..where(
-                (table) =>
-                    table.isExternal.equals(false) &
-                    table.isProvisional.equals(false) &
-                    table.serverDeletedAt.isNull() &
-                    chunk
-                        .map((d) {
-                          final window = (d * 0.025).ceil().clamp(3, 1 << 30);
-                          return table.duration.isBetweenValues(
-                            d - window,
-                            d + window,
-                          );
-                        })
-                        .reduce((a, b) => a | b),
-              ))
-              .get();
-      for (final row in rows) {
-        found[row.id] = row;
-      }
-    }
-    return found.values.toList(growable: false);
+    final rows = await attachedDatabase.libraryDao.getTrackMatchCandidates([
+      for (final title in titles) (title: title, artist: ''),
+    ]);
+    return [
+      for (final row in rows)
+        if (!row.isExternal) row,
+    ];
   }
 
   Future<List<SongIdentityAlias>> getAliases() => _songAliases().get();
