@@ -351,6 +351,43 @@ void main() {
     expect(await database.libraryDao.getSongById('remote-a'), isNull);
     expect(await database.libraryDao.getSongById('canonical-a'), isNotNull);
   }, skip: !sqliteAvailable);
+
+  // Real server data (2026-11-06, issue #209 item C): Octo-Fiesta still serves
+  // Deezer's copy of Adele "Set Fire to the Rain" (21, track 5, 242 s, no
+  // MBID) although getSong on that id answers with the library FLAC (238 s).
+  // The provisional remote row is never relinked, so Search lists both and
+  // the media-info dialog mixes the remote row with the server file.
+  test(
+    'relinks a remote Deezer copy to the library file of the same track',
+    () {
+      final result = reconciler.matchCanonicalSong(
+        canonicalSong: _song(
+          id: '7BSVXncc5oeoNO26ypkQrw',
+          provisional: false,
+          title: 'Set Fire to the Rain',
+          artist: 'Adele',
+          album: '21',
+          duration: 238,
+          track: 5,
+          recordingMbid: 'd1e0a99e-1894-457b-ba6a-985eeef4d0c4',
+        ),
+        provisionalSongs: <SongsTableData>[
+          _song(
+            id: 'ext-deezer-song-8086130',
+            provisional: true,
+            title: 'Set Fire to the Rain',
+            artist: 'Adele',
+            album: '21',
+            duration: 242,
+            track: 5,
+          ),
+        ],
+      );
+
+      expect(result, isA<SongIdentityMatched>());
+    },
+    skip: !sqliteAvailable,
+  );
 }
 
 SongsTableData _song({
