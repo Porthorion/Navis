@@ -16520,7 +16520,8 @@ class DownloadQueueTableData extends DataClass
   final int priority;
   final DownloadFailureReason? failureReason;
 
-  /// Short, sanitized detail (status code or byte counts, never URLs).
+  /// Short, sanitized detail: a status code, byte counts or a truncated
+  /// transport error with credentials redacted.
   final String? failureDetail;
 
   /// Verified finish intent, persisted before publishing a final file.

@@ -32,7 +32,8 @@ class DownloadQueueTable extends Table {
   TextColumn get failureReason =>
       textEnum<DownloadFailureReason>().nullable()();
 
-  /// Short, sanitized detail (status code or byte counts, never URLs).
+  /// Short, sanitized detail: a status code, byte counts or a truncated
+  /// transport error with credentials redacted.
   TextColumn get failureDetail => text().nullable()();
 
   /// Verified finish intent, persisted before publishing a final file.

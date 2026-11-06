@@ -43,6 +43,9 @@ class _GatedServer {
   List<int> bytes = [1, 2, 3, 4];
   int? contentLength;
 
+  /// `(received, total)` pairs reported to `onReceiveProgress` before the gate.
+  List<(int, int)> progressEvents = const [];
+
   String songOf(Uri uri) => uri.queryParameters['id']!;
 
   /// Once every gate is released, later transfers finish at once.
@@ -83,6 +86,11 @@ class _GatedServer {
       try {
         await File(savePath).parent.create(recursive: true);
         await File(savePath).writeAsBytes(bytes);
+        final progress =
+            invocation.namedArguments[#onReceiveProgress] as ProgressCallback?;
+        for (final (received, total) in progressEvents) {
+          progress?.call(received, total);
+        }
         await Future.any<void>(<Future<void>>[
           gate(songOf(uri)).future,
           if (token != null) token.whenCancel.then((error) => throw error),
@@ -759,6 +767,171 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  group('transcoded transfer length', () {
+    // Like Navidrome: with estimateContentLength a transcode announces more
+    // bytes than it sends; without it the body is chunked.
+    Future<(HttpServer, List<Uri>)> serveAudio({
+      required bool Function(Uri uri) isEstimated,
+    }) async {
+      final previousHttp = HttpOverrides.current;
+      HttpOverrides.global = null;
+      addTearDown(() => HttpOverrides.global = previousHttp);
+      final http = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final requests = <Uri>[];
+      final subscription = http.listen((request) async {
+        final uri = request.uri;
+        requests.add(uri);
+        final body = List<int>.filled(4096, 7);
+        request.response.headers.contentType = ContentType('audio', 'mpeg');
+        if (uri.path.endsWith('/download.view')) {
+          request.response.contentLength = body.length + 1000;
+        } else if (isEstimated(uri)) {
+          request.response.contentLength = body.length + 1000;
+        }
+        if (request.response.contentLength > 0) {
+          final socket = await request.response.detachSocket();
+          socket.add(body);
+          await socket.flush();
+          socket.destroy();
+          return;
+        }
+        request.response.add(body);
+        await request.response.close();
+      });
+      addTearDown(() async {
+        await subscription.cancel();
+        await http.close(force: true);
+      });
+      api = SubsonicApiClient(
+        baseUrl: 'http://127.0.0.1:${http.port}',
+        authConfig: const SubsonicAuthConfig(
+          username: 'alice',
+          password: 'secret',
+          apiVersion: '1.16.1',
+        ),
+        enableLogging: false,
+      );
+      return (http, requests);
+    }
+
+    test('a quality download registers and never asks the server to estimate a length', () async {
+      final (_, requests) = await serveAudio(
+        isEstimated: (uri) =>
+            uri.queryParameters['estimateContentLength'] == 'true',
+      );
+      final transport = Dio();
+      addTearDown(() => transport.close(force: true));
+      final service = buildService(transport: transport);
+      await service.start();
+      await addSongs(1);
+      await service.enqueueSong('song-0', quality: '128');
+      await service.processQueuedDownloads();
+      final stream = requests.singleWhere(
+        (uri) => uri.path.endsWith('/stream.view'),
+      );
+      expect(stream.queryParameters, isNot(contains('estimateContentLength')));
+      expect(stream.queryParameters['maxBitRate'], '128');
+      expect(await queue(), isEmpty);
+      final cached = await database.cacheDao.getCachedTrack('song-0');
+      expect(File(cached!.filePath).lengthSync(), 4096);
+    }, skip: !sqliteAvailable);
+
+    test('an original cut short of its Content-Length fails and stores the transport error', () async {
+      await serveAudio(isEstimated: (_) => false);
+      final transport = Dio();
+      addTearDown(() => transport.close(force: true));
+      final service = buildService(transport: transport);
+      await service.start();
+      await addSongs(1);
+      await service.enqueueSong('song-0');
+      await service.processQueuedDownloads();
+      final item = (await queue()).single;
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+      expect(item.failureReason, isNotNull);
+      expect(item.failureDetail, contains('Connection closed'));
+      // The exception quotes the request URL: no credentials in the detail.
+      expect(item.failureDetail, isNot(contains('alice')));
+      expect(item.failureDetail!.length, lessThanOrEqualTo(200));
+      expect(
+        supportDir
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.navis-part')),
+        isEmpty,
+      );
+    }, skip: !sqliteAvailable);
+
+    test('an unknown transport error is stored redacted and truncated, not as "unknown"', () async {
+      server.failure = DioException(
+        requestOptions: RequestOptions(path: '/rest/stream.view'),
+        type: DioExceptionType.unknown,
+        error: HttpException(
+          'Connection closed while receiving data',
+          uri: Uri.parse(
+            'http://host/rest/stream.view?u=alice&t=tok&s=salt&id=1'
+            '&padding=${'x' * 400}',
+          ),
+        ),
+      );
+      server.releaseAll();
+      final service = buildService();
+      await service.start();
+      await addSongs(1);
+      await service.enqueueSong('song-0', quality: '128');
+      await service.processQueuedDownloads();
+      final item = (await queue()).single;
+      expect(item.failureReason, DownloadFailureReason.unknown);
+      final detail = item.failureDetail!;
+      expect(detail, startsWith('HttpException: Connection closed'));
+      expect(detail, contains('u=REDACTED'));
+      expect(detail, isNot(contains('alice')));
+      expect(detail, isNot(contains('tok')));
+      expect(detail.length, lessThanOrEqualTo(200));
+    }, skip: !sqliteAvailable);
+
+    test('a failure without an underlying error keeps the Dio error type as its detail', () async {
+      server.failure = DioException(
+        requestOptions: RequestOptions(path: '/rest/stream.view'),
+        type: DioExceptionType.unknown,
+      );
+      server.releaseAll();
+      final service = buildService();
+      await service.start();
+      await addSongs(1);
+      await service.enqueueSong('song-0', quality: '128');
+      await service.processQueuedDownloads();
+      expect((await queue()).single.failureDetail, 'unknown');
+    }, skip: !sqliteAvailable);
+
+    test('a transcode without a Content-Length reports progress against the expected size', () async {
+      // Expected size at 128 kbps for 200 s: 3,200,000 bytes.
+      // One overshooting chunk: the first write, clamped below 100%.
+      server.progressEvents = [(9000000, -1)];
+      final service = buildService();
+      await service.start();
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(
+          id: 'song-0',
+          title: 'Song',
+          artistName: const Value('Artist'),
+          suffix: const Value('mp3'),
+          duration: const Value(200),
+        ),
+      ]);
+      await service.enqueueSong('song-0', quality: '128');
+      Future<double> progress() async => (await queue()).single.progress;
+      await waitUntil(() => server.active == 1);
+      // Held at 0.99 so later chunks stay throttled until the transfer ends.
+      for (var i = 0; i < 400 && await progress() < 0.99; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(await progress(), 0.99);
+      server.releaseAll();
+      await service.processQueuedDownloads();
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
+    }, skip: !sqliteAvailable);
+  });
 
   for (final clearAll in [false, true]) {
     test(
@@ -2021,8 +2194,8 @@ void main() {
     expect(item.retryCount, 1);
   }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
-  test('transcoded downloads ask for an estimated length; originals use '
-      'download.view', () async {
+  test('transcoded downloads use stream.view without an estimated length; '
+      'originals use download.view', () async {
     final service = buildService();
     await service.start();
     await addSongs(2);
@@ -2040,7 +2213,10 @@ void main() {
     expect(transcoded.path, endsWith('/rest/stream.view'));
     expect(transcoded.queryParameters['maxBitRate'], '256');
     expect(transcoded.queryParameters['format'], 'opus');
-    expect(transcoded.queryParameters['estimateContentLength'], 'true');
+    expect(
+      transcoded.queryParameters,
+      isNot(contains('estimateContentLength')),
+    );
     final original = server.requests.firstWhere(
       (uri) => uri.queryParameters['id'] == 'song-1',
     );

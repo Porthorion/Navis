@@ -561,8 +561,10 @@ class SubsonicApiClient {
     );
   }
 
-  /// [estimateContentLength] asks the server to send a Content-Length for a
-  /// transcoded stream, so a download can report progress.
+  /// [estimateContentLength] asks the server to send an estimated
+  /// Content-Length for a transcoded stream. The estimate is larger than what
+  /// the server delivers, so a strict HTTP client fails the transfer: never use
+  /// it for downloads (only the diagnostics finite-stream fixture does).
   /// [timeOffsetSeconds] starts a transcode at that second (Navidrome
   /// `timeOffset`); the stream then reports time from 0 and has no length, so
   /// it is never combined with [estimateContentLength].
