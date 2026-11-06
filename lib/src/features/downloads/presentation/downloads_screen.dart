@@ -387,6 +387,43 @@ class _DownloadFolderHoldBanner extends ConsumerWidget {
 // Queue tab — shows pending / active / failed downloads
 // ---------------------------------------------------------------------------
 
+/// One of the Queue tab's action buttons: the same tonal style, an equal
+/// share of the row and a single-line label, whatever the text scale.
+class _QueueActionButton extends StatelessWidget {
+  const new({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final String label;
+  final String? tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final button = FilledButton.tonalIcon(
+      style: NavisColorStyleData.tonalStyleOf(context).copyWith(
+        padding: const WidgetStatePropertyAll<EdgeInsetsGeometry>(
+          EdgeInsets.symmetric(horizontal: 10),
+        ),
+      ),
+      onPressed: onPressed,
+      icon: Icon(icon),
+      // Shrinks rather than ellipsizes ("Resume" at 360 dp and 1.3x text).
+      label: FittedBox(fit: BoxFit.scaleDown, child: Text(label, maxLines: 1)),
+    );
+    return Expanded(
+      child: tooltip == null
+          ? button
+          : Tooltip(message: tooltip, child: button),
+    );
+  }
+}
+
 class _QueueTab extends ConsumerWidget {
   const new({required this.query, required this.onClearQuery});
 
@@ -468,45 +505,40 @@ class _QueueTab extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: Row(
                   children: <Widget>[
-                    Expanded(
-                      child: FilledButton.tonalIcon(
-                        style: NavisColorStyleData.tonalStyleOf(context),
-                        key: const ValueKey<String>('downloadsPauseToggle'),
-                        onPressed: () => unawaited(
-                          ref
-                              .read(downloadServiceProvider)
-                              .setPaused(paused: !paused),
-                        ),
-                        icon: Icon(paused ? Icons.play_arrow : Icons.pause),
-                        label: Text(
-                          paused
-                              ? l10n.downloadsResumeAll
-                              : l10n.downloadsPauseAll,
-                        ),
+                    _QueueActionButton(
+                      key: const ValueKey<String>('downloadsPauseToggle'),
+                      icon: paused ? Icons.play_arrow : Icons.pause,
+                      label: paused
+                          ? l10n.downloadsResumeAll
+                          : l10n.downloadsPauseAll,
+                      onPressed: () => unawaited(
+                        ref
+                            .read(downloadServiceProvider)
+                            .setPaused(paused: !paused),
                       ),
                     ),
+                    if (hasFailed) ...<Widget>[
+                      const SizedBox(width: 8),
+                      _QueueActionButton(
+                        key: const ValueKey<String>('downloadsRetryAll'),
+                        icon: Icons.refresh,
+                        label: l10n.commonRetry,
+                        tooltip: l10n.downloadsRetryAllFailed,
+                        onPressed: () {
+                          final dao = ref
+                              .read(navisDatabaseProvider)
+                              .downloadQueueDao;
+                          unawaited(dao.retryAllFailed());
+                        },
+                      ),
+                    ],
                     const SizedBox(width: 8),
-                    if (hasFailed)
-                      Expanded(
-                        child: FilledButton.tonalIcon(
-                          style: NavisColorStyleData.tonalStyleOf(context),
-                          onPressed: () {
-                            final dao = ref
-                                .read(navisDatabaseProvider)
-                                .downloadQueueDao;
-                            unawaited(dao.retryAllFailed());
-                          },
-                          icon: const Icon(Icons.refresh),
-                          label: Text(l10n.downloadsRetryAllFailed),
-                        ),
-                      ),
-                    if (hasFailed) const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: clearQueue,
-                        icon: const Icon(Icons.clear_all),
-                        label: Text(l10n.downloadsClearQueue),
-                      ),
+                    _QueueActionButton(
+                      key: const ValueKey<String>('downloadsClear'),
+                      icon: Icons.clear_all,
+                      label: l10n.downloadsClearShort,
+                      tooltip: l10n.downloadsClearQueue,
+                      onPressed: clearQueue,
                     ),
                   ],
                 ),

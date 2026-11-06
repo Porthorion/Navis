@@ -11,6 +11,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1935,6 +1936,83 @@ void main() {
     await tester.pump();
     verify(() => service.setPaused(paused: false)).called(1);
   });
+
+  for (final paused in <bool>[false, true]) {
+    testWidgets('the queue action buttons share one height on a narrow phone '
+        '(${paused ? 'paused' : 'running'})', (tester) async {
+      setAdaptiveTestViewport(tester, const Size(360, 640));
+      tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final service = _MockDownloadService();
+      when(() => service.clearQueue()).thenAnswer((_) async {});
+      const song = SongsTableData(
+        id: 'song-1',
+        title: 'Queued Song',
+        artistName: 'Artist',
+        isProvisional: false,
+        isExternal: false,
+      );
+      await tester.pumpWidget(
+        mobileDownloads([
+          downloadServiceProvider.overrideWithValue(service),
+          downloadsPausedProvider.overrideWithValue(AsyncData(paused)),
+          downloadQueueProvider.overrideWithValue(
+            AsyncData(<DownloadQueueTableData>[
+              DownloadQueueTableData(
+                id: 7,
+                songId: song.id,
+                status: DownloadStatus.failed,
+                progress: 0,
+                addedAt: DateTime(2026),
+                priority: 0,
+                retryCount: 3,
+              ),
+            ]),
+          ),
+          permanentCachedTracksProvider.overrideWithValue(
+            const AsyncData(<CachedTracksTableData>[]),
+          ),
+          downloadRelatedSongsProvider.overrideWith(
+            (ref) => Stream.value({song.id: song}),
+          ),
+          songByIdProvider.overrideWith((ref, songId) => Stream.value(song)),
+        ]),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final buttons = <Finder>[
+        find.byKey(const ValueKey<String>('downloadsPauseToggle')),
+        find.byKey(const ValueKey<String>('downloadsRetryAll')),
+        find.byKey(const ValueKey<String>('downloadsClear')),
+      ];
+      for (final label in <String>[
+        paused ? 'Resume' : 'Pause',
+        'Retry',
+        'Clear',
+      ]) {
+        expect(find.text(label), findsOneWidget);
+      }
+      expect(find.byTooltip('Retry All Failed Downloads'), findsOneWidget);
+      expect(find.byTooltip('Clear Queue'), findsOneWidget);
+      final sizes = buttons.map(tester.getSize).toList();
+      expect(sizes.map((s) => s.height).toSet(), hasLength(1));
+      expect(sizes.map((s) => s.width).toSet(), hasLength(1));
+      for (final button in buttons) {
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(of: button, matching: find.byType(RichText)).last,
+        );
+        final boxes = paragraph.getBoxesForSelection(
+          TextSelection(
+            baseOffset: 0,
+            extentOffset: paragraph.text.toPlainText().length,
+          ),
+        );
+        expect(boxes, hasLength(1));
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
 
 class _MockDownloadService extends Mock implements DownloadService;
