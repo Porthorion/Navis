@@ -93,6 +93,40 @@ class SongIdentityReconciler {
     required List<SongsTableData> provisionalSongs,
   }) => _ProvisionalIdentityIndex(this, provisionalSongs).match(canonicalSong);
 
+  /// Relinks external provisional rows in [songIds] (a remote catalog copy
+  /// written after the library already holds the same track) to their unique
+  /// library song, using the same matcher and remap as catalog promotion.
+  /// Returns the relinked ids (old id to library id).
+  Future<Map<String, String>> relinkExternalCopies(
+    Iterable<String> songIds,
+  ) async {
+    final ids = songIds.toSet();
+    final copies = await _identityDao.getExternalProvisionalSongs(ids);
+    // A requested id with no row left was relinked before; a row handed to
+    // the player again after that keeps the dead id, so tell the player its
+    // alias once more (it remaps the queue).
+    final haveRow = {for (final song in copies) song.id};
+    final healed = await _identityDao.getAliasesFor(
+      ids.where((id) => !haveRow.contains(id)),
+    );
+    if (healed.isNotEmpty) {
+      await onBeforeRemap?.call(healed);
+    }
+    if (copies.isEmpty) {
+      return const <String, String>{};
+    }
+    final candidates = await _identityDao.getLibrarySongsByMatchTitle(
+      copies.map((song) => song.title),
+    );
+    final session = await startSession(provisionalSongs: copies);
+    await session.reconcile(candidates);
+    await session.finalize();
+    return <String, String>{
+      for (final alias in session.summary.aliases)
+        alias.oldSongId: alias.canonicalSongId,
+    };
+  }
+
   Future<SongIdentityReconciliationSession> startSession({
     List<SongsTableData>? provisionalSongs,
   }) async {
@@ -110,6 +144,19 @@ class SongIdentityReconciler {
     final left = normalizeMusicBrainzId(a);
     final right = normalizeMusicBrainzId(b);
     return left != null && right != null && left != right;
+  }
+
+  /// Within 3 s, or within 2% when track and disc numbers are present and
+  /// equal on both sides: remote catalogs (Deezer) often differ from the
+  /// library file by a few seconds.
+  bool _durationsCompatible(SongsTableData canonical, SongsTableData other) {
+    final gap = (other.duration! - canonical.duration!).abs();
+    final samePosition =
+        canonical.track != null &&
+        canonical.track == other.track &&
+        canonical.discNumber != null &&
+        canonical.discNumber == other.discNumber;
+    return gap <= 3 || (samePosition && gap <= canonical.duration! * 0.02);
   }
 
   bool _positionsCompatible(int? canonical, int? provisional) {
@@ -329,7 +376,7 @@ class _ProvisionalIdentityIndex {
                 candidate.recordingMbid,
               ) &&
               candidate.duration != null &&
-              (candidate.duration! - duration).abs() <= 3 &&
+              _reconciler._durationsCompatible(canonicalSong, candidate) &&
               _reconciler._positionsCompatible(
                 canonicalSong.track,
                 candidate.track,
