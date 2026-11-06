@@ -467,6 +467,8 @@ class _Rig {
     ),
     subsonicApiProvider.overrideWith((ref) {
       final config = ref.watch(_configBox);
+      // Like production, the client rebuilds on every network change.
+      ref.watch(_networkBox);
       return config == null ? null : _FakeApi(this, config.username);
     }),
     songByIdProvider.overrideWith(

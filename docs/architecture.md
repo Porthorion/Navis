@@ -4487,8 +4487,8 @@ startup timeline and does not publish a playback-failure notice.
 ### Playback Flow
 
 Media info is prefetched: `mediaInfoPrefetchProvider` (listened from `app.dart`)
-keeps the current song's row, getSong details (`songServerDetailsProvider`),
-admin flag and album alive, one request per song, cancelled on skip, deferred
+keeps the current song's row, getSong details (`songServerDetailsProvider`)
+and album alive (the admin flag loads when the dialog opens), one request per song, cancelled on skip, deferred
 while offline or reconciling, never auto-retried (the dialog's open asks again
 once). Open it through `showDesktopMediaInfoDialog` only.
 

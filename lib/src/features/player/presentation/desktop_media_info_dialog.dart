@@ -62,8 +62,9 @@ final songServerDetailsProvider = FutureProvider.autoDispose
       }
     }, retry: (_, _) => null);
 
-/// Keeps the current song's media info ready: its row, server details, admin
-/// flag and album, so the dialog opens complete. One request per song; the
+/// Keeps the current song's media info ready: its row, server details and
+/// album, so the dialog opens nearly complete (the admin-only rows follow
+/// when the dialog asks for the admin flag). One request per song; the
 /// previous song's request is cancelled when the next one starts.
 final mediaInfoPrefetchProvider = Provider<void>((ref) {
   final (:isRadio, :songId) = ref.watch(
@@ -74,7 +75,6 @@ final mediaInfoPrefetchProvider = Provider<void>((ref) {
   if (isRadio || songId == null || songId.isEmpty) return;
   final albumId = ref.watch(songByIdProvider(songId)).asData?.value?.albumId;
   if (albumId != null) ref.watch(albumProvider(albumId));
-  ref.watch(serverUserIsAdminProvider);
   ref.watch(songServerDetailsProvider(songId));
 });
 
@@ -85,7 +85,9 @@ Future<void> showDesktopMediaInfoDialog(BuildContext context) {
   final songId = container.read(playerStateProvider).currentSongId;
   if (songId != null) {
     final details = songServerDetailsProvider(songId);
-    if (container.exists(details) && container.read(details).hasError) {
+    if (container.exists(details) &&
+        container.read(details).hasError &&
+        !container.read(details).isLoading) {
       container.invalidate(details);
     }
   }
