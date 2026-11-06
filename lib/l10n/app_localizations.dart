@@ -10395,41 +10395,17 @@ abstract class AppLocalizations {
   /// **'Genres'**
   String get searchGenresSection;
 
-  /// No description provided for @mediaInfoTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Media info'**
-  String get mediaInfoTitle;
-
   /// No description provided for @mediaInfoSectionTrack.
   ///
   /// In en, this message translates to:
   /// **'Track'**
   String get mediaInfoSectionTrack;
 
-  /// No description provided for @mediaInfoSectionFile.
-  ///
-  /// In en, this message translates to:
-  /// **'File'**
-  String get mediaInfoSectionFile;
-
-  /// No description provided for @mediaInfoSectionTranscode.
-  ///
-  /// In en, this message translates to:
-  /// **'Transcoding'**
-  String get mediaInfoSectionTranscode;
-
   /// No description provided for @mediaInfoSectionLibrary.
   ///
   /// In en, this message translates to:
-  /// **'Library data'**
+  /// **'Library & IDs'**
   String get mediaInfoSectionLibrary;
-
-  /// No description provided for @mediaInfoYear.
-  ///
-  /// In en, this message translates to:
-  /// **'Year'**
-  String get mediaInfoYear;
 
   /// No description provided for @mediaInfoFormat.
   ///
@@ -10472,18 +10448,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Duration'**
   String get mediaInfoDuration;
-
-  /// No description provided for @mediaInfoTranscodeSource.
-  ///
-  /// In en, this message translates to:
-  /// **'Source'**
-  String get mediaInfoTranscodeSource;
-
-  /// No description provided for @mediaInfoTranscodeStreamed.
-  ///
-  /// In en, this message translates to:
-  /// **'Streamed as'**
-  String get mediaInfoTranscodeStreamed;
 
   /// No description provided for @mediaInfoPlayCount.
   ///
@@ -10550,6 +10514,174 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get mediaInfoClose;
+
+  /// No description provided for @mediaInfoDetailsLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading server details…'**
+  String get mediaInfoDetailsLoading;
+
+  /// No description provided for @mediaInfoDetailsUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Server details unavailable'**
+  String get mediaInfoDetailsUnavailable;
+
+  /// No description provided for @mediaInfoNoTrack.
+  ///
+  /// In en, this message translates to:
+  /// **'No track information'**
+  String get mediaInfoNoTrack;
+
+  /// No description provided for @mediaInfoNowPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Now playing'**
+  String get mediaInfoNowPlaying;
+
+  /// No description provided for @mediaInfoSourceDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded copy'**
+  String get mediaInfoSourceDownloaded;
+
+  /// No description provided for @mediaInfoSourceDownloadedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Plays from this device'**
+  String get mediaInfoSourceDownloadedNote;
+
+  /// No description provided for @mediaInfoSourceServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Server stream'**
+  String get mediaInfoSourceServer;
+
+  /// No description provided for @mediaInfoSourceServerNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Streamed from your server'**
+  String get mediaInfoSourceServerNote;
+
+  /// No description provided for @mediaInfoSourceTranscoded.
+  ///
+  /// In en, this message translates to:
+  /// **'Server stream, transcoded'**
+  String get mediaInfoSourceTranscoded;
+
+  /// No description provided for @mediaInfoSourceTranscodedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Converted by the server while streaming'**
+  String get mediaInfoSourceTranscodedNote;
+
+  /// No description provided for @mediaInfoSourceRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote track'**
+  String get mediaInfoSourceRemote;
+
+  /// No description provided for @mediaInfoSourceRemoteNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Not in your library, streamed'**
+  String get mediaInfoSourceRemoteNote;
+
+  /// No description provided for @mediaInfoOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Original'**
+  String get mediaInfoOriginal;
+
+  /// No description provided for @mediaInfoFileDownloaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloaded file'**
+  String get mediaInfoFileDownloaded;
+
+  /// No description provided for @mediaInfoFileDownloadedNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Stored on this device'**
+  String get mediaInfoFileDownloadedNote;
+
+  /// No description provided for @mediaInfoFileServer.
+  ///
+  /// In en, this message translates to:
+  /// **'Server file'**
+  String get mediaInfoFileServer;
+
+  /// No description provided for @mediaInfoFileServerNote.
+  ///
+  /// In en, this message translates to:
+  /// **'As stored on your server'**
+  String get mediaInfoFileServerNote;
+
+  /// No description provided for @mediaInfoFileServerOriginalNote.
+  ///
+  /// In en, this message translates to:
+  /// **'The original, not what you hear'**
+  String get mediaInfoFileServerOriginalNote;
+
+  /// No description provided for @mediaInfoFileRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'Remote file'**
+  String get mediaInfoFileRemote;
+
+  /// No description provided for @mediaInfoFileRemoteNote.
+  ///
+  /// In en, this message translates to:
+  /// **'From the remote catalogue'**
+  String get mediaInfoFileRemoteNote;
+
+  /// No description provided for @mediaInfoBitDepthValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{bits}-bit'**
+  String mediaInfoBitDepthValue(int bits);
+
+  /// No description provided for @mediaInfoTrackNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Track number'**
+  String get mediaInfoTrackNumber;
+
+  /// No description provided for @mediaInfoDiscNumber.
+  ///
+  /// In en, this message translates to:
+  /// **'Disc'**
+  String get mediaInfoDiscNumber;
+
+  /// No description provided for @mediaInfoAdminTag.
+  ///
+  /// In en, this message translates to:
+  /// **'admin'**
+  String get mediaInfoAdminTag;
+
+  /// No description provided for @mediaInfoTrackInfoAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Track info'**
+  String get mediaInfoTrackInfoAction;
+
+  /// No description provided for @mediaInfoTrackInfoRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Track Info'**
+  String get mediaInfoTrackInfoRow;
+
+  /// No description provided for @mediaInfoTrackInfoRowHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Source, quality and file details'**
+  String get mediaInfoTrackInfoRowHint;
+
+  /// No description provided for @nowPlayingHoldForTrackInfo.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold for track info'**
+  String get nowPlayingHoldForTrackInfo;
 }
 
 class _AppLocalizationsDelegate

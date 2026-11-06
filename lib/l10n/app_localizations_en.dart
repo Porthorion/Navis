@@ -6502,22 +6502,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchGenresSection => 'Genres';
 
   @override
-  String get mediaInfoTitle => 'Media info';
-
-  @override
   String get mediaInfoSectionTrack => 'Track';
 
   @override
-  String get mediaInfoSectionFile => 'File';
-
-  @override
-  String get mediaInfoSectionTranscode => 'Transcoding';
-
-  @override
-  String get mediaInfoSectionLibrary => 'Library data';
-
-  @override
-  String get mediaInfoYear => 'Year';
+  String get mediaInfoSectionLibrary => 'Library & IDs';
 
   @override
   String get mediaInfoFormat => 'Format';
@@ -6539,12 +6527,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mediaInfoDuration => 'Duration';
-
-  @override
-  String get mediaInfoTranscodeSource => 'Source';
-
-  @override
-  String get mediaInfoTranscodeStreamed => 'Streamed as';
 
   @override
   String get mediaInfoPlayCount => 'Play count';
@@ -6582,4 +6564,92 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mediaInfoClose => 'Close';
+
+  @override
+  String get mediaInfoDetailsLoading => 'Loading server details…';
+
+  @override
+  String get mediaInfoDetailsUnavailable => 'Server details unavailable';
+
+  @override
+  String get mediaInfoNoTrack => 'No track information';
+
+  @override
+  String get mediaInfoNowPlaying => 'Now playing';
+
+  @override
+  String get mediaInfoSourceDownloaded => 'Downloaded copy';
+
+  @override
+  String get mediaInfoSourceDownloadedNote => 'Plays from this device';
+
+  @override
+  String get mediaInfoSourceServer => 'Server stream';
+
+  @override
+  String get mediaInfoSourceServerNote => 'Streamed from your server';
+
+  @override
+  String get mediaInfoSourceTranscoded => 'Server stream, transcoded';
+
+  @override
+  String get mediaInfoSourceTranscodedNote =>
+      'Converted by the server while streaming';
+
+  @override
+  String get mediaInfoSourceRemote => 'Remote track';
+
+  @override
+  String get mediaInfoSourceRemoteNote => 'Not in your library, streamed';
+
+  @override
+  String get mediaInfoOriginal => 'Original';
+
+  @override
+  String get mediaInfoFileDownloaded => 'Downloaded file';
+
+  @override
+  String get mediaInfoFileDownloadedNote => 'Stored on this device';
+
+  @override
+  String get mediaInfoFileServer => 'Server file';
+
+  @override
+  String get mediaInfoFileServerNote => 'As stored on your server';
+
+  @override
+  String get mediaInfoFileServerOriginalNote =>
+      'The original, not what you hear';
+
+  @override
+  String get mediaInfoFileRemote => 'Remote file';
+
+  @override
+  String get mediaInfoFileRemoteNote => 'From the remote catalogue';
+
+  @override
+  String mediaInfoBitDepthValue(int bits) {
+    return '$bits-bit';
+  }
+
+  @override
+  String get mediaInfoTrackNumber => 'Track number';
+
+  @override
+  String get mediaInfoDiscNumber => 'Disc';
+
+  @override
+  String get mediaInfoAdminTag => 'admin';
+
+  @override
+  String get mediaInfoTrackInfoAction => 'Track info';
+
+  @override
+  String get mediaInfoTrackInfoRow => 'Track Info';
+
+  @override
+  String get mediaInfoTrackInfoRowHint => 'Source, quality and file details';
+
+  @override
+  String get nowPlayingHoldForTrackInfo => 'Hold for track info';
 }
