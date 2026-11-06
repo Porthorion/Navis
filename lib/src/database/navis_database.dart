@@ -280,7 +280,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 110;
+  static const currentSchemaVersion = 111;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -410,6 +410,7 @@ class NavisDatabase extends _$NavisDatabase {
       from107To108,
       from108To109,
       from109To110,
+      from110To111,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -438,6 +439,17 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.showGenresPage,
+      );
+    }
+  }
+
+  /// ReplayGain level for untagged songs (null = Automatic). Adds one nullable
+  /// column; the stored ReplayGain mode and pre-amp are left as they are.
+  Future<void> from110To111(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'replay_gain_untagged_db')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.replayGainUntaggedDb,
       );
     }
   }
@@ -1942,6 +1954,9 @@ FROM scrobble_queue;
         albumQueueEnabled: const Value(true),
         likedQueueEnabled: const Value(true),
         matchFlowEnabled: const Value(false),
+        // Only applies when this creates the row (insertOrIgnore). A profile
+        // upgraded from older schemas keeps a SQL default of 'off'.
+        replayGainMode: const Value('track'),
         updatedAt: DateTime.now(),
       ),
       mode: InsertMode.insertOrIgnore,

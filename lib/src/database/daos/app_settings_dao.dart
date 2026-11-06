@@ -156,6 +156,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
     bool? legacyInstantMixEnabled,
     required String replayGainMode,
     required double replayGainPreamp,
+    double? replayGainUntaggedDb,
     double? playbackSpeed,
     bool homeRecommendationsAutoAdvance = false,
     bool desktopFocusPlayerModeEnabled = false,
@@ -214,6 +215,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
             : Value(legacyInstantMixEnabled),
         replayGainMode: Value(replayGainMode),
         replayGainPreamp: Value(replayGainPreamp),
+        replayGainUntaggedDb: Value(replayGainUntaggedDb),
         playbackSpeed: playbackSpeed == null
             ? const Value.absent()
             : Value(playbackSpeed),
@@ -328,8 +330,9 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         crossfadeEnabled: Value(false),
         crossfadeDurationSeconds: Value(5),
         crossfadeType: Value('normal'),
-        replayGainMode: Value('off'),
+        replayGainMode: Value('track'),
         replayGainPreamp: Value(0),
+        replayGainUntaggedDb: Value(null),
         albumQueueEnabled: Value(true),
         likedQueueEnabled: Value(true),
         matchFlowEnabled: Value(false),

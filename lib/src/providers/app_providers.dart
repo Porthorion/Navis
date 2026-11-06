@@ -75,6 +75,7 @@ import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
+import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/features/settings/data/battery_optimization_service.dart';
 import 'package:navis/src/features/settings/data/external_scrobble_credentials.dart';
@@ -1286,6 +1287,12 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
   // stations are third-party hosts and need only a connection).
   final recoveredNetwork = StreamController<void>.broadcast();
   ref.onDispose(() => unawaited(recoveredNetwork.close()));
+  // Playback reads the Automatic untagged level: keep it computed, and let
+  // the playing song pick up a new level when it resolves or changes.
+  ref.listen(replayGainAutoUntaggedDbProvider, (previous, next) {
+    if (!next.hasValue || previous?.value == next.value) return;
+    unawaited(ref.read(audioHandlerProvider)?.applyRuntimeSettings());
+  });
   ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
     previous,
     next,
@@ -1531,6 +1538,10 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
           crossfadeType: settings.crossfadeType,
           replayGainMode: settings.replayGainMode,
           replayGainPreamp: settings.replayGainPreamp,
+          replayGainUntaggedDb: effectiveReplayGainUntaggedDb(
+            fixed: settings.replayGainUntaggedDb,
+            auto: ref.read(replayGainAutoUntaggedDbProvider),
+          ),
           playbackSpeed: adjustments?.speed ?? settings.playbackSpeed,
           playbackPitchSemitones:
               adjustments?.pitchSemitones ?? settings.playbackPitchSemitones,

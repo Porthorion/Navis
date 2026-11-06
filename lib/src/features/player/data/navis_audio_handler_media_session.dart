@@ -651,9 +651,9 @@ extension _NavisMediaSession on NavisAudioHandler {
 
   /// Apply ReplayGain volume normalization for the current track.
   ///
-  /// Converts the ReplayGain dB value to a linear volume multiplier and
-  /// sets it on the player, scaled by the current user volume.
-  /// When the mode is 'off' (or metadata is missing), restores to _userVolume.
+  /// Scales the user volume by the song's ReplayGain level (see
+  /// [_replayGainVolumeFor]). When the mode is 'off' (or while radio plays),
+  /// restores to _userVolume.
   void _applyReplayGainVolume({bool forceDuringCrossfade = false}) {
     if (_isLoading ||
         _pendingLogicalQueueSongIds != null ||
@@ -667,20 +667,33 @@ extension _NavisMediaSession on NavisAudioHandler {
     );
   }
 
+  /// The player volume for [item]: the user volume (ducked or not) scaled by
+  /// its ReplayGain level, which only ever turns the song down.
+  ///
+  /// ExoPlayer's volume is linear, so the gain is `10^(dB/20)`. mpv's volume
+  /// is cubic (volume 50 is -18 dB), so the same dB needs `10^(dB/60)`.
+  /// Radio has no gain data and is left at the user volume.
   double _replayGainVolumeFor(MediaItem? item) {
     final base = _isDucked ? _userVolume * 2 / 5 : _userVolume;
+    if (_radioStation != null) return base;
     final runtime = _readRuntimeSettings();
-    final mode = runtime.replayGainMode;
-    if (mode == 'off') return base;
     final extras = item?.extras;
-    final gainDb = mode == 'album'
-        ? (extras?['replayGainAlbumGain'] as double?) ??
-              (extras?['replayGainTrackGain'] as double?)
-        : (extras?['replayGainTrackGain'] as double?) ??
-              (extras?['replayGainAlbumGain'] as double?);
+    final gainDb = replayGainDb(
+      mode: runtime.replayGainMode,
+      trackGain: extras?['replayGainTrackGain'] as double?,
+      albumGain: extras?['replayGainAlbumGain'] as double?,
+      trackPeak: extras?['replayGainTrackPeak'] as double?,
+      albumPeak: extras?['replayGainAlbumPeak'] as double?,
+      preampDb: runtime.replayGainPreamp,
+      untaggedDb: runtime.replayGainUntaggedDb,
+    );
     if (gainDb == null) return base;
-    final preamp = runtime.replayGainPreamp.clamp(-6, 6);
-    return (math.pow(10, (gainDb + preamp) / 20).toDouble() * base).clamp(
+    // media_kit registers on Linux, Windows and macOS. Tests inject the
+    // backend through the adjustment capabilities instead.
+    final usesMpv = _adjustmentCapabilities != null
+        ? _adjustmentCapabilities == PlaybackAdjustmentCapabilities.mediaKit
+        : JustAudioMediaKit.isRegistered;
+    return (math.pow(10, gainDb / (usesMpv ? 60 : 20)).toDouble() * base).clamp(
       0.0,
       1.0,
     );

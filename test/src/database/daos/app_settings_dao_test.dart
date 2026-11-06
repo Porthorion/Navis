@@ -476,8 +476,9 @@ void main() {
           syncIntervalMinutes: 15,
           useLrclib: false,
           legacyInstantMixEnabled: true,
-          replayGainMode: 'track',
+          replayGainMode: 'album',
           replayGainPreamp: -4.5,
+          replayGainUntaggedDb: -5,
           playbackSpeed: 1,
           albumQueueEnabled: false,
           matchFlowEnabled: true,
@@ -537,8 +538,10 @@ void main() {
         expect(settings.crossfadeEnabled, isFalse);
         expect(settings.crossfadeDurationSeconds, 5);
         expect(settings.crossfadeType, 'normal');
-        expect(settings.replayGainMode, 'off');
+        // Reset returns to the default, which is Track for new profiles.
+        expect(settings.replayGainMode, 'track');
         expect(settings.replayGainPreamp, 0);
+        expect(settings.replayGainUntaggedDb, isNull);
         expect(settings.albumQueueEnabled, isTrue);
         expect(settings.likedQueueEnabled, isTrue);
         expect(settings.matchFlowEnabled, isFalse);

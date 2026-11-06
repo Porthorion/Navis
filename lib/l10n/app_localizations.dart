@@ -1764,6 +1764,30 @@ abstract class AppLocalizations {
   /// **'Additional gain adjustment. Range: −6 to +6 dB.'**
   String get playbackSettingsReplayGainPreampSubtitle;
 
+  /// No description provided for @playbackSettingsReplayGainUntaggedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Untagged songs'**
+  String get playbackSettingsReplayGainUntaggedLabel;
+
+  /// No description provided for @playbackSettingsReplayGainUntaggedAutomatic.
+  ///
+  /// In en, this message translates to:
+  /// **'Automatic ({level} dB)'**
+  String playbackSettingsReplayGainUntaggedAutomatic(String level);
+
+  /// No description provided for @playbackSettingsReplayGainUntaggedFixed.
+  ///
+  /// In en, this message translates to:
+  /// **'{level} dB'**
+  String playbackSettingsReplayGainUntaggedFixed(String level);
+
+  /// No description provided for @playbackSettingsReplayGainUntaggedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Level for songs with no ReplayGain data, including songs from online sources, so they don\'t play louder than tagged ones. Automatic uses your library\'s typical level.'**
+  String get playbackSettingsReplayGainUntaggedSubtitle;
+
   /// No description provided for @playbackSettingsPlaybackSpeedLabel.
   ///
   /// In en, this message translates to:
