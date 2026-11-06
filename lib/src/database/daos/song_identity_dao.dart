@@ -19,6 +19,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/scrobble_queue_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
+import 'package:navis/src/utils/metadata_normalization.dart';
 
 part 'song_identity_dao.g.dart';
 
@@ -114,22 +115,30 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
   }
 
   /// Present library rows whose indexed match title (`normalizeMetadata`
-  /// form, case, accent and punctuation folded) equals one of [titles]'s, the
-  /// candidates for relinking remote copies of the same track. Reuses the
-  /// track-match index query; the reconciler's own key still decides.
-  // ponytail: match_title drops round-bracket qualifiers but keeps square
-  // ones, so "Song (Live)" never meets "Song [Live]" here (a miss, never a
-  // false merge); the next full promotion compares every pair.
+  /// form: case, accent and punctuation folded) equals one of [titles]'s, the
+  /// candidates for relinking remote copies of the same track. One indexed
+  /// lookup on `song_search_text.match_title`; the reconciler's own key still
+  /// decides.
+  // ponytail: rows the search index has not covered yet are not candidates
+  // (a miss until the index refresh or the next full promotion), and
+  // match_title drops round-bracket qualifiers but keeps square ones, so
+  // "Song (Live)" never meets "Song [Live]". Both are misses, never false
+  // merges. Upgrade: LibraryDao.getTrackMatchCandidates (full scans).
   Future<List<SongsTableData>> getLibrarySongsByMatchTitle(
     Iterable<String> titles,
   ) async {
-    final rows = await attachedDatabase.libraryDao.getTrackMatchCandidates([
-      for (final title in titles) (title: title, artist: ''),
-    ]);
-    return [
-      for (final row in rows)
-        if (!row.isExternal) row,
-    ];
+    final keys = {for (final title in titles) normalizeMetadata(title)}
+      ..remove('');
+    if (keys.isEmpty) return const <SongsTableData>[];
+    final rows = await customSelect(
+      'SELECT * FROM songs WHERE id IN (SELECT song_id FROM song_search_text '
+      "WHERE match_title IN (${List.filled(keys.length, '?').join(', ')})) "
+      'AND is_external = 0 AND is_provisional = 0 '
+      'AND server_deleted_at IS NULL',
+      variables: [for (final key in keys) Variable<String>(key)],
+      readsFrom: {songsTable, attachedDatabase.songSearchTextTable},
+    ).get();
+    return [for (final row in rows) songsTable.map(row.data)];
   }
 
   Future<List<SongIdentityAlias>> getAliases() => _songAliases().get();

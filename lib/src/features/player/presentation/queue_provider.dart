@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:drift/drift.dart';
-import 'package:flutter/foundation.dart' show ValueKey;
+import 'package:flutter/foundation.dart' show ValueKey, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -747,7 +747,7 @@ ValueKey<(String, int)> queueRowKey(List<String> queueIds, int index) {
 /// relinks the copy.
 final relinkExternalCopiesProvider =
     Provider<Future<Map<String, String>> Function(Iterable<String>)>((ref) {
-      return (ids) async {
+      return serializeRelinks((ids) async {
         final remote = ids.toSet();
         if (remote.isEmpty) return const <String, String>{};
         try {
@@ -766,8 +766,24 @@ final relinkExternalCopiesProvider =
           AppLogger.debug('Remote copy relink skipped: $error');
           return const <String, String>{};
         }
-      };
+      });
     });
+
+/// Runs [relink] calls one at a time: a later call starts after the earlier
+/// one finishes, so two relinks of one id never overlap (the second would see
+/// the first's alias already moved the playing song and could delete the
+/// cache file the first kept).
+@visibleForTesting
+Future<Map<String, String>> Function(Iterable<String>) serializeRelinks(
+  Future<Map<String, String>> Function(Iterable<String>) relink,
+) {
+  var tail = Future<void>.value();
+  return (ids) {
+    final run = tail.then((_) => relink(ids));
+    tail = run.then((_) {}, onError: (Object _) {});
+    return run;
+  };
+}
 
 final queueProvider = NotifierProvider<QueueController, List<String>>(
   QueueController.new,

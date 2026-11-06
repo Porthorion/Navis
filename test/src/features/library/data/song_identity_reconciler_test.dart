@@ -435,6 +435,12 @@ void main() {
     Future<void> insert(SongsTableData song) =>
         database.into(database.songsTable).insert(song);
 
+    // Candidates come from the search index, so bring it up to date first.
+    Future<Map<String, String>> refreshAndRelink(List<String> ids) async {
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+      return reconciler.relinkExternalCopies(ids);
+    }
+
     SongsTableData library({
       String id = 'lib',
       String artist = 'Adele',
@@ -475,7 +481,7 @@ void main() {
             ),
           );
 
-      final linked = await reconciler.relinkExternalCopies(<String>[
+      final linked = await refreshAndRelink(<String>[
         'ext-deezer-song-8086130',
       ]);
 
@@ -500,9 +506,7 @@ void main() {
         await insert(remote().copyWith(title: title.toUpperCase()));
 
         expect(
-          await reconciler.relinkExternalCopies(<String>[
-            'ext-deezer-song-8086130',
-          ]),
+          await refreshAndRelink(<String>['ext-deezer-song-8086130']),
           hasLength(1),
         );
         expect(
@@ -535,9 +539,7 @@ void main() {
         await insert(remote().copyWith(title: b));
         await database.libraryDao.scheduleSongSearchIndexRefresh();
         expect(
-          await reconciler.relinkExternalCopies(<String>[
-            'ext-deezer-song-8086130',
-          ]),
+          await refreshAndRelink(<String>['ext-deezer-song-8086130']),
           hasLength(1),
         );
       }, skip: !sqliteAvailable);
@@ -596,9 +598,7 @@ void main() {
         containsAll(<String>['lib', 'ext-deezer-song-8086130']),
       );
 
-      await reconciler.relinkExternalCopies(<String>[
-        'ext-deezer-song-8086130',
-      ]);
+      await refreshAndRelink(<String>['ext-deezer-song-8086130']);
 
       expect(
         (await database.libraryDao.searchCachedSongs('set fire'))
@@ -612,9 +612,7 @@ void main() {
       await insert(remote(artist: 'No Resolve', album: 'Covers'));
 
       expect(
-        await reconciler.relinkExternalCopies(<String>[
-          'ext-deezer-song-8086130',
-        ]),
+        await refreshAndRelink(<String>['ext-deezer-song-8086130']),
         isEmpty,
       );
       expect(
@@ -629,9 +627,7 @@ void main() {
       await insert(remote());
 
       expect(
-        await reconciler.relinkExternalCopies(<String>[
-          'ext-deezer-song-8086130',
-        ]),
+        await refreshAndRelink(<String>['ext-deezer-song-8086130']),
         isEmpty,
       );
       expect(

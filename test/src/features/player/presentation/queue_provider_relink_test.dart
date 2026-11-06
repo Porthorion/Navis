@@ -41,6 +41,8 @@ void main() {
               isExternal: false,
             ),
           );
+      // Candidates come from the search index.
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
       final container = ProviderContainer(
         overrides: [
           ...withTestDatabase(database),
@@ -273,6 +275,26 @@ void main() {
 
       expect(relinkCalls, isEmpty);
     }, skip: !sqliteAvailable);
+  });
+
+  test('relinks run one at a time, in order', () async {
+    final first = Completer<Map<String, String>>();
+    final log = <String>[];
+    final relink = serializeRelinks((ids) {
+      log.add('start ${ids.join()}');
+      if (log.length == 1) return first.future;
+      return Future.value(const <String, String>{});
+    });
+
+    final a = relink(['a']);
+    final b = relink(['b']);
+    await pumpEventQueue();
+    expect(log, ['start a']);
+
+    first.complete(const <String, String>{'a': 'lib'});
+    expect(await a, {'a': 'lib'});
+    await b;
+    expect(log, ['start a', 'start b']);
   });
 }
 
