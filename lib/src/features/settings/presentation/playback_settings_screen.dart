@@ -6,9 +6,11 @@ import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
+import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
 import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
@@ -33,6 +35,9 @@ class _PlaybackSettingsScreenState
     extends ConsumerState<PlaybackSettingsScreen> {
   static const double _minReplayGainPreamp = -6;
   static const double _maxReplayGainPreamp = 6;
+  static final List<double> _untaggedLevels = <double>[
+    for (var db = 0; db >= replayGainMinUntaggedDb; db--) db.toDouble(),
+  ];
   static const List<int?> _qualityOptions = <int?>[
     null,
     320,
@@ -70,6 +75,7 @@ class _PlaybackSettingsScreenState
   String _crossfadeType = 'normal';
   String _replayGainMode = 'off';
   double _replayGainPreamp = 0;
+  double? _replayGainUntaggedDb;
   bool _didHydrateForm = false;
   bool _isSaving = false;
   bool _isAutoSaving = false;
@@ -458,6 +464,49 @@ class _PlaybackSettingsScreenState
                         color: Theme.of(context).colorScheme.outline,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<double?>(
+                      initialValue: _replayGainUntaggedDb,
+                      decoration: InputDecoration(
+                        labelText: l10n.playbackSettingsReplayGainUntaggedLabel,
+                      ),
+                      items: [
+                        DropdownMenuItem<double?>(
+                          child: Text(
+                            l10n.playbackSettingsReplayGainUntaggedAutomatic(
+                              _dbText(
+                                effectiveReplayGainUntaggedDb(
+                                  fixed: null,
+                                  auto: ref.watch(
+                                    replayGainAutoUntaggedDbProvider,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        for (final level in _untaggedLevels)
+                          DropdownMenuItem<double?>(
+                            value: level,
+                            child: Text(
+                              l10n.playbackSettingsReplayGainUntaggedFixed(
+                                _dbText(level),
+                              ),
+                            ),
+                          ),
+                      ],
+                      onChanged: _isSaving
+                          ? null
+                          : (value) =>
+                                setState(() => _replayGainUntaggedDb = value),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      l10n.playbackSettingsReplayGainUntaggedSubtitle,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 24),
                   const PlaybackAdjustmentPanel(),
@@ -624,6 +673,7 @@ class _PlaybackSettingsScreenState
     _crossfadeType = settings.crossfadeType;
     _replayGainMode = settings.replayGainMode;
     _replayGainPreamp = _normalizeReplayGainPreamp(settings.replayGainPreamp);
+    _replayGainUntaggedDb = _normalizeUntaggedDb(settings.replayGainUntaggedDb);
     _lastSavedSignature = _formSignature();
   }
 
@@ -660,6 +710,7 @@ class _PlaybackSettingsScreenState
       _crossfadeType,
       _replayGainMode,
       _replayGainPreamp,
+      _replayGainUntaggedDb,
       _albumQueueEnabled,
       _likedQueueEnabled,
       _matchFlowEnabled,
@@ -713,6 +764,8 @@ class _PlaybackSettingsScreenState
         crossfadeType: _crossfadeType,
         replayGainMode: _replayGainMode,
         replayGainPreamp: _normalizeReplayGainPreamp(_replayGainPreamp),
+        replayGainUntaggedDb: _replayGainUntaggedDb,
+        clearReplayGainUntaggedDb: _replayGainUntaggedDb == null,
         albumQueueEnabled: _albumQueueEnabled,
         matchFlowEnabled: _matchFlowEnabled,
         likedQueueEnabled: _likedQueueEnabled,
@@ -833,6 +886,15 @@ class _PlaybackSettingsScreenState
     }
     return trimmed.toLowerCase();
   }
+
+  /// A stored level outside the picker (or not a whole dB) snaps to the
+  /// nearest offered one; null stays Automatic.
+  double? _normalizeUntaggedDb(double? value) => value == null
+      ? null
+      : value.clamp(replayGainMinUntaggedDb, 0.0).roundToDouble();
+
+  String _dbText(double db) =>
+      db.toStringAsFixed(db == db.roundToDouble() ? 0 : 1);
 
   double _normalizeReplayGainPreamp(double value) {
     return value.clamp(_minReplayGainPreamp, _maxReplayGainPreamp);

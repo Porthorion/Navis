@@ -85,6 +85,7 @@ class AppSettingsModel {
     required this.legacyInstantMixEnabled,
     required this.replayGainMode,
     required this.replayGainPreamp,
+    this.replayGainUntaggedDb,
     required this.playbackSpeed,
     this.playbackPitchSemitones = 0,
     this.lockPitchToSpeed = false,
@@ -179,8 +180,9 @@ class AppSettingsModel {
       backgroundSyncUnmeteredOnly = true,
       useLrclib = true,
       legacyInstantMixEnabled = false,
-      replayGainMode = 'off',
+      replayGainMode = 'track',
       replayGainPreamp = 0.0,
+      replayGainUntaggedDb = null,
       playbackSpeed = 1.0,
       playbackPitchSemitones = 0,
       lockPitchToSpeed = false,
@@ -295,6 +297,10 @@ class AppSettingsModel {
 
   /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0).
   final double replayGainPreamp;
+
+  /// Level in dB (-15 to 0) for songs without ReplayGain data; null means
+  /// Automatic (the library's median tagged gain).
+  final double? replayGainUntaggedDb;
 
   /// Playback speed multiplier.
   final double playbackSpeed;
@@ -465,6 +471,8 @@ class AppSettingsModel {
     bool? legacyInstantMixEnabled,
     String? replayGainMode,
     double? replayGainPreamp,
+    double? replayGainUntaggedDb,
+    bool clearReplayGainUntaggedDb = false,
     double? playbackSpeed,
     double? playbackPitchSemitones,
     bool? lockPitchToSpeed,
@@ -599,6 +607,9 @@ class AppSettingsModel {
           legacyInstantMixEnabled ?? this.legacyInstantMixEnabled,
       replayGainMode: replayGainMode ?? this.replayGainMode,
       replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
+      replayGainUntaggedDb: clearReplayGainUntaggedDb
+          ? null
+          : replayGainUntaggedDb ?? this.replayGainUntaggedDb,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
       playbackPitchSemitones:
           playbackPitchSemitones ?? this.playbackPitchSemitones,

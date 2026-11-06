@@ -130,6 +130,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Volume normalization (ReplayGain) now evens out loudness between '
+        'songs, including songs without ReplayGain tags. It was applying '
+        'too much on desktop and ignoring untagged songs. New installs start '
+        'with it on; choose the level for untagged songs in Playback settings',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Downloads at a chosen quality, such as on mobile data, no longer '
         'fail partway through',
         type: ChangelogEntryType.fix,

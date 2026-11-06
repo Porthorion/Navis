@@ -217,6 +217,36 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   static const _safeSqlVariableChunkSize = 500;
 
+  /// How many library songs (not provisional, external or server-deleted)
+  /// carry a believable track gain (|gain| <= [maxAbsDb]) and their median; the median is null when none do.
+  Future<({int count, double? median})> trackGainMedian({
+    required double maxAbsDb,
+  }) async {
+    const usable =
+        'replay_gain_track_gain IS NOT NULL '
+        'AND ABS(replay_gain_track_gain) <= ? '
+        'AND is_provisional = 0 AND is_external = 0 '
+        'AND server_deleted_at IS NULL';
+    final row = await customSelect(
+      '''
+      SELECT
+        (SELECT COUNT(*) FROM songs WHERE $usable) AS tagged,
+        (SELECT AVG(gain) FROM (
+          SELECT replay_gain_track_gain AS gain FROM songs WHERE $usable
+          ORDER BY gain
+          LIMIT 2 - (SELECT COUNT(*) FROM songs WHERE $usable) % 2
+          OFFSET (SELECT (COUNT(*) - 1) / 2 FROM songs WHERE $usable)
+        )) AS median
+      ''',
+      variables: List.filled(4, Variable<double>(maxAbsDb)),
+      readsFrom: {songsTable},
+    ).getSingle();
+    return (
+      count: row.read<int>('tagged'),
+      median: row.read<double?>('median'),
+    );
+  }
+
   Stream<List<ArtistsTableData>> watchArtists({bool likedOnly = false}) {
     final query = select(artistsTable)
       ..orderBy([(table) => OrderingTerm.asc(table.name)]);

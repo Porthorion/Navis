@@ -10,6 +10,7 @@ import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
+import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
@@ -126,6 +127,78 @@ void main() {
       expect(find.text('Skip silence when possible'), findsNothing);
       expect(find.text('Changes save automatically'), findsOneWidget);
       expect(find.text('Reset Defaults'), findsOneWidget);
+    });
+
+    group('ReplayGain untagged songs', () {
+      AppSettingsModel? saved;
+
+      Future<void> pump(
+        WidgetTester tester, {
+        String mode = 'track',
+        double? untaggedDb,
+      }) async {
+        setAdaptiveTestViewport(tester, const Size(1280, 1400));
+        saved = null;
+        when(() => repository.saveSettings(any()))
+            .thenAnswer((invocation) async {
+              saved = invocation.positionalArguments.first as AppSettingsModel;
+            });
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              settingsRepositoryProvider.overrideWithValue(repository),
+              appSettingsProvider.overrideWithValue(
+                AsyncData(
+                  initialSettings.copyWith(
+                    replayGainMode: mode,
+                    replayGainUntaggedDb: untaggedDb,
+                  ),
+                ),
+              ),
+              replayGainAutoUntaggedDbProvider.overrideWith(
+                (ref) async => -9.1,
+              ),
+            ],
+            child: _buildTestApp(desktopMode: true),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('Automatic shows the library level', (tester) async {
+        await pump(tester);
+        expect(find.text('Untagged songs'), findsOneWidget);
+        expect(find.text('Automatic (-9.1 dB)'), findsOneWidget);
+      });
+
+      testWidgets('is hidden while ReplayGain is off', (tester) async {
+        await pump(tester, mode: 'off');
+        expect(find.text('Untagged songs'), findsNothing);
+      });
+
+      testWidgets('a stored fixed level is shown', (tester) async {
+        await pump(tester, untaggedDb: -12);
+        expect(find.text('-12 dB'), findsOneWidget);
+        expect(find.text('Automatic (-9.1 dB)'), findsNothing);
+      });
+
+      testWidgets('picking a fixed level persists it, Automatic clears it', (
+        tester,
+      ) async {
+        await pump(tester);
+        await tester.ensureVisible(find.text('Automatic (-9.1 dB)'));
+        await tester.tap(find.text('Automatic (-9.1 dB)'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('-6 dB').last);
+        await tester.pumpAndSettle(const Duration(milliseconds: 600));
+        expect(saved?.replayGainUntaggedDb, -6);
+
+        await tester.tap(find.text('-6 dB'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Automatic (-9.1 dB)').last);
+        await tester.pumpAndSettle(const Duration(milliseconds: 600));
+        expect(saved?.replayGainUntaggedDb, isNull);
+      });
     });
 
     for (final platform in [

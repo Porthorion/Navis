@@ -255,6 +255,112 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('110 to 111 ReplayGain untagged level', () {
+    // Rebuilds app_settings the way a real 110 profile has it: no untagged
+    // column, and the SQL default for the mode still 'off' (an upgraded
+    // profile keeps the default it was created with).
+    void makeSchema110(Database raw, {required String? mode}) {
+      final create =
+          raw
+                  .select(
+                    "SELECT sql FROM sqlite_master "
+                    "WHERE type = 'table' AND name = 'app_settings'",
+                  )
+                  .single['sql']
+              as String;
+      final legacy = create
+          .replaceFirst('app_settings', 'app_settings_110')
+          .replaceFirst(
+            RegExp(r',\s*"?replay_gain_untagged_db"?\s+REAL[^,)]*'),
+            '',
+          )
+          .replaceFirstMapped(
+            RegExp(
+              r'("?replay_gain_mode"?\s+TEXT\s+NOT NULL\s+DEFAULT\s+)'
+              r"'track'",
+            ),
+            (match) => "${match[1]}'off'",
+          );
+      expect(legacy, isNot(create));
+      expect(legacy, isNot(contains('replay_gain_untagged_db')));
+      expect(legacy, contains("DEFAULT 'off'"));
+      final columns = raw
+          .select('PRAGMA table_info(app_settings)')
+          .map((row) => row['name'] as String)
+          .where((name) => name != 'replay_gain_untagged_db')
+          .join(', ');
+      raw.execute(legacy);
+      raw.execute(
+        'INSERT INTO app_settings_110 ($columns) '
+        'SELECT $columns FROM app_settings',
+      );
+      raw.execute('DROP TABLE app_settings');
+      raw.execute('ALTER TABLE app_settings_110 RENAME TO app_settings');
+      if (mode == null) {
+        raw.execute('DELETE FROM app_settings');
+      } else {
+        raw.execute('UPDATE app_settings SET replay_gain_mode = ?', [mode]);
+      }
+      raw.execute('PRAGMA user_version = 110');
+    }
+
+    // Opens a 110 profile holding [mode] (null: no settings row), upgrades it.
+    Future<NavisDatabase> upgraded110(String? mode) async {
+      final directory = await Directory.systemTemp.createTemp('navis_v111_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.appSettingsDao.getSettings();
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        makeSchema110(raw, mode: mode);
+      } finally {
+        raw.close();
+      }
+      final db = createTestDatabase(file: file);
+      addTearDown(db.close);
+      return db;
+    }
+
+    test('the schema version is 111', () {
+      expect(NavisDatabase.currentSchemaVersion, 111);
+    });
+
+    for (final mode in ['off', 'track', 'album']) {
+      test('adds the column as Automatic and keeps mode $mode', () async {
+        final db = await upgraded110(mode);
+        final settings = (await db.appSettingsDao.getSettings())!;
+        expect(settings.replayGainUntaggedDb, isNull);
+        expect(settings.replayGainMode, mode);
+        expect(
+          (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+            'user_version',
+          ),
+          NavisDatabase.currentSchemaVersion,
+        );
+        // Idempotent: running the step again changes nothing.
+        await db.from110To111(Migrator(db));
+        expect((await db.appSettingsDao.getSettings())!.replayGainMode, mode);
+      });
+    }
+
+    test('a settings row created after the upgrade starts on track', () async {
+      final db = await upgraded110(null);
+      final settings = (await db.appSettingsDao.getSettings())!;
+      expect(settings.replayGainMode, 'track');
+      expect(settings.replayGainUntaggedDb, isNull);
+    });
+
+    test('a new profile starts on track mode', () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      final settings = (await db.appSettingsDao.getSettings())!;
+      expect(settings.replayGainMode, 'track');
+      expect(settings.replayGainUntaggedDb, isNull);
+    });
+  });
+
   group('109 to 110 search ranking switch', () {
     // Opens a 109 profile holding [disabled] and [master], upgrades it and
     // returns the stored disabled-integrations JSON.
@@ -296,10 +402,6 @@ void main() {
       );
       return settings.disabledIntegrations;
     }
-
-    test('the schema version is 110', () {
-      expect(NavisDatabase.currentSchemaVersion, 110);
-    });
 
     test('a profile with Deezer switched off starts with it off', () async {
       expect(
