@@ -38,13 +38,14 @@ void main() {
     expect(violations, isEmpty, reason: violations.join('\n'));
   });
 
-  test('every credential FlutterSecureStorage is built with iosKeychain', () {
-    // The desktop shortcut store never runs on iOS, so it is exempt.
+  test('every FlutterSecureStorage is built with iosKeychain', () {
     final violations = <String>[];
-    for (final path in [
-      'lib/src/features/auth/data/secure_credential_store.dart',
-      'lib/src/features/settings/data/external_scrobble_credentials.dart',
-    ]) {
+    final paths = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .map((file) => file.path)
+        .where((path) => path.endsWith('.dart'));
+    for (final path in paths) {
       final source = File(path).readAsStringSync();
       for (final match in RegExp(
         r'\bFlutterSecureStorage(\.new)?\s*\(',
@@ -74,6 +75,11 @@ void main() {
     expect(required(isAndroid: true), isTrue);
     expect(required(isIOS: true), isTrue);
     expect(required(), isFalse);
+    // The store must feed the real platform through, not just the helper.
+    final store = File(
+      'lib/src/features/auth/data/secure_credential_store.dart',
+    ).readAsStringSync();
+    expect(store, contains('isIOS: Platform.isIOS'));
   });
 
   test('macOsLoginKeychain opts out of the data-protection keychain', () {
