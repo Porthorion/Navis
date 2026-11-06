@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Downloads at a chosen quality, such as on mobile data, no longer '
+        'fail partway through',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Search no longer lists a song twice when a Deezer copy of it matches '
         'a song in your library, and its quality now shows your file',
         type: ChangelogEntryType.fix,

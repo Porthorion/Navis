@@ -36,6 +36,7 @@ import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/player/data/lyrics_resolver.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
@@ -1914,13 +1915,24 @@ class DownloadService {
       // queue and album download badges to every watching screen.
       var lastPersistedProgress = -1.0;
       final sincePersisted = Stopwatch()..start();
+      // A transcode streams with no Content-Length: measure it against the
+      // duration x bitrate estimate instead, held below 100% so an overshoot
+      // never bypasses the write throttle. Format-only transcodes have no
+      // bitrate to estimate from and report no progress.
+      final estimatedTotal = item.quality != null;
       final response = await _dio.downloadUri(
         downloadUri,
         part.path,
         cancelToken: cancelToken,
-        onReceiveProgress: (received, total) {
+        onReceiveProgress: (received, announced) {
+          final total = announced > 0
+              ? announced
+              : (estimatedTotal ? expected : 0);
           if (!_stopped && total > 0) {
-            final progress = (received / total).clamp(0.0, 1.0);
+            final progress = (received / total).clamp(
+              0.0,
+              announced > 0 ? 1.0 : 0.99,
+            );
             if (!shouldPersistDownloadProgress(
               previous: lastPersistedProgress,
               next: progress,
@@ -1933,7 +1945,12 @@ class DownloadService {
             _trackProgressWrite(
               _downloadQueueDao.updateProgress(item.id, progress),
             );
-            _reportTransferProgress(item.id, songTitle, received, total);
+            _reportTransferProgress(
+              item.id,
+              songTitle,
+              received.clamp(0, total),
+              total,
+            );
           }
         },
       );
@@ -2206,7 +2223,9 @@ class DownloadService {
         await _handleFailure(
           item,
           reason,
-          detail: code == null ? error.type.name : 'HTTP $code',
+          detail: code != null
+              ? 'HTTP $code'
+              : _underlyingErrorDetail(error) ?? error.type.name,
         );
       }
     } on Object catch (error) {
@@ -2223,6 +2242,16 @@ class DownloadService {
       if (reservedPath != null) _reservedDownloadPaths.remove(reservedPath);
       await _endTransferProgress(item.id);
     }
+  }
+
+  /// The transport error behind [error] (for example "Connection closed while
+  /// receiving data"), for the failure detail. The message of an
+  /// `HttpException` quotes the request URL, so credentials are redacted.
+  static String? _underlyingErrorDetail(DioException error) {
+    final text = error.error?.toString().trim();
+    if (text == null || text.isEmpty) return null;
+    final redacted = redactCredentialQueryParameters(text);
+    return redacted.length <= 200 ? redacted : redacted.substring(0, 200);
   }
 
   Future<void> _writeFinishIntent(
@@ -3736,16 +3765,12 @@ class DownloadService {
     if (quality == null && format == null) {
       return api.downloadUrl(id: songId);
     }
-    // Otherwise use stream.view with transcoding params. A transcoded stream
-    // has no known length unless the server estimates one, and without a
-    // length the download cannot report progress.
+    // Otherwise use stream.view with transcoding params. A transcode has no
+    // known length, so progress comes from the expected size. Never ask the
+    // server to estimate one: it announces more bytes than it sends and the
+    // HTTP client then fails the transfer as cut short.
     final maxBitRate = quality != null ? int.tryParse(quality) : null;
-    return api.streamUrl(
-      id: songId,
-      maxBitRate: maxBitRate,
-      format: format,
-      estimateContentLength: true,
-    );
+    return api.streamUrl(id: songId, maxBitRate: maxBitRate, format: format);
   }
 
   /// Resolve the file format/extension for a download item.

@@ -7041,16 +7041,20 @@ no bitrate, or the song's own format (`sameAudioFormat`: `m4a`/`mp4`/`aac`
 are one family) at no less than the song's bitrate. Enqueueing at Original
 therefore skips songs already downloaded in original quality.
 
-**Transcoded transfers.** `stream.view` requests carry
-`estimateContentLength=true` so transfers report progress; a transfer without
-a length shows an indeterminate bar. After a 2xx response the
+**Transcoded transfers.** `stream.view` requests never carry
+`estimateContentLength`: Navidrome's estimate announces more bytes than it
+sends, and the HTTP client then fails the transfer with "Connection closed
+while receiving data" before the service's own length check. A transcode has
+no Content-Length, so its progress is measured against `expectedDownloadBytes`
+(duration x bitrate), clamped to 100%. A failure without an HTTP status stores
+the redacted, truncated underlying error as its detail. After a 2xx response the
 `content-type` names the stored format (`downloadedFormatFor`): a server
 without the requested encoder that sends the original file stores it under
 its real extension and bitrate. HTML, JSON and XML responses fail immediately
 as `notAudio` and are never registered. Originals with a response Content-Length
-must have exactly that many bytes before publication. Transcodes may carry an
-estimated length, so only non-empty content and the same audio content-type
-gate are required.
+must have exactly that many bytes before publication. A transcode's
+length is never compared, so only non-empty content and the same audio
+content-type gate are required.
 Empty or short original files fail as `truncated`; part files are deleted and
 the whole song restarts from zero on retry. Interrupted transfers are never
 resumed.
