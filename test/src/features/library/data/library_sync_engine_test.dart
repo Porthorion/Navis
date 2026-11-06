@@ -908,6 +908,159 @@ void main() {
       expect(song.duration, 200);
     }, skip: !sqliteAvailable);
 
+    group('liked remote copies (ext- ids)', () {
+      const extId = 'ext-deezer-song-9';
+
+      Future<void> seed({
+        bool extQueued = false,
+        bool unlikeLib = false,
+      }) async {
+        await saveSession(lastSynced: DateTime.now());
+        await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(id: 'lib-1', title: 'Song'),
+          SongsTableCompanion.insert(id: extId, title: 'Remote'),
+        ]);
+        await database.libraryDao.setEntityStarred(
+          'song',
+          extId,
+          DateTime(2026),
+        );
+        if (extQueued) {
+          await database.starSyncDao.queueStarAction(
+            itemId: extId,
+            itemType: 'song',
+            action: 'star',
+          );
+        }
+        if (unlikeLib) {
+          await database.starSyncDao.setStarred(
+            itemId: 'lib-1',
+            itemType: 'song',
+            liked: false,
+          );
+        }
+        api.starredContent = const StarredContent();
+      }
+
+      /// A relink that matches the copy to `lib-1`, as the provider would.
+      Future<Map<String, String>> matchToLib(Iterable<String> ids) async {
+        for (final id in ids) {
+          await database.songIdentityDao.remapSongIdentity(
+            oldSongId: id,
+            canonicalSongId: 'lib-1',
+            matchReason: 'metadata',
+          );
+        }
+        return {for (final id in ids) id: 'lib-1'};
+      }
+
+      DriftLibrarySyncEngine withRelink(
+        Future<Map<String, String>> Function(Iterable<String>)? relink,
+      ) => serialDriftEngine(
+        api: api,
+        database: database,
+        repository: serverConfigRepository,
+        relinkExternalCopies: relink,
+      );
+
+      test(
+        'a sent like is only cleared: the server decides the library song',
+        () async {
+          await seed();
+          var relinked = false;
+          final result = await withRelink((ids) async {
+            relinked = true;
+            return matchToLib(ids);
+          }).syncStarredContent();
+
+          expect(result.status, LibrarySyncStatus.succeeded);
+          expect(relinked, isFalse);
+          expect(await database.libraryDao.getSongStarred(extId), isNull);
+          expect(await database.libraryDao.getSongStarred('lib-1'), isNull);
+          expect(await database.starSyncDao.getPendingActions(), isEmpty);
+        },
+        skip: !sqliteAvailable,
+      );
+
+      test('a pending unlike of the library song survives', () async {
+        await seed(extQueued: true, unlikeLib: true);
+
+        await withRelink(matchToLib).syncStarredContent();
+
+        expect(await database.libraryDao.getSongStarred('lib-1'), isNull);
+        final pending = await database.starSyncDao.getPendingActions();
+        expect(pending.map((p) => (p.itemId, p.action)), [('lib-1', 'unstar')]);
+        expect(await database.libraryDao.getSongStarred(extId), isNull);
+      }, skip: !sqliteAvailable);
+
+      test(
+        'an unsent like moves to the matched library song and is queued',
+        () async {
+          await seed(extQueued: true);
+
+          await withRelink(matchToLib).syncStarredContent();
+
+          expect(await database.libraryDao.getSongStarred('lib-1'), isNotNull);
+          final pending = await database.starSyncDao.getPendingActions();
+          expect(pending.map((p) => (p.itemId, p.action)), [('lib-1', 'star')]);
+        },
+        skip: !sqliteAvailable,
+      );
+
+      test(
+        'an unsent like with no match is dropped locally, nothing sent',
+        () async {
+          await seed(extQueued: true);
+
+          await withRelink((_) async => const <String, String>{})
+              .syncStarredContent();
+
+          expect(await database.libraryDao.getSongStarred(extId), isNull);
+          expect(await database.starSyncDao.getPendingActions(), isEmpty);
+          expect(
+            api.calls.where((c) => c.contains('star')),
+            everyElement(contains('getStarred')),
+          );
+        },
+        skip: !sqliteAvailable,
+      );
+
+      test('a throwing relink never fails the starred sync', () async {
+        await seed(extQueued: true);
+
+        final result = await withRelink((_) => throw StateError('boom'))
+            .syncStarredContent();
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        // Unsent: kept, with its star, for the next sync.
+        expect(await database.libraryDao.getSongStarred(extId), isNotNull);
+        final pending = await database.starSyncDao.getPendingActions();
+        expect(pending.map((p) => p.itemId), [extId]);
+      }, skip: !sqliteAvailable);
+
+      test('a throwing relink still clears a sent like', () async {
+        await seed();
+
+        final result = await withRelink((_) => throw StateError('boom'))
+            .syncStarredContent();
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        expect(await database.libraryDao.getSongStarred(extId), isNull);
+      }, skip: !sqliteAvailable);
+
+      test(
+        'without a relink an unsent like is kept for the next sync',
+        () async {
+          await seed(extQueued: true);
+
+          await withRelink(null).syncStarredContent();
+
+          expect(await database.libraryDao.getSongStarred(extId), isNotNull);
+        },
+        skip: !sqliteAvailable,
+      );
+    });
+
     test('incomplete favorites schedule targeted album hydration', () async {
       await saveSession(lastSynced: DateTime.now());
       final starredAt = DateTime.utc(2026);

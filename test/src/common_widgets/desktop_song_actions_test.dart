@@ -2,9 +2,13 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'dart:ui' show Tristate;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -96,5 +100,49 @@ void main() {
     expect(find.byType(SongDownloadStatusIcon), findsNothing);
     expect(find.byIcon(Icons.more_horiz_rounded), findsNothing);
     expect(find.text('3:05'), findsOneWidget);
+  });
+
+  testWidgets('a remote song heart is disabled and explains itself on tap', (
+    tester,
+  ) async {
+    final notices = AppNoticeController();
+    addTearDown(notices.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          songStarredProvider.overrideWith(
+            (ref, songId) => Stream.value(false),
+          ),
+        ],
+        child: MaterialApp(
+          builder: (_, child) =>
+              AppNoticeScope(notifier: notices, child: child!),
+          theme: testTheme(),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(
+            body: SongHeartButton(songId: 'ext-deezer-song-1'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final icon = tester.widget<Icon>(find.byIcon(Icons.favorite_border));
+    expect(icon.color, isNotNull);
+    final like = find.byTooltip('Like unavailable for remote songs');
+    expect(like, findsOneWidget);
+    final handle = tester.ensureSemantics();
+    expect(
+      tester.getSemantics(like).flagsCollection.isEnabled,
+      isNot(Tristate.isTrue),
+    );
+    handle.dispose();
+
+    await tester.tap(find.byIcon(Icons.favorite_border));
+    await tester.pump();
+
+    expect(notices.notice?.message, 'Not available for remote tracks.');
+    expect(find.byIcon(Icons.favorite), findsNothing);
   });
 }

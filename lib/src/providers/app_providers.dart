@@ -74,6 +74,7 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/personal_radio_notifier.dart';
+import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
@@ -2842,6 +2843,13 @@ final downloadServiceProvider = Provider<DownloadService>((ref) {
     readLocalizations: () =>
         resolveNotificationLocalizations(ref.read(appLocaleProvider)),
     reportNetworkUsage: _networkUsageReporter(networkUsageMeter),
+    // Remote catalog copies download as the library song they duplicate: the
+    // relink (also the queue's) records the alias, which survives a relink
+    // done earlier.
+    resolveLibraryIds: (ids) async {
+      await ref.read(relinkExternalCopiesProvider)(ids);
+      return db.songIdentityDao.getAliasesFor(ids);
+    },
   );
   ref.listen<bool>(useLrclibProvider, (previous, next) {
     if (previous != next) unawaited(service.processQueuedDownloads());

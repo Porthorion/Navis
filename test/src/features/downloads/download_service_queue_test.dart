@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logger/logger.dart';
 import 'package:flutter/services.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/src/api/lrclib_client.dart';
@@ -183,6 +184,7 @@ void main() {
     Future<int?> Function(String)? readFreeBytes,
     Duration folderRecheckInterval = const Duration(seconds: 5),
     Duration playbackHoldLimit = const Duration(seconds: 15),
+    Future<Map<String, String>> Function(Iterable<String>)? resolveLibraryIds,
   }) {
     final lrclib = _MockLrclibClient();
     final cacheManager = _MockCacheManager();
@@ -204,6 +206,7 @@ void main() {
       isAndroid: isAndroid,
       folderRecheckInterval: folderRecheckInterval,
       playbackHoldLimit: playbackHoldLimit,
+      resolveLibraryIds: resolveLibraryIds,
       lrclibClient: lrclib,
       readCoverArtCacheManager: () => cacheManager,
       readApplicationSupportDirectory: () async => supportDir,
@@ -385,6 +388,208 @@ void main() {
     },
     skip: !sqliteAvailable || Platform.isWindows,
   );
+
+  group('remote copies (ext- ids)', () {
+    const extId = 'ext-deezer-song-9';
+    Future<Map<String, String>> toLibrary(Iterable<String> ids) async => {
+      for (final id in ids)
+        if (id == extId) id: 'song-0',
+    };
+
+    test('a batch queues the library song for a remote copy', () async {
+      final service = buildService(resolveLibraryIds: toLibrary);
+      await addSongs(1);
+
+      expect(await service.enqueueSongs([extId]), 1);
+
+      expect((await queue()).map((i) => i.songId), ['song-0']);
+    }, skip: !sqliteAvailable);
+
+    test('a library song and its remote copy are queued once', () async {
+      final service = buildService(resolveLibraryIds: toLibrary);
+      await addSongs(1);
+
+      expect(await service.enqueueSongs(['song-0', extId]), 1);
+      expect(await service.enqueueSongs([extId]), 0);
+
+      expect((await queue()).map((i) => i.songId), ['song-0']);
+    }, skip: !sqliteAvailable);
+
+    test('a single enqueue maps the remote copy too', () async {
+      final service = buildService(resolveLibraryIds: toLibrary);
+      await addSongs(1);
+
+      await service.enqueueSong(extId);
+
+      expect((await queue()).map((i) => i.songId), ['song-0']);
+    }, skip: !sqliteAvailable);
+
+    test('a failing resolver falls back to the ids as given', () async {
+      final service = buildService(
+        resolveLibraryIds: (_) => throw StateError('boom'),
+      );
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(id: extId, title: 'Remote'),
+      ]);
+
+      expect(await service.enqueueSongs([extId]), 1);
+      await service.enqueueSong(extId);
+
+      expect((await queue()).map((i) => i.songId), [extId]);
+    }, skip: !sqliteAvailable);
+
+    test('an unmatched remote copy is queued as before', () async {
+      final service = buildService(
+        resolveLibraryIds: (_) async => const <String, String>{},
+      );
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(id: extId, title: 'Remote'),
+      ]);
+
+      expect(await service.enqueueSongs([extId]), 1);
+
+      expect((await queue()).map((i) => i.songId), [extId]);
+    }, skip: !sqliteAvailable);
+  });
+
+  test('a download failure logs its reason and detail', () async {
+    final logged = <String>[];
+    void listener(LogEvent event) {
+      if (event.level == Level.warning) logged.add('${event.message}');
+    }
+
+    Logger.addLogListener(listener);
+    addTearDown(() => Logger.removeLogListener(listener));
+    server
+      ..failStatus = 404
+      ..releaseAll();
+    final service = buildService();
+    await service.start();
+    await addSongs(1);
+    await service.enqueueSong('song-0');
+    await service.processQueuedDownloads();
+
+    expect(
+      logged,
+      contains(
+        allOf(contains('song-0'), contains('notFound'), contains('HTTP 404')),
+      ),
+    );
+  }, skip: !sqliteAvailable || Platform.isWindows);
+
+  test(
+    'a storage write failure keeps its cause in the detail and the log',
+    () async {
+      final logged = <String>[];
+      void listener(LogEvent event) => logged.add('${event.message}');
+      Logger.addLogListener(listener);
+      addTearDown(() => Logger.removeLogListener(listener));
+      server
+        ..failure = const FileSystemException(
+          'writeFrom failed',
+          '/storage/emulated/0/Music/secret-name.flac',
+          OSError('Input/output error', 5),
+        )
+        ..releaseAll();
+      final service = buildService();
+      await service.start();
+      await addSongs(1);
+      await service.enqueueSong('song-0');
+      await service.processQueuedDownloads();
+
+      final detail = (await queue()).single.failureDetail!;
+      expect(detail, startsWith('File write failed: FileSystemException'));
+      expect(detail, contains('Input/output error'));
+      expect(detail, isNot(contains('secret-name')));
+      expect(logged, contains(contains('Input/output error')));
+    },
+    skip: !sqliteAvailable || Platform.isWindows,
+  );
+
+  for (final (name, error, secrets) in <(String, Object, List<String>)>[
+    (
+      'a rename failure',
+      const FileSystemException(
+        "Cannot rename file to '/storage/emulated/0/Music/secret-name.flac'",
+        '/storage/emulated/0/Music/secret-name.flac.part',
+        OSError('No such file or directory', 2),
+      ),
+      ['secret-name'],
+    ),
+    (
+      'a platform failure',
+      PlatformException(
+        code: 'saf',
+        message:
+            'Cannot write content://com.android.externalstorage.documents/'
+            'tree/primary%3AMusic/secret-name.flac in /sdcard/Music/secret-name.flac',
+      ),
+      ['secret-name'],
+    ),
+    (
+      'a quoted path with an apostrophe',
+      const FileSystemException(
+        "Cannot rename file to '/storage/emulated/0/Music/Guns N' Roses/x.flac'",
+        '',
+        OSError('No such file or directory', 2),
+      ),
+      ['Roses', 'Guns', 'x.flac', 'Music'],
+    ),
+    (
+      'a Windows path with spaces',
+      const FileSystemException(
+        r'Cannot open file C:\Users\Jane Doe\Music\Secret Song.flac',
+        '',
+        OSError('Access is denied', 5),
+      ),
+      ['Jane', 'Doe', 'Secret', 'Song', 'Users'],
+    ),
+    (
+      'an unquoted path with spaces',
+      const FileSystemException(
+        'Cannot open file /storage/emulated/0/Music/My Secret Song.flac',
+        '',
+        OSError('Permission denied', 13),
+      ),
+      ['Secret', 'Song', 'My ', 'Music', 'storage'],
+    ),
+  ]) {
+    test('$name leaves no path in the detail or the log', () async {
+      final logged = <String>[];
+      void listener(LogEvent event) => logged.add('${event.message}');
+      Logger.addLogListener(listener);
+      addTearDown(() => Logger.removeLogListener(listener));
+      server
+        ..failure = error
+        ..releaseAll();
+      final service = buildService();
+      await service.start();
+      await addSongs(1);
+      await service.enqueueSong('song-0');
+      await service.processQueuedDownloads();
+
+      final detail = (await queue()).single.failureDetail!;
+      for (final secret in secrets) {
+        expect(detail, isNot(contains(secret)));
+      }
+      expect(detail, isNot(contains('/storage')));
+      expect(detail, isNot(contains('content://')));
+      expect(detail, isNot(contains('/sdcard')));
+      expect(
+        logged.where(
+          (l) =>
+              l.contains('download of song-0') &&
+              (l.contains('failed') || l.contains('held')),
+        ),
+        isNotEmpty,
+      );
+      for (final line in logged) {
+        for (final secret in secrets) {
+          expect(line, isNot(contains(secret)));
+        }
+      }
+    }, skip: !sqliteAvailable || Platform.isWindows);
+  }
 
   for (final code in [404, 410, 500, 503, 403]) {
     test(

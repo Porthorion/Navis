@@ -136,6 +136,25 @@ void main() {
     await db.close();
   });
 
+  test('remote copy ids are never sent; the cleanup owns them', () async {
+    await db.starSyncDao.queueStarAction(
+      itemId: 'ext-deezer-song-9',
+      itemType: 'song',
+      action: 'star',
+    );
+    await db.starSyncDao.queueStarAction(
+      itemId: 's',
+      itemType: 'song',
+      action: 'star',
+    );
+
+    await dispatcher.flush();
+
+    expect(requests.map((r) => r.queryParameters['id']), ['s']);
+    final left = await db.starSyncDao.getPendingActions();
+    expect(left.map((r) => r.itemId), ['ext-deezer-song-9']);
+  });
+
   test('another database owner blocks dispatch and cannot be acknowledged by stale owner', () async {
     await db.starSyncDao.setStarred(itemId: 's', itemType: 'song', liked: true);
     expect(

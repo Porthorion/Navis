@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter/services.dart';
 import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:path/path.dart' as p;
@@ -14,13 +15,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/data/download_service.dart';
 import 'package:navis/src/features/downloads/data/permanent_download_path_resolver.dart';
@@ -847,6 +848,83 @@ void main() {
     expect(item.retryCount, 0);
     expect(find.text('The download was cut short. Try again.'), findsNothing);
   }, skip: !sqliteAvailable);
+
+  for (final status in <DownloadStatus>[
+    DownloadStatus.failed,
+    DownloadStatus.queued,
+  ])
+    testWidgets(
+      'long-pressing a ${status.name} download copies its error details',
+      (tester) async {
+        await tester.runAsync(
+          () => database.downloadQueueDao.enqueue(
+            DownloadQueueTableCompanion.insert(
+              songId: const Value('failed-song'),
+              status: status,
+              addedAt: DateTime(2026),
+              failureReason: const Value(DownloadFailureReason.truncated),
+              failureDetail: const Value('4 / 10 bytes'),
+            ),
+          ),
+        );
+        String? copied;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copied = (call.arguments as Map)['text'] as String?;
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        final notices = AppNoticeController();
+        addTearDown(notices.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: withTestDatabase(
+              database,
+              overrides: [
+                downloadFolderProblemProvider.overrideWithValue(
+                  const AsyncData(null),
+                ),
+                permanentCachedTracksProvider.overrideWithValue(
+                  const AsyncData(<CachedTracksTableData>[]),
+                ),
+                downloadRelatedSongsProvider.overrideWith(
+                  (ref) => Stream.value(<String, SongsTableData>{}),
+                ),
+                songByIdProvider.overrideWith((ref, id) => Stream.value(null)),
+              ],
+            ),
+            child: MaterialApp(
+              builder: (_, child) =>
+                  AppNoticeScope(notifier: notices, child: child!),
+              theme: testTheme(),
+              localizationsDelegates: navisLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const DownloadsScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.longPress(find.text('failed-song'));
+        await tester.pumpAndSettle();
+
+        expect(copied, 'truncated: 4 / 10 bytes');
+        expect(notices.notice?.message, 'Error details copied');
+        await tester.pump(const Duration(seconds: 3));
+        // The row text stays plain language.
+        expect(find.textContaining('4 / 10 bytes'), findsNothing);
+      },
+      skip: !sqliteAvailable,
+    );
 
   testWidgets('download queue marks the paused current song', (tester) async {
     const song = SongsTableData(

@@ -587,11 +587,13 @@ class _MediaInfoRows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    // Room for the label and its admin tag.
-    final labelWidth = rows.any((row) => row.admin) ? 172.0 : 100.0;
+    final labelStyle = theme.textTheme.bodySmall?.copyWith(
+      color: colors.onSurfaceVariant,
+    );
+    Widget valueText(MediaInfoRow row) =>
+        SelectableText(row.value, style: theme.textTheme.bodySmall);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
@@ -600,56 +602,26 @@ class _MediaInfoRows extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: Semantics(
               container: true,
-              label:
-                  '${row.label}${row.admin ? ' (${l10n.mediaInfoAdminTag})' : ''}'
-                  ': ${row.value}',
+              label: '${row.label}: ${row.value}',
               excludeSemantics: true,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  SizedBox(
-                    width: labelWidth,
-                    child: Row(
+              child: row.stacked
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: <Widget>[
-                        Flexible(
-                          child: Text(
-                            row.label,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.onSurfaceVariant,
-                            ),
-                          ),
+                        Text(row.label, style: labelStyle),
+                        valueText(row),
+                      ],
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        SizedBox(
+                          width: 100,
+                          child: Text(row.label, style: labelStyle),
                         ),
-                        if (row.admin) ...<Widget>[
-                          const SizedBox(width: 6),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              border: Border.all(color: colors.tertiary),
-                              borderRadius: NavisRadius.xsAll,
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                              ),
-                              child: Text(
-                                l10n.mediaInfoAdminTag,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: colors.tertiary,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
+                        Expanded(child: valueText(row)),
                       ],
                     ),
-                  ),
-                  Expanded(
-                    child: SelectableText(
-                      row.value,
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
       ],
@@ -658,12 +630,13 @@ class _MediaInfoRows extends StatelessWidget {
 }
 
 class MediaInfoRow {
-  const new(this.label, this.value, {this.admin = false});
+  const new(this.label, this.value, {this.stacked = false});
   final String label;
   final String value;
 
-  /// Shown only to server admins; the row carries an "admin" tag.
-  final bool admin;
+  /// A long value (the server path) sits on its own full-width line under
+  /// its label instead of a narrow column beside it.
+  final bool stacked;
 }
 
 enum MediaInfoOrigin { downloaded, server, remote }
@@ -884,7 +857,7 @@ MediaInfo buildMediaInfo({
     admin: <MediaInfoRow>[
       if (isAdmin)
         if (text(server?['path']) case final path?)
-          MediaInfoRow(l10n.mediaInfoServerPath, path, admin: true),
+          MediaInfoRow(l10n.mediaInfoServerPath, path, stacked: true),
     ],
     library: <MediaInfoRow>[
       if (song.playCount case final plays? when plays > 0)
