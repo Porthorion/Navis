@@ -1,0 +1,3148 @@
+{
+ "query": "Yesterday",
+ "server": {
+  "artist": [
+   {
+    "id": "ext-deezer-artist-510319",
+    "name": "Yesterday",
+    "albumCount": 91,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-9143032",
+    "name": "Yesterday & Tomorrow",
+    "albumCount": 3,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-80927",
+    "name": "Y&T",
+    "albumCount": 28,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-13880",
+    "name": "Trading Yesterday",
+    "albumCount": 3,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-1850",
+    "name": "Yesterday's New Quintet",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-65738632",
+    "name": "Alott",
+    "albumCount": 19,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-85420582",
+    "name": "Los Yesterdays",
+    "albumCount": 11,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-7776046",
+    "name": "Xplore Yesterday",
+    "albumCount": 6,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-13341161",
+    "name": "About Yesterday",
+    "albumCount": 9,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-352596622",
+    "name": "Jude",
+    "albumCount": 14,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-319317",
+    "name": "Yesterday's Children",
+    "albumCount": 3,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-12852481",
+    "name": "Famous Yesterday",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-289568141",
+    "name": "Stuck In Yesterday",
+    "albumCount": 4,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-60522822",
+    "name": "Ye$terday",
+    "albumCount": 8,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-271096",
+    "name": "A Look At Yesterday",
+    "albumCount": 0,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-14121793",
+    "name": "Chase Yesterday",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-285538041",
+    "name": "Echoes of Yesterday",
+    "albumCount": 29,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-6239566",
+    "name": "You vs Yesterday",
+    "albumCount": 14,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-4800709",
+    "name": "Kiss Me Yesterday",
+    "albumCount": 3,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-4043335",
+    "name": "Waiting for Yesterday",
+    "albumCount": 2,
+    "isExternal": true
+   }
+  ],
+  "album": [
+   {
+    "id": "ext-deezer-album-315899",
+    "name": "Yesterday",
+    "artist": "Pat Coil",
+    "artistId": "ext-deezer-artist-113592",
+    "songCount": 12,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-1337541",
+    "name": "Yesterday",
+    "artist": "Will Downing",
+    "artistId": "ext-deezer-artist-74346",
+    "songCount": 4,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-100538662",
+    "name": "Yesterday (Original Motion Picture Soundtrack)",
+    "artist": "Himesh Patel",
+    "artistId": "ext-deezer-artist-58760512",
+    "songCount": 27,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-87869212",
+    "name": "Yesterday",
+    "artist": "Vintage Culture",
+    "artistId": "ext-deezer-artist-4782876",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-241051102",
+    "name": "Yesterday",
+    "artist": "Bossa Bros",
+    "artistId": "ext-deezer-artist-207759",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-183867172",
+    "name": "Yesterday",
+    "artist": "Loyle Carner",
+    "artistId": "ext-deezer-artist-7704646",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-6958643",
+    "name": "Yesterday & Today Live",
+    "artist": "Y&T",
+    "artistId": "ext-deezer-artist-80927",
+    "songCount": 13,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-394056067",
+    "name": "Yesterday",
+    "artist": "Worldtraveller",
+    "artistId": "ext-deezer-artist-12244192",
+    "songCount": 3,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-7638561",
+    "name": "Yesterday & Today",
+    "artist": "Theowdros Tadesse",
+    "artistId": "ext-deezer-artist-5028295",
+    "songCount": 22,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-997974121",
+    "name": "Yesterday",
+    "artist": "Toosii",
+    "artistId": "ext-deezer-artist-12558830",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-1008277861",
+    "name": "Yesterday",
+    "artist": "Small Things",
+    "artistId": "ext-deezer-artist-10239028",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-206512602",
+    "name": "Yesterday (Honkai Impact 3rd Original Soundtrack)",
+    "artist": "HOYO-MiX",
+    "artistId": "ext-deezer-artist-56170302",
+    "songCount": 39,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-7261917",
+    "name": "Yesterday",
+    "artist": "Grave Digger",
+    "artistId": "ext-deezer-artist-3798",
+    "songCount": 4,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-291892802",
+    "name": "Yesterday (feat. Roscoe)",
+    "artist": "Nate Dogg",
+    "artistId": "ext-deezer-artist-359",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-1031234252",
+    "name": "Yesterday",
+    "artist": "Daniel Leggs",
+    "artistId": "ext-deezer-artist-173071437",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-814840411",
+    "name": "Yesterday (Deluxe Expanded)",
+    "artist": "Tyler Shaw",
+    "artistId": "ext-deezer-artist-4115757",
+    "songCount": 21,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-1345434",
+    "name": "Yesterday",
+    "artist": "Toni Braxton",
+    "artistId": "ext-deezer-artist-1760",
+    "songCount": 5,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-47963152",
+    "name": "On My Line",
+    "artist": "Lu Cane",
+    "artistId": "ext-deezer-artist-11856561",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-406920617",
+    "name": "Yesterday",
+    "artist": "Jay Park",
+    "artistId": "ext-deezer-artist-650215",
+    "songCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-378627827",
+    "name": "Yesterday",
+    "artist": "Catch Your Breath",
+    "artistId": "ext-deezer-artist-12893803",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-696081181",
+    "name": "Rabbit Holes",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2025,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-373059197",
+    "name": "Don't Forget 2 Breathe (Deluxe)",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2023,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-365279127",
+    "name": "Don't Forget 2 Breathe",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2023,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-400261257",
+    "name": "Interior Monologue",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2024,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-185905212",
+    "name": "sailor jerry",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2020,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-133939122",
+    "name": "singles (2017-2019)",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2020,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-118905602",
+    "name": "good on it all",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2019,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-75375002",
+    "name": "boy toy",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2018,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-400240777",
+    "name": "Fallen Angel",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2023,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-54409482",
+    "name": "burden boy",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2018,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-60063382",
+    "name": "Strangers Don't Run (Deluxe Edition)",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2017,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-6250729",
+    "name": "Red Hot to Red Bank",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2010,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-111154692",
+    "name": "Innocent Vacations",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2018,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-76569632",
+    "name": "loner",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2018,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-81417112",
+    "name": "over it",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2018,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-53930982",
+    "name": "the chronicles of cpt. sad",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2017,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-13980260",
+    "name": "Suburban Blues",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2016,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-12498098",
+    "name": "Dark Light",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2016,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-990327861",
+    "name": "Debby Ryan",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2026,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-984264781",
+    "name": "City Love",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2026,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-967790771",
+    "name": "So Gone",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2026,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-802347891",
+    "name": "HEMI",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2025,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-799521381",
+    "name": "Zombie",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2025,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-792656261",
+    "name": "47",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2025,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-790248951",
+    "name": "Have You Seen It?",
+    "artist": "Yesterday",
+    "artistId": "ext-deezer-artist-510319",
+    "songCount": 0,
+    "year": 2025,
+    "isExternal": true
+   },
+   {
+    "id": "pl-deezer-15172304603",
+    "name": "i wasnt born yesterday",
+    "artist": "🎵 Deezer",
+    "artistId": "curator-deezer-ntdsjymcm",
+    "songCount": 144,
+    "year": 2026
+   },
+   {
+    "id": "pl-deezer-15629838003",
+    "name": "Yesterday",
+    "artist": "🎵 Deezer",
+    "artistId": "curator-deezer-anonymous",
+    "songCount": 89,
+    "year": 2026
+   },
+   {
+    "id": "pl-deezer-15065166863",
+    "name": "Now & Yesterday",
+    "artist": "🎵 Deezer",
+    "artistId": "curator-deezer-pablo-durán",
+    "songCount": 653,
+    "year": 2026
+   },
+   {
+    "id": "pl-deezer-14661761721",
+    "name": "Everyday is the same as yesterday ",
+    "artist": "🎵 Deezer",
+    "artistId": "curator-deezer-nico26",
+    "songCount": 436,
+    "year": 2025
+   },
+   {
+    "id": "pl-deezer-15214917763",
+    "name": "Yesterday",
+    "artist": "🎵 Deezer",
+    "artistId": "curator-deezer-boa",
+    "songCount": 198,
+    "year": 2026
+   }
+  ],
+  "song": [
+   {
+    "id": "2ofdpaJGngb61C5tuFpJJd",
+    "title": "Slaves of Yesterday",
+    "album": "Doomsday Machine",
+    "albumId": "6EciUcxyFPM8eURiQmnrsD",
+    "artist": "Arch Enemy",
+    "artistId": "30dO6RXmqENqbHoR7P3ugg",
+    "track": 11,
+    "year": 2005,
+    "duration": 301,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1051,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "4QhLOXwdMq9N5devkCS9oa",
+    "title": "Yesterday To Tomorrow",
+    "album": "Out of Exile",
+    "albumId": "3haTQzilItcis2g8pNiVlI",
+    "artist": "Audioslave",
+    "artistId": "1I2uNyCHI5M1NxNSXR045F",
+    "track": 9,
+    "year": 2005,
+    "duration": 273,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1026,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "0jacd6JyBRmKoiB8NCvlfn",
+    "title": "Lost In Yesterday",
+    "album": "The Slow Rush",
+    "albumId": "2RZPziNYlOWkXzKmc8jTGZ",
+    "artist": "Tame Impala",
+    "artistId": "17YTaZX3QiETeVBkPZxBG4",
+    "track": 8,
+    "year": 2020,
+    "duration": 249,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 902,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "2s2TREfP4AjUd85hkwfOp1",
+    "title": "Yesterday Is Dead and Gone",
+    "album": "Khaos Legions",
+    "albumId": "2AORkExCzNkyuwiEqFmhID",
+    "artist": "Arch Enemy",
+    "artistId": "30dO6RXmqENqbHoR7P3ugg",
+    "track": 2,
+    "year": 2011,
+    "duration": 261,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1048,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "2ZFAfps2iddHxdNsxT6ayj",
+    "title": "Yesterday",
+    "album": "Best of 2022",
+    "albumId": "5oKpMDho9ZKiqlkb52W0GV",
+    "artist": "No Mana",
+    "artistId": "0Zwb5zDKxrgJV603FHyAPw",
+    "track": 8,
+    "year": 2022,
+    "duration": 273,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1074,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "7p72Ht05EzuS29jZ14LDXS",
+    "title": "From Yesterday",
+    "album": "A Beautiful Lie",
+    "albumId": "1JaXlq1Wct8SKHAhO4Y75h",
+    "artist": "Thirty Seconds To Mars",
+    "artistId": "2UwKGLn3LN1fXnZQvdcpBA",
+    "track": 7,
+    "year": 2005,
+    "duration": 247,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 987,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "6ooEf4e0Rh9AUBIqCvk0fW",
+    "title": "YESTERDAY",
+    "album": "beatmania IIDX 6th style Original Soundtrack",
+    "albumId": "3rFB22OytKTQYXf7MMLOqw",
+    "artist": "CHERRY",
+    "artistId": "0ZkNLkhluBJXUk5UhKMtY1",
+    "track": 6,
+    "year": 2002,
+    "duration": 116,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1043,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "6kP1yN2PuTw1IPZzRCl5ws",
+    "title": "Echoes of Yesterday",
+    "album": "Beneath the Stars of the Old Night(Original Game Soundtrack)",
+    "albumId": "69EGj78O1IfHZWUoppwf8U",
+    "artist": "Wuthering Waves",
+    "artistId": "5goKccHzIe86hhGEF7i3tg",
+    "track": 28,
+    "year": 2026,
+    "duration": 105,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 784,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "0Tx3ZTKewZ6TMaVGWVOcFj",
+    "title": "Ashes of Yesterday",
+    "album": "Sun Chaser's Path（Original Game Soundtrack）",
+    "albumId": "4msvxayrdKqM5qAFps0e80",
+    "artist": "Wuthering Waves; markmilian",
+    "artistId": "5goKccHzIe86hhGEF7i3tg",
+    "track": 8,
+    "year": 2025,
+    "duration": 117,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 705,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "4qF2cGTbVJuuB8iEHYdLiA",
+    "title": "Ruins of Yesterday",
+    "album": "Stars Inscribed Upon Open Skies (Honkai Impact 3rd Original Soundtrack)",
+    "albumId": "5tllEXCwlHixzD7MPdxXS6",
+    "artist": "HOYO-MiX",
+    "artistId": "07bz6CZql2vEcoWVLLKOAL",
+    "track": 12,
+    "year": 2025,
+    "duration": 100,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 971,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "53Xjm1r3jLj6fIZMUoUGNH",
+    "title": "From Yesterday to Tomorrow, Us Together",
+    "album": "Fly Toward Spring(Original Game Soundtrack)",
+    "albumId": "4rDOqWn9OsM6tTIe8ETAfJ",
+    "artist": "Wuthering Waves • baitian",
+    "artistId": "5goKccHzIe86hhGEF7i3tg",
+    "track": 5,
+    "year": 2026,
+    "duration": 199,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 736,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "1zu2JzthbdjL2araBkBKxD",
+    "title": "I Saw Linda Yesterday",
+    "album": "Ljuva 60 Tal Let the Good Times Roll 1960-1963",
+    "albumId": "1EAaZPMHoxti8spjXuYCqh",
+    "artist": "Dickey Lee",
+    "artistId": "1m90QWX69OwwDRsSlhSaVI",
+    "track": 5,
+    "year": 2015,
+    "duration": 119,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 937,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "5aoo0LuWtfesd9h3JiZIMk",
+    "title": "Yesterday, Today, and Tomorrow",
+    "album": "TV Animation \"Umamusume Pretty Derby\" ANIMATION DERBY Season 2 vol.3 Original Soundtrack",
+    "albumId": "5lplV0JjfNwUbC6BCJ9mNg",
+    "artist": "UTAMARO Movement",
+    "artistId": "0JLC5l5fiejZsLlKXboJ77",
+    "track": 3,
+    "year": 2021,
+    "duration": 106,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 706,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "50fs4xkqPeh6uqKgbTcYIK",
+    "title": "As Tomorrow Became Yesterday",
+    "album": "Honkai: Star Rail - Experience the Paths Vol. 5 (Original Game Soundtrack)",
+    "albumId": "3MAwWGsoPmsVZhnoDPH4og",
+    "artist": "HOYO-MiX",
+    "artistId": "07bz6CZql2vEcoWVLLKOAL",
+    "track": 18,
+    "year": 2025,
+    "duration": 207,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 700,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "3WlLZFFjmheQalvVgXXK2P",
+    "title": "Yesterday's Prosperity",
+    "album": "极限委托",
+    "albumId": "3FMJqL1yllsamkHCqLwSnV",
+    "artist": "Sān‐Z",
+    "artistId": "43Dkq2X2PSeyVIP6KiHCFw",
+    "track": 11,
+    "year": 2024,
+    "duration": 138,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1558,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "7jngrrsVkl5I3jJJOMctL2",
+    "title": "Repeating Yesterday",
+    "album": "Shadows Are Security",
+    "albumId": "16jLjiCNRrAxyOOQtkBWBg",
+    "artist": "As I Lay Dying",
+    "artistId": "1uGlm5vTRkMnEMglHxjjVG",
+    "track": 7,
+    "year": 2005,
+    "duration": 242,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 903,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "5rn32I6cfNIsqqPL1v124w",
+    "title": "Of All These Yesterdays",
+    "album": "In Waves",
+    "albumId": "1j8PIKHyFgVFXevMdRl1Ye",
+    "artist": "Trivium",
+    "artistId": "28hVG6bSjtwkGfbOLicn1c",
+    "track": 12,
+    "year": 2011,
+    "duration": 261,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1018,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "0RKk7nORc23EqwYvB3K5v8",
+    "title": "Of All These Yesterdays",
+    "album": "In Waves (Special Edition)",
+    "albumId": "76LdkE3FV42VhcBgMS5Bvb",
+    "artist": "Trivium",
+    "artistId": "28hVG6bSjtwkGfbOLicn1c",
+    "track": 15,
+    "year": 2011,
+    "duration": 261,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1018,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "2zKFHkzMuEhyVkZVWVDxWt",
+    "title": "Yesterdays",
+    "album": "STRANGER OF PARADISE FINAL FANTASY ORIGIN Original Soundtrack",
+    "albumId": "3Iw6IRq6ju9LmVwWWWk0bj",
+    "artist": "Naoshi Mizuta",
+    "artistId": "2EVpIgCYgKv6K3JQ2jlejN",
+    "track": 95,
+    "year": 2022,
+    "duration": 433,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 713,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "ext-deezer-song-3416394251",
+    "title": "YESTERDAY",
+    "album": "MANIA",
+    "albumId": "ext-deezer-album-773205091",
+    "artist": "Hamza",
+    "artistId": "ext-deezer-artist-171998",
+    "track": 0,
+    "year": 0,
+    "duration": 219,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-116348612",
+    "title": "Yesterday (Remastered 2015)",
+    "album": "1 (Remastered 2015)",
+    "albumId": "ext-deezer-album-12047956",
+    "artist": "The Beatles",
+    "artistId": "ext-deezer-artist-1",
+    "track": 0,
+    "year": 0,
+    "duration": 123,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-116348366",
+    "title": "Yesterday (Remastered 2009)",
+    "album": "Help! (Remastered 2009)",
+    "albumId": "ext-deezer-album-12047944",
+    "artist": "The Beatles",
+    "artistId": "ext-deezer-artist-1",
+    "track": 0,
+    "year": 0,
+    "duration": 123,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-1420076512",
+    "title": "Yesterday",
+    "album": "Yesterday",
+    "albumId": "ext-deezer-album-241051102",
+    "artist": "Bossa Bros",
+    "artistId": "ext-deezer-artist-207759",
+    "track": 0,
+    "year": 0,
+    "duration": 188,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-528330481",
+    "title": "Yesterday",
+    "album": "Evolve",
+    "albumId": "ext-deezer-album-68346981",
+    "artist": "Imagine Dragons",
+    "artistId": "ext-deezer-artist-416239",
+    "track": 0,
+    "year": 0,
+    "duration": 205,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-4053466931",
+    "title": "yesterday",
+    "album": "crybaby",
+    "albumId": "ext-deezer-album-994314001",
+    "artist": "Lil Peep",
+    "artistId": "ext-deezer-artist-11420468",
+    "track": 0,
+    "year": 0,
+    "duration": 112,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-4159435702",
+    "title": "Yesterday",
+    "album": "Yesterday",
+    "albumId": "ext-deezer-album-1031234252",
+    "artist": "Daniel Leggs",
+    "artistId": "ext-deezer-artist-173071437",
+    "track": 0,
+    "year": 0,
+    "duration": 149,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-405816532",
+    "title": "On My Line",
+    "album": "On My Line",
+    "albumId": "ext-deezer-album-47963152",
+    "artist": "Lu Cane",
+    "artistId": "ext-deezer-artist-11856561",
+    "track": 0,
+    "year": 0,
+    "duration": 267,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-646313682",
+    "title": "Yesterday",
+    "album": "Revolution",
+    "albumId": "ext-deezer-album-89923452",
+    "artist": "Janoska Ensemble",
+    "artistId": "ext-deezer-artist-10077374",
+    "track": 0,
+    "year": 0,
+    "duration": 281,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-1130752542",
+    "title": "Yesterday",
+    "album": "Yesterday",
+    "albumId": "ext-deezer-album-183867172",
+    "artist": "Loyle Carner",
+    "artistId": "ext-deezer-artist-7704646",
+    "track": 0,
+    "year": 0,
+    "duration": 168,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-70835064",
+    "title": "Yesterday",
+    "album": "My Way (Expanded Edition)",
+    "albumId": "ext-deezer-album-6954983",
+    "artist": "Frank Sinatra",
+    "artistId": "ext-deezer-artist-617",
+    "track": 0,
+    "year": 0,
+    "duration": 239,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-14616470",
+    "title": "Yesterday (feat. Trey Songz) (Toni/Trey Version)",
+    "album": "Yesterday",
+    "albumId": "ext-deezer-album-1345434",
+    "artist": "Toni Braxton",
+    "artistId": "ext-deezer-artist-1760",
+    "track": 0,
+    "year": 0,
+    "duration": 226,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-540187382",
+    "title": "Yesterday",
+    "album": "Motown Meets The Beatles",
+    "albumId": "ext-deezer-album-70491272",
+    "artist": "Marvin Gaye",
+    "artistId": "ext-deezer-artist-1154",
+    "track": 0,
+    "year": 0,
+    "duration": 205,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-7314705",
+    "title": "Yesterday",
+    "album": "II",
+    "albumId": "ext-deezer-album-675028",
+    "artist": "Boyz II Men",
+    "artistId": "ext-deezer-artist-799",
+    "track": 0,
+    "year": 0,
+    "duration": 188,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-2304533385",
+    "title": "Yesterday",
+    "album": "DRIVE",
+    "albumId": "ext-deezer-album-447601055",
+    "artist": "Tiësto",
+    "artistId": "ext-deezer-artist-434",
+    "track": 0,
+    "year": 0,
+    "duration": 140,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-4029460611",
+    "title": "Yesterday",
+    "album": "Remember",
+    "albumId": "ext-deezer-album-985732581",
+    "artist": "Sling Dilly",
+    "artistId": "ext-deezer-artist-51974002",
+    "track": 0,
+    "year": 0,
+    "duration": 86,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-2147372367",
+    "title": "Yesterday",
+    "album": "Yesterday",
+    "albumId": "ext-deezer-album-406920617",
+    "artist": "Jay Park",
+    "artistId": "ext-deezer-artist-650215",
+    "track": 0,
+    "year": 0,
+    "duration": 191,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-980936082",
+    "title": "Yesterday",
+    "album": "When Life Gives You Lemons, You Paint That Shit Gold",
+    "albumId": "ext-deezer-album-152613322",
+    "artist": "Atmosphere",
+    "artistId": "ext-deezer-artist-4655",
+    "track": 0,
+    "year": 0,
+    "duration": 204,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-123827816",
+    "title": "Yesterday",
+    "album": "The Collection",
+    "albumId": "ext-deezer-album-12981538",
+    "artist": "Marianne Faithfull",
+    "artistId": "ext-deezer-artist-787",
+    "track": 0,
+    "year": 0,
+    "duration": 134,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3984048751",
+    "title": "Yesterday",
+    "album": "Pursuit of Anything",
+    "albumId": "ext-deezer-album-969058011",
+    "artist": "Vacations",
+    "artistId": "ext-deezer-artist-554672",
+    "track": 0,
+    "year": 0,
+    "duration": 177,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   }
+  ]
+ },
+ "deezer": {
+  "artists": [
+   {
+    "id": 510319,
+    "name": "Yesterday",
+    "nb_fan": 1198,
+    "nb_album": 91
+   },
+   {
+    "id": 9143032,
+    "name": "Yesterday & Tomorrow",
+    "nb_fan": 10,
+    "nb_album": 3
+   },
+   {
+    "id": 80927,
+    "name": "Y&T",
+    "nb_fan": 9475,
+    "nb_album": 28
+   },
+   {
+    "id": 13880,
+    "name": "Trading Yesterday",
+    "nb_fan": 5342,
+    "nb_album": 3
+   },
+   {
+    "id": 1850,
+    "name": "Yesterday's New Quintet",
+    "nb_fan": 904,
+    "nb_album": 2
+   },
+   {
+    "id": 65738632,
+    "name": "Alott",
+    "nb_fan": 879,
+    "nb_album": 19
+   },
+   {
+    "id": 85420582,
+    "name": "Los Yesterdays",
+    "nb_fan": 922,
+    "nb_album": 11
+   },
+   {
+    "id": 7776046,
+    "name": "Xplore Yesterday",
+    "nb_fan": 2361,
+    "nb_album": 6
+   },
+   {
+    "id": 13341161,
+    "name": "About Yesterday",
+    "nb_fan": 19,
+    "nb_album": 9
+   },
+   {
+    "id": 352596622,
+    "name": "Jude",
+    "nb_fan": 117,
+    "nb_album": 14
+   },
+   {
+    "id": 319317,
+    "name": "Yesterday's Children",
+    "nb_fan": 289,
+    "nb_album": 3
+   },
+   {
+    "id": 12852481,
+    "name": "Famous Yesterday",
+    "nb_fan": 18,
+    "nb_album": 2
+   },
+   {
+    "id": 289568141,
+    "name": "Stuck In Yesterday",
+    "nb_fan": 75,
+    "nb_album": 4
+   },
+   {
+    "id": 60522822,
+    "name": "Ye$terday",
+    "nb_fan": 0,
+    "nb_album": 8
+   },
+   {
+    "id": 271096,
+    "name": "A Look At Yesterday",
+    "nb_fan": 19,
+    "nb_album": 0
+   },
+   {
+    "id": 14121793,
+    "name": "Chase Yesterday",
+    "nb_fan": 11,
+    "nb_album": 2
+   },
+   {
+    "id": 285538041,
+    "name": "Echoes of Yesterday",
+    "nb_fan": 8832,
+    "nb_album": 29
+   },
+   {
+    "id": 6239566,
+    "name": "You vs Yesterday",
+    "nb_fan": 185,
+    "nb_album": 14
+   },
+   {
+    "id": 4800709,
+    "name": "Kiss Me Yesterday",
+    "nb_fan": 564,
+    "nb_album": 3
+   },
+   {
+    "id": 4043335,
+    "name": "Waiting for Yesterday",
+    "nb_fan": 15,
+    "nb_album": 2
+   },
+   {
+    "id": 271498822,
+    "name": "Yesterday & Forever",
+    "nb_fan": 0,
+    "nb_album": 1
+   },
+   {
+    "id": 303931331,
+    "name": "Abandoned Yesterday",
+    "nb_fan": 0,
+    "nb_album": 4
+   },
+   {
+    "id": 210788287,
+    "name": "i died yesterday.",
+    "nb_fan": 7,
+    "nb_album": 1
+   },
+   {
+    "id": 148415732,
+    "name": "Buried Yesterday",
+    "nb_fan": 8,
+    "nb_album": 1
+   },
+   {
+    "id": 173071437,
+    "name": "Daniel Leggs",
+    "nb_fan": 875,
+    "nb_album": 30
+   }
+  ],
+  "albums": [
+   {
+    "id": 315899,
+    "title": "Yesterday",
+    "record_type": "album",
+    "nb_tracks": 12,
+    "artist": {
+     "id": 113592,
+     "name": "Pat Coil"
+    }
+   },
+   {
+    "id": 1337541,
+    "title": "Yesterday",
+    "record_type": "ep",
+    "nb_tracks": 4,
+    "artist": {
+     "id": 74346,
+     "name": "Will Downing"
+    }
+   },
+   {
+    "id": 100538662,
+    "title": "Yesterday (Original Motion Picture Soundtrack)",
+    "record_type": "album",
+    "nb_tracks": 27,
+    "artist": {
+     "id": 58760512,
+     "name": "Himesh Patel"
+    }
+   },
+   {
+    "id": 87869212,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 4782876,
+     "name": "Vintage Culture"
+    }
+   },
+   {
+    "id": 241051102,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 207759,
+     "name": "Bossa Bros"
+    }
+   },
+   {
+    "id": 183867172,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 7704646,
+     "name": "Loyle Carner"
+    }
+   },
+   {
+    "id": 6958643,
+    "title": "Yesterday & Today Live",
+    "record_type": "album",
+    "nb_tracks": 13,
+    "artist": {
+     "id": 80927,
+     "name": "Y&T"
+    }
+   },
+   {
+    "id": 394056067,
+    "title": "Yesterday",
+    "record_type": "ep",
+    "nb_tracks": 3,
+    "artist": {
+     "id": 12244192,
+     "name": "Worldtraveller"
+    }
+   },
+   {
+    "id": 7638561,
+    "title": "Yesterday & Today",
+    "record_type": "album",
+    "nb_tracks": 22,
+    "artist": {
+     "id": 5028295,
+     "name": "Theowdros Tadesse"
+    }
+   },
+   {
+    "id": 997974121,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 12558830,
+     "name": "Toosii"
+    }
+   },
+   {
+    "id": 1008277861,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 10239028,
+     "name": "Small Things"
+    }
+   },
+   {
+    "id": 206512602,
+    "title": "Yesterday (Honkai Impact 3rd Original Soundtrack)",
+    "record_type": "album",
+    "nb_tracks": 39,
+    "artist": {
+     "id": 56170302,
+     "name": "HOYO-MiX"
+    }
+   },
+   {
+    "id": 7261917,
+    "title": "Yesterday",
+    "record_type": "ep",
+    "nb_tracks": 4,
+    "artist": {
+     "id": 3798,
+     "name": "Grave Digger"
+    }
+   },
+   {
+    "id": 291892802,
+    "title": "Yesterday (feat. Roscoe)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 359,
+     "name": "Nate Dogg"
+    }
+   },
+   {
+    "id": 1031234252,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 173071437,
+     "name": "Daniel Leggs"
+    }
+   },
+   {
+    "id": 814840411,
+    "title": "Yesterday (Deluxe Expanded)",
+    "record_type": "album",
+    "nb_tracks": 21,
+    "artist": {
+     "id": 4115757,
+     "name": "Tyler Shaw"
+    }
+   },
+   {
+    "id": 1345434,
+    "title": "Yesterday",
+    "record_type": "ep",
+    "nb_tracks": 5,
+    "artist": {
+     "id": 1760,
+     "name": "Toni Braxton"
+    }
+   },
+   {
+    "id": 47963152,
+    "title": "On My Line",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 11856561,
+     "name": "Lu Cane"
+    }
+   },
+   {
+    "id": 406920617,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 2,
+    "artist": {
+     "id": 650215,
+     "name": "Jay Park"
+    }
+   },
+   {
+    "id": 378627827,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 12893803,
+     "name": "Catch Your Breath"
+    }
+   },
+   {
+    "id": 953306821,
+    "title": "yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 259074882,
+     "name": "Kay tear"
+    }
+   },
+   {
+    "id": 212601292,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 123764192,
+     "name": "Mona"
+    }
+   },
+   {
+    "id": 78084152,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 541399,
+     "name": "DubVision"
+    }
+   },
+   {
+    "id": 345322487,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 14786745,
+     "name": "Nana Bebê"
+    }
+   },
+   {
+    "id": 265732812,
+    "title": "Yesterday",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 10340464,
+     "name": "Drawoh"
+    }
+   }
+  ],
+  "tracks": [
+   {
+    "id": 3416394251,
+    "title": "YESTERDAY",
+    "title_short": "YESTERDAY",
+    "title_version": "",
+    "duration": 219,
+    "rank": 794748,
+    "artist": {
+     "id": 171998,
+     "name": "Hamza"
+    },
+    "album": {
+     "id": 773205091,
+     "title": "MANIA"
+    }
+   },
+   {
+    "id": 116348612,
+    "title": "Yesterday (Remastered 2015)",
+    "title_short": "Yesterday",
+    "title_version": "(Remastered 2015)",
+    "duration": 123,
+    "rank": 815446,
+    "artist": {
+     "id": 1,
+     "name": "The Beatles"
+    },
+    "album": {
+     "id": 12047956,
+     "title": "1 (Remastered 2015)"
+    }
+   },
+   {
+    "id": 116348366,
+    "title": "Yesterday (Remastered 2009)",
+    "title_short": "Yesterday",
+    "title_version": "(Remastered 2009)",
+    "duration": 123,
+    "rank": 651484,
+    "artist": {
+     "id": 1,
+     "name": "The Beatles"
+    },
+    "album": {
+     "id": 12047944,
+     "title": "Help! (Remastered 2009)"
+    }
+   },
+   {
+    "id": 1420076512,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 188,
+    "rank": 563687,
+    "artist": {
+     "id": 207759,
+     "name": "Bossa Bros"
+    },
+    "album": {
+     "id": 241051102,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 528330481,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 205,
+    "rank": 507765,
+    "artist": {
+     "id": 416239,
+     "name": "Imagine Dragons"
+    },
+    "album": {
+     "id": 68346981,
+     "title": "Evolve"
+    }
+   },
+   {
+    "id": 4053466931,
+    "title": "yesterday",
+    "title_short": "yesterday",
+    "title_version": "",
+    "duration": 112,
+    "rank": 456749,
+    "artist": {
+     "id": 11420468,
+     "name": "Lil Peep"
+    },
+    "album": {
+     "id": 994314001,
+     "title": "crybaby"
+    }
+   },
+   {
+    "id": 4159435702,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 149,
+    "rank": 456386,
+    "artist": {
+     "id": 173071437,
+     "name": "Daniel Leggs"
+    },
+    "album": {
+     "id": 1031234252,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 405816532,
+    "title": "On My Line",
+    "title_short": "On My Line",
+    "title_version": "",
+    "duration": 267,
+    "rank": 405059,
+    "artist": {
+     "id": 11856561,
+     "name": "Lu Cane"
+    },
+    "album": {
+     "id": 47963152,
+     "title": "On My Line"
+    }
+   },
+   {
+    "id": 646313682,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 281,
+    "rank": 369754,
+    "artist": {
+     "id": 10077374,
+     "name": "Janoska Ensemble"
+    },
+    "album": {
+     "id": 89923452,
+     "title": "Revolution"
+    }
+   },
+   {
+    "id": 1130752542,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 168,
+    "rank": 408766,
+    "artist": {
+     "id": 7704646,
+     "name": "Loyle Carner"
+    },
+    "album": {
+     "id": 183867172,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 70835064,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 239,
+    "rank": 367732,
+    "artist": {
+     "id": 617,
+     "name": "Frank Sinatra"
+    },
+    "album": {
+     "id": 6954983,
+     "title": "My Way (Expanded Edition)"
+    }
+   },
+   {
+    "id": 14616470,
+    "title": "Yesterday (feat. Trey Songz) (Toni/Trey Version)",
+    "title_short": "Yesterday (feat. Trey Songz)",
+    "title_version": "(Toni/Trey Version)",
+    "duration": 226,
+    "rank": 382313,
+    "artist": {
+     "id": 1760,
+     "name": "Toni Braxton"
+    },
+    "album": {
+     "id": 1345434,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 540187382,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 205,
+    "rank": 430379,
+    "artist": {
+     "id": 1154,
+     "name": "Marvin Gaye"
+    },
+    "album": {
+     "id": 70491272,
+     "title": "Motown Meets The Beatles"
+    }
+   },
+   {
+    "id": 7314705,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 188,
+    "rank": 379588,
+    "artist": {
+     "id": 799,
+     "name": "Boyz II Men"
+    },
+    "album": {
+     "id": 675028,
+     "title": "II"
+    }
+   },
+   {
+    "id": 2304533385,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 140,
+    "rank": 362588,
+    "artist": {
+     "id": 434,
+     "name": "Tiësto"
+    },
+    "album": {
+     "id": 447601055,
+     "title": "DRIVE"
+    }
+   },
+   {
+    "id": 4029460611,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 86,
+    "rank": 348529,
+    "artist": {
+     "id": 51974002,
+     "name": "Sling Dilly"
+    },
+    "album": {
+     "id": 985732581,
+     "title": "Remember"
+    }
+   },
+   {
+    "id": 2147372367,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 191,
+    "rank": 368872,
+    "artist": {
+     "id": 650215,
+     "name": "Jay Park"
+    },
+    "album": {
+     "id": 406920617,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 980936082,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 204,
+    "rank": 355729,
+    "artist": {
+     "id": 4655,
+     "name": "Atmosphere"
+    },
+    "album": {
+     "id": 152613322,
+     "title": "When Life Gives You Lemons, You Paint That Shit Gold"
+    }
+   },
+   {
+    "id": 123827816,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 134,
+    "rank": 356469,
+    "artist": {
+     "id": 787,
+     "name": "Marianne Faithfull"
+    },
+    "album": {
+     "id": 12981538,
+     "title": "The Collection"
+    }
+   },
+   {
+    "id": 3984048751,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 177,
+    "rank": 333978,
+    "artist": {
+     "id": 554672,
+     "name": "Vacations"
+    },
+    "album": {
+     "id": 969058011,
+     "title": "Pursuit of Anything"
+    }
+   },
+   {
+    "id": 3938797141,
+    "title": "Yesterday (Cover Version)",
+    "title_short": "Yesterday",
+    "title_version": "(Cover Version)",
+    "duration": 123,
+    "rank": 345706,
+    "artist": {
+     "id": 383143871,
+     "name": "The Liverpool Beat Project"
+    },
+    "album": {
+     "id": 953226121,
+     "title": "The Beatles Songbook, Vol. 1, Beatlemania (Cover Version)"
+    }
+   },
+   {
+    "id": 2442083,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 253,
+    "rank": 331585,
+    "artist": {
+     "id": 8597,
+     "name": "Shirley Horn"
+    },
+    "album": {
+     "id": 240475,
+     "title": "May The Music Never End"
+    }
+   },
+   {
+    "id": 4114236981,
+    "title": "yesterday",
+    "title_short": "yesterday",
+    "title_version": "",
+    "duration": 164,
+    "rank": 323994,
+    "artist": {
+     "id": 184011,
+     "name": "Tyler Lewis"
+    },
+    "album": {
+     "id": 1014421671,
+     "title": "yesterday"
+    }
+   },
+   {
+    "id": 1862195807,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 71,
+    "rank": 325146,
+    "artist": {
+     "id": 14786745,
+     "name": "Nana Bebê"
+    },
+    "album": {
+     "id": 345322487,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 420333562,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 254,
+    "rank": 323378,
+    "artist": {
+     "id": 12760545,
+     "name": "Starship Orchestra"
+    },
+    "album": {
+     "id": 50314322,
+     "title": "Celestial Sky"
+    }
+   },
+   {
+    "id": 13659556,
+    "title": "Yesterday (Remastered 1993)",
+    "title_short": "Yesterday",
+    "title_version": "(Remastered 1993)",
+    "duration": 102,
+    "rank": 294910,
+    "artist": {
+     "id": 1446,
+     "name": "Paul McCartney"
+    },
+    "album": {
+     "id": 1250361,
+     "title": "Give My Regards To Broad Street"
+    }
+   },
+   {
+    "id": 1265810632,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 188,
+    "rank": 302922,
+    "artist": {
+     "id": 123764192,
+     "name": "Mona"
+    },
+    "album": {
+     "id": 212601292,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 635271562,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 165,
+    "rank": 298424,
+    "artist": {
+     "id": 4782876,
+     "name": "Vintage Culture"
+    },
+    "album": {
+     "id": 87869212,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 550275,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 179,
+    "rank": 297443,
+    "artist": {
+     "id": 523,
+     "name": "Kenny G"
+    },
+    "album": {
+     "id": 72344,
+     "title": "I'm In The Mood For Love ... The Most Romantic Melodies Of All Time"
+    }
+   },
+   {
+    "id": 60831477,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 222,
+    "rank": 310237,
+    "artist": {
+     "id": 136,
+     "name": "Lasgo"
+    },
+    "album": {
+     "id": 5953046,
+     "title": "Far Away"
+    }
+   },
+   {
+    "id": 2966488671,
+    "title": "yesterday",
+    "title_short": "yesterday",
+    "title_version": "",
+    "duration": 47,
+    "rank": 298893,
+    "artist": {
+     "id": 712754,
+     "name": "Poppy"
+    },
+    "album": {
+     "id": 634894691,
+     "title": "Negative Spaces"
+    }
+   },
+   {
+    "id": 664644732,
+    "title": "Yesterday (From \"Days Gone\" Soundtrack)",
+    "title_short": "Yesterday (From \"Days Gone\" Soundtrack)",
+    "title_version": "",
+    "duration": 168,
+    "rank": 290186,
+    "artist": {
+     "id": 63549422,
+     "name": "Zander Reese"
+    },
+    "album": {
+     "id": 93491262,
+     "title": "Days Gone (Original Soundtrack)"
+    }
+   },
+   {
+    "id": 62756903,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 165,
+    "rank": 321329,
+    "artist": {
+     "id": 1342,
+     "name": "Ray Charles"
+    },
+    "album": {
+     "id": 403380,
+     "title": "Ray Charles"
+    }
+   },
+   {
+    "id": 3906866191,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 149,
+    "rank": 312444,
+    "artist": {
+     "id": 64497632,
+     "name": "SICKOTOY"
+    },
+    "album": {
+     "id": 941964801,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 3632188262,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 442,
+    "rank": 230639,
+    "artist": {
+     "id": 1097216,
+     "name": "Christian Sands"
+    },
+    "album": {
+     "id": 848181482,
+     "title": "Facing Dragons"
+    }
+   },
+   {
+    "id": 2484999,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 233,
+    "rank": 272083,
+    "artist": {
+     "id": 13639,
+     "name": "Leona Lewis"
+    },
+    "album": {
+     "id": 244214,
+     "title": "Spirit"
+    }
+   },
+   {
+    "id": 2533530791,
+    "title": "Yesterday (2023 Mix)",
+    "title_short": "Yesterday",
+    "title_version": "(2023 Mix)",
+    "duration": 126,
+    "rank": 309073,
+    "artist": {
+     "id": 1,
+     "name": "The Beatles"
+    },
+    "album": {
+     "id": 510095571,
+     "title": "The Beatles 1962 – 1966 (2023 Edition)"
+    }
+   },
+   {
+    "id": 551468132,
+    "title": "Yesterday (Candlelight Acoustic)",
+    "title_short": "Yesterday",
+    "title_version": "(Candlelight Acoustic)",
+    "duration": 160,
+    "rank": 271466,
+    "artist": {
+     "id": 524959,
+     "name": "Matt Johnson"
+    },
+    "album": {
+     "id": 72534632,
+     "title": "Yesterday (Candlelight Acoustic)"
+    }
+   },
+   {
+    "id": 3949020791,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 226,
+    "rank": 328511,
+    "artist": {
+     "id": 4615191,
+     "name": "Joey Dale"
+    },
+    "album": {
+     "id": 957111381,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 5931822,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 228,
+    "rank": 252584,
+    "artist": {
+     "id": 1760,
+     "name": "Toni Braxton"
+    },
+    "album": {
+     "id": 539100,
+     "title": "Pulse"
+    }
+   },
+   {
+    "id": 2484177481,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 157,
+    "rank": 275628,
+    "artist": {
+     "id": 5422830,
+     "name": "Imaginary Future"
+    },
+    "album": {
+     "id": 496235161,
+     "title": "I Found You"
+    }
+   },
+   {
+    "id": 1419939812,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 158,
+    "rank": 272424,
+    "artist": {
+     "id": 54606662,
+     "name": "Viva La Panda"
+    },
+    "album": {
+     "id": 241018052,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 3545627281,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 204,
+    "rank": 288711,
+    "artist": {
+     "id": 6051832,
+     "name": "breathe."
+    },
+    "album": {
+     "id": 817770211,
+     "title": "For Your Darkest Days"
+    }
+   },
+   {
+    "id": 750981842,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 299,
+    "rank": 249178,
+    "artist": {
+     "id": 7579730,
+     "name": "OFFICIAL HIGE DANDISM"
+    },
+    "album": {
+     "id": 110571042,
+     "title": "Traveler"
+    }
+   },
+   {
+    "id": 1174645282,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 160,
+    "rank": 263097,
+    "artist": {
+     "id": 112599362,
+     "name": "Pantone"
+    },
+    "album": {
+     "id": 192722622,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 3216469131,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 121,
+    "rank": 261850,
+    "artist": {
+     "id": 1534901,
+     "name": "MarQ"
+    },
+    "album": {
+     "id": 707657451,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 2561102972,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 161,
+    "rank": 283565,
+    "artist": {
+     "id": 4999707,
+     "name": "Alan Walker"
+    },
+    "album": {
+     "id": 517383612,
+     "title": "Walkerworld"
+    }
+   },
+   {
+    "id": 90250619,
+    "title": "Yesterday (feat. Bebe Rexha)",
+    "title_short": "Yesterday (feat. Bebe Rexha)",
+    "title_version": "",
+    "duration": 243,
+    "rank": 302247,
+    "artist": {
+     "id": 542,
+     "name": "David Guetta"
+    },
+    "album": {
+     "id": 9146317,
+     "title": "Listen"
+    }
+   },
+   {
+    "id": 1639716062,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 139,
+    "rank": 244029,
+    "artist": {
+     "id": 1234785,
+     "name": "2CELLOS"
+    },
+    "album": {
+     "id": 291787812,
+     "title": "Dedicated (Extended Edition)"
+    }
+   },
+   {
+    "id": 1041194082,
+    "title": "Yesterday (Live At Citi Field, NYC, 2009)",
+    "title_short": "Yesterday",
+    "title_version": "(Live At Citi Field, NYC, 2009)",
+    "duration": 137,
+    "rank": 284462,
+    "artist": {
+     "id": 1446,
+     "name": "Paul McCartney"
+    },
+    "album": {
+     "id": 164831532,
+     "title": "Good Evening New York City"
+    }
+   },
+   {
+    "id": 8142776,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 139,
+    "rank": 276338,
+    "artist": {
+     "id": 154357,
+     "name": "Sweet Little Band"
+    },
+    "album": {
+     "id": 751204,
+     "title": "Beatles For Babies"
+    }
+   },
+   {
+    "id": 2006633327,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 189,
+    "rank": 256663,
+    "artist": {
+     "id": 235043301,
+     "name": "Noname"
+    },
+    "album": {
+     "id": 373693007,
+     "title": "Telefone"
+    }
+   },
+   {
+    "id": 3592363,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 226,
+    "rank": 260462,
+    "artist": {
+     "id": 373,
+     "name": "Staind"
+    },
+    "album": {
+     "id": 339260,
+     "title": "14 Shades of Grey"
+    }
+   },
+   {
+    "id": 582463672,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 192,
+    "rank": 254934,
+    "artist": {
+     "id": 541399,
+     "name": "DubVision"
+    },
+    "album": {
+     "id": 78084152,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 4029434891,
+    "title": "yesterday",
+    "title_short": "yesterday",
+    "title_version": "",
+    "duration": 98,
+    "rank": 224497,
+    "artist": {
+     "id": 237761991,
+     "name": "undercurrent."
+    },
+    "album": {
+     "id": 985727611,
+     "title": "blue"
+    }
+   },
+   {
+    "id": 665773142,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 165,
+    "rank": 221222,
+    "artist": {
+     "id": 13624365,
+     "name": "David Schultz"
+    },
+    "album": {
+     "id": 93745962,
+     "title": "Piano Love Songs"
+    }
+   },
+   {
+    "id": 2505157641,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 127,
+    "rank": 221071,
+    "artist": {
+     "id": 9007884,
+     "name": "Camille Berthollet"
+    },
+    "album": {
+     "id": 502073811,
+     "title": "Dans nos yeux"
+    }
+   },
+   {
+    "id": 5622066,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 158,
+    "rank": 221868,
+    "artist": {
+     "id": 3564,
+     "name": "Mest"
+    },
+    "album": {
+     "id": 513268,
+     "title": "Destination Unknown (PA Version)"
+    }
+   },
+   {
+    "id": 3783105352,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 242,
+    "rank": 256373,
+    "artist": {
+     "id": 338300,
+     "name": "Sylvain Luc"
+    },
+    "album": {
+     "id": 900581822,
+     "title": "Standards"
+    }
+   },
+   {
+    "id": 3310963011,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 139,
+    "rank": 209916,
+    "artist": {
+     "id": 380955,
+     "name": "Prince Royce"
+    },
+    "album": {
+     "id": 737989921,
+     "title": "ETERNO"
+    }
+   },
+   {
+    "id": 906020012,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 215,
+    "rank": 220325,
+    "artist": {
+     "id": 5834180,
+     "name": "Seyté"
+    },
+    "album": {
+     "id": 136917602,
+     "title": "Libre"
+    }
+   },
+   {
+    "id": 697351802,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 92,
+    "rank": 230183,
+    "artist": {
+     "id": 58760512,
+     "name": "Himesh Patel"
+    },
+    "album": {
+     "id": 100538662,
+     "title": "Yesterday (Original Motion Picture Soundtrack)"
+    }
+   },
+   {
+    "id": 3708813382,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 192,
+    "rank": 228974,
+    "artist": {
+     "id": 67328722,
+     "name": "Fimiguerrero"
+    },
+    "album": {
+     "id": 874754372,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 7988086,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 271,
+    "rank": 252855,
+    "artist": {
+     "id": 312102,
+     "name": "Diddy - Dirty Money"
+    },
+    "album": {
+     "id": 737185,
+     "title": "Last Train To Paris (Deluxe)"
+    }
+   },
+   {
+    "id": 1445352402,
+    "title": "Yesterday (Instrumental Piano)",
+    "title_short": "Yesterday (Instrumental Piano)",
+    "title_version": "",
+    "duration": 204,
+    "rank": 251783,
+    "artist": {
+     "id": 140420002,
+     "name": "Matchstick Piano Man"
+    },
+    "album": {
+     "id": 247289212,
+     "title": "The Beatles (Instrumental Piano Covers)"
+    }
+   },
+   {
+    "id": 29970751,
+    "title": "Yesterday (The Voice Performance)",
+    "title_short": "Yesterday",
+    "title_version": "(The Voice Performance)",
+    "duration": 131,
+    "rank": 225056,
+    "artist": {
+     "id": 4404332,
+     "name": "Adam Levine"
+    },
+    "album": {
+     "id": 2861001,
+     "title": "Yesterday (The Voice Performance)"
+    }
+   },
+   {
+    "id": 3801808962,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 462,
+    "rank": 227156,
+    "artist": {
+     "id": 7972,
+     "name": "Gucci Mane"
+    },
+    "album": {
+     "id": 904955612,
+     "title": "Writing on the Wall 2"
+    }
+   },
+   {
+    "id": 3088783601,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 241,
+    "rank": 225777,
+    "artist": {
+     "id": 119801,
+     "name": "Ky-Mani Marley"
+    },
+    "album": {
+     "id": 669342481,
+     "title": "Many More Roads"
+    }
+   },
+   {
+    "id": 30765761,
+    "title": "Yesterday (Live)",
+    "title_short": "Yesterday",
+    "title_version": "(Live)",
+    "duration": 128,
+    "rank": 240148,
+    "artist": {
+     "id": 1446,
+     "name": "Paul McCartney"
+    },
+    "album": {
+     "id": 2932941,
+     "title": "Back In The World (Live)"
+    }
+   },
+   {
+    "id": 697351932,
+    "title": "Yesterday (From The Album \"One Man Only\")",
+    "title_short": "Yesterday",
+    "title_version": "(From The Album \"One Man Only\")",
+    "duration": 131,
+    "rank": 240943,
+    "artist": {
+     "id": 58760512,
+     "name": "Himesh Patel"
+    },
+    "album": {
+     "id": 100538662,
+     "title": "Yesterday (Original Motion Picture Soundtrack)"
+    }
+   },
+   {
+    "id": 72505036,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 223,
+    "rank": 216952,
+    "artist": {
+     "id": 1153766,
+     "name": "chris heifner"
+    },
+    "album": {
+     "id": 7128113,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 3122224351,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 220,
+    "rank": 239135,
+    "artist": {
+     "id": 1096,
+     "name": "CocoRosie"
+    },
+    "album": {
+     "id": 678397531,
+     "title": "Little Death Wishes"
+    }
+   },
+   {
+    "id": 446614462,
+    "title": "burden boy",
+    "title_short": "burden boy",
+    "title_version": "",
+    "duration": 171,
+    "rank": 200068,
+    "artist": {
+     "id": 510319,
+     "name": "Yesterday"
+    },
+    "album": {
+     "id": 54409482,
+     "title": "burden boy"
+    }
+   },
+   {
+    "id": 3474055781,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 153,
+    "rank": 256863,
+    "artist": {
+     "id": 205474097,
+     "name": "Juliette Magnevasoa"
+    },
+    "album": {
+     "id": 792808951,
+     "title": "Les routines"
+    }
+   },
+   {
+    "id": 3434830791,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 147,
+    "rank": 214284,
+    "artist": {
+     "id": 90174662,
+     "name": "Saxophone Rufus"
+    },
+    "album": {
+     "id": 779429971,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 1764901957,
+    "title": "YESTERDAY",
+    "title_short": "YESTERDAY",
+    "title_version": "",
+    "duration": 168,
+    "rank": 181957,
+    "artist": {
+     "id": 1407277,
+     "name": "Block B"
+    },
+    "album": {
+     "id": 321594627,
+     "title": "YESTERDAY"
+    }
+   },
+   {
+    "id": 2661582032,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 191,
+    "rank": 207535,
+    "artist": {
+     "id": 74451722,
+     "name": "Austin George"
+    },
+    "album": {
+     "id": 547542332,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 3705799742,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 127,
+    "rank": 168094,
+    "artist": {
+     "id": 68712072,
+     "name": "Gamazda"
+    },
+    "album": {
+     "id": 873988542,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 2589285702,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 152,
+    "rank": 208040,
+    "artist": {
+     "id": 1722531,
+     "name": "Benedetta Caretta"
+    },
+    "album": {
+     "id": 525069702,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 2539822051,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 247,
+    "rank": 201783,
+    "artist": {
+     "id": 51417062,
+     "name": "Shigeo Sekito"
+    },
+    "album": {
+     "id": 511947381,
+     "title": "Special Sound Series Vol. 2: The Word"
+    }
+   },
+   {
+    "id": 823974232,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 199,
+    "rank": 167510,
+    "artist": {
+     "id": 97123,
+     "name": "Gareth Emery"
+    },
+    "album": {
+     "id": 121470352,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 1434796,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 241,
+    "rank": 223885,
+    "artist": {
+     "id": 6742,
+     "name": "Auscultate"
+    },
+    "album": {
+     "id": 146077,
+     "title": "Songs of the Beatles"
+    }
+   },
+   {
+    "id": 3119650,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 173,
+    "rank": 199068,
+    "artist": {
+     "id": 99830,
+     "name": "Franck Pourcel"
+    },
+    "album": {
+     "id": 301119,
+     "title": "100 All Time Greatest Hits"
+    }
+   },
+   {
+    "id": 903226252,
+    "title": "Yesterday (feat. Snoop Dogg & Jody Highroller)",
+    "title_short": "Yesterday (feat. Snoop Dogg & Jody Highroller)",
+    "title_version": "",
+    "duration": 185,
+    "rank": 198060,
+    "artist": {
+     "id": 15362,
+     "name": "Collie Buddz"
+    },
+    "album": {
+     "id": 136275652,
+     "title": "Good Life"
+    }
+   },
+   {
+    "id": 4094689631,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 129,
+    "rank": 218738,
+    "artist": {
+     "id": 10239028,
+     "name": "Small Things"
+    },
+    "album": {
+     "id": 1008277861,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 70331244,
+    "title": "Yesterday (Glee Cast Version)",
+    "title_short": "Yesterday (Glee Cast Version)",
+    "title_version": "",
+    "duration": 153,
+    "rank": 208513,
+    "artist": {
+     "id": 445137,
+     "name": "Glee Cast"
+    },
+    "album": {
+     "id": 6900740,
+     "title": "Glee Sings The Beatles"
+    }
+   },
+   {
+    "id": 1912122447,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 334,
+    "rank": 216994,
+    "artist": {
+     "id": 1856091,
+     "name": "Paul Lock"
+    },
+    "album": {
+     "id": 356285827,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 4063100121,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 138,
+    "rank": 195809,
+    "artist": {
+     "id": 12558830,
+     "name": "Toosii"
+    },
+    "album": {
+     "id": 997974121,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 83512714,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 192,
+    "rank": 195544,
+    "artist": {
+     "id": 5579074,
+     "name": "Dallas String Quartet"
+    },
+    "album": {
+     "id": 8394194,
+     "title": "Eclectric"
+    }
+   },
+   {
+    "id": 83739020,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 203,
+    "rank": 241252,
+    "artist": {
+     "id": 9999,
+     "name": "Gladys Knight & The Pips"
+    },
+    "album": {
+     "id": 8425488,
+     "title": "Silk N' Soul"
+    }
+   },
+   {
+    "id": 3035019401,
+    "title": "Yesterday (Instrumental)",
+    "title_short": "Yesterday",
+    "title_version": "(Instrumental)",
+    "duration": 204,
+    "rank": 215344,
+    "artist": {
+     "id": 8728,
+     "name": "André Rieu"
+    },
+    "album": {
+     "id": 653530471,
+     "title": "Music of the Night"
+    }
+   },
+   {
+    "id": 754797792,
+    "title": "Yesterday (feat. Maxx Owa)",
+    "title_short": "Yesterday (feat. Maxx Owa)",
+    "title_version": "",
+    "duration": 195,
+    "rank": 219370,
+    "artist": {
+     "id": 13464001,
+     "name": "GASHI"
+    },
+    "album": {
+     "id": 111148072,
+     "title": "GASHI"
+    }
+   },
+   {
+    "id": 855969332,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 166,
+    "rank": 197857,
+    "artist": {
+     "id": 903,
+     "name": "Tom Jones"
+    },
+    "album": {
+     "id": 127512572,
+     "title": "13 Smash Hits"
+    }
+   },
+   {
+    "id": 3395672521,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 172,
+    "rank": 212379,
+    "artist": {
+     "id": 7959962,
+     "name": "Jamie Grey"
+    },
+    "album": {
+     "id": 766217651,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 4247521271,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 166,
+    "rank": 191751,
+    "artist": {
+     "id": 11327858,
+     "name": "Alber-K"
+    },
+    "album": {
+     "id": 1063659611,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 3287823011,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 393,
+    "rank": 156433,
+    "artist": {
+     "id": 1215712,
+     "name": "Biemsix"
+    },
+    "album": {
+     "id": 730580971,
+     "title": "Biemsix - Emptyverse"
+    }
+   },
+   {
+    "id": 1347070042,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 218,
+    "rank": 186155,
+    "artist": {
+     "id": 54498212,
+     "name": "Mel Blue"
+    },
+    "album": {
+     "id": 223761732,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 65758888,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "duration": 144,
+    "rank": 193886,
+    "artist": {
+     "id": 1622508,
+     "name": "Happy Baby"
+    },
+    "album": {
+     "id": 6446591,
+     "title": "Beatles for Babies"
+    }
+   },
+   {
+    "id": 699642752,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 124,
+    "rank": 189598,
+    "artist": {
+     "id": 510319,
+     "name": "Yesterday"
+    },
+    "album": {
+     "id": 101027262,
+     "title": "Yesterday"
+    }
+   },
+   {
+    "id": 3047600621,
+    "title": "Yesterday",
+    "title_short": "Yesterday",
+    "title_version": "",
+    "duration": 162,
+    "rank": 174806,
+    "artist": {
+     "id": 99060902,
+     "name": "Max Allais"
+    },
+    "album": {
+     "id": 657468681,
+     "title": "Yesterday"
+    }
+   }
+  ]
+ }
+}

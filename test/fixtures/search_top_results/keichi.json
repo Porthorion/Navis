@@ -1,0 +1,2102 @@
+{
+ "query": "Keichi",
+ "server": {
+  "artist": [
+   {
+    "id": "ext-deezer-artist-4837122",
+    "name": "Keiichi Okabe",
+    "albumCount": 3,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-5947658",
+    "name": "Kendji Girac",
+    "albumCount": 41,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-6043160",
+    "name": "Kali Uchis",
+    "albumCount": 52,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-10611",
+    "name": "Keith Jarrett",
+    "albumCount": 119,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-5289039",
+    "name": "Kenshi Yonezu",
+    "albumCount": 37,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-3249",
+    "name": "Keith Urban",
+    "albumCount": 66,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-69518",
+    "name": "Keith Whitley",
+    "albumCount": 20,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-82694352",
+    "name": "Keuchei",
+    "albumCount": 18,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-5085772",
+    "name": "Marchi",
+    "albumCount": 49,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-6341660",
+    "name": "Meitei",
+    "albumCount": 24,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-13993381",
+    "name": "Kenichiro Suehiro",
+    "albumCount": 33,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-281446351",
+    "name": "Marchi",
+    "albumCount": 43,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-16131",
+    "name": "Merche",
+    "albumCount": 30,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-327374",
+    "name": "Keisha",
+    "albumCount": 31,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-5860481",
+    "name": "Le Cha",
+    "albumCount": 17,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-1340219",
+    "name": "Kiichi",
+    "albumCount": 13,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-5775267",
+    "name": "Kelechi",
+    "albumCount": 83,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-3506761",
+    "name": "Kenshi",
+    "albumCount": 118,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-380567271",
+    "name": "KEIGHT",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-11890975",
+    "name": "Kichi",
+    "albumCount": 90,
+    "isExternal": true
+   }
+  ],
+  "album": [
+   {
+    "id": "ext-deezer-album-46387252",
+    "name": "Katchi (Ofenbach vs. Nick Waterhouse)",
+    "artist": "Ofenbach",
+    "artistId": "ext-deezer-artist-6032634",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-92808322",
+    "name": "Keisha & Becky (Remix)",
+    "artist": "Russ splash",
+    "artistId": "ext-deezer-artist-52248452",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-90571092",
+    "name": "Keisha & Becky (Russ splash x Tion Wayne)",
+    "artist": "Russ splash",
+    "artistId": "ext-deezer-artist-52248452",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-46999602",
+    "name": "Katchi (Ofenbach Piano Cover)",
+    "artist": "Katchi",
+    "artistId": "ext-deezer-artist-13073007",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-392713197",
+    "name": "Kelch 4",
+    "artist": "Robert Babicz",
+    "artistId": "ext-deezer-artist-63380",
+    "songCount": 3,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-105860832",
+    "name": "kumoribi",
+    "artist": "Kiichi",
+    "artistId": "ext-deezer-artist-1340219",
+    "songCount": 10,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-1058403432",
+    "name": "Vem du än är",
+    "artist": "Keisha",
+    "artistId": "ext-deezer-artist-327374",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-641719631",
+    "name": "Lightning Thunderbolt",
+    "artist": "Kiichi",
+    "artistId": "ext-deezer-artist-1340219",
+    "songCount": 5,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-108076842",
+    "name": "Smile Knight EP",
+    "artist": "Kiichi",
+    "artistId": "ext-deezer-artist-1340219",
+    "songCount": 6,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-108076802",
+    "name": "Inquisitor Girl VS The Youth Killer EP",
+    "artist": "Kiichi",
+    "artistId": "ext-deezer-artist-1340219",
+    "songCount": 7,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-943505061",
+    "name": "UNFINISHED MUSIC ONLY",
+    "artist": "lylystarr33",
+    "artistId": "ext-deezer-artist-262399411",
+    "songCount": 7,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-328976717",
+    "name": "Everybody Wants It",
+    "artist": "ZEE MACHINE",
+    "artistId": "ext-deezer-artist-13613831",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-108077672",
+    "name": "Baphomet",
+    "artist": "Kiichi",
+    "artistId": "ext-deezer-artist-1340219",
+    "songCount": 15,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-509537411",
+    "name": "Keisha",
+    "artist": "Tayron Kwidan's",
+    "artistId": "ext-deezer-artist-8274722",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-939619291",
+    "name": "Keisha",
+    "artist": "Ricky",
+    "artistId": "ext-deezer-artist-333959181",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-316073377",
+    "name": "just another song (feat. Vincint)",
+    "artist": "Kelechi",
+    "artistId": "ext-deezer-artist-5775267",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-683670991",
+    "name": "Suicide by Starlight",
+    "artist": "Kichi",
+    "artistId": "ext-deezer-artist-11890975",
+    "songCount": 5,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-487282335",
+    "name": "Braving our Tempertation",
+    "artist": "Kichi",
+    "artistId": "ext-deezer-artist-11890975",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-554484662",
+    "name": "My Addiction",
+    "artist": "Kichi",
+    "artistId": "ext-deezer-artist-11890975",
+    "songCount": 9,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-500684991",
+    "name": "REBORN",
+    "artist": "Kichi",
+    "artistId": "ext-deezer-artist-11890975",
+    "songCount": 8,
+    "isExternal": true
+   }
+  ],
+  "song": [
+   {
+    "id": "ext-deezer-song-4764905",
+    "title": "TiK ToK",
+    "album": "TiK-Tok - Remixes",
+    "albumId": "ext-deezer-album-438618",
+    "artist": "Ke$ha",
+    "artistId": "ext-deezer-artist-280627",
+    "track": 0,
+    "year": 0,
+    "duration": 200,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-395273652",
+    "title": "Katchi (Ofenbach vs. Nick Waterhouse)",
+    "album": "Katchi (Ofenbach vs. Nick Waterhouse)",
+    "albumId": "ext-deezer-album-46387252",
+    "artist": "Ofenbach",
+    "artistId": "ext-deezer-artist-6032634",
+    "track": 0,
+    "year": 0,
+    "duration": 151,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-1414807682",
+    "title": "Le choix (feat. Imen Es)",
+    "album": "Intégral",
+    "albumId": "ext-deezer-album-239769202",
+    "artist": "Nahir",
+    "artistId": "ext-deezer-artist-7602544",
+    "track": 0,
+    "year": 0,
+    "duration": 206,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-735363652",
+    "title": "Kekchose",
+    "album": "Sex In The City",
+    "albumId": "ext-deezer-album-107978482",
+    "artist": "Lorenzo",
+    "artistId": "ext-deezer-artist-123503",
+    "track": 0,
+    "year": 0,
+    "duration": 163,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-661439202",
+    "title": "Keisha & Becky (Remix)",
+    "album": "Keisha & Becky (Remix)",
+    "albumId": "ext-deezer-album-92808322",
+    "artist": "Russ Millions",
+    "artistId": "ext-deezer-artist-87033922",
+    "track": 0,
+    "year": 0,
+    "duration": 252,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-1642103532",
+    "title": "Katchi",
+    "album": "Never Twice",
+    "albumId": "ext-deezer-album-292356712",
+    "artist": "Nick Waterhouse",
+    "artistId": "ext-deezer-artist-1154631",
+    "track": 0,
+    "year": 0,
+    "duration": 220,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-4364015721",
+    "title": "Mayday",
+    "album": "Mayday",
+    "albumId": "ext-deezer-album-1127842301",
+    "artist": "Keisha",
+    "artistId": "ext-deezer-artist-327374",
+    "track": 0,
+    "year": 0,
+    "duration": 182,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-422438302",
+    "title": "Katchi (Ofenbach vs. Nick Waterhouse; Extended Mix)",
+    "album": "Katchi (Ofenbach vs. Nick Waterhouse) [Remixes] - EP",
+    "albumId": "ext-deezer-album-50646072",
+    "artist": "Ofenbach",
+    "artistId": "ext-deezer-artist-6032634",
+    "track": 0,
+    "year": 0,
+    "duration": 230,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-4104124811",
+    "title": "KEISHA",
+    "album": "KEISHA",
+    "albumId": "ext-deezer-album-1011348271",
+    "artist": "Azu",
+    "artistId": "ext-deezer-artist-4896254",
+    "track": 0,
+    "year": 0,
+    "duration": 107,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-541532172",
+    "title": "Katchi",
+    "album": "DJ Tokeo - Ultimate Dance Classics",
+    "albumId": "ext-deezer-album-70745922",
+    "artist": "DJ Tokeo",
+    "artistId": "ext-deezer-artist-1685131",
+    "track": 0,
+    "year": 0,
+    "duration": 152,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-1797283017",
+    "title": "Everybody Wants It",
+    "album": "Everybody Wants It",
+    "albumId": "ext-deezer-album-328976717",
+    "artist": "ZEE MACHINE",
+    "artistId": "ext-deezer-artist-13613831",
+    "track": 0,
+    "year": 0,
+    "duration": 204,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-4234283242",
+    "title": "Vem du än är",
+    "album": "Vem du än är",
+    "albumId": "ext-deezer-album-1058403432",
+    "artist": "Keisha",
+    "artistId": "ext-deezer-artist-327374",
+    "track": 0,
+    "year": 0,
+    "duration": 175,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-735906292",
+    "title": "virgo",
+    "album": "Inquisitor Girl VS The Youth Killer EP",
+    "albumId": "ext-deezer-album-108076802",
+    "artist": "Kiichi",
+    "artistId": "ext-deezer-artist-1340219",
+    "track": 0,
+    "year": 0,
+    "duration": 227,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-649614232",
+    "title": "Keisha & Becky (Russ splash x Tion Wayne)",
+    "album": "Keisha & Becky (Russ splash x Tion Wayne)",
+    "albumId": "ext-deezer-album-90571092",
+    "artist": "Russ Millions",
+    "artistId": "ext-deezer-artist-87033922",
+    "track": 0,
+    "year": 0,
+    "duration": 173,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3125176991",
+    "title": "Kelechi",
+    "album": "CRAWLER",
+    "albumId": "ext-deezer-album-679178831",
+    "artist": "IDLES",
+    "artistId": "ext-deezer-artist-482539",
+    "track": 0,
+    "year": 0,
+    "duration": 30,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3911313891",
+    "title": "J'AI MENTI",
+    "album": "UNFINISHED MUSIC ONLY",
+    "albumId": "ext-deezer-album-943505061",
+    "artist": "lylystarr33",
+    "artistId": "ext-deezer-artist-262399411",
+    "track": 0,
+    "year": 0,
+    "duration": 242,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3847274731",
+    "title": "KAIDHI",
+    "album": "27 CLUB",
+    "albumId": "ext-deezer-album-920203661",
+    "artist": "Ranj",
+    "artistId": "ext-deezer-artist-4663879",
+    "track": 0,
+    "year": 0,
+    "duration": 144,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3526544311",
+    "title": "Humming for myself",
+    "album": "Humming for myself",
+    "albumId": "ext-deezer-album-811123021",
+    "artist": "Kichi",
+    "artistId": "ext-deezer-artist-11890975",
+    "track": 0,
+    "year": 0,
+    "duration": 163,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3900321321",
+    "title": "Keisha",
+    "album": "Keisha",
+    "albumId": "ext-deezer-album-939619291",
+    "artist": "Ricky",
+    "artistId": "ext-deezer-artist-333959181",
+    "track": 0,
+    "year": 0,
+    "duration": 138,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-2531394941",
+    "title": "Keisha",
+    "album": "Keisha",
+    "albumId": "ext-deezer-album-509537411",
+    "artist": "Tayron Kwidan's",
+    "artistId": "ext-deezer-artist-8274722",
+    "track": 0,
+    "year": 0,
+    "duration": 172,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   }
+  ]
+ },
+ "deezer": {
+  "artists": [
+   {
+    "id": 4837122,
+    "name": "Keiichi Okabe",
+    "nb_fan": 1958,
+    "nb_album": 3
+   },
+   {
+    "id": 5947658,
+    "name": "Kendji Girac",
+    "nb_fan": 2076779,
+    "nb_album": 41
+   },
+   {
+    "id": 6043160,
+    "name": "Kali Uchis",
+    "nb_fan": 535209,
+    "nb_album": 52
+   },
+   {
+    "id": 10611,
+    "name": "Keith Jarrett",
+    "nb_fan": 461861,
+    "nb_album": 119
+   },
+   {
+    "id": 5289039,
+    "name": "Kenshi Yonezu",
+    "nb_fan": 69616,
+    "nb_album": 37
+   },
+   {
+    "id": 3249,
+    "name": "Keith Urban",
+    "nb_fan": 399611,
+    "nb_album": 66
+   },
+   {
+    "id": 69518,
+    "name": "Keith Whitley",
+    "nb_fan": 13773,
+    "nb_album": 20
+   },
+   {
+    "id": 82694352,
+    "name": "Keuchei",
+    "nb_fan": 4984,
+    "nb_album": 18
+   },
+   {
+    "id": 5085772,
+    "name": "Marchi",
+    "nb_fan": 90,
+    "nb_album": 49
+   },
+   {
+    "id": 6341660,
+    "name": "Meitei",
+    "nb_fan": 1189,
+    "nb_album": 24
+   },
+   {
+    "id": 13993381,
+    "name": "Kenichiro Suehiro",
+    "nb_fan": 745,
+    "nb_album": 33
+   },
+   {
+    "id": 281446351,
+    "name": "Marchi",
+    "nb_fan": 371,
+    "nb_album": 43
+   },
+   {
+    "id": 16131,
+    "name": "Merche",
+    "nb_fan": 10960,
+    "nb_album": 30
+   },
+   {
+    "id": 327374,
+    "name": "Keisha",
+    "nb_fan": 296,
+    "nb_album": 31
+   },
+   {
+    "id": 5860481,
+    "name": "Le Cha",
+    "nb_fan": 385,
+    "nb_album": 17
+   },
+   {
+    "id": 1340219,
+    "name": "Kiichi",
+    "nb_fan": 404,
+    "nb_album": 13
+   },
+   {
+    "id": 5775267,
+    "name": "Kelechi",
+    "nb_fan": 176,
+    "nb_album": 83
+   },
+   {
+    "id": 3506761,
+    "name": "Kenshi",
+    "nb_fan": 60,
+    "nb_album": 118
+   },
+   {
+    "id": 380567271,
+    "name": "KEIGHT",
+    "nb_fan": 3,
+    "nb_album": 2
+   },
+   {
+    "id": 11890975,
+    "name": "Kichi",
+    "nb_fan": 245,
+    "nb_album": 90
+   },
+   {
+    "id": 95409942,
+    "name": "Keichan",
+    "nb_fan": 196,
+    "nb_album": 10
+   },
+   {
+    "id": 90907482,
+    "name": "KAACHI",
+    "nb_fan": 1298,
+    "nb_album": 8
+   },
+   {
+    "id": 178631247,
+    "name": "Kercho",
+    "nb_fan": 8,
+    "nb_album": 19
+   },
+   {
+    "id": 129630102,
+    "name": "Kay-Chi",
+    "nb_fan": 14,
+    "nb_album": 25
+   },
+   {
+    "id": 13690479,
+    "name": "Keiichi",
+    "nb_fan": 117,
+    "nb_album": 18
+   }
+  ],
+  "albums": [
+   {
+    "id": 46387252,
+    "title": "Katchi (Ofenbach vs. Nick Waterhouse)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 6032634,
+     "name": "Ofenbach"
+    }
+   },
+   {
+    "id": 92808322,
+    "title": "Keisha & Becky (Remix)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 52248452,
+     "name": "Russ splash"
+    }
+   },
+   {
+    "id": 90571092,
+    "title": "Keisha & Becky (Russ splash x Tion Wayne)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 52248452,
+     "name": "Russ splash"
+    }
+   },
+   {
+    "id": 46999602,
+    "title": "Katchi (Ofenbach Piano Cover)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 13073007,
+     "name": "Katchi"
+    }
+   },
+   {
+    "id": 392713197,
+    "title": "Kelch 4",
+    "record_type": "single",
+    "nb_tracks": 3,
+    "artist": {
+     "id": 63380,
+     "name": "Robert Babicz"
+    }
+   },
+   {
+    "id": 105860832,
+    "title": "kumoribi",
+    "record_type": "album",
+    "nb_tracks": 10,
+    "artist": {
+     "id": 1340219,
+     "name": "Kiichi"
+    }
+   },
+   {
+    "id": 1058403432,
+    "title": "Vem du än är",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 327374,
+     "name": "Keisha"
+    }
+   },
+   {
+    "id": 641719631,
+    "title": "Lightning Thunderbolt",
+    "record_type": "ep",
+    "nb_tracks": 5,
+    "artist": {
+     "id": 1340219,
+     "name": "Kiichi"
+    }
+   },
+   {
+    "id": 108076842,
+    "title": "Smile Knight EP",
+    "record_type": "ep",
+    "nb_tracks": 6,
+    "artist": {
+     "id": 1340219,
+     "name": "Kiichi"
+    }
+   },
+   {
+    "id": 108076802,
+    "title": "Inquisitor Girl VS The Youth Killer EP",
+    "record_type": "album",
+    "nb_tracks": 7,
+    "artist": {
+     "id": 1340219,
+     "name": "Kiichi"
+    }
+   },
+   {
+    "id": 943505061,
+    "title": "UNFINISHED MUSIC ONLY",
+    "record_type": "album",
+    "nb_tracks": 7,
+    "artist": {
+     "id": 262399411,
+     "name": "lylystarr33"
+    }
+   },
+   {
+    "id": 328976717,
+    "title": "Everybody Wants It",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 13613831,
+     "name": "ZEE MACHINE"
+    }
+   },
+   {
+    "id": 108077672,
+    "title": "Baphomet",
+    "record_type": "album",
+    "nb_tracks": 15,
+    "artist": {
+     "id": 1340219,
+     "name": "Kiichi"
+    }
+   },
+   {
+    "id": 509537411,
+    "title": "Keisha",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 8274722,
+     "name": "Tayron Kwidan's"
+    }
+   },
+   {
+    "id": 939619291,
+    "title": "Keisha",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 333959181,
+     "name": "Ricky"
+    }
+   },
+   {
+    "id": 316073377,
+    "title": "just another song (feat. Vincint)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 5775267,
+     "name": "Kelechi"
+    }
+   },
+   {
+    "id": 683670991,
+    "title": "Suicide by Starlight",
+    "record_type": "ep",
+    "nb_tracks": 5,
+    "artist": {
+     "id": 11890975,
+     "name": "Kichi"
+    }
+   },
+   {
+    "id": 487282335,
+    "title": "Braving our Tempertation",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 11890975,
+     "name": "Kichi"
+    }
+   },
+   {
+    "id": 554484662,
+    "title": "My Addiction",
+    "record_type": "album",
+    "nb_tracks": 9,
+    "artist": {
+     "id": 11890975,
+     "name": "Kichi"
+    }
+   },
+   {
+    "id": 500684991,
+    "title": "REBORN",
+    "record_type": "album",
+    "nb_tracks": 8,
+    "artist": {
+     "id": 11890975,
+     "name": "Kichi"
+    }
+   },
+   {
+    "id": 363526387,
+    "title": "KEITH (Pop Remix)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 3892951,
+     "name": "Kaylee Bell"
+    }
+   },
+   {
+    "id": 132291982,
+    "title": "White Fire",
+    "record_type": "album",
+    "nb_tracks": 12,
+    "artist": {
+     "id": 83950072,
+     "name": "KENICHI & THE SUN"
+    }
+   },
+   {
+    "id": 1059485792,
+    "title": "Piano Anime Collection",
+    "record_type": "album",
+    "nb_tracks": 27,
+    "artist": {
+     "id": 95409942,
+     "name": "Keichan"
+    }
+   },
+   {
+    "id": 802374441,
+    "title": "Your Idol (Rock Version)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 3506761,
+     "name": "Kenshi"
+    }
+   },
+   {
+    "id": 103799872,
+    "title": "Forever Tonight",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 5775267,
+     "name": "Kelechi"
+    }
+   }
+  ],
+  "tracks": [
+   {
+    "id": 4764905,
+    "title": "TiK ToK",
+    "title_short": "TiK ToK",
+    "title_version": "",
+    "duration": 200,
+    "rank": 922475,
+    "artist": {
+     "id": 280627,
+     "name": "Ke$ha"
+    },
+    "album": {
+     "id": 438618,
+     "title": "TiK-Tok - Remixes"
+    }
+   },
+   {
+    "id": 395273652,
+    "title": "Katchi (Ofenbach vs. Nick Waterhouse)",
+    "title_short": "Katchi",
+    "title_version": "(Ofenbach vs. Nick Waterhouse)",
+    "duration": 151,
+    "rank": 782426,
+    "artist": {
+     "id": 6032634,
+     "name": "Ofenbach"
+    },
+    "album": {
+     "id": 46387252,
+     "title": "Katchi (Ofenbach vs. Nick Waterhouse)"
+    }
+   },
+   {
+    "id": 1414807682,
+    "title": "Le choix (feat. Imen Es)",
+    "title_short": "Le choix (feat. Imen Es)",
+    "title_version": "",
+    "duration": 206,
+    "rank": 635777,
+    "artist": {
+     "id": 7602544,
+     "name": "Nahir"
+    },
+    "album": {
+     "id": 239769202,
+     "title": "Intégral"
+    }
+   },
+   {
+    "id": 735363652,
+    "title": "Kekchose",
+    "title_short": "Kekchose",
+    "title_version": "",
+    "duration": 163,
+    "rank": 456064,
+    "artist": {
+     "id": 123503,
+     "name": "Lorenzo"
+    },
+    "album": {
+     "id": 107978482,
+     "title": "Sex In The City"
+    }
+   },
+   {
+    "id": 661439202,
+    "title": "Keisha & Becky (Remix)",
+    "title_short": "Keisha & Becky",
+    "title_version": "(Remix)",
+    "duration": 252,
+    "rank": 453406,
+    "artist": {
+     "id": 87033922,
+     "name": "Russ Millions"
+    },
+    "album": {
+     "id": 92808322,
+     "title": "Keisha & Becky (Remix)"
+    }
+   },
+   {
+    "id": 1642103532,
+    "title": "Katchi",
+    "title_short": "Katchi",
+    "title_version": "",
+    "duration": 220,
+    "rank": 396375,
+    "artist": {
+     "id": 1154631,
+     "name": "Nick Waterhouse"
+    },
+    "album": {
+     "id": 292356712,
+     "title": "Never Twice"
+    }
+   },
+   {
+    "id": 4364015721,
+    "title": "Mayday",
+    "title_short": "Mayday",
+    "title_version": "",
+    "duration": 182,
+    "rank": 360663,
+    "artist": {
+     "id": 327374,
+     "name": "Keisha"
+    },
+    "album": {
+     "id": 1127842301,
+     "title": "Mayday"
+    }
+   },
+   {
+    "id": 422438302,
+    "title": "Katchi (Ofenbach vs. Nick Waterhouse; Extended Mix)",
+    "title_short": "Katchi",
+    "title_version": "(Ofenbach vs. Nick Waterhouse; Extended Mix)",
+    "duration": 230,
+    "rank": 341782,
+    "artist": {
+     "id": 6032634,
+     "name": "Ofenbach"
+    },
+    "album": {
+     "id": 50646072,
+     "title": "Katchi (Ofenbach vs. Nick Waterhouse) [Remixes] - EP"
+    }
+   },
+   {
+    "id": 4104124811,
+    "title": "KEISHA",
+    "title_short": "KEISHA",
+    "title_version": "",
+    "duration": 107,
+    "rank": 312078,
+    "artist": {
+     "id": 4896254,
+     "name": "Azu"
+    },
+    "album": {
+     "id": 1011348271,
+     "title": "KEISHA"
+    }
+   },
+   {
+    "id": 541532172,
+    "title": "Katchi",
+    "title_short": "Katchi",
+    "duration": 152,
+    "rank": 347333,
+    "artist": {
+     "id": 1685131,
+     "name": "DJ Tokeo"
+    },
+    "album": {
+     "id": 70745922,
+     "title": "DJ Tokeo - Ultimate Dance Classics"
+    }
+   },
+   {
+    "id": 1797283017,
+    "title": "Everybody Wants It",
+    "title_short": "Everybody Wants It",
+    "title_version": "",
+    "duration": 204,
+    "rank": 298506,
+    "artist": {
+     "id": 13613831,
+     "name": "ZEE MACHINE"
+    },
+    "album": {
+     "id": 328976717,
+     "title": "Everybody Wants It"
+    }
+   },
+   {
+    "id": 4234283242,
+    "title": "Vem du än är",
+    "title_short": "Vem du än är",
+    "title_version": "",
+    "duration": 175,
+    "rank": 323633,
+    "artist": {
+     "id": 327374,
+     "name": "Keisha"
+    },
+    "album": {
+     "id": 1058403432,
+     "title": "Vem du än är"
+    }
+   },
+   {
+    "id": 735906292,
+    "title": "virgo",
+    "title_short": "virgo",
+    "title_version": "",
+    "duration": 227,
+    "rank": 279844,
+    "artist": {
+     "id": 1340219,
+     "name": "Kiichi"
+    },
+    "album": {
+     "id": 108076802,
+     "title": "Inquisitor Girl VS The Youth Killer EP"
+    }
+   },
+   {
+    "id": 649614232,
+    "title": "Keisha & Becky (Russ splash x Tion Wayne)",
+    "title_short": "Keisha & Becky",
+    "title_version": "(Russ splash x Tion Wayne)",
+    "duration": 173,
+    "rank": 255264,
+    "artist": {
+     "id": 87033922,
+     "name": "Russ Millions"
+    },
+    "album": {
+     "id": 90571092,
+     "title": "Keisha & Becky (Russ splash x Tion Wayne)"
+    }
+   },
+   {
+    "id": 3125176991,
+    "title": "Kelechi",
+    "title_short": "Kelechi",
+    "title_version": "",
+    "duration": 30,
+    "rank": 211146,
+    "artist": {
+     "id": 482539,
+     "name": "IDLES"
+    },
+    "album": {
+     "id": 679178831,
+     "title": "CRAWLER"
+    }
+   },
+   {
+    "id": 3911313891,
+    "title": "J'AI MENTI",
+    "title_short": "J'AI MENTI",
+    "title_version": "",
+    "duration": 242,
+    "rank": 226222,
+    "artist": {
+     "id": 262399411,
+     "name": "lylystarr33"
+    },
+    "album": {
+     "id": 943505061,
+     "title": "UNFINISHED MUSIC ONLY"
+    }
+   },
+   {
+    "id": 3847274731,
+    "title": "KAIDHI",
+    "title_short": "KAIDHI",
+    "title_version": "",
+    "duration": 144,
+    "rank": 236843,
+    "artist": {
+     "id": 4663879,
+     "name": "Ranj"
+    },
+    "album": {
+     "id": 920203661,
+     "title": "27 CLUB"
+    }
+   },
+   {
+    "id": 3526544311,
+    "title": "Humming for myself",
+    "title_short": "Humming for myself",
+    "title_version": "",
+    "duration": 163,
+    "rank": 216548,
+    "artist": {
+     "id": 11890975,
+     "name": "Kichi"
+    },
+    "album": {
+     "id": 811123021,
+     "title": "Humming for myself"
+    }
+   },
+   {
+    "id": 3900321321,
+    "title": "Keisha",
+    "title_short": "Keisha",
+    "title_version": "",
+    "duration": 138,
+    "rank": 178763,
+    "artist": {
+     "id": 333959181,
+     "name": "Ricky"
+    },
+    "album": {
+     "id": 939619291,
+     "title": "Keisha"
+    }
+   },
+   {
+    "id": 2531394941,
+    "title": "Keisha",
+    "title_short": "Keisha",
+    "title_version": "",
+    "duration": 172,
+    "rank": 185667,
+    "artist": {
+     "id": 8274722,
+     "name": "Tayron Kwidan's"
+    },
+    "album": {
+     "id": 509537411,
+     "title": "Keisha"
+    }
+   },
+   {
+    "id": 735906282,
+    "title": "fluticasone",
+    "title_short": "fluticasone",
+    "title_version": "",
+    "duration": 209,
+    "rank": 207325,
+    "artist": {
+     "id": 1340219,
+     "name": "Kiichi"
+    },
+    "album": {
+     "id": 108076802,
+     "title": "Inquisitor Girl VS The Youth Killer EP"
+    }
+   },
+   {
+    "id": 735909832,
+    "title": "Love Love Nightmare",
+    "title_short": "Love Love Nightmare",
+    "title_version": "",
+    "duration": 269,
+    "rank": 159939,
+    "artist": {
+     "id": 1340219,
+     "name": "Kiichi"
+    },
+    "album": {
+     "id": 108077672,
+     "title": "Baphomet"
+    }
+   },
+   {
+    "id": 1741130527,
+    "title": "just another song (feat. Vincint)",
+    "title_short": "just another song (feat. Vincint)",
+    "title_version": "",
+    "duration": 168,
+    "rank": 180624,
+    "artist": {
+     "id": 5775267,
+     "name": "Kelechi"
+    },
+    "album": {
+     "id": 316073377,
+     "title": "just another song (feat. Vincint)"
+    }
+   },
+   {
+    "id": 422438352,
+    "title": "Katchi (Ofenbach vs. Nick Waterhouse; SMACK Remix; feat. Gemeni)",
+    "title_short": "Katchi",
+    "title_version": "(Ofenbach vs. Nick Waterhouse; SMACK Remix; feat. Gemeni)",
+    "duration": 216,
+    "rank": 158034,
+    "artist": {
+     "id": 6032634,
+     "name": "Ofenbach"
+    },
+    "album": {
+     "id": 50646072,
+     "title": "Katchi (Ofenbach vs. Nick Waterhouse) [Remixes] - EP"
+    }
+   },
+   {
+    "id": 1694114267,
+    "title": "Katchi (Live)",
+    "title_short": "Katchi",
+    "title_version": "(Live)",
+    "duration": 118,
+    "rank": 186663,
+    "artist": {
+     "id": 5196,
+     "name": "Les Enfoirés"
+    },
+    "album": {
+     "id": 304976057,
+     "title": "2022 Un air d'Enfoirés"
+    }
+   },
+   {
+    "id": 1587025862,
+    "title": "I Wonder Why? [He's the Greatest DJ]",
+    "title_short": "I Wonder Why? [He's the Greatest DJ]",
+    "title_version": "",
+    "duration": 235,
+    "rank": 159481,
+    "artist": {
+     "id": 3889,
+     "name": "Tony Touch"
+    },
+    "album": {
+     "id": 279612482,
+     "title": "The Piece Maker"
+    }
+   },
+   {
+    "id": 422438322,
+    "title": "Katchi (Ofenbach vs. Nick Waterhouse; Mr Belt & Wezol Remix)",
+    "title_short": "Katchi",
+    "title_version": "(Ofenbach vs. Nick Waterhouse; Mr Belt & Wezol Remix)",
+    "duration": 283,
+    "rank": 162535,
+    "artist": {
+     "id": 6032634,
+     "name": "Ofenbach"
+    },
+    "album": {
+     "id": 50646072,
+     "title": "Katchi (Ofenbach vs. Nick Waterhouse) [Remixes] - EP"
+    }
+   },
+   {
+    "id": 940691482,
+    "title": "Kaishi",
+    "title_short": "Kaishi",
+    "title_version": "",
+    "duration": 289,
+    "rank": 153114,
+    "artist": {
+     "id": 4777395,
+     "name": "Fakear"
+    },
+    "album": {
+     "id": 144202762,
+     "title": "Everything Will Grow Again"
+    }
+   },
+   {
+    "id": 3826761811,
+    "title": "keith (feat. sxrcier)",
+    "title_short": "keith (feat. sxrcier)",
+    "title_version": "",
+    "duration": 114,
+    "rank": 150270,
+    "artist": {
+     "id": 275009951,
+     "name": "ptitlouis"
+    },
+    "album": {
+     "id": 912774901,
+     "title": "keith (feat. sxrcier)"
+    }
+   },
+   {
+    "id": 1387302502,
+    "title": "Keisha",
+    "title_short": "Keisha",
+    "title_version": "",
+    "duration": 263,
+    "rank": 172246,
+    "artist": {
+     "id": 3994531,
+     "name": "Dave East"
+    },
+    "album": {
+     "id": 233640252,
+     "title": "Kairi Chanel"
+    }
+   },
+   {
+    "id": 4273810372,
+    "title": "Ke Ahi",
+    "title_short": "Ke Ahi",
+    "title_version": "",
+    "duration": 330,
+    "rank": 148837,
+    "artist": {
+     "id": 6750477,
+     "name": "Yaima"
+    },
+    "album": {
+     "id": 1073937842,
+     "title": "Antidote"
+    }
+   },
+   {
+    "id": 3911313821,
+    "title": "J'AVAIS RAISON (2025 VERSION) (feat. Lyes Kaci)",
+    "title_short": "J'AVAIS RAISON (2025 VERSION) (feat. Lyes Kaci)",
+    "title_version": "",
+    "duration": 151,
+    "rank": 161743,
+    "artist": {
+     "id": 262399411,
+     "name": "lylystarr33"
+    },
+    "album": {
+     "id": 943505061,
+     "title": "UNFINISHED MUSIC ONLY"
+    }
+   },
+   {
+    "id": 1949560367,
+    "title": "KEITH (Pop Remix)",
+    "title_short": "KEITH",
+    "title_version": "(Pop Remix)",
+    "duration": 172,
+    "rank": 145755,
+    "artist": {
+     "id": 3892951,
+     "name": "Kaylee Bell"
+    },
+    "album": {
+     "id": 363526387,
+     "title": "KEITH (Pop Remix)"
+    }
+   },
+   {
+    "id": 735906302,
+    "title": "Inquisitor Girl Sister Kanon",
+    "title_short": "Inquisitor Girl Sister Kanon",
+    "title_version": "",
+    "duration": 217,
+    "rank": 118990,
+    "artist": {
+     "id": 1340219,
+     "name": "Kiichi"
+    },
+    "album": {
+     "id": 108076802,
+     "title": "Inquisitor Girl VS The Youth Killer EP"
+    }
+   },
+   {
+    "id": 3911313881,
+    "title": "SEPTEMBRE (DEMO) (feat. Lyes Kaci)",
+    "title_short": "SEPTEMBRE (DEMO) (feat. Lyes Kaci)",
+    "title_version": "",
+    "duration": 180,
+    "rank": 119656,
+    "artist": {
+     "id": 262399411,
+     "name": "lylystarr33"
+    },
+    "album": {
+     "id": 943505061,
+     "title": "UNFINISHED MUSIC ONLY"
+    }
+   },
+   {
+    "id": 1687875357,
+    "title": "keisha",
+    "title_short": "keisha",
+    "title_version": "",
+    "duration": 175,
+    "rank": 164477,
+    "artist": {
+     "id": 13941571,
+     "name": "Yaya Bey"
+    },
+    "album": {
+     "id": 303472417,
+     "title": "Remember Your North Star"
+    }
+   },
+   {
+    "id": 3736643902,
+    "title": "Keisha",
+    "title_short": "Keisha",
+    "title_version": "",
+    "duration": 137,
+    "rank": 125757,
+    "artist": {
+     "id": 5575105,
+     "name": "Tory Lanez"
+    },
+    "album": {
+     "id": 883877612,
+     "title": "Chixtapes (Trilogy)"
+    }
+   },
+   {
+    "id": 422438342,
+    "title": "Katchi (Ofenbach vs. Nick Waterhouse; Mokoa Remix)",
+    "title_short": "Katchi",
+    "title_version": "(Ofenbach vs. Nick Waterhouse; Mokoa Remix)",
+    "duration": 192,
+    "rank": 138379,
+    "artist": {
+     "id": 6032634,
+     "name": "Ofenbach"
+    },
+    "album": {
+     "id": 50646072,
+     "title": "Katchi (Ofenbach vs. Nick Waterhouse) [Remixes] - EP"
+    }
+   },
+   {
+    "id": 492137702,
+    "title": "Katchi (Workout Remix 125 BPM)",
+    "title_short": "Katchi",
+    "title_version": "(Workout Remix 125 BPM)",
+    "duration": 121,
+    "rank": 92174,
+    "artist": {
+     "id": 1231497,
+     "name": "Power Music Workout"
+    },
+    "album": {
+     "id": 62280612,
+     "title": "10-Minute - Core Workout, Vol. 2"
+    }
+   },
+   {
+    "id": 2528122901,
+    "title": "Katchi",
+    "title_short": "Katchi",
+    "title_version": "",
+    "duration": 169,
+    "rank": 124061,
+    "artist": {
+     "id": 10161646,
+     "name": "Mercee"
+    },
+    "album": {
+     "id": 508725161,
+     "title": "Venganza"
+    }
+   },
+   {
+    "id": 422438332,
+    "title": "Katchi (Ofenbach vs. Nick Waterhouse; Mozambo Remix)",
+    "title_short": "Katchi",
+    "title_version": "(Ofenbach vs. Nick Waterhouse; Mozambo Remix)",
+    "duration": 178,
+    "rank": 118852,
+    "artist": {
+     "id": 6032634,
+     "name": "Ofenbach"
+    },
+    "album": {
+     "id": 50646072,
+     "title": "Katchi (Ofenbach vs. Nick Waterhouse) [Remixes] - EP"
+    }
+   },
+   {
+    "id": 2500137971,
+    "title": "Breakpoint",
+    "title_short": "Breakpoint",
+    "title_version": "",
+    "duration": 161,
+    "rank": 110743,
+    "artist": {
+     "id": 11890975,
+     "name": "Kichi"
+    },
+    "album": {
+     "id": 500684991,
+     "title": "REBORN"
+    }
+   },
+   {
+    "id": 422438312,
+    "title": "Katchi (Ofenbach vs. Nick Waterhouse; Clément Leroux Remix)",
+    "title_short": "Katchi",
+    "title_version": "(Ofenbach vs. Nick Waterhouse; Clément Leroux Remix)",
+    "duration": 149,
+    "rank": 116199,
+    "artist": {
+     "id": 6032634,
+     "name": "Ofenbach"
+    },
+    "album": {
+     "id": 50646072,
+     "title": "Katchi (Ofenbach vs. Nick Waterhouse) [Remixes] - EP"
+    }
+   },
+   {
+    "id": 858717102,
+    "title": "Waiting For You",
+    "title_short": "Waiting For You",
+    "title_version": "",
+    "duration": 157,
+    "rank": 131612,
+    "artist": {
+     "id": 5775267,
+     "name": "Kelechi"
+    },
+    "album": {
+     "id": 128110602,
+     "title": "Waiting For You"
+    }
+   },
+   {
+    "id": 735909732,
+    "title": "Hyoketsu no Disco",
+    "title_short": "Hyoketsu no Disco",
+    "title_version": "",
+    "duration": 260,
+    "rank": 116597,
+    "artist": {
+     "id": 1340219,
+     "name": "Kiichi"
+    },
+    "album": {
+     "id": 108077672,
+     "title": "Baphomet"
+    }
+   },
+   {
+    "id": 11238058,
+    "title": "Keisha (feat. Tyga) (Main Version)",
+    "title_short": "Keisha (feat. Tyga)",
+    "title_version": "(Main Version)",
+    "duration": 239,
+    "rank": 98090,
+    "artist": {
+     "id": 11668457,
+     "name": "Jawan"
+    },
+    "album": {
+     "id": 1028778,
+     "title": "Keisha (feat. Tyga) (Main Version)"
+    }
+   },
+   {
+    "id": 3024745021,
+    "title": "Keikei (feat. KASANE TETO)",
+    "title_short": "Keikei (feat. KASANE TETO)",
+    "title_version": "",
+    "duration": 232,
+    "rank": 103743,
+    "artist": {
+     "id": 81123152,
+     "name": "KIRATORA"
+    },
+    "album": {
+     "id": 650416201,
+     "title": "KILLER TUNES Vol.1"
+    }
+   },
+   {
+    "id": 1987560417,
+    "title": "Keisha",
+    "title_short": "Keisha",
+    "title_version": "",
+    "duration": 148,
+    "rank": 101971,
+    "artist": {
+     "id": 161060872,
+     "name": "Odzmoney"
+    },
+    "album": {
+     "id": 370581907,
+     "title": "SEX, MONEY, MOTIVE"
+    }
+   },
+   {
+    "id": 2623217762,
+    "title": "Keith (Stripped)",
+    "title_short": "Keith",
+    "title_version": "(Stripped)",
+    "duration": 172,
+    "rank": 115385,
+    "artist": {
+     "id": 3892951,
+     "name": "Kaylee Bell"
+    },
+    "album": {
+     "id": 535827692,
+     "title": "Nights Like This"
+    }
+   },
+   {
+    "id": 4385540161,
+    "title": "KEISHA",
+    "title_short": "KEISHA",
+    "title_version": "",
+    "duration": 180,
+    "rank": 100000,
+    "artist": {
+     "id": 115416292,
+     "name": "Marky Blacc"
+    },
+    "album": {
+     "id": 1136477071,
+     "title": "F*CK !T"
+    }
+   },
+   {
+    "id": 4389238401,
+    "title": "KEISHA",
+    "title_short": "KEISHA",
+    "title_version": "",
+    "duration": 97,
+    "rank": 100000,
+    "artist": {
+     "id": 7179232,
+     "name": "Seven LC"
+    },
+    "album": {
+     "id": 1137930301,
+     "title": "TILL I AIN'T"
+    }
+   },
+   {
+    "id": 4382148811,
+    "title": "Carollers After Dark",
+    "title_short": "Carollers After Dark",
+    "title_version": "",
+    "duration": 354,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148831,
+    "title": "New Year's Countdown Budots",
+    "title_short": "New Year's Countdown Budots",
+    "title_version": "",
+    "duration": 346,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148721,
+    "title": "Lantern Lights Tonight",
+    "title_short": "Lantern Lights Tonight",
+    "title_version": "",
+    "duration": 271,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148821,
+    "title": "Christmas Morning Sunshine",
+    "title_short": "Christmas Morning Sunshine",
+    "title_version": "",
+    "duration": 328,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148731,
+    "title": "Jingle Bass Explosion",
+    "title_short": "Jingle Bass Explosion",
+    "title_version": "",
+    "duration": 208,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148691,
+    "title": "Christmas in the Neighbourhood",
+    "title_short": "Christmas in the Neighbourhood",
+    "title_version": "",
+    "duration": 204,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148701,
+    "title": "Santa's Budots Party",
+    "title_short": "Santa's Budots Party",
+    "title_version": "",
+    "duration": 212,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148711,
+    "title": "Midnight Mass Bounce",
+    "title_short": "Midnight Mass Bounce",
+    "title_version": "",
+    "duration": 200,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148741,
+    "title": "Noche Buena Groove",
+    "title_short": "Noche Buena Groove",
+    "title_version": "",
+    "duration": 217,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148751,
+    "title": "Sleigh Ride in Paradise",
+    "title_short": "Sleigh Ride in Paradise",
+    "title_version": "",
+    "duration": 268,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148761,
+    "title": "The Gift of Joy",
+    "title_short": "The Gift of Joy",
+    "title_version": "",
+    "duration": 256,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148771,
+    "title": "Christmas Under the Stars",
+    "title_short": "Christmas Under the Stars",
+    "title_version": "",
+    "duration": 388,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148781,
+    "title": "Merry Merry Budots",
+    "title_short": "Merry Merry Budots",
+    "title_version": "",
+    "duration": 347,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148791,
+    "title": "Snowfall on the Dancefloor",
+    "title_short": "Snowfall on the Dancefloor",
+    "title_version": "",
+    "duration": 296,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 4382148801,
+    "title": "Feliz Budots Navidad",
+    "title_short": "Feliz Budots Navidad",
+    "title_version": "",
+    "duration": 373,
+    "rank": 100000,
+    "artist": {
+     "id": 10902280,
+     "name": "Keith D"
+    },
+    "album": {
+     "id": 1134949291,
+     "title": "CHRISTMAS BASS & HOLIDAY BEATS"
+    }
+   },
+   {
+    "id": 712915022,
+    "title": "Forever Tonight",
+    "title_short": "Forever Tonight",
+    "title_version": "",
+    "duration": 240,
+    "rank": 115994,
+    "artist": {
+     "id": 5775267,
+     "name": "Kelechi"
+    },
+    "album": {
+     "id": 103799872,
+     "title": "Forever Tonight"
+    }
+   },
+   {
+    "id": 3599496492,
+    "title": "WASTE TIME",
+    "title_short": "WASTE TIME",
+    "title_version": "",
+    "duration": 273,
+    "rank": 105229,
+    "artist": {
+     "id": 98588762,
+     "name": "Don Karton"
+    },
+    "album": {
+     "id": 837070762,
+     "title": "WASTE TIME"
+    }
+   },
+   {
+    "id": 2700038362,
+    "title": "Your Turn",
+    "title_short": "Your Turn",
+    "title_version": "",
+    "duration": 181,
+    "rank": 105275,
+    "artist": {
+     "id": 90907482,
+     "name": "KAACHI"
+    },
+    "album": {
+     "id": 559207872,
+     "title": "Your Turn"
+    }
+   }
+  ]
+ }
+}

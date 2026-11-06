@@ -1,0 +1,2706 @@
+{
+ "query": "AIRTIME",
+ "server": {
+  "artist": [
+   {
+    "id": "ext-deezer-artist-3590091",
+    "name": "Airtime",
+    "albumCount": 9,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-227448805",
+    "name": "Airtime",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-13425147",
+    "name": "Artemas",
+    "albumCount": 47,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-4707322",
+    "name": "Sirima",
+    "albumCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-159639",
+    "name": "Sortie",
+    "albumCount": 63,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-1671749",
+    "name": "AirDice",
+    "albumCount": 35,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-4535539",
+    "name": "Airtist",
+    "albumCount": 20,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-385801651",
+    "name": "Ai.RTIK & Ai.STI",
+    "albumCount": 27,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-111226352",
+    "name": "Air ike",
+    "albumCount": 11,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-235300331",
+    "name": "AI Slime",
+    "albumCount": 42,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-3153031",
+    "name": "Airtribe",
+    "albumCount": 6,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-9026976",
+    "name": "Air Time",
+    "albumCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-380914371",
+    "name": "Air-Time",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-259919151",
+    "name": "Ma-Airtime",
+    "albumCount": 0,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-246894192",
+    "name": "Bibo Airtime",
+    "albumCount": 0,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-370645552",
+    "name": "Airtime Gh",
+    "albumCount": 3,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-51257582",
+    "name": "Airtime R",
+    "albumCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-351328842",
+    "name": "Dj sabzah ma airtime",
+    "albumCount": 3,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-5286978",
+    "name": "Exile Airline",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-63923922",
+    "name": "Artie 5ive",
+    "albumCount": 38,
+    "isExternal": true
+   }
+  ],
+  "album": [
+   {
+    "id": "7e8oy65O4t1E0gUYSlIpWi",
+    "name": "AIRTIME",
+    "artist": "ZEXSING",
+    "artistId": "4X5PZGW6MbTNpmoxLQH3zq",
+    "artists": [
+     {
+      "id": "4X5PZGW6MbTNpmoxLQH3zq",
+      "name": "ZEXSING"
+     }
+    ],
+    "songCount": 1,
+    "year": 2026,
+    "isExternal": false
+   },
+   {
+    "id": "ext-deezer-album-72135742",
+    "name": "Airtime",
+    "artist": "Omaure",
+    "artistId": "ext-deezer-artist-11379664",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-897273142",
+    "name": "Airtime",
+    "artist": "Katie Melua",
+    "artistId": "ext-deezer-artist-218",
+    "songCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-229192212",
+    "name": "Airtime",
+    "artist": "Tommy Marcus",
+    "artistId": "ext-deezer-artist-58217",
+    "songCount": 12,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-7717013",
+    "name": "Air Time",
+    "artist": "Fiodhna Gardiner",
+    "artistId": "ext-deezer-artist-5809043",
+    "songCount": 11,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-155081292",
+    "name": "Liberty Manifesto",
+    "artist": "Rik Emmett",
+    "artistId": "ext-deezer-artist-394642",
+    "songCount": 11,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-1030868982",
+    "name": "Ain't In LA",
+    "artist": "ADÉLA",
+    "artistId": "ext-deezer-artist-306607671",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-286438",
+    "name": "Anytime",
+    "artist": "Brian McKnight",
+    "artistId": "ext-deezer-artist-5102",
+    "songCount": 13,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-398621537",
+    "name": "Anytime (Deluxe Edition)",
+    "artist": "Brian McKnight",
+    "artistId": "ext-deezer-artist-5102",
+    "songCount": 18,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-834445752",
+    "name": "All Time",
+    "artist": "Mkz03",
+    "artistId": "ext-deezer-artist-148593622",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-144188512",
+    "name": "Anytime",
+    "artist": "Trinix",
+    "artistId": "ext-deezer-artist-5355382",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-55517562",
+    "name": "AnyTime",
+    "artist": "Don Diablo",
+    "artistId": "ext-deezer-artist-100810",
+    "songCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-201369912",
+    "name": "All Time",
+    "artist": "Takis",
+    "artistId": "ext-deezer-artist-6048772",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-654278691",
+    "name": "I Am Slime",
+    "artist": "AI Slime",
+    "artistId": "ext-deezer-artist-235300331",
+    "songCount": 12,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-880534812",
+    "name": "Anytime",
+    "artist": "FatSync",
+    "artistId": "ext-deezer-artist-69760732",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-545800822",
+    "name": "See Me Callin'",
+    "artist": "AI Slime",
+    "artistId": "ext-deezer-artist-235300331",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-548548242",
+    "name": "ALL TIME",
+    "artist": "Mike Singer",
+    "artistId": "ext-deezer-artist-4325688",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-163313832",
+    "name": "Anytime",
+    "artist": "Chris Deelay",
+    "artistId": "ext-deezer-artist-893323",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-605834652",
+    "name": "ALL TIME",
+    "artist": "Soul Jah Love",
+    "artistId": "ext-deezer-artist-5866927",
+    "songCount": 7,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-206727442",
+    "name": "Anytime",
+    "artist": "Phil The Beat",
+    "artistId": "ext-deezer-artist-7313858",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-47054062",
+    "name": "Anytime",
+    "artist": "Popcaan",
+    "artistId": "ext-deezer-artist-377827",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-912464121",
+    "name": "PHYSICAL TIME",
+    "artist": "Airtime",
+    "artistId": "ext-deezer-artist-3590091",
+    "songCount": 0,
+    "year": 2026,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-814164721",
+    "name": "Saturated",
+    "artist": "Airtime",
+    "artistId": "ext-deezer-artist-3590091",
+    "songCount": 0,
+    "year": 2025,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-190552922",
+    "name": "2021",
+    "artist": "Airtime",
+    "artistId": "ext-deezer-artist-3590091",
+    "songCount": 0,
+    "year": 2021,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-50805222",
+    "name": "No Meaning",
+    "artist": "Airtime",
+    "artistId": "ext-deezer-artist-3590091",
+    "songCount": 0,
+    "year": 2017,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-15232727",
+    "name": "2017 EP",
+    "artist": "Airtime",
+    "artistId": "ext-deezer-artist-3590091",
+    "songCount": 0,
+    "year": 2017,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-675811371",
+    "name": "Drive",
+    "artist": "Airtime",
+    "artistId": "ext-deezer-artist-3590091",
+    "songCount": 0,
+    "year": 2023,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-656719841",
+    "name": "Our Neverland",
+    "artist": "Airtime",
+    "artistId": "ext-deezer-artist-3590091",
+    "songCount": 0,
+    "year": 2021,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-102464142",
+    "name": "Apart I",
+    "artist": "Airtime",
+    "artistId": "ext-deezer-artist-3590091",
+    "songCount": 0,
+    "year": 2019,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-64356302",
+    "name": "Broadcast",
+    "artist": "Airtime",
+    "artistId": "ext-deezer-artist-3590091",
+    "songCount": 0,
+    "year": 2018,
+    "isExternal": true
+   },
+   {
+    "id": "pl-deezer-14407440021",
+    "name": "Tom",
+    "artist": "🎵 Deezer",
+    "artistId": "curator-deezer-airtime67",
+    "songCount": 155,
+    "year": 2025
+   },
+   {
+    "id": "pl-deezer-156242721",
+    "name": "Divers",
+    "artist": "🎵 Deezer",
+    "artistId": "curator-deezer-airtime67",
+    "songCount": 145,
+    "year": 2013
+   }
+  ],
+  "song": [
+   {
+    "id": "3AX7GvODBpkVlF64e9M8Ip",
+    "title": "AIRTIME",
+    "album": "AIRTIME",
+    "albumId": "7e8oy65O4t1E0gUYSlIpWi",
+    "artist": "ZEXSING",
+    "artistId": "4X5PZGW6MbTNpmoxLQH3zq",
+    "track": 1,
+    "year": 2026,
+    "duration": 134,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1142,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "ext-deezer-song-3775829712",
+    "title": "Airtime (Acoustic)",
+    "album": "Acoustic Album No. 8",
+    "albumId": "ext-deezer-album-898049622",
+    "artist": "Katie Melua",
+    "artistId": "ext-deezer-artist-218",
+    "track": 0,
+    "year": 0,
+    "duration": 208,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-1650414642",
+    "title": "Airtime",
+    "album": "7 Del Sol",
+    "albumId": "ext-deezer-album-294358752",
+    "artist": "Pura Pura",
+    "artistId": "ext-deezer-artist-10341418",
+    "track": 0,
+    "year": 0,
+    "duration": 294,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-2370608975",
+    "title": "Air Time",
+    "album": "ARCHIVES 001",
+    "albumId": "ext-deezer-album-465288575",
+    "artist": "De-Tu",
+    "artistId": "ext-deezer-artist-49361532",
+    "track": 0,
+    "year": 0,
+    "duration": 190,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3772023952",
+    "title": "Airtime",
+    "album": "Album No. 8",
+    "albumId": "ext-deezer-album-896734792",
+    "artist": "Katie Melua",
+    "artistId": "ext-deezer-artist-218",
+    "track": 0,
+    "year": 0,
+    "duration": 209,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3625414352",
+    "title": "Airtime",
+    "album": "Think Creative",
+    "albumId": "ext-deezer-album-845986192",
+    "artist": "Adam Francis Routh",
+    "artistId": "ext-deezer-artist-74371342",
+    "track": 0,
+    "year": 0,
+    "duration": 142,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-549093462",
+    "title": "Airtime",
+    "album": "Airtime",
+    "albumId": "ext-deezer-album-72135742",
+    "artist": "Omaure",
+    "artistId": "ext-deezer-artist-11379664",
+    "track": 0,
+    "year": 0,
+    "duration": 70,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-2704638872",
+    "title": "Airtime",
+    "album": "Airtime",
+    "albumId": "ext-deezer-album-560441842",
+    "artist": "r_space",
+    "artistId": "ext-deezer-artist-158361822",
+    "track": 0,
+    "year": 0,
+    "duration": 167,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-72485013",
+    "title": "Someone Like You Karaoke",
+    "album": "Someone Like You (Karaoke)",
+    "albumId": "ext-deezer-album-7125599",
+    "artist": "Airtime",
+    "artistId": "ext-deezer-artist-227448805",
+    "track": 0,
+    "year": 0,
+    "duration": 287,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-993813342",
+    "title": "Headstream",
+    "album": "Liberty Manifesto",
+    "albumId": "ext-deezer-album-155081292",
+    "artist": "Rik Emmett",
+    "artistId": "ext-deezer-artist-394642",
+    "track": 0,
+    "year": 0,
+    "duration": 115,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-2853500752",
+    "title": "Airtime (Pierre Pienaar Remix)",
+    "album": "Airtime (Pierre Pienaar Remix)",
+    "albumId": "ext-deezer-album-603638352",
+    "artist": "Daniela Presta",
+    "artistId": "ext-deezer-artist-78467312",
+    "track": 0,
+    "year": 0,
+    "duration": 237,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-2856024512",
+    "title": "Airtime ENGAGE!! (feat. blottter)",
+    "album": "Airtime ENGAGE!! (feat. blottter)",
+    "albumId": "ext-deezer-album-604101392",
+    "artist": "SAGEISKAMI",
+    "artistId": "ext-deezer-artist-154318212",
+    "track": 0,
+    "year": 0,
+    "duration": 88,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-24967291",
+    "title": "Part-Time Lover",
+    "album": "In Square Circle",
+    "albumId": "ext-deezer-album-2376991",
+    "artist": "Stevie Wonder",
+    "artistId": "ext-deezer-artist-166",
+    "track": 0,
+    "year": 0,
+    "duration": 252,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-142328215",
+    "title": "It Ain't Me",
+    "album": "It Ain't Me",
+    "albumId": "ext-deezer-album-15383513",
+    "artist": "Kygo",
+    "artistId": "ext-deezer-artist-4768753",
+    "track": 0,
+    "year": 0,
+    "duration": 220,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-676011642",
+    "title": "Pastime Paradise",
+    "album": "Songs In The Key Of Life",
+    "albumId": "ext-deezer-album-96001912",
+    "artist": "Stevie Wonder",
+    "artistId": "ext-deezer-artist-166",
+    "track": 0,
+    "year": 0,
+    "duration": 209,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-119849610",
+    "title": "Sentimento Louco (Ao Vivo)",
+    "album": "Marília Mendonça (Ao Vivo)",
+    "albumId": "ext-deezer-album-12491316",
+    "artist": "Marília Mendonça",
+    "artistId": "ext-deezer-artist-7068771",
+    "track": 0,
+    "year": 0,
+    "duration": 169,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-1106317572",
+    "title": "American Airlines",
+    "album": "American Airlines",
+    "albumId": "ext-deezer-album-179027792",
+    "artist": "Sofiane",
+    "artistId": "ext-deezer-artist-89657",
+    "track": 0,
+    "year": 0,
+    "duration": 219,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3726158122",
+    "title": "Anytime",
+    "album": "Anytime",
+    "albumId": "ext-deezer-album-880534812",
+    "artist": "FatSync",
+    "artistId": "ext-deezer-artist-69760732",
+    "track": 0,
+    "year": 0,
+    "duration": 150,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-940615482",
+    "title": "Anytime",
+    "album": "Anytime",
+    "albumId": "ext-deezer-album-144188512",
+    "artist": "Trinix",
+    "artistId": "ext-deezer-artist-5355382",
+    "track": 0,
+    "year": 0,
+    "duration": 208,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-2958793",
+    "title": "Anytime",
+    "album": "Anytime",
+    "albumId": "ext-deezer-album-286438",
+    "artist": "Brian McKnight",
+    "artistId": "ext-deezer-artist-5102",
+    "track": 0,
+    "year": 0,
+    "duration": 275,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   }
+  ]
+ },
+ "deezer": {
+  "artists": [
+   {
+    "id": 3590091,
+    "name": "Airtime",
+    "nb_fan": 84,
+    "nb_album": 9
+   },
+   {
+    "id": 227448805,
+    "name": "Airtime",
+    "nb_fan": 16,
+    "nb_album": 2
+   },
+   {
+    "id": 13425147,
+    "name": "Artemas",
+    "nb_fan": 61973,
+    "nb_album": 47
+   },
+   {
+    "id": 4707322,
+    "name": "Sirima",
+    "nb_fan": 1558,
+    "nb_album": 1
+   },
+   {
+    "id": 159639,
+    "name": "Sortie",
+    "nb_fan": 161,
+    "nb_album": 63
+   },
+   {
+    "id": 1671749,
+    "name": "AirDice",
+    "nb_fan": 1747,
+    "nb_album": 35
+   },
+   {
+    "id": 4535539,
+    "name": "Airtist",
+    "nb_fan": 660,
+    "nb_album": 20
+   },
+   {
+    "id": 385801651,
+    "name": "Ai.RTIK & Ai.STI",
+    "nb_fan": 3,
+    "nb_album": 27
+   },
+   {
+    "id": 111226352,
+    "name": "Air ike",
+    "nb_fan": 20,
+    "nb_album": 11
+   },
+   {
+    "id": 235300331,
+    "name": "AI Slime",
+    "nb_fan": 75,
+    "nb_album": 42
+   },
+   {
+    "id": 3153031,
+    "name": "Airtribe",
+    "nb_fan": 22,
+    "nb_album": 6
+   },
+   {
+    "id": 9026976,
+    "name": "Air Time",
+    "nb_fan": 0,
+    "nb_album": 1
+   },
+   {
+    "id": 380914371,
+    "name": "Air-Time",
+    "nb_fan": 0,
+    "nb_album": 2
+   },
+   {
+    "id": 259919151,
+    "name": "Ma-Airtime",
+    "nb_fan": 0,
+    "nb_album": 0
+   },
+   {
+    "id": 246894192,
+    "name": "Bibo Airtime",
+    "nb_fan": 0,
+    "nb_album": 0
+   },
+   {
+    "id": 370645552,
+    "name": "Airtime Gh",
+    "nb_fan": 0,
+    "nb_album": 3
+   },
+   {
+    "id": 51257582,
+    "name": "Airtime R",
+    "nb_fan": 0,
+    "nb_album": 1
+   },
+   {
+    "id": 351328842,
+    "name": "Dj sabzah ma airtime",
+    "nb_fan": 0,
+    "nb_album": 3
+   },
+   {
+    "id": 5286978,
+    "name": "Exile Airline",
+    "nb_fan": 1184,
+    "nb_album": 2
+   },
+   {
+    "id": 63923922,
+    "name": "Artie 5ive",
+    "nb_fan": 14983,
+    "nb_album": 38
+   },
+   {
+    "id": 67098062,
+    "name": "Artie J",
+    "nb_fan": 660,
+    "nb_album": 48
+   },
+   {
+    "id": 61677,
+    "name": "Artie Shaw",
+    "nb_fan": 13838,
+    "nb_album": 14
+   },
+   {
+    "id": 70178,
+    "name": "Artie Shaw & His Orchestra",
+    "nb_fan": 2539,
+    "nb_album": 26
+   },
+   {
+    "id": 84865,
+    "name": "Artie Kaplan",
+    "nb_fan": 411,
+    "nb_album": 6
+   },
+   {
+    "id": 4578258,
+    "name": "Airline",
+    "nb_fan": 26,
+    "nb_album": 15
+   }
+  ],
+  "albums": [
+   {
+    "id": 72135742,
+    "title": "Airtime",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 11379664,
+     "name": "Omaure"
+    }
+   },
+   {
+    "id": 897273142,
+    "title": "Airtime",
+    "record_type": "single",
+    "nb_tracks": 2,
+    "artist": {
+     "id": 218,
+     "name": "Katie Melua"
+    }
+   },
+   {
+    "id": 229192212,
+    "title": "Airtime",
+    "record_type": "album",
+    "nb_tracks": 12,
+    "artist": {
+     "id": 58217,
+     "name": "Tommy Marcus"
+    }
+   },
+   {
+    "id": 7717013,
+    "title": "Air Time",
+    "record_type": "album",
+    "nb_tracks": 11,
+    "artist": {
+     "id": 5809043,
+     "name": "Fiodhna Gardiner"
+    }
+   },
+   {
+    "id": 155081292,
+    "title": "Liberty Manifesto",
+    "record_type": "album",
+    "nb_tracks": 11,
+    "artist": {
+     "id": 394642,
+     "name": "Rik Emmett"
+    }
+   },
+   {
+    "id": 1030868982,
+    "title": "Ain't In LA",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 306607671,
+     "name": "ADÉLA"
+    }
+   },
+   {
+    "id": 286438,
+    "title": "Anytime",
+    "record_type": "album",
+    "nb_tracks": 13,
+    "artist": {
+     "id": 5102,
+     "name": "Brian McKnight"
+    }
+   },
+   {
+    "id": 398621537,
+    "title": "Anytime (Deluxe Edition)",
+    "record_type": "album",
+    "nb_tracks": 18,
+    "artist": {
+     "id": 5102,
+     "name": "Brian McKnight"
+    }
+   },
+   {
+    "id": 834445752,
+    "title": "All Time",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 148593622,
+     "name": "Mkz03"
+    }
+   },
+   {
+    "id": 144188512,
+    "title": "Anytime",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 5355382,
+     "name": "Trinix"
+    }
+   },
+   {
+    "id": 55517562,
+    "title": "AnyTime",
+    "record_type": "single",
+    "nb_tracks": 2,
+    "artist": {
+     "id": 100810,
+     "name": "Don Diablo"
+    }
+   },
+   {
+    "id": 201369912,
+    "title": "All Time",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 6048772,
+     "name": "Takis"
+    }
+   },
+   {
+    "id": 654278691,
+    "title": "I Am Slime",
+    "record_type": "album",
+    "nb_tracks": 12,
+    "artist": {
+     "id": 235300331,
+     "name": "AI Slime"
+    }
+   },
+   {
+    "id": 880534812,
+    "title": "Anytime",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 69760732,
+     "name": "FatSync"
+    }
+   },
+   {
+    "id": 545800822,
+    "title": "See Me Callin'",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 235300331,
+     "name": "AI Slime"
+    }
+   },
+   {
+    "id": 548548242,
+    "title": "ALL TIME",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 4325688,
+     "name": "Mike Singer"
+    }
+   },
+   {
+    "id": 163313832,
+    "title": "Anytime",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 893323,
+     "name": "Chris Deelay"
+    }
+   },
+   {
+    "id": 605834652,
+    "title": "ALL TIME",
+    "record_type": "album",
+    "nb_tracks": 7,
+    "artist": {
+     "id": 5866927,
+     "name": "Soul Jah Love"
+    }
+   },
+   {
+    "id": 206727442,
+    "title": "Anytime",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 7313858,
+     "name": "Phil The Beat"
+    }
+   },
+   {
+    "id": 47054062,
+    "title": "Anytime",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 377827,
+     "name": "Popcaan"
+    }
+   },
+   {
+    "id": 99216562,
+    "title": "Anytime (feat. Kehlani & ROMderful)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 5291670,
+     "name": "Jean Deaux"
+    }
+   },
+   {
+    "id": 888274952,
+    "title": "AIRLINE",
+    "record_type": "album",
+    "nb_tracks": 11,
+    "artist": {
+     "id": 506377,
+     "name": "Crown"
+    }
+   },
+   {
+    "id": 219103062,
+    "title": "Anytime (feat. Khyra)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 13172399,
+     "name": "Rosbeh"
+    }
+   },
+   {
+    "id": 218798072,
+    "title": "Anytime",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 13574407,
+     "name": "Mike Kayihura"
+    }
+   },
+   {
+    "id": 858317712,
+    "title": "Any Time",
+    "record_type": "album",
+    "nb_tracks": 11,
+    "artist": {
+     "id": 194069,
+     "name": "Tyree Glenn"
+    }
+   }
+  ],
+  "tracks": [
+   {
+    "id": 3775829712,
+    "title": "Airtime (Acoustic)",
+    "title_short": "Airtime",
+    "title_version": "(Acoustic)",
+    "duration": 208,
+    "rank": 224470,
+    "artist": {
+     "id": 218,
+     "name": "Katie Melua"
+    },
+    "album": {
+     "id": 898049622,
+     "title": "Acoustic Album No. 8"
+    }
+   },
+   {
+    "id": 1650414642,
+    "title": "Airtime",
+    "title_short": "Airtime",
+    "title_version": "",
+    "duration": 294,
+    "rank": 126430,
+    "artist": {
+     "id": 10341418,
+     "name": "Pura Pura"
+    },
+    "album": {
+     "id": 294358752,
+     "title": "7 Del Sol"
+    }
+   },
+   {
+    "id": 2370608975,
+    "title": "Air Time",
+    "title_short": "Air Time",
+    "title_version": "",
+    "duration": 190,
+    "rank": 148553,
+    "artist": {
+     "id": 49361532,
+     "name": "De-Tu"
+    },
+    "album": {
+     "id": 465288575,
+     "title": "ARCHIVES 001"
+    }
+   },
+   {
+    "id": 3772023952,
+    "title": "Airtime",
+    "title_short": "Airtime",
+    "title_version": "",
+    "duration": 209,
+    "rank": 161263,
+    "artist": {
+     "id": 218,
+     "name": "Katie Melua"
+    },
+    "album": {
+     "id": 896734792,
+     "title": "Album No. 8"
+    }
+   },
+   {
+    "id": 4021555051,
+    "title": "AIRTIME",
+    "title_short": "AIRTIME",
+    "title_version": "",
+    "duration": 134,
+    "rank": 107878,
+    "artist": {
+     "id": 183106947,
+     "name": "ZEXSING"
+    },
+    "album": {
+     "id": 982772371,
+     "title": "AIRTIME"
+    }
+   },
+   {
+    "id": 3625414352,
+    "title": "Airtime",
+    "title_short": "Airtime",
+    "title_version": "",
+    "duration": 142,
+    "rank": 88735,
+    "artist": {
+     "id": 74371342,
+     "name": "Adam Francis Routh"
+    },
+    "album": {
+     "id": 845986192,
+     "title": "Think Creative"
+    }
+   },
+   {
+    "id": 549093462,
+    "title": "Airtime",
+    "title_short": "Airtime",
+    "duration": 70,
+    "rank": 71240,
+    "artist": {
+     "id": 11379664,
+     "name": "Omaure"
+    },
+    "album": {
+     "id": 72135742,
+     "title": "Airtime"
+    }
+   },
+   {
+    "id": 2704638872,
+    "title": "Airtime",
+    "title_short": "Airtime",
+    "title_version": "",
+    "duration": 167,
+    "rank": 75281,
+    "artist": {
+     "id": 158361822,
+     "name": "r_space"
+    },
+    "album": {
+     "id": 560441842,
+     "title": "Airtime"
+    }
+   },
+   {
+    "id": 72485013,
+    "title": "Someone Like You Karaoke",
+    "title_short": "Someone Like You Karaoke",
+    "title_version": "",
+    "duration": 287,
+    "rank": 30806,
+    "artist": {
+     "id": 227448805,
+     "name": "Airtime"
+    },
+    "album": {
+     "id": 7125599,
+     "title": "Someone Like You (Karaoke)"
+    }
+   },
+   {
+    "id": 993813342,
+    "title": "Headstream",
+    "title_short": "Headstream",
+    "title_version": "",
+    "duration": 115,
+    "rank": 22301,
+    "artist": {
+     "id": 394642,
+     "name": "Rik Emmett"
+    },
+    "album": {
+     "id": 155081292,
+     "title": "Liberty Manifesto"
+    }
+   },
+   {
+    "id": 2853500752,
+    "title": "Airtime (Pierre Pienaar Remix)",
+    "title_short": "Airtime",
+    "title_version": "(Pierre Pienaar Remix)",
+    "duration": 237,
+    "rank": 3064,
+    "artist": {
+     "id": 78467312,
+     "name": "Daniela Presta"
+    },
+    "album": {
+     "id": 603638352,
+     "title": "Airtime (Pierre Pienaar Remix)"
+    }
+   },
+   {
+    "id": 2856024512,
+    "title": "Airtime ENGAGE!! (feat. blottter)",
+    "title_short": "Airtime ENGAGE!! (feat. blottter)",
+    "title_version": "",
+    "duration": 88,
+    "rank": 53405,
+    "artist": {
+     "id": 154318212,
+     "name": "SAGEISKAMI"
+    },
+    "album": {
+     "id": 604101392,
+     "title": "Airtime ENGAGE!! (feat. blottter)"
+    }
+   },
+   {
+    "id": 24967291,
+    "title": "Part-Time Lover",
+    "title_short": "Part-Time Lover",
+    "title_version": "",
+    "duration": 252,
+    "rank": 868915,
+    "artist": {
+     "id": 166,
+     "name": "Stevie Wonder"
+    },
+    "album": {
+     "id": 2376991,
+     "title": "In Square Circle"
+    }
+   },
+   {
+    "id": 142328215,
+    "title": "It Ain't Me",
+    "title_short": "It Ain't Me",
+    "title_version": "",
+    "duration": 220,
+    "rank": 828386,
+    "artist": {
+     "id": 4768753,
+     "name": "Kygo"
+    },
+    "album": {
+     "id": 15383513,
+     "title": "It Ain't Me"
+    }
+   },
+   {
+    "id": 676011642,
+    "title": "Pastime Paradise",
+    "title_short": "Pastime Paradise",
+    "title_version": "",
+    "duration": 209,
+    "rank": 707112,
+    "artist": {
+     "id": 166,
+     "name": "Stevie Wonder"
+    },
+    "album": {
+     "id": 96001912,
+     "title": "Songs In The Key Of Life"
+    }
+   },
+   {
+    "id": 119849610,
+    "title": "Sentimento Louco (Ao Vivo)",
+    "title_short": "Sentimento Louco",
+    "title_version": "(Ao Vivo)",
+    "duration": 169,
+    "rank": 700852,
+    "artist": {
+     "id": 7068771,
+     "name": "Marília Mendonça"
+    },
+    "album": {
+     "id": 12491316,
+     "title": "Marília Mendonça (Ao Vivo)"
+    }
+   },
+   {
+    "id": 1106317572,
+    "title": "American Airlines",
+    "title_short": "American Airlines",
+    "title_version": "",
+    "duration": 219,
+    "rank": 598984,
+    "artist": {
+     "id": 89657,
+     "name": "Sofiane"
+    },
+    "album": {
+     "id": 179027792,
+     "title": "American Airlines"
+    }
+   },
+   {
+    "id": 3726158122,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 150,
+    "rank": 476225,
+    "artist": {
+     "id": 69760732,
+     "name": "FatSync"
+    },
+    "album": {
+     "id": 880534812,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 940615482,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 208,
+    "rank": 466164,
+    "artist": {
+     "id": 5355382,
+     "name": "Trinix"
+    },
+    "album": {
+     "id": 144188512,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 2958793,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 275,
+    "rank": 426156,
+    "artist": {
+     "id": 5102,
+     "name": "Brian McKnight"
+    },
+    "album": {
+     "id": 286438,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 1152223,
+    "title": "All Time",
+    "title_short": "All Time",
+    "title_version": "",
+    "duration": 231,
+    "rank": 416269,
+    "artist": {
+     "id": 1334,
+     "name": "Archive"
+    },
+    "album": {
+     "id": 123427,
+     "title": "Londinium"
+    }
+   },
+   {
+    "id": 4146938172,
+    "title": "Any Time (feat. James Fauntleroy)",
+    "title_short": "Any Time (feat. James Fauntleroy)",
+    "title_version": "",
+    "duration": 269,
+    "rank": 386739,
+    "artist": {
+     "id": 765803,
+     "name": "Syd"
+    },
+    "album": {
+     "id": 1026376182,
+     "title": "Beard"
+    }
+   },
+   {
+    "id": 3592259892,
+    "title": "All Time",
+    "title_short": "All Time",
+    "title_version": "",
+    "duration": 157,
+    "rank": 425104,
+    "artist": {
+     "id": 148593622,
+     "name": "Mkz03"
+    },
+    "album": {
+     "id": 834445752,
+     "title": "All Time"
+    }
+   },
+   {
+    "id": 3654880182,
+    "title": "ALL TIME",
+    "title_short": "ALL TIME",
+    "title_version": "",
+    "duration": 174,
+    "rank": 352259,
+    "artist": {
+     "id": 5421629,
+     "name": "De La Rose"
+    },
+    "album": {
+     "id": 856146462,
+     "title": "FX De La Rose"
+    }
+   },
+   {
+    "id": 3976819191,
+    "title": "Air",
+    "title_short": "Air",
+    "title_version": "",
+    "duration": 286,
+    "rank": 287048,
+    "artist": {
+     "id": 5909245,
+     "name": "Simrit"
+    },
+    "album": {
+     "id": 967039451,
+     "title": "Air"
+    }
+   },
+   {
+    "id": 835816,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 245,
+    "rank": 290630,
+    "artist": {
+     "id": 68,
+     "name": "Kelly Clarkson"
+    },
+    "album": {
+     "id": 96412,
+     "title": "Thankful"
+    }
+   },
+   {
+    "id": 87960661,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 249,
+    "rank": 301285,
+    "artist": {
+     "id": 5102,
+     "name": "Brian McKnight"
+    },
+    "album": {
+     "id": 8882899,
+     "title": "1989-2002 From There To Here"
+    }
+   },
+   {
+    "id": 1034305772,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 150,
+    "rank": 307460,
+    "artist": {
+     "id": 893323,
+     "name": "Chris Deelay"
+    },
+    "album": {
+     "id": 163313832,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 1239866842,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 148,
+    "rank": 297622,
+    "artist": {
+     "id": 7313858,
+     "name": "Phil The Beat"
+    },
+    "album": {
+     "id": 206727442,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 518746062,
+    "title": "All Time",
+    "title_short": "All Time",
+    "title_version": "",
+    "duration": 159,
+    "rank": 290690,
+    "artist": {
+     "id": 10883474,
+     "name": "Poplane"
+    },
+    "album": {
+     "id": 66717212,
+     "title": "B Vybz Riddim"
+    }
+   },
+   {
+    "id": 399864662,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 193,
+    "rank": 275788,
+    "artist": {
+     "id": 377827,
+     "name": "Popcaan"
+    },
+    "album": {
+     "id": 47054062,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 505957382,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 278,
+    "rank": 260508,
+    "artist": {
+     "id": 5211099,
+     "name": "Snail Mail"
+    },
+    "album": {
+     "id": 64648532,
+     "title": "Lush"
+    }
+   },
+   {
+    "id": 4274790612,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 178,
+    "rank": 255792,
+    "artist": {
+     "id": 273917071,
+     "name": "nine vicious"
+    },
+    "album": {
+     "id": 1074326152,
+     "title": "SEDITION"
+    }
+   },
+   {
+    "id": 4172469782,
+    "title": "Лампочки (Speed Down)",
+    "title_short": "Лампочки",
+    "title_version": "(Speed Down)",
+    "duration": 217,
+    "rank": 240997,
+    "artist": {
+     "id": 385801651,
+     "name": "Ai.RTIK & Ai.STI"
+    },
+    "album": {
+     "id": 1036264872,
+     "title": "Лампочки (Speed Up & Speed Down)"
+    }
+   },
+   {
+    "id": 667612062,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 168,
+    "rank": 256167,
+    "artist": {
+     "id": 12980,
+     "name": "Mavis Staples"
+    },
+    "album": {
+     "id": 94078172,
+     "title": "We Get By"
+    }
+   },
+   {
+    "id": 2190499587,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 343,
+    "rank": 225580,
+    "artist": {
+     "id": 1647490,
+     "name": "McAuley Schenker Group"
+    },
+    "album": {
+     "id": 417352377,
+     "title": "Save Yourself"
+    }
+   },
+   {
+    "id": 3378319591,
+    "title": "All Time (feat. Tawiah)",
+    "title_short": "All Time (feat. Tawiah)",
+    "title_version": "",
+    "duration": 228,
+    "rank": 224496,
+    "artist": {
+     "id": 4660257,
+     "name": "Alfa Mist"
+    },
+    "album": {
+     "id": 760560921,
+     "title": "Roulette"
+    }
+   },
+   {
+    "id": 3532669551,
+    "title": "Any Time",
+    "title_short": "Any Time",
+    "title_version": "",
+    "duration": 135,
+    "rank": 216162,
+    "artist": {
+     "id": 264788112,
+     "name": "The Palm Tree Boy"
+    },
+    "album": {
+     "id": 813013571,
+     "title": "Any Time"
+    }
+   },
+   {
+    "id": 690895362,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 256,
+    "rank": 228479,
+    "artist": {
+     "id": 5291670,
+     "name": "Jean Deaux"
+    },
+    "album": {
+     "id": 99216562,
+     "title": "Anytime (feat. Kehlani & ROMderful)"
+    }
+   },
+   {
+    "id": 3219453391,
+    "title": "air ride",
+    "title_short": "air ride",
+    "title_version": "",
+    "duration": 168,
+    "rank": 224406,
+    "artist": {
+     "id": 227241605,
+     "name": "Chanpan"
+    },
+    "album": {
+     "id": 708554201,
+     "title": "air ride + ❥attack"
+    }
+   },
+   {
+    "id": 3126233,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 343,
+    "rank": 218005,
+    "artist": {
+     "id": 1647490,
+     "name": "McAuley Schenker Group"
+    },
+    "album": {
+     "id": 301539,
+     "title": "Unplugged Live"
+    }
+   },
+   {
+    "id": 1296893582,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 185,
+    "rank": 187614,
+    "artist": {
+     "id": 13574407,
+     "name": "Mike Kayihura"
+    },
+    "album": {
+     "id": 218798072,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 563035,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 208,
+    "rank": 192497,
+    "artist": {
+     "id": 3381,
+     "name": "Journey"
+    },
+    "album": {
+     "id": 73382,
+     "title": "Infinity"
+    }
+   },
+   {
+    "id": 4136776281,
+    "title": "All Time",
+    "title_short": "All Time",
+    "title_version": "",
+    "duration": 144,
+    "rank": 155174,
+    "artist": {
+     "id": 128997452,
+     "name": "Okonski"
+    },
+    "album": {
+     "id": 1022718661,
+     "title": "Additions"
+    }
+   },
+   {
+    "id": 736966382,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 246,
+    "rank": 191663,
+    "artist": {
+     "id": 2620,
+     "name": "Ray J"
+    },
+    "album": {
+     "id": 108257782,
+     "title": "Raydiation"
+    }
+   },
+   {
+    "id": 121167470,
+    "title": "Your Firefly (Radio Edit)",
+    "title_short": "Your Firefly",
+    "title_version": "(Radio Edit)",
+    "duration": 180,
+    "rank": 198819,
+    "artist": {
+     "id": 1671749,
+     "name": "AirDice"
+    },
+    "album": {
+     "id": 12657182,
+     "title": "Your Firefly"
+    }
+   },
+   {
+    "id": 2594756,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "duration": 189,
+    "rank": 169538,
+    "artist": {
+     "id": 10762,
+     "name": "Bounty Killer"
+    },
+    "album": {
+     "id": 253110,
+     "title": "5th Element"
+    }
+   },
+   {
+    "id": 1164434082,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 385,
+    "rank": 177776,
+    "artist": {
+     "id": 3165691,
+     "name": "Tim Reaper"
+    },
+    "album": {
+     "id": 190694492,
+     "title": "Teletext"
+    }
+   },
+   {
+    "id": 12111222,
+    "title": "A Crime",
+    "title_short": "A Crime",
+    "title_version": "",
+    "duration": 193,
+    "rank": 138699,
+    "artist": {
+     "id": 393596,
+     "name": "Sharon Van Etten"
+    },
+    "album": {
+     "id": 1111790,
+     "title": "Epic"
+    }
+   },
+   {
+    "id": 3028197191,
+    "title": "As Time Flies",
+    "title_short": "As Time Flies",
+    "title_version": "",
+    "duration": 98,
+    "rank": 165661,
+    "artist": {
+     "id": 234716761,
+     "name": "Ty's Music"
+    },
+    "album": {
+     "id": 651393671,
+     "title": "As Time Flies"
+    }
+   },
+   {
+    "id": 609311272,
+    "title": "Tu Bie (Radio Edit)",
+    "title_short": "Tu Bie",
+    "title_version": "(Radio Edit)",
+    "duration": 217,
+    "rank": 164311,
+    "artist": {
+     "id": 1671749,
+     "name": "AirDice"
+    },
+    "album": {
+     "id": 82733542,
+     "title": "Tu Bie"
+    }
+   },
+   {
+    "id": 1210890272,
+    "title": "Anytime (feat. Asiong De Luna & esseca)",
+    "title_short": "Anytime (feat. Asiong De Luna & esseca)",
+    "title_version": "",
+    "duration": 259,
+    "rank": 161614,
+    "artist": {
+     "id": 49902612,
+     "name": "Lipip"
+    },
+    "album": {
+     "id": 200414482,
+     "title": "Anytime (feat. Asiong De Luna & esseca)"
+    }
+   },
+   {
+    "id": 2043196157,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 126,
+    "rank": 142973,
+    "artist": {
+     "id": 11133,
+     "name": "Slim Thug"
+    },
+    "album": {
+     "id": 381913147,
+     "title": "Down In Texas (Edited)"
+    }
+   },
+   {
+    "id": 139736393,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 303,
+    "rank": 171867,
+    "artist": {
+     "id": 397730,
+     "name": "Deaf Radio"
+    },
+    "album": {
+     "id": 15030195,
+     "title": "Alarm"
+    }
+   },
+   {
+    "id": 1860596457,
+    "title": "AIRLINE",
+    "title_short": "AIRLINE",
+    "title_version": "",
+    "duration": 152,
+    "rank": 157114,
+    "artist": {
+     "id": 14415029,
+     "name": "Realo"
+    },
+    "album": {
+     "id": 344927007,
+     "title": "EMOTION"
+    }
+   },
+   {
+    "id": 4377891781,
+    "title": "MINUTOS VITALES",
+    "title_short": "MINUTOS VITALES",
+    "title_version": "",
+    "duration": 154,
+    "rank": 171175,
+    "artist": {
+     "id": 4535539,
+     "name": "Airtist"
+    },
+    "album": {
+     "id": 1133286171,
+     "title": "MINUTOS VITALES"
+    }
+   },
+   {
+    "id": 3807039862,
+    "title": "Anytime (You Want It) (Demo Song)",
+    "title_short": "Anytime (You Want It)",
+    "title_version": "(Demo Song)",
+    "duration": 318,
+    "rank": 160236,
+    "artist": {
+     "id": 863,
+     "name": "Scorpions"
+    },
+    "album": {
+     "id": 906325682,
+     "title": "Love At First Sting"
+    }
+   },
+   {
+    "id": 3128133341,
+    "title": "A Time & Place",
+    "title_short": "A Time & Place",
+    "title_version": "",
+    "duration": 364,
+    "rank": 149226,
+    "artist": {
+     "id": 1610248,
+     "name": "Jjos"
+    },
+    "album": {
+     "id": 679940911,
+     "title": "Motion (Album)"
+    }
+   },
+   {
+    "id": 3510808031,
+    "title": "Airside",
+    "title_short": "Airside",
+    "title_version": "",
+    "duration": 107,
+    "rank": 147962,
+    "artist": {
+     "id": 102250382,
+     "name": "Ashess"
+    },
+    "album": {
+     "id": 805659011,
+     "title": "Airside"
+    }
+   },
+   {
+    "id": 61811680,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "duration": 291,
+    "rank": 164579,
+    "artist": {
+     "id": 16799,
+     "name": "Lyricson"
+    },
+    "album": {
+     "id": 6059873,
+     "title": "Love Therapy"
+    }
+   },
+   {
+    "id": 3619029912,
+    "title": "All Time",
+    "title_short": "All Time",
+    "title_version": "",
+    "duration": 163,
+    "rank": 120161,
+    "artist": {
+     "id": 162497447,
+     "name": "hexale"
+    },
+    "album": {
+     "id": 843704742,
+     "title": "All Time"
+    }
+   },
+   {
+    "id": 452699282,
+    "title": "AnyTime",
+    "title_short": "AnyTime",
+    "title_version": "",
+    "duration": 187,
+    "rank": 160656,
+    "artist": {
+     "id": 100810,
+     "name": "Don Diablo"
+    },
+    "album": {
+     "id": 55517562,
+     "title": "AnyTime"
+    }
+   },
+   {
+    "id": 3580471401,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 274,
+    "rank": 155160,
+    "artist": {
+     "id": 2153,
+     "name": "Paul Anka"
+    },
+    "album": {
+     "id": 830239611,
+     "title": "Inspirations of Life and Love"
+    }
+   },
+   {
+    "id": 2664907342,
+    "title": "ALL TIME",
+    "title_short": "ALL TIME",
+    "title_version": "",
+    "duration": 139,
+    "rank": 148649,
+    "artist": {
+     "id": 4325688,
+     "name": "Mike Singer"
+    },
+    "album": {
+     "id": 548548242,
+     "title": "ALL TIME"
+    }
+   },
+   {
+    "id": 551066672,
+    "title": "Ain't Me (feat. Yo Gotti)",
+    "title_short": "Ain't Me (feat. Yo Gotti)",
+    "title_version": "",
+    "duration": 275,
+    "rank": 159129,
+    "artist": {
+     "id": 413596,
+     "name": "Meek Mill"
+    },
+    "album": {
+     "id": 72461642,
+     "title": "Dreamchasers 3"
+    }
+   },
+   {
+    "id": 75778580,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "duration": 151,
+    "rank": 139286,
+    "artist": {
+     "id": 617633,
+     "name": "The Osmond Brothers"
+    },
+    "album": {
+     "id": 7507186,
+     "title": "Greatest Country Hits"
+    }
+   },
+   {
+    "id": 3338485391,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 186,
+    "rank": 136161,
+    "artist": {
+     "id": 105738072,
+     "name": "Bayka"
+    },
+    "album": {
+     "id": 747200391,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 1626218482,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 127,
+    "rank": 108620,
+    "artist": {
+     "id": 8933508,
+     "name": "Adeodat Warfield"
+    },
+    "album": {
+     "id": 288671722,
+     "title": "Goop (Software Blonde)"
+    }
+   },
+   {
+    "id": 4172469802,
+    "title": "Лампочки (Double Speed Down)",
+    "title_short": "Лампочки",
+    "title_version": "(Double Speed Down)",
+    "duration": 272,
+    "rank": 100165,
+    "artist": {
+     "id": 385801651,
+     "name": "Ai.RTIK & Ai.STI"
+    },
+    "album": {
+     "id": 1036264872,
+     "title": "Лампочки (Speed Up & Speed Down)"
+    }
+   },
+   {
+    "id": 3079069361,
+    "title": "All time",
+    "title_short": "All time",
+    "title_version": "",
+    "duration": 135,
+    "rank": 157085,
+    "artist": {
+     "id": 5181405,
+     "name": "Nans"
+    },
+    "album": {
+     "id": 666784671,
+     "title": "26"
+    }
+   },
+   {
+    "id": 850920702,
+    "title": "Anytime (Acoustic Session)",
+    "title_short": "Anytime",
+    "title_version": "(Acoustic Session)",
+    "duration": 236,
+    "rank": 109656,
+    "artist": {
+     "id": 7141693,
+     "name": "C Duncan"
+    },
+    "album": {
+     "id": 126371952,
+     "title": "Architect"
+    }
+   },
+   {
+    "id": 118155332,
+    "title": "All Time",
+    "title_short": "All Time",
+    "duration": 225,
+    "rank": 143858,
+    "artist": {
+     "id": 4645145,
+     "name": "Knower"
+    },
+    "album": {
+     "id": 12274926,
+     "title": "Life"
+    }
+   },
+   {
+    "id": 2840612272,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 349,
+    "rank": 138882,
+    "artist": {
+     "id": 1357541,
+     "name": "Moullinex"
+    },
+    "album": {
+     "id": 599630192,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 14031857,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 236,
+    "rank": 145016,
+    "artist": {
+     "id": 12984,
+     "name": "Sefyu"
+    },
+    "album": {
+     "id": 1285635,
+     "title": "Oui Je Le Suis"
+    }
+   },
+   {
+    "id": 1643125922,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 217,
+    "rank": 102579,
+    "artist": {
+     "id": 96734312,
+     "name": "Fontanarosa"
+    },
+    "album": {
+     "id": 292576722,
+     "title": "Are You There ?"
+    }
+   },
+   {
+    "id": 435153932,
+    "title": "Out Try",
+    "title_short": "Out Try",
+    "title_version": "",
+    "duration": 307,
+    "rank": 104583,
+    "artist": {
+     "id": 1671749,
+     "name": "AirDice"
+    },
+    "album": {
+     "id": 52558642,
+     "title": "7 Tage"
+    }
+   },
+   {
+    "id": 2711947621,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 426,
+    "rank": 126413,
+    "artist": {
+     "id": 173721867,
+     "name": "RED Worship"
+    },
+    "album": {
+     "id": 562253321,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 2625312792,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 294,
+    "rank": 150969,
+    "artist": {
+     "id": 546,
+     "name": "Mýa"
+    },
+    "album": {
+     "id": 536462132,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 2277078617,
+    "title": "Ain't Me",
+    "title_short": "Ain't Me",
+    "title_version": "",
+    "duration": 113,
+    "rank": 121729,
+    "artist": {
+     "id": 5518896,
+     "name": "Dezzy Hollow"
+    },
+    "album": {
+     "id": 439629447,
+     "title": "Ain't Me"
+    }
+   },
+   {
+    "id": 3700600952,
+    "title": "MALA SUERTE",
+    "title_short": "MALA SUERTE",
+    "title_version": "",
+    "duration": 134,
+    "rank": 109365,
+    "artist": {
+     "id": 4535539,
+     "name": "Airtist"
+    },
+    "album": {
+     "id": 871940432,
+     "title": "MALA SUERTE"
+    }
+   },
+   {
+    "id": 2011811467,
+    "title": "Tu Bie Reworked",
+    "title_short": "Tu Bie Reworked",
+    "title_version": "",
+    "duration": 353,
+    "rank": 117312,
+    "artist": {
+     "id": 1671749,
+     "name": "AirDice"
+    },
+    "album": {
+     "id": 374763617,
+     "title": "Tu Bie Reworked"
+    }
+   },
+   {
+    "id": 82153260,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 236,
+    "rank": 119453,
+    "artist": {
+     "id": 2066,
+     "name": "My Morning Jacket"
+    },
+    "album": {
+     "id": 8237792,
+     "title": "Z"
+    }
+   },
+   {
+    "id": 75780359,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 258,
+    "rank": 117574,
+    "artist": {
+     "id": 10271,
+     "name": "Mary Griffin"
+    },
+    "album": {
+     "id": 7507329,
+     "title": "Purified"
+    }
+   },
+   {
+    "id": 842836602,
+    "title": "Time",
+    "title_short": "Time",
+    "title_version": "",
+    "duration": 223,
+    "rank": 128452,
+    "artist": {
+     "id": 1271245,
+     "name": "AOA"
+    },
+    "album": {
+     "id": 124606432,
+     "title": "Like a Cat"
+    }
+   },
+   {
+    "id": 609311262,
+    "title": "Tu Bie",
+    "title_short": "Tu Bie",
+    "title_version": "",
+    "duration": 366,
+    "rank": 116774,
+    "artist": {
+     "id": 1671749,
+     "name": "AirDice"
+    },
+    "album": {
+     "id": 82733542,
+     "title": "Tu Bie"
+    }
+   },
+   {
+    "id": 4701531,
+    "title": "A Saga De Agotime - Maria Mineira Naê",
+    "title_short": "A Saga De Agotime - Maria Mineira Naê",
+    "title_version": "",
+    "duration": 327,
+    "rank": 243178,
+    "artist": {
+     "id": 200187,
+     "name": "Neguinho da Beija-Flor"
+    },
+    "album": {
+     "id": 432871,
+     "title": "Os Sambas Da Beija Flor De Nilópolis"
+    }
+   },
+   {
+    "id": 2249560927,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 364,
+    "rank": 134082,
+    "artist": {
+     "id": 5847,
+     "name": "Raheem DeVaughn"
+    },
+    "album": {
+     "id": 432772027,
+     "title": "From Lust Till Dawn"
+    }
+   },
+   {
+    "id": 4333262242,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 114,
+    "rank": 163183,
+    "artist": {
+     "id": 79894632,
+     "name": "Jetten"
+    },
+    "album": {
+     "id": 1115808142,
+     "title": "Sero Kilometer"
+    }
+   },
+   {
+    "id": 113205116,
+    "title": "All Time",
+    "title_short": "All Time",
+    "title_version": "",
+    "duration": 170,
+    "rank": 107838,
+    "artist": {
+     "id": 5894370,
+     "name": "Kurt Hugo Schneider"
+    },
+    "album": {
+     "id": 11726088,
+     "title": "All Time"
+    }
+   },
+   {
+    "id": 1444366052,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 318,
+    "rank": 151969,
+    "artist": {
+     "id": 66873,
+     "name": "Kirk Whalum"
+    },
+    "album": {
+     "id": 247042932,
+     "title": "For You"
+    }
+   },
+   {
+    "id": 1618530202,
+    "title": "Goodbye",
+    "title_short": "Goodbye",
+    "title_version": "",
+    "duration": 136,
+    "rank": 107091,
+    "artist": {
+     "id": 516301,
+     "name": "Marcapasos"
+    },
+    "album": {
+     "id": 286887762,
+     "title": "Goodbye"
+    }
+   },
+   {
+    "id": 4228008062,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 227,
+    "rank": 127654,
+    "artist": {
+     "id": 102075,
+     "name": "DJ Major"
+    },
+    "album": {
+     "id": 1056000052,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 1079847862,
+    "title": "Any Time",
+    "title_short": "Any Time",
+    "title_version": "",
+    "duration": 260,
+    "rank": 115210,
+    "artist": {
+     "id": 77384442,
+     "name": "Songs of Birdland"
+    },
+    "album": {
+     "id": 173189822,
+     "title": "Jazz Lullabies, Vol.2"
+    }
+   },
+   {
+    "id": 15455147,
+    "title": "Anytime (Radio Mix)",
+    "title_short": "Anytime (Radio Mix)",
+    "title_version": "",
+    "duration": 217,
+    "rank": 99941,
+    "artist": {
+     "id": 16962,
+     "name": "B.V.S.M.P."
+    },
+    "album": {
+     "id": 1427997,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 1089948672,
+    "title": "Atrai-Me",
+    "title_short": "Atrai-Me",
+    "title_version": "",
+    "duration": 253,
+    "rank": 102552,
+    "artist": {
+     "id": 10743570,
+     "name": "Comunidade das Nações"
+    },
+    "album": {
+     "id": 175425642,
+     "title": "Sorria"
+    }
+   },
+   {
+    "id": 3110558491,
+    "title": "Anytime (Live)",
+    "title_short": "Anytime (Live)",
+    "title_version": "",
+    "duration": 356,
+    "rank": 96327,
+    "artist": {
+     "id": 5102,
+     "name": "Brian McKnight"
+    },
+    "album": {
+     "id": 675042501,
+     "title": "An Evening With Brian McKnight (Live)"
+    }
+   },
+   {
+    "id": 3237646311,
+    "title": "Anytime",
+    "title_short": "Anytime",
+    "title_version": "",
+    "duration": 130,
+    "rank": 144441,
+    "artist": {
+     "id": 279743151,
+     "name": "Teyio River"
+    },
+    "album": {
+     "id": 714383821,
+     "title": "Anytime"
+    }
+   },
+   {
+    "id": 63875860,
+    "title": "Anytime (7\" Radio Mix)",
+    "title_short": "Anytime (7\" Radio Mix)",
+    "title_version": "",
+    "duration": 221,
+    "rank": 122347,
+    "artist": {
+     "id": 80694,
+     "name": "Obsession"
+    },
+    "album": {
+     "id": 6267089,
+     "title": "Almighty Ultimate Dance Party"
+    }
+   },
+   {
+    "id": 1525020892,
+    "title": "All Time",
+    "title_short": "All Time",
+    "title_version": "",
+    "duration": 166,
+    "rank": 23214,
+    "artist": {
+     "id": 6048772,
+     "name": "Takis"
+    },
+    "album": {
+     "id": 266374872,
+     "title": "Season 1: Welcome Home"
+    }
+   },
+   {
+    "id": 4390637581,
+    "title": "Tideline Confetti",
+    "title_short": "Tideline Confetti",
+    "title_version": "",
+    "duration": 352,
+    "rank": 100000,
+    "artist": {
+     "id": 376517511,
+     "name": "AiHime"
+    },
+    "album": {
+     "id": 1138485111,
+     "title": "AIHIME NONSTOP TRANCE #20"
+    }
+   }
+  ]
+ }
+}

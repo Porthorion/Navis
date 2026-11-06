@@ -1,0 +1,2991 @@
+{
+ "query": "Muse",
+ "server": {
+  "artist": [
+   {
+    "id": "2SlsT4AHwuZjF0ovFYGopP",
+    "name": "Muse",
+    "albumCount": 5,
+    "isExternal": false
+   },
+   {
+    "id": "ext-deezer-artist-327639251",
+    "name": "Muse & Hom'",
+    "albumCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-336026091",
+    "name": "m u s e",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-1594174",
+    "name": "M.U.S.E.",
+    "albumCount": 16,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-92308212",
+    "name": "Muse Maya",
+    "albumCount": 34,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-171423957",
+    "name": "La Muse",
+    "albumCount": 24,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-80562052",
+    "name": "Deva Muse",
+    "albumCount": 430,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-114488042",
+    "name": "May The Muse",
+    "albumCount": 14,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-83517142",
+    "name": "Kylie Muse",
+    "albumCount": 66,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-177462397",
+    "name": "Soa de Muse",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-8181",
+    "name": "Faith and the Muse",
+    "albumCount": 7,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-287096061",
+    "name": "Muse Lab",
+    "albumCount": 15,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-12963277",
+    "name": "Iberian Muse",
+    "albumCount": 20,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-321730401",
+    "name": "Muse Petal",
+    "albumCount": 43,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-53121702",
+    "name": "Elijah Muse",
+    "albumCount": 4,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-419101182",
+    "name": "Fading Iris Muse",
+    "albumCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-160138282",
+    "name": "NMIXX",
+    "albumCount": 27,
+    "isExternal": true
+   }
+  ],
+  "album": [
+   {
+    "id": "67PzU32QthfQPN0yesNWVS",
+    "name": "MUSE",
+    "artist": "KUTE",
+    "artistId": "10CoeOz97jXsDyqRKGJfw3",
+    "artists": [
+     {
+      "id": "10CoeOz97jXsDyqRKGJfw3",
+      "name": "KUTE"
+     }
+    ],
+    "songCount": 1,
+    "year": 2026,
+    "isExternal": false
+   },
+   {
+    "id": "4nGb9aJNGGZtDH5wZecoRS",
+    "name": "Absolution",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "artists": [
+     {
+      "id": "2SlsT4AHwuZjF0ovFYGopP",
+      "name": "Muse"
+     }
+    ],
+    "songCount": 15,
+    "year": 2003,
+    "isExternal": false
+   },
+   {
+    "id": "56Ite3uNdJ542z06ACkBcI",
+    "name": "The Resistance",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "artists": [
+     {
+      "id": "2SlsT4AHwuZjF0ovFYGopP",
+      "name": "Muse"
+     }
+    ],
+    "songCount": 11,
+    "year": 2009,
+    "isExternal": false
+   },
+   {
+    "id": "2PZuwR6WxYaHVDnwByNB2a",
+    "name": "Black Holes and Revelations",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "artists": [
+     {
+      "id": "2SlsT4AHwuZjF0ovFYGopP",
+      "name": "Muse"
+     }
+    ],
+    "songCount": 12,
+    "year": 2006,
+    "isExternal": false
+   },
+   {
+    "id": "78aieT2nnH3c2FWH4QsioF",
+    "name": "The Wow! Signal",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "artists": [
+     {
+      "id": "2SlsT4AHwuZjF0ovFYGopP",
+      "name": "Muse"
+     }
+    ],
+    "songCount": 10,
+    "year": 2026,
+    "isExternal": false
+   },
+   {
+    "id": "0O3aT9oh6KkL1TggMyWUas",
+    "name": "Muse",
+    "artist": "Polyphia",
+    "artistId": "2at7IjNFbnOT7aIEAZHgVW",
+    "artists": [
+     {
+      "id": "2at7IjNFbnOT7aIEAZHgVW",
+      "name": "Polyphia"
+     }
+    ],
+    "songCount": 11,
+    "year": 2014,
+    "isExternal": false
+   },
+   {
+    "id": "7HiuRs7Qdy9psjgMk2ECPs",
+    "name": "Twilight Original Motion Picture Soundtrack (International Special Edition)",
+    "artist": "Various Artists",
+    "artistId": "63sqASlAfjbGMuLP4JhnZU",
+    "artists": [
+     {
+      "id": "63sqASlAfjbGMuLP4JhnZU",
+      "name": "Various Artists"
+     }
+    ],
+    "songCount": 3,
+    "year": 2008,
+    "isExternal": false
+   },
+   {
+    "id": "3nuK257rNXpsg4d72jvQrW",
+    "name": "Starlight Museum",
+    "artist": "水瀬いのり",
+    "artistId": "3hcaKdtUmN8cu1HQBYpqgS",
+    "artists": [
+     {
+      "id": "3hcaKdtUmN8cu1HQBYpqgS",
+      "name": "水瀬いのり"
+     }
+    ],
+    "songCount": 3,
+    "year": 2020,
+    "isExternal": false
+   },
+   {
+    "id": "ext-deezer-album-1122804382",
+    "name": "Muse",
+    "artist": "John Legend",
+    "artistId": "ext-deezer-artist-313",
+    "songCount": 16,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-941826421",
+    "name": "The Wow! Signal",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 10,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-511257691",
+    "name": "Absolution",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 15,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-339063",
+    "name": "Black Holes and Revelations",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 12,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-1248725",
+    "name": "Origin of Symmetry",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 12,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-390984",
+    "name": "The Resistance",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 11,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-339679",
+    "name": "Showbiz",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 13,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-348832357",
+    "name": "Will Of The People",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 10,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-5965734",
+    "name": "The 2nd Law",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 13,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-10506072",
+    "name": "Drones",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 12,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-504783051",
+    "name": "Muse",
+    "artist": "Dalí",
+    "artistId": "ext-deezer-artist-139920622",
+    "songCount": 8,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-847541822",
+    "name": "MUSE",
+    "artist": "Bamby",
+    "artistId": "ext-deezer-artist-5771489",
+    "songCount": 18,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-77895022",
+    "name": "Simulation Theory (Super Deluxe)",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 21,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-616626971",
+    "name": "MUSE",
+    "artist": "Jimin",
+    "artistId": "ext-deezer-artist-168047437",
+    "songCount": 7,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-511325421",
+    "name": "Absolution XX Anniversary",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 26,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-7139528",
+    "name": "Live at Rome Olympic Stadium",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 13,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-545936422",
+    "name": "Muse (Live)",
+    "artist": "Dalí",
+    "artistId": "ext-deezer-artist-139920622",
+    "songCount": 8,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-356525",
+    "name": "Dead Star / In Your World",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 4,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-236310972",
+    "name": "Origin of Symmetry (XX Anniversary RemiXX)",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 12,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-339681",
+    "name": "Hullabaloo Soundtrack (Eastwest Release)",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "songCount": 21,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-377846567",
+    "name": "In the Wind",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-136853512",
+    "songCount": 0,
+    "year": 2022,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-280609312",
+    "name": "Taking Time",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-136853512",
+    "songCount": 0,
+    "year": 2021,
+    "isExternal": true
+   },
+   {
+    "id": "pl-deezer-5057884084",
+    "name": "100% Muse",
+    "artist": "🎵 Deezer",
+    "artistId": "curator-deezer-deezer-artist-editor",
+    "songCount": 50,
+    "year": 2018
+   },
+   {
+    "id": "pl-deezer-11146261824",
+    "name": "Gorillaz, Artic Monkeys, The killers, Muse, The St",
+    "artist": "🎵 Deezer",
+    "artistId": "curator-deezer-pablo-muñoz",
+    "songCount": 82,
+    "year": 2023
+   },
+   {
+    "id": "pl-deezer-15154836923",
+    "name": "Millionnaire muses",
+    "artist": "🎵 Deezer",
+    "artistId": "curator-deezer-nawelle-nanou",
+    "songCount": 21,
+    "year": 2026
+   },
+   {
+    "id": "pl-deezer-1330435486",
+    "name": "Best of Muse",
+    "artist": "🎵 Deezer",
+    "artistId": "curator-deezer-anonymous",
+    "songCount": 40,
+    "year": 2015
+   }
+  ],
+  "song": [
+   {
+    "id": "6gMx3kvb7z2uFW7xfH0RKS",
+    "title": "MUSE",
+    "album": "MUSE",
+    "albumId": "67PzU32QthfQPN0yesNWVS",
+    "artist": "KUTE",
+    "artistId": "10CoeOz97jXsDyqRKGJfw3",
+    "track": 1,
+    "year": 2026,
+    "duration": 106,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 964,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "50UjdDXfDneRfx8cTOuar6",
+    "title": "MUSE",
+    "album": "DANGERyS",
+    "albumId": "6BTNZRwui8mtikBdZHU46z",
+    "artist": "IRyS",
+    "artistId": "6HDfHy2X6priJY2hPa0GwW",
+    "track": 4,
+    "year": 2026,
+    "duration": 205,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1113,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "79iQIusj7GdIVHi4pDBueC",
+    "title": "Blackout",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 9,
+    "year": 2003,
+    "duration": 262,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 892,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "4wWwHXst1f3PJZRgaGKkqO",
+    "title": "Endlessly",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 13,
+    "year": 2003,
+    "duration": 228,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 924,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "3GHjeToVTGRWzBzoXtQK57",
+    "title": "Fury",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 12,
+    "year": 2003,
+    "duration": 300,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1064,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "3ElBxSX3mwlbhakA9Q69Io",
+    "title": "Hysteria",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 8,
+    "year": 2003,
+    "duration": 227,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1073,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "6PvOjK0Z2shML4NLmXMQDo",
+    "title": "Interlude",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 7,
+    "year": 2003,
+    "duration": 38,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 789,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "6fTgG05eEkyfgSDZaAnxte",
+    "title": "Intro",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 1,
+    "year": 2003,
+    "duration": 22,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 580,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "2dbSkCheYBH0mJaqXfftva",
+    "title": "Apocalypse Please",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 2,
+    "year": 2003,
+    "duration": 252,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1050,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "7LwFVKiLtNg27LKnkSs7aG",
+    "title": "Butterflies & Hurricanes",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 10,
+    "year": 2003,
+    "duration": 302,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 963,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "5EauY011CqeHwaYzzyfo95",
+    "title": "Resistance",
+    "album": "The Resistance",
+    "albumId": "56Ite3uNdJ542z06ACkBcI",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 2,
+    "year": 2009,
+    "duration": 346,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 888,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "6uL5MKVCl1l7At7JuShTfP",
+    "title": "Stockholm Syndrome",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 5,
+    "year": 2003,
+    "duration": 296,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1045,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "0RLzkoikkHTrc7eUkHIW1K",
+    "title": "Uprising",
+    "album": "The Resistance",
+    "albumId": "56Ite3uNdJ542z06ACkBcI",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 1,
+    "year": 2009,
+    "duration": 304,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 946,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "2pRxPfQC3MUt8dF5yAIssv",
+    "title": "Guiding Light",
+    "album": "The Resistance",
+    "albumId": "56Ite3uNdJ542z06ACkBcI",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 5,
+    "year": 2009,
+    "duration": 253,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1012,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "7lMd3zgUYkOgz5cX2tFv5K",
+    "title": "MK Ultra",
+    "album": "The Resistance",
+    "albumId": "56Ite3uNdJ542z06ACkBcI",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 7,
+    "year": 2009,
+    "duration": 246,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1062,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "4tK80Gq0dW4zpGQzDbupjL",
+    "title": "Ruled by Secrecy",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 15,
+    "year": 2003,
+    "duration": 292,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 794,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "5rYEiw58aSZD2wIkNLPFUQ",
+    "title": "Sing for Absolution",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 4,
+    "year": 2003,
+    "duration": 295,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 927,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "4aeFLAXcnI6lMafjCWRxuz",
+    "title": "The Small Print",
+    "album": "Absolution",
+    "albumId": "4nGb9aJNGGZtDH5wZecoRS",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 11,
+    "year": 2003,
+    "duration": 208,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1085,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "7b9KpYEOiheMWdfAtd1rUn",
+    "title": "Undisclosed Desires",
+    "album": "The Resistance",
+    "albumId": "56Ite3uNdJ542z06ACkBcI",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 3,
+    "year": 2009,
+    "duration": 236,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 856,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "6HQtKVZdiKkCJT0SSv8mqc",
+    "title": "Unnatural Selection",
+    "album": "The Resistance",
+    "albumId": "56Ite3uNdJ542z06ACkBcI",
+    "artist": "Muse",
+    "artistId": "2SlsT4AHwuZjF0ovFYGopP",
+    "track": 6,
+    "year": 2009,
+    "duration": 414,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 967,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "ext-deezer-song-3590185",
+    "title": "Starlight",
+    "album": "Black Holes and Revelations",
+    "albumId": "ext-deezer-album-339063",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 243,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3590186",
+    "title": "Supermassive Black Hole",
+    "album": "Black Holes and Revelations",
+    "albumId": "ext-deezer-album-339063",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 212,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-101215846",
+    "title": "Psycho",
+    "album": "Drones",
+    "albumId": "ext-deezer-album-10506072",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 316,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3590214",
+    "title": "Time is Running Out",
+    "album": "Time Is Running Out",
+    "albumId": "ext-deezer-album-339070",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 237,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-1877068677",
+    "title": "You Make Me Feel Like It’s Halloween",
+    "album": "Will Of The People",
+    "albumId": "ext-deezer-album-348832357",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 180,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3906424881",
+    "title": "Hush",
+    "album": "The Wow! Signal",
+    "albumId": "ext-deezer-album-941826421",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 235,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3824093",
+    "title": "Feeling Good",
+    "album": "Feeling Good / Hyper Music",
+    "albumId": "ext-deezer-album-356508",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 198,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-13636688",
+    "title": "Plug in Baby",
+    "album": "Origin of Symmetry",
+    "albumId": "ext-deezer-album-1248725",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 218,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-60946207",
+    "title": "Madness",
+    "album": "The 2nd Law",
+    "albumId": "ext-deezer-album-5965734",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 281,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3906424811",
+    "title": "Nightshift Superstar",
+    "album": "The Wow! Signal",
+    "albumId": "ext-deezer-album-941826421",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 247,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3906424831",
+    "title": "Cryogen",
+    "album": "The Wow! Signal",
+    "albumId": "ext-deezer-album-941826421",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 301,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-13636684",
+    "title": "New Born",
+    "album": "Origin of Symmetry",
+    "albumId": "ext-deezer-album-1248725",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 363,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3590194",
+    "title": "Knights of Cydonia",
+    "album": "Black Holes and Revelations",
+    "albumId": "ext-deezer-album-339063",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 367,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3906424801",
+    "title": "The Dark Forest",
+    "album": "The Wow! Signal",
+    "albumId": "ext-deezer-album-941826421",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 315,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3824109",
+    "title": "Unintended",
+    "album": "Unintended",
+    "albumId": "ext-deezer-album-356511",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 237,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3906424821",
+    "title": "Shimmering Scars",
+    "album": "The Wow! Signal",
+    "albumId": "ext-deezer-album-941826421",
+    "artist": "Muse",
+    "artistId": "ext-deezer-artist-705",
+    "track": 0,
+    "year": 0,
+    "duration": 268,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   }
+  ]
+ },
+ "deezer": {
+  "artists": [
+   {
+    "id": 136853512,
+    "name": "Muse",
+    "nb_fan": 62,
+    "nb_album": 2
+   },
+   {
+    "id": 5548712,
+    "name": "Muse",
+    "nb_fan": 11176,
+    "nb_album": 17
+   },
+   {
+    "id": 327639251,
+    "name": "Muse & Hom'",
+    "nb_fan": 24,
+    "nb_album": 1
+   },
+   {
+    "id": 336026091,
+    "name": "m u s e",
+    "nb_fan": 1,
+    "nb_album": 2
+   },
+   {
+    "id": 705,
+    "name": "Muse",
+    "nb_fan": 5055919,
+    "nb_album": 72
+   },
+   {
+    "id": 280667071,
+    "name": "Muse",
+    "nb_fan": 5,
+    "nb_album": 2
+   },
+   {
+    "id": 1594174,
+    "name": "M.U.S.E.",
+    "nb_fan": 1256,
+    "nb_album": 16
+   },
+   {
+    "id": 92308212,
+    "name": "Muse Maya",
+    "nb_fan": 735,
+    "nb_album": 34
+   },
+   {
+    "id": 171423957,
+    "name": "La Muse",
+    "nb_fan": 11,
+    "nb_album": 24
+   },
+   {
+    "id": 80562052,
+    "name": "Deva Muse",
+    "nb_fan": 1160,
+    "nb_album": 430
+   },
+   {
+    "id": 114488042,
+    "name": "May The Muse",
+    "nb_fan": 503,
+    "nb_album": 14
+   },
+   {
+    "id": 83517142,
+    "name": "Kylie Muse",
+    "nb_fan": 442,
+    "nb_album": 66
+   },
+   {
+    "id": 177462397,
+    "name": "Soa de Muse",
+    "nb_fan": 390,
+    "nb_album": 2
+   },
+   {
+    "id": 8181,
+    "name": "Faith and the Muse",
+    "nb_fan": 5161,
+    "nb_album": 7
+   },
+   {
+    "id": 287096061,
+    "name": "Muse Lab",
+    "nb_fan": 10,
+    "nb_album": 15
+   },
+   {
+    "id": 12963277,
+    "name": "Iberian Muse",
+    "nb_fan": 94,
+    "nb_album": 20
+   },
+   {
+    "id": 321730401,
+    "name": "Muse Petal",
+    "nb_fan": 410,
+    "nb_album": 43
+   },
+   {
+    "id": 53121702,
+    "name": "Elijah Muse",
+    "nb_fan": 54,
+    "nb_album": 4
+   },
+   {
+    "id": 419101182,
+    "name": "Fading Iris Muse",
+    "nb_fan": 1,
+    "nb_album": 1
+   },
+   {
+    "id": 160138282,
+    "name": "NMIXX",
+    "nb_fan": 179308,
+    "nb_album": 27
+   },
+   {
+    "id": 340999501,
+    "name": "Haze Muse",
+    "nb_fan": 61,
+    "nb_album": 43
+   },
+   {
+    "id": 195464457,
+    "name": "Cmrn Muse",
+    "nb_fan": 0,
+    "nb_album": 11
+   },
+   {
+    "id": 317747141,
+    "name": "Ennui Muse",
+    "nb_fan": 12,
+    "nb_album": 24
+   },
+   {
+    "id": 3736661,
+    "name": "The Muse",
+    "nb_fan": 1319,
+    "nb_album": 17
+   },
+   {
+    "id": 16125,
+    "name": "Dangerous Muse",
+    "nb_fan": 1904,
+    "nb_album": 8
+   }
+  ],
+  "albums": [
+   {
+    "id": 1122804382,
+    "title": "Muse",
+    "record_type": "album",
+    "nb_tracks": 16,
+    "artist": {
+     "id": 313,
+     "name": "John Legend"
+    }
+   },
+   {
+    "id": 941826421,
+    "title": "The Wow! Signal",
+    "record_type": "album",
+    "nb_tracks": 10,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 511257691,
+    "title": "Absolution",
+    "record_type": "album",
+    "nb_tracks": 15,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 339063,
+    "title": "Black Holes and Revelations",
+    "record_type": "album",
+    "nb_tracks": 12,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 1248725,
+    "title": "Origin of Symmetry",
+    "record_type": "album",
+    "nb_tracks": 12,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 390984,
+    "title": "The Resistance",
+    "record_type": "album",
+    "nb_tracks": 11,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 339679,
+    "title": "Showbiz",
+    "record_type": "album",
+    "nb_tracks": 13,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 348832357,
+    "title": "Will Of The People",
+    "record_type": "album",
+    "nb_tracks": 10,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 5965734,
+    "title": "The 2nd Law",
+    "record_type": "album",
+    "nb_tracks": 13,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 10506072,
+    "title": "Drones",
+    "record_type": "album",
+    "nb_tracks": 12,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 504783051,
+    "title": "Muse",
+    "record_type": "album",
+    "nb_tracks": 8,
+    "artist": {
+     "id": 139920622,
+     "name": "Dalí"
+    }
+   },
+   {
+    "id": 847541822,
+    "title": "MUSE",
+    "record_type": "album",
+    "nb_tracks": 18,
+    "artist": {
+     "id": 5771489,
+     "name": "Bamby"
+    }
+   },
+   {
+    "id": 77895022,
+    "title": "Simulation Theory (Super Deluxe)",
+    "record_type": "album",
+    "nb_tracks": 21,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 616626971,
+    "title": "MUSE",
+    "record_type": "album",
+    "nb_tracks": 7,
+    "artist": {
+     "id": 168047437,
+     "name": "Jimin"
+    }
+   },
+   {
+    "id": 511325421,
+    "title": "Absolution XX Anniversary",
+    "record_type": "album",
+    "nb_tracks": 26,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 7139528,
+    "title": "Live at Rome Olympic Stadium",
+    "record_type": "album",
+    "nb_tracks": 13,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 545936422,
+    "title": "Muse (Live)",
+    "record_type": "album",
+    "nb_tracks": 8,
+    "artist": {
+     "id": 139920622,
+     "name": "Dalí"
+    }
+   },
+   {
+    "id": 356525,
+    "title": "Dead Star / In Your World",
+    "record_type": "single",
+    "nb_tracks": 4,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 236310972,
+    "title": "Origin of Symmetry (XX Anniversary RemiXX)",
+    "record_type": "album",
+    "nb_tracks": 12,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 339681,
+    "title": "Hullabaloo Soundtrack (Eastwest Release)",
+    "record_type": "album",
+    "nb_tracks": 21,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 356513,
+    "title": "Cave",
+    "record_type": "single",
+    "nb_tracks": 6,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 1352113,
+    "title": "Uprising",
+    "record_type": "single",
+    "nb_tracks": 3,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   },
+   {
+    "id": 1122808302,
+    "title": "Muse",
+    "record_type": "album",
+    "nb_tracks": 16,
+    "artist": {
+     "id": 313,
+     "name": "John Legend"
+    }
+   },
+   {
+    "id": 650316211,
+    "title": "1685",
+    "record_type": "single",
+    "nb_tracks": 3,
+    "artist": {
+     "id": 1198612,
+     "name": "Zedd"
+    }
+   },
+   {
+    "id": 331917737,
+    "title": "Kill Or Be Killed",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    }
+   }
+  ],
+  "tracks": [
+   {
+    "id": 4195713,
+    "title": "Uprising",
+    "title_short": "Uprising",
+    "title_version": "",
+    "duration": 304,
+    "rank": 942950,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 390984,
+     "title": "The Resistance"
+    }
+   },
+   {
+    "id": 3590185,
+    "title": "Starlight",
+    "title_short": "Starlight",
+    "title_version": "",
+    "duration": 243,
+    "rank": 926034,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339063,
+     "title": "Black Holes and Revelations"
+    }
+   },
+   {
+    "id": 2538019231,
+    "title": "Hysteria",
+    "title_short": "Hysteria",
+    "title_version": "",
+    "duration": 227,
+    "rank": 877037,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511325421,
+     "title": "Absolution XX Anniversary"
+    }
+   },
+   {
+    "id": 3590186,
+    "title": "Supermassive Black Hole",
+    "title_short": "Supermassive Black Hole",
+    "title_version": "",
+    "duration": 212,
+    "rank": 895151,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339063,
+     "title": "Black Holes and Revelations"
+    }
+   },
+   {
+    "id": 101215846,
+    "title": "Psycho",
+    "title_short": "Psycho",
+    "title_version": "",
+    "duration": 316,
+    "rank": 824493,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 10506072,
+     "title": "Drones"
+    }
+   },
+   {
+    "id": 3590214,
+    "title": "Time is Running Out",
+    "title_short": "Time is Running Out",
+    "title_version": "",
+    "duration": 237,
+    "rank": 806228,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339070,
+     "title": "Time Is Running Out"
+    }
+   },
+   {
+    "id": 1877068677,
+    "title": "You Make Me Feel Like It’s Halloween",
+    "title_short": "You Make Me Feel Like It’s Halloween",
+    "title_version": "",
+    "duration": 180,
+    "rank": 753851,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 348832357,
+     "title": "Will Of The People"
+    }
+   },
+   {
+    "id": 4195715,
+    "title": "Undisclosed Desires",
+    "title_short": "Undisclosed Desires",
+    "title_version": "",
+    "duration": 236,
+    "rank": 796594,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 390984,
+     "title": "The Resistance"
+    }
+   },
+   {
+    "id": 3906424881,
+    "title": "Hush",
+    "title_short": "Hush",
+    "title_version": "",
+    "duration": 235,
+    "rank": 803471,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 941826421,
+     "title": "The Wow! Signal"
+    }
+   },
+   {
+    "id": 3824093,
+    "title": "Feeling Good",
+    "title_short": "Feeling Good",
+    "title_version": "",
+    "duration": 198,
+    "rank": 794022,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 356508,
+     "title": "Feeling Good / Hyper Music"
+    }
+   },
+   {
+    "id": 13636688,
+    "title": "Plug in Baby",
+    "title_short": "Plug in Baby",
+    "title_version": "",
+    "duration": 218,
+    "rank": 803526,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 1248725,
+     "title": "Origin of Symmetry"
+    }
+   },
+   {
+    "id": 60946207,
+    "title": "Madness",
+    "title_short": "Madness",
+    "title_version": "",
+    "duration": 281,
+    "rank": 802859,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 5965734,
+     "title": "The 2nd Law"
+    }
+   },
+   {
+    "id": 3906424811,
+    "title": "Nightshift Superstar",
+    "title_short": "Nightshift Superstar",
+    "title_version": "",
+    "duration": 247,
+    "rank": 786153,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 941826421,
+     "title": "The Wow! Signal"
+    }
+   },
+   {
+    "id": 3906424831,
+    "title": "Cryogen",
+    "title_short": "Cryogen",
+    "title_version": "",
+    "duration": 301,
+    "rank": 765829,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 941826421,
+     "title": "The Wow! Signal"
+    }
+   },
+   {
+    "id": 4195714,
+    "title": "Resistance",
+    "title_short": "Resistance",
+    "title_version": "",
+    "duration": 346,
+    "rank": 783221,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 390984,
+     "title": "The Resistance"
+    }
+   },
+   {
+    "id": 13636684,
+    "title": "New Born",
+    "title_short": "New Born",
+    "title_version": "",
+    "duration": 363,
+    "rank": 772054,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 1248725,
+     "title": "Origin of Symmetry"
+    }
+   },
+   {
+    "id": 3590194,
+    "title": "Knights of Cydonia",
+    "title_short": "Knights of Cydonia",
+    "title_version": "",
+    "duration": 367,
+    "rank": 752403,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339063,
+     "title": "Black Holes and Revelations"
+    }
+   },
+   {
+    "id": 3906424801,
+    "title": "The Dark Forest",
+    "title_short": "The Dark Forest",
+    "title_version": "",
+    "duration": 315,
+    "rank": 730450,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 941826421,
+     "title": "The Wow! Signal"
+    }
+   },
+   {
+    "id": 3824109,
+    "title": "Unintended",
+    "title_short": "Unintended",
+    "title_version": "",
+    "duration": 237,
+    "rank": 720511,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 356511,
+     "title": "Unintended"
+    }
+   },
+   {
+    "id": 3906424821,
+    "title": "Shimmering Scars",
+    "title_short": "Shimmering Scars",
+    "title_version": "",
+    "duration": 268,
+    "rank": 718741,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 941826421,
+     "title": "The Wow! Signal"
+    }
+   },
+   {
+    "id": 3906424851,
+    "title": "Hexagons",
+    "title_short": "Hexagons",
+    "title_version": "",
+    "duration": 326,
+    "rank": 731085,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 941826421,
+     "title": "The Wow! Signal"
+    }
+   },
+   {
+    "id": 3906424861,
+    "title": "The Sickness In You & I",
+    "title_short": "The Sickness In You & I",
+    "title_version": "",
+    "duration": 257,
+    "rank": 721306,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 941826421,
+     "title": "The Wow! Signal"
+    }
+   },
+   {
+    "id": 3599734,
+    "title": "Sunburn",
+    "title_short": "Sunburn",
+    "title_version": "",
+    "duration": 233,
+    "rank": 718680,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339679,
+     "title": "Showbiz"
+    }
+   },
+   {
+    "id": 3906424841,
+    "title": "Be With You",
+    "title_short": "Be With You",
+    "title_version": "",
+    "duration": 215,
+    "rank": 727796,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 941826421,
+     "title": "The Wow! Signal"
+    }
+   },
+   {
+    "id": 60946206,
+    "title": "Supremacy",
+    "title_short": "Supremacy",
+    "title_version": "",
+    "duration": 295,
+    "rank": 697513,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 5965734,
+     "title": "The 2nd Law"
+    }
+   },
+   {
+    "id": 3906424871,
+    "title": "Unravelling",
+    "title_short": "Unravelling",
+    "title_version": "",
+    "duration": 237,
+    "rank": 704838,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 941826421,
+     "title": "The Wow! Signal"
+    }
+   },
+   {
+    "id": 13636686,
+    "title": "Space Dementia",
+    "title_short": "Space Dementia",
+    "title_version": "",
+    "duration": 380,
+    "rank": 676909,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 1248725,
+     "title": "Origin of Symmetry"
+    }
+   },
+   {
+    "id": 13636685,
+    "title": "Bliss",
+    "title_short": "Bliss",
+    "title_version": "",
+    "duration": 251,
+    "rank": 673656,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 1248725,
+     "title": "Origin of Symmetry"
+    }
+   },
+   {
+    "id": 3906424891,
+    "title": "Space Debris",
+    "title_short": "Space Debris",
+    "title_version": "",
+    "duration": 323,
+    "rank": 668593,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 941826421,
+     "title": "The Wow! Signal"
+    }
+   },
+   {
+    "id": 3590187,
+    "title": "Map of the Problematique",
+    "title_short": "Map of the Problematique",
+    "title_version": "",
+    "duration": 258,
+    "rank": 665485,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339063,
+     "title": "Black Holes and Revelations"
+    }
+   },
+   {
+    "id": 60946211,
+    "title": "Follow Me",
+    "title_short": "Follow Me",
+    "title_version": "",
+    "duration": 230,
+    "rank": 651609,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 5965734,
+     "title": "The 2nd Law"
+    }
+   },
+   {
+    "id": 3599735,
+    "title": "Muscle Museum",
+    "title_short": "Muscle Museum",
+    "title_version": "",
+    "duration": 262,
+    "rank": 668620,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339679,
+     "title": "Showbiz"
+    }
+   },
+   {
+    "id": 2537712291,
+    "title": "Stockholm Syndrome",
+    "title_short": "Stockholm Syndrome",
+    "title_version": "",
+    "duration": 296,
+    "rank": 658040,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511257691,
+     "title": "Absolution"
+    }
+   },
+   {
+    "id": 60946208,
+    "title": "Panic Station",
+    "title_short": "Panic Station",
+    "title_version": "",
+    "duration": 184,
+    "rank": 645891,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 5965734,
+     "title": "The 2nd Law"
+    }
+   },
+   {
+    "id": 2537712281,
+    "title": "Sing for Absolution",
+    "title_short": "Sing for Absolution",
+    "title_version": "",
+    "duration": 295,
+    "rank": 645724,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511257691,
+     "title": "Absolution"
+    }
+   },
+   {
+    "id": 2537712271,
+    "title": "Time is Running Out",
+    "title_short": "Time is Running Out",
+    "title_version": "",
+    "duration": 236,
+    "rank": 620558,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511257691,
+     "title": "Absolution"
+    }
+   },
+   {
+    "id": 101215842,
+    "title": "Dead Inside",
+    "title_short": "Dead Inside",
+    "title_version": "",
+    "duration": 262,
+    "rank": 618358,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 10506072,
+     "title": "Drones"
+    }
+   },
+   {
+    "id": 4351252662,
+    "title": "Muse",
+    "title_short": "Muse",
+    "title_version": "",
+    "duration": 163,
+    "rank": 638699,
+    "artist": {
+     "id": 313,
+     "name": "John Legend"
+    },
+    "album": {
+     "id": 1122804382,
+     "title": "Muse"
+    }
+   },
+   {
+    "id": 1877068657,
+    "title": "Won’t Stand Down",
+    "title_short": "Won’t Stand Down",
+    "title_version": "",
+    "duration": 209,
+    "rank": 626575,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 348832357,
+     "title": "Will Of The People"
+    }
+   },
+   {
+    "id": 60946218,
+    "title": "The 2nd Law: Isolated System",
+    "title_short": "The 2nd Law: Isolated System",
+    "title_version": "",
+    "duration": 299,
+    "rank": 629059,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 5965734,
+     "title": "The 2nd Law"
+    }
+   },
+   {
+    "id": 1877068627,
+    "title": "Will Of The People",
+    "title_short": "Will Of The People",
+    "title_version": "",
+    "duration": 198,
+    "rank": 621782,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 348832357,
+     "title": "Will Of The People"
+    }
+   },
+   {
+    "id": 1877068637,
+    "title": "Compliance",
+    "title_short": "Compliance",
+    "title_version": "",
+    "duration": 250,
+    "rank": 600949,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 348832357,
+     "title": "Will Of The People"
+    }
+   },
+   {
+    "id": 581354322,
+    "title": "Thought Contagion",
+    "title_short": "Thought Contagion",
+    "title_version": "",
+    "duration": 206,
+    "rank": 606817,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 77895022,
+     "title": "Simulation Theory (Super Deluxe)"
+    }
+   },
+   {
+    "id": 4195720,
+    "title": "I Belong to You (+Mon Coeur S'Ouvre a Ta Voix)",
+    "title_short": "I Belong to You (+Mon Coeur S'Ouvre a Ta Voix)",
+    "title_version": "",
+    "duration": 338,
+    "rank": 582040,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 390984,
+     "title": "The Resistance"
+    }
+   },
+   {
+    "id": 2537712341,
+    "title": "Butterflies & Hurricanes",
+    "title_short": "Butterflies & Hurricanes",
+    "title_version": "",
+    "duration": 302,
+    "rank": 599714,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511257691,
+     "title": "Absolution"
+    }
+   },
+   {
+    "id": 101215852,
+    "title": "The Handler",
+    "title_short": "The Handler",
+    "title_version": "",
+    "duration": 273,
+    "rank": 582669,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 10506072,
+     "title": "Drones"
+    }
+   },
+   {
+    "id": 581354282,
+    "title": "Pressure",
+    "title_short": "Pressure",
+    "title_version": "",
+    "duration": 235,
+    "rank": 599872,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 77895022,
+     "title": "Simulation Theory (Super Deluxe)"
+    }
+   },
+   {
+    "id": 1877068667,
+    "title": "Ghosts (How Can I Move On)",
+    "title_short": "Ghosts (How Can I Move On)",
+    "title_version": "",
+    "duration": 217,
+    "rank": 605092,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 348832357,
+     "title": "Will Of The People"
+    }
+   },
+   {
+    "id": 3599739,
+    "title": "Showbiz",
+    "title_short": "Showbiz",
+    "title_version": "",
+    "duration": 317,
+    "rank": 603610,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339679,
+     "title": "Showbiz"
+    }
+   },
+   {
+    "id": 2537712331,
+    "title": "Blackout",
+    "title_short": "Blackout",
+    "title_version": "",
+    "duration": 262,
+    "rank": 565592,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511257691,
+     "title": "Absolution"
+    }
+   },
+   {
+    "id": 4195718,
+    "title": "Unnatural Selection",
+    "title_short": "Unnatural Selection",
+    "title_version": "",
+    "duration": 414,
+    "rank": 562806,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 390984,
+     "title": "The Resistance"
+    }
+   },
+   {
+    "id": 60946210,
+    "title": "Survival",
+    "title_short": "Survival",
+    "title_version": "",
+    "duration": 257,
+    "rank": 583268,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 5965734,
+     "title": "The 2nd Law"
+    }
+   },
+   {
+    "id": 101215850,
+    "title": "Reapers",
+    "title_short": "Reapers",
+    "title_version": "",
+    "duration": 359,
+    "rank": 546913,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 10506072,
+     "title": "Drones"
+    }
+   },
+   {
+    "id": 13636689,
+    "title": "Citizen Erased",
+    "title_short": "Citizen Erased",
+    "title_version": "",
+    "duration": 441,
+    "rank": 575450,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 1248725,
+     "title": "Origin of Symmetry"
+    }
+   },
+   {
+    "id": 3035034351,
+    "title": "Muse",
+    "title_short": "Muse",
+    "title_version": "",
+    "duration": 145,
+    "rank": 552076,
+    "artist": {
+     "id": 140425022,
+     "name": "Isabel LaRosa"
+    },
+    "album": {
+     "id": 653532151,
+     "title": "Muse"
+    }
+   },
+   {
+    "id": 3590184,
+    "title": "Take a Bow",
+    "title_short": "Take a Bow",
+    "title_version": "",
+    "duration": 275,
+    "rank": 537339,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339063,
+     "title": "Black Holes and Revelations"
+    }
+   },
+   {
+    "id": 2537712371,
+    "title": "Endlessly",
+    "title_short": "Endlessly",
+    "title_version": "",
+    "duration": 228,
+    "rank": 552715,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511257691,
+     "title": "Absolution"
+    }
+   },
+   {
+    "id": 4195721,
+    "title": "Exogenesis: Symphony Pt. 1 (Overture)",
+    "title_short": "Exogenesis: Symphony Pt. 1 (Overture)",
+    "title_version": "",
+    "duration": 258,
+    "rank": 557951,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 390984,
+     "title": "The Resistance"
+    }
+   },
+   {
+    "id": 1877068687,
+    "title": "Kill Or Be Killed",
+    "title_short": "Kill Or Be Killed",
+    "title_version": "",
+    "duration": 299,
+    "rank": 558486,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 348832357,
+     "title": "Will Of The People"
+    }
+   },
+   {
+    "id": 3824585,
+    "title": "Can't Take My Eyes off You",
+    "title_short": "Can't Take My Eyes off You",
+    "title_version": "",
+    "duration": 211,
+    "rank": 544158,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 356525,
+     "title": "Dead Star / In Your World"
+    }
+   },
+   {
+    "id": 1877068697,
+    "title": "Verona",
+    "title_short": "Verona",
+    "title_version": "",
+    "duration": 297,
+    "rank": 561326,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 348832357,
+     "title": "Will Of The People"
+    }
+   },
+   {
+    "id": 4195716,
+    "title": "United States of Eurasia (+Collateral Damage)",
+    "title_short": "United States of Eurasia (+Collateral Damage)",
+    "title_version": "",
+    "duration": 347,
+    "rank": 570056,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 390984,
+     "title": "The Resistance"
+    }
+   },
+   {
+    "id": 3590190,
+    "title": "Assassin",
+    "title_short": "Assassin",
+    "title_version": "",
+    "duration": 211,
+    "rank": 558368,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339063,
+     "title": "Black Holes and Revelations"
+    }
+   },
+   {
+    "id": 101215848,
+    "title": "Mercy",
+    "title_short": "Mercy",
+    "title_version": "",
+    "duration": 231,
+    "rank": 538407,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 10506072,
+     "title": "Drones"
+    }
+   },
+   {
+    "id": 4195719,
+    "title": "MK Ultra",
+    "title_short": "MK Ultra",
+    "title_version": "",
+    "duration": 246,
+    "rank": 528724,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 390984,
+     "title": "The Resistance"
+    }
+   },
+   {
+    "id": 581354262,
+    "title": "Algorithm",
+    "title_short": "Algorithm",
+    "title_version": "",
+    "duration": 245,
+    "rank": 540585,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 77895022,
+     "title": "Simulation Theory (Super Deluxe)"
+    }
+   },
+   {
+    "id": 581354312,
+    "title": "Something Human",
+    "title_short": "Something Human",
+    "title_version": "",
+    "duration": 226,
+    "rank": 542174,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 77895022,
+     "title": "Simulation Theory (Super Deluxe)"
+    }
+   },
+   {
+    "id": 2537712261,
+    "title": "Apocalypse Please",
+    "title_short": "Apocalypse Please",
+    "title_version": "",
+    "duration": 252,
+    "rank": 528185,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511257691,
+     "title": "Absolution"
+    }
+   },
+   {
+    "id": 60946212,
+    "title": "Animals",
+    "title_short": "Animals",
+    "title_version": "",
+    "duration": 262,
+    "rank": 525754,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 5965734,
+     "title": "The 2nd Law"
+    }
+   },
+   {
+    "id": 3590189,
+    "title": "Invincible",
+    "title_short": "Invincible",
+    "title_version": "",
+    "duration": 300,
+    "rank": 537173,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339063,
+     "title": "Black Holes and Revelations"
+    }
+   },
+   {
+    "id": 3599737,
+    "title": "Falling Down",
+    "title_short": "Falling Down",
+    "title_version": "",
+    "duration": 273,
+    "rank": 535775,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339679,
+     "title": "Showbiz"
+    }
+   },
+   {
+    "id": 1877068717,
+    "title": "We Are Fucking Fucked",
+    "title_short": "We Are Fucking Fucked",
+    "title_version": "",
+    "duration": 216,
+    "rank": 521275,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 348832357,
+     "title": "Will Of The People"
+    }
+   },
+   {
+    "id": 13636690,
+    "title": "Micro Cuts",
+    "title_short": "Micro Cuts",
+    "title_version": "",
+    "duration": 218,
+    "rank": 534510,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 1248725,
+     "title": "Origin of Symmetry"
+    }
+   },
+   {
+    "id": 4195723,
+    "title": "Exogenesis: Symphony Pt. 3 (Redemption)",
+    "title_short": "Exogenesis: Symphony Pt. 3 (Redemption)",
+    "title_version": "",
+    "duration": 277,
+    "rank": 516837,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 390984,
+     "title": "The Resistance"
+    }
+   },
+   {
+    "id": 60946213,
+    "title": "Explorers",
+    "title_short": "Explorers",
+    "title_version": "",
+    "duration": 346,
+    "rank": 518412,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 5965734,
+     "title": "The 2nd Law"
+    }
+   },
+   {
+    "id": 13636687,
+    "title": "Hyper Music",
+    "title_short": "Hyper Music",
+    "title_version": "",
+    "duration": 201,
+    "rank": 515430,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 1248725,
+     "title": "Origin of Symmetry"
+    }
+   },
+   {
+    "id": 6152100,
+    "title": "Neutron Star Collision (Love Is Forever) (Soundtrack Version)",
+    "title_short": "Neutron Star Collision (Love Is Forever)",
+    "title_version": "(Soundtrack Version)",
+    "duration": 230,
+    "rank": 544516,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 561681,
+     "title": "Neutron Star Collision [Love Is Forever]"
+    }
+   },
+   {
+    "id": 4325174502,
+    "title": "Muse",
+    "title_short": "Muse",
+    "title_version": "",
+    "duration": 202,
+    "rank": 506959,
+    "artist": {
+     "id": 170546477,
+     "name": "Ella Red"
+    },
+    "album": {
+     "id": 1112377002,
+     "title": "Muse"
+    }
+   },
+   {
+    "id": 581354272,
+    "title": "The Dark Side",
+    "title_short": "The Dark Side",
+    "title_version": "",
+    "duration": 227,
+    "rank": 534681,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 77895022,
+     "title": "Simulation Theory (Super Deluxe)"
+    }
+   },
+   {
+    "id": 3590192,
+    "title": "City of Delusion",
+    "title_short": "City of Delusion",
+    "title_version": "",
+    "duration": 288,
+    "rank": 521601,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339063,
+     "title": "Black Holes and Revelations"
+    }
+   },
+   {
+    "id": 3590191,
+    "title": "Exo-Politics",
+    "title_short": "Exo-Politics",
+    "title_version": "",
+    "duration": 233,
+    "rank": 513601,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339063,
+     "title": "Black Holes and Revelations"
+    }
+   },
+   {
+    "id": 2537712351,
+    "title": "The Small Print",
+    "title_short": "The Small Print",
+    "title_version": "",
+    "duration": 208,
+    "rank": 499560,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511257691,
+     "title": "Absolution"
+    }
+   },
+   {
+    "id": 13636692,
+    "title": "Darkshines",
+    "title_short": "Darkshines",
+    "title_version": "",
+    "duration": 286,
+    "rank": 523966,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 1248725,
+     "title": "Origin of Symmetry"
+    }
+   },
+   {
+    "id": 4195717,
+    "title": "Guiding Light",
+    "title_short": "Guiding Light",
+    "title_version": "",
+    "duration": 253,
+    "rank": 504057,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 390984,
+     "title": "The Resistance"
+    }
+   },
+   {
+    "id": 60946217,
+    "title": "The 2nd Law: Unsustainable",
+    "title_short": "The 2nd Law: Unsustainable",
+    "title_version": "",
+    "duration": 228,
+    "rank": 499025,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 5965734,
+     "title": "The 2nd Law"
+    }
+   },
+   {
+    "id": 2537712301,
+    "title": "Falling Away with You",
+    "title_short": "Falling Away with You",
+    "title_version": "",
+    "duration": 279,
+    "rank": 497126,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511257691,
+     "title": "Absolution"
+    }
+   },
+   {
+    "id": 1777189777,
+    "title": "Muse",
+    "title_short": "Muse",
+    "title_version": "",
+    "duration": 234,
+    "rank": 477465,
+    "artist": {
+     "id": 4341020,
+     "name": "Dirk Maassen"
+    },
+    "album": {
+     "id": 324303037,
+     "title": "Muse"
+    }
+   },
+   {
+    "id": 4195722,
+    "title": "Exogenesis: Symphony Pt. 2 (Cross-pollination)",
+    "title_short": "Exogenesis: Symphony Pt. 2 (Cross-pollination)",
+    "title_version": "",
+    "duration": 236,
+    "rank": 496020,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 390984,
+     "title": "The Resistance"
+    }
+   },
+   {
+    "id": 1877068707,
+    "title": "Euphoria",
+    "title_short": "Euphoria",
+    "title_version": "",
+    "duration": 203,
+    "rank": 508953,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 348832357,
+     "title": "Will Of The People"
+    }
+   },
+   {
+    "id": 60946214,
+    "title": "Big Freeze",
+    "title_short": "Big Freeze",
+    "title_version": "",
+    "duration": 279,
+    "rank": 473027,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 5965734,
+     "title": "The 2nd Law"
+    }
+   },
+   {
+    "id": 2538019291,
+    "title": "Thoughts of a Dying Atheist",
+    "title_short": "Thoughts of a Dying Atheist",
+    "title_version": "",
+    "duration": 188,
+    "rank": 517009,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511325421,
+     "title": "Absolution XX Anniversary"
+    }
+   },
+   {
+    "id": 2537712361,
+    "title": "Fury",
+    "title_short": "Fury",
+    "title_version": "",
+    "duration": 300,
+    "rank": 492049,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511257691,
+     "title": "Absolution"
+    }
+   },
+   {
+    "id": 3590188,
+    "title": "Soldier's Poem",
+    "title_short": "Soldier's Poem",
+    "title_version": "",
+    "duration": 124,
+    "rank": 485210,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339063,
+     "title": "Black Holes and Revelations"
+    }
+   },
+   {
+    "id": 581354352,
+    "title": "Dig Down",
+    "title_short": "Dig Down",
+    "title_version": "",
+    "duration": 228,
+    "rank": 474935,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 77895022,
+     "title": "Simulation Theory (Super Deluxe)"
+    }
+   },
+   {
+    "id": 581354292,
+    "title": "Propaganda",
+    "title_short": "Propaganda",
+    "title_version": "",
+    "duration": 180,
+    "rank": 485904,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 77895022,
+     "title": "Simulation Theory (Super Deluxe)"
+    }
+   },
+   {
+    "id": 72612816,
+    "title": "Knights of Cydonia (Live at Rome Olympic Stadium)",
+    "title_short": "Knights of Cydonia",
+    "title_version": "(Live at Rome Olympic Stadium)",
+    "duration": 499,
+    "rank": 485110,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 7139528,
+     "title": "Live at Rome Olympic Stadium"
+    }
+   },
+   {
+    "id": 3599741,
+    "title": "Uno",
+    "title_short": "Uno",
+    "title_version": "",
+    "duration": 218,
+    "rank": 493891,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339679,
+     "title": "Showbiz"
+    }
+   },
+   {
+    "id": 3599745,
+    "title": "Hate This and I'll Love You",
+    "title_short": "Hate This and I'll Love You",
+    "title_version": "",
+    "duration": 309,
+    "rank": 473497,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339679,
+     "title": "Showbiz"
+    }
+   },
+   {
+    "id": 2537712391,
+    "title": "Ruled by Secrecy",
+    "title_short": "Ruled by Secrecy",
+    "title_version": "",
+    "duration": 292,
+    "rank": 469629,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 511257691,
+     "title": "Absolution"
+    }
+   },
+   {
+    "id": 3590193,
+    "title": "Hoodoo",
+    "title_short": "Hoodoo",
+    "title_version": "",
+    "duration": 223,
+    "rank": 461245,
+    "artist": {
+     "id": 705,
+     "name": "Muse"
+    },
+    "album": {
+     "id": 339063,
+     "title": "Black Holes and Revelations"
+    }
+   }
+  ]
+ }
+}

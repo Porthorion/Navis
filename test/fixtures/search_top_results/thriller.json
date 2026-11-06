@@ -1,0 +1,2795 @@
+{
+ "query": "Thriller",
+ "server": {
+  "artist": [
+   {
+    "id": "ext-deezer-artist-390388",
+    "name": "Thriller",
+    "albumCount": 7,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-296600541",
+    "name": "Krimi und Thriller Hörbücher",
+    "albumCount": 65,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-340918611",
+    "name": "Alex Sol Thriller",
+    "albumCount": 5,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-300785861",
+    "name": "Mark Dawson Thriller",
+    "albumCount": 23,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-314263881",
+    "name": "Mary Stone Thriller",
+    "albumCount": 20,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-105212",
+    "name": "Thriller Jenna",
+    "albumCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-53757902",
+    "name": "Tony Thriller",
+    "albumCount": 27,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-343922251",
+    "name": "Ein Lukas-Sontheim-Thriller",
+    "albumCount": 5,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-192412767",
+    "name": "Ein New-Scotland-Yard-Thriller",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-379453331",
+    "name": "Misfit Girl-Thriller",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-367700682",
+    "name": "Ein Sayer-Altair-Thriller",
+    "albumCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-305578",
+    "name": "Louis La Roche",
+    "albumCount": 52,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-86513172",
+    "name": "Thriller",
+    "albumCount": 2,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-62429",
+    "name": "Thriller U",
+    "albumCount": 29,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-11040290",
+    "name": "Catherine Shepherd",
+    "albumCount": 43,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-113486202",
+    "name": "Tony Thriller Chill Beats Co.",
+    "albumCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-54637032",
+    "name": "Maison Ware",
+    "albumCount": 46,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-1448956",
+    "name": "Arius",
+    "albumCount": 97,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-86513122",
+    "name": "Thriller",
+    "albumCount": 3,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-artist-86513162",
+    "name": "Thriller",
+    "albumCount": 3,
+    "isExternal": true
+   }
+  ],
+  "album": [
+   {
+    "id": "55GGa9mwMB6pXPPx0HLC6S",
+    "name": "Thriller",
+    "artist": "Michael Jackson",
+    "artistId": "5PG1DqNnTcsMjWgGpiKB5p",
+    "artists": [
+     {
+      "id": "5PG1DqNnTcsMjWgGpiKB5p",
+      "name": "Michael Jackson"
+     }
+    ],
+    "songCount": 9,
+    "year": 1982,
+    "isExternal": false
+   },
+   {
+    "id": "ext-deezer-album-96126",
+    "name": "Thriller",
+    "artist": "Michael Jackson",
+    "artistId": "ext-deezer-artist-259",
+    "songCount": 9,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-49012482",
+    "name": "Thriller (Steve Aoki Midnight Hour Remix)",
+    "artist": "Michael Jackson",
+    "artistId": "ext-deezer-artist-259",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-88646",
+    "name": "Thriller!",
+    "artist": "Cold Blood",
+    "artistId": "ext-deezer-artist-66297",
+    "songCount": 7,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-495725741",
+    "name": "THRILLER",
+    "artist": "No Resolve",
+    "artistId": "ext-deezer-artist-1407351",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-72819",
+    "name": "Thriller 25 Super Deluxe Edition",
+    "artist": "Michael Jackson",
+    "artistId": "ext-deezer-artist-259",
+    "songCount": 30,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-1128465461",
+    "name": "THRILLER",
+    "artist": "Monday Waxie",
+    "artistId": "ext-deezer-artist-201875437",
+    "songCount": 7,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-43870261",
+    "name": "Thriller",
+    "artist": "New End Original",
+    "artistId": "ext-deezer-artist-1359514",
+    "songCount": 11,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-1123778512",
+    "name": "Thriller",
+    "artist": "Broken Peach",
+    "artistId": "ext-deezer-artist-102136672",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-819145601",
+    "name": "THRILLER",
+    "artist": "BADVILLAIN",
+    "artistId": "ext-deezer-artist-268213242",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-1134015351",
+    "name": "Thriller (Español)",
+    "artist": "Nico Borie",
+    "artistId": "ext-deezer-artist-413662441",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-375513297",
+    "name": "Thriller 40",
+    "artist": "Michael Jackson",
+    "artistId": "ext-deezer-artist-259",
+    "songCount": 34,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-660880231",
+    "name": "Thriller (Gabriel Boni Remix)",
+    "artist": "Gabriel Boni",
+    "artistId": "ext-deezer-artist-287160031",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-69987732",
+    "name": "Thriller",
+    "artist": "Bozza",
+    "artistId": "ext-deezer-artist-408455",
+    "songCount": 40,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-93461752",
+    "name": "Thriller (Soundtrack)",
+    "artist": "RZA",
+    "artistId": "ext-deezer-artist-4918",
+    "songCount": 14,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-1012993711",
+    "name": "Thriller (Acoustic Cover)",
+    "artist": "Arvin Minaskan",
+    "artistId": "ext-deezer-artist-195260157",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-660605501",
+    "name": "Thriller",
+    "artist": "Tori Kelly",
+    "artistId": "ext-deezer-artist-1416675",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-423669067",
+    "name": "THRILLER (with Clara Mae)",
+    "artist": "DREAMDNVR",
+    "artistId": "ext-deezer-artist-59526772",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-86786672",
+    "name": "Thriller (Metal Version)",
+    "artist": "Leo",
+    "artistId": "ext-deezer-artist-54328",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-161754",
+    "name": "Thriller",
+    "artist": "Eddie & The Hot Rods",
+    "artistId": "ext-deezer-artist-12534",
+    "songCount": 10,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-269519112",
+    "name": "Thriller (feat. Tim Storms)",
+    "artist": "Joey Fewell",
+    "artistId": "ext-deezer-artist-150024932",
+    "songCount": 1,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-500503431",
+    "name": "Street Metal",
+    "artist": "Thriller",
+    "artistId": "ext-deezer-artist-390388",
+    "songCount": 0,
+    "year": 2023,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-360776247",
+    "name": "No Los Dejaré Caer",
+    "artist": "Thriller",
+    "artistId": "ext-deezer-artist-390388",
+    "songCount": 0,
+    "year": 2022,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-228429672",
+    "name": "Future Stars Vol. 2",
+    "artist": "Thriller",
+    "artistId": "ext-deezer-artist-390388",
+    "songCount": 0,
+    "year": 2021,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-871131",
+    "name": "Thriller",
+    "artist": "Thriller",
+    "artistId": "ext-deezer-artist-390388",
+    "songCount": 0,
+    "year": 2007,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-500210681",
+    "name": "Spikes and Leather",
+    "artist": "Thriller",
+    "artistId": "ext-deezer-artist-390388",
+    "songCount": 0,
+    "year": 2024,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-500219271",
+    "name": "Iron Goddess",
+    "artist": "Thriller",
+    "artistId": "ext-deezer-artist-390388",
+    "songCount": 0,
+    "year": 2024,
+    "isExternal": true
+   },
+   {
+    "id": "ext-deezer-album-470662855",
+    "name": "Sediento de Sangre",
+    "artist": "Thriller",
+    "artistId": "ext-deezer-artist-390388",
+    "songCount": 0,
+    "year": 2023,
+    "isExternal": true
+   }
+  ],
+  "song": [
+   {
+    "id": "43GUGoUlbtuQlg3Hu9gAB0",
+    "title": "Thriller",
+    "album": "Thriller",
+    "albumId": "55GGa9mwMB6pXPPx0HLC6S",
+    "artist": "Michael Jackson",
+    "artistId": "5PG1DqNnTcsMjWgGpiKB5p",
+    "track": 4,
+    "year": 1982,
+    "duration": 357,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 964,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "0xSuJGdYxp7FJZh38ipc3z",
+    "title": "Thriller",
+    "album": "Infinity On High",
+    "albumId": "38TFmGAnpOwntKkekOtEBt",
+    "artist": "Fall Out Boy",
+    "artistId": "5BmSnJZriNrPWyH9Y4fpws",
+    "track": 1,
+    "year": 2007,
+    "duration": 209,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 994,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "6bzkcNNZKS9SAFl4UqPlSn",
+    "title": "Thriller (Live From Hammersmith Palais)",
+    "album": "Infinity On High",
+    "albumId": "38TFmGAnpOwntKkekOtEBt",
+    "artist": "Fall Out Boy",
+    "artistId": "5BmSnJZriNrPWyH9Y4fpws",
+    "track": 5,
+    "year": 2007,
+    "duration": 212,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 949,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "02nbtsTCR1dET8SOCZtf1D",
+    "title": "Beat It",
+    "album": "Thriller",
+    "albumId": "55GGa9mwMB6pXPPx0HLC6S",
+    "artist": "Michael Jackson",
+    "artistId": "5PG1DqNnTcsMjWgGpiKB5p",
+    "track": 5,
+    "year": 1982,
+    "duration": 258,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 984,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "5SVdgodFr4ZJxjeEHLrg78",
+    "title": "Billie Jean",
+    "album": "Thriller",
+    "albumId": "55GGa9mwMB6pXPPx0HLC6S",
+    "artist": "Michael Jackson",
+    "artistId": "5PG1DqNnTcsMjWgGpiKB5p",
+    "track": 6,
+    "year": 1982,
+    "duration": 294,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 946,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "36iwq61ZigIVQKKGQUaKef",
+    "title": "Human Nature",
+    "album": "Thriller",
+    "albumId": "55GGa9mwMB6pXPPx0HLC6S",
+    "artist": "Michael Jackson",
+    "artistId": "5PG1DqNnTcsMjWgGpiKB5p",
+    "track": 7,
+    "year": 1982,
+    "duration": 246,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1000,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "75Fu0SSaWFeqS5YQNPWBpd",
+    "title": "Baby Be Mine",
+    "album": "Thriller",
+    "albumId": "55GGa9mwMB6pXPPx0HLC6S",
+    "artist": "Michael Jackson",
+    "artistId": "5PG1DqNnTcsMjWgGpiKB5p",
+    "track": 2,
+    "year": 1982,
+    "duration": 260,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 925,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "2enR0lOLRPdGCJWPvqppr0",
+    "title": "The Girl Is Mine",
+    "album": "Thriller",
+    "albumId": "55GGa9mwMB6pXPPx0HLC6S",
+    "artist": "Michael Jackson",
+    "artistId": "5PG1DqNnTcsMjWgGpiKB5p",
+    "track": 3,
+    "year": 1982,
+    "duration": 222,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 910,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "0U10o0QRLSj80GTti9Gjjq",
+    "title": "The Lady in My Life",
+    "album": "Thriller",
+    "albumId": "55GGa9mwMB6pXPPx0HLC6S",
+    "artist": "Michael Jackson",
+    "artistId": "5PG1DqNnTcsMjWgGpiKB5p",
+    "track": 9,
+    "year": 1982,
+    "duration": 300,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 885,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "2vxX0GvQzgCAqH9pSptED6",
+    "title": "Wanna Be Startin' Somethin'",
+    "album": "Thriller",
+    "albumId": "55GGa9mwMB6pXPPx0HLC6S",
+    "artist": "Michael Jackson",
+    "artistId": "5PG1DqNnTcsMjWgGpiKB5p",
+    "track": 1,
+    "year": 1982,
+    "duration": 363,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 1007,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "0tMcYn7B4z1lR8XSgH4vBf",
+    "title": "P.Y.T. (Pretty Young Thing)",
+    "album": "Thriller",
+    "albumId": "55GGa9mwMB6pXPPx0HLC6S",
+    "artist": "Michael Jackson",
+    "artistId": "5PG1DqNnTcsMjWgGpiKB5p",
+    "track": 8,
+    "year": 1982,
+    "duration": 239,
+    "isExternal": false,
+    "suffix": "flac",
+    "bitRate": 912,
+    "contentType": "audio/flac"
+   },
+   {
+    "id": "ext-deezer-song-14874867",
+    "title": "Thriller (Single Version)",
+    "album": "The Essential Michael Jackson",
+    "albumId": "ext-deezer-album-1372008",
+    "artist": "Michael Jackson",
+    "artistId": "ext-deezer-artist-259",
+    "track": 0,
+    "year": 0,
+    "duration": 312,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-411982872",
+    "title": "Thriller (Steve Aoki Midnight Hour Remix)",
+    "album": "Thriller (Steve Aoki Midnight Hour Remix)",
+    "albumId": "ext-deezer-album-49012482",
+    "artist": "Michael Jackson",
+    "artistId": "ext-deezer-artist-259",
+    "track": 0,
+    "year": 0,
+    "duration": 300,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-86679531",
+    "title": "Thriller (Instrumental)",
+    "album": "Halloween Party",
+    "albumId": "ext-deezer-album-8743955",
+    "artist": "Halloween",
+    "artistId": "ext-deezer-artist-423079342",
+    "track": 0,
+    "year": 0,
+    "duration": 310,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-14552214",
+    "title": "Thriller (Immortal Version)",
+    "album": "Immortal",
+    "albumId": "ext-deezer-album-1338085",
+    "artist": "Michael Jackson",
+    "artistId": "ext-deezer-artist-259",
+    "track": 0,
+    "year": 0,
+    "duration": 212,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3057482071",
+    "title": "Thriller",
+    "album": "Thriller",
+    "albumId": "ext-deezer-album-660605501",
+    "artist": "Tori Kelly",
+    "artistId": "ext-deezer-artist-1416675",
+    "track": 0,
+    "year": 0,
+    "duration": 275,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-540502362",
+    "title": "Thriller",
+    "album": "KIDZ BOP Halloween",
+    "albumId": "ext-deezer-album-70550852",
+    "artist": "KIDZ BOP Kids",
+    "artistId": "ext-deezer-artist-320265",
+    "track": 0,
+    "year": 0,
+    "duration": 231,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-4373071501",
+    "title": "Thriller (60's Version)",
+    "album": "Thriller (60's Version)",
+    "albumId": "ext-deezer-album-1131411521",
+    "artist": "Matt Dusk",
+    "artistId": "ext-deezer-artist-15668",
+    "track": 0,
+    "year": 0,
+    "duration": 162,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-2980158341",
+    "title": "Thriller (2022)",
+    "album": "KIDZ BOP Halloween - 2024",
+    "albumId": "ext-deezer-album-638772901",
+    "artist": "KIDZ BOP Kids",
+    "artistId": "ext-deezer-artist-320265",
+    "track": 0,
+    "year": 0,
+    "duration": 237,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-4299429042",
+    "title": "Thriller (8D Audio)",
+    "album": "Thriller (8D Audio)",
+    "albumId": "ext-deezer-album-1101899222",
+    "artist": "(((())))",
+    "artistId": "ext-deezer-artist-194524817",
+    "track": 0,
+    "year": 0,
+    "duration": 351,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-753728952",
+    "title": "Thriller (Fitness Version 145 Bpm)",
+    "album": "Kick Box Super Hits 08 (Mixed Compilation For Fitness & Workout 145 Bpm / 32 Count)",
+    "albumId": "ext-deezer-album-110975132",
+    "artist": "Purple Beat",
+    "artistId": "ext-deezer-artist-279558",
+    "track": 0,
+    "year": 0,
+    "duration": 238,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3760790212",
+    "title": "Thriller",
+    "album": "Thriller",
+    "albumId": "ext-deezer-album-892690622",
+    "artist": "Nenei",
+    "artistId": "ext-deezer-artist-61513262",
+    "track": 0,
+    "year": 0,
+    "duration": 189,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-2015880777",
+    "title": "Thriller (Megamix)",
+    "album": "Thriller 40",
+    "albumId": "ext-deezer-album-375513297",
+    "artist": "Michael Jackson",
+    "artistId": "ext-deezer-artist-259",
+    "track": 0,
+    "year": 0,
+    "duration": 554,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3510189011",
+    "title": "Thriller (Tabata)",
+    "album": "Thriller (Tabata)",
+    "albumId": "ext-deezer-album-805477051",
+    "artist": "Tabata Songs",
+    "artistId": "ext-deezer-artist-1389928",
+    "track": 0,
+    "year": 0,
+    "duration": 242,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-1459861302",
+    "title": "Thriller",
+    "album": "Turbo",
+    "albumId": "ext-deezer-album-250675702",
+    "artist": "Cory Wong",
+    "artistId": "ext-deezer-artist-8607980",
+    "track": 0,
+    "year": 0,
+    "duration": 290,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-1955977527",
+    "title": "Thriller (Extended Version)",
+    "album": "Thriller",
+    "albumId": "ext-deezer-album-364636557",
+    "artist": "Lafrench Toast",
+    "artistId": "ext-deezer-artist-5518483",
+    "track": 0,
+    "year": 0,
+    "duration": 455,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-3549766791",
+    "title": "THRILLER",
+    "album": "THRILLER",
+    "albumId": "ext-deezer-album-819145601",
+    "artist": "BADVILLAIN",
+    "artistId": "ext-deezer-artist-268213242",
+    "track": 0,
+    "year": 0,
+    "duration": 172,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   },
+   {
+    "id": "ext-deezer-song-780636332",
+    "title": "Thriller",
+    "album": "The Silver Scream (FINAL CUT)",
+    "albumId": "ext-deezer-album-115643812",
+    "artist": "Ice Nine Kills",
+    "artistId": "ext-deezer-artist-390124",
+    "track": 0,
+    "year": 0,
+    "duration": 190,
+    "isExternal": true,
+    "suffix": "mp3",
+    "bitRate": 128,
+    "contentType": "audio/mpeg"
+   }
+  ]
+ },
+ "deezer": {
+  "artists": [
+   {
+    "id": 390388,
+    "name": "Thriller",
+    "nb_fan": 324,
+    "nb_album": 7
+   },
+   {
+    "id": 296600541,
+    "name": "Krimi und Thriller Hörbücher",
+    "nb_fan": 5934,
+    "nb_album": 65
+   },
+   {
+    "id": 340918611,
+    "name": "Alex Sol Thriller",
+    "nb_fan": 1346,
+    "nb_album": 5
+   },
+   {
+    "id": 300785861,
+    "name": "Mark Dawson Thriller",
+    "nb_fan": 2191,
+    "nb_album": 23
+   },
+   {
+    "id": 314263881,
+    "name": "Mary Stone Thriller",
+    "nb_fan": 1424,
+    "nb_album": 20
+   },
+   {
+    "id": 105212,
+    "name": "Thriller Jenna",
+    "nb_fan": 69,
+    "nb_album": 1
+   },
+   {
+    "id": 53757902,
+    "name": "Tony Thriller",
+    "nb_fan": 463,
+    "nb_album": 27
+   },
+   {
+    "id": 343922251,
+    "name": "Ein Lukas-Sontheim-Thriller",
+    "nb_fan": 3,
+    "nb_album": 5
+   },
+   {
+    "id": 192412767,
+    "name": "Ein New-Scotland-Yard-Thriller",
+    "nb_fan": 4,
+    "nb_album": 2
+   },
+   {
+    "id": 379453331,
+    "name": "Misfit Girl-Thriller",
+    "nb_fan": 21,
+    "nb_album": 2
+   },
+   {
+    "id": 367700682,
+    "name": "Ein Sayer-Altair-Thriller",
+    "nb_fan": 0,
+    "nb_album": 1
+   },
+   {
+    "id": 305578,
+    "name": "Louis La Roche",
+    "nb_fan": 8749,
+    "nb_album": 52
+   },
+   {
+    "id": 86513172,
+    "name": "Thriller",
+    "nb_fan": 2,
+    "nb_album": 2
+   },
+   {
+    "id": 62429,
+    "name": "Thriller U",
+    "nb_fan": 475,
+    "nb_album": 29
+   },
+   {
+    "id": 11040290,
+    "name": "Catherine Shepherd",
+    "nb_fan": 1264,
+    "nb_album": 43
+   },
+   {
+    "id": 113486202,
+    "name": "Tony Thriller Chill Beats Co.",
+    "nb_fan": 15,
+    "nb_album": 1
+   },
+   {
+    "id": 54637032,
+    "name": "Maison Ware",
+    "nb_fan": 249,
+    "nb_album": 46
+   },
+   {
+    "id": 1448956,
+    "name": "Arius",
+    "nb_fan": 8998,
+    "nb_album": 97
+   },
+   {
+    "id": 86513122,
+    "name": "Thriller",
+    "nb_fan": 2,
+    "nb_album": 3
+   },
+   {
+    "id": 86513162,
+    "name": "Thriller",
+    "nb_fan": 15,
+    "nb_album": 3
+   },
+   {
+    "id": 356128792,
+    "name": "livres audio policiers et thrillers",
+    "nb_fan": 467,
+    "nb_album": 2
+   },
+   {
+    "id": 264933,
+    "name": "Irma",
+    "nb_fan": 169690,
+    "nb_album": 27
+   },
+   {
+    "id": 85426392,
+    "name": "Lil Thriller",
+    "nb_fan": 0,
+    "nb_album": 41
+   },
+   {
+    "id": 4015614,
+    "name": "Thriller Killers",
+    "nb_fan": 3,
+    "nb_album": 7
+   },
+   {
+    "id": 57226222,
+    "name": "Techno Thriller",
+    "nb_fan": 63,
+    "nb_album": 3
+   }
+  ],
+  "albums": [
+   {
+    "id": 96126,
+    "title": "Thriller",
+    "record_type": "album",
+    "nb_tracks": 9,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    }
+   },
+   {
+    "id": 49012482,
+    "title": "Thriller (Steve Aoki Midnight Hour Remix)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    }
+   },
+   {
+    "id": 88646,
+    "title": "Thriller!",
+    "record_type": "album",
+    "nb_tracks": 7,
+    "artist": {
+     "id": 66297,
+     "name": "Cold Blood"
+    }
+   },
+   {
+    "id": 495725741,
+    "title": "THRILLER",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 1407351,
+     "name": "No Resolve"
+    }
+   },
+   {
+    "id": 72819,
+    "title": "Thriller 25 Super Deluxe Edition",
+    "record_type": "album",
+    "nb_tracks": 30,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    }
+   },
+   {
+    "id": 1128465461,
+    "title": "THRILLER",
+    "record_type": "album",
+    "nb_tracks": 7,
+    "artist": {
+     "id": 201875437,
+     "name": "Monday Waxie"
+    }
+   },
+   {
+    "id": 43870261,
+    "title": "Thriller",
+    "record_type": "album",
+    "nb_tracks": 11,
+    "artist": {
+     "id": 1359514,
+     "name": "New End Original"
+    }
+   },
+   {
+    "id": 1123778512,
+    "title": "Thriller",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 102136672,
+     "name": "Broken Peach"
+    }
+   },
+   {
+    "id": 819145601,
+    "title": "THRILLER",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 268213242,
+     "name": "BADVILLAIN"
+    }
+   },
+   {
+    "id": 1134015351,
+    "title": "Thriller (Español)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 413662441,
+     "name": "Nico Borie"
+    }
+   },
+   {
+    "id": 375513297,
+    "title": "Thriller 40",
+    "record_type": "album",
+    "nb_tracks": 34,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    }
+   },
+   {
+    "id": 660880231,
+    "title": "Thriller (Gabriel Boni Remix)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 287160031,
+     "name": "Gabriel Boni"
+    }
+   },
+   {
+    "id": 69987732,
+    "title": "Thriller",
+    "record_type": "album",
+    "nb_tracks": 40,
+    "artist": {
+     "id": 408455,
+     "name": "Bozza"
+    }
+   },
+   {
+    "id": 93461752,
+    "title": "Thriller (Soundtrack)",
+    "record_type": "album",
+    "nb_tracks": 14,
+    "artist": {
+     "id": 4918,
+     "name": "RZA"
+    }
+   },
+   {
+    "id": 1012993711,
+    "title": "Thriller (Acoustic Cover)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 195260157,
+     "name": "Arvin Minaskan"
+    }
+   },
+   {
+    "id": 660605501,
+    "title": "Thriller",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 1416675,
+     "name": "Tori Kelly"
+    }
+   },
+   {
+    "id": 423669067,
+    "title": "THRILLER (with Clara Mae)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 59526772,
+     "name": "DREAMDNVR"
+    }
+   },
+   {
+    "id": 86786672,
+    "title": "Thriller (Metal Version)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 54328,
+     "name": "Leo"
+    }
+   },
+   {
+    "id": 161754,
+    "title": "Thriller",
+    "record_type": "album",
+    "nb_tracks": 10,
+    "artist": {
+     "id": 12534,
+     "name": "Eddie & The Hot Rods"
+    }
+   },
+   {
+    "id": 269519112,
+    "title": "Thriller (feat. Tim Storms)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 150024932,
+     "name": "Joey Fewell"
+    }
+   },
+   {
+    "id": 892690622,
+    "title": "Thriller",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 61513262,
+     "name": "Nenei"
+    }
+   },
+   {
+    "id": 91338742,
+    "title": "Thriller",
+    "record_type": "album",
+    "nb_tracks": 13,
+    "artist": {
+     "id": 242186,
+     "name": "ADHD"
+    }
+   },
+   {
+    "id": 805477051,
+    "title": "Thriller (Tabata)",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 1389928,
+     "name": "Tabata Songs"
+    }
+   },
+   {
+    "id": 364636557,
+    "title": "Thriller",
+    "record_type": "single",
+    "nb_tracks": 2,
+    "artist": {
+     "id": 5518483,
+     "name": "Lafrench Toast"
+    }
+   },
+   {
+    "id": 261038562,
+    "title": "Thriller",
+    "record_type": "single",
+    "nb_tracks": 1,
+    "artist": {
+     "id": 14856367,
+     "name": "Fly By Nightcore"
+    }
+   }
+  ],
+  "tracks": [
+   {
+    "id": 555639,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 358,
+    "rank": 975901,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    },
+    "album": {
+     "id": 72819,
+     "title": "Thriller 25 Super Deluxe Edition"
+    }
+   },
+   {
+    "id": 831319,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 358,
+    "rank": 927235,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    },
+    "album": {
+     "id": 96126,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 14874867,
+    "title": "Thriller (Single Version)",
+    "title_short": "Thriller",
+    "title_version": "(Single Version)",
+    "duration": 312,
+    "rank": 595081,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    },
+    "album": {
+     "id": 1372008,
+     "title": "The Essential Michael Jackson"
+    }
+   },
+   {
+    "id": 411982872,
+    "title": "Thriller (Steve Aoki Midnight Hour Remix)",
+    "title_short": "Thriller (Steve Aoki Midnight Hour Remix)",
+    "title_version": "",
+    "duration": 300,
+    "rank": 575670,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    },
+    "album": {
+     "id": 49012482,
+     "title": "Thriller (Steve Aoki Midnight Hour Remix)"
+    }
+   },
+   {
+    "id": 86679531,
+    "title": "Thriller (Instrumental)",
+    "title_short": "Thriller",
+    "title_version": "(Instrumental)",
+    "duration": 310,
+    "rank": 484051,
+    "artist": {
+     "id": 423079342,
+     "name": "Halloween"
+    },
+    "album": {
+     "id": 8743955,
+     "title": "Halloween Party"
+    }
+   },
+   {
+    "id": 911490,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 209,
+    "rank": 414695,
+    "artist": {
+     "id": 404,
+     "name": "Fall Out Boy"
+    },
+    "album": {
+     "id": 102729,
+     "title": "Infinity On High"
+    }
+   },
+   {
+    "id": 14552214,
+    "title": "Thriller (Immortal Version)",
+    "title_short": "Thriller",
+    "title_version": "(Immortal Version)",
+    "duration": 212,
+    "rank": 409059,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    },
+    "album": {
+     "id": 1338085,
+     "title": "Immortal"
+    }
+   },
+   {
+    "id": 3057482071,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 275,
+    "rank": 404708,
+    "artist": {
+     "id": 1416675,
+     "name": "Tori Kelly"
+    },
+    "album": {
+     "id": 660605501,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 540502362,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 231,
+    "rank": 382798,
+    "artist": {
+     "id": 320265,
+     "name": "KIDZ BOP Kids"
+    },
+    "album": {
+     "id": 70550852,
+     "title": "KIDZ BOP Halloween"
+    }
+   },
+   {
+    "id": 4373071501,
+    "title": "Thriller (60's Version)",
+    "title_short": "Thriller",
+    "title_version": "(60's Version)",
+    "duration": 162,
+    "rank": 368749,
+    "artist": {
+     "id": 15668,
+     "name": "Matt Dusk"
+    },
+    "album": {
+     "id": 1131411521,
+     "title": "Thriller (60's Version)"
+    }
+   },
+   {
+    "id": 2980158341,
+    "title": "Thriller (2022)",
+    "title_short": "Thriller",
+    "title_version": "(2022)",
+    "duration": 237,
+    "rank": 332937,
+    "artist": {
+     "id": 320265,
+     "name": "KIDZ BOP Kids"
+    },
+    "album": {
+     "id": 638772901,
+     "title": "KIDZ BOP Halloween - 2024"
+    }
+   },
+   {
+    "id": 4299429042,
+    "title": "Thriller (8D Audio)",
+    "title_short": "Thriller",
+    "title_version": "(8D Audio)",
+    "duration": 351,
+    "rank": 268246,
+    "artist": {
+     "id": 194524817,
+     "name": "(((())))"
+    },
+    "album": {
+     "id": 1101899222,
+     "title": "Thriller (8D Audio)"
+    }
+   },
+   {
+    "id": 753728952,
+    "title": "Thriller (Fitness Version 145 Bpm)",
+    "title_short": "Thriller",
+    "title_version": "(Fitness Version 145 Bpm)",
+    "duration": 238,
+    "rank": 292252,
+    "artist": {
+     "id": 279558,
+     "name": "Purple Beat"
+    },
+    "album": {
+     "id": 110975132,
+     "title": "Kick Box Super Hits 08 (Mixed Compilation For Fitness & Workout 145 Bpm / 32 Count)"
+    }
+   },
+   {
+    "id": 3760790212,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 189,
+    "rank": 313457,
+    "artist": {
+     "id": 61513262,
+     "name": "Nenei"
+    },
+    "album": {
+     "id": 892690622,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 2015880777,
+    "title": "Thriller (Megamix)",
+    "title_short": "Thriller (Megamix)",
+    "title_version": "",
+    "duration": 554,
+    "rank": 307505,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    },
+    "album": {
+     "id": 375513297,
+     "title": "Thriller 40"
+    }
+   },
+   {
+    "id": 3510189011,
+    "title": "Thriller (Tabata)",
+    "title_short": "Thriller (Tabata)",
+    "title_version": "",
+    "duration": 242,
+    "rank": 275967,
+    "artist": {
+     "id": 1389928,
+     "name": "Tabata Songs"
+    },
+    "album": {
+     "id": 805477051,
+     "title": "Thriller (Tabata)"
+    }
+   },
+   {
+    "id": 1459861302,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 290,
+    "rank": 297603,
+    "artist": {
+     "id": 8607980,
+     "name": "Cory Wong"
+    },
+    "album": {
+     "id": 250675702,
+     "title": "Turbo"
+    }
+   },
+   {
+    "id": 1955977527,
+    "title": "Thriller (Extended Version)",
+    "title_short": "Thriller",
+    "title_version": "(Extended Version)",
+    "duration": 455,
+    "rank": 312314,
+    "artist": {
+     "id": 5518483,
+     "name": "Lafrench Toast"
+    },
+    "album": {
+     "id": 364636557,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 3549766791,
+    "title": "THRILLER",
+    "title_short": "THRILLER",
+    "title_version": "",
+    "duration": 172,
+    "rank": 274829,
+    "artist": {
+     "id": 268213242,
+     "name": "BADVILLAIN"
+    },
+    "album": {
+     "id": 819145601,
+     "title": "THRILLER"
+    }
+   },
+   {
+    "id": 780636332,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 190,
+    "rank": 299300,
+    "artist": {
+     "id": 390124,
+     "name": "Ice Nine Kills"
+    },
+    "album": {
+     "id": 115643812,
+     "title": "The Silver Scream (FINAL CUT)"
+    }
+   },
+   {
+    "id": 2482501091,
+    "title": "THRILLER",
+    "title_short": "THRILLER",
+    "title_version": "",
+    "duration": 362,
+    "rank": 281327,
+    "artist": {
+     "id": 1407351,
+     "name": "No Resolve"
+    },
+    "album": {
+     "id": 495725741,
+     "title": "THRILLER"
+    }
+   },
+   {
+    "id": 35306311,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 451,
+    "rank": 309404,
+    "artist": {
+     "id": 2762,
+     "name": "Easy Star All-Stars"
+    },
+    "album": {
+     "id": 3426841,
+     "title": "Easy Star's Thrillah"
+    }
+   },
+   {
+    "id": 3486697311,
+    "title": "Thriller (live)",
+    "title_short": "Thriller",
+    "title_version": "(live)",
+    "duration": 360,
+    "rank": 259555,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    },
+    "album": {
+     "id": 797404671,
+     "title": "Live in Brunei 1996"
+    }
+   },
+   {
+    "id": 422542652,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 352,
+    "rank": 264466,
+    "artist": {
+     "id": 5037816,
+     "name": "Scandroid"
+    },
+    "album": {
+     "id": 50660622,
+     "title": "Monochrome (Deluxe Edition)"
+    }
+   },
+   {
+    "id": 1342789332,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 245,
+    "rank": 271514,
+    "artist": {
+     "id": 14307603,
+     "name": "Forestella"
+    },
+    "album": {
+     "id": 222653752,
+     "title": "The Forestella"
+    }
+   },
+   {
+    "id": 395175062,
+    "title": "Thriller (Live 1987 FM Broadcast)",
+    "title_short": "Thriller (Live 1987 FM Broadcast)",
+    "title_version": "",
+    "duration": 259,
+    "rank": 259814,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    },
+    "album": {
+     "id": 46375822,
+     "title": "Live On Stage FM Broadcast - Yokohama Stadium 27th September 1987"
+    }
+   },
+   {
+    "id": 61078660,
+    "title": "Thriller (Instrumental)",
+    "title_short": "Thriller (Instrumental)",
+    "title_version": "",
+    "duration": 347,
+    "rank": 241123,
+    "artist": {
+     "id": 4034564,
+     "name": "Halloween Sound Machine"
+    },
+    "album": {
+     "id": 5980801,
+     "title": "Halloween Music"
+    }
+   },
+   {
+    "id": 3946740941,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 189,
+    "rank": 236103,
+    "artist": {
+     "id": 239560521,
+     "name": "Dominum"
+    },
+    "album": {
+     "id": 956250761,
+     "title": "Night is Calling"
+    }
+   },
+   {
+    "id": 4353645012,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 206,
+    "rank": 227935,
+    "artist": {
+     "id": 102136672,
+     "name": "Broken Peach"
+    },
+    "album": {
+     "id": 1123778512,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 1108884762,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 263,
+    "rank": 227884,
+    "artist": {
+     "id": 4621824,
+     "name": "Audiotricz"
+    },
+    "album": {
+     "id": 179555252,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 2015880767,
+    "title": "Thriller (Def Thrill Mix)",
+    "title_short": "Thriller",
+    "title_version": "(Def Thrill Mix)",
+    "duration": 442,
+    "rank": 250066,
+    "artist": {
+     "id": 259,
+     "name": "Michael Jackson"
+    },
+    "album": {
+     "id": 375513297,
+     "title": "Thriller 40"
+    }
+   },
+   {
+    "id": 776160822,
+    "title": "Thriller (Workout Remix 132 BPM)",
+    "title_short": "Thriller",
+    "title_version": "(Workout Remix 132 BPM)",
+    "duration": 150,
+    "rank": 217893,
+    "artist": {
+     "id": 1231497,
+     "name": "Power Music Workout"
+    },
+    "album": {
+     "id": 115017102,
+     "title": "Halloween Megamix Vol. 3 (Non-Stop Workout Mix)"
+    }
+   },
+   {
+    "id": 1808558867,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 241,
+    "rank": 218609,
+    "artist": {
+     "id": 12529234,
+     "name": "Myles Frost"
+    },
+    "album": {
+     "id": 331615837,
+     "title": "MJ the Musical - Original Broadway Cast Recording"
+    }
+   },
+   {
+    "id": 1290890452,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 212,
+    "rank": 190042,
+    "artist": {
+     "id": 8352118,
+     "name": "Kekra"
+    },
+    "album": {
+     "id": 218373822,
+     "title": "Kekra"
+    }
+   },
+   {
+    "id": 1855985207,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 207,
+    "rank": 238323,
+    "artist": {
+     "id": 1696083,
+     "name": "BTOB"
+    },
+    "album": {
+     "id": 343965977,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 17591482,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 354,
+    "rank": 214428,
+    "artist": {
+     "id": 1653490,
+     "name": "Count Dee's Hit Explosion"
+    },
+    "album": {
+     "id": 1647737,
+     "title": "'80S Pop Selection"
+    }
+   },
+   {
+    "id": 136433532,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 335,
+    "rank": 208957,
+    "artist": {
+     "id": 6818687,
+     "name": "Abtmelody"
+    },
+    "album": {
+     "id": 14594628,
+     "title": "Thriller (Instrumental Karaoke)"
+    }
+   },
+   {
+    "id": 6802998,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 357,
+    "rank": 206962,
+    "artist": {
+     "id": 223380,
+     "name": "The Party Cats"
+    },
+    "album": {
+     "id": 628274,
+     "title": "Kids Dance Party: Halloween Jams"
+    }
+   },
+   {
+    "id": 475079832,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 236,
+    "rank": 167599,
+    "artist": {
+     "id": 5319149,
+     "name": "Postmodern Jukebox"
+    },
+    "album": {
+     "id": 59343152,
+     "title": "Jazz Me Outside Pt. 2"
+    }
+   },
+   {
+    "id": 3603058402,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 357,
+    "rank": 167410,
+    "artist": {
+     "id": 7043123,
+     "name": "Paralandra"
+    },
+    "album": {
+     "id": 838241502,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 2475769781,
+    "title": "Thriller (feat. DaBeat)",
+    "title_short": "Thriller (feat. DaBeat)",
+    "title_version": "",
+    "duration": 176,
+    "rank": 216303,
+    "artist": {
+     "id": 874198,
+     "name": "Jolyon Petch"
+    },
+    "album": {
+     "id": 493782541,
+     "title": "Thriller (feat. DaBeat)"
+    }
+   },
+   {
+    "id": 910602922,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 285,
+    "rank": 201154,
+    "artist": {
+     "id": 4039582,
+     "name": "Session Musicians"
+    },
+    "album": {
+     "id": 137632232,
+     "title": "Children's Halloween Party Album"
+    }
+   },
+   {
+    "id": 3047233541,
+    "title": "Thriller (Single Version)",
+    "title_short": "Thriller",
+    "title_version": "(Single Version)",
+    "duration": 152,
+    "rank": 160400,
+    "artist": {
+     "id": 8666906,
+     "name": "Halloween & Musica de Terror Specialists"
+    },
+    "album": {
+     "id": 657340811,
+     "title": "50 Horror Sounds of Halloween"
+    }
+   },
+   {
+    "id": 4250125771,
+    "title": "Thriller (Tech House Latin House)",
+    "title_short": "Thriller",
+    "title_version": "(Tech House Latin House)",
+    "duration": 219,
+    "rank": 209174,
+    "artist": {
+     "id": 9104868,
+     "name": "Tom Gasco"
+    },
+    "album": {
+     "id": 1064623811,
+     "title": "Thriller (Tech House Latin House)"
+    }
+   },
+   {
+    "id": 2365368995,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 170,
+    "rank": 175742,
+    "artist": {
+     "id": 7369880,
+     "name": "Peter Bence"
+    },
+    "album": {
+     "id": 463778315,
+     "title": "PianoSphere"
+    }
+   },
+   {
+    "id": 1122429792,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 219,
+    "rank": 187215,
+    "artist": {
+     "id": 5501870,
+     "name": "MONSTA X"
+    },
+    "album": {
+     "id": 182380192,
+     "title": "Fatal Love"
+    }
+   },
+   {
+    "id": 57155741,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 236,
+    "rank": 150926,
+    "artist": {
+     "id": 3841831,
+     "name": "Horror Music of the Night"
+    },
+    "album": {
+     "id": 5579881,
+     "title": "Horror Music of the Night: Scary Sounds, Halloween Sounds and Spooky Sound Efx"
+    }
+   },
+   {
+    "id": 1963358257,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 252,
+    "rank": 183100,
+    "artist": {
+     "id": 510273,
+     "name": "Stellar Corpses"
+    },
+    "album": {
+     "id": 366011477,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 2215834717,
+    "title": "THRILLER (with Clara Mae)",
+    "title_short": "THRILLER (with Clara Mae)",
+    "title_version": "",
+    "duration": 161,
+    "rank": 182970,
+    "artist": {
+     "id": 59526772,
+     "name": "DREAMDNVR"
+    },
+    "album": {
+     "id": 423669067,
+     "title": "THRILLER (with Clara Mae)"
+    }
+   },
+   {
+    "id": 2527179431,
+    "title": "Thriller (Tech House Remix)",
+    "title_short": "Thriller (Tech House Remix)",
+    "title_version": "",
+    "duration": 223,
+    "rank": 201320,
+    "artist": {
+     "id": 4265813,
+     "name": "Doctor Keos"
+    },
+    "album": {
+     "id": 508478431,
+     "title": "Thriller (Tech House Remix)"
+    }
+   },
+   {
+    "id": 2515248901,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 312,
+    "rank": 181242,
+    "artist": {
+     "id": 237615391,
+     "name": "Timeless Halloween Songs"
+    },
+    "album": {
+     "id": 504947321,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 3038996841,
+    "title": "Thriller (Afro Halloween Mix)",
+    "title_short": "Thriller",
+    "title_version": "(Afro Halloween Mix)",
+    "duration": 298,
+    "rank": 179537,
+    "artist": {
+     "id": 174791,
+     "name": "Softmal"
+    },
+    "album": {
+     "id": 654707101,
+     "title": "Thriller Afro Halloween Mix"
+    }
+   },
+   {
+    "id": 1118024422,
+    "title": "Thriller (Live in Worcester, MA / November 2019)",
+    "title_short": "Thriller",
+    "title_version": "(Live in Worcester, MA / November 2019)",
+    "duration": 180,
+    "rank": 189859,
+    "artist": {
+     "id": 390124,
+     "name": "Ice Nine Kills"
+    },
+    "album": {
+     "id": 181418062,
+     "title": "I Heard They KILL Live"
+    }
+   },
+   {
+    "id": 1111398642,
+    "title": "Thriller (Tabata 8)",
+    "title_short": "Thriller",
+    "title_version": "(Tabata 8)",
+    "duration": 274,
+    "rank": 162619,
+    "artist": {
+     "id": 1231497,
+     "name": "Power Music Workout"
+    },
+    "album": {
+     "id": 180083102,
+     "title": "Tabata - Halloween Edition (20 Sec Work and 10 Sec Rest Cycles with Vocal Cues 144 BPM)"
+    }
+   },
+   {
+    "id": 3993709301,
+    "title": "Thriller Indian Remix",
+    "title_short": "Thriller",
+    "title_version": "Indian Remix",
+    "duration": 65,
+    "rank": 122138,
+    "artist": {
+     "id": 80607572,
+     "name": "Vindaloo Singh"
+    },
+    "album": {
+     "id": 972650361,
+     "title": "Michael 2026 Movie Soundtrack Indian Version"
+    }
+   },
+   {
+    "id": 565494342,
+    "title": "Thriller (Fury Weekend Remix) (Instrumental)",
+    "title_short": "Thriller (Fury Weekend Remix)",
+    "title_version": "(Instrumental)",
+    "duration": 292,
+    "rank": 149747,
+    "artist": {
+     "id": 5037816,
+     "name": "Scandroid"
+    },
+    "album": {
+     "id": 75140812,
+     "title": "Thriller (Fury Weekend Remix)"
+    }
+   },
+   {
+    "id": 425773132,
+    "title": "Thriller (Acoustic Version)",
+    "title_short": "Thriller (Acoustic Version)",
+    "title_version": "",
+    "duration": 230,
+    "rank": 161823,
+    "artist": {
+     "id": 301746,
+     "name": "Will Champlin"
+    },
+    "album": {
+     "id": 51200722,
+     "title": "Thriller (Acoustic Version)"
+    }
+   },
+   {
+    "id": 2869377262,
+    "title": "Thriller (Karaoke Version Originally Performed by Michael Jackson)",
+    "title_short": "Thriller",
+    "title_version": "(Karaoke Version Originally Performed by Michael Jackson)",
+    "duration": 359,
+    "rank": 161985,
+    "artist": {
+     "id": 265917262,
+     "name": "Singer's Best"
+    },
+    "album": {
+     "id": 608609852,
+     "title": "Thriller (Karaoke Version Originally Performed by Michael Jackson)"
+    }
+   },
+   {
+    "id": 662903302,
+    "title": "Thriller (Metal Version)",
+    "title_short": "Thriller (Metal Version)",
+    "title_version": "",
+    "duration": 316,
+    "rank": 161494,
+    "artist": {
+     "id": 54328,
+     "name": "Leo"
+    },
+    "album": {
+     "id": 93118772,
+     "title": "Leo Metal, Vol. 23"
+    }
+   },
+   {
+    "id": 4004966311,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 289,
+    "rank": 159984,
+    "artist": {
+     "id": 2296731,
+     "name": "VoicePlay"
+    },
+    "album": {
+     "id": 976903391,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 129372196,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "duration": 227,
+    "rank": 173630,
+    "artist": {
+     "id": 7169538,
+     "name": "Bailey Pelkman"
+    },
+    "album": {
+     "id": 13689120,
+     "title": "Covers"
+    }
+   },
+   {
+    "id": 1761735077,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 237,
+    "rank": 158995,
+    "artist": {
+     "id": 320265,
+     "name": "KIDZ BOP Kids"
+    },
+    "album": {
+     "id": 320966277,
+     "title": "Kidz Bop Halloween Hits!"
+    }
+   },
+   {
+    "id": 1131080552,
+    "title": "Thriller (Medieval Style)",
+    "title_short": "Thriller",
+    "title_version": "(Medieval Style)",
+    "duration": 106,
+    "rank": 157720,
+    "artist": {
+     "id": 104070612,
+     "name": "Bard to the Core"
+    },
+    "album": {
+     "id": 183962692,
+     "title": "Thriller (Medieval Style)"
+    }
+   },
+   {
+    "id": 1955977517,
+    "title": "Thriller (Original Mix)",
+    "title_short": "Thriller",
+    "title_version": "(Original Mix)",
+    "duration": 272,
+    "rank": 173383,
+    "artist": {
+     "id": 5518483,
+     "name": "Lafrench Toast"
+    },
+    "album": {
+     "id": 364636557,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 911508,
+    "title": "Thriller (Live From Hammersmith Palais)",
+    "title_short": "Thriller",
+    "title_version": "(Live From Hammersmith Palais)",
+    "duration": 212,
+    "rank": 155887,
+    "artist": {
+     "id": 404,
+     "name": "Fall Out Boy"
+    },
+    "album": {
+     "id": 102729,
+     "title": "Infinity On High"
+    }
+   },
+   {
+    "id": 111924072,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "duration": 352,
+    "rank": 159142,
+    "artist": {
+     "id": 8778446,
+     "name": "Halloween Party Music"
+    },
+    "album": {
+     "id": 11613904,
+     "title": "Halloween Party Hits"
+    }
+   },
+   {
+    "id": 403603172,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 218,
+    "rank": 170861,
+    "artist": {
+     "id": 7367412,
+     "name": "Luca Stricagnoli"
+    },
+    "album": {
+     "id": 47615772,
+     "title": "What If?"
+    }
+   },
+   {
+    "id": 3585769081,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 159,
+    "rank": 153007,
+    "artist": {
+     "id": 7662484,
+     "name": "Punk Rock Factory"
+    },
+    "album": {
+     "id": 832068751,
+     "title": "The Fright Before Christmas"
+    }
+   },
+   {
+    "id": 23084711,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 61,
+    "rank": 113414,
+    "artist": {
+     "id": 1038273,
+     "name": "Halloween Sound Effects"
+    },
+    "album": {
+     "id": 2206341,
+     "title": "Halloween"
+    }
+   },
+   {
+    "id": 2125513717,
+    "title": "Thriller!",
+    "title_short": "Thriller!",
+    "title_version": "",
+    "duration": 276,
+    "rank": 151999,
+    "artist": {
+     "id": 4480,
+     "name": "Pere Ubu"
+    },
+    "album": {
+     "id": 400884797,
+     "title": "Dub Housing"
+    }
+   },
+   {
+    "id": 3632188492,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 177,
+    "rank": 153012,
+    "artist": {
+     "id": 101372,
+     "name": "Alfredo Rodriguez"
+    },
+    "album": {
+     "id": 848181502,
+     "title": "Duologue"
+    }
+   },
+   {
+    "id": 1097255122,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 224,
+    "rank": 150528,
+    "artist": {
+     "id": 66155,
+     "name": "David Garrett"
+    },
+    "album": {
+     "id": 177079702,
+     "title": "Alive - My Soundtrack (Deluxe)"
+    }
+   },
+   {
+    "id": 4292682312,
+    "title": "Thriller (Acoustic)",
+    "title_short": "Thriller",
+    "title_version": "(Acoustic)",
+    "duration": 219,
+    "rank": 176501,
+    "artist": {
+     "id": 3170441,
+     "name": "Freedom Fry"
+    },
+    "album": {
+     "id": 1081128562,
+     "title": "Thriller (Acoustic)"
+    }
+   },
+   {
+    "id": 3424156591,
+    "title": "THRILLER",
+    "title_short": "THRILLER",
+    "title_version": "",
+    "duration": 170,
+    "rank": 121194,
+    "artist": {
+     "id": 332840011,
+     "name": "Michael Williams"
+    },
+    "album": {
+     "id": 775806571,
+     "title": "WILLO"
+    }
+   },
+   {
+    "id": 2873650982,
+    "title": "thriller (lofi edit)",
+    "title_short": "thriller (lofi edit)",
+    "title_version": "",
+    "duration": 154,
+    "rank": 142359,
+    "artist": {
+     "id": 199800167,
+     "name": "Chill Bros Studios"
+    },
+    "album": {
+     "id": 610080352,
+     "title": "Halloween LoFi Beats (Spooky Halloween Hiphop)"
+    }
+   },
+   {
+    "id": 12160007,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 318,
+    "rank": 141743,
+    "artist": {
+     "id": 397733391,
+     "name": "The Shoes"
+    },
+    "album": {
+     "id": 1117422,
+     "title": "The Ultimate Halloween Party Album"
+    }
+   },
+   {
+    "id": 92715378,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 211,
+    "rank": 140882,
+    "artist": {
+     "id": 4959736,
+     "name": "Shindy"
+    },
+    "album": {
+     "id": 9409966,
+     "title": "FVCKB!TCHE$GETMONE¥"
+    }
+   },
+   {
+    "id": 2114279077,
+    "title": "thriller!",
+    "title_short": "thriller!",
+    "title_version": "",
+    "duration": 141,
+    "rank": 139568,
+    "artist": {
+     "id": 136657092,
+     "name": "GREEN ORXNGE"
+    },
+    "album": {
+     "id": 398139837,
+     "title": "LAST ONE"
+    }
+   },
+   {
+    "id": 943690252,
+    "title": "Thriller (feat. M Huncho)",
+    "title_short": "Thriller (feat. M Huncho)",
+    "title_version": "",
+    "duration": 239,
+    "rank": 136425,
+    "artist": {
+     "id": 8550304,
+     "name": "Yxng Bane"
+    },
+    "album": {
+     "id": 144868562,
+     "title": "Quarantime: The Lost Files"
+    }
+   },
+   {
+    "id": 572356952,
+    "title": "Thriller (Acoustic)",
+    "title_short": "Thriller",
+    "title_version": "(Acoustic)",
+    "duration": 221,
+    "rank": 134004,
+    "artist": {
+     "id": 13179277,
+     "name": "Blame Jones"
+    },
+    "album": {
+     "id": 76357172,
+     "title": "Thriller (Acoustic)"
+    }
+   },
+   {
+    "id": 3594159092,
+    "title": "Thriller (Halloween Vocal VIP Edit)",
+    "title_short": "Thriller",
+    "title_version": "(Halloween Vocal VIP Edit)",
+    "duration": 174,
+    "rank": 134101,
+    "artist": {
+     "id": 174791,
+     "name": "Softmal"
+    },
+    "album": {
+     "id": 835064302,
+     "title": "Thriller Halloween Vocal VIP Edit"
+    }
+   },
+   {
+    "id": 125421342,
+    "title": "Thriller (Live)",
+    "title_short": "Thriller",
+    "title_version": "(Live)",
+    "duration": 356,
+    "rank": 129902,
+    "artist": {
+     "id": 1084754,
+     "name": "Tony Succar"
+    },
+    "album": {
+     "id": 13188346,
+     "title": "Unity: The Latin Tribute to Michael Jackson (Live Concert Special)"
+    }
+   },
+   {
+    "id": 73652399,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 268,
+    "rank": 155383,
+    "artist": {
+     "id": 5410104,
+     "name": "Crystal Theory"
+    },
+    "album": {
+     "id": 7262685,
+     "title": "Halloween Lounge"
+    }
+   },
+   {
+    "id": 1997556187,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 246,
+    "rank": 137965,
+    "artist": {
+     "id": 94226,
+     "name": "Royal Philharmonic Orchestra"
+    },
+    "album": {
+     "id": 372320517,
+     "title": "Symphonic Rock"
+    }
+   },
+   {
+    "id": 3058332641,
+    "title": "Thriller (Gabriel Boni Remix)",
+    "title_short": "Thriller (Gabriel Boni Remix)",
+    "title_version": "",
+    "duration": 213,
+    "rank": 102122,
+    "artist": {
+     "id": 287160031,
+     "name": "Gabriel Boni"
+    },
+    "album": {
+     "id": 660880231,
+     "title": "Thriller (Gabriel Boni Remix)"
+    }
+   },
+   {
+    "id": 3434165811,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 305,
+    "rank": 122971,
+    "artist": {
+     "id": 389043791,
+     "name": "Ruth"
+    },
+    "album": {
+     "id": 779274721,
+     "title": "Polaroïd/Roman/Photo"
+    }
+   },
+   {
+    "id": 138662135,
+    "title": "Thriller (135 BPM)",
+    "title_short": "Thriller",
+    "title_version": "(135 BPM)",
+    "duration": 170,
+    "rank": 244935,
+    "artist": {
+     "id": 279558,
+     "name": "Purple Beat"
+    },
+    "album": {
+     "id": 14896273,
+     "title": "Megamix Fitness Disco Hits for Mid Tempo (25 Tracks Non-Stop Mixed Compilation for Fitness & Workout)"
+    }
+   },
+   {
+    "id": 1406125982,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 159,
+    "rank": 117473,
+    "artist": {
+     "id": 14954881,
+     "name": "8ruki"
+    },
+    "album": {
+     "id": 237645042,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 1786408877,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 275,
+    "rank": 117832,
+    "artist": {
+     "id": 1084754,
+     "name": "Tony Succar"
+    },
+    "album": {
+     "id": 326285547,
+     "title": "Unity: The Latin Tribute to Michael Jackson"
+    }
+   },
+   {
+    "id": 2512779251,
+    "title": "Thriller (Medieval Version)",
+    "title_short": "Thriller",
+    "title_version": "(Medieval Version)",
+    "duration": 308,
+    "rank": 138670,
+    "artist": {
+     "id": 101526552,
+     "name": "Bardcore"
+    },
+    "album": {
+     "id": 504309241,
+     "title": "Spooky Scary Halloween Party"
+    }
+   },
+   {
+    "id": 3777034132,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 233,
+    "rank": 253785,
+    "artist": {
+     "id": 1285934,
+     "name": "Lulu Joppert"
+    },
+    "album": {
+     "id": 898419862,
+     "title": "Café Bossa Brazil, Vol. 3: Bossa Nova Lounge Compilation"
+    }
+   },
+   {
+    "id": 558899612,
+    "title": "Thriller (Workout Remix 142 Bpm)",
+    "title_short": "Thriller",
+    "title_version": "(Workout Remix 142 Bpm)",
+    "duration": 318,
+    "rank": 187192,
+    "artist": {
+     "id": 12062156,
+     "name": "Workout Music Tv"
+    },
+    "album": {
+     "id": 73936062,
+     "title": "55 Halloween Best Songs For Fitness & Workout (Unmixed Compilation For Fitness & Workout 128 - 178 Bpm)"
+    }
+   },
+   {
+    "id": 3776878302,
+    "title": "Thriller (Bossa Version)",
+    "title_short": "Thriller",
+    "title_version": "(Bossa Version)",
+    "duration": 254,
+    "rank": 234048,
+    "artist": {
+     "id": 468553,
+     "name": "Rachelle Spring"
+    },
+    "album": {
+     "id": 898384212,
+     "title": "Michael's in Bossa"
+    }
+   },
+   {
+    "id": 895788622,
+    "title": "Thriller (Tabata Remix)",
+    "title_short": "Thriller",
+    "title_version": "(Tabata Remix)",
+    "duration": 254,
+    "rank": 111666,
+    "artist": {
+     "id": 12062156,
+     "name": "Workout Music Tv"
+    },
+    "album": {
+     "id": 134931682,
+     "title": "Thriller (Workout Bundle / Even 32 Count Phrasing)"
+    }
+   },
+   {
+    "id": 3592716392,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 150,
+    "rank": 121303,
+    "artist": {
+     "id": 304140041,
+     "name": "Uiia Cat"
+    },
+    "album": {
+     "id": 834593892,
+     "title": "Thriller"
+    }
+   },
+   {
+    "id": 64258285,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 194,
+    "rank": 119048,
+    "artist": {
+     "id": 275309,
+     "name": "Vitamin String Quartet"
+    },
+    "album": {
+     "id": 6294648,
+     "title": "VSQ Performs the Hits of Michael Jackson"
+    }
+   },
+   {
+    "id": 3960626851,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 190,
+    "rank": 88110,
+    "artist": {
+     "id": 1988301,
+     "name": "Turno"
+    },
+    "album": {
+     "id": 961488361,
+     "title": "Thriller / Good Ol' Days"
+    }
+   },
+   {
+    "id": 3907247801,
+    "title": "Thriller",
+    "title_short": "Thriller",
+    "title_version": "",
+    "duration": 206,
+    "rank": 115418,
+    "artist": {
+     "id": 4545871,
+     "name": "Simply Three"
+    },
+    "album": {
+     "id": 942076921,
+     "title": "Simply Three"
+    }
+   },
+   {
+    "id": 5185431,
+    "title": "Thriller (Hars Sequencer)",
+    "title_short": "Thriller",
+    "title_version": "(Hars Sequencer)",
+    "duration": 338,
+    "rank": 209620,
+    "artist": {
+     "id": 279558,
+     "name": "Purple Beat"
+    },
+    "album": {
+     "id": 475413,
+     "title": "Dance Remix Tribute: Madonna vs Michael Jackson"
+    }
+   },
+   {
+    "id": 3047263731,
+    "title": "Thriller (Single Version)",
+    "title_short": "Thriller",
+    "title_version": "(Single Version)",
+    "duration": 159,
+    "rank": 85557,
+    "artist": {
+     "id": 8560942,
+     "name": "Horror Music Collection"
+    },
+    "album": {
+     "id": 657351361,
+     "title": "50 Horror Sounds of Halloween"
+    }
+   }
+  ]
+ }
+}
