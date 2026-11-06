@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meta/meta.dart';
@@ -348,6 +348,11 @@ void main() {
 
       test('All keeps one song, a Songs filter keeps up to three', () async {
         if (!sqliteAvailable) return;
+        // This test starts Search more than once, each with its own database.
+        driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+        addTearDown(
+          () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+        );
         final tracks = [
           adeleHello,
           DeezerTrack(
@@ -473,6 +478,11 @@ void main() {
         'the switch off, the service off or Online services off send nothing',
         () async {
           if (!sqliteAvailable) return;
+          // This test starts Search more than once, each with its own database.
+          driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+          addTearDown(
+            () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+          );
           for (final policy in <IntegrationPolicy>[
             const IntegrationPolicy(disabledKeys: {'deezer.searchRanking'}),
             const IntegrationPolicy(disabledKeys: {'deezer'}),
