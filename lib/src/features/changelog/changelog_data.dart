@@ -168,9 +168,9 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        "macOS: the equalizer and fast seeking now work, and stream "
+        'macOS: the equalizer and fast seeking now work, and stream '
         "connections use the system's trusted certificates",
-        type: ChangelogEntryType.fix,
+        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Search no longer lists a song twice when a Deezer copy of it matches '
