@@ -1,27 +1,94 @@
 import 'package:audio_service/audio_service.dart' show MediaItem;
+import 'package:dio/dio.dart' show CancelToken;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/player/presentation/audio_quality_format.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
+/// Raised while the details wait for the network; the state stays an error so
+/// opening the dialog asks again, and nothing is shown or logged.
+class _MediaInfoDeferred implements Exception {
+  const new();
+}
+
 /// The getSong fields the library DB does not keep (path, bit depth,
-/// channels, BPM, comment), read once when the dialog opens. Null when the
-/// server is unreachable or the song is not on it.
+/// channels, BPM, comment). [mediaInfoPrefetchProvider] loads them when a
+/// song starts and keeps them for the dialog. Null when the song is not on
+/// the server or nobody is signed in.
+///
+/// Rebuilds only when the account changes (not on every Wi-Fi/cellular
+/// flip), cancels its request when the song changes, and never retries by
+/// itself: a failure is asked again once per dialog open.
 final songServerDetailsProvider = FutureProvider.autoDispose
     .family<Map<String, dynamic>?, String>((ref, songId) async {
-      final api = ref.watch(subsonicApiProvider);
-      if (api == null) return null;
-      try {
-        return await api.getSongPayload(songId);
-      } on Object {
-        return null;
+      final account = ref.watch(
+        serverConfigStateProvider.select((state) {
+          final config = state.asData?.value;
+          return config == null
+              ? null
+              : (url: config.url, username: config.username);
+        }),
+      );
+      if (account == null) return null;
+      if (!networkSettled(ref)) {
+        kickAfterReconciliation(ref, ref.invalidateSelf);
+        ref.listen(networkTypeProvider, (previous, next) {
+          if (previous == NetworkType.offline && next != NetworkType.offline) {
+            ref.invalidateSelf();
+          }
+        });
+        throw const _MediaInfoDeferred();
       }
-    });
+      final token = CancelToken();
+      ref.onDispose(token.cancel);
+      try {
+        return await ref
+            .read(subsonicApiProvider)
+            ?.getSongPayload(songId, cancelToken: token);
+      } on SubsonicNotFoundException {
+        return null;
+      } on Object catch (error) {
+        if (ref.mounted && !token.isCancelled) {
+          AppLogger.debug('Media info unavailable for $songId: $error');
+        }
+        rethrow;
+      }
+    }, retry: (_, _) => null);
 
+/// Keeps the current song's media info ready: its row, server details, admin
+/// flag and album, so the dialog opens complete. One request per song; the
+/// previous song's request is cancelled when the next one starts.
+final mediaInfoPrefetchProvider = Provider<void>((ref) {
+  final (:isRadio, :songId) = ref.watch(
+    playerStateProvider.select(
+      (s) => (isRadio: s.isRadioMode, songId: s.currentSongId),
+    ),
+  );
+  if (isRadio || songId == null || songId.isEmpty) return;
+  final albumId = ref.watch(songByIdProvider(songId)).asData?.value?.albumId;
+  if (albumId != null) ref.watch(albumProvider(albumId));
+  ref.watch(serverUserIsAdminProvider);
+  ref.watch(songServerDetailsProvider(songId));
+});
+
+/// Opens the media info dialog for the playing song. Every entry point calls
+/// this: it asks again for details that failed or were deferred.
 Future<void> showDesktopMediaInfoDialog(BuildContext context) {
+  final container = ProviderScope.containerOf(context, listen: false);
+  final songId = container.read(playerStateProvider).currentSongId;
+  if (songId != null) {
+    final details = songServerDetailsProvider(songId);
+    if (container.exists(details) && container.read(details).hasError) {
+      container.invalidate(details);
+    }
+  }
   return showDialog<void>(
     context: context,
     builder: (_) => const DesktopMediaInfoDialog(),

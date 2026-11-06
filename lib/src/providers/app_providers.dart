@@ -456,13 +456,11 @@ final networkReconcilingProvider =
     );
 
 /// Online and not waiting for a reconciliation to finish.
-@visibleForTesting
 bool networkSettled(Ref ref) =>
     ref.read(networkTypeProvider) != NetworkType.offline &&
     !ref.read(networkReconcilingProvider);
 
 /// Runs [kick] once each time a reconciliation (or its bound) ends.
-@visibleForTesting
 void kickAfterReconciliation(Ref ref, void Function() kick) {
   ref.listen<bool>(networkReconcilingProvider, (previous, next) {
     if (previous == true && !next) kick();
