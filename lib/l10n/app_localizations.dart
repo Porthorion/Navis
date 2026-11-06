@@ -5438,7 +5438,7 @@ abstract class AppLocalizations {
   /// No description provided for @downloadsRetryAllFailed.
   ///
   /// In en, this message translates to:
-  /// **'Retry All Failed'**
+  /// **'Retry All Failed Downloads'**
   String get downloadsRetryAllFailed;
 
   /// No description provided for @downloadsErrorLoadingQueue.
@@ -5452,6 +5452,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clear Queue'**
   String get downloadsClearQueue;
+
+  /// No description provided for @downloadsClearShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get downloadsClearShort;
 
   /// No description provided for @downloadsClearQueueConfirm.
   ///
