@@ -18,6 +18,11 @@ import 'package:rxdart/rxdart.dart';
 /// requested by the system arrive in that real-time scale and are converted
 /// back to track time.
 ///
+/// With `projectTime` false (macOS) none of that applies: MediaPlayer's Now
+/// Playing info takes the real playback rate and extrapolates the elapsed time
+/// itself, so positions, durations and seeks stay in track time and the real
+/// speed is published.
+///
 /// The system queue is a window of the app's queue around the current song
 /// (see [queueWindowBefore] and [queueWindowAfter]). audio_service sends the
 /// whole list over the platform channel on every change, which for a long or
@@ -28,14 +33,12 @@ import 'package:rxdart/rxdart.dart';
 /// cached (see [AndroidSystemArt]), including browse and search results. Everything else is forwarded
 /// unchanged.
 class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
-  new(this.inner, {this.systemArt}) : super(inner) {
+  new(this.inner, {this.systemArt, this.projectTime = true}) : super(inner) {
     _subscriptions
       ..add(
         inner.playbackState.listen((state) {
           _publishQueueWindow();
-          _playbackState.add(
-            _withWindowedQueueIndex(projectPlaybackStateToRealTime(state)),
-          );
+          _playbackState.add(_systemPlaybackState(state));
           _publishMediaItem();
         }),
       )
@@ -45,9 +48,7 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
           if (_publishQueueWindow()) {
             final state = inner.playbackState.valueOrNull;
             if (state != null) {
-              _playbackState.add(
-                _withWindowedQueueIndex(projectPlaybackStateToRealTime(state)),
-              );
+              _playbackState.add(_systemPlaybackState(state));
             }
           }
         }),
@@ -93,6 +94,10 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
 
   /// Replaces credential-bearing cover URLs for the system, when set.
   final AndroidSystemArt? systemArt;
+
+  /// Whether positions, durations and speed are published in real listening
+  /// time. False publishes track time with the real playback rate (macOS).
+  final bool projectTime;
 
   final BehaviorSubject<PlaybackState> _playbackState =
       BehaviorSubject<PlaybackState>();
@@ -153,6 +158,11 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
     return true;
   }
 
+  PlaybackState _systemPlaybackState(PlaybackState state) =>
+      _withWindowedQueueIndex(
+        projectTime ? projectPlaybackStateToRealTime(state) : state,
+      );
+
   PlaybackState _withWindowedQueueIndex(PlaybackState state) {
     final index = state.queueIndex;
     if (index == null) return state;
@@ -178,7 +188,9 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
     }
     _lastSourceItem = source;
     _lastSpeed = speed;
-    final projected = projectMediaItemToRealTime(source, speed);
+    final projected = projectTime
+        ? projectMediaItemToRealTime(source, speed)
+        : source;
     _mediaItem.add(
       projected == null
           ? null
@@ -243,8 +255,9 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
   @override
   // Calling super would forward the unconverted real-time position.
   // ignore: must_call_super
-  Future<void> seek(Duration position) =>
-      inner.seek(realTimeToTrackPosition(position, _speed));
+  Future<void> seek(Duration position) => inner.seek(
+    projectTime ? realTimeToTrackPosition(position, _speed) : position,
+  );
 }
 
 /// Speeds this close to 1× are treated as 1× so ordinary playback is published

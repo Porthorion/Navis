@@ -321,7 +321,9 @@ static const double kNowPlayingDriftMs = 100.0;
         updated |= [self updateNowPlayingField:MPNowPlayingInfoPropertyMediaType value:@(MPNowPlayingInfoMediaTypeAudio)];
     }
     updated |= [self updateNowPlayingField:MPNowPlayingInfoPropertyPlaybackRate value:(playing ? speed : [NSNumber numberWithDouble: 0.0])];
-    updated |= [self updateNowPlayingField:MPNowPlayingInfoPropertyDefaultPlaybackRate value:(playing ? speed : [NSNumber numberWithDouble: 0.0])];
+    // Navis: the default rate is the normal rate (Apple), not the current
+    // speed; PlaybackRate above carries the speed.
+    updated |= [self updateNowPlayingField:MPNowPlayingInfoPropertyDefaultPlaybackRate value:@(1.0)];
     updated |= [self updateNowPlayingField:MPNowPlayingInfoPropertyElapsedPlaybackTime value:[NSNumber numberWithDouble:([position doubleValue] / 1000)]];
     MPNowPlayingInfoCenter *center = [MPNowPlayingInfoCenter defaultCenter];
     if (@available(iOS 10.0, macOS 10.12.2, *)) {

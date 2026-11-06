@@ -135,6 +135,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'macOS: Control Center shows the right time when playing faster or '
+        'slower than normal',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Recently Added on Home now shows the play button on hover, like '
         'the other album shelves',
         type: ChangelogEntryType.fix,
