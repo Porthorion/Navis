@@ -21,7 +21,7 @@ Navis only talks to your server. Everything is on by default.
   type in Search to Deezer's track, artist and album search, in parallel with
   your server's search, and uses Deezer's order only to rank: the library and
   server results are reordered (popularity breaks ties inside a text-match tier)
-  and up to three matched hits lead the screen as Top Results, never adding
+  and the best matched hits lead the screen as Top Results (a hero card and two tiles: on All the hero and its own artist, album or top song, with a type filter the top three of that kind), never adding
   anything your library does not already return. Search waits at most 350 ms past
   your server's answer; a later Deezer answer is ignored, so results never
   reshuffle. Nothing is sent offline, while a Playlists or Radio filter is on,

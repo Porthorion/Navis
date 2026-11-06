@@ -444,6 +444,300 @@ void main() {
       expect(boost.popularity.songs, <String, int>{'s1': 0, 's2': 1});
     });
 
+    group('on All (one per kind)', () {
+      const library = SearchResult3(
+        artists: <Artist>[
+          Artist(id: 'ar1', name: 'Pablo Honey Band'),
+          Artist(id: 'ar2', name: 'Radiohead'),
+        ],
+        albums: <Album>[
+          Album(id: 'al', name: 'The Bends', artist: 'Radiohead'),
+        ],
+        songs: <Song>[
+          Song(id: 's1', title: 'Creep', artist: 'Radiohead'),
+          Song(id: 's2', title: 'Karma Police', artist: 'Radiohead'),
+        ],
+      );
+
+      DeezerSearchBoost match(DeezerSearchHits hits, [String query = 'q']) =>
+          matchDeezerSearchHits(
+            result: library,
+            hits: hits,
+            query: query,
+            onePerKind: true,
+          );
+
+      test('keep the best hit of each kind, never a second artist', () {
+        final boost = match(
+          DeezerSearchHits(
+            artists: [
+              const DeezerArtist(id: 1, name: 'Radiohead'),
+              const DeezerArtist(id: 2, name: 'Pablo Honey Band'),
+            ],
+            albums: [_album(3, 'The Bends', 'Radiohead')],
+          ),
+        );
+        expect(_topIds(boost), <String>['artist:ar2', 'album:al']);
+      });
+
+      test('an exact song title leads an artist ranked higher by Deezer', () {
+        final boost = match(
+          DeezerSearchHits(
+            artists: [const DeezerArtist(id: 1, name: 'Radiohead')],
+            tracks: [
+              _track(10, 'Unknown', 'Nobody'),
+              _track(11, 'Unknown', 'Nobody'),
+              _track(12, 'Unknown', 'Nobody'),
+              _track(13, 'Unknown', 'Nobody'),
+              _track(14, 'Creep', 'Radiohead'),
+            ],
+          ),
+          'creep',
+        );
+        expect(_topIds(boost).first, 'song:s1');
+        expect(_topIds(boost), contains('artist:ar2'));
+        expect(_topIds(boost), hasLength(2));
+      });
+
+      test('case, punctuation and diacritics still count as exact', () {
+        final boost = match(
+          DeezerSearchHits(
+            artists: [const DeezerArtist(id: 1, name: 'Radiohead')],
+            albums: [_album(3, 'The Bends', 'Radiohead')],
+          ),
+          '  THE bends! ',
+        );
+        expect(_topIds(boost), <String>['album:al', 'artist:ar2']);
+      });
+
+      test('without an exact match the hero is the best Deezer position', () {
+        final boost = match(
+          DeezerSearchHits(
+            artists: [
+              const DeezerArtist(id: 7, name: 'Nobody'),
+              const DeezerArtist(id: 1, name: 'Radiohead'),
+            ],
+            albums: [
+              _album(2, 'Nope', 'Nobody'),
+              _album(8, 'Nope', 'Nobody'),
+              _album(3, 'The Bends', 'Radiohead'),
+            ],
+            tracks: [_track(6, 'Creep', 'Radiohead')],
+          ),
+          'radio',
+        );
+        // The tiles relate to the hero: the song's artist, and no album (the
+        // song has none), though an album matched.
+        expect(_topIds(boost), <String>['song:s1', 'artist:ar2']);
+      });
+
+      test('ties on position make the artist the hero, then its songs', () {
+        final boost = match(
+          DeezerSearchHits(
+            artists: [const DeezerArtist(id: 1, name: 'Radiohead')],
+            albums: [_album(2, 'The Bends', 'Radiohead')],
+            tracks: [_track(3, 'Creep', 'Radiohead')],
+          ),
+        );
+        expect(_topIds(boost), <String>['artist:ar2', 'song:s1', 'album:al']);
+      });
+
+      test('a kind\'s exact match beats a better-ranked non-exact one', () {
+        const live = SearchResult3(
+          songs: <Song>[
+            Song(id: 'live', title: 'Creep - Live', artist: 'Radiohead'),
+            Song(id: 'studio', title: 'Creep', artist: 'Radiohead'),
+          ],
+        );
+        final boost = matchDeezerSearchHits(
+          result: live,
+          hits: DeezerSearchHits(
+            tracks: [
+              _track(1, 'Creep - Live', 'Radiohead'),
+              _track(2, 'Creep', 'Radiohead'),
+            ],
+          ),
+          query: 'creep',
+          onePerKind: true,
+        );
+        expect(_topIds(boost), <String>['song:studio']);
+      });
+
+      test('several exact matches: the song Deezer ranks first decides', () {
+        const same = SearchResult3(
+          artists: <Artist>[Artist(id: 'ar', name: 'Creep')],
+          albums: <Album>[Album(id: 'al', name: 'Creep', artist: 'X')],
+          songs: <Song>[Song(id: 's', title: 'Creep', artist: 'X')],
+        );
+        final boost = matchDeezerSearchHits(
+          result: same,
+          hits: DeezerSearchHits(
+            artists: [
+              const DeezerArtist(id: 1, name: 'Other'),
+              const DeezerArtist(id: 2, name: 'Creep'),
+            ],
+            albums: [_album(3, 'Creep', 'X')],
+            tracks: [_track(4, 'Other', 'Z'), _track(5, 'Creep', 'X')],
+          ),
+          query: 'Creep',
+          onePerKind: true,
+        );
+        expect(_topIds(boost), <String>['song:s']);
+      });
+
+      test('the song\'s artist, when the query names it, is the hero', () {
+        const muse = SearchResult3(
+          artists: <Artist>[
+            Artist(id: 'muse', name: 'Muse'),
+            Artist(id: 'ext-deezer-artist-9', name: 'Muse', isExternal: true),
+          ],
+          albums: <Album>[Album(id: 'muse-al', name: 'Muse', artist: 'Other')],
+          songs: <Song>[
+            Song(id: 'up', title: 'Uprising', artist: 'Muse', artistId: 'muse'),
+          ],
+        );
+        final boost = matchDeezerSearchHits(
+          result: muse,
+          hits: DeezerSearchHits(
+            artists: [const DeezerArtist(id: 9, name: 'Muse')],
+            albums: [_album(1, 'Muse', 'Other')],
+            tracks: [_track(2, 'Uprising', 'Muse')],
+          ),
+          query: 'Muse',
+          onePerKind: true,
+        );
+        expect(_topIds(boost), <String>['artist:muse', 'song:up']);
+      });
+
+      test(
+        'an exact item on the server beats a remote one Deezer ranks first',
+        () {
+          const mixed = SearchResult3(
+            albums: <Album>[Album(id: 'al', name: 'Airtime', artist: 'Zed')],
+            songs: <Song>[
+              Song(
+                id: 'ext-deezer-song-1',
+                title: 'Airtime (Acoustic)',
+                artist: 'Katie',
+                isExternal: true,
+              ),
+              Song(id: 'mine', title: 'Airtime', artist: 'Zed', albumId: 'al'),
+            ],
+          );
+          final boost = matchDeezerSearchHits(
+            result: mixed,
+            hits: DeezerSearchHits(
+              albums: [_album(8, 'Airtime', 'Zed')],
+              tracks: [
+                _track(1, 'Airtime (Acoustic)', 'Katie'),
+                _track(2, 'Airtime', 'Zed'),
+              ],
+            ),
+            query: 'airtime',
+            onePerKind: true,
+          );
+          expect(_topIds(boost).first, 'song:mine');
+        },
+      );
+
+      test('a blank artist or album id builds no tile', () {
+        const blank = SearchResult3(
+          songs: <Song>[
+            Song(
+              id: 'hello',
+              title: 'Hello',
+              artist: 'Adele',
+              artistId: '',
+              album: '25',
+              albumId: ' ',
+            ),
+          ],
+        );
+        final boost = matchDeezerSearchHits(
+          result: blank,
+          hits: DeezerSearchHits(tracks: [_track(1, 'Hello', 'Adele')]),
+          query: 'hello',
+          onePerKind: true,
+        );
+        expect(_topIds(boost), <String>['song:hello']);
+      });
+
+      test('an album hero\'s top song is by the album\'s artist', () {
+        const heroes = SearchResult3(
+          albums: <Album>[Album(id: 'al', name: 'Heroes', artist: 'Bowie')],
+          songs: <Song>[
+            Song(id: 'other', title: 'Other Song', artist: 'Shinedown'),
+            Song(id: 'bowie', title: 'Sound', artist: 'Bowie'),
+          ],
+        );
+        final boost = matchDeezerSearchHits(
+          result: heroes,
+          hits: DeezerSearchHits(
+            albums: [_album(1, 'Heroes', 'Bowie')],
+            tracks: [
+              _track(2, 'Other Song', 'Shinedown', album: 'Heroes'),
+              _track(3, 'Sound', 'Bowie', album: 'Heroes'),
+            ],
+          ),
+          query: 'heroes',
+          onePerKind: true,
+        );
+        expect(_topIds(boost), <String>['album:al', 'song:bowie']);
+      });
+
+      test('a song\'s artist and album missing from the result are built', () {
+        const lone = SearchResult3(
+          songs: <Song>[
+            Song(
+              id: 'hello',
+              title: 'Hello',
+              artist: 'Adele',
+              artistId: 'adele',
+              album: '25',
+              albumId: 'album-25',
+              year: 2015,
+            ),
+          ],
+        );
+        final boost = matchDeezerSearchHits(
+          result: lone,
+          hits: DeezerSearchHits(tracks: [_track(1, 'Hello', 'Adele')]),
+          query: 'hello',
+          onePerKind: true,
+        );
+        expect(_topIds(boost), <String>[
+          'song:hello',
+          'artist:adele',
+          'album:album-25',
+        ]);
+        final album = (boost.topResults[2] as TopAlbumResult).album;
+        expect((album.name, album.artist, album.year), ('25', 'Adele', 2015));
+      });
+    });
+
+    test('a type filter keeps the first three of one kind in order', () {
+      final boost = matchDeezerSearchHits(
+        result: const SearchResult3(
+          albums: <Album>[
+            Album(id: 'a1', name: 'One', artist: 'X'),
+            Album(id: 'a2', name: 'Two', artist: 'X'),
+            Album(id: 'a3', name: 'Three', artist: 'X'),
+            Album(id: 'a4', name: 'Four', artist: 'X'),
+          ],
+        ),
+        hits: DeezerSearchHits(
+          albums: [
+            _album(1, 'Two', 'X'),
+            _album(2, 'One', 'X'),
+            _album(3, 'Three', 'X'),
+            _album(4, 'Four', 'X'),
+          ],
+        ),
+        query: 'one',
+      );
+      expect(_topIds(boost), <String>['album:a2', 'album:a1', 'album:a3']);
+    });
+
     test('are empty when nothing matches, and without hits', () {
       expect(
         matchDeezerSearchHits(

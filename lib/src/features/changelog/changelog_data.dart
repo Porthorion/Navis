@@ -135,6 +135,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Recently Added on Home now shows the play button on hover, like '
+        'the other album shelves',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Albums and downloads can be added to a playlist from their menu',
         type: ChangelogEntryType.improvement,
       ),
@@ -142,6 +147,12 @@ const List<ChangelogVersion> changelogs = [
         'Search puts the most popular matches first and shows Top Results '
         '(Deezer; switch in Integrations)',
         type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Search Top Results show the best match as a large card with Play, '
+        'Shuffle or Like, and its artist, album or top song as tiles; '
+        'tapping anywhere on a card opens it',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Turning on Auto-Download Liked now asks first, showing how many '

@@ -4649,6 +4649,54 @@ abstract class AppLocalizations {
   /// **'Top Results'**
   String get searchTopResultsSection;
 
+  /// No description provided for @searchTopArtist.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist'**
+  String get searchTopArtist;
+
+  /// No description provided for @searchTopArtistAlbums.
+  ///
+  /// In en, this message translates to:
+  /// **'Artist · {count, plural, =1{1 album} other{{count} albums}}'**
+  String searchTopArtistAlbums(int count);
+
+  /// No description provided for @searchTopAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Album'**
+  String get searchTopAlbum;
+
+  /// No description provided for @searchTopAlbumYear.
+  ///
+  /// In en, this message translates to:
+  /// **'Album · {year}'**
+  String searchTopAlbumYear(String year);
+
+  /// No description provided for @searchTopSong.
+  ///
+  /// In en, this message translates to:
+  /// **'Song'**
+  String get searchTopSong;
+
+  /// No description provided for @searchTopSongDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Song · {duration}'**
+  String searchTopSongDuration(String duration);
+
+  /// No description provided for @searchTopSongAlbum.
+  ///
+  /// In en, this message translates to:
+  /// **'Song · {album}'**
+  String searchTopSongAlbum(String album);
+
+  /// No description provided for @searchTopSongAlbumDuration.
+  ///
+  /// In en, this message translates to:
+  /// **'Song · {album} · {duration}'**
+  String searchTopSongAlbumDuration(String album, String duration);
+
   /// No description provided for @searchArtistsSection.
   ///
   /// In en, this message translates to:

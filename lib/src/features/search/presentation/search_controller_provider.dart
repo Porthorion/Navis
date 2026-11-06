@@ -244,7 +244,12 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
         var ranked = 0;
         if (hits != null) {
           try {
-            final boost = matchDeezerSearchHits(result: merged, hits: hits);
+            final boost = matchDeezerSearchHits(
+              result: merged,
+              hits: hits,
+              query: query,
+              onePerKind: filter == null,
+            );
             merged = rankSearchResult(
               merged,
               query,

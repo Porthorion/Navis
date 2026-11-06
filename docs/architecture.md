@@ -3915,7 +3915,18 @@ cancels them. After `search3` answers Search waits at most
 merged results and the second `rankSearchResult` pass uses the ranks
 (`SearchPopularity`) as the tie-break inside a text tier, ahead of source and
 server order, unranked items last; one emission carries the ranked results and
-up to `kMaxTopResults` Top Results. Late or failed: today's order, no Top
+the Top Results: on All a hero and its relatives (`_topResultsOfAllKinds`). With
+items named like the query (after `normalizeMetadata`) in two or more kinds the hero is
+the one Deezer's first matched song points at (the song itself, else its artist, else
+its album), unless that is remote while the server holds an exact-named item: then the
+server's exact items decide, a song first. Otherwise the hero is the best hit (a name
+equal to the query first, then the lowest Deezer position). The tiles are the hero's
+relatives: a song's artist and album, an artist's top song and album, an album's artist
+and top song. A song's or album's artist or album that the result lacks is built from the
+ids the song or album carries (no art id; the tile reads the stored row through
+`artistByIdProvider` / `albumProvider` as the pages do, else a remote item's own id).
+A type filter keeps the first `kMaxTopResults` of that kind. The saved real answers in
+`test/fixtures/search_top_results` pin the All picks (`top_results_fixtures_test.dart`). Late or failed: today's order, no Top
 Results, and no later emission (a late answer is still kept for the 10 minutes,
 so a rebuild of the same query can rank it at once). Matching reorders only (a hit with no
 library or server item is dropped): songs by `ext-deezer-song-<id>` and by the
@@ -3926,8 +3937,20 @@ does not name), every copy sharing the hit's rank; artists by
 title plus artist; Top Results show the on-server copy before a remote one. `search.deezer`
 (Deezer's own time and hit counts) and `search.deezerRank` (how long Search
 waited and whether the answer was in time) spans on `IntegrationCallRecorder`
-measure the cap. The Search screen draws Top Results with the same row
-widgets as the sections below.
+measure the cap. The Search screen draws Top Results in
+`search_top_results.dart`: the first is a hero card (large cover, Play, Shuffle or
+Like, More; a flat tint from the cover colour through `artworkSeedColorProvider`, which
+shares `DynamicAccentColorCache` with the player's album colour), the others are
+tiles; on desktop all share one row at 2 : 1 : 1, on mobile the tiles sit under the
+hero. A tap anywhere on the card (hero or tile) does what the result row's tap does (the
+buttons on the hero keep their own action); the hero's More and a long-press or
+right-click on a hero or tile open the artist, album or song menu (album rows have no
+menu of their own); Play and Shuffle on an album go through `playAlbumById`, which
+fetches an album the library has not stored yet. The tint shares the player's colour
+cache but reads the cover at the size the card shows (so the image cache serves it), only
+where the next-song prefetch rule (`nextSongPrefetchAllowed`) allows; a cover that
+failed is asked for again when the card is shown again. Covers follow Artwork Shape and
+Artist Card Shape, cards follow Corner Style.
 
 ## Update Checker
 

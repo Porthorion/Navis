@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
-import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -13,7 +12,6 @@ import 'package:navis/src/database/daos/library_dao.dart' show GenreSummary;
 import 'package:navis/src/database/navis_database.dart' show PlaylistsTableData;
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
-import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
@@ -23,11 +21,10 @@ import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/radio_playback.dart';
-import 'package:navis/src/features/playlists/presentation/add_to_playlist_sheet.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
-import 'package:navis/src/features/player/presentation/smart_queue_sheet.dart';
-import 'package:navis/src/features/search/domain/deezer_search_boost.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
+import 'package:navis/src/features/search/presentation/search_song_menu.dart';
+import 'package:navis/src/features/search/presentation/search_top_results.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
@@ -453,7 +450,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     : EdgeInsets.zero,
                 children: <Widget>[
                   if (state.topResults.isNotEmpty)
-                    _TopResultsSection(
+                    SearchTopResultsSection(
                       topResults: state.topResults,
                       desktopMode: desktopMode,
                     ),
@@ -747,77 +744,17 @@ class _OfflineSearchBanner extends ConsumerWidget {
   }
 }
 
-void _noop() {}
-
-/// The best matches across artists, albums and songs, each drawn by the
-/// section that draws it below (so rows, menus and taps are the same), under
-/// one header.
-class _TopResultsSection extends StatelessWidget {
-  const new({required this.topResults, this.desktopMode = false});
-
-  final List<SearchTopResult> topResults;
-  final bool desktopMode;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        NavisSectionHeader(
-          title: l10n.searchTopResultsSection,
-          compact: true,
-          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
-        ),
-        for (final (index, top) in topResults.indexed)
-          KeyedSubtree(
-            key: ValueKey<String>('search-top-result-$index'),
-            child: switch (top) {
-              TopArtistResult(:final artist) => _ArtistResultsSection(
-                artists: <Artist>[artist],
-                showHeader: false,
-                expanded: false,
-                onToggleExpanded: _noop,
-                desktopMode: desktopMode,
-              ),
-              TopAlbumResult(:final album) => _AlbumResultsSection(
-                albums: <Album>[album],
-                showHeader: false,
-                heroContext: 'search_top_album',
-                expanded: false,
-                onToggleExpanded: _noop,
-                desktopMode: desktopMode,
-              ),
-              TopSongResult(:final song) => _SongResultsSection(
-                songs: <Song>[song],
-                showHeader: false,
-                keyPrefix: 'search-top-song',
-                expanded: false,
-                onToggleExpanded: _noop,
-                desktopMode: desktopMode,
-              ),
-            },
-          ),
-      ],
-    );
-  }
-}
-
 class _ArtistResultsSection extends ConsumerWidget {
   const new({
     required this.artists,
     required this.expanded,
     required this.onToggleExpanded,
     this.desktopMode = false,
-    this.showHeader = true,
   });
 
   final List<Artist> artists;
   final bool expanded;
   final bool desktopMode;
-
-  /// False inside Top Results, which has its own header.
-  final bool showHeader;
   final VoidCallback onToggleExpanded;
 
   @override
@@ -830,14 +767,13 @@ class _ArtistResultsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        if (showHeader)
-          NavisSectionHeader(
-            title: l10n.searchArtistsSection,
-            compact: true,
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
-            onSeeAll: artists.length > 5 ? onToggleExpanded : null,
-            seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
-          ),
+        NavisSectionHeader(
+          title: l10n.searchArtistsSection,
+          compact: true,
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+          onSeeAll: artists.length > 5 ? onToggleExpanded : null,
+          seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
+        ),
         ...visible.map((artist) {
           final isRemote = isExternalCatalogSource(
             id: artist.id,
@@ -1148,20 +1084,11 @@ class _AlbumResultsSection extends ConsumerWidget {
     required this.expanded,
     required this.onToggleExpanded,
     this.desktopMode = false,
-    this.showHeader = true,
-    this.heroContext = 'search_album',
   });
 
   final List<Album> albums;
   final bool expanded;
   final bool desktopMode;
-
-  /// False inside Top Results, which has its own header.
-  final bool showHeader;
-
-  /// Part of the cover's hero tag: Top Results repeats an album shown below,
-  /// and two heroes on a page must not share a tag.
-  final String heroContext;
   final VoidCallback onToggleExpanded;
 
   @override
@@ -1174,14 +1101,13 @@ class _AlbumResultsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        if (showHeader)
-          NavisSectionHeader(
-            title: l10n.searchAlbumsSection,
-            compact: true,
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
-            onSeeAll: albums.length > 5 ? onToggleExpanded : null,
-            seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
-          ),
+        NavisSectionHeader(
+          title: l10n.searchAlbumsSection,
+          compact: true,
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+          onSeeAll: albums.length > 5 ? onToggleExpanded : null,
+          seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
+        ),
         ...visible.map((album) {
           final isRemote = isExternalCatalogSource(
             id: album.id,
@@ -1189,7 +1115,7 @@ class _AlbumResultsSection extends ConsumerWidget {
           );
           final heroTag = buildCoverArtHeroTag(
             coverArtId: album.coverArt,
-            context: heroContext,
+            context: 'search_album',
             entityId: album.id,
           );
           final leading = HeroCoverArt(
@@ -1249,19 +1175,11 @@ class _SongResultsSection extends ConsumerWidget {
     required this.expanded,
     required this.onToggleExpanded,
     this.desktopMode = false,
-    this.showHeader = true,
-    this.keyPrefix = 'search-song',
   });
 
   final List<Song> songs;
   final bool expanded;
   final bool desktopMode;
-
-  /// False inside Top Results, which has its own header.
-  final bool showHeader;
-
-  /// Prefix of the row action keys; Top Results repeats a song shown below.
-  final String keyPrefix;
   final VoidCallback onToggleExpanded;
 
   @override
@@ -1274,14 +1192,13 @@ class _SongResultsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        if (showHeader)
-          NavisSectionHeader(
-            title: l10n.searchSongsSection,
-            compact: true,
-            padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
-            onSeeAll: songs.length > 5 ? onToggleExpanded : null,
-            seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
-          ),
+        NavisSectionHeader(
+          title: l10n.searchSongsSection,
+          compact: true,
+          padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 8, 4),
+          onSeeAll: songs.length > 5 ? onToggleExpanded : null,
+          seeAllLabel: expanded ? l10n.searchShowLess : l10n.searchShowAll,
+        ),
         if (expanded && visible.isNotEmpty)
           AdaptiveTrackHeader(actionExtent: desktopMode ? null : 0),
         ...visible.asMap().entries.map((entry) {
@@ -1318,20 +1235,16 @@ class _SongResultsSection extends ConsumerWidget {
                 ? DesktopSongActions.forSongId(
                     songId: song.id,
                     isExternal: isRemote,
-                    keyPrefix: keyPrefix,
-                    onMore: (anchor) => _showSongContextMenu(
-                      context,
-                      ref,
-                      song,
-                      anchor: anchor,
-                    ),
+                    keyPrefix: 'search-song',
+                    onMore: (anchor) =>
+                        showSearchSongMenu(context, ref, song, anchor: anchor),
                   )
                 : null,
             onTap: () => unawaited(
               ref.read(queueProvider.notifier).replaceWithSongs(<Song>[song]),
             ),
-            onLongPress: () => _showSongContextMenu(context, ref, song),
-            onSecondaryTapDown: (details) => _showSongContextMenu(
+            onLongPress: () => showSearchSongMenu(context, ref, song),
+            onSecondaryTapDown: (details) => showSearchSongMenu(
               context,
               ref,
               song,
@@ -1341,183 +1254,6 @@ class _SongResultsSection extends ConsumerWidget {
           return SongPlaybackSemantics(state: playbackState, child: tile);
         }),
       ],
-    );
-  }
-
-  void _showSongContextMenu(
-    BuildContext context,
-    WidgetRef ref,
-    Song song, {
-    Offset? anchor,
-  }) {
-    final l10n = AppLocalizations.of(context)!;
-    if (anchor != null) {
-      final result = showDesktopContextMenu<String>(
-        context: context,
-        anchor: anchor,
-        items: <PopupMenuEntry<String>>[
-          PopupMenuItem<String>(
-            value: 'play-next',
-            child: Text(l10n.searchPlayNext),
-          ),
-          PopupMenuItem<String>(
-            value: 'add-queue',
-            child: Text(l10n.searchAddToQueue),
-          ),
-          PopupMenuItem<String>(
-            value: 'add-playlist',
-            child: Text(l10n.librarySongMenuAddToPlaylist),
-          ),
-          PopupMenuItem<String>(
-            value: 'instant-mix',
-            child: Text(l10n.nowPlayingInstantMix),
-          ),
-        ],
-      );
-      unawaited(
-        result.then((value) {
-          if (!context.mounted) return;
-          switch (value) {
-            case 'play-next':
-              ref
-                  .read(queueProvider.notifier)
-                  .fireAndForget(
-                    () =>
-                        ref.read(queueProvider.notifier).playNextWithSong(song),
-                    label: 'playNext',
-                  );
-              if (context.mounted) {
-                showAppNotice(
-                  context,
-                  message: l10n.librarySongPlayNextQueued(song.title),
-                  level: AppNoticeLevel.success,
-                );
-              }
-              return;
-            case 'add-queue':
-              ref
-                  .read(queueProvider.notifier)
-                  .fireAndForget(
-                    () => ref.read(queueProvider.notifier).addWithSong(song),
-                    label: 'addToQueue',
-                  );
-              if (context.mounted) {
-                showAppNotice(
-                  context,
-                  message: l10n.librarySongAddedToQueue(song.title),
-                  level: AppNoticeLevel.success,
-                );
-              }
-              return;
-            case 'add-playlist':
-              unawaited(showAddToPlaylistSheet(context, ref, [song.id]));
-              return;
-            case 'instant-mix':
-              unawaited(activatePreferredMixMode(ref, seedSongId: song.id));
-              return;
-            default:
-              return;
-          }
-        }),
-      );
-      return;
-    }
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            ListTile(
-              leading: const Icon(Icons.play_arrow),
-              title: Text(l10n.searchPlayNext),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                ref
-                    .read(queueProvider.notifier)
-                    .fireAndForget(
-                      () => ref
-                          .read(queueProvider.notifier)
-                          .playNextWithSong(song),
-                      label: 'playNext',
-                    );
-                if (context.mounted) {
-                  showAppNotice(
-                    context,
-                    message: l10n.librarySongPlayNextQueued(song.title),
-                    level: AppNoticeLevel.success,
-                  );
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.queue_music),
-              title: Text(l10n.searchAddToQueue),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                ref
-                    .read(queueProvider.notifier)
-                    .fireAndForget(
-                      () => ref.read(queueProvider.notifier).addWithSong(song),
-                      label: 'addToQueue',
-                    );
-                if (context.mounted) {
-                  showAppNotice(
-                    context,
-                    message: l10n.librarySongAddedToQueue(song.title),
-                    level: AppNoticeLevel.success,
-                  );
-                }
-              },
-            ),
-            if (song.albumId != null)
-              ListTile(
-                leading: const Icon(Icons.album),
-                title: Text(l10n.nowPlayingGoToAlbum),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  NavService.openAlbumDetail(
-                    context,
-                    ref,
-                    song.albumId!,
-                    name: song.album,
-                    artistName: song.artist,
-                  );
-                },
-              ),
-            if (song.artistId != null)
-              ListTile(
-                leading: const Icon(Icons.person),
-                title: Text(l10n.nowPlayingGoToArtist),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  NavService.openArtistDetail(
-                    context,
-                    ref,
-                    song.artistId!,
-                    name: song.artist,
-                  );
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.playlist_add),
-              title: Text(l10n.librarySongMenuAddToPlaylist),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                unawaited(showAddToPlaylistSheet(context, ref, [song.id]));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.explore),
-              title: Text(l10n.nowPlayingInstantMix),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                unawaited(activatePreferredMixMode(ref, seedSongId: song.id));
-              },
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
