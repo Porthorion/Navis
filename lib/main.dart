@@ -147,11 +147,13 @@ Future<void> _runNavis() async {
         onBootstrapOverlayDismissed: diagnosticsPresentation?.markAppReady,
       ),
     );
-    if (kDebugMode) {
-      // The router's providers first mount inside NavisApp.build, where their
-      // listeners publish state as soon as the session config resolves; a
-      // debug build asserts on that, so mount them before the first build.
-      // (Profile and release strip the assertion, so only debug needs this.)
+    if (kDebugMode && _syncDiagnosticsRuntimeEnabled) {
+      // iOS simulator diagnostics run only (the one debug build with
+      // diagnostics): the router's providers first mount inside
+      // NavisApp.build, where their listeners can publish state as soon as
+      // the session config resolves, and debug asserts on that. Mount them
+      // before the first build. Other debug builds keep their startup; the
+      // underlying race is tracked in docs/plans/iOS_Parity_Plan.md (I0).
       rootContainer.read(appRouterProvider);
     }
     runApp(diagnosticsPresentation?.wrap(app) ?? app);
