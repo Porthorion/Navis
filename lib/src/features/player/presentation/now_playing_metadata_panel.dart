@@ -348,6 +348,12 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
     final showInlineEditor =
         isRatingPage && _showInlineRatingEditor && currentSongId != null;
     final reduceMotion = MotionPolicy.of(context).reduceMotion;
+    final openTrackInfo =
+        page.isQualityPage &&
+            currentSongId != null &&
+            !widget.playback.isRadioMode
+        ? () => showMediaInfo(context)
+        : null;
 
     return Material(
       color: Colors.transparent,
@@ -415,25 +421,31 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                                   );
                                 },
                               )
-                            : GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onLongPress:
-                                    isRatingPage && currentSongId != null
-                                    ? () {
-                                        setState(
-                                          () => _showInlineRatingEditor = true,
-                                        );
-                                      }
-                                    : null,
-                                child: _NowPlayingInfoValue(
-                                  page: page,
-                                  maxLines: 1,
-                                  textAlign: TextAlign.center,
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: colors.onSurfaceVariant
-                                            .withValues(alpha: 0.82),
-                                      ),
+                            : _withTrackInfoHint(
+                                l10n,
+                                openTrackInfo,
+                                GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onLongPress: openTrackInfo != null
+                                      ? () => unawaited(openTrackInfo())
+                                      : isRatingPage && currentSongId != null
+                                      ? () {
+                                          setState(
+                                            () =>
+                                                _showInlineRatingEditor = true,
+                                          );
+                                        }
+                                      : null,
+                                  child: _NowPlayingInfoValue(
+                                    page: page,
+                                    maxLines: 1,
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: colors.onSurfaceVariant
+                                              .withValues(alpha: 0.82),
+                                        ),
+                                  ),
                                 ),
                               ),
                       ),
@@ -476,6 +488,24 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
   }
 }
 
+/// Gives the quality line a screen-reader hint and action when it opens the
+/// track info (a tooltip would never show: the long press opens the sheet).
+Widget _withTrackInfoHint(
+  AppLocalizations l10n,
+  Future<void> Function()? openTrackInfo,
+  Widget child,
+) {
+  if (openTrackInfo == null) return child;
+  return Semantics(
+    hint: l10n.nowPlayingHoldForTrackInfo,
+    customSemanticsActions: <CustomSemanticsAction, VoidCallback>{
+      CustomSemanticsAction(label: l10n.mediaInfoTrackInfoAction): () =>
+          unawaited(openTrackInfo()),
+    },
+    child: child,
+  );
+}
+
 class _NowPlayingInfoPage {
   const new({
     required this.icon,
@@ -484,6 +514,7 @@ class _NowPlayingInfoPage {
     this.valueLeadingIcon,
     this.valueLeadingIconSemanticLabel,
     this.isRatingPage = false,
+    this.isQualityPage = false,
   });
 
   final IconData icon;
@@ -492,6 +523,9 @@ class _NowPlayingInfoPage {
   final IconData? valueLeadingIcon;
   final String? valueLeadingIconSemanticLabel;
   final bool isRatingPage;
+
+  /// The audio-quality line; holding it opens the track info.
+  final bool isQualityPage;
 }
 
 List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
@@ -515,6 +549,7 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
       valueLeadingIconSemanticLabel: transcodingApplied
           ? l10n.nowPlayingTranscodedPlayback
           : null,
+      isQualityPage: true,
     ),
     _NowPlayingInfoPage(
       icon: Icons.queue_music_outlined,

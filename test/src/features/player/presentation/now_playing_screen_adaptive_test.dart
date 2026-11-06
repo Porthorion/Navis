@@ -1042,7 +1042,8 @@ void main() {
           find.descendant(of: sheetList, matching: find.byType(ListTile)).last,
         );
         expect(sheet.bottom - lastItem.bottom, lessThan(40));
-        expect(sheet.height, lessThan(844 * 0.62));
+        // Content-sized, with the Track Info row included.
+        expect(sheet.height, lessThan(844 * 0.7));
         expect(tester.takeException(), isNull);
       }, skip: !sqliteAvailable);
     }
