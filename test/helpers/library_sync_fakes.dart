@@ -63,11 +63,13 @@ DriftLibrarySyncEngine serialDriftEngine({
   Future<void> Function(Map<String, String> aliases)? onBeforeSongIdentityRemap,
   String? Function()? readActiveSongId,
   Set<String> Function()? readProtectedSongIds,
+  Future<Map<String, String>> Function(Iterable<String>)? relinkExternalCopies,
 }) => DriftLibrarySyncEngine(
   api: api,
   database: database,
   serverConfigRepository: repository,
   networkType: networkType,
+  relinkExternalCopies: relinkExternalCopies,
   scanSettlePollInterval: scanSettlePollInterval,
   scanSettleMaxPolls: scanSettleMaxPolls,
   fastPathPageSize: fastPathPageSize,

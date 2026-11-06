@@ -569,6 +569,12 @@ void main() {
       'UPDATE songs SET starred = ? WHERE id = ?;',
       <Object?>[likedAt.millisecondsSinceEpoch ~/ 1000, 'remote-song'],
     );
+    // A remote copy's like moves only while its star was never sent.
+    await database.starSyncDao.queueStarAction(
+      itemId: 'remote-song',
+      itemType: 'song',
+      action: 'star',
+    );
 
     final result = await database.songIdentityDao.remapSongIdentity(
       oldSongId: 'remote-song',

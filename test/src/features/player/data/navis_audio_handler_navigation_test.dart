@@ -15626,6 +15626,43 @@ void main() {
       expect(player.sourceIds, ids(17));
       expect(handler.snapshot.queueSongIds, ids(60));
     });
+    test('the notification like on a remote song changes nothing', () async {
+      final (handler, _, database) = await windowed(3);
+      await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+        SongsTableCompanion.insert(id: 'ext-deezer-song-1', title: 'Remote'),
+      ]);
+      // Played from a cached file, so the queue can load without a session.
+      final cached = File(
+        '${(await Directory.systemTemp.createTemp('navis-ext-')).path}/ext.mp3',
+      )..createSync();
+      addTearDown(() => cached.parent.delete(recursive: true));
+      await cached.writeAsBytes(<int>[1, 2, 3]);
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'ext-deezer-song-1',
+          filePath: cached.path,
+          fileSize: 3,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
+      await handler.replaceQueue(<String>[
+        'ext-deezer-song-1',
+        'song-1',
+      ], expandMatchFlows: false);
+
+      expect(handler.snapshot.currentSongId, 'ext-deezer-song-1');
+      await handler.toggleLike();
+
+      expect(
+        await database.libraryDao.getSongStarred('ext-deezer-song-1'),
+        isNull,
+      );
+      expect(await database.starSyncDao.getPendingActions(), isEmpty);
+    });
+
     test('an alias update from inside a database transaction does not wait '
         'for queue work', () async {
       final (handler, player, database) = await windowed(60);

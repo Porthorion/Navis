@@ -7,6 +7,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/services.dart' show PlatformException;
 import 'package:drift/drift.dart';
 import 'package:navis/src/api/lrclib_client.dart';
 import 'package:navis/src/api/deezer_api_client.dart';
@@ -39,6 +40,7 @@ import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/utils/file_utils.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 import 'package:navis/src/utils/notifications/download_notifier.dart';
 import 'package:path/path.dart' as p;
@@ -183,6 +185,7 @@ class DownloadService {
     Dio? dio,
     bool? isAndroid,
     this._rejectsCustomFolder = cloneRejectsDownloadFolder,
+    this._resolveLibraryIds,
   }) : _readIsOnline = readIsOnline ?? (() => true),
        _readFreeBytes = readFreeBytes ?? downloadStorageFreeBytes,
        _cacheDao = cacheDao,
@@ -213,6 +216,11 @@ class DownloadService {
          libraryDao: libraryDao,
          readProfileIdentity: readProfileIdentity ?? (() => null),
        );
+
+  /// Maps remote catalog copies (`ext-`) to the library song they duplicate
+  /// (remote id to library id). Null leaves every id as given.
+  final Future<Map<String, String>> Function(Iterable<String>)?
+  _resolveLibraryIds;
 
   final AppSettingsDao _appSettingsDao;
   final CacheDao _cacheDao;
@@ -1357,6 +1365,22 @@ class DownloadService {
   // Enqueue helpers
   // ---------------------------------------------------------------------------
 
+  /// [ids] with every remote catalog copy replaced by its library song, which
+  /// is what the server can download. A copy with no match keeps its id.
+  Future<List<String>> _libraryIdsFor(List<String> ids) async {
+    final remote = ids.where((id) => !isServerAddressableSongId(id)).toList();
+    final resolve = _resolveLibraryIds;
+    if (remote.isEmpty || resolve == null) return ids;
+    try {
+      final mapped = await resolve(remote);
+      return [for (final id in ids) mapped[id] ?? id];
+    } on Object catch (error) {
+      // The ids as given still download (or fail on their own terms).
+      AppLogger.warning('DownloadService: remote copy mapping skipped: $error');
+      return ids;
+    }
+  }
+
   /// Enqueue a single song for permanent download.
   ///
   /// If the song is already in the rolling cache with a compatible quality,
@@ -1373,6 +1397,7 @@ class DownloadService {
     int priority = 0,
     bool forceRedownload = false,
   }) async {
+    songId = (await _libraryIdsFor([songId])).single;
     final folderUsable = await _checkRequestedFolder();
     final libraryRows = await _libraryDao.getSongsByIds(<String>[songId]);
     if (libraryRows.firstOrNull?.serverDeletedAt != null) {
@@ -1524,7 +1549,9 @@ class DownloadService {
   }) async {
     final folderUsable = await _checkRequestedFolder();
     // The same id twice would insert two queue rows.
-    final uniqueIds = songIds.toSet().toList(growable: false);
+    final uniqueIds = (await _libraryIdsFor(songIds))
+        .toSet()
+        .toList(growable: false);
     // Batch dedup: one query per data source instead of N queries per song.
     final activeSongIds = await _downloadQueueDao.getActiveSongIds();
     final cachedTracks = await _cacheDao.getCachedTracksForSongIds(uniqueIds);
@@ -2173,9 +2200,14 @@ class DownloadService {
         await _handleFileFailure(item, error, providerWrite: writingProvider);
       } else {
         _setFolderProblem(error.problem);
+        AppLogger.warning(
+          'DownloadService: download of ${item.songId} held '
+          '(${_holdReason!.name}): ${_errorDetail(error)}',
+        );
         await _downloadQueueDao.recordFailure(
           item.id,
           _holdReason!,
+          detail: _errorDetail(error),
           status: DownloadStatus.queued,
         );
       }
@@ -2234,7 +2266,7 @@ class DownloadService {
       await _handleFailure(
         item,
         DownloadFailureReason.unknown,
-        detail: error.runtimeType.toString(),
+        detail: _errorDetail(error),
       );
     } finally {
       _spaceReservations.remove(item.id);
@@ -2242,6 +2274,45 @@ class DownloadService {
       if (reservedPath != null) _reservedDownloadPaths.remove(reservedPath);
       await _endTransferProgress(item.id);
     }
+  }
+
+  static final RegExp _quoted = RegExp(r''''[^']*'|"[^"]*"''');
+  static final RegExp _barePath = RegExp(
+    r"""content://\S|file://\S|[A-Za-z]:\\|(?<![\w.])/\S""",
+  );
+
+  /// [text] when it carries no file path or URI, else "(details omitted)": a
+  /// copied failure detail goes into public bug reports, and a path can
+  /// continue past any pattern (spaces, apostrophes, quotes). Any path
+  /// start, or a separator left once quoted text is removed, drops it whole.
+  static String _withoutPaths(String text) {
+    final unquoted = text.replaceAll(_quoted, '<text>');
+    if (_barePath.hasMatch(text) || unquoted.contains(RegExp(r'[/\\]'))) {
+      return '(details omitted)';
+    }
+    return unquoted;
+  }
+
+  /// An OS error message: operating-system text, never a user path, so only
+  /// an accidental path start omits it ("Input/output error" stays).
+  static String _osMessage(String text) =>
+      _barePath.hasMatch(text) ? '(details omitted)' : text;
+
+  /// A short description of a local write or platform failure for the failure
+  /// detail: the type and message, and the OS error when there is one, with
+  /// paths and credentials removed.
+  static String _errorDetail(Object error) {
+    final text = switch (error) {
+      FileSystemException(:final message, :final osError) =>
+        'FileSystemException: ${_withoutPaths(message)}'
+            '${osError == null ? '' : ' (OS error ${osError.errorCode}: ${_osMessage(osError.message)})'}',
+      PlatformException(:final code, :final message) =>
+        'PlatformException: ${_withoutPaths(code)}'
+            '${message == null ? '' : ': ${_withoutPaths(message)}'}',
+      _ => _withoutPaths('${error.runtimeType}: $error'),
+    };
+    final redacted = redactCredentialQueryParameters(text);
+    return redacted.length <= 200 ? redacted : redacted.substring(0, 200);
   }
 
   /// The transport error behind [error] (for example "Connection closed while
@@ -2685,9 +2756,14 @@ class DownloadService {
   }) async {
     final previous = _folderProblem;
     if (await _holdForFolderFailure(error, providerWrite: providerWrite)) {
+      AppLogger.warning(
+        'DownloadService: download of ${item.songId} held '
+        '(${_holdReason!.name}): ${_errorDetail(error)}',
+      );
       await _downloadQueueDao.recordFailure(
         item.id,
         _holdReason!,
+        detail: _errorDetail(error),
         status: DownloadStatus.queued,
       );
       if (previous != _folderProblem) await _notifyHeldFailure(_holdReason!);
@@ -2695,7 +2771,7 @@ class DownloadService {
       await _handleFailure(
         item,
         DownloadFailureReason.unknown,
-        detail: 'File write failed',
+        detail: 'File write failed: ${_errorDetail(error)}',
       );
     }
   }
@@ -2712,6 +2788,12 @@ class DownloadService {
     DownloadFailureReason reason, {
     String? detail,
   }) async {
+    // The detail is already redacted; the log is the only place a failure on
+    // a phone can be read back from.
+    AppLogger.warning(
+      'DownloadService: download of ${item.songId} failed: '
+      '${reason.name}${detail == null ? '' : ': $detail'}',
+    );
     await _downloadQueueDao.writeFinishJournal(item.id, null);
     final retryable = switch (reason) {
       DownloadFailureReason.notFound ||

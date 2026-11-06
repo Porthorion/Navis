@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
+import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 
 part 'star_sync_dao.g.dart';
 
@@ -61,12 +63,47 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
     return true;
   });
 
-  Future<bool> toggleSongStarred(String songId) => transaction(() async {
+  /// Toggles the like of [songId] and returns its new state, or null when the
+  /// song is a remote catalog copy (`ext-`): the server cannot address it, so
+  /// nothing is starred locally or queued. Callers show the "not available
+  /// for remote tracks" notice where there is UI.
+  Future<bool?> toggleSongStarred(String songId) => transaction(() async {
+    if (!isServerAddressableSongId(songId)) {
+      AppLogger.info('StarSyncDao: like refused for remote song $songId');
+      return null;
+    }
     final liked =
         await attachedDatabase.libraryDao.getSongStarred(songId) == null;
     await setStarred(itemId: songId, itemType: 'song', liked: liked);
     return liked;
   });
+
+  /// Clears the local like of remote catalog copies (`ext-`, `remote-`) and
+  /// their pending deliveries, returning how many songs lost it. Local only:
+  /// the server resolves such an id to the library song, so an unstar sent
+  /// for it would unstar that song. With [keepUnsent], a like whose star has
+  /// not been sent yet (a pending star row) is left alone.
+  Future<int> dropRemoteSongLikes({bool keepUnsent = false}) => transaction(
+    () async {
+      const remoteId = "(id LIKE 'ext-%' OR id LIKE 'remote-%')";
+      const remoteItem = "(item_id LIKE 'ext-%' OR item_id LIKE 'remote-%')";
+      const unsent =
+          "EXISTS (SELECT 1 FROM star_sync_queue q WHERE q.item_type = 'song' "
+          "AND q.operation = 'star' AND q.action = 'star' "
+          'AND q.item_id = songs.id)';
+      final dropped = await customUpdate(
+        'UPDATE songs SET starred = NULL WHERE starred IS NOT NULL '
+        'AND $remoteId${keepUnsent ? ' AND NOT $unsent' : ''}',
+        updates: {attachedDatabase.songsTable},
+      );
+      await customUpdate(
+        "DELETE FROM star_sync_queue WHERE item_type = 'song' AND $remoteItem"
+        "${keepUnsent ? " AND action <> 'star'" : ''}",
+        updates: {starSyncQueueTable},
+      );
+      return dropped;
+    },
+  );
 
   /// Persist a local star and its delivery version in the same transaction.
   Future<void> setStarred({
@@ -162,11 +199,21 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
     return query.get();
   }
 
+  /// False for a song annotation addressed to a remote catalog copy.
+  static Expression<bool> _isDeliverable(StarSyncQueueTable t) =>
+      t.itemType.equals('song').not() |
+      (t.itemId.like('ext-%').not() & t.itemId.like('remote-%').not());
+
   Future<StarSyncQueueTableData?> nextDue(DateTime now) {
     return (select(starSyncQueueTable)
           ..where(
             (t) =>
-                t.notBefore.isNull() | t.notBefore.isSmallerOrEqualValue(now),
+                (t.notBefore.isNull() |
+                    t.notBefore.isSmallerOrEqualValue(now)) &
+                // Remote copies are never delivered: the starred sync owns
+                // what is left of them (a server would resolve the id to
+                // the library song).
+                _isDeliverable(t),
           )
           ..orderBy([(t) => OrderingTerm.asc(t.id)])
           ..limit(1))

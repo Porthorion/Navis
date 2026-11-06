@@ -4,6 +4,9 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'dart:ui' show Tristate;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
@@ -223,6 +226,35 @@ void main() {
       'Instant Mix requires a locally scanned track.',
     );
     expect(tester.takeException(), isNull);
+  }, skip: !sqliteAvailable);
+
+  testWidgets('the Like button of a remote song is disabled for semantics', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer();
+    container
+        .read(nowPlayingTestPlaybackProvider.notifier)
+        .state = _songPlayback.copyWith(
+      queueSongIds: const <String>['ext-remote-1'],
+      currentSongId: 'ext-remote-1',
+    );
+    final notices = AppNoticeController();
+    addTearDown(notices.dispose);
+    final handle = tester.ensureSemantics();
+    await _pumpNowPlaying(tester, container, notices: notices);
+    await tester.pumpAndSettle();
+
+    final like = find.byTooltip('Like unavailable for remote songs');
+    expect(like, findsOneWidget);
+    expect(
+      tester.getSemantics(like).flagsCollection.isEnabled,
+      isNot(Tristate.isTrue),
+    );
+    await tester.tap(like);
+    await tester.pump();
+    expect(notices.notice?.message, 'Not available for remote tracks.');
+    handle.dispose();
   }, skip: !sqliteAvailable);
 
   testWidgets(

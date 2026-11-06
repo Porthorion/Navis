@@ -8,6 +8,24 @@ enum RemoteSourceIndicatorVariant { artwork, compactArtwork, inline, chip }
 
 enum RemoteSourceIndicatorPolicy { automatic, hidden }
 
+/// Marks a remote song's dimmed like button as disabled for assistive
+/// technology. It stays tappable so a tap can explain why a remote song
+/// cannot be liked.
+class RemoteLikeSemantics extends StatelessWidget {
+  const new({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    enabled: false,
+    label: AppLocalizations.of(context)!.actionLikeUnavailableRemote,
+    excludeSemantics: true,
+    child: child,
+  );
+}
+
 /// Keeps provenance on the same visual line as descriptive metadata.
 ///
 /// The metadata remains flexible so long artist/album text truncates before

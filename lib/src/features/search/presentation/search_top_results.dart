@@ -329,14 +329,12 @@ class _TopHero extends ConsumerWidget {
         : Color.alphaBlend(Color(seed).withValues(alpha: 0.28), base);
     final radius = NavisShapeData.of(context).lgAll;
     final secondary = switch (result) {
-      TopSongResult(:final song) =>
-        view.isRemote
-            ? const SizedBox.shrink()
-            : SongHeartButton(
-                songId: song.id,
-                keyPrefix: 'search-top-song',
-                outlined: true,
-              ),
+      // A remote song's heart is shown disabled and explains itself on tap.
+      TopSongResult(:final song) => SongHeartButton(
+        songId: song.id,
+        keyPrefix: 'search-top-song',
+        outlined: true,
+      ),
       TopArtistResult(:final artist) => IconButton.outlined(
         tooltip: l10n.albumDetailShuffleAction,
         icon: const Icon(Icons.shuffle_rounded),

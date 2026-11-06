@@ -3471,6 +3471,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get downloadsRetryFailed => 'Retry Failed';
 
   @override
+  String get downloadsErrorDetailsCopied => 'Error details copied';
+
+  @override
   String get downloadsStatusFailed => 'Failed';
 
   @override
@@ -4813,6 +4816,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get actionLike => 'Like';
+
+  @override
+  String get actionLikeUnavailableRemote => 'Like unavailable for remote songs';
 
   @override
   String get actionLiked => 'Liked';

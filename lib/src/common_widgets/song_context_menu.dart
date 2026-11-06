@@ -179,6 +179,7 @@ Future<void> showSongContextMenu(
                                 level: AppNoticeLevel.error,
                               );
                             }
+                            return false;
                           }),
                         );
                       },
@@ -413,9 +414,16 @@ Future<void> _showDesktopSongContextMenu(
         child: Text(l10n.librarySongMenuPlayNext),
       ),
       const PopupMenuDivider(),
+      // Dimmed but clickable, so a click can explain itself (a disabled popup
+      // item swallows it).
       PopupMenuItem<_SongContextAction>(
         value: _SongContextAction.toggleLike,
-        enabled: !isServerActionUnavailable,
+        textStyle: isServerActionUnavailable
+            ? TextStyle(
+                color: Theme.of(context).colorScheme.onSurface
+                    .withValues(alpha: 0.38),
+              )
+            : null,
         child: Text(isLiked ? l10n.actionLiked : l10n.actionLike),
       ),
       if (song.artistId != null && song.artistId!.isNotEmpty)
@@ -487,6 +495,14 @@ Future<void> _showDesktopSongContextMenu(
       }
       return;
     case _SongContextAction.toggleLike:
+      if (isServerActionUnavailable) {
+        showAppNotice(
+          context,
+          message: l10n.remoteSourceActionUnavailable,
+          level: AppNoticeLevel.error,
+        );
+        return;
+      }
       try {
         await toggleSongStar(song.id, ref);
       } on Object {

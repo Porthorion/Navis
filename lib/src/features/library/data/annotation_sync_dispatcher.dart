@@ -9,6 +9,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/database/daos/star_sync_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 
 /// One network writer for local likes and ratings. Only acknowledgement of the
 /// current queue version removes it; every failure retains the user's intent.
@@ -187,7 +188,21 @@ class AnnotationSyncDispatcher {
   Future<void> _scheduleNext() async {
     _timer?.cancel();
     if (_disposed) return;
-    final pending = await _dao.getPendingActions();
+    final all = await _dao.getPendingActions();
+    // Remote copies are never delivered (see StarSyncDao.nextDue); they wait
+    // for the starred sync's cleanup and must not keep the timer running.
+    final pending = all
+        .where(
+          (row) =>
+              row.itemType != 'song' || isServerAddressableSongId(row.itemId),
+        )
+        .toList(growable: false);
+    if (pending.length != all.length) {
+      AppLogger.info(
+        'Annotation sync: ${all.length - pending.length} pending remote '
+        'song actions left undelivered.',
+      );
+    }
     if (_disposed || pending.isEmpty) return;
     final now = _now();
     final next = pending
