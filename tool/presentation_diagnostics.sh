@@ -210,7 +210,7 @@ launch_app() {
       "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
     )
   fi
-  flutter run -d "$(diagnostics_device)" --profile \
+  flutter run -d "$(diagnostics_device)" "$(diagnostics_build_mode)" \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define=NAVIS_APP_NAME='Navis Presentation Diagnostics' \

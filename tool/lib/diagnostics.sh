@@ -4,13 +4,30 @@
 # Local helpers may override these defaults when their behavior differs.
 # Globals below are supplied by the caller, never initialized by this library.
 
-# diagnostics_device; the flutter device id for desktop clone launches:
-# macos on a Mac host, linux everywhere else.
+# diagnostics_device; the flutter device id for clone launches: macos on a Mac
+# host, linux elsewhere. NAVIS_DIAGNOSTICS_DEVICE=ios selects the booted iOS
+# simulator instead (its UDID, from `xcrun simctl list devices booted`).
 diagnostics_device() {
+  if [[ "${NAVIS_DIAGNOSTICS_DEVICE:-}" == ios ]]; then
+    local udid
+    udid="$(xcrun simctl list devices booted | sed -n 's/.*(\([0-9A-F-]\{36\}\)) (Booted).*/\1/p' | head -n 1)"
+    if [[ -z "$udid" ]]; then
+      echo "NAVIS_DIAGNOSTICS_DEVICE=ios needs a booted iOS simulator." >&2
+      return 1
+    fi
+    echo "$udid"
+    return
+  fi
   case "$(uname -s)" in
     Darwin) echo macos ;;
     *) echo linux ;;
   esac
+}
+
+# diagnostics_build_mode; the flutter build flag: --debug on the iOS simulator
+# (it cannot run profile builds), --profile everywhere else.
+diagnostics_build_mode() {
+  if [[ "${NAVIS_DIAGNOSTICS_DEVICE:-}" == ios ]]; then echo --debug; else echo --profile; fi
 }
 
 # api <method> <route> [body]; uses BASE_URL and TOKEN, without a curl timeout.
@@ -208,7 +225,7 @@ launch_app() {
     "$PROJECT_DIR/pubspec.yaml" > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
   (
     cd "$PROJECT_DIR"
-    exec flutter run -d "$(diagnostics_device)" --profile \
+    exec flutter run -d "$(diagnostics_device)" "$(diagnostics_build_mode)" \
       --dart-define=NAVIS_UPDATE_CHANNEL=dev \
       --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
       --dart-define="NAVIS_APP_NAME=$DIAGNOSTICS_APP_NAME" \
@@ -225,6 +242,9 @@ launch_app() {
   while [[ ! -s "$HANDSHAKE" ]] && (( SECONDS < deadline )); do
     kill -0 "$FLUTTER_PID" >/dev/null 2>&1 ||
       fail "Navis exited before diagnostics startup"
+    # flutter run outlives an app that died before runApp (iOS: white screen).
+    grep -q 'Unhandled Exception' "$APP_LOG" 2>/dev/null &&
+      fail "Navis threw during startup"
     sleep 1
   done
   [[ -s "$HANDSHAKE" ]] || fail "timed out waiting for the diagnostics API"
@@ -240,7 +260,7 @@ launch_app() {
 # OUTPUT_ROOT, APP_LOG and optional NAVIS_DIAGNOSTICS_CREDENTIAL_PATH.
 # Sets FLUTTER_PID, PORT, TOKEN, APP_PID and BASE_URL; preserves the Pulse sink.
 launch_audio_app() {
-  if [[ "$(uname -s)" == Darwin ]]; then
+  if [[ "$(uname -s)" == Darwin || "${NAVIS_DIAGNOSTICS_DEVICE:-}" == ios ]]; then
     echo "Audio capture diagnostics need PulseAudio (Linux)." >&2
     exit 69
   fi
@@ -306,7 +326,7 @@ launch() {
   printf '%s\n' "$version" > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
   (
     cd "$PROJECT_DIR"
-    flutter run -d "$(diagnostics_device)" --profile \
+    flutter run -d "$(diagnostics_device)" "$(diagnostics_build_mode)" \
       "$@" \
       >>"$APP_LOG" 2>&1
   ) &
