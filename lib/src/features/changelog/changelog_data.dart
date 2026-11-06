@@ -198,6 +198,14 @@ const List<ChangelogVersion> changelogs = [
         'while the current one plays so the change starts sooner',
         type: ChangelogEntryType.improvement,
       ),
+      ChangelogEntry(
+        'Track Info shows where the song plays from and what the file is: '
+        'downloaded, server stream, transcoded or remote, with its format, '
+        'bitrate, sample rate and size. Open it with the info button on '
+        'desktop, by pressing and holding the quality line in Now Playing, '
+        'or from Track Info in its settings',
+        type: ChangelogEntryType.newFeature,
+      ),
     ],
   ),
   ChangelogVersion(

@@ -117,6 +117,16 @@ List<Widget> _nowPlayingSettingsItems(
         title: Text(l10n.nowPlayingLyrics),
         onTap: onOpenFullscreenLyrics,
       ),
+    if (song != null)
+      ListTile(
+        leading: const Icon(Icons.info_outline),
+        title: Text(l10n.mediaInfoTrackInfoRow),
+        subtitle: Text(l10n.mediaInfoTrackInfoRowHint),
+        onTap: () {
+          beforeAction();
+          unawaited(showMediaInfo(context));
+        },
+      ),
     if (song != null &&
         ((song.albumId ?? '').trim().isNotEmpty ||
             (song.albumName ?? '').trim().isNotEmpty))

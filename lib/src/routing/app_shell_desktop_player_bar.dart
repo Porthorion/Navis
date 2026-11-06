@@ -1052,15 +1052,14 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                     keyName: 'desktopPlayerMediaInfoButton',
                                     tooltip:
                                         hasPlayback && !playback.isRadioMode
-                                        ? l10n.mediaInfoTitle
+                                        ? l10n.mediaInfoTrackInfoRow
                                         : l10n.desktopPlaybackUnavailableTooltip,
-                                    semanticLabel: l10n.mediaInfoTitle,
+                                    semanticLabel: l10n.mediaInfoTrackInfoRow,
                                     icon: Icons.info_outline,
                                     onPressed:
                                         hasPlayback && !playback.isRadioMode
-                                        ? () => unawaited(
-                                            showDesktopMediaInfoDialog(context),
-                                          )
+                                        ? () =>
+                                              unawaited(showMediaInfo(context))
                                         : null,
                                   ),
                                   persistentActionButton(
