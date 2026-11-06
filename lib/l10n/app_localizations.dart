@@ -10683,12 +10683,6 @@ abstract class AppLocalizations {
   /// **'Disc'**
   String get mediaInfoDiscNumber;
 
-  /// No description provided for @mediaInfoAdminTag.
-  ///
-  /// In en, this message translates to:
-  /// **'admin'**
-  String get mediaInfoAdminTag;
-
   /// No description provided for @mediaInfoTrackInfoAction.
   ///
   /// In en, this message translates to:
