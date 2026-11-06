@@ -85,6 +85,10 @@ Located in `lib/src/providers/app_providers.dart`:
   - Linux uses the app-owned `LinuxMprisBridge` over `dbus`; Windows uses
     `WindowsSmtcBridge` backed by the local `navis_windows_smtc` Rust/WinRT
     manual-SMTC adapter; Android, iOS, and macOS use `audio_service`
+    (vendored in `third_party/audio_service`: the Darwin plugin republishes
+    Now Playing while playing only when the system's extrapolated clock is
+    more than 100 ms out, and sets the elapsed time before the paused
+    state; see its `NAVIS_CHANGES.md`)
   - `AudioBootstrapController` owns one handler construction. Its five-second
     presentation deadline exposes slow-start recovery but never retires the
     pending session future or starts a competing handler. Completed failures

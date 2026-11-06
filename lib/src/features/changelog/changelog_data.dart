@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'macOS: pausing from Control Center no longer shows the old '
+        'position for a moment',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Recently Added on Home now shows the play button on hover, like '
         'the other album shelves',
         type: ChangelogEntryType.fix,
