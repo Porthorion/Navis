@@ -145,7 +145,8 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Search Top Results show the best match as a large card with Play, '
-        'Shuffle or Like, and the next two as tiles',
+        'Shuffle or Like, and its artist, album or top song as tiles; '
+        'tapping anywhere on a card opens it',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
