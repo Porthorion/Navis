@@ -244,6 +244,9 @@ void main() {
           expect(projection.playbackState.value.speed, speed);
         }
         expect(durations.whereType<Duration>().toSet(), {item.duration});
+        // Track-time metadata does not depend on the speed, so it is not
+        // republished (each republish reloads the Now Playing artwork).
+        expect(durations.whereType<Duration>(), hasLength(1));
         expect(speeds.toSet(), containsAll(<double>[1, 0.8, 1.5]));
       });
 

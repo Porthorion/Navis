@@ -6,7 +6,8 @@ import 'package:flutter/foundation.dart';
 import 'package:navis/src/features/player/data/android_system_art.dart';
 import 'package:rxdart/rxdart.dart';
 
-/// Presents playback to the operating system in real listening time.
+/// Presents playback to the operating system, in real listening time where
+/// the system display has no playback rate (Android, iOS).
 ///
 /// Navis keeps positions and durations in track time and reports the playback
 /// speed separately, which is what the app, lyrics and seeking need. Bluetooth
@@ -175,15 +176,15 @@ class RealTimeProjectionAudioHandler extends CompositeAudioHandler {
 
   double get _speed => inner.playbackState.valueOrNull?.speed ?? 1.0;
 
-  /// Republishes metadata only when the item or the speed changes; playback
-  /// state events are frequent, and each metadata update makes the system
-  /// refresh its media controls.
+  /// Republishes metadata only when the item changes, or the speed when the
+  /// duration is projected; playback state events are frequent, and each
+  /// metadata update makes the system refresh its media controls.
   void _publishMediaItem() {
     final source = inner.mediaItem.valueOrNull;
     final speed = _speed;
     if (_mediaItem.hasValue &&
         identical(source, _lastSourceItem) &&
-        speed == _lastSpeed) {
+        (!projectTime || speed == _lastSpeed)) {
       return;
     }
     _lastSourceItem = source;
