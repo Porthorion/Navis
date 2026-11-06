@@ -10,12 +10,8 @@ Porthorion/Navis#209. Previous hand-off: #209 comment 6651698183.
   picker can create folders), #283 (search ranking), #285 (album colour fades),
   #256 (Navis LGPL libmpv), #300/#302/#303 (media info dialog, search hero; owned by
   the other session).
-- **#295** `fix/macos-control-center-pause` (M12), worktree
-  `../Navis-worktrees/cc-pause`, head `4dfc782b` (merge of `dev`; changelog
-  conflict resolved by keeping both 1.5.2 entries). Reviews done (Sonnet ×2, Flash),
-  findings fixed, owner confirmed the snap-back is gone. Next: CI green → squash-merge
-  `fix(macos): stop Control Center showing a stale position on pause`, delete branch
-  and worktree, update M12 and #209.
+- **#295** (M12): squash-merged 2026-11-06 as `f3c6d06d`; branch and worktree
+  deleted. M13 design decided (option A), plan on #209.
 - Owner-installed test app: `~/Applications/Navis.app`, built from #295 at `00414f0f`,
   signed "Navis Local Dev".
 
@@ -26,14 +22,14 @@ Both numbers are the app's divided by 0.8, so this is the projection working as
 designed, not drift:
 
 - `lib/src/features/player/data/real_time_projection_audio_handler.dart`
-  (`projectPlaybackStateToRealTime`, `projectMediaItemToRealTime`, ~line 255)
+  (`projectPlaybackStateToRealTime`, `projectMediaItemToRealTime`, ~line 259)
   divides position, buffered position and duration by the speed and publishes speed
   1.0. Added in f70f4a6d (2026-09-30) because Bluetooth AVRCP has no rate field and car,
   headphone and lock-screen displays tick at 1× ("we had this same issue with
-  bluetooth before"). It wraps the handler on every platform
-  (`navis_audio_handler_bootstrap.dart:196`). System seeks are converted back with
+  bluetooth before"). It wraps the audio_service handler, so Android, iOS and macOS
+  (`navis_audio_handler_bootstrap.dart:196`); Windows and Linux use their own bridges. System seeks are converted back with
   `realTimeToTrackPosition`.
-- Windows SMTC publishes real time on purpose (`docs/architecture.md` ~5757); Linux
+- The Windows SMTC bridge converts to real time itself, on purpose (`docs/architecture.md` ~5757); Linux
   MPRIS publishes Rate (f70f4a6d).
 - macOS MPNowPlayingInfoCenter has `MPNowPlayingInfoPropertyPlaybackRate` and
   extrapolates with it, so it can show track time at the real speed. The vendored
@@ -45,9 +41,9 @@ is a product call): what should the system surfaces show at non-1×?
 
 - **A (likely):** on macOS, publish track time with the real `PlaybackRate` and
   `DefaultPlaybackRate` 1.0, so Control Center matches the app; keep the projection
-  on Android (AVRCP), Windows (SMTC has no rate) and iOS until iOS is a target
-  (CarPlay/AVRCP from iOS need checking). Keep the queue window and Android art
-  parts of the handler on every platform; only the time projection is gated.
+  on Android (AVRCP) and iOS until iOS is a target (CarPlay/AVRCP from iOS need
+  checking). Windows and Linux do not use this handler. Keep the queue window and
+  Android art parts of the handler as they are; only the time projection is gated.
 - **B:** keep real time everywhere and show remaining real time in the app. Bigger
   product change, not asked for.
 
