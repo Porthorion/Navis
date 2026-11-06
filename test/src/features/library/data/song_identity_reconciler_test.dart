@@ -581,6 +581,18 @@ void main() {
       expect(remoteFile.existsSync(), isTrue);
     }, skip: !sqliteAvailable);
 
+    test('a batch of more than 1000 ids still relinks', () async {
+      await insert(library());
+      await insert(remote());
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+      final ids = <String>[
+        for (var i = 0; i < 1500; i++) 'ext-deezer-song-none-$i',
+        'ext-deezer-song-8086130',
+      ];
+
+      expect(await reconciler.relinkExternalCopies(ids), hasLength(1));
+    }, skip: !sqliteAvailable);
+
     test('local search then returns one copy', () async {
       await insert(library());
       await insert(remote());

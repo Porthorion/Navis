@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
@@ -104,14 +105,29 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
   /// External provisional rows among [ids] (remote catalog copies).
   Future<List<SongsTableData>> getExternalProvisionalSongs(
     Iterable<String> ids,
-  ) {
-    return (select(songsTable)..where(
-          (table) =>
-              table.id.isIn(ids.toList()) &
-              table.isExternal.equals(true) &
-              table.isProvisional.equals(true),
-        ))
-        .get();
+  ) async {
+    final rows = await customSelect(
+      'SELECT * FROM songs WHERE id IN (SELECT value FROM json_each(?)) '
+      'AND is_external = 1 AND is_provisional = 1',
+      variables: [Variable<String>(jsonEncode(ids.toSet().toList()))],
+      readsFrom: {songsTable},
+    ).get();
+    return [for (final row in rows) songsTable.map(row.data)];
+  }
+
+  /// The recorded song aliases (old id to library id) for [oldIds].
+  Future<Map<String, String>> getAliasesFor(Iterable<String> oldIds) async {
+    final rows = await customSelect(
+      "SELECT old_id, new_id FROM entity_identity_aliases "
+      "WHERE entity_type = 'song' "
+      'AND old_id IN (SELECT value FROM json_each(?))',
+      variables: [Variable<String>(jsonEncode(oldIds.toSet().toList()))],
+      readsFrom: {entityIdentityAliasTable},
+    ).get();
+    return {
+      for (final row in rows)
+        row.read<String>('old_id'): row.read<String>('new_id'),
+    };
   }
 
   /// Present library rows whose indexed match title (`normalizeMetadata`
@@ -132,10 +148,10 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     if (keys.isEmpty) return const <SongsTableData>[];
     final rows = await customSelect(
       'SELECT * FROM songs WHERE id IN (SELECT song_id FROM song_search_text '
-      "WHERE match_title IN (${List.filled(keys.length, '?').join(', ')})) "
+      'WHERE match_title IN (SELECT value FROM json_each(?))) '
       'AND is_external = 0 AND is_provisional = 0 '
       'AND server_deleted_at IS NULL',
-      variables: [for (final key in keys) Variable<String>(key)],
+      variables: [Variable<String>(jsonEncode(keys.toList()))],
       readsFrom: {songsTable, attachedDatabase.songSearchTextTable},
     ).get();
     return [for (final row in rows) songsTable.map(row.data)];

@@ -100,7 +100,18 @@ class SongIdentityReconciler {
   Future<Map<String, String>> relinkExternalCopies(
     Iterable<String> songIds,
   ) async {
-    final copies = await _identityDao.getExternalProvisionalSongs(songIds);
+    final ids = songIds.toSet();
+    final copies = await _identityDao.getExternalProvisionalSongs(ids);
+    // A requested id with no row left was relinked before; a row handed to
+    // the player again after that keeps the dead id, so tell the player its
+    // alias once more (it remaps the queue).
+    final haveRow = {for (final song in copies) song.id};
+    final healed = await _identityDao.getAliasesFor(
+      ids.where((id) => !haveRow.contains(id)),
+    );
+    if (healed.isNotEmpty) {
+      await onBeforeRemap?.call(healed);
+    }
     if (copies.isEmpty) {
       return const <String, String>{};
     }

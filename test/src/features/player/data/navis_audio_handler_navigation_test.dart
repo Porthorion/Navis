@@ -48,6 +48,7 @@ import 'package:navis/src/database/daos/history_dao.dart';
 import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
+import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
@@ -9212,6 +9213,76 @@ void main() {
         },
       );
     }
+  });
+
+  test('a remote row handed over again after its relink is healed', () async {
+    final directory = await Directory.systemTemp.createTemp('navis-ext-');
+    final (handler, _, database) = await createHandler(
+      directory,
+      4,
+      queueWindow: const NavisQueueWindow(
+        deferThreshold: 1,
+        ahead: 0,
+        behind: 0,
+        lowWater: 0,
+        page: 1,
+        nearJump: 0,
+      ),
+    );
+    addTearDown(() async {
+      await handler.disposeHandler();
+      await database.close();
+      await directory.delete(recursive: true);
+    });
+    const extId = 'ext-deezer-song-9';
+    await database
+        .into(database.songsTable)
+        .insert(
+          SongsTableData(
+            id: extId,
+            title: 'Remote copy',
+            artistName: 'Artist',
+            albumName: 'Album',
+            duration: 180,
+            isProvisional: true,
+            isExternal: true,
+          ),
+        );
+    final rows = await database.libraryDao.getSongsByIds(['song-0', 'song-1']);
+    final remote = (await database.libraryDao.getSongById(extId))!;
+    await handler.replaceQueueWithData([
+      rows[0],
+      rows[1],
+      remote,
+    ], expandMatchFlows: false);
+    await handler.applySongIdentityAliases({extId: 'song-2'});
+    await database.songIdentityDao.remapSongIdentity(
+      oldSongId: extId,
+      canonicalSongId: 'song-2',
+      matchReason: 'exactMetadata',
+    );
+    await pumpEventQueue();
+
+    // The in-memory row comes back although its database row is gone.
+    await handler.replaceQueueWithData([
+      rows[0],
+      rows[1],
+      remote,
+    ], expandMatchFlows: false);
+    expect(handler.snapshot.queueSongIds, contains(extId));
+    await SongIdentityReconciler(
+      database.songIdentityDao,
+      onBeforeRemap: handler.applySongIdentityAliases,
+    ).relinkExternalCopies(<String>[extId]);
+    await pumpEventQueue();
+    await handler.debugFlushQueuePersistence();
+
+    final live = handler.snapshot.queueSongIds;
+    expect(live, ['song-0', 'song-1', 'song-2']);
+    expect(
+      (await database.playQueueDao.getQueueItems()).map((song) => song.id),
+      live,
+    );
   });
 
   group('relinked remote copy ids', () {
