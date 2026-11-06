@@ -1555,9 +1555,17 @@ extension _NavisQueueLoading on NavisAudioHandler {
       ? _timeouts.remoteLoad
       : _playerLoadTimeout;
 
+  /// Gives a rebuilt or freshly sourced player its volume: the user volume,
+  /// plus the current song's ReplayGain unless a queue load is still settling
+  /// (then the gain is applied once the queue has committed).
   Future<void> _restoreActivePlayerVolume() {
-    final target = _isDucked ? _userVolume * 2 / 5 : _userVolume;
-    return _player.setVolume(target.clamp(0.0, 1.0));
+    if (_isLoading || _pendingLogicalQueueSongIds != null) {
+      final base = _isDucked ? _userVolume * 2 / 5 : _userVolume;
+      return _player.setVolume(base.clamp(0.0, 1.0));
+    }
+    return _player.setVolume(
+      _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
+    );
   }
 
   bool _isAndroidDspInitializationFailure(Object error) {

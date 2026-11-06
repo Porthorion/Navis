@@ -1492,7 +1492,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     false,
     type: DriftSqlType.string,
     requiredDuringInsert: false,
-    defaultValue: const Constant('off'),
+    defaultValue: const Constant('track'),
   );
   static const VerificationMeta _replayGainPreampMeta = const VerificationMeta(
     'replayGainPreamp',
@@ -1506,6 +1506,17 @@ class $AppSettingsTableTable extends AppSettingsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _replayGainUntaggedDbMeta =
+      const VerificationMeta('replayGainUntaggedDb');
+  @override
+  late final GeneratedColumn<double> replayGainUntaggedDb =
+      GeneratedColumn<double>(
+        'replay_gain_untagged_db',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _playbackSpeedMeta = const VerificationMeta(
     'playbackSpeed',
   );
@@ -2097,6 +2108,7 @@ class $AppSettingsTableTable extends AppSettingsTable
     legacyInstantMixEnabled,
     replayGainMode,
     replayGainPreamp,
+    replayGainUntaggedDb,
     playbackSpeed,
     playbackPitchSemitones,
     lockPitchToSpeed,
@@ -2766,6 +2778,15 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('replay_gain_untagged_db')) {
+      context.handle(
+        _replayGainUntaggedDbMeta,
+        replayGainUntaggedDb.isAcceptableOrUnknown(
+          data['replay_gain_untagged_db']!,
+          _replayGainUntaggedDbMeta,
+        ),
+      );
+    }
     if (data.containsKey('playback_speed')) {
       context.handle(
         _playbackSpeedMeta,
@@ -3427,6 +3448,10 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.double,
         data['${effectivePrefix}replay_gain_preamp'],
       )!,
+      replayGainUntaggedDb: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}replay_gain_untagged_db'],
+      ),
       playbackSpeed: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}playback_speed'],
@@ -3766,11 +3791,16 @@ class AppSettingsTableData extends DataClass
   /// When true, use legacy local-only Instant Mix instead of Last.fm Same Vibes.
   final bool legacyInstantMixEnabled;
 
-  /// ReplayGain mode: 'off', 'track', or 'album'. Default 'off'.
+  /// ReplayGain mode: 'off', 'track', or 'album'. New profiles start on
+  /// 'track'; profiles that already exist keep their stored value.
   final String replayGainMode;
 
   /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0). Default 0.
   final double replayGainPreamp;
+
+  /// Level in dB (-15..0) for songs without ReplayGain data. Null = Automatic,
+  /// the library's median tagged track gain.
+  final double? replayGainUntaggedDb;
 
   /// Playback speed multiplier. Default 1.0.
   final double playbackSpeed;
@@ -3976,6 +4006,7 @@ class AppSettingsTableData extends DataClass
     required this.legacyInstantMixEnabled,
     required this.replayGainMode,
     required this.replayGainPreamp,
+    this.replayGainUntaggedDb,
     required this.playbackSpeed,
     required this.playbackPitchSemitones,
     required this.lockPitchToSpeed,
@@ -4132,6 +4163,9 @@ class AppSettingsTableData extends DataClass
     map['legacy_instant_mix_enabled'] = Variable<bool>(legacyInstantMixEnabled);
     map['replay_gain_mode'] = Variable<String>(replayGainMode);
     map['replay_gain_preamp'] = Variable<double>(replayGainPreamp);
+    if (!nullToAbsent || replayGainUntaggedDb != null) {
+      map['replay_gain_untagged_db'] = Variable<double>(replayGainUntaggedDb);
+    }
     map['playback_speed'] = Variable<double>(playbackSpeed);
     map['playback_pitch_semitones'] = Variable<double>(playbackPitchSemitones);
     map['lock_pitch_to_speed'] = Variable<bool>(lockPitchToSpeed);
@@ -4315,6 +4349,9 @@ class AppSettingsTableData extends DataClass
       legacyInstantMixEnabled: Value(legacyInstantMixEnabled),
       replayGainMode: Value(replayGainMode),
       replayGainPreamp: Value(replayGainPreamp),
+      replayGainUntaggedDb: replayGainUntaggedDb == null && nullToAbsent
+          ? const Value.absent()
+          : Value(replayGainUntaggedDb),
       playbackSpeed: Value(playbackSpeed),
       playbackPitchSemitones: Value(playbackPitchSemitones),
       lockPitchToSpeed: Value(lockPitchToSpeed),
@@ -4514,6 +4551,9 @@ class AppSettingsTableData extends DataClass
       ),
       replayGainMode: serializer.fromJson<String>(json['replayGainMode']),
       replayGainPreamp: serializer.fromJson<double>(json['replayGainPreamp']),
+      replayGainUntaggedDb: serializer.fromJson<double?>(
+        json['replayGainUntaggedDb'],
+      ),
       playbackSpeed: serializer.fromJson<double>(json['playbackSpeed']),
       playbackPitchSemitones: serializer.fromJson<double>(
         json['playbackPitchSemitones'],
@@ -4710,6 +4750,7 @@ class AppSettingsTableData extends DataClass
       ),
       'replayGainMode': serializer.toJson<String>(replayGainMode),
       'replayGainPreamp': serializer.toJson<double>(replayGainPreamp),
+      'replayGainUntaggedDb': serializer.toJson<double?>(replayGainUntaggedDb),
       'playbackSpeed': serializer.toJson<double>(playbackSpeed),
       'playbackPitchSemitones': serializer.toJson<double>(
         playbackPitchSemitones,
@@ -4850,6 +4891,7 @@ class AppSettingsTableData extends DataClass
     bool? legacyInstantMixEnabled,
     String? replayGainMode,
     double? replayGainPreamp,
+    Value<double?> replayGainUntaggedDb = const Value.absent(),
     double? playbackSpeed,
     double? playbackPitchSemitones,
     bool? lockPitchToSpeed,
@@ -4995,6 +5037,9 @@ class AppSettingsTableData extends DataClass
         legacyInstantMixEnabled ?? this.legacyInstantMixEnabled,
     replayGainMode: replayGainMode ?? this.replayGainMode,
     replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
+    replayGainUntaggedDb: replayGainUntaggedDb.present
+        ? replayGainUntaggedDb.value
+        : this.replayGainUntaggedDb,
     playbackSpeed: playbackSpeed ?? this.playbackSpeed,
     playbackPitchSemitones:
         playbackPitchSemitones ?? this.playbackPitchSemitones,
@@ -5276,6 +5321,9 @@ class AppSettingsTableData extends DataClass
       replayGainPreamp: data.replayGainPreamp.present
           ? data.replayGainPreamp.value
           : this.replayGainPreamp,
+      replayGainUntaggedDb: data.replayGainUntaggedDb.present
+          ? data.replayGainUntaggedDb.value
+          : this.replayGainUntaggedDb,
       playbackSpeed: data.playbackSpeed.present
           ? data.playbackSpeed.value
           : this.playbackSpeed,
@@ -5477,6 +5525,7 @@ class AppSettingsTableData extends DataClass
           ..write('legacyInstantMixEnabled: $legacyInstantMixEnabled, ')
           ..write('replayGainMode: $replayGainMode, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
+          ..write('replayGainUntaggedDb: $replayGainUntaggedDb, ')
           ..write('playbackSpeed: $playbackSpeed, ')
           ..write('playbackPitchSemitones: $playbackPitchSemitones, ')
           ..write('lockPitchToSpeed: $lockPitchToSpeed, ')
@@ -5601,6 +5650,7 @@ class AppSettingsTableData extends DataClass
     legacyInstantMixEnabled,
     replayGainMode,
     replayGainPreamp,
+    replayGainUntaggedDb,
     playbackSpeed,
     playbackPitchSemitones,
     lockPitchToSpeed,
@@ -5721,6 +5771,7 @@ class AppSettingsTableData extends DataClass
           other.legacyInstantMixEnabled == this.legacyInstantMixEnabled &&
           other.replayGainMode == this.replayGainMode &&
           other.replayGainPreamp == this.replayGainPreamp &&
+          other.replayGainUntaggedDb == this.replayGainUntaggedDb &&
           other.playbackSpeed == this.playbackSpeed &&
           other.playbackPitchSemitones == this.playbackPitchSemitones &&
           other.lockPitchToSpeed == this.lockPitchToSpeed &&
@@ -5841,6 +5892,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> legacyInstantMixEnabled;
   final Value<String> replayGainMode;
   final Value<double> replayGainPreamp;
+  final Value<double?> replayGainUntaggedDb;
   final Value<double> playbackSpeed;
   final Value<double> playbackPitchSemitones;
   final Value<bool> lockPitchToSpeed;
@@ -5954,6 +6006,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.legacyInstantMixEnabled = const Value.absent(),
     this.replayGainMode = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
+    this.replayGainUntaggedDb = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
     this.playbackPitchSemitones = const Value.absent(),
     this.lockPitchToSpeed = const Value.absent(),
@@ -6068,6 +6121,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.legacyInstantMixEnabled = const Value.absent(),
     this.replayGainMode = const Value.absent(),
     this.replayGainPreamp = const Value.absent(),
+    this.replayGainUntaggedDb = const Value.absent(),
     this.playbackSpeed = const Value.absent(),
     this.playbackPitchSemitones = const Value.absent(),
     this.lockPitchToSpeed = const Value.absent(),
@@ -6182,6 +6236,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? legacyInstantMixEnabled,
     Expression<String>? replayGainMode,
     Expression<double>? replayGainPreamp,
+    Expression<double>? replayGainUntaggedDb,
     Expression<double>? playbackSpeed,
     Expression<double>? playbackPitchSemitones,
     Expression<bool>? lockPitchToSpeed,
@@ -6327,6 +6382,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'legacy_instant_mix_enabled': legacyInstantMixEnabled,
       if (replayGainMode != null) 'replay_gain_mode': replayGainMode,
       if (replayGainPreamp != null) 'replay_gain_preamp': replayGainPreamp,
+      if (replayGainUntaggedDb != null)
+        'replay_gain_untagged_db': replayGainUntaggedDb,
       if (playbackSpeed != null) 'playback_speed': playbackSpeed,
       if (playbackPitchSemitones != null)
         'playback_pitch_semitones': playbackPitchSemitones,
@@ -6468,6 +6525,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? legacyInstantMixEnabled,
     Value<String>? replayGainMode,
     Value<double>? replayGainPreamp,
+    Value<double?>? replayGainUntaggedDb,
     Value<double>? playbackSpeed,
     Value<double>? playbackPitchSemitones,
     Value<bool>? lockPitchToSpeed,
@@ -6599,6 +6657,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           legacyInstantMixEnabled ?? this.legacyInstantMixEnabled,
       replayGainMode: replayGainMode ?? this.replayGainMode,
       replayGainPreamp: replayGainPreamp ?? this.replayGainPreamp,
+      replayGainUntaggedDb: replayGainUntaggedDb ?? this.replayGainUntaggedDb,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
       playbackPitchSemitones:
           playbackPitchSemitones ?? this.playbackPitchSemitones,
@@ -6917,6 +6976,11 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (replayGainPreamp.present) {
       map['replay_gain_preamp'] = Variable<double>(replayGainPreamp.value);
     }
+    if (replayGainUntaggedDb.present) {
+      map['replay_gain_untagged_db'] = Variable<double>(
+        replayGainUntaggedDb.value,
+      );
+    }
     if (playbackSpeed.present) {
       map['playback_speed'] = Variable<double>(playbackSpeed.value);
     }
@@ -7163,6 +7227,7 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('legacyInstantMixEnabled: $legacyInstantMixEnabled, ')
           ..write('replayGainMode: $replayGainMode, ')
           ..write('replayGainPreamp: $replayGainPreamp, ')
+          ..write('replayGainUntaggedDb: $replayGainUntaggedDb, ')
           ..write('playbackSpeed: $playbackSpeed, ')
           ..write('playbackPitchSemitones: $playbackPitchSemitones, ')
           ..write('lockPitchToSpeed: $lockPitchToSpeed, ')
@@ -36364,6 +36429,7 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> legacyInstantMixEnabled,
       Value<String> replayGainMode,
       Value<double> replayGainPreamp,
+      Value<double?> replayGainUntaggedDb,
       Value<double> playbackSpeed,
       Value<double> playbackPitchSemitones,
       Value<bool> lockPitchToSpeed,
@@ -36479,6 +36545,7 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> legacyInstantMixEnabled,
       Value<String> replayGainMode,
       Value<double> replayGainPreamp,
+      Value<double?> replayGainUntaggedDb,
       Value<double> playbackSpeed,
       Value<double> playbackPitchSemitones,
       Value<bool> lockPitchToSpeed,
@@ -36884,6 +36951,11 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<double> get replayGainPreamp => $composableBuilder(
     column: $table.replayGainPreamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get replayGainUntaggedDb => $composableBuilder(
+    column: $table.replayGainUntaggedDb,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -37458,6 +37530,11 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get replayGainUntaggedDb => $composableBuilder(
+    column: $table.replayGainUntaggedDb,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get playbackSpeed => $composableBuilder(
     column: $table.playbackSpeed,
     builder: (column) => ColumnOrderings(column),
@@ -38020,6 +38097,11 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<double> get replayGainUntaggedDb => $composableBuilder(
+    column: $table.replayGainUntaggedDb,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<double> get playbackSpeed => $composableBuilder(
     column: $table.playbackSpeed,
     builder: (column) => column,
@@ -38334,6 +38416,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> legacyInstantMixEnabled = const Value.absent(),
                 Value<String> replayGainMode = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
+                Value<double?> replayGainUntaggedDb = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
                 Value<double> playbackPitchSemitones = const Value.absent(),
                 Value<bool> lockPitchToSpeed = const Value.absent(),
@@ -38452,6 +38535,7 @@ class $$AppSettingsTableTableTableManager
                 legacyInstantMixEnabled: legacyInstantMixEnabled,
                 replayGainMode: replayGainMode,
                 replayGainPreamp: replayGainPreamp,
+                replayGainUntaggedDb: replayGainUntaggedDb,
                 playbackSpeed: playbackSpeed,
                 playbackPitchSemitones: playbackPitchSemitones,
                 lockPitchToSpeed: lockPitchToSpeed,
@@ -38568,6 +38652,7 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> legacyInstantMixEnabled = const Value.absent(),
                 Value<String> replayGainMode = const Value.absent(),
                 Value<double> replayGainPreamp = const Value.absent(),
+                Value<double?> replayGainUntaggedDb = const Value.absent(),
                 Value<double> playbackSpeed = const Value.absent(),
                 Value<double> playbackPitchSemitones = const Value.absent(),
                 Value<bool> lockPitchToSpeed = const Value.absent(),
@@ -38686,6 +38771,7 @@ class $$AppSettingsTableTableTableManager
                 legacyInstantMixEnabled: legacyInstantMixEnabled,
                 replayGainMode: replayGainMode,
                 replayGainPreamp: replayGainPreamp,
+                replayGainUntaggedDb: replayGainUntaggedDb,
                 playbackSpeed: playbackSpeed,
                 playbackPitchSemitones: playbackPitchSemitones,
                 lockPitchToSpeed: lockPitchToSpeed,

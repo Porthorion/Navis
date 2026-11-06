@@ -1187,6 +1187,23 @@ class AppLocalizationsEn extends AppLocalizations {
       'Additional gain adjustment. Range: −6 to +6 dB.';
 
   @override
+  String get playbackSettingsReplayGainUntaggedLabel => 'Untagged songs';
+
+  @override
+  String playbackSettingsReplayGainUntaggedAutomatic(String level) {
+    return 'Automatic ($level dB)';
+  }
+
+  @override
+  String playbackSettingsReplayGainUntaggedFixed(String level) {
+    return '$level dB';
+  }
+
+  @override
+  String get playbackSettingsReplayGainUntaggedSubtitle =>
+      'Level for songs with no ReplayGain data, including songs from online sources, so they don\'t play louder than tagged ones. Automatic uses your library\'s typical level.';
+
+  @override
   String get playbackSettingsPlaybackSpeedLabel => 'Playback Speed';
 
   @override
