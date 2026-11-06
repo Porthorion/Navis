@@ -28,6 +28,8 @@ class LibrarySyncExecutionBootstrap {
     onBeforeSongIdentityRemap,
     String? Function()? readActiveSongId,
     Set<String> Function()? readProtectedSongIds,
+    Future<Map<String, String>> Function(Iterable<String>)?
+    relinkExternalCopies,
     String executionOwnerKind = 'foreground',
     bool isBackgroundExecution = false,
     Duration? executionLeaseTtl,
@@ -43,6 +45,7 @@ class LibrarySyncExecutionBootstrap {
       onBeforeSongIdentityRemap: onBeforeSongIdentityRemap,
       readActiveSongId: readActiveSongId,
       readProtectedSongIds: readProtectedSongIds,
+      relinkExternalCopies: relinkExternalCopies,
     );
     return AdaptiveLibrarySyncCoordinator(
       executor: executor,

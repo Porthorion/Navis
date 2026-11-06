@@ -18,6 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/cover_art_source.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';

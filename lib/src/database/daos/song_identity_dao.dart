@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/database/tables/albums_table.dart';
 import 'package:navis/src/database/tables/artists_table.dart';
@@ -457,16 +458,41 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
           );
         }
       }
-      await customUpdate(
-        'UPDATE star_sync_queue SET item_id = ? WHERE item_type = ? AND item_id = ?',
-        variables: [
-          Variable<String>(canonicalId),
-          Variable<String>(kind.name),
-          Variable<String>(oldId),
-        ],
-        updates: {starSyncQueueTable},
-        updateKind: UpdateKind.update,
-      );
+      // A remote copy's annotations are never delivered for it (the server
+      // would resolve its id to the library song), so its queue rows are
+      // dropped, not moved. Its like survives only when it was never sent and
+      // the library song has no pending unlike (see the carry below).
+      final remoteCopy =
+          kind == _IdentityKind.song && !isServerAddressableSongId(oldId);
+      var carryRemoteLike = false;
+      if (remoteCopy) {
+        final pending = await attachedDatabase.starSyncDao.getPendingActions(
+          operation: 'star',
+        );
+        bool has(String id, String action) => pending.any(
+          (row) =>
+              row.itemType == 'song' &&
+              row.itemId == id &&
+              row.action == action,
+        );
+        carryRemoteLike = has(oldId, 'star') && !has(canonicalId, 'unstar');
+        await customUpdate(
+          "DELETE FROM star_sync_queue WHERE item_type = 'song' AND item_id = ?",
+          variables: [Variable<String>(oldId)],
+          updates: {starSyncQueueTable},
+        );
+      } else {
+        await customUpdate(
+          'UPDATE star_sync_queue SET item_id = ? WHERE item_type = ? AND item_id = ?',
+          variables: [
+            Variable<String>(canonicalId),
+            Variable<String>(kind.name),
+            Variable<String>(oldId),
+          ],
+          updates: {starSyncQueueTable},
+          updateKind: UpdateKind.update,
+        );
+      }
       await customUpdate(
         'UPDATE OR IGNORE starred_absence_candidates SET entity_id = ? '
         'WHERE entity_type = ? AND entity_id = ?',
@@ -495,7 +521,9 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
       );
 
       // An explicit canonical annotation wins; otherwise carry the old local value.
-      final starred = canonical.readNullable<DateTime>('starred') == null
+      final starred =
+          canonical.readNullable<DateTime>('starred') == null &&
+              (!remoteCopy || carryRemoteLike)
           ? old?.readNullable<DateTime>('starred')
           : null;
       final rating =
@@ -515,7 +543,11 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
           updateKind: UpdateKind.update,
         );
       }
-      if (starred != null) {
+      // An unsent remote like is queued for the library song even when the
+      // copy's own flag was already cleared.
+      if (starred != null ||
+          (carryRemoteLike &&
+              canonical.readNullable<DateTime>('starred') == null)) {
         await attachedDatabase.starSyncDao.queueStarAction(
           itemId: canonicalId,
           itemType: kind.name,

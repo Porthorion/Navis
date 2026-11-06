@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:android_file_picker/android_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
@@ -601,7 +602,13 @@ class _QueueItemTile extends ConsumerWidget {
         : ref.watch(songPlaybackIndicatorStateProvider(songId));
     final isSelected = playbackState.isSelected;
 
+    // The row shows plain language only; the technical reason and detail are
+    // one long-press (right-click on desktop) away, to paste into a report.
+    // Failed rows, and rows held or waiting to retry, record why.
+    final hasDetails = item.failureReason != null;
+    void copyDetails() => unawaited(_copyErrorDetails(context, item));
     final tile = ListTile(
+      onLongPress: hasDetails ? copyDetails : null,
       selected: isSelected,
       selectedColor: Theme.of(context).colorScheme.primary,
       selectedTileColor: Theme.of(context).colorScheme.primary
@@ -692,7 +699,34 @@ class _QueueItemTile extends ConsumerWidget {
         },
       ),
     );
-    return SongPlaybackSemantics(state: playbackState, child: tile);
+    final interactiveTile = hasDetails && isDesktopRuntime
+        ? GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onSecondaryTap: copyDetails,
+            child: tile,
+          )
+        : tile;
+    return SongPlaybackSemantics(state: playbackState, child: interactiveTile);
+  }
+
+  /// Copies "<reason>: <detail>" of a failed download and confirms it.
+  static Future<void> _copyErrorDetails(
+    BuildContext context,
+    DownloadQueueTableData item,
+  ) async {
+    final l10n = AppLocalizations.of(context)!;
+    final reason =
+        item.failureReason?.name ?? DownloadFailureReason.unknown.name;
+    final detail = item.failureDetail;
+    await Clipboard.setData(
+      ClipboardData(text: detail == null ? reason : '$reason: $detail'),
+    );
+    if (!context.mounted) return;
+    showAppNotice(
+      context,
+      message: l10n.downloadsErrorDetailsCopied,
+      level: AppNoticeLevel.success,
+    );
   }
 }
 

@@ -1184,7 +1184,9 @@ extension _NavisMediaSession on NavisAudioHandler {
     final index = _resolveCurrentQueueMetadata().currentIndex;
     if (index == null || index < 0 || index >= _queueItems.length) return;
     final current = _queueItems[index];
+    // A remote copy cannot be liked: the DAO refuses it (no UI here).
     final liked = await _starSyncDao.toggleSongStarred(current.id);
+    if (liked == null) return;
     await _syncSongLikedState(current.id, liked: liked);
     final currentIndex = _resolveCurrentQueueMetadata().currentIndex;
     if (currentIndex != null &&

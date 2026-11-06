@@ -29,6 +29,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/genre_key.dart';
@@ -605,6 +606,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     this.onBeforeSongIdentityRemap,
     this.readActiveSongId,
     this.readProtectedSongIds,
+    this.relinkExternalCopies,
   });
 
   final LibrarySyncApi _api;
@@ -635,6 +637,13 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
   onBeforeSongIdentityRemap;
   final String? Function()? readActiveSongId;
   final Set<String> Function()? readProtectedSongIds;
+
+  /// Relinks remote catalog copies to their library songs through the app's
+  /// serialized relink (`relinkExternalCopiesProvider`), so it never overlaps
+  /// the queue's or downloads' relinks. Null (a background run without the
+  /// player) leaves unsent remote likes for the next foreground sync.
+  final Future<Map<String, String>> Function(Iterable<String> songIds)?
+  relinkExternalCopies;
 
   Future<LibrarySyncState>? _inFlight;
   bool _cancelled = false;
@@ -1840,6 +1849,56 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     }
   }
 
+  /// Remote catalog copies (`ext-`) can no longer be liked, but earlier
+  /// versions allowed it. The unsent ones are relinked to their library songs:
+  /// the remap carries a like that was never sent (and queues it) unless the
+  /// library song has a pending unlike, and carries nothing for a like the
+  /// server already received (the starred snapshot decides that song). What
+  /// remains is then dropped locally. Nothing is sent for the copy itself:
+  /// the server would resolve its id to the library song. Best effort: when
+  /// the relink fails, unsent likes stay for the next sync and sent ones are
+  /// still cleared; a failure never fails the sync.
+  Future<void> _moveRemoteLikesToLibrary() async {
+    final starSync = _database.starSyncDao;
+    var found = 0;
+    var relinked = false;
+    try {
+      final remoteLiked = [
+        for (final id in await _database.libraryDao.getStarredIds('song'))
+          if (!isServerAddressableSongId(id)) id,
+      ];
+      if (remoteLiked.isEmpty) return;
+      found = remoteLiked.length;
+      final relink = relinkExternalCopies;
+      if (relink != null) {
+        final pending = await starSync.getPendingActions(operation: 'star');
+        final unsent = [
+          for (final id in remoteLiked)
+            if (pending.any(
+              (a) =>
+                  a.itemType == 'song' && a.itemId == id && a.action == 'star',
+            ))
+              id,
+        ];
+        if (unsent.isNotEmpty) await relink(unsent);
+        relinked = true;
+      }
+    } on Object catch (error) {
+      AppLogger.warning('Remote song likes relink skipped: $error');
+    }
+    try {
+      // Without a finished relink, likes never sent are kept for next time.
+      final dropped = await starSync.dropRemoteSongLikes(keepUnsent: !relinked);
+      if (found > 0) {
+        AppLogger.info(
+          'Remote song likes: $found found, $dropped cleared locally.',
+        );
+      }
+    } on Object catch (error) {
+      AppLogger.warning('Remote song likes cleanup skipped: $error');
+    }
+  }
+
   Future<void> _syncStarredContentStrict(_SyncRunMetrics metrics) async {
     final snapshotStartedAt = DateTime.now();
     final starred = await _request(
@@ -1863,6 +1922,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     final serverConfig = await _serverConfigRepository.getActiveServer();
     final serverId = serverConfig?.id;
 
+    await _moveRemoteLikesToLibrary();
     await _database.transaction(() async {
       final pendingActions = await _database.starSyncDao.getPendingActions();
       final pendingByType = <String, Set<String>>{

@@ -550,8 +550,11 @@ void main() {
       );
       expect(tester.takeException(), isNull);
       expect(find.byKey(RemoteSourceIndicator.semanticsKey), findsNWidgets(3));
-      // No Like for a song that is not in the library.
-      expect(find.byTooltip('Like'), findsNothing);
+      // The heart stays, dimmed; a tap explains why.
+      expect(
+        find.byTooltip('Like unavailable for remote songs'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('three albums (Albums filter): hero and two tiles', (

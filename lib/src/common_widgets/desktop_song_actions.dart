@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
@@ -13,6 +14,7 @@ import 'package:navis/src/features/downloads/presentation/download_quality_sheet
 import 'package:navis/src/features/library/domain/toggle_song_star.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/motion_policy.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/utils/format_utils.dart';
 
 /// Consistent trailing actions for a local song row in Desktop View.
@@ -233,27 +235,53 @@ class SongHeartButton extends ConsumerWidget {
     final l10n = AppLocalizations.of(context)!;
     final isLiked =
         ref.watch(songStarredProvider(songId)).asData?.value ?? false;
-    void toggle() => unawaited(
-      toggleSongStar(songId, ref).catchError((_) {
-        if (context.mounted) {
-          showAppNotice(
-            context,
-            message: l10n.albumDetailStarFailure,
-            level: AppNoticeLevel.error,
-          );
-        }
-      }),
-    );
+    // A remote copy cannot be liked: shown disabled, the tap explains why.
+    final isRemote = !isServerAddressableSongId(songId);
+    void toggle() {
+      if (isRemote) {
+        showAppNotice(
+          context,
+          message: l10n.remoteSourceActionUnavailable,
+          level: AppNoticeLevel.error,
+        );
+        return;
+      }
+      unawaited(
+        toggleSongStar(songId, ref).catchError((_) {
+          if (context.mounted) {
+            showAppNotice(
+              context,
+              message: l10n.albumDetailStarFailure,
+              level: AppNoticeLevel.error,
+            );
+          }
+          return false;
+        }),
+      );
+    }
+
     final key = ValueKey<String>('$keyPrefix-heart-$songId');
-    final tooltip = isLiked ? l10n.actionLiked : l10n.actionLike;
-    final icon = Icon(isLiked ? Icons.favorite : Icons.favorite_border);
-    return outlined
+    final tooltip = isRemote
+        ? l10n.actionLikeUnavailableRemote
+        : isLiked
+        ? l10n.actionLiked
+        : l10n.actionLike;
+    final disabledColor = Theme.of(context).disabledColor;
+    final icon = Icon(
+      isLiked ? Icons.favorite : Icons.favorite_border,
+      color: isRemote ? disabledColor : null,
+    );
+    final button = outlined
         ? IconButton.outlined(
             key: key,
             tooltip: tooltip,
             icon: icon,
+            style: isRemote
+                ? IconButton.styleFrom(side: BorderSide(color: disabledColor))
+                : null,
             onPressed: toggle,
           )
         : IconButton(key: key, tooltip: tooltip, icon: icon, onPressed: toggle);
+    return isRemote ? RemoteLikeSemantics(child: button) : button;
   }
 }

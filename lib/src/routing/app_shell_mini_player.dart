@@ -134,7 +134,23 @@ Future<void> _miniStopRadio(WidgetRef ref) async {
   await ref.read(audioHandlerProvider)?.stopRadio();
 }
 
-void _miniToggleLike(WidgetRef ref) {
+/// A remote catalog copy (`ext-`) cannot be liked: its heart is dimmed and a
+/// tap explains why.
+bool _isRemoteSong(String? songId) =>
+    songId != null && !isServerAddressableSongId(songId);
+
+Widget _remoteLikeSemantics(String? songId, Widget button) =>
+    _isRemoteSong(songId) ? RemoteLikeSemantics(child: button) : button;
+
+void _miniToggleLike(BuildContext context, WidgetRef ref, String? songId) {
+  if (_isRemoteSong(songId)) {
+    showAppNotice(
+      context,
+      message: AppLocalizations.of(context)!.remoteSourceActionUnavailable,
+      level: AppNoticeLevel.error,
+    );
+    return;
+  }
   unawaited(HapticFeedback.lightImpact());
   unawaited(ref.read(audioHandlerProvider)?.toggleLike());
 }
@@ -494,24 +510,43 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                     ),
                                   ),
                                   if (!ultraCompact)
-                                    IconButton(
-                                      tooltip: playback.isCurrentSongLiked
-                                          ? l10n.actionLiked
-                                          : l10n.actionLike,
-                                      constraints: compactButtonConstraints,
-                                      padding: EdgeInsets.zero,
-                                      iconSize: 24,
-                                      visualDensity: VisualDensity.compact,
-                                      onPressed: widget.isRadio
-                                          ? null
-                                          : () => _miniToggleLike(ref),
-                                      icon: Icon(
-                                        playback.isCurrentSongLiked
-                                            ? Icons.favorite
-                                            : Icons.favorite_border,
-                                        color: playback.isCurrentSongLiked
-                                            ? cs.primary
-                                            : null,
+                                    _remoteLikeSemantics(
+                                      playback.currentSongId,
+                                      IconButton(
+                                        tooltip:
+                                            _isRemoteSong(
+                                              playback.currentSongId,
+                                            )
+                                            ? l10n.actionLikeUnavailableRemote
+                                            : playback.isCurrentSongLiked
+                                            ? l10n.actionLiked
+                                            : l10n.actionLike,
+                                        constraints: compactButtonConstraints,
+                                        padding: EdgeInsets.zero,
+                                        iconSize: 24,
+                                        visualDensity: VisualDensity.compact,
+                                        onPressed: widget.isRadio
+                                            ? null
+                                            : () => _miniToggleLike(
+                                                context,
+                                                ref,
+                                                playback.currentSongId,
+                                              ),
+                                        icon: Icon(
+                                          playback.isCurrentSongLiked
+                                              ? Icons.favorite
+                                              : Icons.favorite_border,
+                                          color:
+                                              _isRemoteSong(
+                                                playback.currentSongId,
+                                              )
+                                              ? cs.onSurface.withValues(
+                                                  alpha: 0.38,
+                                                )
+                                              : playback.isCurrentSongLiked
+                                              ? cs.primary
+                                              : null,
+                                        ),
                                       ),
                                     ),
                                 ];
@@ -879,19 +914,30 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             icon: const Icon(Icons.stop_rounded, size: 28),
                           ),
                         if (!isRadio)
-                          IconButton(
-                            tooltip: playback.isCurrentSongLiked
-                                ? l10n.actionLiked
-                                : l10n.actionLike,
-                            onPressed: () => _miniToggleLike(ref),
-                            icon: Icon(
-                              playback.isCurrentSongLiked
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
-                              size: 26,
-                              color: playback.isCurrentSongLiked
-                                  ? cs.primary
-                                  : cs.onSurfaceVariant,
+                          _remoteLikeSemantics(
+                            playback.currentSongId,
+                            IconButton(
+                              tooltip: _isRemoteSong(playback.currentSongId)
+                                  ? l10n.actionLikeUnavailableRemote
+                                  : playback.isCurrentSongLiked
+                                  ? l10n.actionLiked
+                                  : l10n.actionLike,
+                              onPressed: () => _miniToggleLike(
+                                context,
+                                ref,
+                                playback.currentSongId,
+                              ),
+                              icon: Icon(
+                                playback.isCurrentSongLiked
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                size: 26,
+                                color: _isRemoteSong(playback.currentSongId)
+                                    ? cs.onSurface.withValues(alpha: 0.38)
+                                    : playback.isCurrentSongLiked
+                                    ? cs.primary
+                                    : cs.onSurfaceVariant,
+                              ),
                             ),
                           ),
                       ],
@@ -990,24 +1036,35 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 icon: const Icon(Icons.stop_rounded, size: 20),
                               ),
                             if (!isRadio)
-                              IconButton(
-                                tooltip: playback.isCurrentSongLiked
-                                    ? l10n.actionLiked
-                                    : l10n.actionLike,
-                                constraints: const BoxConstraints(
-                                  minWidth: 36,
-                                  minHeight: 36,
-                                ),
-                                padding: EdgeInsets.zero,
-                                onPressed: () => _miniToggleLike(ref),
-                                icon: Icon(
-                                  playback.isCurrentSongLiked
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                  size: 19,
-                                  color: playback.isCurrentSongLiked
-                                      ? cs.primary
-                                      : cs.onSurfaceVariant,
+                              _remoteLikeSemantics(
+                                playback.currentSongId,
+                                IconButton(
+                                  tooltip: _isRemoteSong(playback.currentSongId)
+                                      ? l10n.actionLikeUnavailableRemote
+                                      : playback.isCurrentSongLiked
+                                      ? l10n.actionLiked
+                                      : l10n.actionLike,
+                                  constraints: const BoxConstraints(
+                                    minWidth: 36,
+                                    minHeight: 36,
+                                  ),
+                                  padding: EdgeInsets.zero,
+                                  onPressed: () => _miniToggleLike(
+                                    context,
+                                    ref,
+                                    playback.currentSongId,
+                                  ),
+                                  icon: Icon(
+                                    playback.isCurrentSongLiked
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    size: 19,
+                                    color: _isRemoteSong(playback.currentSongId)
+                                        ? cs.onSurface.withValues(alpha: 0.38)
+                                        : playback.isCurrentSongLiked
+                                        ? cs.primary
+                                        : cs.onSurfaceVariant,
+                                  ),
                                 ),
                               ),
                             SizedBox(width: compactControls ? 0 : 4),
