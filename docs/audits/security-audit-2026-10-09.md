@@ -158,6 +158,10 @@ These concern local development, testing and diagnostics, which are intentionall
 - No TLS bypass anywhere.
 - Credential art is stripped before Android, MPRIS and SMTC see it.
 - Both loopback servers are token- or uuid-gated, and diagnostics is compiled out of release.
+  (Update, iOS I0: the diagnostics API is now also reachable in iOS simulator
+  *debug* builds, gated by `diagnosticsBuildEnabled`, so the simulator can run a
+  runtime loop. It is never reachable in release builds or in on-device debug
+  builds; physical iPhones need a profile build.)
 - SQL is all parameterised.
 - EQ and AutoEQ input is bounds-checked.
 - SAF and FileProvider are scoped.

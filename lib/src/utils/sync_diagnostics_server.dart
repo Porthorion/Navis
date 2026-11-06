@@ -5382,8 +5382,9 @@ class SyncDiagnosticsServer {
     // Windows has no POSIX chmod executable. More importantly, diagnostics
     // must begin serving after the handshake is written; awaiting a missing
     // Unix command here bound the loopback port without ever starting its
-    // request loop on Windows.
-    if (!Platform.isWindows) {
+    // request loop on Windows. iOS cannot spawn processes at all; the
+    // simulator's run root is created mode 700 by the launch scripts.
+    if (!Platform.isWindows && !Platform.isIOS) {
       await Process.run('chmod', <String>['600', file.path]);
     }
   }

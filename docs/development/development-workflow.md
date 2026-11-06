@@ -455,7 +455,7 @@ behavior under test:
 | Android or Android Auto | Linux startup smoke plus the Android media-session/MediaBrowser API on a device, emulator, or DHU as appropriate |
 | Windows media integration | Linux startup smoke plus `tool/windows_smtc_diagnostics.ps1` on Windows and GMTC |
 | macOS app behavior | macOS profile clone launched on a Mac host through the shared diagnostics launchers (`flutter run -d macos`, selected automatically on Darwin) plus the app API and an inspected screenshot; Now Playing and media keys also need a manual check on the Mac until an app-owned probe exists |
-| iOS integration | Deferred by the project owner while Apple development is unavailable; record unverified iOS status |
+| iOS app behavior | iOS simulator debug clone through the shared launchers (`NAVIS_DIAGNOSTICS_DEVICE=ios`) plus the app API and an inspected screenshot; device-only behavior (background audio, lock screen, real hardware) stays unverified until a physical-device check |
 
 ### Temporary Android emulators
 
@@ -802,7 +802,7 @@ Retain package version, old/new pid, root-temp cleanup, screenshots and installe
 stderr evidence. Cancellation, no-agent, swap and lock-error UI checks still
 require the owner; static/script checks are not runtime acceptance.
 
-Linux, Windows and macOS profile diagnostics share the authenticated
+Linux, Windows, macOS and iOS-simulator diagnostics share the authenticated
 control-plane contract. `diagnostics_device` in `tool/lib/diagnostics.sh`
 selects `-d macos` on Darwin for its launchers, `tool/sync_diagnostics.sh` and
 `tool/presentation_diagnostics.sh`; other single-site scripts still launch
@@ -815,7 +815,35 @@ Linux data path), pass a mode-600 `NAVIS_DIAGNOSTICS_CREDENTIAL_PATH`
 file to sign the clone in (the clone keeps credentials in memory, so it never
 reads the keychain), run the scripts with Homebrew bash 4+ rather than the
 system bash 3.2, and expect the first cold `flutter run -d macos` build to
-outlast the 180-second handshake wait; build once first. Android production
+outlast the 180-second handshake wait; build once first.
+
+**iOS simulator loop.** The simulator cannot run profile or release builds, so
+the diagnostics API is also available in *debug* builds on the iOS simulator,
+and only there (`diagnosticsBuildEnabled` in
+`lib/src/utils/diagnostics_build_gate.dart`: profile, or debug with the
+executable under `CoreSimulator/Devices`). Release builds and debug builds on a
+physical iPhone or on any other platform stay off; a physical iPhone needs a
+profile build like the other platforms. iOS plays through just_audio and
+AVFoundation in debug and release alike, so debug evidence on the simulator is
+valid for playback logic, but timing and performance numbers are not. Boot a
+simulator, then run a launcher that uses `diagnostics_device`
+(`tool/sync_diagnostics.sh`, `tool/presentation_diagnostics.sh`) with
+`NAVIS_DIAGNOSTICS_DEVICE=ios`; scripts that hard-code `-d linux` do not
+support iOS:
+`diagnostics_device` resolves the booted simulator's UDID (`xcrun simctl list
+devices booted`) and `diagnostics_build_mode` passes `--debug`. Audio capture
+(`launch_audio_app`) stays Linux-only. A simulator app is a host process that
+shares the host's file system and loopback network, so the handshake, database
+and artifacts live under the run root like a desktop clone (including the
+redirected `path_provider` directories) and the host script reads the port and
+token from the handshake file as usual. The clone has no separate bundle id on
+iOS (the Xcode project has one); a fresh simulator install is isolated from the
+user's data, and the scripts clone the *host* primary database into the run
+root. The first cold `flutter run` to a simulator can take 7 minutes; the
+`launch_app` in `tool/lib/diagnostics.sh` waits 600 seconds and, for iOS,
+fails fast when the app throws before the handshake instead of waiting out
+`flutter run`, which stays alive on a white screen; the older `launch()` helper
+still waits only 180 seconds, so build once first. Android production
 builds remain observation-only. The planned SAF
 download-folder diagnostics must be sidecar-only, restricted to an emulator
 fixture tree, reject arbitrary paths, and never be enabled by the stable
@@ -1778,7 +1806,8 @@ Every diagnostic or agent-control surface must:
 
 - Be unavailable in production release builds, bind only to loopback on an
   ephemeral port, and require a random bearer token communicated through a
-  handshake file. Linux/macOS profiles apply mode `0600`; Windows profiles use
+  handshake file. Linux/macOS profiles apply mode `0600`; the iOS simulator
+  cannot spawn `chmod` and relies on the mode-700 run root; Windows profiles use
   their isolated per-user diagnostics directory and must not wait for a POSIX
   permission command before serving requests. Android publishes the same
   bounded handshake through an app-owned native bridge to its external-files

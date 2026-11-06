@@ -17,6 +17,7 @@ import 'package:navis/src/features/downloads/data/android_saf_storage.dart';
 import 'package:navis/src/features/player/data/playback_transport_trace.dart';
 import 'package:navis/src/features/player/domain/streaming_quality.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/diagnostics_build_gate.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:path/path.dart' as p;
 
@@ -325,7 +326,7 @@ class PlaybackSourceResolver {
 
     // An isolated profile can reproduce slow cold restoration without
     // changing the server or storing a credential-bearing stream URL.
-    if (kProfileMode &&
+    if (diagnosticsBuildEnabled &&
         const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
         const String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE') ==
             'clone' &&

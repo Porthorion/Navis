@@ -21,11 +21,13 @@ import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/providers/provider_retry.dart';
+import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/android_diagnostics_startup.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/clone_diagnostics_path_provider.dart';
 import 'package:navis/src/utils/credential_redaction.dart';
+import 'package:navis/src/utils/diagnostics_build_gate.dart';
 import 'package:navis/src/utils/diagnostics_presentation_controller.dart';
 import 'package:navis/src/utils/diagnostics_provider_counter.dart';
 import 'package:navis/src/utils/notifications/notification_bootstrap.dart';
@@ -59,13 +61,15 @@ Future<void> _runNavis() async {
   registerBundledLicenses();
   // Before anything resolves a directory: a desktop clone runs as the same OS
   // user as the real app, so its platform directories would be the real
-  // profile's. (An Android sidecar is its own package with its own storage.)
-  final desktopClone =
+  // profile's. An iOS simulator app is a host process too and shares the
+  // host's file system, so it keeps its state and handshake under the same
+  // root. (An Android sidecar is its own package with its own storage.)
+  final hostClone =
       _syncDiagnosticsRequested &&
       _syncDiagnosticsMode == SyncDiagnosticsMode.clone &&
       _syncDiagnosticsRoot.isNotEmpty &&
-      _isDesktopRuntime;
-  if (desktopClone) {
+      (_isDesktopRuntime || (_isIosRuntime && diagnosticsBuildEnabled));
+  if (hostClone) {
     PathProviderPlatform.instance = CloneDiagnosticsPathProvider(
       root: _syncDiagnosticsRoot,
       platform: PathProviderPlatform.instance,
@@ -75,9 +79,7 @@ Future<void> _runNavis() async {
   AppLogger.startup(StartupEvent.processStart, outcome: StartupOutcome.cold);
   _initializeDesktopAudioBackend();
   if (_isDesktopRuntime) {
-    unawaited(
-      UpdateService.cleanupStaledUpdates(skipBundleBackup: desktopClone),
-    );
+    unawaited(UpdateService.cleanupStaledUpdates(skipBundleBackup: hostClone));
   }
   if (_syncDiagnosticsRuntimeEnabled &&
       _isAndroidRuntime &&
@@ -145,11 +147,20 @@ Future<void> _runNavis() async {
         onBootstrapOverlayDismissed: diagnosticsPresentation?.markAppReady,
       ),
     );
+    if (kDebugMode && _syncDiagnosticsRuntimeEnabled) {
+      // iOS simulator diagnostics run only (the one debug build with
+      // diagnostics): the router's providers first mount inside
+      // NavisApp.build, where their listeners can publish state as soon as
+      // the session config resolves, and debug asserts on that. Mount them
+      // before the first build. Other debug builds keep their startup; the
+      // underlying race is tracked in docs/plans/iOS_Parity_Plan.md (I0).
+      rootContainer.read(appRouterProvider);
+    }
     runApp(diagnosticsPresentation?.wrap(app) ?? app);
     // A macOS updater script waits for this: only a first frame after a
     // successful desktop bootstrap (database and settings opened) proves the
     // new app got past startup.
-    if (_isDesktopRuntime && !desktopClone && desktopBootstrap != null) {
+    if (_isDesktopRuntime && !hostClone && desktopBootstrap != null) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => unawaited(UpdateService.confirmMacosLaunch()),
       );
@@ -359,7 +370,7 @@ NavisDatabase? _openDiagnosticsDatabase() {
   }
   if (!_syncDiagnosticsRuntimeEnabled) {
     throw StateError(
-      'Sync diagnostics require a supported profile build and a valid mode.',
+      'Sync diagnostics require a supported build and a valid mode.',
     );
   }
   if (_syncDiagnosticsMode == SyncDiagnosticsMode.primaryCertification) {
@@ -492,6 +503,8 @@ bool get _isMobileRuntime => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
 bool get _isAndroidRuntime => !kIsWeb && Platform.isAndroid;
 
+bool get _isIosRuntime => !kIsWeb && Platform.isIOS;
+
 Future<void> _unlockMobileOrientations() async {
   if (!_isMobileRuntime) {
     return;
@@ -540,12 +553,13 @@ SyncDiagnosticsMode? get _syncDiagnosticsMode =>
 
 bool get _syncDiagnosticsRuntimeEnabled =>
     _syncDiagnosticsRequested &&
-    kProfileMode &&
+    diagnosticsBuildEnabled &&
     !kIsWeb &&
     (Platform.isLinux ||
         Platform.isWindows ||
         Platform.isAndroid ||
-        Platform.isMacOS) &&
+        Platform.isMacOS ||
+        Platform.isIOS) &&
     _syncDiagnosticsMode != null;
 
 bool get _isCloneBootstrapFailureDiagnostics =>

@@ -59,6 +59,7 @@ import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
 import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/diagnostics_build_gate.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/genre_key.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -3288,7 +3289,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> customAction(String name, [Map<String, dynamic>? extras]) {
-    if (kProfileMode &&
+    if (diagnosticsBuildEnabled &&
         const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
         const String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE') ==
             'clone' &&
