@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meta/meta.dart';
@@ -331,7 +331,8 @@ void main() {
           );
           run.container.read(searchQueryProvider.notifier).submit('Hello');
           await _waitForEmissions(run.emissions, 2);
-          // The artist ranks first at Deezer, but only the song is named Hello.
+          // The artist ranks first at Deezer, but only the song is named Hello;
+          // an unrelated artist is not a tile for it.
           expect(
             run.emissions.last.topResults.map(
               (top) => switch (top) {
@@ -340,13 +341,18 @@ void main() {
                 TopSongResult(:final song) => 'song:${song.id}',
               },
             ),
-            <String>['song:adele', 'artist:band'],
+            <String>['song:adele'],
           );
         },
       );
 
       test('All keeps one song, a Songs filter keeps up to three', () async {
         if (!sqliteAvailable) return;
+        // This test starts Search more than once, each with its own database.
+        driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+        addTearDown(
+          () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+        );
         final tracks = [
           adeleHello,
           DeezerTrack(
@@ -472,6 +478,11 @@ void main() {
         'the switch off, the service off or Online services off send nothing',
         () async {
           if (!sqliteAvailable) return;
+          // This test starts Search more than once, each with its own database.
+          driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+          addTearDown(
+            () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = false,
+          );
           for (final policy in <IntegrationPolicy>[
             const IntegrationPolicy(disabledKeys: {'deezer.searchRanking'}),
             const IntegrationPolicy(disabledKeys: {'deezer'}),
