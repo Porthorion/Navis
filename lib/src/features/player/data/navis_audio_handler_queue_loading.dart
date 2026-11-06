@@ -1981,7 +1981,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     bool expandMatchFlows = true,
   }) async {
     final expansion = await _expandMatchFlowIds(
-      songIds,
+      songIds.map(_canonicalSongId).toList(growable: false),
       startIndex: startIndex,
       expandMatchFlows: expandMatchFlows,
     );

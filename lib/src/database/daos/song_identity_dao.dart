@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
@@ -19,6 +20,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/tables/scrobble_queue_table.dart';
 import 'package:navis/src/database/tables/songs_table.dart';
 import 'package:navis/src/database/tables/star_sync_queue_table.dart';
+import 'package:navis/src/utils/metadata_normalization.dart';
 
 part 'song_identity_dao.g.dart';
 
@@ -98,6 +100,61 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
             table.serverDeletedAt.isNotNull(),
       );
     return query.get();
+  }
+
+  /// External provisional rows among [ids] (remote catalog copies).
+  Future<List<SongsTableData>> getExternalProvisionalSongs(
+    Iterable<String> ids,
+  ) async {
+    final rows = await customSelect(
+      'SELECT * FROM songs WHERE id IN (SELECT value FROM json_each(?)) '
+      'AND is_external = 1 AND is_provisional = 1',
+      variables: [Variable<String>(jsonEncode(ids.toSet().toList()))],
+      readsFrom: {songsTable},
+    ).get();
+    return [for (final row in rows) songsTable.map(row.data)];
+  }
+
+  /// The recorded song aliases (old id to library id) for [oldIds].
+  Future<Map<String, String>> getAliasesFor(Iterable<String> oldIds) async {
+    final rows = await customSelect(
+      "SELECT old_id, new_id FROM entity_identity_aliases "
+      "WHERE entity_type = 'song' "
+      'AND old_id IN (SELECT value FROM json_each(?))',
+      variables: [Variable<String>(jsonEncode(oldIds.toSet().toList()))],
+      readsFrom: {entityIdentityAliasTable},
+    ).get();
+    return {
+      for (final row in rows)
+        row.read<String>('old_id'): row.read<String>('new_id'),
+    };
+  }
+
+  /// Present library rows whose indexed match title (`normalizeMetadata`
+  /// form: case, accent and punctuation folded) equals one of [titles]'s, the
+  /// candidates for relinking remote copies of the same track. One indexed
+  /// lookup on `song_search_text.match_title`; the reconciler's own key still
+  /// decides.
+  // ponytail: rows the search index has not covered yet are not candidates
+  // (a miss until the index refresh or the next full promotion), and
+  // match_title drops round-bracket qualifiers but keeps square ones, so
+  // "Song (Live)" never meets "Song [Live]". Both are misses, never false
+  // merges. Upgrade: LibraryDao.getTrackMatchCandidates (full scans).
+  Future<List<SongsTableData>> getLibrarySongsByMatchTitle(
+    Iterable<String> titles,
+  ) async {
+    final keys = {for (final title in titles) normalizeMetadata(title)}
+      ..remove('');
+    if (keys.isEmpty) return const <SongsTableData>[];
+    final rows = await customSelect(
+      'SELECT * FROM songs WHERE id IN (SELECT song_id FROM song_search_text '
+      'WHERE match_title IN (SELECT value FROM json_each(?))) '
+      'AND is_external = 0 AND is_provisional = 0 '
+      'AND server_deleted_at IS NULL',
+      variables: [Variable<String>(jsonEncode(keys.toList()))],
+      readsFrom: {songsTable, attachedDatabase.songSearchTextTable},
+    ).get();
+    return [for (final row in rows) songsTable.map(row.data)];
   }
 
   Future<List<SongIdentityAlias>> getAliases() => _songAliases().get();
