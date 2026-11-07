@@ -93,6 +93,27 @@ jobs:
           flutter test --total-shards 4 --shard-index ${{ matrix.shard }} 2>&1 | tee "$RUNNER_TEMP/test.log"
           assert_no_test_failures "$RUNNER_TEMP/test.log"
 
+  regen-goldens:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+      - run: ./tool/bootstrap.sh
+      - run: flutter test --update-goldens || true
+      - shell: bash
+        run: |
+          mkdir -p out
+          git ls-files -m -o --exclude-standard | grep '\.png$' | tee out/list.txt | xargs -r cp --parents -t out
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: goldens
+          path: out
+
   native:
     runs-on: ubuntu-latest
     timeout-minutes: 15
