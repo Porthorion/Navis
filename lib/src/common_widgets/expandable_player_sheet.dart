@@ -208,8 +208,9 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   void _handleDragEnd(DragEndDetails details) {
     // A release between the edges settles the sheet, which feels like the end
     // of a gesture; one that never left an edge has nothing to settle.
-    if (_controller.value > 0 && _controller.value < 1)
+    if (_controller.value > 0 && _controller.value < 1) {
       NavisHaptics.dragEnd(HapticCategory.playerGestures);
+    }
     final velocity = details.primaryVelocity ?? 0;
     final absVelocity = velocity.abs();
 

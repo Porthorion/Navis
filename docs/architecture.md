@@ -1890,11 +1890,16 @@ Framework haptics bypass `NavisHaptics`, so they are switched off at the source:
 variants do it once for all their callers, so callers pass their callback
 through unwrapped). `NavisTheme` sets `TooltipThemeData(enableFeedback: false)`:
 the tooltip long-press vibration is off app-wide. `enableFeedback: false` also
-drops the Android touch sound on those tiles. A source guard test keeps
-`HapticFeedback.` out of `lib/` except `navis_haptics.dart` and the ruler.
-Outside Navis haptics: text-selection handles, the date and time picker, and on
-iOS only the `CupertinoSwitch` that `.adaptive` switches become (it plays its
-own light impact).
+drops the Android touch sound on those tiles. Source guard tests keep
+`HapticFeedback.` out of `lib/` except `navis_haptics.dart` and the ruler, and
+fail when an `InkWell`, `InkResponse` or `ListTile` in `lib/` sets `onLongPress`
+without `enableFeedback: false`.
+
+Known limits: framework haptics that Navis cannot reach still vibrate with the
+master switch off on Android: Flutter's own time-picker vibration (the night
+schedule) and the text-field long-press selection (and its handles). On iOS the
+`CupertinoSwitch` that `.adaptive` switches become plays its own light impact.
+The Android touch sound is dropped on tiles with a long press.
 
 | Action | Category | Helper | Android constant (API) | Fallback | Where |
 |---|---|---|---|---|---|
