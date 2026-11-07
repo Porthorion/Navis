@@ -178,6 +178,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'iOS and macOS: Navis now explains why it asks for local network '
+        'access when your server is on your home network',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'macOS: the licences screen lists the bundled libmpv and FFmpeg '
         'libraries',
         type: ChangelogEntryType.improvement,
