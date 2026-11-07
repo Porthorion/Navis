@@ -130,6 +130,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'iOS: a launch where the app cannot update its saved download '
+        'locations no longer re-downloads finished songs, and moving a '
+        'download between volumes no longer leaves a half-written file in '
+        'the Downloads folder',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Large text sizes: Now Playing, the mini player and Settings stay '
         'usable at the largest accessibility size, with bigger buttons and '
         'dropdowns that no longer overflow; the Appearance blinking icon stops '

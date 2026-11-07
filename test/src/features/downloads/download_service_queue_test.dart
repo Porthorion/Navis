@@ -1523,6 +1523,81 @@ void main() {
     }, skip: !sqliteAvailable);
   }
 
+  for (final unverified in [true, false]) {
+    test('unpaused startup ${unverified ? 'holds' : 'recovers'} journaled '
+        'downloads when rebase failed=$unverified', () async {
+      await addSongs(2);
+      final journals = <int, String>{};
+      for (final (i, status) in [
+        DownloadStatus.downloading,
+        DownloadStatus.queued,
+      ].indexed) {
+        final id = await database.downloadQueueDao.enqueue(
+          DownloadQueueTableCompanion.insert(
+            songId: Value('song-$i'),
+            status: status,
+            addedAt: DateTime(2026, 1, i + 1),
+          ),
+        );
+        // A stale (pre-rebase) path: no file there, though the download is
+        // whole.
+        journals[id] = jsonEncode({
+          'phase': 'published',
+          'path': p.join(supportDir.path, 'audio', 'permanent', 'stale$i.mp3'),
+          'size': 4,
+          'sha256': sha256.convert([1, 2, 3, 4]).toString(),
+          'format': 'mp3',
+          'bitRate': 192,
+        });
+        await database.downloadQueueDao.writeFinishJournal(id, journals[id]);
+      }
+      database.containerRebaseFailed = unverified;
+      server.releaseAll();
+      final service = buildService();
+      await service.start();
+      await service.processQueuedDownloads();
+      if (unverified) {
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        final rows = await queue();
+        expect(rows, hasLength(2));
+        for (final row in rows) {
+          expect(row.finishJournal, journals[row.id]);
+          expect(row.status, isNot(DownloadStatus.failed));
+        }
+        expect(server.requests, isEmpty);
+        expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+        expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
+      } else {
+        await waitUntil(() => server.requests.isNotEmpty);
+      }
+    }, skip: !sqliteAvailable);
+  }
+
+  test(
+    'unpaused startup requeues an interrupted transfer when rebase failed',
+    () async {
+      await addSongs(1);
+      final id = await database.downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: const Value('song-0'),
+          status: DownloadStatus.downloading,
+          addedAt: DateTime(2026),
+        ),
+      );
+      await database.downloadQueueDao.writeFinishJournal(
+        id,
+        jsonEncode({'phase': 'transferring', 'partPath': 'stale.navis-part'}),
+      );
+      database.containerRebaseFailed = true;
+      server.releaseAll();
+      final service = buildService();
+      await service.start();
+      await service.processQueuedDownloads();
+      await waitUntil(() => server.requests.isNotEmpty);
+    },
+    skip: !sqliteAvailable,
+  );
+
   for (final phase in ['verified', 'published']) {
     for (final saf in [false, true]) {
       test(
