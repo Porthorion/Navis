@@ -31,6 +31,7 @@ chmod 700 "$OUTPUT_ROOT"
 FLUTTER_PID=0
 FIXTURE_PID=0
 FIXTURE_PORT=''
+FIXTURE_HOST='127.0.0.1'
 TOKEN=''
 BASE_URL=''
 APP_LOG=''
@@ -152,10 +153,10 @@ api POST /v1/diagnostics/overrides \
   '{"networkType":"wifi","nativeMetered":false}' >/dev/null
 api POST /v1/session/connect "$(python3 -c '
 import json, sys
-print(json.dumps({"url": f"http://127.0.0.1:{sys.argv[1]}",
+print(json.dumps({"url": f"http://{sys.argv[3]}:{sys.argv[1]}",
                   "username": "diagnostics",
                   "password": open(sys.argv[2]).read().strip()}))' \
-  "$FIXTURE_PORT" "$CREDENTIAL_FILE")" > "$OUTPUT_ROOT/connect.json"
+  "$FIXTURE_PORT" "$CREDENTIAL_FILE" "$FIXTURE_HOST")" > "$OUTPUT_ROOT/connect.json"
 wait_for /v1/session/status 'v.get("phase") == "ready"' \
   "$OUTPUT_ROOT/session-ready.json" 300
 api POST /v1/presentation/onboarding/complete '{}' >/dev/null || true

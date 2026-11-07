@@ -208,7 +208,8 @@ Checks performed:
 - Windows SQLite asset verification (`tool/sqlite3_windows_asset_test.py`)
 - Diagnostics profile preparation (`tool/diagnostics_profile_test.py`): an
   isolated clone, including one from a profile older than schema 91, starts
-  with Online services off
+  with Online services off; the default primary database is the Linux or
+  macOS application-support path
 - Dart formatting (`./tool/dart_format.sh --check`): `lib/`, `test/`,
   `tool/` and the vendored `third_party/` path dependencies, which the root
   package config resolves to their own language versions; CargoKit is
@@ -810,8 +811,9 @@ selects `-d macos` on Darwin for its launchers, `tool/sync_diagnostics.sh` and
 `app-sandbox`, like the notarized app), so the clone root and handshake under
 `build/` are writable. The PulseAudio capture launcher (`launch_audio_app`)
 exits 69 on Darwin. On a Mac, set `NAVIS_DIAGNOSTICS_PRIMARY_DB` for
-`sync_diagnostics.sh` and `presentation_diagnostics.sh` (the default is the
-Linux data path), pass a mode-600 `NAVIS_DIAGNOSTICS_CREDENTIAL_PATH`
+`sync_diagnostics.sh` and `presentation_diagnostics.sh` only to use a database
+other than the default `~/Library/Application Support/com.navis.app.navis/navis.sqlite.sqlite`
+(`tool/diagnostics_profile.py` picks it on Darwin), pass a mode-600 `NAVIS_DIAGNOSTICS_CREDENTIAL_PATH`
 file to sign the clone in (the clone keeps credentials in memory, so it never
 reads the keychain), run the scripts with Homebrew bash 4+ rather than the
 system bash 3.2, and expect the first cold `flutter run -d macos` build to
@@ -839,7 +841,10 @@ redirected `path_provider` directories) and the host script reads the port and
 token from the handshake file as usual. The clone has no separate bundle id on
 iOS (the Xcode project has one); a fresh simulator install is isolated from the
 user's data, and the scripts clone the *host* primary database into the run
-root. The first cold `flutter run` to a simulator can take 7 minutes; the
+root. The scripts do not discover the simulator app's own database; to clone it,
+set `NAVIS_DIAGNOSTICS_PRIMARY_DB="$(xcrun simctl get_app_container booted com.navis.app.navis data)/Library/Application Support/navis.sqlite.sqlite"`
+(iOS keeps the file directly in Application Support, with no bundle-id
+subdirectory, per `lib/src/database/database_location.dart`). The first cold `flutter run` to a simulator can take 7 minutes; the
 `launch_app` in `tool/lib/diagnostics.sh` waits 600 seconds and, for iOS,
 fails fast when the app throws before the handshake instead of waiting out
 `flutter run`, which stays alive on a white screen; the older `launch()` helper

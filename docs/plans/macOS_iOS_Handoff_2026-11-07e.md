@@ -41,14 +41,15 @@ Ledger: [iOS_Parity_Plan.md](iOS_Parity_Plan.md) (update its rows).
 4. I18 deferrals (ledger row): 44 pt below 340 dp rows (iPhone SE/mini keep
    40 pt), album link 37 pt at 2x, Android 48 dp, unlocalised Playback
    settings strings ("Saving changes…", "Changes save automatically").
-5. Small findings to triage (unchanged): `tool/sync_diagnostics.sh` pre-run
-   DB summary crash on macOS (`no such table: song_identity_aliases`); two
-   `ping.view` errors at startup; end-of-sync state `partial`; do the
-   diagnostics scripts find the iOS database in Application Support?
+5. Small findings to triage: `tool/sync_diagnostics.sh` pre-run
+   DB summary crash on macOS (`no such table: song_identity_aliases`) fixed on
+   branch `tooling-diagnostics-ios-macos` (PR pending); two
+   `ping.view` errors at startup; end-of-sync state `partial`; the diagnostics
+   scripts did not find the iOS or macOS database (macOS default added, iOS
+   simulator documented as an override; PR pending).
    Follow-ups from #350: failed-rebase retry of finished journals
    re-downloads instead of re-registering; copy fallback writes straight to
-   final paths. Fixture handshake reports only a port, so `--bind` runs need a
-   hand-built URL.
+   final paths. Fixture handshake now reports `host` too (PR pending).
 
 ## Owner actions and questions (ask in one batch)
 

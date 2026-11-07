@@ -203,7 +203,9 @@ summary = {
         ),
         "downloadQueue": count("SELECT COUNT(*) FROM download_queue"),
     },
-    "aliases": count("SELECT COUNT(*) FROM song_identity_aliases"),
+    "aliases": count(
+        "SELECT COUNT(*) FROM entity_identity_aliases WHERE entity_type = 'song'"
+    ),
 }
 cache_root = sys.argv[3]
 if cache_root:
@@ -492,7 +494,10 @@ with open(path, 'wb') as output:
     output.write(b'isolated cache identity migration probe')
 db.execute('DELETE FROM cached_tracks WHERE song_id = ?', (remote_id,))
 db.execute('DELETE FROM songs WHERE id = ?', (remote_id,))
-db.execute('DELETE FROM song_identity_aliases WHERE old_song_id = ?', (remote_id,))
+db.execute(
+    "DELETE FROM entity_identity_aliases WHERE entity_type = 'song' AND old_id = ?",
+    (remote_id,),
+)
 db.execute('DELETE FROM albums WHERE id = ?', (remote_album_id,))
 db.execute('DELETE FROM artists WHERE id = ?', (remote_artist_id,))
 db.execute('''
@@ -542,7 +547,8 @@ db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
 result = json.load(open(sys.argv[2], encoding='utf-8'))
 remote_id = 'navis-diagnostics-provisional-cache-alias'
 alias = db.execute(
-    'SELECT canonical_song_id FROM song_identity_aliases WHERE old_song_id = ?',
+    "SELECT new_id FROM entity_identity_aliases "
+    "WHERE entity_type = 'song' AND old_id = ?",
     (remote_id,),
 ).fetchone()
 remote_cache_count = db.execute(
