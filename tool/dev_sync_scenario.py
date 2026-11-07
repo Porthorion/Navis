@@ -68,7 +68,7 @@ RESET_TABLES = (
     "external_lyrics_cache",
     "listenbrainz_weekly_cache",
     "network_usage",
-    "song_identity_aliases",
+    "entity_identity_aliases",
     "cached_tracks",
     "songs",
     "albums",

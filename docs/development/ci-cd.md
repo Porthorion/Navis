@@ -30,11 +30,15 @@ app-support state such as the What's New marker under `<root>/support/`, where
 desktop clone builds keep it (see `docs/development/development-workflow.md`).
 
 Diagnostics database defaults are shared through `tool/diagnostics_profile.py`:
-Linux application support first, the Documents file only as an existing legacy
-fallback, with `NAVIS_DIAGNOSTICS_PRIMARY_DB` retaining clone overrides.
+application support first (Linux `~/.local/share/com.navis.app.navis/`, macOS
+`~/Library/Application Support/com.navis.app.navis/`), the Documents file only
+as an existing legacy fallback, with `NAVIS_DIAGNOSTICS_PRIMARY_DB` retaining clone overrides.
 Run `python3 -m unittest tool/dev_sync_scenario_test.py tool/diagnostics_profile_test.py`
 for path selection, shell-launcher defaults and scenario preparation without
 launching the app. Primary certification keeps its normal-path restriction.
+`tool/auth_lifecycle_fixture_server.py` writes `host` (the `--bind` address, or
+`127.0.0.1` for a wildcard bind) beside `port` in its handshake; the launchers
+that sign a clone in to the fixture use it, defaulting to `127.0.0.1`.
 
 Artist queue changes additionally verify early playback and background queue
 growth without a modal using `python3 tool/artist_playback_diagnostics.py`.

@@ -545,6 +545,8 @@ def main():
     with open(args.handshake, "w", encoding="utf-8") as output:
         json.dump(
             {
+                # A wildcard bind is reachable, and best addressed, via loopback.
+                "host": "127.0.0.1" if args.bind in ("", "0.0.0.0", "::") else args.bind,
                 "port": server.server_port,
                 "indexesLastModified": INDEX_LAST_MODIFIED,
             },

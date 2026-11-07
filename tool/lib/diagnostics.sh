@@ -189,7 +189,7 @@ shutdown_app() {
 
 # start_fixture <fixture-password> [extra-server-args...]
 # Uses PROJECT_DIR, OUTPUT_ROOT, CREDENTIAL_FILE, FIXTURE_HANDSHAKE, FIXTURE_LOG;
-# sets FIXTURE_PID and FIXTURE_PORT. Auth lifecycle keeps its different startup local.
+# sets FIXTURE_PID, FIXTURE_HOST and FIXTURE_PORT. Auth lifecycle keeps its different startup local.
 start_fixture() {
   local password="$1"
   shift
@@ -210,6 +210,9 @@ start_fixture() {
   [[ -s "$FIXTURE_HANDSHAKE" ]] || fail "fixture server did not start"
   FIXTURE_PORT="$(python3 -c \
     'import json,sys; print(json.load(open(sys.argv[1]))["port"])' \
+    "$FIXTURE_HANDSHAKE")"
+  FIXTURE_HOST="$(python3 -c \
+    'import json,sys; print(json.load(open(sys.argv[1])).get("host", "127.0.0.1"))' \
     "$FIXTURE_HANDSHAKE")"
 }
 
