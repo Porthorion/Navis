@@ -398,8 +398,14 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Whether the active deck's last boost message was a guarded one.
   bool _boostGuardedNow = false;
 
-  /// When the native boost state was last read for the status report.
-  DateTime? _boostStateReadAt;
+  /// The last index the boost guard saw an index event for.
+  int? _boostIndexSeen;
+
+  /// After a seek, until this time on [_boostClock], the heard deck's boost
+  /// may only go down: the seek may switch songs, and the old song's value must
+  /// not reach the new song's head before the index event says so.
+  Duration? _boostLowerOnlyUntil;
+  final Stopwatch _boostClock = Stopwatch()..start();
 
   /// The ReplayGain mode of the last settings pass, so only a change of it
   /// drops the frozen Smart decisions.
@@ -2533,7 +2539,8 @@ class NavisAudioHandler extends BaseAudioHandler
       _appliedReplayGainMode = runtime.replayGainMode;
       _smartNeighbours.clear();
     }
-    _resetBoostGuard();
+    // The boost guard's latch stays: inside the window a settings pass (or the
+    // speed it puts back) may only lower the boost until the next song starts.
     _applyReplayGainVolume();
 
     if (equalizerCapabilities.supported) {
@@ -3225,10 +3232,14 @@ class NavisAudioHandler extends BaseAudioHandler
   @visibleForTesting
   AudioPlayer? get debugInactiveDeck => _crossfadePlayer;
 
-  /// Reads the Android boost guard for [deck] as the handler would send it.
   @visibleForTesting
   Future<void> debugRebuildPlayerWithoutEqualizer() =>
       _rebuildPlayerWithoutEqualizer();
+
+  /// The index [deck] plays after its current song, as the boost guard reads it.
+  @visibleForTesting
+  int? debugNextEffectiveIndexOf(AudioPlayer deck) =>
+      _nextEffectiveIndexOf(deck);
 
   /// Sends [deck] its ReplayGain boost as the handler does.
   @visibleForTesting

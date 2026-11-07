@@ -270,21 +270,82 @@ class Run:
         self.phase = 'crossfade-teardown'
         self.restart(lambda db: db.execute('UPDATE app_settings SET crossfade_enabled=0'))
 
-        self.phase = 'lossy'
-        self.post('/v1/playback/quality', {'wifi': {'maxBitRate': 96, 'format': 'opus'},
-                                           'cellular': {'maxBitRate': 96, 'format': 'opus'}})
-        self.queue([QL, H1])
-        self.play_from(2000)
-        time.sleep(12)
-        self.join(seconds_after=4)
-        self.post('/v1/playback/quality', {'wifi': {'maxBitRate': 128, 'format': 'mp3'},
-                                           'cellular': {'maxBitRate': 128, 'format': 'mp3'}})
-        self.queue([QL, H1])
-        self.play_from(2000)
-        time.sleep(12)
-        self.join(seconds_after=4)
+        for codec, quality in (('opus', {'maxBitRate': 96, 'format': 'opus'}),
+                               ('mp3', {'maxBitRate': 128, 'format': 'mp3'})):
+            self.phase = f'lossy-{codec}'
+            self.post('/v1/playback/quality', {'wifi': quality, 'cellular': quality})
+            self.queue([QL, H1])
+            self.play_from(2000)
+            time.sleep(12)
+            self.join(seconds_after=4)
+        self.a2()
         self.phase = 'done'
         (self.out / 'a1-final.json').write_text(json.dumps(self.status(), indent=2))
+
+    def a2(self):
+        """A2: song switches and queue edits around a boosted Q: nothing may reach the processor
+        above the playing song's own boost, whichever command moved the index."""
+        long_queue = [H1, H2, H1, Q1, H2, Q2, H1]
+        self.phase = 'a2-skip'
+        self.queue([Q1, H1, Q2, H2], repeat='all')
+        self.play_from(10000)
+        time.sleep(2.5)
+        self.post('/v1/playback/next')
+        time.sleep(3)
+        self.post('/v1/playback/next')
+        time.sleep(3)
+
+        self.phase = 'a2-skip-at-the-end'
+        self.play_from(26500)
+        time.sleep(.5)
+        self.post('/v1/playback/next')
+        time.sleep(3)
+
+        self.phase = 'a2-jump'
+        self.queue([Q1, H1, Q2, H2], repeat='all')
+        self.play_from(26500)
+        time.sleep(.5)
+        self.post('/v1/playback/queue-index', {'index': 1})
+        time.sleep(3)
+        self.post('/v1/playback/queue-index', {'index': 2})
+        time.sleep(3)
+
+        self.phase = 'a2-remove-current'
+        self.queue([Q1, H1, Q2, H2])
+        self.play_from(26500)
+        time.sleep(.5)
+        self.post('/v1/playback/queue-edit', {'op': 'remove', 'index': 0})
+        time.sleep(4)
+        self.queue([Q1, H1, Q2, H2])
+        self.play_from(10000)
+        time.sleep(1)
+        self.post('/v1/playback/queue-edit', {'op': 'remove', 'index': 0})
+        time.sleep(3)
+
+        self.phase = 'a2-edit-above'
+        for position in (10000, 26500):
+            self.queue(long_queue)
+            self.post('/v1/playback/queue-index', {'index': 3})
+            self.play_from(position)
+            time.sleep(.6)
+            for _ in range(3):
+                self.post('/v1/playback/queue-edit', {'op': 'remove', 'index': 0})
+                time.sleep(.3)
+            time.sleep(4)
+        self.queue(long_queue)
+        self.post('/v1/playback/queue-index', {'index': 3})
+        self.play_from(10000)
+        self.post('/v1/playback/queue-edit', {'op': 'move', 'from': 0, 'to': 6})
+        time.sleep(3)
+
+        self.phase = 'a2-speed'
+        self.queue([Q1, H1])
+        self.post('/v1/playback/adjustments', {'speed': 2})
+        self.play_from(24000)  # 6 s of song left: 3 s of wall clock, inside the window
+        time.sleep(.8)
+        self.post('/v1/playback/adjustments', {'speed': 1})
+        time.sleep(4)
+        self.post('/v1/playback/adjustments', {'speed': 1})
 
 
 def main():

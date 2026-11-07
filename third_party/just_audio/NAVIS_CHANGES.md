@@ -286,3 +286,7 @@ while the last message was guarded, before any `concatenating*` edit,
 boost to the requested one without clearing it. Dart's `setReplayGainBoost` no
 longer skips an unchanged message that has no per-URI map, because native
 lowering makes an equal value new again.
+
+`AudioPlayer.sequenceEditInFlight` exposes whether a playlist edit's platform
+call is still running, so a caller can tell that `sequence` is already the
+edited list while `currentIndex` still counts the old one.

@@ -95,7 +95,7 @@ class TranscodeLibrary:
         for artist in self.artists.values():
             artist['songCount'] = sum(len(self.album_songs[i]) for i, album in self.albums.items() if album['artistId'] == artist['id'])
 
-    # ReplayGain boost fixtures (item V): Q is a quiet -30 dBFS sine tagged
+    # ReplayGain boost fixtures (item V; lavfi's sine peaks at 1/8, hence the x8): Q is a quiet -30 dBFS sine tagged
     # +10 dB with its peak (boost 10 dB), H is a hot -1 dBFS sine tagged -3 dB
     # (boost 0). Queue Q, H, Q, H to hear boosted and cut songs join.
     REPLAY_GAIN_LEVELS = {
@@ -117,7 +117,7 @@ class TranscodeLibrary:
                 temporary = path.with_suffix('.tmp.flac')
                 subprocess.run([
                     'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi',
-                    '-i', f'sine=f=440:d={seconds}:r=44100', '-af', f'volume={peak}', '-ac', '1',
+                    '-i', f'sine=f=440:d={seconds}:r=44100', '-af', f'volume={peak * 8}', '-ac', '1',
                     '-c:a', 'flac', str(temporary)], check=True)
                 temporary.rename(path)
             self._add_song(song_id, f'Level {kind.upper()} {track}', artist_id, album_id, track, seconds,

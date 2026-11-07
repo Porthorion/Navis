@@ -80,14 +80,17 @@ const replayGainBoostGuardWindowMs = 3000;
 /// Whether a boost computed for the playing song may already reach the next
 /// song's samples. True in the last [windowMs] of wall-clock time (media time
 /// divided by [speed]), for songs shorter than the window plus 1 s (guarded
-/// from their start), and when the timing is unknown.
+/// from their start), when the timing is unknown, and once a [latched] value
+/// exists: a song stays guarded until its next start or seek, so a speed drop
+/// cannot widen the window back over samples already ahead of the speaker.
 bool replayGainBoostGuarded({
   required int? remainingMs,
   required double speed,
   required int? songDurationMs,
+  bool latched = false,
   int windowMs = replayGainBoostGuardWindowMs,
 }) {
-  if (remainingMs == null || songDurationMs == null) return true;
+  if (latched || remainingMs == null || songDurationMs == null) return true;
   if (songDurationMs < windowMs + 1000) return true;
   return remainingMs / (speed > 0 ? speed : 1) <= windowMs;
 }
@@ -110,6 +113,7 @@ double guardedBoostDb({
     remainingMs: remainingMs,
     speed: speed,
     songDurationMs: songDurationMs,
+    latched: latchedDb != null,
     windowMs: windowMs,
   )) {
     return ownDb;

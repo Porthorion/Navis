@@ -383,6 +383,10 @@ class AudioPlayer {
   /// is in flight an event with the previous event's index still describes
   /// the previous event's item, not whatever now sits at that index.
   int _sequenceEditsInFlight = 0;
+
+  /// Whether a playlist edit's platform call is still running. [sequence] is
+  /// already the edited list while [currentIndex] still counts the old one.
+  bool get sequenceEditInFlight => _sequenceEditsInFlight > 0;
   IndexedAudioSource? _lastEventSource;
   int? _lastEventIndex;
 

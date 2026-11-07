@@ -505,8 +505,19 @@ void main() {
       expect(guarded(next: 12, latched: 6), 6);
     });
 
-    test('the latch is not applied outside the window', () {
-      expect(guarded(remaining: 10000, latched: 1), 8);
+    test('a latched song stays guarded after the window closes', () {
+      // A speed drop moves the window; samples already ahead are unchanged.
+      expect(guarded(remaining: 10000, latched: 1), 1);
+      expect(guarded(remaining: 10000, latched: 5), 3);
+      expect(
+        replayGainBoostGuarded(
+          remainingMs: 10000,
+          speed: 1,
+          songDurationMs: 180000,
+          latched: true,
+        ),
+        isTrue,
+      );
     });
 
     test('a short song is guarded from its start', () {
