@@ -137,6 +137,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'Songs from Deezer now show the greyed-out heart in Search and in '
+        'Artist top tracks on desktop, the same as everywhere else',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Songs from Deezer can no longer be liked (their heart is greyed '
         'out); likes of them that were never sent to your server move to '
         'your library copy when there is one. Liked songs now download from '

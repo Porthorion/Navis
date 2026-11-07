@@ -66,7 +66,8 @@ class _ActionRowState extends ConsumerState<_ActionRow>
     final colorScheme = Theme.of(context).colorScheme;
 
     final isRemote =
-        widget.songId != null && !isServerAddressableSongId(widget.songId!);
+        widget.songId != null &&
+        isRemoteSong(id: widget.songId!, isExternal: widget.song?.isExternal);
 
     final actionButtons = <Widget>[
       _NowPlayingActionButton(
