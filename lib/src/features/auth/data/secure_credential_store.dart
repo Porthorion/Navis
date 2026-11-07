@@ -37,12 +37,16 @@ const macOsLoginKeychain = MacOsOptions(
 
 /// iOS keychain for the credential `FlutterSecureStorage`s. The plugin's
 /// default accessibility (`unlocked`) makes background playback on a locked
-/// phone fail to read the session and scrobble keys; `first_unlock` does not.
-/// The service name is Navis's own, as on macOS. `iOptions` only affects iOS.
-/// No migration: Navis has never shipped on iOS, so no items exist under the
-/// old attributes.
+/// phone fail to read the session and scrobble keys; `first_unlock_this_device`
+/// keeps that background read working after the first unlock, and the items
+/// never move to another device through backups, as on Android (backup and
+/// device transfer excluded). The service name is Navis's own, as on macOS.
+/// `iOptions` only affects iOS.
+/// No migration code: Navis has never shipped on iOS. Dev installs holding
+/// `first_unlock` items still read them (the plugin falls back across
+/// accessibility levels) and rewrite them as this-device on the next write.
 const iosKeychain = IOSOptions(
-  accessibility: KeychainAccessibility.first_unlock,
+  accessibility: KeychainAccessibility.first_unlock_this_device,
   accountName: 'com.navis.app.navis',
 );
 

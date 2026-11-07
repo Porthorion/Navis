@@ -63,7 +63,7 @@ void main() {
     'iosKeychain is readable after first unlock under the Navis service',
     () {
       final map = iosKeychain.toMap();
-      expect(map['accessibility'], 'first_unlock');
+      expect(map['accessibility'], 'first_unlock_this_device');
       expect(map['accountName'], 'com.navis.app.navis');
       expect(IOSOptions.defaultOptions.toMap()['accessibility'], 'unlocked');
     },
