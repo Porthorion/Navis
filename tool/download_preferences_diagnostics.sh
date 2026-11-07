@@ -293,10 +293,11 @@ if find "$OUTPUT_ROOT/cache" -maxdepth 1 -name 'navis_cover_art_cache*' | grep -
   fail "the cover art cache was not cleared"
 fi
 launch_app offline
-api GET /v1/downloads/status > "$OUTPUT_ROOT/offline-status.json"
-check "$OUTPUT_ROOT/offline-status.json" \
+# The download service loads its stored settings asynchronously after launch
+# (slower on a simulator), so wait for them rather than reading a default.
+wait_for /v1/downloads/status \
   'v["qualityPreference"]["mode"] == "transcode" and v["qualityPreference"]["prompted"] and v["maxConcurrent"] == 3 and not v["paused"] and len(v["permanentDownloads"]) == 7' \
-  "download preferences did not survive the restart"
+  "$OUTPUT_ROOT/offline-status.json" 30
 api POST /v1/presentation/navigate \
   '{"location":"/library/albums/fixture-album"}' >/dev/null
 sleep 3

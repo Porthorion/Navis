@@ -420,12 +420,21 @@ class _TopTrackTile extends ConsumerWidget {
         song: dbSong,
         keyPrefix: 'artist-top-track',
       );
+    } else if (desktopRuntime && isRemote) {
+      // A remote row shows the dimmed heart a library row shows, and reserves
+      // the same action column so Artist and Time stay aligned.
+      trailing = DesktopSongActions.forSongId(
+        songId: resolvedSong.id,
+        isExternal: true,
+        onMore: null,
+        keyPrefix: 'artist-top-track',
+      );
     } else if (desktopRuntime) {
-      // Remote, unresolved and still-loading rows have no library row to act
-      // on. An empty action still makes the row reserve the same action
-      // column as rows with actions, so Artist and Time stay aligned; the
-      // phone-style download/More pair is wider than that column and would
-      // push this row's columns left.
+      // Unresolved and still-loading rows have no library row to act on. An
+      // empty action still makes the row reserve the same action column as
+      // rows with actions, so Artist and Time stay aligned; the phone-style
+      // download/More pair is wider than that column and would push this
+      // row's columns left.
       trailing = const SizedBox.shrink();
     } else if (resolvedId != null) {
       trailing = Row(

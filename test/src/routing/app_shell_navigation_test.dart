@@ -2451,6 +2451,78 @@ void main() {
     semantics.dispose();
   });
 
+  const flaggedSong = SongsTableData(
+    id: 'pl-deezer-1',
+    title: 'Flagged',
+    isProvisional: true,
+    isExternal: true,
+  );
+
+  testWidgets('desktop like on a flagged external song is refused', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(887, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final playbackHandler = _RecordingLikePlaybackHandler();
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(
+          desktopRuntime: true,
+          playback: _activePlayback.copyWith(currentSongId: 'pl-deezer-1'),
+        ),
+        songByIdProvider.overrideWith(
+          (ref, songId) => Stream.value(flaggedSong),
+        ),
+        audioHandlerProvider.overrideWithValue(playbackHandler),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const ValueKey<String>('desktopPlayerFavoriteButton')),
+    );
+    await tester.pump();
+
+    expect(playbackHandler.toggleLikeCalls, 0);
+    expect(find.text('Not available for remote tracks.'), findsOneWidget);
+  });
+
+  testWidgets('mobile mini player like on a flagged external song is refused', (
+    tester,
+  ) async {
+    final playbackHandler = _RecordingLikePlaybackHandler();
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(
+          playback: _activePlayback.copyWith(currentSongId: 'pl-deezer-1'),
+        ),
+        songByIdProvider.overrideWith(
+          (ref, songId) => Stream.value(flaggedSong),
+        ),
+        audioHandlerProvider.overrideWithValue(playbackHandler),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    final like = find.byTooltip('Like unavailable for remote songs');
+    expect(like, findsOneWidget);
+    await tester.tap(like);
+    await tester.pump();
+
+    expect(playbackHandler.toggleLikeCalls, 0);
+    expect(find.text('Not available for remote tracks.'), findsOneWidget);
+  });
+
   testWidgets('desktop Lyrics shows instrumental status', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(800, 600);

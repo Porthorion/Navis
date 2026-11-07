@@ -989,10 +989,14 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                     keyName: 'desktopPlayerFavoriteButton',
                                     semanticsEnabled: !_isRemoteSong(
                                       playback.currentSongId,
+                                      widget.isExternalSource,
                                     ),
                                     tooltip: playback.isRadioMode
                                         ? l10n.desktopFavoriteUnavailableForRadio
-                                        : _isRemoteSong(playback.currentSongId)
+                                        : _isRemoteSong(
+                                            playback.currentSongId,
+                                            widget.isExternalSource,
+                                          )
                                         ? l10n.actionLikeUnavailableRemote
                                         : hasPlayback
                                         ? (playback.isCurrentSongLiked
@@ -1005,13 +1009,17 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                             context,
                                             ref,
                                             playback.currentSongId,
+                                            widget.isExternalSource,
                                           )
                                         : null,
                                     icon: playback.isCurrentSongLiked
                                         ? Icons.favorite
                                         : Icons.favorite_border,
                                     iconColor:
-                                        _isRemoteSong(playback.currentSongId)
+                                        _isRemoteSong(
+                                          playback.currentSongId,
+                                          widget.isExternalSource,
+                                        )
                                         ? colors.onSurface.withValues(
                                             alpha: 0.38,
                                           )

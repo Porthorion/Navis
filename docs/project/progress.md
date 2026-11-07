@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-11-06
+Last updated: 2026-11-07
 
 ---
 
@@ -15,6 +15,7 @@ Last updated: 2026-11-06
 
 ## Current Focus
 - [ ] I9 equalizer on iOS (1.5.2) — partial: 2026-11-07 (branch `feat/ios-equalizer`, draft PR #335; evidence: `tool/equalizer_native_test.sh` C DSP fixtures (also clean under ASan/UBSan/TSan), `flutter test test/src/features/equalizer`, iOS simulator `/v1/equalizer` runs: sampleRate 44100, pending false, processedFrames growing, levelDeltaDb -12.000 with preamp -12 dB and 0.000 with EQ off, on a local file, proxied `lockCachedStream`, permanent download, gapless change, crossfade and 1.5x; `flutter build macos --debug` compiles with the tap gated off) (remaining: reviews, CI, device-only checks: audible A/B, AirPlay, lock screen, CPU on hi-res files, interruptions)
+- [x] Debug startup Riverpod assertion (1.5.2) — 2026-11-07 (branch `fix/riverpod-startup-listener-assertion`; the `serverConfigStateProvider` listeners of `ServerReachabilityController` and `LibrarySyncController` ran inside `NavisApp.build` and wrote state, which Riverpod's debug check rejects, skipping the rest of each callback; both now use `runOutsideWidgetBuild` and the debug-only router prewarm in `lib/main.dart` is gone. Failing-first: `Tried to modify a provider while the widget tree was building.` in the two new scenario tests; 146 focused tests pass; the iOS simulator `download_preferences_diagnostics.sh` run exits 0 with no assertion in `first-navis.log`. The script's post-restart check now waits for the asynchronously loaded download settings. Release builds unchanged; `check.sh` omitted per machine rules)
 - [x] Playback settings apply after the settings stream updates (1.5.2), crossfade off kept crossfading — 2026-11-07 (branch `fix/runtime-settings-apply`; evidence: `flutter test test/src/providers/app_providers_test.dart`, group 'audio handler runtime settings'; failing first: `Expected: [false] Actual: []`)
 - [x] Issue #313 (1.5.2), ReplayGain evens out loudness, including untagged songs — 2026-11-06 (branch `fix/i313-replaygain`; mpv volume is cubic so desktop applied 3x the dB, +dB overrode the slider, 74% of a real library is untagged; gain is now `10^(dB/60)` on mpv and `10^(dB/20)` elsewhere, capped at 0 dB, garbage tags rejected, untagged songs take a fixed or library-median level, new profiles start on Track; schema 111; evidence: replay_gain_db_test.dart, navis_audio_handler_navigation_test.dart "ReplayGain loudness (#313)", library_dao_track_gain_median_test.dart, replay_gain_untagged_provider_test.dart, navis_migration_test.dart "110 to 111", playback_settings_screen_test.dart "ReplayGain untagged songs"; runtime pass on the fresh-login clone pending)
 - [x] Issue #209 item A+B (1.5.2), Top Results v2: hero decided by Deezer's first song, the server's exact item beats a remote one, tiles relate to the hero (built from the song's ids when search3 lacks them, art read like the pages), whole card tappable — 2026-11-06 (branch `feat/i152a-top-results-v2`; evidence: top_results_fixtures_test.dart over test/fixtures/search_top_results, deezer_search_boost_test.dart, search_top_results_test.dart)
@@ -64,6 +65,11 @@ Last updated: 2026-11-06
   `toggle_song_star_test`, `desktop_song_actions_test`,
   `download_service_queue_test`, `downloads_screen_test`,
   `library_sync_engine_test`, `app_shell_navigation_test`.
+- [x] Item M (1.5.2), dimmed heart everywhere — 2026-11-07
+  (branch `fix/i152m-dimmed-heart-everywhere`). Desktop Search rows and
+  desktop Artist top tracks showed no heart for remote songs;
+  `DesktopSongActions` now shows the dimmed `SongHeartButton` (wide rows).
+  Tests in `desktop_song_actions_test`, `artist_top_tracks_section_test`.
 - [x] Issue #212 B4+B5 (1.5.2), kept upload and ownership — 2026-11-02
   (branch `fix/playlist-edits`). The kept-device-copy re-upload now uses
   `replacePlaylistSongs` plus a name-only `updatePlaylist` (empty list cleared
