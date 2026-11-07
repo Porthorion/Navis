@@ -3647,6 +3647,40 @@ void main() {
     semantics.dispose();
   });
 
+  for (final scale in [2.0, 3.1]) {
+    testWidgets('phone mini player is usable at ${scale}x text', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(),
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      for (final label in ['Previous', 'Pause', 'Skip to Next']) {
+        expect(find.byTooltip(label), findsWidgets, reason: label);
+      }
+      // Only the mini player's own buttons are held to the iOS target size.
+      for (final label in ['Previous', 'Pause', 'Skip to Next']) {
+        final size = tester.getSize(find.byTooltip(label).first);
+        expect(size.shortestSide, greaterThanOrEqualTo(44), reason: label);
+      }
+      semantics.dispose();
+    });
+  }
+
   group('every way of closing Now Playing brings the nav bar back', () {
     // Every scenario opens Now Playing from the mini player and ends with the
     // nav bar shown, hit-testable and in semantics. Frames run at 60 Hz: the

@@ -65,24 +65,28 @@ class _TransportControls extends ConsumerWidget {
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
-          Tooltip(
-            message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: playFill,
-                foregroundColor: onPlayFill,
-                side: playEdge == null ? null : BorderSide(color: playEdge),
-                shape: const CircleBorder(),
-                padding: EdgeInsets.all(playPadding),
-              ),
-              onPressed: () =>
-                  unawaited(togglePlayPause(ref, isPlaying: isPlaying)),
-              child: _playPauseChild(
-                showLoading: showLoading,
-                isPlaying: isPlaying,
-                size: playIconSize,
-                loadingColor: loadingColor,
-                loadingLabel: l10n.commonLoading,
+          // Merged so VoiceOver gets one labelled button, not a bare button under a
+          // separate tooltip node.
+          MergeSemantics(
+            child: Tooltip(
+              message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
+              child: FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: playFill,
+                  foregroundColor: onPlayFill,
+                  side: playEdge == null ? null : BorderSide(color: playEdge),
+                  shape: const CircleBorder(),
+                  padding: EdgeInsets.all(playPadding),
+                ),
+                onPressed: () =>
+                    unawaited(togglePlayPause(ref, isPlaying: isPlaying)),
+                child: _playPauseChild(
+                  showLoading: showLoading,
+                  isPlaying: isPlaying,
+                  size: playIconSize,
+                  loadingColor: loadingColor,
+                  loadingLabel: l10n.commonLoading,
+                ),
               ),
             ),
           ),
@@ -161,25 +165,37 @@ class _TransportControls extends ConsumerWidget {
             showQuickActions &&
             compact &&
             constraints.maxWidth < transportQuickActionsRelaxedWidth;
-        final gap = SizedBox(width: tight ? 0 : (compact ? 4 : 8));
+        // 44 pt buttons (the iOS minimum) where the row has room; they carry
+        // their own padding, so the 4 dp gaps close. Narrower phones keep the
+        // 40 pt compact buttons.
+        final density = !compact
+            ? null
+            : constraints.maxWidth >= 340
+            ? VisualDensity.comfortable
+            : VisualDensity.compact;
+        final gap = SizedBox(
+          width: tight || density == VisualDensity.comfortable
+              ? 0
+              : (compact ? 4 : 8),
+        );
         return Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             if (showQuickActions)
               EqualizerQuickButton(
                 key: const ValueKey<String>('nowPlayingEqualizerButton'),
-                visualDensity: compact ? VisualDensity.compact : null,
+                visualDensity: density,
                 placeholderWhenUnsupported: true,
                 dense: tight,
               ),
             _NowPlayingMixButton(
               songId: playback.currentSongId,
-              compact: compact,
+              visualDensity: density,
             ),
             gap,
             IconButton(
               icon: Icon(Icons.skip_previous, size: skipIconSize),
-              visualDensity: compact ? VisualDensity.compact : null,
+              visualDensity: density,
               tooltip: l10n.nowPlayingPrevious,
               onPressed: () {
                 if (onSkipPrevious != null) {
@@ -192,31 +208,35 @@ class _TransportControls extends ConsumerWidget {
               },
             ),
             gap,
-            Tooltip(
-              message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: playFill,
-                  foregroundColor: onPlayFill,
-                  side: playEdge == null ? null : BorderSide(color: playEdge),
-                  shape: const CircleBorder(),
-                  padding: EdgeInsets.all(playPadding),
-                ),
-                onPressed: () =>
-                    unawaited(togglePlayPause(ref, isPlaying: isPlaying)),
-                child: _playPauseChild(
-                  showLoading: showLoading,
-                  isPlaying: isPlaying,
-                  size: playIconSize,
-                  loadingColor: loadingColor,
-                  loadingLabel: l10n.commonLoading,
+            // Merged so VoiceOver gets one labelled button, not a bare button
+            // under a separate tooltip node.
+            MergeSemantics(
+              child: Tooltip(
+                message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: playFill,
+                    foregroundColor: onPlayFill,
+                    side: playEdge == null ? null : BorderSide(color: playEdge),
+                    shape: const CircleBorder(),
+                    padding: EdgeInsets.all(playPadding),
+                  ),
+                  onPressed: () =>
+                      unawaited(togglePlayPause(ref, isPlaying: isPlaying)),
+                  child: _playPauseChild(
+                    showLoading: showLoading,
+                    isPlaying: isPlaying,
+                    size: playIconSize,
+                    loadingColor: loadingColor,
+                    loadingLabel: l10n.commonLoading,
+                  ),
                 ),
               ),
             ),
             gap,
             IconButton(
               icon: Icon(Icons.skip_next, size: skipIconSize),
-              visualDensity: compact ? VisualDensity.compact : null,
+              visualDensity: density,
               tooltip: l10n.nowPlayingNext,
               onPressed: () {
                 if (onSkipNext != null) {
@@ -236,7 +256,7 @@ class _TransportControls extends ConsumerWidget {
                     ? Theme.of(context).colorScheme.primary
                     : null,
               ),
-              visualDensity: compact ? VisualDensity.compact : null,
+              visualDensity: density,
               tooltip: repeatTooltip,
               onPressed: () {
                 NavisHaptics.tick();
@@ -247,7 +267,7 @@ class _TransportControls extends ConsumerWidget {
             if (showQuickActions)
               PlaybackSpeedQuickButton(
                 key: const ValueKey<String>('nowPlayingSpeedButton'),
-                visualDensity: compact ? VisualDensity.compact : null,
+                visualDensity: density,
                 dense: tight,
               ),
             if (effectiveShowVolume) ...<Widget>[

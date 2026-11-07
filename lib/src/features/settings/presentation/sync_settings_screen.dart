@@ -468,6 +468,7 @@ class SyncSettingsScreen extends ConsumerWidget {
                         ),
                         sectionGap,
                         DropdownButtonFormField<int>(
+                          isExpanded: true,
                           initialValue:
                               _intervalChoices.contains(currentInterval)
                               ? currentInterval

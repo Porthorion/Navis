@@ -76,39 +76,44 @@ Widget _miniPlayerTrackText(
   final l10n = AppLocalizations.of(context)!;
   final textTheme = Theme.of(context).textTheme;
   final cs = Theme.of(context).colorScheme;
-  return Column(
-    mainAxisAlignment: large
-        ? MainAxisAlignment.center
-        : MainAxisAlignment.start,
-    crossAxisAlignment: CrossAxisAlignment.start,
-    mainAxisSize: large ? MainAxisSize.max : MainAxisSize.min,
-    children: <Widget>[
-      Text(
-        (title == null || title.trim().isEmpty)
-            ? l10n.miniPlayerUnknownTrack
-            : title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: (large ? textTheme.bodyLarge : textTheme.bodyMedium)?.copyWith(
-          fontWeight: FontWeight.w600,
+  // ponytail: the strip is two fixed lines; at 3x text one ellipsis-only word
+  // is all that fits, so cap at 1.6x. Now Playing shows the full title.
+  return MediaQuery.withClampedTextScaling(
+    maxScaleFactor: 1.6,
+    child: Column(
+      mainAxisAlignment: large
+          ? MainAxisAlignment.center
+          : MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: large ? MainAxisSize.max : MainAxisSize.min,
+      children: <Widget>[
+        Text(
+          (title == null || title.trim().isEmpty)
+              ? l10n.miniPlayerUnknownTrack
+              : title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: (large ? textTheme.bodyLarge : textTheme.bodyMedium)?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
         ),
-      ),
-      if (isExternalSource)
-        const RemoteSourceIndicator(
-          variant: RemoteSourceIndicatorVariant.inline,
+        if (isExternalSource)
+          const RemoteSourceIndicator(
+            variant: RemoteSourceIndicatorVariant.inline,
+          ),
+        SizedBox(height: large ? 3 : 2),
+        Text(
+          (artist == null || artist.trim().isEmpty)
+              ? l10n.miniPlayerUnknownArtist
+              : artist,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: (large ? textTheme.bodyMedium : textTheme.bodySmall)?.copyWith(
+            color: cs.onSurface.withValues(alpha: large ? 0.58 : 0.6),
+          ),
         ),
-      SizedBox(height: large ? 3 : 2),
-      Text(
-        (artist == null || artist.trim().isEmpty)
-            ? l10n.miniPlayerUnknownArtist
-            : artist,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: (large ? textTheme.bodyMedium : textTheme.bodySmall)?.copyWith(
-          color: cs.onSurface.withValues(alpha: large ? 0.58 : 0.6),
-        ),
-      ),
-    ],
+      ],
+    ),
   );
 }
 
@@ -576,7 +581,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                       Positioned.fill(
                         child: IgnorePointer(
                           child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 120),
+                            duration: MotionPolicy.of(context).feedback,
                             curve: Curves.easeOut,
                             opacity: _isSeeking && canSeek ? 1 : 0,
                             child: ClipRRect(
@@ -701,6 +706,9 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
     );
   }
 }
+
+// iOS minimum hit target for the phone strip buttons (Android's 48 dp is deferred).
+const double _miniTapTarget = 44;
 
 class _MiniPlayerStrip extends ConsumerStatefulWidget {
   const new({
@@ -999,8 +1007,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               IconButton(
                                 tooltip: l10n.nowPlayingPrevious,
                                 constraints: const BoxConstraints(
-                                  minWidth: 36,
-                                  minHeight: 36,
+                                  minWidth: _miniTapTarget,
+                                  minHeight: _miniTapTarget,
                                 ),
                                 padding: EdgeInsets.zero,
                                 onPressed: () => _miniSkipPrevious(ref),
@@ -1019,8 +1027,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 side: colorStyle.controlEdgeSide,
                                 shape: const CircleBorder(),
                                 minimumSize: Size(
-                                  compactControls ? 40 : 46,
-                                  compactControls ? 40 : 46,
+                                  compactControls ? _miniTapTarget : 46,
+                                  compactControls ? _miniTapTarget : 46,
                                 ),
                                 padding: const EdgeInsets.all(6),
                               ),
@@ -1038,8 +1046,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                               IconButton(
                                 tooltip: l10n.miniPlayerSkipNext,
                                 constraints: const BoxConstraints(
-                                  minWidth: 36,
-                                  minHeight: 36,
+                                  minWidth: _miniTapTarget,
+                                  minHeight: _miniTapTarget,
                                 ),
                                 padding: EdgeInsets.zero,
                                 onPressed: () => _miniSkipNext(ref),
@@ -1051,7 +1059,10 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             else
                               IconButton(
                                 tooltip: l10n.radioStopStation,
-                                constraints: const BoxConstraints(),
+                                constraints: const BoxConstraints(
+                                  minWidth: _miniTapTarget,
+                                  minHeight: _miniTapTarget,
+                                ),
                                 padding: const EdgeInsets.fromLTRB(4, 6, 6, 6),
                                 onPressed: () => _miniStopRadio(ref),
                                 icon: const Icon(Icons.stop_rounded, size: 20),
@@ -1071,8 +1082,8 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                       ? l10n.actionLiked
                                       : l10n.actionLike,
                                   constraints: const BoxConstraints(
-                                    minWidth: 36,
-                                    minHeight: 36,
+                                    minWidth: _miniTapTarget,
+                                    minHeight: _miniTapTarget,
                                   ),
                                   padding: EdgeInsets.zero,
                                   onPressed: () => _miniToggleLike(

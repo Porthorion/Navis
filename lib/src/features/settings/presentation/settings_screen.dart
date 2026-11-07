@@ -10,6 +10,7 @@ import 'package:navis/src/features/settings/presentation/settings_scroll_provide
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const new({super.key});
@@ -32,11 +33,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     ref.listen(settingsScrollToTopRequestProvider, (previous, next) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
+        if (MotionPolicy.of(context).reduceMotion) {
+          _scrollController.jumpTo(0);
+        } else {
+          _scrollController.animateTo(
+            0,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
       }
     });
     final l10n = AppLocalizations.of(context)!;
