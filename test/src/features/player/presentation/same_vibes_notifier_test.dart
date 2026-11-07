@@ -2476,6 +2476,163 @@ void main() {
     );
   });
 
+  group('seed with no new songs (#377)', () {
+    late _MockSubsonicApiClient api;
+    late _MockLastFmApiClient lastFm;
+    var fakeNow = DateTime(2026, 11, 8, 12);
+    // False until the test moves to a new current song.
+    var freshSongsAvailable = false;
+    const seedQueue = <String>[
+      'seed',
+      'rec-0',
+      'rec-1',
+      'rec-2',
+      'rec-3',
+      'rec-4',
+    ];
+
+    setUp(() {
+      fakeNow = DateTime(2026, 11, 8, 12);
+      freshSongsAvailable = false;
+      api = _MockSubsonicApiClient();
+      lastFm = _MockLastFmApiClient();
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer(
+        (_) async => const LastFmTrackFetchResult(
+          outcome: LastFmFetchOutcome.noResults,
+          tracks: <LastFmTrackRecommendation>[],
+        ),
+      );
+      when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+          .thenAnswer(
+            (_) async => const Song(id: 'q', title: 'Seed', artist: 'Artist'),
+          );
+      // Every call returns the same five songs; five more appear only once
+      // the test flips [freshSongsAvailable] (the current song changed).
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer(
+        (_) async => List<Song>.generate(
+          freshSongsAvailable ? 10 : 5,
+          (index) => Song(id: 'rec-$index', title: 'Rec $index'),
+        ),
+      );
+    });
+
+    /// Starts the mix, then replays [times] snapshots of the still-playing
+    /// seed with the clock moved past the whole retry backoff each time.
+    Future<(ProviderContainer, RecordingRecommendationQueue)>
+    startAndStayOnSeed(int times) async {
+      final container = createRecommendationContainer(
+        overrides: [
+          queueProvider.overrideWith(RecordingRecommendationQueue.new),
+          sameVibesProvider.overrideWith(
+            () => SameVibesNotifier(now: () => fakeNow),
+          ),
+          subsonicApiProvider.overrideWithValue(api),
+          lastFmApiClientProvider.overrideWithValue(lastFm),
+          integrationPolicyProvider.overrideWithValue(
+            const IntegrationPolicy(lastFmVerified: true),
+          ),
+          currentMediaItemProvider.overrideWith(
+            (ref) => Stream<MediaItem?>.value(
+              const MediaItem(id: 'seed', title: 'Seed', artist: 'Artist'),
+            ),
+          ),
+          downloadedSongIdsProvider.overrideWithValue(
+            const AsyncData(<String>{}),
+          ),
+          cachedSongIdsProvider.overrideWithValue(const AsyncData(<String>{})),
+          sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+            (albumIds) async => const <String, int?>{},
+          ),
+          sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+            (songIds) async => const <String>{},
+          ),
+        ],
+      );
+      container.listen(currentMediaItemProvider, (_, _) {});
+      // Plays [index] of the six-song queue; [tick] makes each snapshot
+      // differ so the listener fires again.
+      void play(int index, int tick) => container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: seedQueue,
+              currentSongId: seedQueue[index],
+              currentIndex: index,
+            ).copyWith(position: Duration(seconds: tick)),
+          );
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: const <String>['seed'],
+              currentSongId: 'seed',
+              currentIndex: 0,
+            ),
+          );
+      await container.read(sameVibesProvider.notifier).activate('seed');
+      Future<void> settle() async {
+        await pumpEventQueue();
+        while (container.read(sameVibesProvider).refilling) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+      }
+
+      for (var i = 1; i <= times; i++) {
+        fakeNow = fakeNow.add(const Duration(minutes: 5));
+        play(0, i);
+        await settle();
+      }
+      fakeNow = fakeNow.add(const Duration(minutes: 5));
+      freshSongsAvailable = true;
+      play(1, 1000);
+      await settle();
+      return (
+        container,
+        container.read(queueProvider.notifier) as RecordingRecommendationQueue,
+      );
+    }
+
+    test('refills when the current song changes after the retries ran out '
+        'on the same seed', () async {
+      final (container, queue) = await startAndStayOnSeed(8);
+
+      expect(
+        queue.queuedSongs.map((s) => s.id).toList(),
+        containsAll(<String>['rec-5', 'rec-6', 'rec-7', 'rec-8', 'rec-9']),
+        reason: 'the mix must extend once the current song moved on',
+      );
+      expect(
+        container.read(recommendationSessionProvider).stage,
+        isNot('retryExhausted'),
+        reason: 'no new songs from an unchanged seed is not a failure',
+      );
+    });
+
+    test(
+      '0 new songs from an unchanged seed do not count toward exhaustion',
+      () async {
+        final (container, _) = await startAndStayOnSeed(8);
+        // Exposed state: the session stage and retry count the existing
+        // exhaustion test asserts on.
+        final session = container.read(recommendationSessionProvider);
+        expect(session.stage, isNot('retryExhausted'));
+        expect(session.retryCount, lessThan(5));
+      },
+    );
+  });
+
   group('Last.fm similar-track fallbacks', () {
     // Runs one first refill for seed "seed" and returns the queue recorder.
     Future<RecordingRecommendationQueue> activate({
