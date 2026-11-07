@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 
 import '../../../helpers/test_database.dart';
@@ -24,13 +25,39 @@ void main() {
     }
   }
 
-  Future<({int count, double? median})> median() =>
+  Future<LibraryGainStats> median() =>
       db.libraryDao.trackGainMedian(maxAbsDb: 24);
 
   test('an empty library has no median', () async {
     final result = await median();
     expect(result.count, 0);
     expect(result.median, isNull);
+    expect(result.total, 0);
+    expect(result.withData, 0);
+  });
+
+  test('coverage counts songs with a usable track or album gain', () async {
+    Future<void> add(String id, {double? track, double? album}) => db
+        .into(db.songsTable)
+        .insert(
+          SongsTableCompanion.insert(
+            id: id,
+            title: id,
+            replayGainTrackGain: Value(track),
+            replayGainAlbumGain: Value(album),
+          ),
+        );
+    await add('track', track: -9);
+    await add('album-only', album: -7);
+    await add('both', track: -9, album: -7);
+    await add('garbage-track-good-album', track: 918, album: -7);
+    await add('garbage-only', track: 918, album: -40);
+    await add('none');
+    final result = await median();
+    expect(result.total, 6);
+    expect(result.withData, 4);
+    // Only track gains feed the Automatic level.
+    expect(result.count, 2);
   });
 
   test('odd count: the middle gain', () async {
@@ -77,5 +104,7 @@ void main() {
     final result = await median();
     expect(result.count, 3);
     expect(result.median, -9);
+    expect(result.total, 3);
+    expect(result.withData, 3);
   });
 }

@@ -217,16 +217,17 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   static const _safeSqlVariableChunkSize = 500;
 
-  /// How many library songs (not provisional, external or server-deleted)
-  /// carry a believable track gain (|gain| <= [maxAbsDb]) and their median; the median is null when none do.
-  Future<({int count, double? median})> trackGainMedian({
-    required double maxAbsDb,
-  }) async {
+  /// ReplayGain coverage of the library (songs that are not provisional,
+  /// external or server-deleted): how many carry a believable track gain
+  /// (|gain| <= [maxAbsDb]) and their median (null when none do), the song
+  /// total, and how many have a believable track or album gain, which is
+  /// what playback uses.
+  Future<LibraryGainStats> trackGainMedian({required double maxAbsDb}) async {
+    const live =
+        'is_provisional = 0 AND is_external = 0 AND server_deleted_at IS NULL';
     const usable =
         'replay_gain_track_gain IS NOT NULL '
-        'AND ABS(replay_gain_track_gain) <= ? '
-        'AND is_provisional = 0 AND is_external = 0 '
-        'AND server_deleted_at IS NULL';
+        'AND ABS(replay_gain_track_gain) <= ? AND $live';
     final row = await customSelect(
       '''
       SELECT
@@ -236,14 +237,23 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
           ORDER BY gain
           LIMIT 2 - (SELECT COUNT(*) FROM songs WHERE $usable) % 2
           OFFSET (SELECT (COUNT(*) - 1) / 2 FROM songs WHERE $usable)
-        )) AS median
+        )) AS median,
+        (SELECT COUNT(*) FROM songs WHERE $live) AS total,
+        (SELECT COUNT(*) FROM songs WHERE $live AND (
+          (replay_gain_track_gain IS NOT NULL
+            AND ABS(replay_gain_track_gain) <= ?)
+          OR (replay_gain_album_gain IS NOT NULL
+            AND ABS(replay_gain_album_gain) <= ?)
+        )) AS with_data
       ''',
-      variables: List.filled(4, Variable<double>(maxAbsDb)),
+      variables: List.filled(6, Variable<double>(maxAbsDb)),
       readsFrom: {songsTable},
     ).getSingle();
     return (
       count: row.read<int>('tagged'),
       median: row.read<double?>('median'),
+      total: row.read<int>('total'),
+      withData: row.read<int>('with_data'),
     );
   }
 
@@ -4700,6 +4710,14 @@ class AlbumDownloadSummary {
   final double inFlightProgress;
   final bool queued;
 }
+
+/// See [LibraryDao.trackGainMedian].
+typedef LibraryGainStats = ({
+  int count,
+  double? median,
+  int total,
+  int withData,
+});
 
 /// One derived `song_search_text` row.
 typedef SongSearchIndexEntry = ({

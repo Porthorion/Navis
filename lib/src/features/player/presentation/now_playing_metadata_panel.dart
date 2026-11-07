@@ -336,6 +336,8 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
       currentMediaItem: widget.currentMediaItem,
       playbackSpeed: widget.playbackSpeed,
       adjustments: ref.watch(playbackAdjustmentsProvider).asData?.value.values,
+      replayGain: ref.watch(nowPlayingReplayGainProvider),
+      untaggedAutomatic: ref.watch(_untaggedAutomaticProvider),
     );
     final activeIndex = _pageIndex % pages.length;
     final page = pages[activeIndex];
@@ -353,6 +355,11 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
             currentSongId != null &&
             !widget.playback.isRadioMode
         ? () => showMediaInfo(context)
+        : null;
+    // Holding the ReplayGain line opens the settings that explain it.
+    final openReplayGainSettings = page.isReplayGainPage
+        ? () async =>
+              NavService.openSettingsPage(context, ref, SettingsPage.playback)
         : null;
 
     return Material(
@@ -421,13 +428,21 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                                   );
                                 },
                               )
-                            : _withTrackInfoHint(
-                                l10n,
-                                openTrackInfo,
+                            : _withHoldHint(
+                                openTrackInfo != null
+                                    ? l10n.nowPlayingHoldForTrackInfo
+                                    : l10n.nowPlayingHoldForReplayGainSettings,
+                                openTrackInfo != null
+                                    ? l10n.mediaInfoTrackInfoAction
+                                    : l10n.nowPlayingReplayGainSettingsAction,
+                                openTrackInfo ?? openReplayGainSettings,
                                 GestureDetector(
                                   behavior: HitTestBehavior.opaque,
                                   onLongPress: openTrackInfo != null
                                       ? () => unawaited(openTrackInfo())
+                                      : openReplayGainSettings != null
+                                      ? () =>
+                                            unawaited(openReplayGainSettings())
                                       : isRatingPage && currentSongId != null
                                       ? () {
                                           setState(
@@ -488,19 +503,19 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
   }
 }
 
-/// Gives the quality line a screen-reader hint and action when it opens the
-/// track info (a tooltip would never show: the long press opens the sheet).
-Widget _withTrackInfoHint(
-  AppLocalizations l10n,
-  Future<void> Function()? openTrackInfo,
+/// Gives a line that opens something on long press a screen-reader hint and
+/// action (a tooltip would never show: the long press opens it).
+Widget _withHoldHint(
+  String hint,
+  String actionLabel,
+  Future<void> Function()? open,
   Widget child,
 ) {
-  if (openTrackInfo == null) return child;
+  if (open == null) return child;
   return Semantics(
-    hint: l10n.nowPlayingHoldForTrackInfo,
+    hint: hint,
     customSemanticsActions: <CustomSemanticsAction, VoidCallback>{
-      CustomSemanticsAction(label: l10n.mediaInfoTrackInfoAction): () =>
-          unawaited(openTrackInfo()),
+      CustomSemanticsAction(label: actionLabel): () => unawaited(open()),
     },
     child: child,
   );
@@ -515,6 +530,7 @@ class _NowPlayingInfoPage {
     this.valueLeadingIconSemanticLabel,
     this.isRatingPage = false,
     this.isQualityPage = false,
+    this.isReplayGainPage = false,
   });
 
   final IconData icon;
@@ -526,7 +542,17 @@ class _NowPlayingInfoPage {
 
   /// The audio-quality line; holding it opens the track info.
   final bool isQualityPage;
+
+  /// What ReplayGain applies to the song; holding it opens Playback settings.
+  final bool isReplayGainPage;
 }
+
+/// Whether the untagged ReplayGain level follows the library (Automatic).
+final _untaggedAutomaticProvider = Provider<bool>(
+  (ref) => ref.watch(
+    appSettingsProvider.select((s) => s.value?.replayGainUntaggedDb == null),
+  ),
+);
 
 List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
   required AppLocalizations l10n,
@@ -536,6 +562,8 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
   required MediaItem? currentMediaItem,
   required double playbackSpeed,
   PlaybackAdjustments? adjustments,
+  ReplayGainDecision? replayGain,
+  bool untaggedAutomatic = true,
 }) {
   final transcodingApplied =
       currentMediaItem?.extras?['bridgeFormat'] != null ||
@@ -551,6 +579,13 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
           : null,
       isQualityPage: true,
     ),
+    if (replayGain?.db case final db?)
+      _NowPlayingInfoPage(
+        icon: Icons.volume_down_outlined,
+        semanticLabel: l10n.mediaInfoReplayGain,
+        value: _formatReplayGain(l10n, replayGain!, db, untaggedAutomatic),
+        isReplayGainPage: true,
+      ),
     _NowPlayingInfoPage(
       icon: Icons.queue_music_outlined,
       semanticLabel: l10n.queueTitle,
@@ -605,6 +640,8 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
       currentMediaItem: currentMediaItem,
       playbackSpeed: playbackSpeed,
       adjustments: ref.watch(playbackAdjustmentsProvider).asData?.value.values,
+      replayGain: ref.watch(nowPlayingReplayGainProvider),
+      untaggedAutomatic: ref.watch(_untaggedAutomaticProvider),
     );
     final infoPages = pages.where((page) => !page.isRatingPage).toList();
     _NowPlayingInfoPage? ratingPage;
@@ -831,6 +868,28 @@ String _formatAudioQuality({
     return '-';
   }
   return parts.join(' • ');
+}
+
+/// "−6.2 dB · album (Smart)": the dB ReplayGain applies and why. One decimal,
+/// a real minus sign, and never "−0.0".
+String _formatReplayGain(
+  AppLocalizations l10n,
+  ReplayGainDecision decision,
+  double db,
+  bool untaggedAutomatic,
+) {
+  final fixed = db.toStringAsFixed(1);
+  final smart = decision.mode == 'smart';
+  final isAlbum = decision.source == ReplayGainSource.album;
+  return l10n.nowPlayingReplayGainValue(
+    fixed == '-0.0' ? '0.0' : fixed.replaceFirst('-', '−'),
+    switch (decision.source) {
+      ReplayGainSource.untagged =>
+        untaggedAutomatic ? 'untaggedAutomatic' : 'untaggedFixed',
+      _ when smart => isAlbum ? 'smartAlbum' : 'smartTrack',
+      _ => isAlbum ? 'album' : 'track',
+    },
+  );
 }
 
 String _formatReleaseDate(SongsTableData? song, AlbumsTableData? album) {

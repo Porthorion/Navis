@@ -4561,6 +4561,8 @@ settings panel's Track Info row). Its groups never mix sources: "Now playing"
 (stream), then one file group titled Downloaded, Server or Remote file. A
 remote track ignores the server's getSong answer, and bit depth shows only
 for lossless formats.
+Its ReplayGain rows are the file's tags; what ReplayGain applies to the
+playing song is the Now Playing ReplayGain page (see ReplayGain above).
 
 Radio accepts only hosted HTTP(S) stream URLs and keeps them in handler memory,
 never `MediaItem.extras`. AzuraCast polling is derived only from `/listen/` or
@@ -4951,6 +4953,25 @@ Desktop volume follows a parallel local-settings path:
    with its own neighbours. `NavisAudioHandler.currentReplayGainDecision`
    (mode, resolved mode, source track/album/untagged, dB) is reported as
    `replayGain` by `GET /v1/playback/status`.
+
+   Guidance. Playback settings explain what ReplayGain does (it only turns
+   songs down, so raise the volume), each mode, and what the pre-amp cannot do
+   (push a song above its original level). The coverage line counts library
+   songs with a usable track or album gain out of all live songs (not
+   provisional, external or server-deleted), floors the percentage, names the
+   untagged level (Automatic or fixed) or says ReplayGain is off, and points to
+   rsgain and MusicBrainz Picard; `LibraryDao.trackGainMedian` returns it with
+   the median in one SELECT and `replayGainLibraryGainsProvider` caches it per
+   library epoch (`replayGainAutoUntaggedDbProvider` derives from it). The
+   Now Playing info pager (and the desktop info grid) shows a ReplayGain page
+   after Quality: `nowPlayingReplayGainProvider` re-reads
+   `NavisPlaybackHandler.currentReplayGainDecision` (a `freeze: false` read, so
+   the UI never changes playback) when the song, queue size, loading state or
+   the ReplayGain settings change, never on a position tick, and is null for
+   radio, no song or Off. It reads like "-6.2 dB · album (Smart)" or "-8.0 dB ·
+   untagged (Automatic)" (real minus sign, one decimal, never "-0.0"); holding
+   it opens Playback settings. During a cross-fade the page may briefly show
+   the outgoing song's gain.
    Schema 111 (`from110To111`) adds the nullable `replay_gain_untagged_db`
    column (null = Automatic) and leaves the stored mode and pre-amp as they are.
 

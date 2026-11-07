@@ -399,6 +399,13 @@ class _PlaybackSettingsScreenState
                     l10n.playbackSettingsReplayGainSectionTitle,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.playbackSettingsReplayGainIntro,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.outline,
+                    ),
+                  ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     initialValue: _replayGainMode,
@@ -449,6 +456,7 @@ class _PlaybackSettingsScreenState
                       color: Theme.of(context).colorScheme.outline,
                     ),
                   ),
+                  ..._buildReplayGainCoverage(context, l10n),
                   if (_replayGainMode != 'off') ...[
                     const SizedBox(height: 12),
                     Text(
@@ -473,7 +481,12 @@ class _PlaybackSettingsScreenState
                             ),
                     ),
                     Text(
-                      l10n.playbackSettingsReplayGainPreampSubtitle,
+                      switch (_replayGainPreamp) {
+                        < 0 =>
+                          l10n.playbackSettingsReplayGainPreampSubtitleDown,
+                        0 => l10n.playbackSettingsReplayGainPreampSubtitleZero,
+                        _ => l10n.playbackSettingsReplayGainPreampSubtitleUp,
+                      },
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.outline,
                       ),
@@ -630,6 +643,44 @@ class _PlaybackSettingsScreenState
           trailing: const Icon(Icons.chevron_right),
           onTap: () => NavService.openMatchFlow(context, ref),
         ),
+    ];
+  }
+
+  /// How much of the library has ReplayGain data, what the rest plays at, and
+  /// where the real fix is. Nothing while loading or for an empty library.
+  List<Widget> _buildReplayGainCoverage(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) {
+    final stats = ref.watch(replayGainLibraryGainsProvider).asData?.value;
+    if (stats == null || stats.total == 0) return const <Widget>[];
+    final level = effectiveReplayGainUntaggedDb(
+      fixed: _replayGainUntaggedDb,
+      auto: ref.watch(replayGainAutoUntaggedDbProvider),
+    );
+    final style = Theme.of(context).textTheme.bodySmall
+        ?.copyWith(color: Theme.of(context).colorScheme.outline);
+    return <Widget>[
+      const SizedBox(height: 8),
+      Text(
+        l10n.playbackSettingsReplayGainCoverage(
+          stats.withData * 100 ~/ stats.total,
+          stats.total,
+          stats.withData,
+        ),
+        style: style,
+      ),
+      Text(
+        _replayGainMode == 'off'
+            ? l10n.playbackSettingsReplayGainCoverageOff
+            : l10n.playbackSettingsReplayGainCoverageRest(
+                _replayGainUntaggedDb == null ? 'automatic' : 'fixed',
+                _dbText(level),
+              ),
+        style: style,
+      ),
+      if (stats.withData < stats.total)
+        Text(l10n.playbackSettingsReplayGainCoverageTip, style: style),
     ];
   }
 

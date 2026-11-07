@@ -22,6 +22,8 @@ import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
+import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -303,6 +305,27 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  testWidgets('the desktop info grid has a ReplayGain cell', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(1000, 900));
+    final container = _createContainer(
+      overrides: <Override>[
+        nowPlayingReplayGainProvider.overrideWithValue(
+          const ReplayGainDecision(
+            mode: 'smart',
+            resolvedMode: 'album',
+            db: -6.2,
+            source: ReplayGainSource.album,
+          ),
+        ),
+      ],
+    );
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
+    await _pumpNowPlaying(tester, container, desktopRuntime: true);
+    expect(find.text('ReplayGain'), findsOneWidget);
+    expect(find.text('−6.2 dB · album (Smart)'), findsOneWidget);
+  }, skip: !sqliteAvailable);
 
   testWidgets('the cover follows Now Playing Art Shape', (tester) async {
     setAdaptiveTestViewport(tester, const Size(390, 844));
