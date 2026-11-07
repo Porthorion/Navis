@@ -130,6 +130,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Volume normalization has a new Smart mode, now the default for new '
+        'installs. It keeps an album\'s own loudness balance when you play '
+        'the album in order, and levels songs one by one for shuffles and '
+        'mixes. Your current choice stays as it is',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Songs from Deezer now show the greyed-out heart in Search and in '
         'Artist top tracks on desktop, the same as everywhere else',
         type: ChangelogEntryType.fix,

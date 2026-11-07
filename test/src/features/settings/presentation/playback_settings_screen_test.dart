@@ -370,6 +370,26 @@ void main() {
         });
       }
 
+      testWidgets('the mode list offers Smart, explains it and saves it', (
+        tester,
+      ) async {
+        await pump(tester);
+        final modeField = find.byType(DropdownButtonFormField<String>);
+        await tester.ensureVisible(modeField);
+        await tester.tap(modeField);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Smart').last);
+        await tester.pumpAndSettle(const Duration(milliseconds: 600));
+        expect(saved?.replayGainMode, 'smart');
+        expect(
+          find.text(
+            'Album levels when you play an album in order, track levels for '
+            'shuffles and mixes.',
+          ),
+          findsOneWidget,
+        );
+      });
+
       testWidgets('the steppers move the level a dB and stop at the limits', (
         tester,
       ) async {

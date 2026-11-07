@@ -1728,6 +1728,18 @@ abstract class AppLocalizations {
   /// **'No volume normalization applied.'**
   String get playbackSettingsReplayGainModeOffDescription;
 
+  /// No description provided for @playbackSettingsReplayGainModeSmart.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart'**
+  String get playbackSettingsReplayGainModeSmart;
+
+  /// No description provided for @playbackSettingsReplayGainModeSmartDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Album levels when you play an album in order, track levels for shuffles and mixes.'**
+  String get playbackSettingsReplayGainModeSmartDescription;
+
   /// No description provided for @playbackSettingsReplayGainModeTrack.
   ///
   /// In en, this message translates to:

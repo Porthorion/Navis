@@ -327,7 +327,7 @@ void main() {
       expect(NavisDatabase.currentSchemaVersion, 111);
     });
 
-    for (final mode in ['off', 'track', 'album']) {
+    for (final mode in ['off', 'track', 'album', 'smart']) {
       test('adds the column as Automatic and keeps mode $mode', () async {
         final db = await upgraded110(mode);
         final settings = (await db.appSettingsDao.getSettings())!;
@@ -345,18 +345,18 @@ void main() {
       });
     }
 
-    test('a settings row created after the upgrade starts on track', () async {
+    test('a settings row created after the upgrade starts on smart', () async {
       final db = await upgraded110(null);
       final settings = (await db.appSettingsDao.getSettings())!;
-      expect(settings.replayGainMode, 'track');
+      expect(settings.replayGainMode, 'smart');
       expect(settings.replayGainUntaggedDb, isNull);
     });
 
-    test('a new profile starts on track mode', () async {
+    test('a new profile starts on smart mode', () async {
       final db = createTestDatabase();
       addTearDown(db.close);
       final settings = (await db.appSettingsDao.getSettings())!;
-      expect(settings.replayGainMode, 'track');
+      expect(settings.replayGainMode, 'smart');
       expect(settings.replayGainUntaggedDb, isNull);
     });
   });

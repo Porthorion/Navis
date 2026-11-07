@@ -275,7 +275,7 @@ class PlaybackRuntimeSettings {
       crossfadeAllowStreaming = true,
       crossfadeDurationSeconds = 5,
       crossfadeType = 'normal',
-      replayGainMode = 'track',
+      replayGainMode = 'smart',
       replayGainPreamp = 0.0,
       replayGainUntaggedDb = replayGainFallbackUntaggedDb,
       playbackSpeed = 1.0,
@@ -298,7 +298,7 @@ class PlaybackRuntimeSettings {
   final int crossfadeDurationSeconds;
   final String crossfadeType;
 
-  /// ReplayGain mode: 'off', 'track', or 'album'.
+  /// ReplayGain mode: 'off', 'track', 'album' or 'smart'.
   final String replayGainMode;
 
   /// ReplayGain pre-amp adjustment in dB (-6 to +6).

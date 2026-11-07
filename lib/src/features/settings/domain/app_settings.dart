@@ -180,7 +180,7 @@ class AppSettingsModel {
       backgroundSyncUnmeteredOnly = true,
       useLrclib = true,
       legacyInstantMixEnabled = false,
-      replayGainMode = 'track',
+      replayGainMode = 'smart',
       replayGainPreamp = 0.0,
       replayGainUntaggedDb = null,
       playbackSpeed = 1.0,
@@ -292,7 +292,7 @@ class AppSettingsModel {
   final bool useLrclib;
   final bool legacyInstantMixEnabled;
 
-  /// ReplayGain mode: 'off', 'track', or 'album'.
+  /// ReplayGain mode: 'off', 'track', 'album' or 'smart'.
   final String replayGainMode;
 
   /// ReplayGain pre-amp adjustment in dB (-6.0 to +6.0).
