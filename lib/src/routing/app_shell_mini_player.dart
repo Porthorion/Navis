@@ -151,12 +151,7 @@ void _miniToggleLike(
   bool isExternal,
 ) {
   if (_isRemoteSong(songId, isExternal)) {
-    NavisHaptics.reject();
-    showAppNotice(
-      context,
-      message: AppLocalizations.of(context)!.remoteSourceActionUnavailable,
-      level: AppNoticeLevel.error,
-    );
+    showRemoteSourceActionUnavailable(context);
     return;
   }
   if (ref.read(playerStateProvider).isCurrentSongLiked) {

@@ -593,6 +593,8 @@ void main() {
           .read(playbackAdjustmentsProvider.notifier)
           .setValues(start);
       await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      clearInteractions(repository);
       final gesture = await tester.startGesture(
         tester.getCenter(find.byKey(ValueKey('adjustment-$stepper'))),
       );
@@ -608,6 +610,14 @@ void main() {
           .requireValue
           .values;
       expect(values.speed, closeTo(limit, 1e-9));
+      // The hold ended through the stepper's normal path: one save.
+      verify(
+        () => repository.savePlaybackAdjustments(
+          values: any(named: 'values'),
+          selectedPresetId: any(named: 'selectedPresetId'),
+          presets: any(named: 'presets'),
+        ),
+      ).called(1);
     });
   }
 

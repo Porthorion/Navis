@@ -112,12 +112,7 @@ class _ActionRowState extends ConsumerState<_ActionRow>
             ? null
             : isRemote
             ? () {
-                NavisHaptics.reject();
-                showAppNotice(
-                  context,
-                  message: l10n.remoteSourceActionUnavailable,
-                  level: AppNoticeLevel.error,
-                );
+                showRemoteSourceActionUnavailable(context);
               }
             : () {
                 if (widget.isLiked) {

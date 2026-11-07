@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
@@ -36,8 +37,8 @@ class NavisRefreshIndicator extends StatefulWidget {
 /// [RefreshIndicator] arms after dragging this share of the viewport height.
 const double _triggerShare = 0.25;
 
-/// A mark is crossed back only once the pull is this much of the trigger
-/// distance behind it, so a finger resting on a mark does not flutter.
+/// A mark, or the trigger, clicks again only once the pull has backed off this
+/// much of the trigger distance, so a finger resting on it does not flutter.
 const double _hysteresis = 0.06;
 
 const List<double> _tickMarks = <double>[0.25, 0.5, 0.75];
@@ -49,14 +50,31 @@ class _NavisRefreshIndicatorState extends State<NavisRefreshIndicator> {
   int _stage = 0;
   bool _armed = false;
 
+  /// False after the trigger click turned off, until the pull has backed off
+  /// [_hysteresis] below it, so a finger resting on the line does not re-click.
+  bool _canArm = true;
+  Timer? _settling;
+
+  /// [RefreshIndicator] ignores new pulls while its spinner finishes (its scale
+  /// animation is 200 ms), so pulls stay silent a little longer than the
+  /// refresh itself.
+  static const _doneAnimation = Duration(milliseconds: 300);
+
   Future<void> _refresh() async {
+    _settling?.cancel();
     _refreshing = true;
     try {
       await widget.onRefresh();
       NavisHaptics.confirm();
     } finally {
-      _refreshing = false;
+      _settling = Timer(_doneAnimation, () => _refreshing = false);
     }
+  }
+
+  @override
+  void dispose() {
+    _settling?.cancel();
+    super.dispose();
   }
 
   bool _onScroll(ScrollNotification notification) {
@@ -73,32 +91,40 @@ class _NavisRefreshIndicatorState extends State<NavisRefreshIndicator> {
       _offset = 0;
       _stage = 0;
       _armed = false;
+      _canArm = true;
     } else if (!_tracking) {
       return false;
-    } else if (notification is ScrollUpdateNotification) {
-      _offset -= notification.scrollDelta ?? 0;
-      _update(metrics.viewportDimension);
-    } else if (notification is OverscrollNotification) {
-      _offset -= notification.overscroll;
-      _update(metrics.viewportDimension);
     } else if (notification is ScrollEndNotification) {
       _tracking = false;
+    } else if (notification is ScrollUpdateNotification &&
+        notification.dragDetails != null) {
+      // Only a finger pulls: the spring-back after letting go has no drag.
+      _offset -= notification.scrollDelta ?? 0;
+      _update(metrics.viewportDimension);
+    } else if (notification is OverscrollNotification &&
+        notification.dragDetails != null) {
+      _offset -= notification.overscroll;
+      _update(metrics.viewportDimension);
     }
     return false;
   }
 
   void _update(double viewport) {
     final fraction = math.max(0, _offset) / (viewport * _triggerShare);
-    if (!_armed && fraction >= 1) {
+    // Armed means exactly "letting go now refreshes", as RefreshIndicator
+    // decides: so it turns off the moment the pull drops below the trigger.
+    if (_armed) {
+      if (fraction >= 1) return;
+      _armed = false;
+      _canArm = fraction < 1 - _hysteresis;
+      NavisHaptics.thresholdOff();
+      return;
+    }
+    if (fraction < 1 - _hysteresis) _canArm = true;
+    if (_canArm && fraction >= 1) {
       _armed = true;
       _stage = _tickMarks.length;
       NavisHaptics.thresholdOn();
-      return;
-    }
-    if (_armed) {
-      if (fraction >= 1 - _hysteresis) return;
-      _armed = false;
-      NavisHaptics.thresholdOff();
       return;
     }
     final stage = _tickMarks.where((mark) => fraction >= mark).length;

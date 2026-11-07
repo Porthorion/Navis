@@ -1452,7 +1452,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     if (_isRefreshingAlbum) {
       return;
     }
-    NavisHaptics.press();
     // An album stream that failed is read again.
     final albumStream = albumProvider(widget.albumId);
     if (ref.read(albumStream).hasError) ref.invalidate(albumStream);
@@ -1472,6 +1471,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (!mounted || generation != _hydrationGeneration) {
         return;
       }
+      if (!requestFailed) NavisHaptics.confirm();
       ref.invalidate(albumInfoProvider(widget.albumId));
       // A page without the album shows the failure itself.
       if (!requestFailed ||
@@ -1656,11 +1656,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         ),
                         onTap: () {
                           if (isRemote) {
-                            showAppNotice(
-                              context,
-                              message: l10n.remoteSourceActionUnavailable,
-                              level: AppNoticeLevel.error,
-                            );
+                            showRemoteSourceActionUnavailable(context);
                             return;
                           }
                           unawaited(
@@ -1867,11 +1863,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         return;
       case _AlbumSongContextAction.toggleLike:
         if (isRemoteSong(id: song.id, isExternal: song.isExternal)) {
-          showAppNotice(
-            context,
-            message: l10n.remoteSourceActionUnavailable,
-            level: AppNoticeLevel.error,
-          );
+          showRemoteSourceActionUnavailable(context);
           return;
         }
         try {

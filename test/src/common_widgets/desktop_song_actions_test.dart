@@ -16,6 +16,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/content_layout.dart';
 
+import '../../helpers/haptics_spy.dart';
 import '../../helpers/adaptive_test_harness.dart';
 import '../../helpers/test_theme.dart';
 
@@ -119,8 +120,10 @@ void main() {
     expect(find.byIcon(Icons.more_horiz_rounded), findsNothing);
     expect(find.text('3:05'), findsOneWidget);
 
+    final spy = HapticsSpy.install(tester);
     await tester.tap(heart);
     await tester.pump();
+    expect(await spy.take(tester), ['reject']);
     expect(notices.notice?.message, 'Not available for remote tracks.');
   });
 
@@ -330,9 +333,11 @@ void main() {
     );
     handle.dispose();
 
+    final spy = HapticsSpy.install(tester);
     await tester.tap(find.byIcon(Icons.favorite_border));
     await tester.pump();
 
+    expect(await spy.take(tester), ['reject']);
     expect(notices.notice?.message, 'Not available for remote tracks.');
     expect(find.byIcon(Icons.favorite), findsNothing);
   });

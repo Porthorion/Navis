@@ -1874,7 +1874,7 @@ reference feel for `tick` and `firm`.
 | 0 dB crossing on the EQ graph | `firm` | KEYBOARD_TAP | medium | `EqGraphEditor` |
 | Pick an EQ band | `contextClick` | CONTEXT_CLICK (23) | selection | `EqGraphEditor` |
 | Like / unlike | `confirm` / `tick` | CONFIRM (30) / CLOCK_TICK | light / selection | `StarButton`, Now Playing, mini player |
-| Tap on a disabled remote heart; swipe-remove commit | `reject` | REJECT (30) | heavy | Now Playing, mini player, queue row |
+| Any tap that shows the "Not available for remote tracks" notice (hearts, menus, rows); swipe-remove commit | `reject` | REJECT (30) | heavy | `showRemoteSourceActionUnavailable`, queue row |
 | Download started, copy, refresh finished | `confirm` | CONFIRM (30) | light | download icon, album title copy, `NavisRefreshIndicator` |
 | Pull to refresh | `frequentTick` at each quarter, `thresholdOn` / `thresholdOff` at the trigger | SEGMENT_FREQUENT_TICK, GESTURE_THRESHOLD_ACTIVATE / DEACTIVATE (34) | selection / medium / selection | `NavisRefreshIndicator` (every `RefreshIndicator`) |
 | Swipe-to-remove dismiss point | `thresholdOn` / `thresholdOff` | as above | medium / selection | `QueueTrackRow` |
@@ -1885,8 +1885,10 @@ Silent by design: scrolling, navigation taps, continuous volume and seek
 drags, text fields, notices and background events.
 `NavisRefreshIndicator` measures the pull exactly as `RefreshIndicator` does
 (a quarter of the viewport arms it), ticks at 25, 50 and 75 percent, clicks at
-the trigger and again only after backing off 6 percent of it, so hovering at a
-mark never repeats.
+the trigger as long as letting go would refresh (it clicks off the moment the
+pull drops below it), and re-clicks only after backing off 6 percent of it.
+It tracks finger drags only, so a spring-back is silent, and stays quiet while
+the indicator finishes after a refresh.
 
 ### Hero Animation Pattern
 

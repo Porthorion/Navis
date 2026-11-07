@@ -97,6 +97,12 @@ class _HostState extends State<_Host> {
                 widget.live.value = tuning;
               },
               onCommit: (tuning) {
+                // The real commit writes a provider, which must never happen
+                // while the tree is building (a stepper ending a hold).
+                assert(
+                  !WidgetsBinding.instance.buildOwner!.debugBuilding,
+                  'committed during build',
+                );
                 widget.commits.add(tuning);
                 widget.live.value = tuning;
               },

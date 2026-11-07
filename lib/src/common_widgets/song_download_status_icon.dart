@@ -116,13 +116,13 @@ class SongDownloadStatusIcon extends ConsumerWidget {
 
   final double size;
 
-  /// Wraps a child in a [Tooltip] only on desktop platforms.
-  /// On mobile/touch platforms, returns the child unchanged.
   void _startDownload() {
     NavisHaptics.confirm();
     onDownload!();
   }
 
+  /// Wraps a child in a [Tooltip] only on desktop platforms.
+  /// On mobile/touch platforms, returns the child unchanged.
   static Widget _maybeTooltip(Widget child, String message) {
     if (!isDesktopRuntime) return child;
     return Tooltip(message: message, child: child);

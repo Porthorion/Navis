@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -12,7 +14,11 @@ void main() {
 
   // The viewport is 600 px tall, so letting go after pulling 150 px
   // (a quarter of it) refreshes: each 15 px below is a tenth of the way.
-  Future<void> pumpList(WidgetTester tester, {double scrolled = 0}) async {
+  Future<void> pumpList(
+    WidgetTester tester, {
+    double scrolled = 0,
+    ScrollPhysics? physics,
+  }) async {
     spy = HapticsSpy.install(tester);
     refreshes = 0;
     onRefresh = () async => refreshes++;
@@ -25,6 +31,7 @@ void main() {
             onRefresh: () => onRefresh(),
             child: ListView.builder(
               controller: controller,
+              physics: physics,
               itemCount: 40,
               itemBuilder: (_, i) => SizedBox(height: 56, child: Text('$i')),
             ),
@@ -56,6 +63,22 @@ void main() {
     }
   }
 
+  /// Pulls one pixel at a time until the trigger click, returning every haptic
+  /// heard on the way. The finger then rests exactly on the trigger point.
+  Future<List<String>> pullToTrigger(
+    WidgetTester tester,
+    TestGesture gesture,
+  ) async {
+    final heard = <String>[];
+    for (var i = 0; i < 700 && !heard.contains('thresholdOn'); i++) {
+      await gesture.moveBy(const Offset(0, 1));
+      await tester.pump(const Duration(milliseconds: 16));
+      heard.addAll(await spy.take(tester));
+    }
+    expect(heard, contains('thresholdOn'));
+    return heard;
+  }
+
   testWidgets('a full pull ticks at each quarter, firms at the trigger and '
       'confirms when the refresh finishes', (tester) async {
     await pumpList(tester);
@@ -73,18 +96,109 @@ void main() {
     expect(await spy.take(tester), ['confirm']);
   });
 
-  testWidgets('hovering at the trigger point does not repeat', (tester) async {
+  testWidgets('hovering on the trigger point clicks off once and never '
+      're-arms until backed off', (tester) async {
     await pumpList(tester);
     final gesture = await startPull(tester);
-    await pullTo(tester, gesture, 0, 155);
-    spy.kinds.clear();
+    await pullToTrigger(tester, gesture);
+    final heard = <String>[];
     for (var i = 0; i < 10; i++) {
-      await gesture.moveBy(Offset(0, i.isEven ? 3 : -3));
+      await gesture.moveBy(Offset(0, i.isEven ? -2 : 2));
       await tester.pump(const Duration(milliseconds: 16));
+      heard.addAll(await spy.take(tester));
     }
-    expect(await spy.take(tester), isEmpty);
+    // Below the trigger, letting go would not refresh, so it says so at once;
+    // wobbling back over the line is not a new pull.
+    expect(heard, ['thresholdOff']);
     await gesture.up();
     await tester.pumpAndSettle();
+  });
+
+  testWidgets('pull to the trigger, back off 12 px and let go: told, and no '
+      'refresh', (tester) async {
+    await pumpList(tester);
+    final gesture = await startPull(tester);
+    await pullToTrigger(tester, gesture);
+    await gesture.moveBy(const Offset(0, -12));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(await spy.take(tester), ['thresholdOff']);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(refreshes, 0);
+    expect(await spy.take(tester), isEmpty);
+  });
+
+  testWidgets('the trigger clicks again after backing off and crossing again', (
+    tester,
+  ) async {
+    await pumpList(tester);
+    final gesture = await startPull(tester);
+    await pullToTrigger(tester, gesture);
+    await gesture.moveBy(const Offset(0, -20));
+    await tester.pump(const Duration(milliseconds: 16));
+    spy.kinds.clear();
+    await gesture.moveBy(const Offset(0, 30));
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(await spy.take(tester), contains('thresholdOn'));
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(refreshes, 1);
+  });
+
+  testWidgets('a re-pull right after a refresh finishes is silent', (
+    tester,
+  ) async {
+    await pumpList(tester);
+    final done = Completer<void>();
+    var called = 0;
+    onRefresh = () {
+      called++;
+      return done.future;
+    };
+    final first = await startPull(tester);
+    await pullToTrigger(tester, first);
+    await first.moveBy(const Offset(0, 10));
+    await first.up();
+    // The indicator snaps to its spinner before it calls onRefresh.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(called, 1, reason: 'onRefresh is waiting on the completer');
+    done.complete();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(await spy.take(tester), ['confirm']);
+
+    // The indicator is still finishing its done animation and ignores this
+    // pull, so it must not tick either.
+    final second = await startPull(tester);
+    await pullTo(tester, second, 0, 190);
+    expect(await spy.take(tester), isEmpty);
+    await second.up();
+    await tester.pumpAndSettle();
+    expect(refreshes, 0);
+
+    // Once it has settled, pulls feel again.
+    final third = await startPull(tester);
+    await pullTo(tester, third, 0, 190);
+    expect(await spy.take(tester), contains('thresholdOn'));
+    await third.up();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('the spring-back after letting go emits nothing', (tester) async {
+    await pumpList(
+      tester,
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
+    );
+    final gesture = await startPull(tester);
+    await pullToTrigger(tester, gesture);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(refreshes, 1);
+    // The list bounces back from its overscroll, which is not a pull back.
+    expect(await spy.take(tester), ['confirm']);
   });
 
   testWidgets('pulling back below the trigger says so once', (tester) async {
