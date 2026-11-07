@@ -77,7 +77,8 @@ class Run:
                 try:
                     v = self.status()
                     row = {'t': round(time.time(), 3), 'phase': self.phase, 'songId': v.get('songId'),
-                           'positionMs': v.get('playerPositionMs'), 'playing': v.get('playing'),
+                           'index': v.get('currentIndex'), 'positionMs': v.get('playerPositionMs'), 'durationMs': v.get('durationMs'),
+                           'playing': v.get('playing'),
                            'boost': v.get('replayGainBoost'), 'decision': v.get('replayGain')}
                     self.samples.write(json.dumps(row) + '\n')
                     self.samples.flush()
@@ -282,6 +283,34 @@ class Run:
         self.phase = 'done'
         (self.out / 'a1-final.json').write_text(json.dumps(self.status(), indent=2))
 
+    def remove_above_with_ordering(self):
+        """Removes the song above the playing one while a fast poller watches the status's index, and
+        logs whether the new index was seen before or after the edit's reply."""
+        started, replied, seen = time.time(), [None], [None]
+        stop = threading.Event()
+
+        def poll():
+            while not stop.is_set():
+                try:
+                    index = self.status().get('currentIndex')
+                except Exception:  # noqa: BLE001
+                    continue
+                if index == 0 and seen[0] is None:
+                    seen[0] = time.time()
+        poller = threading.Thread(target=poll, daemon=True)
+        poller.start()
+        self.post('/v1/playback/queue-edit', {'op': 'remove', 'index': 0})
+        replied[0] = time.time()
+        time.sleep(.6)
+        stop.set()
+        poller.join(2)
+        order = ('before-reply' if seen[0] is not None and seen[0] <= replied[0]
+                 else 'after-reply' if seen[0] is not None else 'not-seen')
+        with (self.out / 'a1-ordering.jsonl').open('a') as log:
+            log.write(json.dumps({'edit': 'remove-above', 'replyMs': round((replied[0] - started) * 1000),
+                                  'indexSeenMs': None if seen[0] is None else round((seen[0] - started) * 1000),
+                                  'order': order}) + '\n')
+
     def a2(self):
         """A2: song switches and queue edits around a boosted Q: nothing may reach the processor
         above the playing song's own boost, whichever command moved the index."""
@@ -361,7 +390,9 @@ class Run:
         # Z1: a 2x to 1x drop with 5 s of Q left (inside the window at 2x, outside it at 1x), then an
         # action that changes the index, the loop mode or the play order. Q's next song is H, so any
         # value above 0 sent before the song changes is the old song's own boost on H's samples.
-        for action in ('remove-above', 'loop', 'shuffle'):
+        # The remove-above case is repeated 5 times, each with an ordering probe: does the native
+        # index event (the status's currentIndex) land before or after the edit's reply?
+        for action in ['remove-above'] * 5 + ['loop', 'shuffle']:
             self.phase = f'a2-latch-{action}'
             self.post('/v1/playback/adjustments', {'speed': 2})
             self.queue([H2, Q1, H1])
@@ -371,7 +402,7 @@ class Run:
             self.post('/v1/playback/adjustments', {'speed': 1})
             time.sleep(.3)
             if action == 'remove-above':
-                self.post('/v1/playback/queue-edit', {'op': 'remove', 'index': 0})
+                self.remove_above_with_ordering()
             elif action == 'loop':
                 self.post('/v1/playback/repeat', {'mode': 'all'})
             else:
@@ -379,6 +410,22 @@ class Run:
             time.sleep(3.5)
             self.post('/v1/playback/repeat', {'mode': 'none'})
             self.post('/v1/playback/shuffle', {'enabled': False})
+        self.post('/v1/playback/adjustments', {'speed': 1})
+
+        # A duplicate entry of Q: the second copy is a new play, not guarded from its start.
+        self.phase = 'a2-duplicate'
+        self.queue([Q1, Q1, H1])
+        self.play_from(26000)
+        time.sleep(9)
+
+        # Repeat-one wraps Q onto itself; repeat off in the second pass must not leave Q guarded.
+        self.phase = 'a2-repeat-one-wrap'
+        self.queue([Q1, H1], repeat='one')
+        self.play_from(26500)
+        self.wait(lambda: (self.status().get('playerPositionMs') or 99999) < 4000, 15, .1, 'the repeat-one wrap')
+        time.sleep(1.5)
+        self.post('/v1/playback/repeat', {'mode': 'none'})
+        time.sleep(3)
 
         self.phase = 'a2-speed'
         self.queue([Q1, H1])

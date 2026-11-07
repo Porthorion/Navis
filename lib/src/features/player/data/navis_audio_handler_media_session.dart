@@ -341,6 +341,8 @@ extension _NavisMediaSession on NavisAudioHandler {
           _recordAnomalyDiscontinuity(discontinuity);
           if (discontinuity.reason == PositionDiscontinuityReason.seek) {
             _holdBoostAfterSeek();
+          } else if (_isBoostLoopBack(discontinuity)) {
+            _resetBoostGuard();
           }
           _onPositionDiscontinuity(discontinuity);
         });
@@ -447,18 +449,10 @@ extension _NavisMediaSession on NavisAudioHandler {
       _captureTranscodeEndOccurrence(indexEvent: true);
       _updateScrobbleSession(item, currentIndex: resolved.currentIndex);
       // just_audio emits the index again on every playback event, and an edit
-      // above the song only shifts it: only another song is a song start that
-      // forgets the guard. (A seek resets it on its own discontinuity. A natural
-      // advance to the same song needs no reset: the latch of a song whose
-      // successor is itself is its own boost.)
-      // While an edit runs the published song can flip to its neighbour and
-      // back (the queue is trimmed before the native index follows), so no
-      // song start is decided until the edit is done.
-      final songId = item?.id;
-      if (!_player.sequenceEditInFlight && songId != _boostSongIdSeen) {
-        _boostSongIdSeen = songId;
-        _resetBoostGuard();
-      }
+      // above the song only shifts it: only another playing source is a song
+      // start that forgets the guard (see [_observeBoostSource]). A seek and a
+      // loop back of the same source reset it on their own discontinuity.
+      _observeBoostSource(index);
       _applyReplayGainVolume();
       _broadcastPlaybackState();
       _emitSnapshot();
@@ -886,6 +880,57 @@ extension _NavisMediaSession on NavisAudioHandler {
     return (db: value, guarded: guarded);
   }
 
+  /// The source at [index] of the heard deck's queue as it is now, or null.
+  IndexedAudioSource? _boostSourceAt(int? index) {
+    final sequence = _player.sequence;
+    return index == null || index < 0 || index >= sequence.length
+        ? null
+        : sequence[index];
+  }
+
+  /// Whether [discontinuity] is a wrap of one source onto itself (repeat-one,
+  /// or loop-all over a single entry). A change of item caused by a queue edit
+  /// always names two different sources, so it can never be one.
+  bool _isBoostLoopBack(PositionDiscontinuity discontinuity) {
+    if (discontinuity.reason != PositionDiscontinuityReason.autoAdvance) {
+      return false;
+    }
+    final before = _boostSourceAt(discontinuity.previousEvent.currentIndex);
+    final after = _boostSourceAt(discontinuity.event.currentIndex);
+    return before != null && identical(before, after);
+  }
+
+  /// The latch lives for one playing source, not for a song id or an index:
+  /// two copies of a song are two sources (a duplicate entry is a new play),
+  /// and a removal above the playing song keeps its source. Decides a song
+  /// start from the source at [index] unless an edit is in flight (the
+  /// published song can flip to its neighbour and back during one). A source
+  /// that cannot be resolved changes nothing.
+  void _observeBoostSource(int? index) {
+    if (_player.sequenceEditInFlight) return;
+    final source = _boostSourceAt(index);
+    if (source == null || identical(source, _boostSourceSeen)) return;
+    _boostSourceSeen = source;
+    _boostSourcePending = null;
+    _resetBoostGuard();
+  }
+
+  /// A song start or removal seen only during an edit leaves no event behind,
+  /// so the tick re-resolves the playing source. It resets only when the same
+  /// new source shows on two ticks in a row, after the edit: the gap between
+  /// an edit's reply and its index event can still show a neighbour once.
+  void _confirmBoostSource() {
+    if (_player.sequenceEditInFlight) return;
+    final source = _boostSourceAt(_player.currentIndex);
+    if (source == null || identical(source, _boostSourceSeen)) {
+      _boostSourcePending = null;
+    } else if (identical(source, _boostSourcePending)) {
+      _observeBoostSource(_player.currentIndex);
+    } else {
+      _boostSourcePending = source;
+    }
+  }
+
   /// Forgets the boost guard's latch and the post-seek hold: a song start, a
   /// seek or a settings change makes the lowest value of the old window stale.
   void _resetBoostGuard() {
@@ -922,6 +967,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       return;
     }
     try {
+      _confirmBoostSource();
       final boost = _androidBoostFor(_player);
       if (boost != null && (boost.guarded || _sentBoost[_player] != boost)) {
         unawaited(

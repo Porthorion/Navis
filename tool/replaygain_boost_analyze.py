@@ -11,6 +11,8 @@ import sys
 
 import numpy as np
 
+from replaygain_boost_clamps import unexpected_clamps
+
 RATE = 44100
 WIN = RATE // 100  # 10 ms
 ok = True
@@ -174,32 +176,6 @@ def d5(root):
               f'join at {b / RATE:.2f}s, qb raised {at}s after it')
 
 
-def unexpected_clamps(rows):
-    """Clamp-counter rises per (phase, song) and the ones that are not allowed.
-
-    A rise is seen about 100 ms after it happened, and the processor runs up to ~0.75 s ahead of the
-    speaker, so the status can still name L while H's first samples clamp (the L to H join). Only a
-    rise mid-song for L in a lossy phase is exempt (reported, not asserted: L sits 1 dB under full
-    scale and the margin is the owner's decision): the row, the one before and the one after are
-    unguarded, and L is between 1.5 s and 30 s - 3 s - 0.75 s. Any rise in L's guard window or after
-    it fails, as does any rise while another song plays."""
-    clamped, unexpected = {}, {}
-    for i in range(1, len(rows)):
-        r, before = rows[i], rows[i - 1]
-        if r['boost']['clipSamples'] <= before['boost']['clipSamples']:
-            continue
-        n = r['boost']['clipSamples'] - before['boost']['clipSamples']
-        key = (r['phase'], r['songId'])
-        clamped[key] = clamped.get(key, 0) + n
-        neighbours = rows[max(0, i - 1):i + 2]
-        exempt = (r['phase'].startswith('lossy-') and r['songId'] == 'rgl-1'
-                  and all(not x['boost']['guarded'] and x['songId'] == 'rgl-1' for x in neighbours)
-                  and r['positionMs'] is not None and 1500 <= r['positionMs'] <= 26250)
-        if not exempt:
-            unexpected[key] = unexpected.get(key, 0) + n
-    return clamped, unexpected
-
-
 def a1(root):
     import json
     path = os.path.join(root, 'a1', 'a1-samples.jsonl')
@@ -274,12 +250,15 @@ def a1(root):
     # exceed the playing song's own boost, whichever command moved the index.
     a2 = [r for r in rows if r['phase'].startswith('a2-')]
     check('A2 samples recorded for skip, jump, remove, edit-above, Play and insert phases', len(a2) > 300 and
-          len({r['phase'] for r in a2}) >= 11, f'rows={len(a2)} phases={sorted({r["phase"] for r in a2})}')
+          len({r['phase'] for r in a2}) >= 13, f'rows={len(a2)} phases={sorted({r["phase"] for r in a2})}')
     a2_rises = unexpected_clamps(a2)[1]  # the counter is cumulative: count its rises, not its value
     check('A2 no clamped sample in any A2 phase', not a2_rises, f'rises={a2_rises}')
-    done = [r for r in phase('a2-play-completed') if r['songId'] == 'rgq-1' and (r['positionMs'] or 0) > 28000]
-    restarted = [r for r in phase('a2-play-completed') if r['songId'] == 'rgh-1' and r.get('playing')]
-    again = [r for r in phase('a2-play-completed') if r['songId'] == 'rgq-1' and r.get('playing')
+    play = phase('a2-play-completed')
+    done = [r for r in play if r['songId'] == 'rgq-1' and (r['positionMs'] or 0) > 28000]
+    # Only rows after the last row of Q's end count: H rows before it would not be a restart.
+    end = max((i for i, r in enumerate(play) if r in done), default=-1)
+    restarted = [r for r in play[end + 1:] if r['songId'] == 'rgh-1' and r.get('playing')]
+    again = [r for r in play[end + 1:] if r['songId'] == 'rgq-1' and r.get('playing')
              and r['positionMs'] is not None and r['positionMs'] < 5000]
     if len(done) > 3 and len(restarted) > 3:
         check('A2 Play on the completed queue restarted at song 0 (H)', True,
@@ -287,8 +266,9 @@ def a1(root):
     elif len(done) > 3 and len(again) > 3:
         # The API's Play (handler.play(), like the Now Playing button) replays the ended last song on the
         # emulator and never takes handler.dart's restart-at-index-0 branch: that path is not exercised.
-        print('SKIP A2 Play on the completed queue restarted at song 0 (H): the branch was not reached, '
-              f'Q played again instead (Q end rows={len(done)} Q restart rows={len(again)})')
+        print('SKIP A2 Play on the completed queue restarted at song 0 (H): NOT a pass. Play on a finished '
+              f'queue replays the last song (Q end rows={len(done)} Q restart rows={len(again)}); '
+              'tracked in #374')
     else:
         check('A2 Play on the completed queue restarted at song 0 or replayed Q', False,
               f'Q end rows={len(done)} H restart rows={len(restarted)} Q again rows={len(again)}')
@@ -296,16 +276,38 @@ def a1(root):
         rs = [r for r in phase(f'a2-latch-{action}') if r['songId'] == 'rgq-1' and r.get('playing')
               and r['positionMs'] is not None and 25200 <= r['positionMs'] <= 26800
               and r['boost']['sentDb'] is not None]
-        check(f'A2 {action} after a 2x to 1x drop with 5 s left: Q stays guarded to 0 until the window', len(rs) > 3
-              and max(r['boost']['sentDb'] for r in rs) == 0,
+        runs = 5 if action == 'remove-above' else 1
+        check(f'A2 {action} after a 2x to 1x drop with 5 s left ({runs} run{"s" if runs > 1 else ""}): Q stays guarded to 0 until the window',
+              len(rs) > 3 * runs and max(r['boost']['sentDb'] for r in rs) == 0,
               f'n={len(rs)} max sentDb={max([r["boost"]["sentDb"] for r in rs] or [None])}')
+    # A new play of the same song: a duplicate entry (index 1 of [Q, Q, H]) and the repeat pass of repeat-one.
+    second = [r for r in phase('a2-duplicate') if r['songId'] == 'rgq-1' and r.get('index') == 1 and r.get('playing')
+              and r['positionMs'] is not None and 1500 <= r['positionMs'] <= 6000]
+    check('A2 a duplicate entry of Q is a new play: unguarded and boosted from its start',
+          len(second) > 10 and all(not r['boost']['guarded'] and r['boost']['sentDb'] == 10 for r in second),
+          f'n={len(second)} guarded rows={sum(1 for r in second if r["boost"]["guarded"])}')
+    wrap = [r for r in phase('a2-repeat-one-wrap') if r['songId'] == 'rgq-1' and r.get('playing')
+            and r['positionMs'] is not None and 2500 <= r['positionMs'] <= 8000]
+    check('A2 repeat-one wrap, then repeat off in the second pass: Q is unguarded and boosted',
+          len(wrap) > 10 and all(not r['boost']['guarded'] and r['boost']['sentDb'] == 10 for r in wrap),
+          f'n={len(wrap)} guarded rows={sum(1 for r in wrap if r["boost"]["guarded"])}')
+    import json
+    order_path = os.path.join(root, 'a1', 'a1-ordering.jsonl')
+    orders = [json.loads(line) for line in open(order_path)] if os.path.exists(order_path) else []
+    for o in orders:
+        print(f'INFO A2 remove-above ordering: reply at {o["replyMs"]} ms, new index seen at {o["indexSeenMs"]} ms: {o["order"]}')
+    print('INFO A2 remove-above ordering summary: ' + ', '.join(
+        f'{k}={sum(1 for o in orders if o["order"] == k)}' for k in ('before-reply', 'after-reply', 'not-seen')))
     resumed = [r for r in phase('a2-insert-resume') if r['songId'] == 'rgh-2' and r.get('playing')]
     check('A2 an insert into the completed queue resumed at the inserted song (H2)', len(resumed) > 3,
           f'H2 rows={len(resumed)}')
-    over = [r for r in a2 if r['boost']['appliedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3]
+    # A row that is not playing can name the song of a queue being replaced while the processor still
+    # holds the old song's value (nothing is audible): only playing rows are held to the rule.
+    heard = [r for r in a2 if r.get('playing')]
+    over = [r for r in heard if r['boost']['appliedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3]
     check("A2 the applied boost never exceeds the playing song's own", not over,
           f'violations={len(over)} first={over[0]["songId"] + " " + str(over[0]["boost"]) if over else None}')
-    mis = [r for r in a2 if r['boost']['requestedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3]
+    mis = [r for r in heard if r['boost']['requestedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3]
     check("A2 the boost the processor was asked for never exceeds the playing song's own, from its first sample", not mis,
           f'violations={len(mis)} first={mis[0]["songId"] + " @" + str(mis[0]["positionMs"]) + " " + str(mis[0]["boost"]) if mis else None}')
     late = [r for r in phase('a2-speed') if r['songId'] == 'rgq-1' and r['positionMs'] is not None

@@ -813,6 +813,18 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   /// just_audio re-emits the unchanged index on a seek's player event.
   void emitIndexAgain() => _indices.add(index);
+
+  /// just_audio's auto-advance between two events with different indices, as
+  /// a queue edit above the playing song produces it (old index, new index).
+  void emitAutoAdvance({required int from, required int to}) =>
+      _discontinuities.add(
+        PositionDiscontinuity(
+          PositionDiscontinuityReason.autoAdvance,
+          playbackEvent.copyWith(currentIndex: from),
+          playbackEvent.copyWith(currentIndex: to),
+        ),
+      );
+
   void emitDiscontinuity(PositionDiscontinuityReason reason) => _discontinuities
       .add(PositionDiscontinuity(reason, playbackEvent, playbackEvent));
   void emitShuffleMode(bool enabled) => _shuffleModes.add(enabled);
@@ -17058,6 +17070,348 @@ void main() {
             reason: 'the latch survives the transient',
           );
           expect(player.boostMessages.last.currentDb, 3);
+        });
+
+        Future<void> untilSent(
+          _ControllableAudioPlayer player,
+          bool Function(dynamic m) found,
+        ) async {
+          for (var i = 0; i < 300 && !found(player.boostMessages.last); i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+        }
+
+        // Starts ticking: playing, ready, the position advancing from [at].
+        void ticking(_ControllableAudioPlayer player, Duration at) {
+          player
+            ..isPlaying = true
+            ..state = ProcessingState.ready
+            ..simulatedPosition = at
+            ..simulateProgress = true;
+        }
+
+        test('P1: a duplicate entry of the same song is a new play, not guarded from its start', () async {
+          final (handler, player) = await android([
+            9,
+            0,
+          ], positionStreams: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          ticking(player, const Duration(minutes: 2, seconds: 58));
+          await untilSent(player, (m) => m.guarded == true);
+          expect(
+            player.boostMessages.last.currentDb,
+            9,
+            reason: 'the next entry is itself',
+          );
+          expect(player.boostMessages.last.guarded, isTrue);
+          player.finishCurrentTrack();
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(player.index, 1);
+          expect(
+            player.boostMessages.last.currentDb,
+            9,
+            reason: 'the second copy has 3 min to go',
+          );
+          expect(player.boostMessages.last.guarded, isFalse);
+        });
+
+        test('P1: repeat-one switched on in the last 3 s, then the repeat pass is unguarded', () async {
+          final (handler, player) = await android([
+            9,
+            0,
+          ], positionStreams: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          ticking(player, const Duration(minutes: 2, seconds: 58));
+          await untilSent(player, (m) => m.guarded == true);
+          expect(
+            player.boostMessages.last.currentDb,
+            0,
+            reason: 'song-1 is next',
+          );
+          player.appliedLoopMode = LoopMode.one;
+          player.emitLoopMode(LoopMode.one);
+          player.finishCurrentTrack();
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(
+            player.boostMessages.last.currentDb,
+            9,
+            reason: 'the repeat pass has 3 min to go',
+          );
+          expect(player.boostMessages.last.guarded, isFalse);
+        });
+
+        test('P1: repeat-one, then repeat off mid-song in the second pass keeps the own boost', () async {
+          final (handler, player) = await android([
+            9,
+            3,
+          ], positionStreams: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          player.appliedLoopMode = LoopMode.one;
+          player.emitLoopMode(LoopMode.one);
+          ticking(player, const Duration(minutes: 2, seconds: 58));
+          await untilSent(player, (m) => m.guarded == true);
+          expect(player.boostMessages.last.currentDb, 9);
+          player.finishCurrentTrack();
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+          expect(player.boostMessages.last.currentDb, 9);
+          player.appliedLoopMode = LoopMode.off;
+          player.emitLoopMode(LoopMode.off);
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(
+            player.boostMessages.last.currentDb,
+            9,
+            reason: 'mid-song, repeat off: own 9, not the next song\'s 3',
+          );
+          expect(player.boostMessages.last.guarded, isFalse);
+        });
+
+        test('P1: a loop-all wrap of a single-song queue starts the next pass unguarded', () async {
+          final (handler, player) = await android([
+            9,
+            3,
+          ], positionStreams: true);
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          player.appliedLoopMode = LoopMode.all;
+          player.emitLoopMode(LoopMode.all);
+          ticking(player, const Duration(minutes: 2, seconds: 58));
+          await untilSent(player, (m) => m.guarded == true);
+          expect(player.boostMessages.last.guarded, isTrue);
+          player.finishCurrentTrack();
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(
+            player.boostMessages.last.guarded,
+            isFalse,
+            reason: 'the wrap is a new play of the song',
+          );
+          expect(player.boostMessages.last.currentDb, 9);
+        });
+
+        test('P1: a fake auto-advance after an edit above the song keeps the latch', () async {
+          // Removing a song above makes just_audio report a change of item with no seek: the
+          // playing source is the same object, so it is not a song start.
+          final (handler, player) = await android([0, 9, 3]);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+            'song-2',
+          ], expandMatchFlows: false);
+          player.moveTo(1);
+          await pumpEventQueue();
+          player.simulatedPosition =
+              Duration(minutes: 3) - const Duration(seconds: 6);
+          await handler.setPlaybackAdjustments(
+            const PlaybackAdjustments(speed: 2),
+          );
+          await pumpEventQueue();
+          await handler.setPlaybackAdjustments(
+            const PlaybackAdjustments(speed: 1),
+          );
+          await pumpEventQueue();
+          expect(player.boostMessages.last.currentDb, 3);
+          await handler.removeQueueItemAt(0);
+          await settleQueue(handler);
+          // From the playing song's old index to its new one.
+          player.emitAutoAdvance(from: 1, to: 0);
+          player.emitIndexAgain();
+          await pumpEventQueue();
+          expect(player.boostMessages.last.currentDb, lessThanOrEqualTo(3));
+          expect(player.boostMessages.last.guarded, isTrue);
+        });
+
+        test('P1: a natural advance seen only during an edit is picked up after the edit', () async {
+          final (handler, player) = await android([
+            3,
+            9,
+            9,
+          ], positionStreams: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+            'song-2',
+          ], expandMatchFlows: false);
+          ticking(player, const Duration(minutes: 2, seconds: 58));
+          await untilSent(player, (m) => m.guarded == true);
+          expect(player.boostMessages.last.currentDb, 3);
+          player.editInFlight = true;
+          player.finishCurrentTrack();
+          await pumpEventQueue();
+          player.editInFlight = false;
+          player.simulatedPosition = const Duration(minutes: 1);
+          await Future<void>.delayed(const Duration(milliseconds: 1400));
+          expect(
+            player.boostMessages.last.currentDb,
+            9,
+            reason: 'song-1 has 2 min to go; its own 9',
+          );
+          expect(player.boostMessages.last.guarded, isFalse);
+        });
+
+        test('P1: removing the playing song, its index seen only during the edit, is picked up after it', () async {
+          final (handler, player) = await android([
+            3,
+            9,
+            9,
+          ], positionStreams: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+            'song-2',
+          ], expandMatchFlows: false);
+          ticking(player, const Duration(minutes: 2, seconds: 58));
+          await untilSent(player, (m) => m.guarded == true);
+          expect(player.boostMessages.last.currentDb, 3);
+          player.editInFlight = true;
+          await handler.removeQueueItemAt(0);
+          await settleQueue(handler);
+          player.emitIndexAgain();
+          await pumpEventQueue();
+          player.editInFlight = false;
+          player.simulatedPosition = const Duration(minutes: 1);
+          await Future<void>.delayed(const Duration(milliseconds: 1400));
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(player.boostMessages.last.currentDb, 9);
+          expect(player.boostMessages.last.guarded, isFalse);
+        });
+
+        test('P1: a neighbour seen on one tick after an edit does not drop the latch', () async {
+          final (handler, player) = await android([
+            0,
+            9,
+            3,
+          ], positionStreams: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+            'song-2',
+          ], expandMatchFlows: false);
+          player.moveTo(1);
+          await pumpEventQueue();
+          player.simulatedPosition =
+              Duration(minutes: 3) - const Duration(seconds: 6);
+          await handler.setPlaybackAdjustments(
+            const PlaybackAdjustments(speed: 2),
+          );
+          await pumpEventQueue();
+          await handler.setPlaybackAdjustments(
+            const PlaybackAdjustments(speed: 1),
+          );
+          await pumpEventQueue();
+          expect(player.boostMessages.last.currentDb, 3);
+          final afterDrop = player.boostMessages.length;
+          // The edit has replied (no flag) but the index is still the old one: the
+          // playing entry reads as the neighbour for about one tick.
+          await handler.removeQueueItemAt(0);
+          await settleQueue(handler);
+          expect(player.index, 0);
+          // The edit has replied but the index is still the old one: for a tick the
+          // playing entry reads as its neighbour.
+          player.index = 1;
+          handler.debugTickReplayGainBoost();
+          await pumpEventQueue();
+          player.index = 0;
+          player.emitIndexAgain();
+          await pumpEventQueue();
+          handler.debugTickReplayGainBoost();
+          handler.debugTickReplayGainBoost();
+          await pumpEventQueue();
+          expect(
+            player.boostMessages.skip(afterDrop).every((m) => m.currentDb <= 3),
+            isTrue,
+          );
+          expect(player.boostMessages.last.guarded, isTrue);
+        });
+
+        test(
+          'P1: a transient unresolved index outside an edit keeps the latch',
+          () async {
+            final (handler, player) = await android([0, 9, 3]);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+              'song-2',
+            ], expandMatchFlows: false);
+            player.moveTo(1);
+            await pumpEventQueue();
+            player.simulatedPosition =
+                Duration(minutes: 3) - const Duration(seconds: 6);
+            await handler.setPlaybackAdjustments(
+              const PlaybackAdjustments(speed: 2),
+            );
+            await pumpEventQueue();
+            await handler.setPlaybackAdjustments(
+              const PlaybackAdjustments(speed: 1),
+            );
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 3);
+            player.moveTo(7);
+            await pumpEventQueue();
+            player.moveTo(1);
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, lessThanOrEqualTo(3));
+          },
+        );
+
+        test('P2: an unguarded equal value in the hold goes nowhere', () async {
+          final (handler, player) = await android([
+            9,
+            9,
+          ], positionStreams: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          ticking(player, const Duration(minutes: 1));
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          expect(player.boostMessages.last.currentDb, 9);
+          expect(player.boostMessages.last.guarded, isFalse);
+          final before = player.boostMessages.length;
+          player.simulatedPosition = const Duration(minutes: 1, seconds: 30);
+          player.emitDiscontinuity(PositionDiscontinuityReason.seek);
+          player.emitIndexAgain();
+          await Future<void>.delayed(const Duration(milliseconds: 800));
+          expect(player.boostMessages.skip(before), isEmpty);
+        });
+
+        test('P2: a higher guarded value in the hold is not sent', () async {
+          var mode = 'off';
+          final (handler, player) = await gained(
+            [9, 9],
+            peaks: [0.1, 0.1],
+            caps: exo,
+            eq: eq,
+            positionStreams: true,
+            durationSeconds: 180,
+            readMode: () => mode,
+          );
+          player.simulatedDuration = const Duration(minutes: 3);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          ticking(player, const Duration(minutes: 1));
+          await Future<void>.delayed(const Duration(milliseconds: 400));
+          expect(player.boostMessages.last.currentDb, 0);
+          expect(player.boostMessages.last.guarded, isFalse);
+          final before = player.boostMessages.length;
+          player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+          player.emitDiscontinuity(PositionDiscontinuityReason.seek);
+          mode = 'track';
+          await handler.applyRuntimeSettings();
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          expect(
+            player.boostMessages.skip(before).where((m) => m.currentDb > 0),
+            isEmpty,
+          );
         });
 
         test('status reports what the processor applied', () async {

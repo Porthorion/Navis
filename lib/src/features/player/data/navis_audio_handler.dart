@@ -398,9 +398,11 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Whether the active deck's last boost message was a guarded one.
   bool _boostGuardedNow = false;
 
-  /// The song the boost guard last saw an index event for: the latch lives
-  /// for one song, whatever index it sits at.
-  String? _boostSongIdSeen;
+  /// The playing source the boost guard last decided a song start for: the
+  /// latch lives for one source, whatever its index or song id. The pending one
+  /// is a different source seen once by the tick after an edit.
+  IndexedAudioSource? _boostSourceSeen;
+  IndexedAudioSource? _boostSourcePending;
 
   /// After a seek, until this time on [_boostClock], the heard deck's boost
   /// may only go down: the seek may switch songs, and the old song's value must
@@ -3236,6 +3238,10 @@ class NavisAudioHandler extends BaseAudioHandler
   @visibleForTesting
   Future<void> debugRebuildPlayerWithoutEqualizer() =>
       _rebuildPlayerWithoutEqualizer();
+
+  /// One position tick of the Android boost guard, without waiting for the timer.
+  @visibleForTesting
+  void debugTickReplayGainBoost() => _tickReplayGainBoost();
 
   /// The index [deck] plays after its current song, as the boost guard reads it.
   @visibleForTesting

@@ -5010,13 +5010,24 @@ Desktop volume follows a parallel local-settings path:
    guard keeps a song's boost no higher than the next song's in the song's last
    3 s of wall-clock time (`guardedBoostDb`, `replayGainBoostGuarded`): the lower
    of the two, which is valid for both songs. A per-deck latch keeps that value
-   from ever rising, and a latched song stays guarded until another song starts
-   (the playing song id changes; an edit above it, a loop or shuffle change, a
-   settings pass or a speed change keep the latch and can only lower it; no song
-   start is decided while an edit is in flight, because the published song can
-   flip to its neighbour and back during one), a seek or a queue load, so a speed drop cannot widen the window back over samples
-   already ahead. Songs shorter than 4 s, and songs
-   whose timing is unknown, are guarded from their start. Position and duration
+   from ever rising, and a latched song stays guarded until another source
+   starts playing: the latch lives for the playing `IndexedAudioSource` object,
+   not for a song id or an index, so a duplicate entry of the same song is a new
+   play while a removal above the playing song, a loop or shuffle change, a
+   settings pass or a speed change keep the latch and can only lower it. A wrap
+   of one source onto itself (repeat-one, or loop-all over one entry: an
+   auto-advance whose previous and current source are the same object) and a
+   seek or a queue load reset it. A change of item caused by a queue edit always
+   names two different sources, so it never resets through the wrap branch, and
+   no song start is decided while an edit is in flight (the published song can
+   flip to its neighbour and back during one). The tick re-resolves the playing
+   source once the edit is done and resets only when the same new source shows
+   on two ticks in a row, because a natural advance or a removal of the playing
+   song seen only during an edit leaves no event behind and the gap between an
+   edit's reply and its index event can show a neighbour once. A latched song
+   stays guarded after the window closes, so a speed drop cannot widen it back
+   over samples already ahead. Songs shorter than 4 s, and songs whose timing
+   is unknown, are guarded from their start. Position and duration
    are song time (the fork adds a transcode's start offset). The next song comes
    from the deck's own play order (`_nextEffectiveIndexOf`, so repeat-one and
    repeat-all wrap), and the guard is evaluated per deck, so a crossfade's
