@@ -408,14 +408,34 @@ void main() {
       final repo = repository(isIOS: true, iosSideload: true);
       final result = await repo.checkForUpdate();
       expect(result!.delivery, UpdateDelivery.releasePage);
-      expect(
-        result.htmlUrl,
-        '${AppConstants.githubReleasesBaseUrl}/tag/v1.5.1',
-      );
+      // The fixture manifest carries a signed notes_url.
+      expect(result.htmlUrl, 'https://navis.porthorion.com/releases/v1.5.1');
       expect(result.downloadUrl, isNull);
       expect(result.sha256, isNull);
       expect(result.size, isNull);
       expect(repo.lastCheck!.assetKey, 'iosSideload');
+    });
+
+    test('falls back to the GitHub tag page without a signed notes_url', () async {
+      payload
+        ..remove('notes_url')
+        ..['assets'] = {
+          'iosSideload': {
+            'url':
+                '${AppConstants.updateBaseUrl}releases/v1.5.1/navis-v1.5.1-ios-sideload.ipa',
+            'sha256': _hash,
+            'size': 123,
+          },
+        };
+      envelope = await sign(payload);
+      final result = await repository(
+        isIOS: true,
+        iosSideload: true,
+      ).checkForUpdate();
+      expect(
+        result!.htmlUrl,
+        '${AppConstants.githubReleasesBaseUrl}/tag/v1.5.1',
+      );
     });
 
     test('never falls back to another platform asset', () async {

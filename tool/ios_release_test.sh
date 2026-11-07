@@ -75,8 +75,14 @@ key_file="${home}/.appstoreconnect/private_keys/AuthKey_${key_id}.p8"
 mkdir -p "$(dirname "${key_file}")"
 printf '%s\n' "${secret}" > "${key_file}"
 
+# r2_publish.sh gives the sideload IPA its manifest key and the App Store IPA none.
+eval "$(sed -n '/^asset_key_for()/,/^}/p' "${SCRIPT_DIR}/r2_publish.sh")"
+[[ "$(asset_key_for navis-v1.5.2-ios-sideload.ipa)" == iosSideload ]] || fail "sideload IPA manifest key"
+[[ "$(asset_key_for navis-dev-v1.5.2-dev.1-ios-sideload.ipa)" == iosSideload ]] || fail "dev sideload IPA manifest key"
+[[ -z "$(asset_key_for Navis.ipa)" ]] || fail "App Store IPA must have no manifest key"
+
 out=""
-run() { : > "${LOG}"; rm -rf "${repo}/dist"; (cd "${repo}" && ./tool/release.sh v1.5.0 --build-only --skip-checks "$@") > "${tmp}/out" 2>&1 && return 0 || return 1; }
+run() { : > "${LOG}"; (cd "${repo}" && ./tool/release.sh v1.5.0 --build-only --skip-checks "$@") > "${tmp}/out" 2>&1 && return 0 || return 1; }
 run_ok() { run "$@" || { cat "${tmp}/out" >&2; fail "expected success: $*"; }; out="$(cat "${tmp}/out")"; }
 run_bad() { if run "$@"; then fail "expected failure: $*"; fi; out="$(cat "${tmp}/out")"; }
 expect_in() { [[ "$2" == *"$1"* ]] || fail "missing '$1' in: $2"; }
@@ -108,6 +114,9 @@ printf '%s\n' "${secret}" > "${key_file}"
 (cd "${repo}" && ./tool/release.sh v1.5.0-dev.1 --skip-checks --targets=ios --channel=dev > "${tmp}/out" 2>&1) && fail "ios-only dev publish accepted"
 expect_in 'not published' "$(cat "${tmp}/out")"
 [[ ! -s "${LOG}" ]] || fail "ios-only dev publish built something"
+# An iOS-only upload builds no release asset, so it cannot be published either.
+(cd "${repo}" && ./tool/release.sh v1.5.0 --skip-checks --targets=ios --ios-upload > "${tmp}/out" 2>&1) && fail "ios-only upload publish accepted"
+expect_in 'not published' "$(cat "${tmp}/out")"
 
 # App Store builds need a plain version, so the dev channel is refused.
 asc run_bad --targets=ios --ios-upload --channel=dev
@@ -150,6 +159,10 @@ assert "Payload/Runner.app/Runner" in z.namelist(), z.namelist()
 assert not any("stale" in n for n in z.namelist()), z.namelist()
 PY
 grep -qx 'navis-v1.5.0-ios-sideload.ipa' "${repo}/dist/v1.5.0/assets.txt" || fail "sideload IPA missing from assets.txt"
+# A plain iOS build stages dist/<tag>, so the same run cannot repeat until it is moved.
+run_bad --targets=ios
+expect_in 'already exists' "${out}"
+rm -rf "${repo}/dist"
 
 # Upload: altool gets the freshly built IPA and the default key file location.
 asc run_ok --targets=ios --ios-upload
@@ -160,6 +173,14 @@ expect_in "${want}" "${calls}"
 second_number="$(sed -n 's/.*--build-number=\([0-9]*\).*/\1/p' "${LOG}")"
 [[ "${second_number}" -gt "${first_number}" ]] || fail "build number did not increase: ${first_number} -> ${second_number}"
 expect_not_in "${secret}" "${out}"
+# An iOS-only upload is a TestFlight iteration: no sideload build, nothing staged,
+# so it repeats (and each repeat gets a higher build number).
+expect_not_in 'flutter:build ios' "${calls}"
+[[ ! -e "${repo}/dist" ]] || fail "iOS-only upload staged a bundle"
+asc run_ok --targets=ios --ios-upload
+third_number="$(sed -n 's/.*--build-number=\([0-9]*\).*/\1/p' "${LOG}")"
+[[ "${third_number}" -gt "${second_number}" ]] || fail "repeat upload build number did not increase"
+[[ ! -e "${repo}/dist" ]] || fail "repeat iOS-only upload staged a bundle"
 
 # ASC_KEY_PATH overrides the default location; credentials may come from release.env.
 cp "${key_file}" "${tmp}/custom key.p8"; rm "${key_file}"
@@ -177,7 +198,7 @@ stub uname 'echo Darwin'
 # Relative ASC_KEY_PATH from another cwd: altool gets an absolute path.
 mkdir -p "${tmp}/elsewhere"
 cp "${key_file}" "${tmp}/elsewhere/rel key.p8"
-: > "${LOG}"; rm -rf "${repo}/dist"
+: > "${LOG}"
 (cd "${tmp}/elsewhere" && ASC_KEY_ID="${key_id}" ASC_ISSUER_ID="${issuer}" ASC_KEY_PATH="rel key.p8" \
   "${repo}/tool/release.sh" v1.5.0 --build-only --skip-checks --targets=ios --ios-upload) > "${tmp}/out" 2>&1 \
   || { cat "${tmp}/out" >&2; fail "relative ASC_KEY_PATH run failed"; }
@@ -186,13 +207,15 @@ expect_in "--p8-file-path ${tmp}/elsewhere/rel key.p8" "$(cat "${LOG}")"
 # The IPA secret scan runs, and a leaked Last.fm key fails the release before any upload.
 NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_ok --targets=ios --ios-upload
 expect_in 'Scanning Navis.ipa' "${out}"
+NAVIS_LASTFM_API_KEY=fixture-lastfm-key run_ok --targets=ios
 expect_in 'Scanning navis-v1.5.0-ios-sideload.ipa' "${out}"
+rm -rf "${repo}/dist"
 LEAK_INTO_IPA=fixture-lastfm-key NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_bad --targets=ios --ios-upload
 expect_in 'plaintext Last.fm API key' "${out}"
 expect_not_in 'xcrun' "$(cat "${LOG}")"
 
 # A leaked key in the sideload IPA fails the release before the App Store build.
-LEAK_INTO_SIDELOAD=fixture-lastfm-key NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_bad --targets=ios --ios-upload
+LEAK_INTO_SIDELOAD=fixture-lastfm-key NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_bad --targets=ios
 expect_in 'Scanning navis-v1.5.0-ios-sideload.ipa' "${out}"
 expect_in 'plaintext Last.fm API key' "${out}"
 expect_not_in 'flutter:build ipa' "$(cat "${LOG}")"

@@ -28,6 +28,11 @@ user installs the new IPA through AltStore/SideStore.
   every artifact.
 - Stable runs only. A dev tag builds the App Store flavour alone: its update
   notice links to a GitHub release, and GitHub publication is stable-only.
+- An iOS-only `--ios-upload` run is a TestFlight iteration, not a release: it
+  skips the sideload build and stages nothing, so it can repeat for the same
+  version (each run gets a higher build number). Without `--ios-upload`, a
+  stable iOS build stages `dist/<tag>`, and a second run needs that bundle moved
+  first like any other `--build-only` run.
 - The manifest key is `iosSideload`; the app verifies it like any asset and
   then opens `https://github.com/Porthorion/Navis/releases/tag/<tag>`
   ([release-r2.md](release-r2.md)).

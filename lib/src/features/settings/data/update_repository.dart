@@ -328,13 +328,19 @@ class UpdateRepository {
           delivery == UpdateDelivery.releasePage;
       final notesUrl = payload['notes_url'];
       final notesUri = notesUrl is String ? Uri.tryParse(notesUrl) : null;
-      final htmlUrl = delivery == UpdateDelivery.releasePage
-          ? '${AppConstants.githubReleasesBaseUrl}/tag/${Uri.encodeComponent(tag)}'
-          : notesUri?.scheme == 'https' &&
-                notesUri?.host == 'navis.porthorion.com' &&
-                notesUri?.userInfo == ''
+      final signedNotesUrl =
+          notesUri?.scheme == 'https' &&
+              notesUri?.host == 'navis.porthorion.com' &&
+              notesUri?.userInfo == ''
           ? notesUrl! as String
-          : AppConstants.updateManualDownloadUrl;
+          : null;
+      // The sideload notice prefers the signed release-notes page. The GitHub
+      // tag page is the fallback: it can 404 on an R2-only publish.
+      final htmlUrl =
+          signedNotesUrl ??
+          (delivery == UpdateDelivery.releasePage
+              ? '${AppConstants.githubReleasesBaseUrl}/tag/${Uri.encodeComponent(tag)}'
+              : AppConstants.updateManualDownloadUrl);
       record(tag: tag);
       final info = UpdateInfo(
         tagName: tag,

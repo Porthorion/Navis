@@ -232,10 +232,11 @@ if [[ "${IOS_UPLOAD}" == "true" && "${UPDATE_CHANNEL}" != "stable" ]]; then
   exit 1
 fi
 
-# An iOS-only dev run has no release assets (the sideload IPA is stable-only),
-# so only a local build can run it.
-if [[ "${BUILD_IOS}" == "true" && "${UPDATE_CHANNEL}" != "stable" && "${BUILD_ANDROID}" == "false" && "${BUILD_MACOS}" == "false" && "${BUILD_LINUX}" == "false" && "${BUILD_WINDOWS}" == "false" && "${BUILD_ONLY}" == "false" && "${PUBLISH_FROM_SET}" == "false" ]]; then
-  echo "Error: dev iOS builds are not published; use --build-only or add another target." >&2
+# An iOS-only dev run has no release assets (the sideload IPA is stable-only), and
+# an iOS-only upload is a TestFlight iteration that builds none, so only a local
+# build can run either.
+if [[ "${BUILD_IOS}" == "true" && ( "${UPDATE_CHANNEL}" != "stable" || "${IOS_UPLOAD}" == "true" ) && "${BUILD_ANDROID}" == "false" && "${BUILD_MACOS}" == "false" && "${BUILD_LINUX}" == "false" && "${BUILD_WINDOWS}" == "false" && "${BUILD_ONLY}" == "false" && "${PUBLISH_FROM_SET}" == "false" ]]; then
+  echo "Error: this iOS-only run has nothing to publish (dev builds and --ios-upload runs are not published); use --build-only or add another target." >&2
   exit 1
 fi
 
@@ -748,8 +749,14 @@ fi
 # never pick up (or be mistaken for) its output. Only this build carries
 # NAVIS_IOS_SIDELOAD, which turns on its update notice; Flutter keeps a separate
 # build cache per set of dart-defines. Stable only: its update notice links to a
-# GitHub release, and GitHub publication is stable-only.
-if [[ "${BUILD_IOS}" == "true" && "${UPDATE_CHANNEL}" == "stable" ]]; then
+# GitHub release, and GitHub publication is stable-only. Skipped for an iOS-only
+# upload, which is a TestFlight iteration: staging its IPA would make every
+# repeat run stop at the existing dist/<tag> guard.
+IOS_TESTFLIGHT_ONLY=false
+if [[ "${IOS_UPLOAD}" == "true" && "${BUILD_ANDROID}" == "false" && "${BUILD_MACOS}" == "false" && "${BUILD_LINUX}" == "false" && "${BUILD_WINDOWS}" == "false" ]]; then
+  IOS_TESTFLIGHT_ONLY=true
+fi
+if [[ "${BUILD_IOS}" == "true" && "${UPDATE_CHANNEL}" == "stable" && "${IOS_TESTFLIGHT_ONLY}" == "false" ]]; then
   echo "==> Building the unsigned iOS sideload IPA..."
   set_symbol_args ios-sideload
   SIDELOAD_APP="$(pwd)/build/ios/iphoneos/Runner.app"
@@ -775,7 +782,12 @@ sys.exit(0 if info.get("CFBundleShortVersionString") == sys.argv[2] and str(info
   SIDELOAD_STAGE="$(mktemp -d "$(pwd)/build/ios/sideload.XXXXXX")"
   mkdir "${SIDELOAD_STAGE}/Payload"
   cp -R "${SIDELOAD_APP}" "${SIDELOAD_STAGE}/Payload/Runner.app"
-  (cd "${SIDELOAD_STAGE}" && zip -qry "${SIDELOAD_ASSET}" Payload)
+  if ! (cd "${SIDELOAD_STAGE}" && zip -qry "${SIDELOAD_ASSET}" Payload); then
+    rm -rf "${SIDELOAD_STAGE}"
+    remove_release_asset "${SIDELOAD_ASSET}"
+    echo "Error: could not zip the sideload IPA."
+    exit 1
+  fi
   rm -rf "${SIDELOAD_STAGE}"
   scan_release_artifact "${SIDELOAD_ASSET}"
   ASSET_FILES+=("${SIDELOAD_ASSET}")
