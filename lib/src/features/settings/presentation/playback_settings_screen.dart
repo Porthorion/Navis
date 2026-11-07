@@ -788,7 +788,7 @@ class _PlaybackSettingsScreenState
                 // labelled tenths are whole dB with a stronger tick. The value
                 // is rounded to hundredths so it equals what the ruler asked
                 // for: a mismatch would read as an outside change mid-drag.
-                value: roundAdjustment(level / 10),
+                value: roundAdjustment(_normalizeUntaggedDb(level)! / 10),
                 label: l10n.playbackSettingsReplayGainUntaggedLabel,
                 valueLabel: text(level),
                 onChanged: (value) =>
@@ -1055,8 +1055,12 @@ class _PlaybackSettingsScreenState
   /// or reaches storage.
   double _tenthsDb(double tens) => (tens * 100).round() / 10;
 
-  String _dbText(double db) =>
-      db.toStringAsFixed(db == db.roundToDouble() ? 0 : 1);
+  /// Rounds to the ruler's tenth first, so an Automatic level such as -0.04
+  /// reads "0", never "-0.0".
+  String _dbText(double db) {
+    final tenths = (db * 10).round() / 10;
+    return tenths.toStringAsFixed(tenths == tenths.roundToDouble() ? 0 : 1);
+  }
 
   double _normalizeReplayGainPreamp(double value) {
     return value.clamp(_minReplayGainPreamp, _maxReplayGainPreamp);

@@ -274,6 +274,23 @@ void main() {
         expect(saved?.replayGainUntaggedDb, -9.2);
       });
 
+      testWidgets('the automatic ruler sits where Automatic off will store', (
+        tester,
+      ) async {
+        // -1.45 / 10 and -1.45 * 10 round differently in binary floats.
+        await pump(tester, auto: () async => -1.45);
+        final shown = rulerDb(tester);
+        await toggleAutomatic(tester);
+        expect(saved?.replayGainUntaggedDb, closeTo(shown, 1e-9));
+      });
+
+      testWidgets('an automatic level just below 0 reads 0 dB, not -0.0', (
+        tester,
+      ) async {
+        await pump(tester, auto: () async => -0.04);
+        expect(find.text('Automatic (0 dB)'), findsOneWidget);
+      });
+
       testWidgets('turning Automatic back on clears the stored level', (
         tester,
       ) async {
