@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/mouse_drag_scroll.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_refresh_indicator.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:flutter/rendering.dart' show RenderAbstractViewport, RenderBox;
@@ -2775,7 +2776,10 @@ class _DesktopRandomAlbumVisual extends ConsumerWidget {
           album.id,
           heroTag: heroTag,
         ),
-        onLongPress: () => showAlbumContextMenu(context, ref, album.id),
+        enableFeedback: false,
+        onLongPress: withLongPressHaptic(
+          () => showAlbumContextMenu(context, ref, album.id),
+        ),
         onSecondaryTapDown: (details) => showAlbumContextMenu(
           context,
           ref,
@@ -4211,7 +4215,10 @@ class _RandomAlbumsHeroCard extends ConsumerWidget {
           album.id,
           heroTag: heroTag,
         ),
-        onLongPress: () => showAlbumContextMenu(context, ref, album.id),
+        enableFeedback: false,
+        onLongPress: withLongPressHaptic(
+          () => showAlbumContextMenu(context, ref, album.id),
+        ),
         onSecondaryTapDown: (details) => showAlbumContextMenu(
           context,
           ref,

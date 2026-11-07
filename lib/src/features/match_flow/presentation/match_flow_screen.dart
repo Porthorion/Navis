@@ -17,6 +17,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 final matchFlowsProvider = StreamProvider<List<MatchFlowWithSongs>>((ref) {
   return ref.watch(matchFlowDaoProvider).watchFlowsWithSongs();
@@ -514,8 +515,10 @@ class _MatchFlowContents extends ConsumerWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     buildDefaultDragHandles: false,
                     itemCount: flow.songs.length,
-                    onReorderStart: (_) => NavisHaptics.dragStart(),
-                    onReorderEnd: (_) => NavisHaptics.dragEnd(),
+                    onReorderStart: (_) =>
+                        NavisHaptics.dragStart(HapticCategory.listsAndMenus),
+                    onReorderEnd: (_) =>
+                        NavisHaptics.dragEnd(HapticCategory.listsAndMenus),
                     onReorderItem: onReorder,
                     proxyDecorator: (child, index, animation) {
                       return AnimatedBuilder(

@@ -1888,23 +1888,59 @@ call), gets the Flutter primitive in the last column. iOS always uses the
 primitive. Desktop is silent, so shared widgets call the helper without
 platform checks, and mouse-only controls get no haptics.
 `AdjustmentRuler` and `RulerStepButton` keep their own tuned primitives, the
-reference feel for `tick` and `firm`.
+reference feel for `tick` and `firm`, but check `NavisHaptics.allows` first.
 
-| Action | Helper | Android constant (API) | Fallback | Where |
-|---|---|---|---|---|
-| Switch on / off | `toggle(on)` | TOGGLE_ON / TOGGLE_OFF (34) | light / selection | `NavisSwitchListTile`, `NavisSwitch`; shuffle toggle |
-| Play / Pause | `press` / `release` | VIRTUAL_KEY / VIRTUAL_KEY_RELEASE (27) | light / selection | `togglePlayPause`, Now Playing art tap |
-| Skip | `firm` | KEYBOARD_TAP | medium | transport, mini player, art swipe |
-| Repeat step, rating star, seek landing, EQ gain per dB | `tick` | CLOCK_TICK | selection | transport, `RatingWidget`, seek bar, EQ graph |
-| 0 dB crossing on the EQ graph | `firm` | KEYBOARD_TAP | medium | `EqGraphEditor` |
-| Pick an EQ band | `contextClick` | CONTEXT_CLICK (23) | selection | `EqGraphEditor` |
-| Like / unlike | `confirm` / `tick` | CONFIRM (30) / CLOCK_TICK | light / selection | `StarButton`, Now Playing, mini player |
-| Any tap that shows the "Not available for remote tracks" notice (hearts, menus, rows); swipe-remove commit | `reject` | REJECT (30) | heavy | `showRemoteSourceActionUnavailable`, queue row |
-| Download started, copy, refresh finished | `confirm` | CONFIRM (30) | light | download icon, album title copy, `NavisRefreshIndicator` |
-| Pull to refresh | `frequentTick` at each quarter, `thresholdOn` / `thresholdOff` at the trigger | SEGMENT_FREQUENT_TICK, GESTURE_THRESHOLD_ACTIVATE / DEACTIVATE (34) | selection / medium / selection | `NavisRefreshIndicator` (every `RefreshIndicator`) |
-| Swipe-to-remove dismiss point | `thresholdOn` / `thresholdOff` | as above | medium / selection | `QueueTrackRow` |
-| Reorder pick-up / drop; sheet settle | `dragStart` / `dragEnd` | DRAG_START (34) / GESTURE_END (30) | medium / light | every reorderable list, `ExpandablePlayerSheet`, mini player expand |
-| Long-press menu | `longPress` | LONG_PRESS | heavy | album, artist and track rows |
+Every helper takes the `HapticCategory` of its call site as its first argument
+and plays only when Settings → Haptics allows it (phones and tablets; the page
+is hidden and its route redirects on desktop). Six categories, each with a
+stored bit: Player Gestures (1), Playback Buttons (2), Sliders & Rulers (4),
+Switches & Steppers (8), Lists & Menus (16), Likes & Alerts (32). The master
+and the categories live in two `app_settings` columns added by schema 112
+(`from111To112`): `haptics_enabled` (default on) and `haptics_disabled` (mask of
+switched-off bits, default 0, so every profile starts with everything on and a
+later category starts on). Both are written only by `setHapticsEnabled` and
+`setHapticCategoryEnabled` (an atomic bit write), never by `saveSettings`. The
+master off keeps the category bits. `NavisApp.initState` listens to
+`appSettingsProvider` and pushes `HapticsPrefs` into the static
+`NavisHaptics.prefs`; a loading or error state keeps the last prefs, so an error
+never turns vibration back on. The master tile plays its own click through
+`NavisHaptics.masterToggle`, which ignores the prefs. Turning Switches &
+Steppers back on is silent, because it is still off when its own click is
+evaluated. Diagnostics: `GET/POST /v1/presentation/haptics`.
+
+Framework haptics bypass `NavisHaptics`, so they are switched off at the source:
+`withLongPressHaptic` plays the gated `longPress` (Lists & Menus) and every
+`InkWell`, `InkResponse` or `ListTile` that owns a long press sets
+`enableFeedback: false` (`AdaptiveTrackRow`, `AlbumCard` and both `ArtistCard`
+variants do it once for all their callers, so callers pass their callback
+through unwrapped). `NavisTheme` sets `TooltipThemeData(enableFeedback: false)`:
+the tooltip long-press vibration is off app-wide. `enableFeedback: false` also
+drops the Android touch sound on those tiles. Source guard tests keep
+`HapticFeedback.` out of `lib/` except `navis_haptics.dart` and the ruler, and
+fail when an `InkWell`, `InkResponse` or `ListTile` in `lib/` sets `onLongPress`
+without `enableFeedback: false`.
+
+Known limits: framework haptics that Navis cannot reach still vibrate with the
+master switch off on Android: Flutter's own time-picker vibration (the night
+schedule) and the text-field long-press selection (and its handles). On iOS the
+`CupertinoSwitch` that `.adaptive` switches become plays its own light impact.
+The Android touch sound is dropped on tiles with a long press.
+
+| Action | Category | Helper | Android constant (API) | Fallback | Where |
+|---|---|---|---|---|---|
+| Switch on / off | Switches & Steppers (the shuffle toggle: Playback Buttons) | `toggle(on)` | TOGGLE_ON / TOGGLE_OFF (34) | light / selection | `NavisSwitchListTile`, `NavisSwitch`; shuffle toggle |
+| Play / Pause | Playback Buttons | `press` / `release` | VIRTUAL_KEY / VIRTUAL_KEY_RELEASE (27) | light / selection | `togglePlayPause`, Now Playing art tap |
+| Skip | Playback Buttons (art swipe: Player Gestures) | `firm` | KEYBOARD_TAP | medium | transport, mini player, art swipe |
+| Repeat step, rating star, seek landing, EQ gain per dB | Playback Buttons (repeat), Likes & Alerts (rating), Sliders & Rulers (seek, EQ) | `tick` | CLOCK_TICK | selection | transport, `RatingWidget`, seek bar, EQ graph |
+| 0 dB crossing on the EQ graph | Sliders & Rulers | `firm` | KEYBOARD_TAP | medium | `EqGraphEditor` |
+| Pick an EQ band | Sliders & Rulers | `contextClick` | CONTEXT_CLICK (23) | selection | `EqGraphEditor` |
+| Like / unlike | Likes & Alerts | `confirm` / `tick` | CONFIRM (30) / CLOCK_TICK | light / selection | `StarButton`, Now Playing, mini player |
+| Any tap that shows the "Not available for remote tracks" notice (hearts, menus, rows); swipe-remove commit | Likes & Alerts (swipe-remove commit: Lists & Menus) | `reject` | REJECT (30) | heavy | `showRemoteSourceActionUnavailable`, queue row |
+| Download started, copy, refresh finished | Likes & Alerts (pull-to-refresh finished: Lists & Menus) | `confirm` | CONFIRM (30) | light | download icon, album title copy, `NavisRefreshIndicator` |
+| Pull to refresh | Lists & Menus | `frequentTick` at each quarter, `thresholdOn` / `thresholdOff` at the trigger | SEGMENT_FREQUENT_TICK, GESTURE_THRESHOLD_ACTIVATE / DEACTIVATE (34) | selection / medium / selection | `NavisRefreshIndicator` (every `RefreshIndicator`) |
+| Swipe-to-remove dismiss point | Lists & Menus | `thresholdOn` / `thresholdOff` | as above | medium / selection | `QueueTrackRow` |
+| Reorder pick-up / drop; sheet settle | Lists & Menus (sheet settle and mini player expand: Player Gestures) | `dragStart` / `dragEnd` | DRAG_START (34) / GESTURE_END (30) | medium / light | every reorderable list, `ExpandablePlayerSheet`, mini player expand |
+| Long-press menu | Lists & Menus | `longPress` | LONG_PRESS | heavy | album, artist and track rows |
 
 Silent by design: scrolling, navigation taps, continuous volume and seek
 drags, text fields, notices and background events.
@@ -5043,7 +5079,9 @@ Desktop volume follows a parallel local-settings path:
    garbage and counts as untagged, and a known peak limits the result. The dB is
    added to the clamped pre-amp and capped at 0 dB. A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
-   (`replayGainUntaggedDb`, -15..0 dB) or Automatic, the median track gain of
+   (`replayGainUntaggedDb`, -15..0 dB in 0.1 dB steps, set on the pitch/speed
+   `AdjustmentRuler` counting in tens of dB so a click is 0.1 dB and a labelled
+   tick a whole dB; the steppers move 1 dB) or Automatic, the median track gain of
    the library from `LibraryDao.trackGainMedian` (-8 dB while fewer than 20
    songs are tagged), cached in `replayGainAutoUntaggedDbProvider` and
    recomputed when a sync publishes or finishes. `_replayGainVolumeFor`
@@ -5092,10 +5130,17 @@ Desktop volume follows a parallel local-settings path:
    the ReplayGain settings change, never on a position tick, and is null for
    radio, no song or Off. It reads like "−6.2 dB · album (Smart)" or "−8.0 dB ·
    untagged (Automatic)" (real minus sign, one decimal, never "-0.0"); holding
-   it opens Playback settings. During a cross-fade the page may briefly show
+   it, anywhere on the chip (the `InkWell`'s `onLongPress`, so a hold never
+   also pages), opens Playback settings scrolled to the ReplayGain section
+   (`AppRoutes.playbackReplayGain`, read by `PlaybackSettingsScreen(
+   focusReplayGain:)` after the form first builds). On the desktop grid the
+   Quality and ReplayGain cells open track info and that section on click or
+   hold. During a cross-fade the page may briefly show
    the outgoing song's gain.
    Schema 111 (`from110To111`) adds the nullable `replay_gain_untagged_db`
    column (null = Automatic) and leaves the stored mode and pre-amp as they are.
+   Schema 112 (`from111To112`) adds `haptics_enabled` (default true) and
+   `haptics_disabled` (default 0); see "Haptics vocabulary".
 
 Linux, Windows, and macOS play remote audio via direct HTTPS (Range-seekable
 through media_kit/libmpv) and fill the rolling cache with a sidecar download to

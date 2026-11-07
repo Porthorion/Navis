@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
@@ -599,7 +600,8 @@ class _QueueItemTile extends ConsumerWidget {
     final hasDetails = item.failureReason != null;
     void copyDetails() => unawaited(_copyErrorDetails(context, item));
     final tile = ListTile(
-      onLongPress: hasDetails ? copyDetails : null,
+      enableFeedback: false,
+      onLongPress: withLongPressHaptic(hasDetails ? copyDetails : null),
       selected: isSelected,
       selectedColor: Theme.of(context).colorScheme.primary,
       selectedTileColor: Theme.of(context).colorScheme.primary

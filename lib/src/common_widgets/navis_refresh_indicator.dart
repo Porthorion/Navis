@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 /// A pull-to-refresh that feels like a pull: a fine tick at each quarter of the
 /// way to the trigger, a firm click at the trigger point (and a softer one if
@@ -65,7 +66,7 @@ class _NavisRefreshIndicatorState extends State<NavisRefreshIndicator> {
     _refreshing = true;
     try {
       await widget.onRefresh();
-      NavisHaptics.confirm();
+      NavisHaptics.confirm(HapticCategory.listsAndMenus);
     } finally {
       _settling = Timer(_doneAnimation, () => _refreshing = false);
     }
@@ -117,14 +118,14 @@ class _NavisRefreshIndicatorState extends State<NavisRefreshIndicator> {
       if (fraction >= 1) return;
       _armed = false;
       _canArm = fraction < 1 - _hysteresis;
-      NavisHaptics.thresholdOff();
+      NavisHaptics.thresholdOff(HapticCategory.listsAndMenus);
       return;
     }
     if (fraction < 1 - _hysteresis) _canArm = true;
     if (_canArm && fraction >= 1) {
       _armed = true;
       _stage = _tickMarks.length;
-      NavisHaptics.thresholdOn();
+      NavisHaptics.thresholdOn(HapticCategory.listsAndMenus);
       return;
     }
     final stage = _tickMarks.where((mark) => fraction >= mark).length;
@@ -133,12 +134,12 @@ class _NavisRefreshIndicatorState extends State<NavisRefreshIndicator> {
         _stage > 0 && fraction < _tickMarks[_stage - 1] - _hysteresis;
     if (rising) {
       _stage = stage;
-      NavisHaptics.frequentTick();
+      NavisHaptics.frequentTick(HapticCategory.listsAndMenus);
     } else if (falling) {
       _stage = _tickMarks
           .where((mark) => fraction >= mark - _hysteresis)
           .length;
-      NavisHaptics.frequentTick();
+      NavisHaptics.frequentTick(HapticCategory.listsAndMenus);
     }
   }
 

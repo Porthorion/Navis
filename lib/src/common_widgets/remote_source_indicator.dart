@@ -5,6 +5,7 @@ import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 enum RemoteSourceIndicatorVariant { artwork, compactArtwork, inline, chip }
 
@@ -13,7 +14,7 @@ enum RemoteSourceIndicatorPolicy { automatic, hidden }
 /// Explains that a remote song's server action (Like, Download, Add to
 /// playlist) is unavailable, with the reject haptic every such tap gives.
 void showRemoteSourceActionUnavailable(BuildContext context) {
-  NavisHaptics.reject();
+  NavisHaptics.reject(HapticCategory.likesAndAlerts);
   showAppNotice(
     context,
     message: AppLocalizations.of(context)!.remoteSourceActionUnavailable,

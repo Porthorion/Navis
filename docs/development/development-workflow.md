@@ -1139,6 +1139,17 @@ Inspect the additional PNGs as well as the final pair; file validation alone
 is not visual acceptance. Phone touch/carousel/orientation needs an isolated
 Android sidecar; Linux resizing does not certify that runtime.
 
+The authenticated, clone-only `GET/POST /v1/presentation/haptics` endpoint
+reads and changes the Settings → Haptics choices. `POST` accepts `{"master":
+bool}` and/or `{"category": "<HapticCategory name>", "enabled": bool}`
+(`category` and `enabled` together; unknown names, extra fields and wrong types
+return 400). The response is `{master, disabled: [category names], live:
+{master, disabled}}`, where `live` is read from `NavisHaptics.prefs`, which
+proves the app-root listener pushed the change. A runtime pass posts the master
+off, checks `live`, opens `SettingsPage.haptics.location` through
+`/v1/presentation/navigate` and screenshots the six disabled tiles (the page
+exists on phones and tablets only).
+
 The authenticated, clone-only `GET/POST /v1/presentation/integrations` endpoint
 reads and changes the external-integration policy (see "External integration
 policy" in `docs/architecture.md`). `GET` returns `master`, `noticeDismissed`,

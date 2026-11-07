@@ -102,12 +102,8 @@ class ArtistCard extends StatelessWidget {
       ),
       shape: NavisShapeData.of(context).mdShape,
       onTap: onTap,
-      onLongPress: onLongPress == null
-          ? null
-          : () {
-              NavisHaptics.longPress();
-              onLongPress!();
-            },
+      enableFeedback: false,
+      onLongPress: withLongPressHaptic(onLongPress),
     );
     // Flat rows, like track lists: a card per artist added 12 px of chrome
     // to every row without grouping anything.
@@ -148,12 +144,8 @@ class _ArtistGridTile extends ConsumerWidget {
       borderRadius: NavisShapeData.of(context).mdAll,
       onTap: onTap,
       onSecondaryTapDown: onSecondaryTapDown,
-      onLongPress: onLongPress == null
-          ? null
-          : () {
-              NavisHaptics.longPress();
-              onLongPress!();
-            },
+      enableFeedback: false,
+      onLongPress: withLongPressHaptic(onLongPress),
       // No inner padding: the cell is the tile, so the grid's gap is the only
       // gutter, like the album grid (an 8 px inset here doubled it).
       child: Column(

@@ -59,7 +59,6 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
-import 'package:navis/src/routing/app_routes.dart' show SettingsPage;
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
 import 'package:navis/src/theme/motion_policy.dart';
@@ -71,6 +70,7 @@ import 'package:navis/src/utils/format_utils.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 part 'now_playing_seek_bar.dart';
 part 'now_playing_metadata_panel.dart';
@@ -1190,9 +1190,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
 
   void _togglePlayPause() {
     if (widget.playback.playing) {
-      NavisHaptics.release();
+      NavisHaptics.release(HapticCategory.playbackButtons);
     } else {
-      NavisHaptics.press();
+      NavisHaptics.press(HapticCategory.playbackButtons);
     }
     final handler = ref.read(audioHandlerProvider);
     if (handler == null) return;
@@ -1271,12 +1271,15 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     );
   }
 
-  void _requestManualTransport(ManualTrackChangeDirection direction) {
+  void _requestManualTransport(
+    ManualTrackChangeDirection direction,
+    HapticCategory haptic,
+  ) {
     final handler = ref.read(audioHandlerProvider);
     if (handler == null) return;
     // Playback starts immediately. The handler publishes the resulting visual
     // intent (skip, restart, or boundary resistance) for every control source.
-    NavisHaptics.firm();
+    NavisHaptics.firm(haptic);
     unawaited(
       _animateArtSwipeTo(0, duration: const Duration(milliseconds: 120)),
     );
@@ -1300,7 +1303,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     final direction = (swipe < -0.02 || (swipe.abs() <= 0.02 && velocity < 0))
         ? ManualTrackChangeDirection.next
         : ManualTrackChangeDirection.previous;
-    _requestManualTransport(direction);
+    _requestManualTransport(direction, HapticCategory.playerGestures);
   }
 
   void _handleArtHorizontalDragCancel() {
@@ -1310,11 +1313,17 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   }
 
   void _handleManualPreviousButton() {
-    _requestManualTransport(ManualTrackChangeDirection.previous);
+    _requestManualTransport(
+      ManualTrackChangeDirection.previous,
+      HapticCategory.playbackButtons,
+    );
   }
 
   void _handleManualNextButton() {
-    _requestManualTransport(ManualTrackChangeDirection.next);
+    _requestManualTransport(
+      ManualTrackChangeDirection.next,
+      HapticCategory.playbackButtons,
+    );
   }
 
   Widget _buildInteractiveSwipeableArt({

@@ -202,7 +202,7 @@ class _TransportControls extends ConsumerWidget {
                   onSkipPrevious!.call();
                   return;
                 }
-                NavisHaptics.firm();
+                NavisHaptics.firm(HapticCategory.playbackButtons);
                 final handler = ref.read(audioHandlerProvider);
                 unawaited(handler?.skipToPrevious());
               },
@@ -243,7 +243,7 @@ class _TransportControls extends ConsumerWidget {
                   onSkipNext!.call();
                   return;
                 }
-                NavisHaptics.firm();
+                NavisHaptics.firm(HapticCategory.playbackButtons);
                 final handler = ref.read(audioHandlerProvider);
                 unawaited(handler?.skipToNext());
               },
@@ -259,7 +259,7 @@ class _TransportControls extends ConsumerWidget {
               visualDensity: density,
               tooltip: repeatTooltip,
               onPressed: () {
-                NavisHaptics.tick();
+                NavisHaptics.tick(HapticCategory.playbackButtons);
                 final handler = ref.read(audioHandlerProvider);
                 unawaited(handler?.setRepeatMode(nextRepeatMode(repeatMode)));
               },

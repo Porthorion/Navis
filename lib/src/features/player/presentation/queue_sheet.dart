@@ -14,6 +14,7 @@ import 'package:navis/src/providers/app_providers.dart'
     show playerStateProvider;
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 /// A queue panel. Slide animation and swipe-to-dismiss are driven entirely
 /// by the shell overlay in `app_shell.dart`; this widget has no animation
@@ -78,11 +79,11 @@ class QueueSheet extends ConsumerWidget {
                     padding: const EdgeInsets.only(bottom: 80),
                     itemCount: queueIds.length,
                     onReorderStart: (_) {
-                      NavisHaptics.dragStart();
+                      NavisHaptics.dragStart(HapticCategory.listsAndMenus);
                       onReorderDragChanged?.call(true);
                     },
                     onReorderEnd: (_) {
-                      NavisHaptics.dragEnd();
+                      NavisHaptics.dragEnd(HapticCategory.listsAndMenus);
                       onReorderDragChanged?.call(false);
                     },
                     onReorderItem: (oldIndex, newIndex) async {

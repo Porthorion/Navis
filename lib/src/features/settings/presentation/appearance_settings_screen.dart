@@ -27,6 +27,7 @@ import 'package:navis/src/features/settings/presentation/color_style_selector.da
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
 import 'package:navis/src/features/settings/presentation/appearance_preset_pickers.dart';
 import 'package:navis/src/features/settings/presentation/color_tuning_panel.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/theme/corner_style_provider.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
@@ -1910,8 +1911,9 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       itemCount: _localOrder.length,
-      onReorderStart: (_) => NavisHaptics.dragStart(),
-      onReorderEnd: (_) => NavisHaptics.dragEnd(),
+      onReorderStart: (_) =>
+          NavisHaptics.dragStart(HapticCategory.listsAndMenus),
+      onReorderEnd: (_) => NavisHaptics.dragEnd(HapticCategory.listsAndMenus),
       onReorderItem: (oldIndex, newIndex) {
         setState(() {
           final item = _localOrder.removeAt(oldIndex);
@@ -2020,8 +2022,9 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       itemCount: _localOrder.length,
-      onReorderStart: (_) => NavisHaptics.dragStart(),
-      onReorderEnd: (_) => NavisHaptics.dragEnd(),
+      onReorderStart: (_) =>
+          NavisHaptics.dragStart(HapticCategory.listsAndMenus),
+      onReorderEnd: (_) => NavisHaptics.dragEnd(HapticCategory.listsAndMenus),
       onReorderItem: (oldIndex, newIndex) {
         setState(() {
           final item = _localOrder.removeAt(oldIndex);

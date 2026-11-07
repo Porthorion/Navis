@@ -271,6 +271,67 @@ class AppLocalizationsEn extends AppLocalizations {
       'Themes, colors and display preferences.';
 
   @override
+  String get hapticsTitle => 'Haptics';
+
+  @override
+  String get hapticsSubtitle => 'Vibration for taps and gestures.';
+
+  @override
+  String get hapticsMasterTitle => 'Haptics';
+
+  @override
+  String get hapticsMasterSubtitle =>
+      'Off: Navis never vibrates. Your phone\'s touch feedback setting also applies.';
+
+  @override
+  String get hapticsPlayerGesturesTitle => 'Player Gestures';
+
+  @override
+  String get hapticsPlayerGesturesSubtitle =>
+      'Dragging the player open or closed, and swiping to skip.';
+
+  @override
+  String get hapticsPlaybackButtonsTitle => 'Playback Buttons';
+
+  @override
+  String get hapticsPlaybackButtonsSubtitle =>
+      'Play, pause, skip, repeat and shuffle.';
+
+  @override
+  String get hapticsSlidersAndRulersTitle => 'Sliders & Rulers';
+
+  @override
+  String get hapticsSlidersAndRulersSubtitle =>
+      'Seek bar, speed, pitch and color rulers, and the equalizer.';
+
+  @override
+  String get hapticsSwitchesAndSteppersTitle => 'Switches & Steppers';
+
+  @override
+  String get hapticsSwitchesAndSteppersSubtitle =>
+      'Switches, and the − and + buttons.';
+
+  @override
+  String get hapticsListsAndMenusTitle => 'Lists & Menus';
+
+  @override
+  String get hapticsListsAndMenusSubtitle =>
+      'Long-press menus, reordering, swiping a queue row away and pull to refresh.';
+
+  @override
+  String get hapticsLikesAndAlertsTitle => 'Likes & Alerts';
+
+  @override
+  String get hapticsLikesAndAlertsSubtitle =>
+      'Likes, ratings, downloads, copying and actions that aren\'t available.';
+
+  @override
+  String get hapticsLoadError => 'Could Not Load Haptics Settings';
+
+  @override
+  String get hapticsSaveError => 'Couldn\'t save this change. Try again.';
+
+  @override
   String get settingsGroupConnection => 'Connection';
 
   @override

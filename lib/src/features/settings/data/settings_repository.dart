@@ -10,6 +10,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/routing/content_layout.dart';
@@ -301,6 +302,16 @@ class SettingsRepository {
   Future<void> setExternalIntegrationsEnabled({required bool enabled}) =>
       _dao.setExternalIntegrationsEnabled(enabled: enabled);
 
+  /// Writes the Haptics master switch; the category choices are kept.
+  Future<void> setHapticsEnabled({required bool enabled}) =>
+      _dao.setHapticsEnabled(enabled: enabled);
+
+  /// Switches one haptic category on or off.
+  Future<void> setHapticCategoryEnabled(
+    HapticCategory category, {
+    required bool enabled,
+  }) => _dao.setHapticCategoryEnabled(category, enabled: enabled);
+
   /// Records whether the one-time 1.5.0 Integrations note on Home was seen.
   Future<void> updateIntegrationsNoticeDismissed({required bool dismissed}) =>
       _dao.updateIntegrationsNoticeDismissed(dismissed: dismissed);
@@ -376,6 +387,10 @@ class SettingsRepository {
       nightScheduleEndMinutes: row.nightScheduleEndMinutes,
       flatSurfaces: row.flatSurfaces,
       flatAreas: FlatAreas.fromBits(row.flatAreas),
+      hapticsPrefs: HapticsPrefs.fromColumns(
+        row.hapticsEnabled,
+        row.hapticsDisabled,
+      ),
       colorVividness: row.colorVividness,
       surfaceDepthLight: row.surfaceDepthLight,
       surfaceDepthDark: row.surfaceDepthDark,

@@ -129,6 +129,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         // Every setup highlight is an Appearance option.
         adornment: hasNewOptions ? newOptionsTag : null,
       ),
+      // Desktop haptics are silent, so there is nothing to set there.
+      if (!adaptiveContext.desktopRuntime)
+        _SettingsEntry(
+          icon: Icons.vibration,
+          title: l10n.hapticsTitle,
+          subtitle: l10n.hapticsSubtitle,
+          page: SettingsPage.haptics,
+          group: groupOther,
+        ),
     ];
     final desktopEntries = <_SettingsEntry>[
       if (adaptiveContext.desktopRuntime)
