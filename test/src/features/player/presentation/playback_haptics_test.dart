@@ -11,6 +11,9 @@ import 'package:navis/src/providers/app_providers.dart';
 import '../../../../helpers/haptics_spy.dart';
 import '../../../../helpers/test_theme.dart';
 
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
+
 const _snapshot = PlaybackSnapshot(
   queueSongIds: <String>['song-1'],
   currentSongId: 'song-1',
@@ -71,5 +74,41 @@ void main() {
     await tester.tap(find.byKey(QueueShuffleToggle.toggleKey));
     await tester.pump();
     expect(await spy.take(tester), ['toggleOn']);
+  });
+
+  testWidgets('Playback Buttons off silences Play, Pause and shuffle only', (
+    tester,
+  ) async {
+    final spy = HapticsSpy.install(tester);
+    await _pump(
+      tester,
+      Consumer(
+        builder: (context, ref, _) => Column(
+          children: [
+            TextButton(
+              onPressed: () => togglePlayPause(ref, isPlaying: false),
+              child: const Text('play'),
+            ),
+            const QueueShuffleToggle(),
+          ],
+        ),
+      ),
+    );
+    NavisHaptics.prefs = HapticsPrefs.fromColumns(
+      true,
+      HapticCategory.playbackButtons.bit,
+    );
+    await tester.tap(find.text('play'));
+    await tester.tap(find.byKey(QueueShuffleToggle.toggleKey));
+    await tester.pump();
+    expect(await spy.take(tester), isEmpty);
+
+    NavisHaptics.prefs = HapticsPrefs.fromColumns(
+      true,
+      HapticCategory.playerGestures.bit,
+    );
+    await tester.tap(find.text('play'));
+    await tester.pump();
+    expect(await spy.take(tester), ['press']);
   });
 }

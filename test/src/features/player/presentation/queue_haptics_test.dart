@@ -13,6 +13,9 @@ import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/haptics_spy.dart';
 
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
+
 class _Queue extends QueueController {
   new(this.ids);
 
@@ -133,5 +136,37 @@ void main() {
     await tester.pumpAndSettle();
     expect(queue.removed, 1);
     expect(await spy.take(tester), ['reject']);
+  });
+
+  testWidgets('Lists & Menus off silences reordering and swiping a row away', (
+    tester,
+  ) async {
+    final spy = HapticsSpy.install(tester);
+    final queue = await _pump(tester);
+    NavisHaptics.prefs = HapticsPrefs.fromColumns(
+      true,
+      HapticCategory.listsAndMenus.bit,
+    );
+    final handle = find.byIcon(Icons.drag_indicator_rounded).first;
+    final drag = await tester.startGesture(tester.getCenter(handle));
+    await drag.moveBy(const Offset(0, 30));
+    await tester.pump();
+    await drag.moveBy(const Offset(0, 40));
+    await tester.pump();
+    await drag.up();
+    await tester.pumpAndSettle();
+
+    final swipe = await tester.startGesture(
+      tester.getCenter(find.byType(Dismissible).first),
+    );
+    await swipe.moveBy(const Offset(-20, 0));
+    for (var i = 0; i < 12; i++) {
+      await swipe.moveBy(const Offset(-30, 0));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await swipe.up();
+    await tester.pumpAndSettle();
+    expect(queue.removed, 1);
+    expect(await spy.take(tester), isEmpty);
   });
 }

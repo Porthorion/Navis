@@ -10,6 +10,7 @@ import 'package:navis/src/features/player/presentation/queue_unavailable_tracks.
 import 'package:navis/src/features/playlists/presentation/create_playlist_dialog.dart';
 import 'package:navis/src/providers/app_providers.dart'
     show playerStateProvider;
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 class QueueScreen extends ConsumerWidget {
   const new({super.key});
@@ -54,8 +55,10 @@ class QueueScreen extends ConsumerWidget {
                 footer: const QueueUnavailableTracks(),
                 padding: const EdgeInsets.only(bottom: 80),
                 itemCount: queueIds.length,
-                onReorderStart: (_) => NavisHaptics.dragStart(),
-                onReorderEnd: (_) => NavisHaptics.dragEnd(),
+                onReorderStart: (_) =>
+                    NavisHaptics.dragStart(HapticCategory.listsAndMenus),
+                onReorderEnd: (_) =>
+                    NavisHaptics.dragEnd(HapticCategory.listsAndMenus),
                 onReorderItem: (oldIndex, newIndex) async {
                   if (actionsDisabled) return;
                   await reorderQueueItem(ref, oldIndex, newIndex);

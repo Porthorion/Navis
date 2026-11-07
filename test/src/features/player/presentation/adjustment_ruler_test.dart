@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 void main() {
   test('ticks report the strongest ruler line crossed', () {
@@ -95,6 +97,29 @@ void main() {
       haptics.where((h) => h == 'HapticFeedbackType.mediumImpact'),
       hasLength(1),
     );
+  });
+
+  testWidgets('Sliders & Rulers off silences dragging a ruler', (tester) async {
+    addTearDown(NavisHaptics.resetForTest);
+    NavisHaptics.prefs = HapticsPrefs.fromColumns(
+      true,
+      HapticCategory.slidersAndRulers.bit,
+    );
+    final haptics = await scriptedDrag(
+      tester,
+      step: const Duration(milliseconds: 16),
+    );
+    expect(haptics, isEmpty);
+  });
+
+  testWidgets('the master off silences dragging a ruler', (tester) async {
+    addTearDown(NavisHaptics.resetForTest);
+    NavisHaptics.prefs = const HapticsPrefs(enabled: false);
+    final haptics = await scriptedDrag(
+      tester,
+      step: const Duration(milliseconds: 16),
+    );
+    expect(haptics, isEmpty);
   });
 
   testWidgets('fast swipes throttle minor ticks but keep the neutral tap', (
@@ -690,6 +715,22 @@ void main() {
       await tester.tap(find.byType(IconButton));
       await tester.pump();
       expect(haptics, ['HapticFeedbackType.selectionClick']);
+    });
+
+    testWidgets('Switches & Steppers off silences the step click', (
+      tester,
+    ) async {
+      addTearDown(NavisHaptics.resetForTest);
+      NavisHaptics.prefs = HapticsPrefs.fromColumns(
+        true,
+        HapticCategory.switchesAndSteppers.bit,
+      );
+      var steps = 0;
+      await pumpButton(tester, () => ++steps > 0);
+      await tester.tap(find.byType(IconButton));
+      await tester.pump();
+      expect(steps, 1);
+      expect(haptics, isEmpty);
     });
 
     testWidgets('a tap at a limit stays silent', (tester) async {

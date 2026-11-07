@@ -1173,9 +1173,8 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
   // ---------------------------------------------------------------------------
 
   /// Writes the Haptics master switch; the category mask is kept.
-  Future<void> setHapticsEnabled({required bool enabled}) => _writeSettings(
-    AppSettingsTableCompanion(hapticsEnabled: Value(enabled)),
-  );
+  Future<void> setHapticsEnabled({required bool enabled}) =>
+      _writeSettings(AppSettingsTableCompanion(hapticsEnabled: Value(enabled)));
 
   /// Switches one haptic category on or off with a single atomic bit write,
   /// so concurrent flips cannot lose each other. A Drift write, so

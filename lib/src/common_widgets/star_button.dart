@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/theme/motion_policy.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 class StarButton extends StatefulWidget {
   const new({
@@ -76,9 +77,9 @@ class _StarButtonState extends State<StarButton>
 
   void _handlePress() {
     if (widget.isStarred) {
-      NavisHaptics.tick();
+      NavisHaptics.tick(HapticCategory.likesAndAlerts);
     } else {
-      NavisHaptics.confirm();
+      NavisHaptics.confirm(HapticCategory.likesAndAlerts);
     }
     widget.onPressed?.call();
   }

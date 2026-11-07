@@ -35,6 +35,7 @@ enum SettingsPage {
   playback(AppRoutes.settingsPlaybackSegment),
   equalizer(AppRoutes.settingsEqualizerSegment),
   appearance(AppRoutes.settingsAppearanceSegment),
+  haptics(AppRoutes.settingsHapticsSegment),
   about(AppRoutes.settingsAboutSegment),
   desktopWindow(AppRoutes.settingsDesktopWindowSegment),
   shortcuts(AppRoutes.settingsShortcutsSegment),
@@ -147,6 +148,7 @@ abstract final class AppRoutes {
   static const settingsPlaybackSegment = 'playback';
   static const settingsEqualizerSegment = 'equalizer';
   static const settingsAppearanceSegment = 'appearance';
+  static const settingsHapticsSegment = 'haptics';
   static const settingsAboutSegment = 'about';
   static const settingsDesktopWindowSegment = 'desktop-window';
   static const settingsShortcutsSegment = 'shortcuts';

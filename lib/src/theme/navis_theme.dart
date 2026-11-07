@@ -381,6 +381,9 @@ ThemeData _buildNavisTheme(
     shadowColor: styleData.flatSurfaces ? Colors.transparent : null,
     fontFamily: navisFontFamily,
     textTheme: _navisTextTheme,
+    // Tooltips are explanatory: their long-press vibration would bypass
+    // Settings -> Haptics, so it is off app-wide.
+    tooltipTheme: const TooltipThemeData(enableFeedback: false),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: ButtonStyle(
         shape: controlShape,
