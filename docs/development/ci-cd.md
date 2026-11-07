@@ -10,7 +10,8 @@ Releases are built and published locally with `tool/release.sh`; `tool/check.sh`
   preinstalled Android SDK (`sdkmanager` adds platform 37); the job has a
   15-minute deadline and requires no emulator or secrets.
 - `tooling`: the playback harness and validation gate Python suites plus Bash syntax checks (see [Playback tooling](#playback-tooling-and-final-fixture-evidence)).
-- `ci`: waits for all four and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
+- `ios`: on `macos-latest` (free for this public repository), bootstrap then `flutter build ios --simulator --debug` with a 30-minute deadline. It proves the iOS project, its SwiftPM plugins and the vendored Darwin audio code compile. The simulator build is used because it needs no signing or provisioning and is the same build the simulator runtime loop runs; a device or release build (`--release --no-codesign`) adds only the device slice and ahead-of-time compile, which only a local release build exercises today. It runs no tests and uses no secrets.
+- `ci`: waits for all five and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
 
 Windows media-session changes additionally require the Windows-only isolated
 GMTC validation command described in `docs/development/development-workflow.md`:

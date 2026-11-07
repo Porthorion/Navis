@@ -7,7 +7,7 @@ Developer-facing detail moved out of the README. For setup and the quality gate 
 | Platform | Status | Notes |
 |---|---|---|
 | Android | Supported | Primary mobile target; `audio_service` media session, Android Auto phone projection, and internally gated WorkManager library-sync recovery |
-| iOS | Unreleased scaffold | Configured for iOS 16; requires macOS/Xcode build and runtime validation |
+| iOS | Unreleased | Configured for iOS 16 (iPhone and iPad), SwiftPM plugins only. Plays through just_audio on AVFoundation (loopback stream proxy; plain-http LAN and https servers verified), with the equalizer (a `MTAudioProcessingTap` in the vendored just_audio Darwin code), system Now Playing through `audio_service` (no iOS runtime evidence yet), keychain sign-in, downloads in the Files app and an accessibility pass; verified on the simulator only, device checks (lock screen, AirPods, interruptions, local network prompt, VoiceOver) are pending. TestFlight and App Store are planned for 1.5.2; CarPlay, Siri, widgets, sleep timer and share links are 1.6. Work items are in the [iOS parity plan](../plans/iOS_Parity_Plan.md) and the [iOS testing playbook](../platforms/ios-testing-playbook.md) |
 | macOS | Unreleased | Configured for macOS 12 (universal). Bundles Navis's own LGPL libmpv (equalizer, Fast Seeking and system-trust TLS in release builds; debug builds use AVFoundation); Now Playing and media keys through `audio_service` (`MPNowPlayingInfoCenter`, `MPRemoteCommandCenter`), Dock and Controls menus, login-keychain sign-in and a self-update that rolls back; hardware media keys, AirPods and a real update are not yet runtime-verified. Gaps and work items are in the [macOS parity plan](../plans/macOS_Parity_Plan.md) |
 | Linux | Supported | Native desktop build with adaptive shell, shortcuts, MPRIS integration, and bundled LGPL libmpv (x86_64); tar.gz, deb, rpm and AUR binary recipe |
 | Windows | Supported | Native desktop build with adaptive shell, shortcuts, SMTC integration, and bundled LGPL libmpv |
@@ -50,7 +50,7 @@ Released target baselines:
   MPRIS bridge over `dbus`.
 - Windows: system media transport controls use Navis’s owned manual-SMTC
   Rust/WinRT adapter with a stable Navis session identity.
-- Apple builds are not shipped or certified. On macOS, `audio_service`'s Darwin plugin publishes `MPNowPlayingInfoCenter` metadata and handles `MPRemoteCommandCenter` commands; a scripted pass confirmed them, and hardware media keys and AirPods remain a hands-on check in the [macOS testing playbook](../platforms/macos-testing-playbook.md) (see item M1 of the [macOS parity plan](../plans/macOS_Parity_Plan.md)).
+- Apple builds are not shipped or certified. iOS is verified on the simulator through the authenticated diagnostics API; hardware behaviour is listed in the [iOS testing playbook](../platforms/ios-testing-playbook.md). On macOS, `audio_service`'s Darwin plugin publishes `MPNowPlayingInfoCenter` metadata and handles `MPRemoteCommandCenter` commands; a scripted pass confirmed them, and hardware media keys and AirPods remain a hands-on check in the [macOS testing playbook](../platforms/macos-testing-playbook.md) (see item M1 of the [macOS parity plan](../plans/macOS_Parity_Plan.md)).
 
 ## Tech Stack
 
