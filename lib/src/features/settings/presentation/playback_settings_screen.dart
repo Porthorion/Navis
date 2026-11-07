@@ -26,7 +26,11 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
 class PlaybackSettingsScreen extends ConsumerStatefulWidget {
-  const new({super.key});
+  const new({this.focusReplayGain = false, super.key});
+
+  /// Scrolls to the ReplayGain section once the settings have loaded (the
+  /// link from holding the ReplayGain line on Now Playing).
+  final bool focusReplayGain;
 
   @override
   ConsumerState<PlaybackSettingsScreen> createState() =>
@@ -54,6 +58,8 @@ class _PlaybackSettingsScreenState
   ];
 
   final _formKey = GlobalKey<FormState>();
+  final _replayGainKey = GlobalKey();
+  bool _didFocus = false;
 
   int? _wifiBitRate;
   String? _wifiFormat;
@@ -126,6 +132,21 @@ class _PlaybackSettingsScreenState
 
   Widget _buildForm(BuildContext context, AppLocalizations l10n) {
     _scheduleAutosave();
+    // The form only exists once the settings have loaded, so scroll after its
+    // first build rather than in initState.
+    if (widget.focusReplayGain && !_didFocus) {
+      _didFocus = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final target = _replayGainKey.currentContext;
+        if (!mounted || target == null) return;
+        Scrollable.ensureVisible(
+          target,
+          alignment: 0.02,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+        );
+      });
+    }
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
 
     return Align(
@@ -396,6 +417,7 @@ class _PlaybackSettingsScreenState
                   // ── ReplayGain section ─────────────────────────────────────
                   const SizedBox(height: 24),
                   Text(
+                    key: _replayGainKey,
                     l10n.playbackSettingsReplayGainSectionTitle,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),

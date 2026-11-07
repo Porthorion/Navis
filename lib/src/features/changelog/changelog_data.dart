@@ -130,6 +130,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'On Now Playing, the quality and ReplayGain lines now react to a hold '
+        'anywhere on them, not only on the text, and holding ReplayGain '
+        'scrolls Playback settings to the ReplayGain section. On desktop, '
+        'click or hold those two details to open them too',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On desktop, album pages no longer show "Could not load" when Navis '
         'is open but another window has focus',
         type: ChangelogEntryType.fix,
