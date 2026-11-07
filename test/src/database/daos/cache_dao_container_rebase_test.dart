@@ -263,14 +263,14 @@ void main() {
             throw StateError('boom');
         final failed = createTestDatabase(file: file);
         addTearDown(failed.close);
-        await failed.cacheDao.getPermanentEntries();
-        expect(failed.containerRebaseFailed, isTrue);
-
+        // No query yet: the prune is the first thing to touch the database,
+        // so its guard must open the database before it reads the flag.
         final manager = RollingCacheManager(cacheDao: failed.cacheDao);
-        await manager.pruneMissingFiles();
         await manager.pruneMissingPermanentFiles();
+        await manager.pruneMissingFiles();
         await manager.cleanupOrphanedRollingFiles();
         expect(await failed.cacheDao.getCachedTrack('perm'), isNotNull);
+        expect(failed.containerRebaseFailed, isTrue);
 
         // A launch whose rebase worked prunes as before.
         NavisDatabase.containerHomeReader = () async => newHome;

@@ -1826,11 +1826,11 @@ void main() {
       'path rebase failed', () async {
     final previous = NavisDatabase.containerHomeReader;
     addTearDown(() => NavisDatabase.containerHomeReader = previous);
+    final file = File(p.join(supportDir.path, 'recovery.sqlite'));
+    // Seed a profile, then reopen it so the service's own start() is the
+    // first thing to touch the database: its guard has to open it first.
     await database.close();
-    NavisDatabase.containerHomeReader = () async => throw StateError('boom');
-    database = createTestDatabase();
-    await database.cacheDao.getPermanentEntries();
-    expect(database.containerRebaseFailed, isTrue);
+    database = createTestDatabase(file: file);
     await database.appSettingsDao.updateDownloadsPaused(paused: true);
     await addSongs(1);
     final root = Directory(p.join(supportDir.path, 'audio', 'permanent'));
@@ -1848,10 +1848,14 @@ void main() {
         lastAccessedAt: DateTime(2026),
       ),
     );
+    await database.close();
+    NavisDatabase.containerHomeReader = () async => throw StateError('boom');
+    database = createTestDatabase(file: file);
     await buildService().start();
     expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
     expect(await queue(), isEmpty);
     expect(orphan.existsSync(), isTrue);
+    expect(database.containerRebaseFailed, isTrue);
   }, skip: !sqliteAvailable);
 
   test(

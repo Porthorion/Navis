@@ -323,6 +323,14 @@ class NavisDatabase extends _$NavisDatabase {
   /// or files because a path looks missing must not run.
   bool containerRebaseFailed = false;
 
+  /// [containerRebaseFailed] once the database is open. The rebase runs in
+  /// `beforeOpen` on the first query, so a caller that has not queried yet
+  /// would read the flag too early; this opens the database first.
+  Future<bool> hasUnverifiedContainerPaths() async {
+    await customSelect('SELECT 1').get();
+    return containerRebaseFailed;
+  }
+
   /// Runs inside beforeOpen, which Drift completes before any other query:
   /// the audio handler's cache pruning and the download service's startup
   /// recovery can only read paths already moved to the current iOS container.

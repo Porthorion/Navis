@@ -2572,8 +2572,10 @@ class DownloadService {
 
   /// A failed iOS container path rebase leaves stored paths possibly stale:
   /// startup recovery must not drop, requeue or delete anything for them.
-  bool get _pathsUnverified {
-    if (!_cacheDao.attachedDatabase.containerRebaseFailed) return false;
+  Future<bool> _pathsUnverified() async {
+    if (!await _cacheDao.attachedDatabase.hasUnverifiedContainerPaths()) {
+      return false;
+    }
     AppLogger.warning(
       'Download recovery skipped: stored paths are unverified.',
     );
@@ -2581,7 +2583,7 @@ class DownloadService {
   }
 
   Future<void> _reconcileMissingDownloads(int generation) async {
-    if (_pathsUnverified) return;
+    if (await _pathsUnverified()) return;
     final entries = await _cacheDao.getPermanentEntries();
     if (entries.isEmpty) return;
     // iOS has no user folder to disconnect, so every record is checked,
@@ -2881,7 +2883,7 @@ class DownloadService {
   /// This recovers disk space from files orphaned by the old CASCADE FK
   /// behavior (where sync would delete the DB record but leave the file).
   Future<void> _cleanupOrphanedFiles(int generation) async {
-    if (_pathsUnverified) return;
+    if (await _pathsUnverified()) return;
     try {
       final permDir = await _permanentDirectory();
       // Keep metadata access asynchronous so storage latency cannot stall UI.

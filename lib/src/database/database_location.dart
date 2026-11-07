@@ -54,14 +54,7 @@ Future<File> resolveDatabaseFile({
         await (readApplicationSupportDirectory ??
             getApplicationSupportDirectory)();
     final target = File(p.join(support.path, 'navis.sqlite.sqlite'));
-    if (await _exists(target)) {
-      // A crash between the renames moves the main file first and strands its
-      // sidecars: adopt them, or their commits are lost and they stay behind.
-      if (!await _exists(legacy)) {
-        await _adoptStrandedSidecars(legacy, target, renameFile ?? _rename);
-      }
-      return target;
-    }
+    if (await _exists(target)) return target;
     await support.create(recursive: true);
     if (!await _exists(legacy)) return target;
     for (final suffix in ['', '-wal', '-shm', '-journal']) {
@@ -90,9 +83,8 @@ Future<File> resolveDatabaseFile({
         copied.add(entry);
       }
     }
-    // Sidecars first, the main file last: a crash in between must never leave
-    // a legacy WAL without its main file, where a later launch could adopt it
-    // beside a newer database and roll it back.
+    // Sidecars first, the main file last, so a crash in between never leaves
+    // a legacy WAL without its main file.
     for (final entry in copied.reversed) {
       await (deleteFile ?? _delete)(entry.source);
     }
@@ -117,28 +109,6 @@ Future<File> resolveDatabaseFile({
       '${error.runtimeType}',
     );
     return legacy;
-  }
-}
-
-/// Only a rename: sidecars are stranded only after the main file was renamed,
-/// so they are on the same volume. A copy could pair a stale WAL with a newer
-/// database.
-Future<void> _adoptStrandedSidecars(
-  File legacy,
-  File target,
-  Future<File> Function(File source, String destination) rename,
-) async {
-  for (final suffix in ['-wal', '-shm', '-journal']) {
-    final source = File('${legacy.path}$suffix');
-    final destination = '${target.path}$suffix';
-    try {
-      if (!await _exists(source) || await _exists(File(destination))) continue;
-      await rename(source, destination);
-    } on FileSystemException catch (error) {
-      AppLogger.warning(
-        'Stranded database sidecar not moved: ${error.runtimeType}',
-      );
-    }
   }
 }
 

@@ -43,8 +43,10 @@ class RollingCacheManager {
 
   /// A failed iOS container path rebase leaves stored paths possibly stale, so
   /// nothing may be deleted because a path looks missing.
-  bool _pathsUnverified(String pass) {
-    if (!_cacheDao.attachedDatabase.containerRebaseFailed) return false;
+  Future<bool> _pathsUnverified(String pass) async {
+    if (!await _cacheDao.attachedDatabase.hasUnverifiedContainerPaths()) {
+      return false;
+    }
     AppLogger.warning('Cache $pass skipped: stored paths are unverified.');
     return true;
   }
@@ -165,7 +167,7 @@ class RollingCacheManager {
   /// Remove rolling entries whose files are missing or hold a server error
   /// document instead of audio.
   Future<void> pruneMissingFiles() async {
-    if (_pathsUnverified('rolling prune')) return;
+    if (await _pathsUnverified('rolling prune')) return;
     final entries = await _cacheDao.getRollingEntriesOrderedByLastAccessed();
     final staleIds = <String>[];
     var errorDocuments = 0;
@@ -198,7 +200,7 @@ class RollingCacheManager {
   /// Remove permanent cache DB entries whose backing files no longer exist on
   /// disk (e.g. deleted by the OS, manual cleanup, or filesystem corruption).
   Future<void> pruneMissingPermanentFiles() async {
-    if (_pathsUnverified('permanent prune')) return;
+    if (await _pathsUnverified('permanent prune')) return;
     final entries = await _cacheDao.getPermanentEntries();
     final staleIds = <String>[];
 
@@ -223,7 +225,7 @@ class RollingCacheManager {
 
   /// Remove rolling-cache files that are not referenced in the DB.
   Future<void> cleanupOrphanedRollingFiles() async {
-    if (_pathsUnverified('orphan sweep')) return;
+    if (await _pathsUnverified('orphan sweep')) return;
     try {
       final tempDir = await getTemporaryDirectory();
       final rollingDir = Directory(p.join(tempDir.path, 'audio', 'rolling'));
