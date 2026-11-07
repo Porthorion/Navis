@@ -7,12 +7,14 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/domain/eq_response.dart';
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_geometry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_painter.dart';
+import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// A graph of authored bands with independent, explicitly labelled output gain.
@@ -62,6 +64,7 @@ class EqGraphEditorState extends State<EqGraphEditor> {
   final _focus = FocusNode(debugLabel: 'eq-graph');
   bool _focused = false;
   EqConfiguration? _dragStart;
+  double _lastGainDb = 0;
   EqGraphGeometry? _dragGeometry;
   Offset? _down;
   int? _dragBand;
@@ -278,10 +281,25 @@ class EqGraphEditorState extends State<EqGraphEditor> {
     return KeyEventResult.handled;
   }
 
+  /// One click per whole dB a gain drag crosses, and a firmer one across
+  /// 0 dB: the same feel as dragging the Speed ruler.
+  void _tickGain(double from, double to) {
+    switch (rulerTickFeedback(from, to, 0, perUnit: 1, majorEvery: null)) {
+      case RulerTick.neutral:
+        NavisHaptics.firm();
+      case RulerTick.minor:
+        NavisHaptics.tick();
+      case RulerTick.major:
+      case RulerTick.none:
+        break;
+    }
+  }
+
   Future<void> _choose(List<int> hits) async {
     if (hits.isEmpty || !widget.enabled) return;
     _focus.requestFocus();
     if (hits.length == 1) {
+      if (widget.selectedBand != hits.single) NavisHaptics.contextClick();
       widget.onSelect(hits.single);
       return;
     }
@@ -641,7 +659,11 @@ class EqGraphEditorState extends State<EqGraphEditor> {
                           }
                           final index = targets.single;
                           _focus.requestFocus();
+                          if (widget.selectedBand != index) {
+                            NavisHaptics.contextClick();
+                          }
                           widget.onSelect(index);
+                          _lastGainDb = current.filters[index].gainDb;
                           _dragStart = current;
                           _dragGeometry = geometry;
                           setState(() => _dragBand = index);
@@ -665,6 +687,9 @@ class EqGraphEditorState extends State<EqGraphEditor> {
                             (details.localPosition - _down!) * fine,
                             start.mode,
                           );
+                          final gain = filters[_dragBand!].gainDb;
+                          _tickGain(_lastGainDb, gain);
+                          _lastGainDb = gain;
                           widget.onChanged(start.copyWith(filters: filters));
                         }
                       : null,

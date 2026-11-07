@@ -267,11 +267,7 @@ class SongHeartButton extends ConsumerWidget {
     final remote = isRemote || isRemoteSong(id: songId);
     void toggle() {
       if (remote) {
-        showAppNotice(
-          context,
-          message: l10n.remoteSourceActionUnavailable,
-          level: AppNoticeLevel.error,
-        );
+        showRemoteSourceActionUnavailable(context);
         return;
       }
       unawaited(

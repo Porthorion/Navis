@@ -65,6 +65,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../helpers/haptics_spy.dart';
 import '../../helpers/library_copy_api.dart';
 import '../../helpers/test_database.dart';
 import '../../helpers/test_theme.dart';
@@ -2516,9 +2517,11 @@ void main() {
 
     final like = find.byTooltip('Like unavailable for remote songs');
     expect(like, findsOneWidget);
+    final spy = HapticsSpy.install(tester);
     await tester.tap(like);
     await tester.pump();
 
+    expect(await spy.take(tester), ['reject']);
     expect(playbackHandler.toggleLikeCalls, 0);
     expect(find.text('Not available for remote tracks.'), findsOneWidget);
   });

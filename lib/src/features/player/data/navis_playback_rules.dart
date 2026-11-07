@@ -21,12 +21,44 @@ double automaticUntaggedGainDb({required int taggedCount, double? median}) {
   return median.clamp(replayGainMinUntaggedDb, 0.0);
 }
 
-/// The ReplayGain adjustment in dB for one song, or null when [mode] is 'off'.
+/// Which ReplayGain gain a song ended up using.
+enum ReplayGainSource { track, album, untagged }
+
+/// The gain and peak [mode] picks for a song, and which one it was.
 ///
 /// Track and album gain fall back to each other; a gain beyond
-/// [replayGainMaxAbsDb] is garbage and counts as missing, and a song with no
-/// usable gain takes [untaggedDb]. The pre-amp (clamped to -6..6) is added,
-/// the song's known peak limits the result, and it never boosts (0 dB cap).
+/// [replayGainMaxAbsDb] is garbage and counts as missing. Anything but
+/// 'album' prefers the track gain, so an unresolved 'smart' acts as 'track'.
+({double? gain, double? peak, ReplayGainSource source}) _selectReplayGain({
+  required String mode,
+  double? trackGain,
+  double? albumGain,
+  double? trackPeak,
+  double? albumPeak,
+}) {
+  bool usable(double? gain) =>
+      gain != null && gain.isFinite && gain.abs() <= replayGainMaxAbsDb;
+  return switch ((mode == 'album', usable(trackGain), usable(albumGain))) {
+    (false, true, _) || (true, true, false) => (
+      gain: trackGain,
+      peak: trackPeak,
+      source: ReplayGainSource.track,
+    ),
+    (_, _, true) => (
+      gain: albumGain,
+      peak: albumPeak,
+      source: ReplayGainSource.album,
+    ),
+    _ => (gain: null, peak: null, source: ReplayGainSource.untagged),
+  };
+}
+
+/// The ReplayGain adjustment in dB for one song, or null when [mode] is 'off'.
+///
+/// A song with no usable gain takes [untaggedDb]. The pre-amp (clamped to
+/// -6..6) is added, the song's known peak limits the result, and it never
+/// boosts (0 dB cap). [mode] is 'off', 'track' or 'album'; resolve 'smart'
+/// first with [resolveReplayGainMode].
 double? replayGainDb({
   required String mode,
   double? trackGain,
@@ -37,24 +69,115 @@ double? replayGainDb({
   required double untaggedDb,
 }) {
   if (mode == 'off') return null;
-  bool usable(double? gain) =>
-      gain != null && gain.isFinite && gain.abs() <= replayGainMaxAbsDb;
-  final preferAlbum = mode == 'album';
-  final (gain, peak) = switch ((
-    preferAlbum,
-    usable(trackGain),
-    usable(albumGain),
-  )) {
-    (false, true, _) || (true, true, false) => (trackGain, trackPeak),
-    (_, _, true) => (albumGain, albumPeak),
-    _ => (null, null),
-  };
+  final (:gain, :peak, source: _) = _selectReplayGain(
+    mode: mode,
+    trackGain: trackGain,
+    albumGain: albumGain,
+    trackPeak: trackPeak,
+    albumPeak: albumPeak,
+  );
   var db = (gain ?? untaggedDb) + preampDb.clamp(-6.0, 6.0);
   // A peak is a sample ratio near 1; anything else is tag garbage.
   if (gain != null && peak != null && peak.isFinite && peak > 0 && peak <= 4) {
     db = math.min(db, -20 * math.log(peak) / math.ln10);
   }
   return math.min(db, 0);
+}
+
+/// The mode a song plays with: 'off', 'track' or 'album'.
+///
+/// 'smart' plays album gain when the song before or after it in play order is
+/// from the same album ([albumId] non-empty and equal), and track gain
+/// otherwise. A null or empty album id (remote songs, untagged songs) never
+/// matches, not even another one. Any other [mode] passes through.
+String resolveReplayGainMode(
+  String mode, {
+  String? albumId,
+  String? prevAlbumId,
+  String? nextAlbumId,
+}) {
+  if (mode != 'smart') return mode;
+  final inAlbumRun =
+      albumId != null &&
+      albumId.isNotEmpty &&
+      (albumId == prevAlbumId || albumId == nextAlbumId);
+  return inAlbumRun ? 'album' : 'track';
+}
+
+/// What ReplayGain did to one song, for diagnostics and the Now Playing page.
+@immutable
+class ReplayGainDecision {
+  const new({
+    required this.mode,
+    required this.resolvedMode,
+    required this.db,
+    required this.source,
+  });
+
+  /// The user's setting: 'off', 'track', 'album' or 'smart' (Smart picked
+  /// [resolvedMode] when this is 'smart').
+  final String mode;
+
+  /// The mode that was applied: 'off', 'track' or 'album'.
+  final String resolvedMode;
+
+  /// The adjustment in dB (0 or less), or null when off.
+  final double? db;
+
+  /// The gain used after fallbacks, or null when off.
+  final ReplayGainSource? source;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'mode': mode,
+    'resolvedMode': resolvedMode,
+    'source': source?.name,
+    'db': db,
+  };
+}
+
+/// [replayGainDb] with the mode resolved from the song's queue neighbours
+/// (see [resolveReplayGainMode]), plus which gain was used.
+ReplayGainDecision replayGainDecision({
+  required String mode,
+  String? albumId,
+  String? prevAlbumId,
+  String? nextAlbumId,
+  double? trackGain,
+  double? albumGain,
+  double? trackPeak,
+  double? albumPeak,
+  double preampDb = 0,
+  required double untaggedDb,
+}) {
+  final resolved = resolveReplayGainMode(
+    mode,
+    albumId: albumId,
+    prevAlbumId: prevAlbumId,
+    nextAlbumId: nextAlbumId,
+  );
+  final db = replayGainDb(
+    mode: resolved,
+    trackGain: trackGain,
+    albumGain: albumGain,
+    trackPeak: trackPeak,
+    albumPeak: albumPeak,
+    preampDb: preampDb,
+    untaggedDb: untaggedDb,
+  );
+  return ReplayGainDecision(
+    mode: mode,
+    resolvedMode: resolved,
+    db: db,
+    source: db == null
+        ? null
+        : _selectReplayGain(
+            mode: resolved,
+            trackGain: trackGain,
+            albumGain: albumGain,
+            trackPeak: trackPeak,
+            albumPeak: albumPeak,
+          ).source,
+  );
 }
 
 /// Whether a native source failure can recover after reconnecting a station.

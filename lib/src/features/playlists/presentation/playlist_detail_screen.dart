@@ -13,6 +13,8 @@ import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/common_widgets/navis_refresh_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/common_widgets/track_list_tile.dart';
@@ -204,7 +206,7 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
     final heightClass = desktopHeightClassOf(context);
     final shortHeader = heightClass == DesktopHeightClass.short;
 
-    return RefreshIndicator(
+    return NavisRefreshIndicator(
       onRefresh: () async {
         ref.invalidate(playlistDetailSyncProvider(widget.playlistId));
         await ref.read(playlistDetailSyncProvider(widget.playlistId).future);
@@ -423,6 +425,8 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             SliverPadding(
               padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
               sliver: SliverReorderableList(
+                onReorderStart: (_) => NavisHaptics.dragStart(),
+                onReorderEnd: (_) => NavisHaptics.dragEnd(),
                 onReorderItem: (oldIndex, newIndex) => unawaited(
                   _reorderTrack(playlist, songs, oldIndex, newIndex),
                 ),

@@ -104,11 +104,7 @@ List<Widget> _nowPlayingSettingsItems(
                 },
               ),
         onTap: isRemote
-            ? () => showAppNotice(
-                context,
-                message: l10n.remoteSourceActionUnavailable,
-                level: AppNoticeLevel.error,
-              )
+            ? () => showRemoteSourceActionUnavailable(context)
             : null,
       ),
     if (onOpenFullscreenLyrics != null)
@@ -196,11 +192,7 @@ List<Widget> _nowPlayingSettingsItems(
         title: Text(l10n.downloadAction),
         onTap: () async {
           if (isRemote) {
-            showAppNotice(
-              context,
-              message: l10n.remoteSourceActionUnavailable,
-              level: AppNoticeLevel.error,
-            );
+            showRemoteSourceActionUnavailable(context);
             return;
           }
           beforeAction();

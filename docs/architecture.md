@@ -1868,10 +1868,52 @@ Small in-memory caches with a fixed capacity use `BoundedLruMap`
 values) instead of hand-rolling `remove(keys.first)` eviction.
 
 - **Actions**
+  - `navis_haptics.dart`, `navis_switch.dart`, `navis_refresh_indicator.dart` -
+    the haptics vocabulary, switches that use it, and the shared pull-to-refresh
+    (see "Haptics vocabulary")
   - `star_button.dart` - Star/unstar action
   - `context_menu.dart` - Bottom sheet context menu
   - `preset_picker.dart` - `PresetPicker` (dropdown plus save, update, rename
     and delete menu over any named presets) and `TextEntryDialog`
+
+### Haptics vocabulary
+
+Every kind of action has one named haptic in `NavisHaptics`
+(`common_widgets/navis_haptics.dart`); new code calls it and never
+`HapticFeedback` directly. Android plays the richest constant the device has
+through `View.performHapticFeedback` (`HapticKinds.kt`, channel
+`com.navis.app/haptics`, which honours the system touch-feedback setting); a
+device without the constant, or a missing channel (cached after one failed
+call), gets the Flutter primitive in the last column. iOS always uses the
+primitive. Desktop is silent, so shared widgets call the helper without
+platform checks, and mouse-only controls get no haptics.
+`AdjustmentRuler` and `RulerStepButton` keep their own tuned primitives, the
+reference feel for `tick` and `firm`.
+
+| Action | Helper | Android constant (API) | Fallback | Where |
+|---|---|---|---|---|
+| Switch on / off | `toggle(on)` | TOGGLE_ON / TOGGLE_OFF (34) | light / selection | `NavisSwitchListTile`, `NavisSwitch`; shuffle toggle |
+| Play / Pause | `press` / `release` | VIRTUAL_KEY / VIRTUAL_KEY_RELEASE (27) | light / selection | `togglePlayPause`, Now Playing art tap |
+| Skip | `firm` | KEYBOARD_TAP | medium | transport, mini player, art swipe |
+| Repeat step, rating star, seek landing, EQ gain per dB | `tick` | CLOCK_TICK | selection | transport, `RatingWidget`, seek bar, EQ graph |
+| 0 dB crossing on the EQ graph | `firm` | KEYBOARD_TAP | medium | `EqGraphEditor` |
+| Pick an EQ band | `contextClick` | CONTEXT_CLICK (23) | selection | `EqGraphEditor` |
+| Like / unlike | `confirm` / `tick` | CONFIRM (30) / CLOCK_TICK | light / selection | `StarButton`, Now Playing, mini player |
+| Any tap that shows the "Not available for remote tracks" notice (hearts, menus, rows); swipe-remove commit | `reject` | REJECT (30) | heavy | `showRemoteSourceActionUnavailable`, queue row |
+| Download started, copy, refresh finished | `confirm` | CONFIRM (30) | light | download icon, album title copy, `NavisRefreshIndicator` |
+| Pull to refresh | `frequentTick` at each quarter, `thresholdOn` / `thresholdOff` at the trigger | SEGMENT_FREQUENT_TICK, GESTURE_THRESHOLD_ACTIVATE / DEACTIVATE (34) | selection / medium / selection | `NavisRefreshIndicator` (every `RefreshIndicator`) |
+| Swipe-to-remove dismiss point | `thresholdOn` / `thresholdOff` | as above | medium / selection | `QueueTrackRow` |
+| Reorder pick-up / drop; sheet settle | `dragStart` / `dragEnd` | DRAG_START (34) / GESTURE_END (30) | medium / light | every reorderable list, `ExpandablePlayerSheet`, mini player expand |
+| Long-press menu | `longPress` | LONG_PRESS | heavy | album, artist and track rows |
+
+Silent by design: scrolling, navigation taps, continuous volume and seek
+drags, text fields, notices and background events.
+`NavisRefreshIndicator` measures the pull exactly as `RefreshIndicator` does
+(a quarter of the viewport arms it), ticks at 25, 50 and 75 percent, clicks at
+the trigger as long as letting go would refresh (it clicks off the moment the
+pull drops below it), and re-clicks only after backing off 6 percent of it.
+It tracks finger drags only, so a spring-back is silent, and stays quiet while
+the indicator finishes after a refresh.
 
 ### Hero Animation Pattern
 
@@ -4986,7 +5028,31 @@ Desktop volume follows a parallel local-settings path:
    converts dB to a player volume: `10^(dB/20)` on ExoPlayer and AVPlayer, where
    volume is linear, and `10^(dB/60)` on media_kit/mpv, whose volume is cubic
    (the backend is `playbackAdjustmentCapabilities`). Radio stays at the user
-   volume. New profiles start in Track mode; stored modes are never rewritten.
+   volume. New profiles start in Smart mode; stored modes are never rewritten.
+   The row-creation value, `resetPlaybackDefaults`, `AppSettingsModel` and
+   `PlaybackRuntimeSettings.defaults()` say 'smart'; the Drift column default
+   stays 'track' so there is no schema change.
+
+   Smart (`resolveReplayGainMode`, `replayGainDecision`) plays album gain when
+   the song before or after it in play order has the same non-null `albumId`,
+   and track gain otherwise (the usual track/album fallbacks and the untagged
+   level still apply). Navis owns shuffle, so the materialised queue
+   `_queueItems` is the play order and the neighbours are its adjacent items
+   (with repeat-all and nothing deferred the order wraps, last to first; the
+   released window always keeps the neighbours materialised). The
+   neighbour album ids are frozen per song in `_smartNeighbours` the first
+   time `_replayGainVolumeFor` sees the song, so ducking, cross-fade ramps,
+   shuffle toggles and queue edits never change the level mid-song. An entry
+   is dropped when another song starts (`_applyReplayGainVolume`), on every
+   navigation including a jump to another copy of the playing song
+   (`_applyNavigationDecision`), when the queue is replaced or cleared
+   (`_clearDeferredTail`) and when the ReplayGain mode changes
+   (`applyRuntimeSettings`; pre-amp and untagged-level changes keep it);
+   nothing is frozen while a queue load settles, and the diagnostics read
+   never freezes. An empty album id counts as none. The cross-fade incoming song resolves
+   with its own neighbours. `NavisAudioHandler.currentReplayGainDecision`
+   (mode, resolved mode, source track/album/untagged, dB) is reported as
+   `replayGain` by `GET /v1/playback/status`.
    Schema 111 (`from110To111`) adds the nullable `replay_gain_untagged_db`
    column (null = Automatic) and leaves the stored mode and pre-amp as they are.
 
@@ -6797,7 +6863,31 @@ contract.
   `LibraryDao`).
 - **Identity recovery.** `SongIdentityReconciler` matches on same ID, unique
   recording MBID, then exact normalized title/artist/album with the existing
-  three-second duration tolerance — with two hard rules: contradictory
+  three-second duration tolerance, then (only when that tier found nothing)
+  `singleCopy`: an external (remote catalog) single or EP named after its song
+  (its album, minus a trailing "single" or "ep", equals the title) whose title
+  and artist match exactly one library song, both durations at least 90 s and
+  within three seconds, no MBID conflict. Albums such as "Fearless (Taylor's
+  Version)", "The Remixes" or "MTV Unplugged" are never singles, so
+  re-recordings, remix and live albums stay apart without a word list; the
+  known limit is a same-title re-recording single against an unqualified
+  library title. The tier is opt-in (`startSession(allowSingleCopy: true)`) and
+  only `relinkExternalCopies` uses it, as a second session over the copies the
+  exact tiers left alone. That relink runs for copies the user acted on: played
+  or queued, downloaded, or liked (sync moves an unsent remote like through it).
+  Bulk sync and promotion sessions never use the tier. Hydration batches see one
+  album at a time and promotion sessions let the exact tier claim library songs
+  before the single tier could compete for them, so neither can tell whether
+  another library song fits; a single copy missed during sync relinks the next
+  time it is played or queued. The relink runs the tier only when the search
+  index covered every library song both before and after the candidates were
+  read (`LibraryDao.isSongSearchIndexCurrent`, checked lazily), since a missing
+  rival must not make the match look unique. A candidate several library songs contest stays
+  unmatched and adds no review entry. A single's copy whose album copy is
+  promoted in the same batch is left behind and relinks on a later pass. The
+  identity key folds typographic quotes and dashes (`’ “ ” – ― ′ ″ … ʼ ´ −` and friends)
+  like the ASCII ones. A `singleCopy` claim never contests a stronger claim on
+  the same candidate. Two hard rules: contradictory
   non-empty MBIDs prohibit metadata-only matching, and ambiguity never merges
   regardless of page order. Matched claims buffer during canonical paging and
   apply at `finalize()` only after the complete replacement set is observed:

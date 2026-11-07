@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
@@ -7,6 +9,17 @@ import 'package:navis/src/theme/navis_color_style_data.dart';
 enum RemoteSourceIndicatorVariant { artwork, compactArtwork, inline, chip }
 
 enum RemoteSourceIndicatorPolicy { automatic, hidden }
+
+/// Explains that a remote song's server action (Like, Download, Add to
+/// playlist) is unavailable, with the reject haptic every such tap gives.
+void showRemoteSourceActionUnavailable(BuildContext context) {
+  NavisHaptics.reject();
+  showAppNotice(
+    context,
+    message: AppLocalizations.of(context)!.remoteSourceActionUnavailable,
+    level: AppNoticeLevel.error,
+  );
+}
 
 /// Marks a remote song's dimmed like button as disabled for assistive
 /// technology. It stays tappable so a tap can explain why a remote song

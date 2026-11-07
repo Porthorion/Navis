@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -703,7 +704,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
       if (value.selected != null) _presetMenu(value.selected!),
       Semantics(
         label: l10n.eqEnable,
-        child: Switch.adaptive(
+        child: NavisSwitch.adaptive(
           key: const ValueKey('eq-enable'),
           value: config.enabled,
           onChanged: (enabled) =>
@@ -1108,7 +1109,7 @@ class EqualizerScreenState extends ConsumerState<EqualizerScreen> {
           children: [
             Text(l10n.eqOutputSettings, style: theme.textTheme.titleLarge),
             const SizedBox(height: 8),
-            SwitchListTile.adaptive(
+            NavisSwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
               title: Text(l10n.eqAutoHeadroom),
               subtitle: Text(l10n.eqAutoHeadroomDescription),

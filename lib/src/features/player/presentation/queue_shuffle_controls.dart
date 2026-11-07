@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 /// Whether the current queue plays in shuffled order.
@@ -37,15 +38,18 @@ class QueueShuffleToggle extends ConsumerWidget {
         Icons.shuffle_on_rounded,
         color: Theme.of(context).colorScheme.primary,
       ),
-      onPressed: () => unawaited(
-        ref
-            .read(audioHandlerProvider)
-            ?.setShuffleMode(
-              enabled
-                  ? AudioServiceShuffleMode.none
-                  : AudioServiceShuffleMode.all,
-            ),
-      ),
+      onPressed: () {
+        NavisHaptics.toggle(!enabled);
+        unawaited(
+          ref
+              .read(audioHandlerProvider)
+              ?.setShuffleMode(
+                enabled
+                    ? AudioServiceShuffleMode.none
+                    : AudioServiceShuffleMode.all,
+              ),
+        );
+      },
     );
   }
 }

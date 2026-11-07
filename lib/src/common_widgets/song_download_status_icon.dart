@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -115,6 +116,11 @@ class SongDownloadStatusIcon extends ConsumerWidget {
 
   final double size;
 
+  void _startDownload() {
+    NavisHaptics.confirm();
+    onDownload!();
+  }
+
   /// Wraps a child in a [Tooltip] only on desktop platforms.
   /// On mobile/touch platforms, returns the child unchanged.
   static Widget _maybeTooltip(Widget child, String message) {
@@ -132,7 +138,7 @@ class SongDownloadStatusIcon extends ConsumerWidget {
       SongDownloadStatus.none => IconButton(
         icon: Icon(Icons.download_outlined, size: size),
         tooltip: l10n.downloadAction,
-        onPressed: onDownload,
+        onPressed: onDownload == null ? null : _startDownload,
         constraints: const BoxConstraints(),
         padding: const EdgeInsets.all(8),
       ),
@@ -205,7 +211,7 @@ class SongDownloadStatusIcon extends ConsumerWidget {
                   color: theme.colorScheme.tertiary,
                 ),
                 tooltip: l10n.songStatusCachedTooltip,
-                onPressed: onDownload,
+                onPressed: onDownload == null ? null : _startDownload,
                 constraints: const BoxConstraints(),
                 padding: const EdgeInsets.all(8),
               ),

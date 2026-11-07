@@ -484,6 +484,8 @@
   "playbackSettingsReplayGainModeLabel": "ReplayGain Mode",
   "playbackSettingsReplayGainModeOff": "Off",
   "playbackSettingsReplayGainModeOffDescription": "No volume normalization applied.",
+  "playbackSettingsReplayGainModeSmart": "Smart",
+  "playbackSettingsReplayGainModeSmartDescription": "Album levels when you play an album in order, track levels for shuffles and mixes.",
   "playbackSettingsReplayGainModeTrack": "Track",
   "playbackSettingsReplayGainModeTrackDescription": "Normalize volume on a per-track basis.",
   "playbackSettingsReplayGainModeAlbum": "Album",

@@ -209,7 +209,7 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
           onDownloadedOnlyChanged: _setDownloadedOnly,
         ),
         Expanded(
-          child: RefreshIndicator(
+          child: NavisRefreshIndicator(
             onRefresh: () => triggerLibrarySyncFromPull(ref),
             child: genres == null
                 ? (async.hasError
