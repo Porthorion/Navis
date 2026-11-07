@@ -2,17 +2,23 @@ import 'package:drift/drift.dart' show Value;
 
 import 'dart:io';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
+import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/routing/desktop_layout.dart'
+    show debugDesktopRuntimeOverride;
 
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/reachability_fakes.dart';
@@ -34,10 +40,12 @@ StubLibrarySyncEngine _targetEngine(
 });
 
 void main() {
+  final binding = TestWidgetsFlutterBinding.ensureInitialized();
   late NavisDatabase database;
   late FakeLibrarySyncApi api;
   late ProviderContainer container;
   late Directory directory;
+  late ServerConfigRepository repository;
 
   setUp(() async {
     // The app's own file database: WAL with a read pool, as on devices.
@@ -45,10 +53,7 @@ void main() {
     // in-memory database does not have.
     directory = Directory.systemTemp.createTempSync('remote_page_runtime_');
     database = NavisDatabase.atPath('${directory.path}/navis.sqlite');
-    final repository = await seedSyncSession(
-      database,
-      lastSynced: DateTime.now(),
-    );
+    repository = await seedSyncSession(database, lastSynced: DateTime.now());
     api = FakeLibrarySyncApi();
     final drift = DriftLibrarySyncEngine(
       api: api,
@@ -271,5 +276,71 @@ void main() {
       container.read(albumProvider(id)).value?.songs.map((song) => song.id),
       <String>['ext-deezer-song-3045812481'],
     );
+  });
+  test('an opened remote album hydrates while the desktop window is unfocused '
+      '(#349)', () async {
+    debugDesktopRuntimeOverride = true;
+    addTearDown(() {
+      debugDesktopRuntimeOverride = null;
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    });
+    const id = 'ext-deezer-album-656896781';
+    api.albumDetails[id] = const Album(
+      id: id,
+      name: 'Dystopia (Japanese Version)',
+      artist: 'ONE OK ROCK',
+      artistId: 'ext-deezer-artist-469713',
+      songCount: 1,
+      songs: <Song>[
+        Song(
+          id: 'ext-deezer-song-3045812481',
+          title: 'Dystopia (Japanese Version)',
+          albumId: id,
+          artist: 'ONE OK ROCK',
+          artistId: 'ext-deezer-artist-469713',
+          duration: 189,
+          track: 1,
+          isExternal: true,
+        ),
+      ],
+    );
+    // The production gate: the real coordinator reads the provider the
+    // lifecycle listener feeds.
+    final focusless = ProviderContainer(
+      overrides: [
+        syncIntervalMinutesProvider.overrideWithValue(0),
+        navisDatabaseProvider.overrideWithValue(database),
+        serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+        serverReachabilityControllerProvider.overrideWith(
+          OnlineReachability.new,
+        ),
+        librarySyncEngineProvider.overrideWith((ref) {
+          return AdaptiveLibrarySyncCoordinator(
+            executor: DriftLibrarySyncEngine(
+              api: api,
+              database: database,
+              serverConfigRepository: repository,
+            ),
+            database: database,
+            serverConfigRepository: repository,
+            networkType: NetworkType.wifi,
+            staleAfter: const Duration(hours: 1),
+            readHasActivePlayback: () => false,
+            readIsForeground: () => ref.read(librarySyncForegroundProvider),
+          );
+        }),
+      ],
+    );
+    addTearDown(focusless.dispose);
+    focusless.listen(librarySyncControllerProvider, (_, _) {});
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await pumpEventQueue();
+
+    final result = await focusless
+        .read(librarySyncControllerProvider.notifier)
+        .hydrateOpenedAlbum(id);
+
+    expect(result?.status, LibrarySyncStatus.succeeded, reason: '$result');
+    expect(api.calls, contains('getAlbum:$id'));
   });
 }

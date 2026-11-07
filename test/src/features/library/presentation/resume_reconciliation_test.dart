@@ -14,6 +14,8 @@ import 'package:navis/src/features/auth/presentation/session_route_provider.dart
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart'
+    show debugDesktopRuntimeOverride;
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
@@ -73,6 +75,169 @@ void main() {
       connected: true,
       serverReachable: true,
     ));
+  });
+
+  /// A desktop container with a manual clock; `checks` counts network
+  /// reconciliations (each refreshes connectivity once).
+  Future<
+    ({
+      ProviderContainer container,
+      int Function() checks,
+      void Function(Duration) advance,
+      List<bool> foregroundChanges,
+      void Function(AppLifecycleState) send,
+    })
+  >
+  desktopFocusFixture() async {
+    debugDesktopRuntimeOverride = true;
+    final database = createTestDatabase();
+    await database.serverDao.saveServer(
+      ServerConfigTableCompanion.insert(
+        url: 'https://fixture.invalid',
+        username: 'fixture',
+        apiVersion: '1.16.1',
+      ),
+    );
+    var now = DateTime(2026, 1, 1);
+    var checks = 0;
+    const config = ServerConfigModel(
+      id: 1,
+      url: 'https://fixture.invalid',
+      username: 'fixture',
+      password: 'synthetic',
+      apiVersion: '1.16.1',
+    );
+    final container = ProviderContainer(
+      overrides: withTestDatabase(
+        database,
+        overrides: [
+          nowProvider.overrideWithValue(() => now),
+          serverConfigStateProvider.overrideWithValue(const AsyncData(config)),
+          networkTypeProvider.overrideWithValue(NetworkType.wifi),
+          audioHandlerProvider.overrideWithValue(null),
+          librarySyncEngineProvider.overrideWithValue(null),
+          syncIntervalMinutesProvider.overrideWithValue(0),
+          initialSyncRequiredProvider.overrideWith((_) async => false),
+          connectivityProvider.overrideWith((_) {
+            checks++;
+            return Stream.value([ConnectivityResult.wifi]);
+          }),
+          nativeNetworkMeteredProvider.overrideWith((_) async => false),
+          pingServerProvider.overrideWithValue(() async => 'fixture'),
+        ],
+      ),
+    );
+    addTearDown(() async {
+      debugDesktopRuntimeOverride = null;
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      container.dispose();
+      await database.close();
+    });
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.detached);
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    container.listen(librarySyncControllerProvider, (_, _) {});
+    await container
+        .read(connectivityProvider.future)
+        .timeout(const Duration(seconds: 2));
+    await pumpEventQueue();
+    final foregroundChanges = <bool>[];
+    container.listen(
+      librarySyncForegroundProvider,
+      (_, next) => foregroundChanges.add(next),
+    );
+    return (
+      container: container,
+      checks: () => checks,
+      advance: (Duration d) => now = now.add(d),
+      foregroundChanges: foregroundChanges,
+      send: (AppLifecycleState state) =>
+          binding.handleAppLifecycleStateChanged(state),
+    );
+  }
+
+  test('desktop focus changes never toggle foreground; a long one refreshes '
+      '(#349)', () async {
+    final f = await desktopFocusFixture();
+    final initialChecks = f.checks();
+
+    // Focus lost and regained within 30 s: nothing to refresh.
+    f.send(AppLifecycleState.inactive);
+    await pumpEventQueue();
+    f.advance(const Duration(seconds: 29));
+    f.send(AppLifecycleState.resumed);
+    await pumpEventQueue(times: 80);
+    expect(f.checks(), initialChecks, reason: 'a short focus flip is free');
+
+    // Away 30 s or more with the window visible (screen lock, other
+    // window): the network refresh runs once, foreground never toggles.
+    f.send(AppLifecycleState.inactive);
+    await pumpEventQueue();
+    f.advance(const Duration(seconds: 31));
+    f.send(AppLifecycleState.resumed);
+    await pumpEventQueue(times: 80);
+    expect(f.checks(), initialChecks + 1, reason: 'long flip refreshes');
+    expect(f.foregroundChanges, isEmpty);
+
+    // Minimised, then restored without focus: exactly one resume.
+    f.send(AppLifecycleState.inactive);
+    f.send(AppLifecycleState.hidden);
+    await pumpEventQueue();
+    expect(f.container.read(librarySyncForegroundProvider), isFalse);
+    expect(f.foregroundChanges, [false]);
+    f.advance(const Duration(seconds: 31));
+    f.send(AppLifecycleState.inactive);
+    await pumpEventQueue(times: 80);
+    expect(f.container.read(librarySyncForegroundProvider), isTrue);
+    expect(f.checks(), initialChecks + 2);
+  });
+
+  test(
+    'unfocus then hide measures the time away from the unfocus (#349)',
+    () async {
+      final f = await desktopFocusFixture();
+      final initialChecks = f.checks();
+
+      f.send(AppLifecycleState.inactive);
+      f.advance(const Duration(minutes: 10));
+      f.send(AppLifecycleState.hidden);
+      await pumpEventQueue();
+      f.advance(const Duration(seconds: 5));
+      f.send(AppLifecycleState.inactive);
+      await pumpEventQueue(times: 80);
+      expect(f.checks(), initialChecks + 1, reason: 'away 10 min, not 5 s');
+      f.send(AppLifecycleState.resumed);
+      await pumpEventQueue(times: 80);
+      expect(f.checks(), initialChecks + 1, reason: 'focus after restore');
+    },
+  );
+
+  test('a restore landing unfocused measures a later focus from the restore (#349)', () async {
+    final f = await desktopFocusFixture();
+    final initialChecks = f.checks();
+
+    f.send(AppLifecycleState.inactive);
+    f.send(AppLifecycleState.hidden);
+    await pumpEventQueue();
+    f.send(AppLifecycleState.inactive);
+    await pumpEventQueue(times: 80);
+    expect(f.checks(), initialChecks, reason: 'restore after 0 s is free');
+
+    // A short focus after the restore is free.
+    f.advance(const Duration(seconds: 10));
+    f.send(AppLifecycleState.resumed);
+    await pumpEventQueue(times: 80);
+    expect(f.checks(), initialChecks, reason: 'short focus after restore');
+
+    // A long unfocused stretch after a restore refreshes on focus.
+    f.send(AppLifecycleState.inactive);
+    f.send(AppLifecycleState.hidden);
+    await pumpEventQueue();
+    f.send(AppLifecycleState.inactive);
+    await pumpEventQueue(times: 80);
+    f.advance(const Duration(minutes: 10));
+    f.send(AppLifecycleState.resumed);
+    await pumpEventQueue(times: 80);
+    expect(f.checks(), initialChecks + 1, reason: 'long focus after restore');
   });
 
   test('long resume coalesces connectivity refresh and server probe', () async {
