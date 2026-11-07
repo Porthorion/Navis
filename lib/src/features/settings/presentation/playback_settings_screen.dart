@@ -26,7 +26,11 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
 class PlaybackSettingsScreen extends ConsumerStatefulWidget {
-  const new({super.key});
+  const new({this.focusReplayGain = false, super.key});
+
+  /// Scrolls to the ReplayGain section once the settings have loaded (the
+  /// link from holding the ReplayGain line on Now Playing).
+  final bool focusReplayGain;
 
   @override
   ConsumerState<PlaybackSettingsScreen> createState() =>
@@ -54,6 +58,8 @@ class _PlaybackSettingsScreenState
   ];
 
   final _formKey = GlobalKey<FormState>();
+  final _replayGainKey = GlobalKey();
+  bool _didFocus = false;
 
   int? _wifiBitRate;
   String? _wifiFormat;
@@ -126,6 +132,21 @@ class _PlaybackSettingsScreenState
 
   Widget _buildForm(BuildContext context, AppLocalizations l10n) {
     _scheduleAutosave();
+    // The form only exists once the settings have loaded, so scroll after its
+    // first build rather than in initState.
+    if (widget.focusReplayGain && !_didFocus) {
+      _didFocus = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final target = _replayGainKey.currentContext;
+        if (!mounted || target == null) return;
+        Scrollable.ensureVisible(
+          target,
+          alignment: 0.02,
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+        );
+      });
+    }
     final desktopMode = resolveAdaptiveContextFor(context).useDesktopShell;
 
     return Align(
@@ -396,6 +417,7 @@ class _PlaybackSettingsScreenState
                   // ── ReplayGain section ─────────────────────────────────────
                   const SizedBox(height: 24),
                   Text(
+                    key: _replayGainKey,
                     l10n.playbackSettingsReplayGainSectionTitle,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
@@ -719,8 +741,11 @@ class _PlaybackSettingsScreenState
         enabled: !automatic,
         onStep: () {
           if (_isSaving) return false;
-          final target = (_untaggedPreview ?? level) + (up ? 1 : -1);
-          if (target < replayGainMinUntaggedDb || target > 0) return false;
+          // A whole dB from wherever the ruler sits, like the pitch stepper's
+          // semitone; the ruler itself does the fine moves.
+          final current = _untaggedPreview ?? level;
+          final target = _normalizeUntaggedDb(current + (up ? 1 : -1))!;
+          if (target == current) return false;
           setState(() => _untaggedPreview = target);
           return true;
         },
@@ -780,19 +805,22 @@ class _PlaybackSettingsScreenState
             Expanded(
               child: AdjustmentRuler(
                 key: const ValueKey<String>('replayGainUntagged-ruler'),
-                value: level,
+                // The pitch and speed ruler, counting in tens of dB: its
+                // hundredth lines are 0.1 dB with a click each and its
+                // labelled tenths are whole dB with a stronger tick. The value
+                // is rounded to hundredths so it equals what the ruler asked
+                // for: a mismatch would read as an outside change mid-drag.
+                value: roundAdjustment(_normalizeUntaggedDb(level)! / 10),
                 label: l10n.playbackSettingsReplayGainUntaggedLabel,
                 valueLabel: text(level),
                 onChanged: (value) =>
-                    setState(() => _untaggedPreview = value.roundToDouble()),
+                    setState(() => _untaggedPreview = _tenthsDb(value)),
                 onChangeEnd: commit,
                 range: const AdjustmentRange(
-                  minimum: replayGainMinUntaggedDb,
+                  minimum: replayGainMinUntaggedDb / 10,
                   maximum: 0,
                 ),
-                snapStep: 1,
-                pixelsPerUnit: 64,
-                labelBuilder: (value) => text(value.roundToDouble()),
+                labelBuilder: (value) => text(_tenthsDb(value)),
                 enabled: !automatic && !_isSaving,
                 readOnly: automatic,
               ),
@@ -1039,14 +1067,22 @@ class _PlaybackSettingsScreenState
     return trimmed.toLowerCase();
   }
 
-  /// A stored level outside the ruler (or not a whole dB) snaps to the
-  /// nearest whole dB on it; null stays Automatic.
+  /// A stored level outside the ruler (or finer than 0.1 dB) snaps to the
+  /// nearest tenth of a dB on it; null stays Automatic.
   double? _normalizeUntaggedDb(double? value) => value == null
       ? null
-      : value.clamp(replayGainMinUntaggedDb, 0.0).roundToDouble();
+      : (value.clamp(replayGainMinUntaggedDb, 0.0) * 10).round() / 10;
 
-  String _dbText(double db) =>
-      db.toStringAsFixed(db == db.roundToDouble() ? 0 : 1);
+  /// dB for a ruler value in tens of dB, rounded so float noise never shows
+  /// or reaches storage.
+  double _tenthsDb(double tens) => (tens * 100).round() / 10;
+
+  /// Rounds to the ruler's tenth first, so an Automatic level such as -0.04
+  /// reads "0", never "-0.0".
+  String _dbText(double db) {
+    final tenths = (db * 10).round() / 10;
+    return tenths.toStringAsFixed(tenths == tenths.roundToDouble() ? 0 : 1);
+  }
 
   double _normalizeReplayGainPreamp(double value) {
     return value.clamp(_minReplayGainPreamp, _maxReplayGainPreamp);

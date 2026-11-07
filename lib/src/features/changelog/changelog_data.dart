@@ -136,6 +136,13 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'On Now Playing, the quality and ReplayGain lines now react to a hold '
+        'anywhere on them, not only on the text, and holding ReplayGain '
+        'scrolls Playback settings to the ReplayGain section. On desktop, '
+        'click or hold those two details to open them too',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'On desktop, album pages no longer show "Could not load" when Navis '
         'is open but another window has focus',
         type: ChangelogEntryType.fix,
@@ -179,6 +186,11 @@ const List<ChangelogVersion> changelogs = [
         'songs, including songs without ReplayGain tags. It was applying '
         'too much on desktop and ignoring untagged songs. New installs start '
         'with it on; choose the level for untagged songs in Playback settings',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'The ReplayGain level for untagged songs now moves in 0.1 dB steps, '
+        'with the same ticks and haptics as the speed and pitch rulers',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

@@ -59,7 +59,6 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/song_id_utils.dart';
 import 'package:navis/src/utils/sync_diagnostics_overrides.dart';
 import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
-import 'package:navis/src/routing/app_routes.dart' show SettingsPage;
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
 import 'package:navis/src/theme/motion_policy.dart';

@@ -4965,7 +4965,9 @@ Desktop volume follows a parallel local-settings path:
    garbage and counts as untagged, and a known peak limits the result. The dB is
    added to the clamped pre-amp and capped at 0 dB. A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
-   (`replayGainUntaggedDb`, -15..0 dB) or Automatic, the median track gain of
+   (`replayGainUntaggedDb`, -15..0 dB in 0.1 dB steps, set on the pitch/speed
+   `AdjustmentRuler` counting in tens of dB so a click is 0.1 dB and a labelled
+   tick a whole dB; the steppers move 1 dB) or Automatic, the median track gain of
    the library from `LibraryDao.trackGainMedian` (-8 dB while fewer than 20
    songs are tagged), cached in `replayGainAutoUntaggedDbProvider` and
    recomputed when a sync publishes or finishes. `_replayGainVolumeFor`
@@ -5014,7 +5016,12 @@ Desktop volume follows a parallel local-settings path:
    the ReplayGain settings change, never on a position tick, and is null for
    radio, no song or Off. It reads like "−6.2 dB · album (Smart)" or "−8.0 dB ·
    untagged (Automatic)" (real minus sign, one decimal, never "-0.0"); holding
-   it opens Playback settings. During a cross-fade the page may briefly show
+   it, anywhere on the chip (the `InkWell`'s `onLongPress`, so a hold never
+   also pages), opens Playback settings scrolled to the ReplayGain section
+   (`AppRoutes.playbackReplayGain`, read by `PlaybackSettingsScreen(
+   focusReplayGain:)` after the form first builds). On the desktop grid the
+   Quality and ReplayGain cells open track info and that section on click or
+   hold. During a cross-fade the page may briefly show
    the outgoing song's gain.
    Schema 111 (`from110To111`) adds the nullable `replay_gain_untagged_db`
    column (null = Automatic) and leaves the stored mode and pre-amp as they are.

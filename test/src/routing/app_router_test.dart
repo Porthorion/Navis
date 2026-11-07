@@ -26,6 +26,7 @@ import 'package:navis/src/features/library/presentation/album_detail_screen.dart
 import 'package:navis/src/features/library/presentation/genre_detail_screen.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/haptics_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
@@ -1242,6 +1243,72 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
   });
 
+  testWidgets('routes the ReplayGain deep link to the ReplayGain section', (
+    tester,
+  ) async {
+    final container = await _createContainerWithDatabase(
+      overrides: [
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData(
+            ServerConfigModel(
+              url: 'https://example.com',
+              username: 'alice',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+          ),
+        ),
+        serverReachabilityControllerProvider.overrideWith(
+          () => _StaticReachabilityController(
+            const ServerReachabilityState(
+              status: ServerReachabilityStatus.online,
+            ),
+          ),
+        ),
+        librarySyncControllerProvider.overrideWith(
+          _StaticLibrarySyncController.new,
+        ),
+        homeRecentlyPlayedProvider.overrideWithValue(
+          const AsyncData(<SongsTableData>[]),
+        ),
+        homeRecentlyAddedProvider.overrideWithValue(const AsyncData(<Album>[])),
+        homeFrequentAlbumsProvider.overrideWithValue(
+          const AsyncData(<Album>[]),
+        ),
+        homeRandomAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        artistInfoProvider.overrideWith((ref, artistId) async => null),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: _testApp),
+    );
+    await tester.pumpAndSettle();
+
+    final router = container.read(appRouterProvider);
+    router.go(SettingsPage.playback.location);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(
+      tester
+          .widget<PlaybackSettingsScreen>(find.byType(PlaybackSettingsScreen))
+          .focusReplayGain,
+      isFalse,
+    );
+
+    router.go(AppRoutes.playbackReplayGain);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(
+      tester
+          .widget<PlaybackSettingsScreen>(find.byType(PlaybackSettingsScreen))
+          .focusReplayGain,
+      isTrue,
+    );
+
+    await tester.pump(const Duration(milliseconds: 500));
+  });
+
   group('detail pages follow their id', () {
     // `router.go` between two ids of one detail route reuses the page's
     // State unless the id keys the page, so the second id would never be
@@ -1666,6 +1733,7 @@ void main() {
       AppRoutes.artist('artist 1'),
       AppRoutes.genre('drum/bass'),
       AppRoutes.appearanceLibraryPages,
+      AppRoutes.playbackReplayGain,
       AppRoutes.artistTopTracks('artist-1'),
       AppRoutes.playlist('playlist-1'),
       AppRoutes.listenBrainzWeekly('patch/1'),

@@ -499,7 +499,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                     pageBuilder: (context, state) => buildSlideFadePage(
                       context: context,
                       key: state.pageKey,
-                      child: const PlaybackSettingsScreen(),
+                      child: PlaybackSettingsScreen(
+                        focusReplayGain:
+                            state.uri.queryParameters[AppRoutes
+                                .playbackFocusParam] ==
+                            AppRoutes.playbackFocusReplayGain,
+                      ),
                     ),
                     routes: <RouteBase>[
                       GoRoute(
