@@ -2703,7 +2703,10 @@ class DownloadService {
     if (_isSafRoot(cached.filePath)
         ? !await _safStorage.exists(cached.filePath)
         : !await _filesystemDownloadExists(cached.filePath)) {
-      await _cacheDao.removeCachedTrack(songId);
+      // Stale, not missing, when the iOS path rebase failed this launch.
+      if (!await _cacheDao.attachedDatabase.hasUnverifiedContainerPaths()) {
+        await _cacheDao.removeCachedTrack(songId);
+      }
       return false;
     }
 

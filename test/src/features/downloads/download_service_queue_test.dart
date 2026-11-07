@@ -1858,6 +1858,40 @@ void main() {
     expect(database.containerRebaseFailed, isTrue);
   }, skip: !sqliteAvailable);
 
+  for (final unverified in [true, false]) {
+    test('queued download with a missing cached file '
+        '${unverified ? 'keeps' : 'removes'} the record when '
+        'rebase failed=$unverified', () async {
+      final service = buildService();
+      await service.start();
+      await service.setPaused(paused: true);
+      await addSongs(1);
+      await service.enqueueSong('song-0');
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'song-0',
+          filePath: p.join(supportDir.path, 'audio', 'permanent', 'gone.mp3'),
+          fileSize: 4,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime(2026),
+        ),
+      );
+      database.containerRebaseFailed = unverified;
+      await service.setPaused(paused: false);
+      // The transfer is held at the gate, so the record is observed after the
+      // cache check and before the download can replace it.
+      await waitUntil(() => server.active == 1);
+      expect(
+        await database.cacheDao.getCachedTrack('song-0'),
+        unverified ? isNotNull : isNull,
+      );
+      server.releaseAll();
+      await service.processQueuedDownloads();
+    }, skip: !sqliteAvailable);
+  }
+
   test(
     'custom cleanup preserves foreign suffix files without ownership',
     () async {
