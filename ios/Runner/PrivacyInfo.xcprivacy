@@ -1,8 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>NSPrivacyAccessedAPITypes</key><array><dict>
-    <key>NSPrivacyAccessedAPIType</key><string>NSPrivacyAccessedAPICategoryDiskSpace</string>
-    <key>NSPrivacyAccessedAPITypeReasons</key><array><string>E174.1</string></array>
-  </dict></array>
+  <!-- Navis talks only to the server the user configures; no tracking, no collected data (App Store answers: I7). -->
+  <key>NSPrivacyTracking</key><false/>
+  <key>NSPrivacyTrackingDomains</key><array/>
+  <key>NSPrivacyCollectedDataTypes</key><array/>
+  <key>NSPrivacyAccessedAPITypes</key><array>
+    <!-- Callers: Runner/AppDelegate.swift storage_capacity channel (FileManager.attributesOfFileSystem, free space before downloads);
+         sqlite3.framework (pub `sqlite3` native asset, imports statfs/fstatfs; ships no manifest). -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key><string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key><array><string>E174.1</string></array>
+    </dict>
+    <!-- Callers: sqlite3.framework (pub `sqlite3` native asset, stat/fstat/lstat on the database file; ships no manifest) and Dart file stats on app-container files (e.g. the rolling cache). -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key><string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key><array><string>C617.1</string></array>
+    </dict>
+  </array>
 </dict></plist>
