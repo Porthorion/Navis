@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -315,6 +316,37 @@ void main() {
       expect(container.read(colorTuningPreviewProvider), isNull);
       expect(container.read(effectiveColorTuningProvider), live);
       expect(seenPreviews.last, isNull);
+    });
+
+    testWidgets('holding a stepper to its limit saves once without errors', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await openPanel(tester);
+      final gesture = await tester.startGesture(
+        tester.getCenter(key('color-plus')),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 10));
+      // Intensity runs 0 to 5: the hold reaches the limit and stops there.
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 130));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      await settleWrites(tester);
+      expect(tester.takeException(), isNull);
+      expect(container.read(colorTuningProvider).vividness, 5);
+      expect(
+        tester
+            .widget<IconButton>(
+              find.descendant(
+                of: key('color-plus'),
+                matching: find.byType(IconButton),
+              ),
+            )
+            .onPressed,
+        isNull,
+      );
     });
 
     testWidgets('closing the panel mid-drag drops the preview', (tester) async {

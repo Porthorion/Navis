@@ -30,6 +30,7 @@ extension _NavisQueueWindow on NavisAudioHandler {
   /// replaced or cleared, and restores the user's repeat mode and release
   /// backoff.
   Future<void> _clearDeferredTail() async {
+    _smartNeighbours.clear();
     _deferredTail.clear();
     _deferredHead.clear();
     _tailReleaseFailures = 0;

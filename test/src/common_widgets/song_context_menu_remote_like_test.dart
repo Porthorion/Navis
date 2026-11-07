@@ -7,6 +7,7 @@ import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_context_menu.dart';
 import 'package:navis/src/database/navis_database.dart';
 
+import '../../helpers/haptics_spy.dart';
 import '../../helpers/adaptive_test_harness.dart';
 import '../../helpers/test_database.dart';
 import '../../helpers/test_theme.dart';
@@ -63,9 +64,11 @@ void main() {
       await tester.tap(find.text('Open menu'));
       await tester.pumpAndSettle();
 
+      final spy = HapticsSpy.install(tester);
       await tester.tap(find.text('Like'));
       await tester.pumpAndSettle();
 
+      expect(await spy.take(tester), ['reject']);
       expect(notices.notice?.message, 'Not available for remote tracks.');
       await tester.pump(const Duration(seconds: 3));
     });

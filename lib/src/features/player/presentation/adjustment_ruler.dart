@@ -21,7 +21,6 @@ enum RulerTick { none, minor, major, neutral }
 /// A whole-step ruler ([AdjustmentRuler.snapStep]) passes its own [perUnit]
 /// line density and a null [majorEvery], so every line is a minor tick. A null
 /// [resetValue] has no neutral line.
-@visibleForTesting
 RulerTick rulerTickFeedback(
   double from,
   double to,
@@ -849,7 +848,14 @@ class _RulerStepButtonState extends State<RulerStepButton> {
   @override
   void didUpdateWidget(RulerStepButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!widget.enabled) _stopRepeat();
+    // A caller disables the button once the hold reaches a limit. Reporting
+    // the end of the hold from here would run the caller's save during build
+    // (a provider write throws), so it waits for the frame to finish.
+    if (!widget.enabled && _repeat != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !widget.enabled) _stopRepeat();
+      });
+    }
   }
 
   @override

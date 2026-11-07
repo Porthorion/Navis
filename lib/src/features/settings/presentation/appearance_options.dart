@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/common_widgets/new_feature_tag.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
@@ -199,7 +200,7 @@ class OledForAutoOption extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     return AppearanceSubOptionReveal(
       visible: visible,
-      child: SwitchListTile(
+      child: NavisSwitchListTile(
         contentPadding: EdgeInsetsDirectional.only(
           start: AppearanceLayout.subOptionInsetOf(context),
           end: AppearanceLayout.gutterOf(context),
@@ -231,7 +232,7 @@ class FlatSurfacesOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return SwitchListTile(
+    return NavisSwitchListTile(
       contentPadding: appearanceSwitchPadding(context),
       title: titleWithAdornment(l10n.appearanceFlatSurfacesLabel, adornment),
       subtitle: Text(l10n.appearanceFlatSurfacesSub),
@@ -270,7 +271,7 @@ class FlatAreasOption extends StatelessWidget {
       required bool selected,
       required ValueChanged<bool> onChanged,
       Widget? adornment,
-    }) => SwitchListTile(
+    }) => NavisSwitchListTile(
       key: key,
       contentPadding: EdgeInsetsDirectional.only(
         start: AppearanceLayout.subOptionInsetOf(context),
@@ -386,7 +387,7 @@ class AlbumArtShadeOption extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     return Column(
       children: <Widget>[
-        SwitchListTile(
+        NavisSwitchListTile(
           key: const ValueKey<String>('albumArtShadeSwitch'),
           contentPadding: appearanceSwitchPadding(context),
           title: titleWithAdornment(
@@ -405,7 +406,7 @@ class AlbumArtShadeOption extends StatelessWidget {
         ),
         AppearanceSubOptionReveal(
           visible: shade,
-          child: SwitchListTile(
+          child: NavisSwitchListTile(
             key: const ValueKey<String>('albumArtCoverColorSwitch'),
             contentPadding: EdgeInsetsDirectional.only(
               start: AppearanceLayout.subOptionInsetOf(context),
@@ -496,7 +497,7 @@ class NightScheduleSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        SwitchListTile(
+        NavisSwitchListTile(
           contentPadding: appearanceSwitchPadding(context),
           title: titleWithAdornment(
             l10n.appearanceNightScheduleLabel,

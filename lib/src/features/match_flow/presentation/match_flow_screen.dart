@@ -7,6 +7,8 @@ import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/daos/match_flow_dao.dart';
@@ -211,7 +213,7 @@ class _MatchFlowCardState extends ConsumerState<_MatchFlowCard> {
                     ),
                   ),
                 ),
-                Switch(
+                NavisSwitch(
                   value: flow.flow.enabled,
                   onChanged: (value) => _run(context, ref, () async {
                     if (!value && mounted) {
@@ -512,6 +514,8 @@ class _MatchFlowContents extends ConsumerWidget {
                     physics: const NeverScrollableScrollPhysics(),
                     buildDefaultDragHandles: false,
                     itemCount: flow.songs.length,
+                    onReorderStart: (_) => NavisHaptics.dragStart(),
+                    onReorderEnd: (_) => NavisHaptics.dragEnd(),
                     onReorderItem: onReorder,
                     proxyDecorator: (child, index, animation) {
                       return AnimatedBuilder(

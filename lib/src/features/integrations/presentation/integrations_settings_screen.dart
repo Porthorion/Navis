@@ -7,6 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/async_body.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
 import 'package:navis/src/features/integrations/domain/update_source.dart';
@@ -144,7 +145,7 @@ class _IntegrationsSettingsScreenState
             NavisSpace.xxl,
           ),
           children: <Widget>[
-            SwitchListTile(
+            NavisSwitchListTile(
               key: const ValueKey<String>('integrations-master'),
               contentPadding: EdgeInsets.zero,
               value: settings.externalIntegrationsEnabled,
@@ -680,7 +681,7 @@ class _ServiceSection extends StatelessWidget {
                       l10n: l10n,
                     ),
                 ].join(' • '),
-                child: Switch(
+                child: NavisSwitch(
                   key: ValueKey<String>('integrations-service-${service.key}'),
                   // An unverified service cannot run, so it reads as off
                   // until its credential is verified.
@@ -741,7 +742,7 @@ class _FeatureTile extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final lock = policy.lockReason(feature);
     final copy = integrationFeatureCopy(feature, l10n);
-    return SwitchListTile(
+    return NavisSwitchListTile(
       key: ValueKey<String>('integrations-feature-${feature.key}'),
       contentPadding: EdgeInsets.zero,
       // Locked by the master or service switch, a feature shows the choice

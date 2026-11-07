@@ -3852,6 +3852,22 @@ class LibraryDao extends DatabaseAccessor<NavisDatabase>
 
   Future<int>? _songSearchIndexRefresh;
 
+  /// Whether the derived search index covers every library song (not remote
+  /// copies, which never are match candidates): no row is missing or stale.
+  /// Never starts a refresh; rows a running refresh has written count as
+  /// covered.
+  Future<bool> isSongSearchIndexCurrent() async =>
+      await customSelect(
+        'SELECT 1 FROM songs '
+        'LEFT JOIN song_search_text t ON t.song_id = songs.id '
+        'WHERE songs.is_external = 0 AND songs.is_provisional = 0 '
+        'AND songs.server_deleted_at IS NULL '
+        'AND (t.source IS NOT ($_songSearchSourceSql) '
+        'OR t.match_title IS NULL) LIMIT 1',
+        readsFrom: {songsTable, songSearchTextTable},
+      ).getSingleOrNull() ==
+      null;
+
   Future<bool> _hasStaleSongSearchIndexRows() async =>
       await customSelect(
         'SELECT 1 FROM songs '

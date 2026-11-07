@@ -41,6 +41,7 @@ import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
+import '../../../../helpers/haptics_spy.dart';
 import '../../../../helpers/queue_replace_spy.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/adaptive_test_harness.dart';
@@ -1812,6 +1813,7 @@ void main() {
             await tester.longPress(find.text('Remote Track'));
           }
           await tester.pump(const Duration(milliseconds: 500));
+          final spy = HapticsSpy.install(tester);
           if (desktop) {
             // The popup sits off-screen in this harness, so click through the
             // item itself. A disabled item would swallow the click.
@@ -1826,6 +1828,7 @@ void main() {
           await tester.pump(const Duration(milliseconds: 500));
           await tester.pump(const Duration(milliseconds: 500));
 
+          expect(await spy.take(tester), ['reject']);
           expect(notices.notice?.message, 'Not available for remote tracks.');
           await tester.pump(const Duration(seconds: 3));
           await _disposeApp(tester);

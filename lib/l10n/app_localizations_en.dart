@@ -1166,6 +1166,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'No volume normalization applied.';
 
   @override
+  String get playbackSettingsReplayGainModeSmart => 'Smart';
+
+  @override
+  String get playbackSettingsReplayGainModeSmartDescription =>
+      'Album levels when you play an album in order, track levels for shuffles and mixes.';
+
+  @override
   String get playbackSettingsReplayGainModeTrack => 'Track';
 
   @override

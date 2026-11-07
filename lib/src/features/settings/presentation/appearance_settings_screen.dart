@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/features/settings/domain/color_namer.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
@@ -346,7 +348,7 @@ class _AppearanceSettingsScreenState
                     }
                   },
                 ),
-                SwitchListTile(
+                NavisSwitchListTile(
                   contentPadding: appearanceSwitchPadding(context),
                   title: Text(l10n.appearanceDynamicAlbumColorLabel),
                   subtitle: Text(l10n.appearanceDynamicAlbumColorSub),
@@ -489,7 +491,7 @@ class _AppearanceSettingsScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
                       if (!resolveAdaptiveContextFor(context).desktopRuntime)
-                        SwitchListTile(
+                        NavisSwitchListTile(
                           title: Text(
                             l10n.appearanceRecommendationsAutoAdvance,
                           ),
@@ -1895,6 +1897,8 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       itemCount: _localOrder.length,
+      onReorderStart: (_) => NavisHaptics.dragStart(),
+      onReorderEnd: (_) => NavisHaptics.dragEnd(),
       onReorderItem: (oldIndex, newIndex) {
         setState(() {
           final item = _localOrder.removeAt(oldIndex);
@@ -1921,7 +1925,7 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
                     )
                   : null,
             ),
-            trailing: Switch(
+            trailing: NavisSwitch(
               value: !isHidden,
               onChanged: (visible) =>
                   widget.onToggleVisibility(id, visible: visible),
@@ -2003,6 +2007,8 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       itemCount: _localOrder.length,
+      onReorderStart: (_) => NavisHaptics.dragStart(),
+      onReorderEnd: (_) => NavisHaptics.dragEnd(),
       onReorderItem: (oldIndex, newIndex) {
         setState(() {
           final item = _localOrder.removeAt(oldIndex);
@@ -2040,7 +2046,7 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
                   )
                 : Text(label, style: titleStyle),
             subtitle: subtitle == null ? null : Text(subtitle),
-            trailing: Switch(
+            trailing: NavisSwitch(
               value: visible,
               onChanged: (enabled) =>
                   widget.onToggleVisibility(section, visible: enabled),
@@ -2139,7 +2145,7 @@ class _DesktopNavbarSettings extends StatelessWidget {
             ],
           ),
         ),
-        SwitchListTile(
+        NavisSwitchListTile(
           title: Text(l10n.desktopNavbarAutohideLabel),
           subtitle: Text(l10n.desktopNavbarAutohideSub),
           value: autohideEnabled,

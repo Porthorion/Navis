@@ -660,11 +660,16 @@ extension _NavisMediaSession on NavisAudioHandler {
         (_isCrossfading && !forceDuringCrossfade)) {
       return;
     }
-    unawaited(
-      _player.setVolume(
-        _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
-      ),
+    final current = _resolveCurrentQueueMetadata().mediaItem;
+    // A song start (or a hand-over) forgets the Smart decisions of every
+    // song that is neither playing nor fading in.
+    final incoming = _queueItems
+        .elementAtOrNull(_crossfadeTargetIndex ?? _queueItems.length)
+        ?.id;
+    _smartNeighbours.removeWhere(
+      (id, _) => id != current?.id && id != incoming,
     );
+    unawaited(_player.setVolume(_replayGainVolumeFor(current)));
   }
 
   /// The player volume for [item]: the user volume (ducked or not) scaled by
@@ -675,18 +680,7 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// Radio has no gain data and is left at the user volume.
   double _replayGainVolumeFor(MediaItem? item) {
     final base = _isDucked ? _userVolume * 2 / 5 : _userVolume;
-    if (_radioStation != null) return base;
-    final runtime = _readRuntimeSettings();
-    final extras = item?.extras;
-    final gainDb = replayGainDb(
-      mode: runtime.replayGainMode,
-      trackGain: extras?['replayGainTrackGain'] as double?,
-      albumGain: extras?['replayGainAlbumGain'] as double?,
-      trackPeak: extras?['replayGainTrackPeak'] as double?,
-      albumPeak: extras?['replayGainAlbumPeak'] as double?,
-      preampDb: runtime.replayGainPreamp,
-      untaggedDb: runtime.replayGainUntaggedDb,
-    );
+    final gainDb = _replayGainDecisionFor(item)?.db;
     if (gainDb == null) return base;
     // media_kit registers on Linux, Windows and macOS. Tests inject the
     // backend through the adjustment capabilities instead.
@@ -697,6 +691,107 @@ extension _NavisMediaSession on NavisAudioHandler {
       0.0,
       1.0,
     );
+  }
+
+  /// What ReplayGain does to the current song, or null for radio. Read by diagnostics (`replayGain`) and, later, the Now
+  /// Playing page.
+  ReplayGainDecision? get currentReplayGainDecision => _replayGainDecisionFor(
+    _resolveCurrentQueueMetadata().mediaItem,
+    freeze: false,
+  );
+
+  /// The ReplayGain decision for [item], with Smart resolved from its
+  /// neighbours in play order; null for radio. No item counts as untagged.
+  /// A read that is not a song's own volume (diagnostics) passes `freeze:
+  /// false`, so it never stores a decision the song start would not have.
+  ReplayGainDecision? _replayGainDecisionFor(
+    MediaItem? item, {
+    bool freeze = true,
+  }) {
+    if (_radioStation != null) return null;
+    final runtime = _readRuntimeSettings();
+    final extras = item?.extras;
+    final neighbours = runtime.replayGainMode == 'smart' && item != null
+        ? _smartNeighbourAlbums(item, freeze: freeze)
+        : null;
+    return replayGainDecision(
+      mode: runtime.replayGainMode,
+      albumId: extras?['albumId'] as String?,
+      prevAlbumId: neighbours?.prev,
+      nextAlbumId: neighbours?.next,
+      trackGain: extras?['replayGainTrackGain'] as double?,
+      albumGain: extras?['replayGainAlbumGain'] as double?,
+      trackPeak: extras?['replayGainTrackPeak'] as double?,
+      albumPeak: extras?['replayGainAlbumPeak'] as double?,
+      preampDb: runtime.replayGainPreamp,
+      untaggedDb: runtime.replayGainUntaggedDb,
+    );
+  }
+
+  /// The album ids of the songs before and after [item] in play order, as
+  /// Smart ReplayGain should see them.
+  ///
+  /// The materialised queue is the play order (Navis owns shuffle and never
+  /// enables native shuffle), so the neighbours are its adjacent items. The
+  /// released queue window keeps well more than one song on both sides of
+  /// the current song materialised, so a deferred entry is never a neighbour
+  /// of a song that is playing or fading in. With repeat-all and nothing
+  /// deferred, play order wraps, so the last song's next is the first and the
+  /// first's previous is the last (a lone song is not its own neighbour).
+  ///
+  /// The pair is frozen per song in [_smartNeighbours], so it is read once
+  /// per song start, not on every volume write. An entry is dropped when
+  /// another song starts (pruned in [_applyReplayGainVolume]), when the queue
+  /// is replaced or cleared ([_clearDeferredTail]) and when the ReplayGain
+  /// mode changes ([applyRuntimeSettings]). It is kept across
+  /// ducking, cross-fade ramps, volume changes, shuffle toggles and queue
+  /// edits, so the level never jumps mid-song. Every navigation, including a
+  /// jump to another copy of the playing song, drops them
+  /// ([_applyNavigationDecision]). While a queue load settles the neighbours
+  /// may be incomplete, so nothing is frozen then.
+  ({String? prev, String? next}) _smartNeighbourAlbums(
+    MediaItem item, {
+    required bool freeze,
+  }) {
+    final frozen = _smartNeighbours[item.id];
+    if (frozen != null) return frozen;
+    final index = _queueIndexOfSong(item);
+    String? albumAt(int i) => i < 0
+        ? null
+        : _queueItems.elementAtOrNull(i)?.extras?['albumId'] as String?;
+    final wraps =
+        _desiredLoopMode == LoopMode.all &&
+        _queueItems.length > 1 &&
+        _deferredHead.isEmpty &&
+        _deferredTail.isEmpty;
+    final last = _queueItems.length - 1;
+    final neighbours = (
+      prev: albumAt(wraps && index == 0 ? last : index - 1),
+      next: albumAt(wraps && index == last ? 0 : index + 1),
+    );
+    if (freeze &&
+        !_isLoading &&
+        _pendingLogicalQueueSongIds == null &&
+        index >= 0) {
+      _smartNeighbours[item.id] = neighbours;
+    }
+    return neighbours;
+  }
+
+  /// Where [item] sits in the materialised queue: the cross-fade target or
+  /// the current song when it is that song, else its first occurrence; -1
+  /// when it is not queued.
+  int _queueIndexOfSong(MediaItem item) {
+    final target = _crossfadeTargetIndex;
+    if (target != null && _queueItems.elementAtOrNull(target)?.id == item.id) {
+      return target;
+    }
+    final current = _resolveCurrentQueueMetadata().currentIndex;
+    if (current != null &&
+        _queueItems.elementAtOrNull(current)?.id == item.id) {
+      return current;
+    }
+    return _queueItems.indexWhere((queued) => queued.id == item.id);
   }
 
   EqualizerConfigurationMessage _equalizerMessage(EqConfiguration values) =>

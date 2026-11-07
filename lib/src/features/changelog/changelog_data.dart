@@ -178,6 +178,19 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'Volume normalization has a new Smart mode, now the default for new '
+        'installs. It keeps an album\'s own loudness balance when you play '
+        'the album in order, and levels songs one by one for shuffles and '
+        'mixes. Your current choice stays as it is',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Playing a Deezer copy of a single you already have now links it to '
+        'your library song, so Search no longer lists the song twice. Titles '
+        'with curly quotes or long dashes match too',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Songs from Deezer now show the greyed-out heart in Search and in '
         'Artist top tracks on desktop, the same as everywhere else',
         type: ChangelogEntryType.fix,
@@ -216,6 +229,15 @@ const List<ChangelogVersion> changelogs = [
         'Recently Added on Home now shows the play button on hover, like '
         'the other album shelves',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Taps and gestures now feel like what they do on Android: switches '
+        'click on and off, Play and Pause differ, pull to refresh ticks as you '
+        'pull, firms at the trigger point and confirms when it finishes, and '
+        'liking, skipping, reordering, swiping a queue row away, dragging an '
+        'equalizer band and long presses each have their own feel. Your '
+        'phone\'s touch feedback setting still applies',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Albums and downloads can be added to a playlist from their menu',

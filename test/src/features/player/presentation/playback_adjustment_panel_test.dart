@@ -581,6 +581,46 @@ void main() {
     );
   });
 
+  for (final (stepper, start, limit) in <(String, PlaybackAdjustments, double)>[
+    ('speed-plus', const PlaybackAdjustments(speed: 7.8), 8),
+    ('speed-minus', const PlaybackAdjustments(speed: 0.3), 0.1),
+  ]) {
+    testWidgets('holding the $stepper stepper to its limit stops there', (
+      tester,
+    ) async {
+      final container = await mount(tester);
+      await container
+          .read(playbackAdjustmentsProvider.notifier)
+          .setValues(start);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      clearInteractions(repository);
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byKey(ValueKey('adjustment-$stepper'))),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 10));
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 130));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      final values = container
+          .read(playbackAdjustmentsProvider)
+          .requireValue
+          .values;
+      expect(values.speed, closeTo(limit, 1e-9));
+      // The hold ended through the stepper's normal path: one save.
+      verify(
+        () => repository.savePlaybackAdjustments(
+          values: any(named: 'values'),
+          selectedPresetId: any(named: 'selectedPresetId'),
+          presets: any(named: 'presets'),
+        ),
+      ).called(1);
+    });
+  }
+
   testWidgets('range text appears only at a limit and wording is clear', (
     tester,
   ) async {

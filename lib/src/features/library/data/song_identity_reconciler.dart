@@ -3,10 +3,17 @@ import 'package:flutter/foundation.dart';
 import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 
+// ASCII punctuation plus the typographic quotes and dashes a remote catalog
+// writes where the library has the straight form (or the reverse).
 final _identityPunctuation = RegExp(
-  r'''[!"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~]''',
+  r'''[!"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~‘’‚‛“”„‐‑‒–—―ʼ´′″−…]''',
 );
 final _identityWhitespace = RegExp(r'\s+');
+
+/// Shorter tracks (intros, interludes) share titles and lengths too often for
+/// the single-copy tier to tell them apart.
+const _minSingleCopySeconds = 90;
+final _singleSuffix = RegExp(r' (?:single|ep)$');
 
 /// Normalizes optional MusicBrainz identifiers across songs, albums and artists.
 String? normalizeMusicBrainzId(String? value) {
@@ -14,7 +21,16 @@ String? normalizeMusicBrainzId(String? value) {
   return normalized == null || normalized.isEmpty ? null : normalized;
 }
 
-enum SongIdentityMatchReason { sameId, recordingMbid, exactMetadata }
+enum SongIdentityMatchReason {
+  sameId,
+  recordingMbid,
+  exactMetadata,
+
+  /// Last resort when no album-keyed match exists: a remote single or EP
+  /// named after the song (its copy of an album track). Title and artist
+  /// agree, the durations are within 3 s and exactly one library song fits.
+  singleCopy,
+}
 
 sealed class SongIdentityMatchResult {
   const new();
@@ -91,7 +107,12 @@ class SongIdentityReconciler {
   SongIdentityMatchResult matchCanonicalSong({
     required SongsTableData canonicalSong,
     required List<SongsTableData> provisionalSongs,
-  }) => _ProvisionalIdentityIndex(this, provisionalSongs).match(canonicalSong);
+    bool allowSingleCopy = false,
+  }) => _ProvisionalIdentityIndex(
+    this,
+    provisionalSongs,
+    allowSingleCopy: allowSingleCopy,
+  ).match(canonicalSong);
 
   /// Relinks external provisional rows in [songIds] (a remote catalog copy
   /// written after the library already holds the same track) to their unique
@@ -121,20 +142,64 @@ class SongIdentityReconciler {
     final session = await startSession(provisionalSongs: copies);
     await session.reconcile(candidates);
     await session.finalize();
+    final aliases = <SongIdentityAlias>[...session.summary.aliases];
+    // The single-copy tier needs every rival visible. Candidates come from the
+    // async search index, so it runs only for external copies the exact tiers
+    // left alone, and only when the index was current both before and after
+    // the candidates for this pass were read (a row inserted meanwhile makes
+    // the second check fail). Otherwise a later relink heals it; the play path
+    // never waits for a refresh.
+    final remaining = [
+      for (final copy in copies)
+        if (_isSingleCopy(copy) && !aliases.any((a) => a.oldSongId == copy.id))
+          copy,
+    ];
+    if (remaining.isNotEmpty &&
+        await _identityDao.isLibraryMatchIndexCurrent()) {
+      final singleCandidates = await _identityDao.getLibrarySongsByMatchTitle(
+        remaining.map((song) => song.title),
+      );
+      if (await _identityDao.isLibraryMatchIndexCurrent()) {
+        final single = await startSession(
+          provisionalSongs: remaining,
+          allowSingleCopy: true,
+        );
+        await single.reconcile(singleCandidates);
+        await single.finalize();
+        aliases.addAll(single.summary.aliases);
+      }
+    }
     return <String, String>{
-      for (final alias in session.summary.aliases)
-        alias.oldSongId: alias.canonicalSongId,
+      for (final alias in aliases) alias.oldSongId: alias.canonicalSongId,
     };
+  }
+
+  /// A remote catalog single or EP named after its song and long enough to be
+  /// told apart from intros and interludes. Never a library row: promotion
+  /// sessions also hand over server-deleted and retained library songs.
+  bool _isSingleCopy(SongsTableData song) {
+    final title = _normalizeIdentityMetadata(song.title);
+    final album = _normalizeIdentityMetadata(song.albumName ?? '')
+        .replaceFirst(_singleSuffix, '');
+    return song.isExternal &&
+        title.isNotEmpty &&
+        title == album &&
+        (song.duration ?? 0) >= _minSingleCopySeconds;
   }
 
   Future<SongIdentityReconciliationSession> startSession({
     List<SongsTableData>? provisionalSongs,
+    bool allowSingleCopy = false,
   }) async {
     final provisional =
         provisionalSongs ?? await _identityDao.getProvisionalSongs();
     return SongIdentityReconciliationSession._(
       this,
-      _ProvisionalIdentityIndex(this, provisional),
+      _ProvisionalIdentityIndex(
+        this,
+        provisional,
+        allowSingleCopy: allowSingleCopy,
+      ),
     );
   }
 
@@ -242,7 +307,18 @@ class SongIdentityReconciliationSession {
       claimsByCandidate.putIfAbsent(claim.provisional.id, () => []).add(claim);
     }
     for (final entry in claimsByCandidate.entries) {
-      final claims = entry.value;
+      var claims = entry.value;
+      // A title-and-artist claim never contests a stronger one: another
+      // library song (a compilation) must not block an exact album match.
+      final strong = claims
+          .where((claim) => claim.reason != SongIdentityMatchReason.singleCopy)
+          .toList(growable: false);
+      if (strong.isNotEmpty) {
+        claims = strong;
+      } else if (claims.length > 1) {
+        // Contested weak claims are a guess: dropped, never a review entry.
+        continue;
+      }
       if (claims.length == 1) {
         await _applyDecision(claims.single);
         continue;
@@ -316,7 +392,11 @@ class _ClaimDecision {
 }
 
 class _ProvisionalIdentityIndex {
-  new(this._reconciler, Iterable<SongsTableData> songs) {
+  new(
+    this._reconciler,
+    Iterable<SongsTableData> songs, {
+    this.allowSingleCopy = false,
+  }) {
     for (final song in songs) {
       _remaining[song.id] = song;
       final mbid = normalizeMusicBrainzId(song.recordingMbid);
@@ -327,14 +407,21 @@ class _ProvisionalIdentityIndex {
       if (metadata != null) {
         (_byMetadata[metadata] ??= <SongsTableData>[]).add(song);
       }
+      final titleArtist = _metadataKey(song, withAlbum: false);
+      if (titleArtist != null) {
+        (_byTitleArtist[titleArtist] ??= <SongsTableData>[]).add(song);
+      }
     }
   }
 
   final SongIdentityReconciler _reconciler;
+  final bool allowSingleCopy;
   final Map<String, SongsTableData> _remaining = <String, SongsTableData>{};
   final Map<String, List<SongsTableData>> _byMbid =
       <String, List<SongsTableData>>{};
   final Map<String, List<SongsTableData>> _byMetadata =
+      <String, List<SongsTableData>>{};
+  final Map<String, List<SongsTableData>> _byTitleArtist =
       <String, List<SongsTableData>>{};
 
   int get remainingCount => _remaining.length;
@@ -363,10 +450,12 @@ class _ProvisionalIdentityIndex {
         );
       }
     }
-    final duration = canonicalSong.duration;
-    final key = _metadataKey(canonicalSong);
-    if (duration == null || key == null) {
+    if (canonicalSong.duration == null) {
       return const SongIdentityUnmatched();
+    }
+    final key = _metadataKey(canonicalSong);
+    if (key == null) {
+      return _matchSingleCopy(canonicalSong);
     }
     final matches = _active(_byMetadata[key])
         .where(
@@ -401,6 +490,38 @@ class _ProvisionalIdentityIndex {
         candidateIds: matches.map((song) => song.id).toList(growable: false),
       );
     }
+    return _matchSingleCopy(canonicalSong);
+  }
+
+  /// The last tier, tried only when the exact metadata tier found nothing:
+  /// title and artist without album or positions (a single's copy of an
+  /// album track), durations both present within 3 s, no MBID conflict and
+  /// exactly one candidate (several are left unmatched, not reviewed: this tier
+  /// is a guess, so it adds no review entries).
+  SongIdentityMatchResult _matchSingleCopy(SongsTableData canonicalSong) {
+    final key = _metadataKey(canonicalSong, withAlbum: false);
+    if (!allowSingleCopy ||
+        key == null ||
+        canonicalSong.duration! < _minSingleCopySeconds) {
+      return const SongIdentityUnmatched();
+    }
+    final matches = _active(_byTitleArtist[key])
+        .where(
+          (candidate) =>
+              _reconciler._isSingleCopy(candidate) &&
+              (candidate.duration! - canonicalSong.duration!).abs() <= 3 &&
+              !_reconciler._mbidsConflict(
+                canonicalSong.recordingMbid,
+                candidate.recordingMbid,
+              ),
+        )
+        .toList(growable: false);
+    if (matches.length == 1) {
+      return SongIdentityMatched(
+        provisionalSong: matches.single,
+        reason: SongIdentityMatchReason.singleCopy,
+      );
+    }
     return const SongIdentityUnmatched();
   }
 
@@ -417,15 +538,18 @@ class _ProvisionalIdentityIndex {
         .toList(growable: false);
   }
 
-  String? _metadataKey(SongsTableData song) {
+  String? _metadataKey(SongsTableData song, {bool withAlbum = true}) {
     final title = _reconciler._normalizeIdentityMetadata(song.title);
     final artist = _reconciler._normalizeIdentityMetadata(
       song.artistName ?? '',
     );
-    final album = _reconciler._normalizeIdentityMetadata(song.albumName ?? '');
-    if (title.isEmpty || artist.isEmpty || album.isEmpty) {
+    if (title.isEmpty || artist.isEmpty) {
       return null;
     }
-    return '$title\u0000$artist\u0000$album';
+    if (!withAlbum) {
+      return '$title\u0000$artist';
+    }
+    final album = _reconciler._normalizeIdentityMetadata(song.albumName ?? '');
+    return album.isEmpty ? null : '$title\u0000$artist\u0000$album';
   }
 }

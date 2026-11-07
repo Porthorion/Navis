@@ -538,8 +538,8 @@ void main() {
         expect(settings.crossfadeEnabled, isFalse);
         expect(settings.crossfadeDurationSeconds, 5);
         expect(settings.crossfadeType, 'normal');
-        // Reset returns to the default, which is Track for new profiles.
-        expect(settings.replayGainMode, 'track');
+        // Reset returns to the default, which is Smart for new profiles.
+        expect(settings.replayGainMode, 'smart');
         expect(settings.replayGainPreamp, 0);
         expect(settings.replayGainUntaggedDb, isNull);
         expect(settings.albumQueueEnabled, isTrue);
