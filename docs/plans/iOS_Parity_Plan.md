@@ -60,6 +60,9 @@ simulator or device yet; every runtime claim is *unverified*.
 | I6 | Native project: drop the leftover CocoaPods integration, real launch screen, `ITSAppUsesNonExemptEncryption`, privacy manifest entries for the APIs used | low | approved | – |
 | I7 | Release path: TestFlight/App Store upload in `tool/release.sh` (App Store Connect API key, export options), App Store privacy answers | risky (release) | approved (owner: TestFlight/App Store); needs the paid Apple Developer Program | – |
 | I8 | Docs and CI: iOS status in README and `technical-overview.md`, an iOS testing playbook, an iOS build check (`flutter build ios --no-codesign`) on a macOS runner if CI minutes allow | low | approved | – |
+| I9 | Equalizer on iOS (owner 2026-11-07: iOS does not ship without EQ). AVFoundation exposes no PCM to just_audio; candidate: an `MTAudioProcessingTap` on each `AVPlayerItem` in the vendored `third_party/just_audio` Darwin code running Navis's EQ bands as biquads (one tap per player, so crossfade keeps working), fed by the existing EQ settings; the alternative, an `AVAudioEngine` player with `AVAudioUnitEQ`, is a far larger rewrite. Opus feasibility plan first | risky (playback, native) | owner-required; planning | – |
+| I10 | iOS layout polish (owner: one shared design plus iOS conventions, no Cupertino overhaul). Known: the Material `NavigationBar` is 80 pt plus the 34 pt home-indicator inset on iPhone (native tab bar 49 + 34), so shorten it on iOS; the transport row's left slot is an invisible EQ placeholder on iOS (fills once I9 lands). More from I11 | low (UI) | approved | – |
+| I11 | Research: must-have features of popular iPhone music players (AirPlay route picker and others), cross-referenced with Navis; produces new items and owner questions, asked together once ready | – | owner-requested 2026-11-07 | – |
 
 Owner decisions (2026-11-07): distribution is TestFlight and the App Store.
 Testing is simulator-first; the iPhone is borrowed, so a device pass is
@@ -67,8 +70,8 @@ requested only when the simulator cannot answer, with notice. CarPlay scope
 is open (the owner asked what it takes; see the CarPlay note below).
 
 Out of scope for 1.5.2 unless the owner decides otherwise: CarPlay (needs an
-Apple-granted entitlement), equalizer and pitch on AVFoundation (new native
-audio graph), fast seeking, notifications and background library sync.
+Apple-granted entitlement), independent pitch on AVFoundation (new native
+audio graph; the equalizer moved in scope as I9, owner 2026-11-07), fast seeking, notifications and background library sync.
 
 Order: I0 → I1 with I2 and I3 alongside, I4 and I6 as small parallel PRs, I5
 when a build is ready for the owner's device, I7 once the paid programme
