@@ -214,6 +214,7 @@ class JustAudioReplayGainBoostTest {
                 "getPauseAtEndOfMediaItems" -> false
                 "getCurrentPosition", "getBufferedPosition", "getDuration" -> 10_000L
                 else -> {
+                    if (method.name == "seekTo") index = args[0] as Int
                     log.add("${method.name} boost=${processor?.requested()}")
                     when (method.returnType) {
                         Boolean::class.javaPrimitiveType -> false
@@ -252,8 +253,9 @@ class JustAudioReplayGainBoostTest {
             }
         }
 
-        fun boost(db: Double, guarded: Boolean) = channel(
-            "setReplayGainBoost", mapOf("currentDb" to db, "guarded" to guarded, "byUri" to emptyMap<String, Double>()),
+        fun boost(db: Double, guarded: Boolean, forIndex: Int? = null) = channel(
+            "setReplayGainBoost",
+            mapOf("currentDb" to db, "guarded" to guarded, "byUri" to emptyMap<String, Double>(), "index" to forIndex),
         )
 
         fun load() {
@@ -284,6 +286,37 @@ class JustAudioReplayGainBoostTest {
         assertEquals(3.0, f.requested(), 0.0)
         assertFalse(f.processor.guarded())
         assertTrue(f.errors.isEmpty())
+    }
+
+    @Test fun aValueForAnotherSongIsIgnoredAndAZeroIsAlwaysApplied() {
+        val f = Fixture()
+        f.index = 1
+        f.boost(3.0, false, forIndex = 1)
+        assertEquals(3.0, f.requested(), 0.0)
+        f.boost(8.0, false, forIndex = 0)
+        assertEquals("a value computed for song 0 never reaches song 1", 3.0, f.requested(), 0.0)
+        f.boost(8.0, false, forIndex = 2)
+        assertEquals(3.0, f.requested(), 0.0)
+        f.boost(0.0, true, forIndex = 0)
+        assertEquals("a 0 is always applied", 0.0, f.requested(), 0.0)
+        assertTrue("and its guard flag with it", f.processor!!.guarded())
+        f.boost(5.0, false, forIndex = 1)
+        assertEquals(5.0, f.requested(), 0.0)
+        f.boost(6.0, false)
+        assertEquals("a message without an index is applied as before", 6.0, f.requested(), 0.0)
+        assertTrue(f.errors.isEmpty())
+    }
+
+    @Test fun aStaleValueAfterASeekToAnotherSongIsIgnored() {
+        val f = Fixture()
+        f.index = 0
+        f.boost(8.0, false, forIndex = 0)
+        f.seek(2) // lowers to 0 and ExoPlayer is now on song 2 at once
+        assertEquals(0.0, f.requested(), 0.0)
+        f.boost(8.0, false, forIndex = 0) // Dart's value for the old song arrives late
+        assertEquals("the old song's 8 dB stays out", 0.0, f.requested(), 0.0)
+        f.boost(4.0, false, forIndex = 2) // the index event's value for song 2
+        assertEquals(4.0, f.requested(), 0.0)
     }
 
     @Test fun withoutAProcessorTheMessageIsAnError() {

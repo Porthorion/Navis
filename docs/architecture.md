@@ -5010,9 +5010,11 @@ Desktop volume follows a parallel local-settings path:
    guard keeps a song's boost no higher than the next song's in the song's last
    3 s of wall-clock time (`guardedBoostDb`, `replayGainBoostGuarded`): the lower
    of the two, which is valid for both songs. A per-deck latch keeps that value
-   from ever rising, and a latched song stays guarded until its next start, a
-   seek or a queue load (a settings or speed change only lowers it), so a speed
-   drop cannot widen the window back over samples already ahead. Songs shorter than 4 s, and songs
+   from ever rising, and a latched song stays guarded until its next start (a
+   new index, or another song at the same index), a seek, a queue load or a
+   loop or shuffle change, which also drop it (a settings or speed change only
+   lowers it), so a speed drop cannot widen the window back over samples
+   already ahead. Songs shorter than 4 s, and songs
    whose timing is unknown, are guarded from their start. Position and duration
    are song time (the fork adds a transcode's start offset). The next song comes
    from the deck's own play order (`_nextEffectiveIndexOf`, so repeat-one and
@@ -5022,10 +5024,16 @@ Desktop volume follows a parallel local-settings path:
    just_audio publishes an edited `sequence` before the platform replies while
    `currentIndex` still counts the old list, so the value is computed only when
    no edit is in flight (`AudioPlayer.sequenceEditInFlight`) and the heard
-   deck's source is the song the index listener published; otherwise it is 0,
-   guarded. The position tick (`_tickReplayGainBoost`, also with crossfade off)
-   sends a change and re-sends a guarded value every tick. After a seek the heard
-   deck's boost may only go down for a second, because the discontinuity (and any
+   deck's source is the song the index listener published; otherwise nothing
+   is sent. Skipping is safe: a value already in the processor was computed for
+   the playing song, native lowers it before any command that switches songs,
+   and a value that is never sent cannot raise anything. The position tick (`_tickReplayGainBoost`, also with crossfade off)
+   sends a change and re-sends a guarded value every tick. Every message carries
+   the queue index it was computed for and the native bridge ignores a non-zero
+   value whose index is not the current one (a 0 is always applied), so a message
+   that raced a seek, a jump, Play on a completed queue or a resume after an
+   insert cannot put the old song's boost on the new song. After a seek the heard
+   deck's boost may only go strictly down for a second, because the discontinuity (and any
    tick before the index event) still describes the old song at the old index.
    Before any command that can change which song plays next, the native bridge
    lowers the requested boost to 0 on the main thread (`load`, `seek` to another

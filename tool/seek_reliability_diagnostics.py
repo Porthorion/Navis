@@ -112,7 +112,7 @@ class TranscodeLibrary:
                                    'albumCount': 1}
         ids = []
         for track, (song_id, (kind, gain, peak)) in enumerate(self.REPLAY_GAIN_LEVELS.items(), start=1):
-            path = self.cache_dir / f'rg-{kind}-{seconds}.flac'
+            path = self.cache_dir / f'rg-{kind}-{seconds}-v2.flac'  # v2: full-scale sine, not lavfi's 1/8
             if not path.exists():
                 temporary = path.with_suffix('.tmp.flac')
                 subprocess.run([
@@ -168,11 +168,14 @@ class TranscodeLibrary:
 
 
 def make_transcoding_handler(library: TranscodeLibrary, speed: float = 30.0, advertise_offset: bool = True,
-                             first_byte_delay: float = 1.5, static: bool = False):
+                             first_byte_delay: float = 1.5, static: bool = False,
+                             original_bytes_per_second: float | None = None):
     """A request handler class; the log of stream requests is on `.requests`.
     `static` answers a transcode like a server that has it cached: complete
     in memory, Content-Length and byte ranges (Navidrome does this for a
-    transcode it has already produced)."""
+    transcode it has already produced). `original_bytes_per_second` paces an
+    original-quality body by its size (ranges included), so a song is still
+    downloading when a test seeks into it."""
     requests: list[dict] = []
 
     class TranscodingHandler(fixture.Handler):
@@ -183,6 +186,27 @@ def make_transcoding_handler(library: TranscodeLibrary, speed: float = 30.0, adv
             self._json({'subsonic-response': {
                 'status': 'ok', 'version': '1.16.1', 'type': 'navis-fixture', 'serverVersion': '1.0.0',
                 'openSubsonic': True, **content}})
+
+        def _paced_bytes(self, data, content_type, rate):
+            start, end = 0, len(data) - 1
+            range_header = self.headers.get('Range')
+            if range_header and range_header.startswith('bytes='):
+                left, _, right = range_header[6:].split(',', 1)[0].partition('-')
+                start = min(int(left), end) if left else 0
+                end = min(int(right), end) if right else end
+            body = data[start:end + 1]
+            self.send_response(206 if range_header else 200)
+            self.send_header('Content-Type', content_type)
+            self.send_header('Accept-Ranges', 'bytes')
+            self.send_header('Content-Length', str(len(body)))
+            if range_header:
+                self.send_header('Content-Range', f'bytes {start}-{end}/{len(data)}')
+            self.end_headers()
+            for offset in range(0, len(body), 16384):
+                chunk = body[offset:offset + 16384]
+                self.wfile.write(chunk)
+                self.wfile.flush()
+                time.sleep(len(chunk) / rate)
 
         def _album_json(self, album_id, with_songs=False):
             album = dict(library.albums[album_id])
@@ -261,7 +285,10 @@ def make_transcoding_handler(library: TranscodeLibrary, speed: float = 30.0, adv
                 entry['mode'] = 'original'
                 data = data_path.read_bytes()
                 try:
-                    self._bytes(data, 'audio/flac')
+                    if original_bytes_per_second:
+                        self._paced_bytes(data, 'audio/flac', original_bytes_per_second)
+                    else:
+                        self._bytes(data, 'audio/flac')
                     entry['bytes'] = len(data)
                 except (BrokenPipeError, ConnectionResetError):
                     entry['aborted'] = True

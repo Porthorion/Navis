@@ -2293,7 +2293,7 @@ forbidden in primary-certification mode.
 
 ### ReplayGain boost diagnostics
 
-`./tool/replaygain_boost_diagnostics.sh [--scenarios d1,d2,d4,d5]` is the Linux
+`./tool/replaygain_boost_diagnostics.sh [--scenarios d1,d2,d4,d5,d6]` is the Linux
 runtime gate for the desktop ReplayGain boost (changes to
 `navis_playback_rules.dart` boost rules, `_applyReplayGainBoost`, or the
 media_kit adapter's `ReplayGainBoostState`). It clones the profile, adds
@@ -2305,7 +2305,7 @@ boost adds nothing over a control where Q has no peak, Q's head is held down
 then raised, and the hook's gain write lands at the song change (d3 samples in
 the same run); skip, queue jump, seek, removing the playing song and repeat-one
 keep the right level (d2); cross-fade on has no over-boost and no 50 ms RMS
-step (d4); a pre-amp rise in a song's last second never lifts its tail, with the next song at or under its boost at the join but able to exceed it afterwards (d5: qa a -6 dBFS sine boosted 5 dB, qb tagged +2 dB, +6 dB of pre-amp); the same joins hold on songs streamed from the fixture server, from the stream and then from the rolling cache (d6).
+step (d4); a pre-amp rise in a song's last second never lifts its tail, with the next song at or under its boost at the join but able to exceed it afterwards (d5: qa a -6 dBFS sine boosted 5 dB, qb tagged +2 dB, +6 dB of pre-amp); the same joins hold on songs served by the fixture server (media bodies are paced at 800 KB/s, so the first pass joins songs that are still downloading and asserts that the join's seek landed on a `directStream` source; the second pass joins the same songs from the completed rolling-cache file and asserts `file`), with Q's head checked per sample from H's last loud sample (d6).
 With no display it starts a private headless `kwin_wayland` and passes
 `--no-enable-impeller` to the build (`NAVIS_DIAGNOSTICS_RUN_ARGS`), since
 Impeller's GLES backend cannot get a framebuffer there. `POST
@@ -2326,10 +2326,10 @@ and samples `/v1/playback/status` (`replayGainBoost`: `appliedDb`, `requestedDb`
 `sentDb`, `guarded`, `clipSamples`, read back from the processor when the status
 is asked for) through 10 gapless Q/H joins, an EQ, repeat-one switched off and shuffle
 toggled in the last 3 s, a cross-fade (the script edits the sidecar's own
-database and restarts it) and Opus and MP3 streams of L; then the A2 phases: explicit skip (also at a song's end), queue jump, removing the playing song, removing and moving entries above the playing song (mid-song and in the last 3 s) and a 2x to 1x speed change inside the window. `replaygain_boost_analyze.py a1`
+database and restarts it) and Opus and MP3 streams of L; then the A2 phases: Play on a completed queue (Q is the last song and plays to its end) and an insert that resumes it, explicit skip (also at a song's end), queue jump, removing the playing song, removing and moving entries above the playing song (mid-song and in the last 3 s) and a 2x to 1x speed change inside the window. `replaygain_boost_analyze.py a1`
 asserts: Q boosted ~10 dB and H unboosted (EQ off, EQ on, cross-fade), Q guarded
 to 0 in its last 3 s before H, Q raised again within 3 s of an H to Q join, L ~7
-dB, no clamped sample in any lossless phase, and in the A2 phases the applied (and the requested) boost never exceeds the playing song's own. The clamped samples of the Opus and MP3 phases are reported, not asserted: L sits 1 dB under full scale, and the margin is the owner's decision. The Q/H/L fixture songs use `volume=peak*8` because lavfi's sine peaks at 1/8. The `_rebuildPlayerWithoutEqualizer` path
+dB, no clamped sample in any lossless phase, and in the A2 phases the applied (and the requested) boost never exceeds the playing song's own. Clamped samples are listed per phase and song: any clamp while a song other than L plays (the L to H join included) fails, and only L's own count in a lossy phase is reported, not asserted: it sits 1 dB under full scale, and the margin is the owner's decision. The Q/H/L fixture songs use `volume=peak*8` because lavfi's sine peaks at 1/8. The `_rebuildPlayerWithoutEqualizer` path
 cannot be provoked through the API; a handler test covers it.
 
 ### Equalizer diagnostics

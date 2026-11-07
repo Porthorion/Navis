@@ -624,9 +624,18 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 if (navisEqualizer == null) {
                     result.error("eq_unavailable", "No EQ processor was installed for this player", null);
                 } else {
-                    navisEqualizer.setBoost(call.<Number>argument("currentDb").doubleValue(),
-                            Boolean.TRUE.equals(call.<Boolean>argument("guarded")));
-                    result.success(new HashMap<String, Object>());
+                    double boostDb = call.<Number>argument("currentDb").doubleValue();
+                    Integer boostIndex = call.<Integer>argument("index");
+                    // A value is only right for the song it was computed for. One that
+                    // raced a song switch must not reach the new song: ignore a non-zero
+                    // value whose index is not the current one. A 0 is always applied.
+                    if (boostDb > 0 && boostIndex != null
+                            && boostIndex != player.getCurrentMediaItemIndex()) {
+                        result.success(new HashMap<String, Object>());
+                    } else {
+                        navisEqualizer.setBoost(boostDb, Boolean.TRUE.equals(call.<Boolean>argument("guarded")));
+                        result.success(new HashMap<String, Object>());
+                    }
                 }
                 break;
             case "load":

@@ -338,6 +338,26 @@ class Run:
         self.post('/v1/playback/queue-edit', {'op': 'move', 'from': 0, 'to': 6})
         time.sleep(3)
 
+        # Q (boost 10) is the last song and plays to the end; Play, or an insert that resumes,
+        # then seeks to another song while Dart still holds Q's value.
+        self.phase = 'a2-play-completed'
+        self.queue([H1, Q1])
+        self.post('/v1/playback/queue-index', {'index': 1})
+        self.play_from(28500)
+        self.wait(lambda: self.status().get('processingState') == 'completed', 20, .2, 'the queue to complete')
+        time.sleep(1)
+        self.post('/v1/playback/play')
+        time.sleep(4)
+
+        self.phase = 'a2-insert-resume'
+        self.queue([H1, Q1])
+        self.post('/v1/playback/queue-index', {'index': 1})
+        self.play_from(28500)
+        self.wait(lambda: self.status().get('processingState') == 'completed', 20, .2, 'the queue to complete')
+        time.sleep(1)
+        self.post('/v1/playback/queue-edit', {'op': 'add', 'songIds': [H2]})
+        time.sleep(4)
+
         self.phase = 'a2-speed'
         self.queue([Q1, H1])
         self.post('/v1/playback/adjustments', {'speed': 2})

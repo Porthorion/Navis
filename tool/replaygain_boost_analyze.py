@@ -31,6 +31,14 @@ def rms(x, win=RATE // 20):  # 50 ms
     return np.array([np.sqrt(np.mean(x[i * win:(i + 1) * win] ** 2)) for i in range(n)])
 
 
+def after_loud(x, loud=0.5, decay=100):
+    """The first sample after the last loud one plus `decay` samples (one 440 Hz period at 44.1 kHz): the
+    song may end in the next, unfinished half-cycle (H and qa are the only songs at or above `loud`);
+    None without one."""
+    hi = np.where(np.abs(x) >= loud)[0]
+    return int(hi[-1]) + 1 + decay if len(hi) else None
+
+
 def check(label, cond, detail):
     global ok
     print(('PASS ' if cond else 'FAIL ') + label + ' ' + detail)
@@ -59,11 +67,21 @@ def d1(root):
 
 
 def d6(root):
-    """Q and H streamed from the fixture server. Pass 'st' plays them from the stream, 'st2' once the
-    rolling cache holds them. H's last 0.2 s plays without its cut because Dart lifts the cut at the
-    index event (1.014 on the base build too), so the H->Q cap is 1.05, not H's own level."""
+    """Q and H served by the fixture server, which paces media bodies at 800 KB/s. Pass 'st' joins songs
+    that are still downloading, so a stream plays (the seek's source kind is directStream); pass 'st2'
+    joins the same songs once the rolling cache holds them (a file plays). H's last 0.2 s plays
+    without its cut because Dart lifts the cut at the index event (1.014 on the base build too), so
+    the H->Q cap is 1.05, not H's own level. The head of Q is checked per sample from the end of
+    H's last loud sample."""
     import json
-    for name, label in (('st', 'streamed'), ('st2', 'rolling cache')):
+    for name, label, kind in (('st', 'streamed', 'directStream'), ('st2', 'rolling cache', 'file')):
+        for join in ('qh', 'hq'):
+            path = os.path.join(root, f'{name}-{join}-status.json')
+            events = (json.load(open(path)).get('seekEvents') or []) if os.path.exists(path) else []
+            seek = [e for e in events if e.get('requestedPositionMs') == 26000]
+            got = seek[-1].get('afterSourceKind') if seek else None
+            check(f'D6 {label} {join.upper()}: the join seek landed on a {kind} source', got == kind,
+                  f'afterSourceKind={got} path={seek[-1].get("path") if seek else None}')
         qh, hq = load(root, f'{name}-qh'), load(root, f'{name}-hq')
         check(f'D6 {label} Q->H: no sample above 0.7', len(qh) and np.max(np.abs(qh)) <= 0.7,
               f'max={np.max(np.abs(qh)) if len(qh) else None}')
@@ -75,21 +93,15 @@ def d6(root):
               f'median={np.median(h) if len(h) else None}')
         check(f'D6 {label} H->Q: no sample above 1.05', len(hq) and np.max(np.abs(hq)) <= 1.05,
               f'max={np.max(np.abs(hq)) if len(hq) else None}')
-        t = peaks(hq)
-        hi = np.where(t >= 0.5)[0]
-        if len(hi):
-            # One 10 ms window straddles the join and shows H's last samples.
-            after = t[hi[-1] + 2:hi[-1] + 202]
-            check(f'D6 {label} Q head held down after H->Q (<= 0.05)', np.max(after[:30]) <= 0.05,
-                  f'head max={np.max(after[:30])}')
-            check(f'D6 {label} Q boosted again within ~1.2 s', np.median(after[119:159]) >= 0.085,
-                  f'late median={np.median(after[119:159])}')
-        else:
+        b = after_loud(hq)
+        if b is None:
             check(f'D6 {label} H->Q join found', False, 'no H region')
-        path = os.path.join(root, f'{name}-qh-status.json')
-        if os.path.exists(path):
-            current = (json.load(open(path)).get('native') or {}).get('mediaKitCurrent')
-            print(f'INFO D6 {label}: mpv is playing {current}')
+            continue
+        head = np.max(np.abs(hq[b:b + int(0.3 * RATE)]))
+        check(f'D6 {label} Q head held down after H->Q (<= 0.05)', head <= 0.05, f'head max={head:.4f}')
+        late = peaks(hq[b:])
+        check(f'D6 {label} Q boosted again within ~1.2 s', np.median(late[119:159]) >= 0.085,
+              f'late median={np.median(late[119:159])}')
 
 
 def d3(root):
@@ -148,19 +160,18 @@ def d5(root):
     sample: the runner seeks to 29 s of a 30 s song."""
     qa_own, margin = 0.5 * 10 ** (5 / 20), 1.15
     for delay in ('0.55', '0.80', '0.86', '0.91', '0.96', '1.01'):
-        t = peaks(load(root, f'd5-{delay}'))
-        loud = np.where(t >= 0.5)[0]  # qa is the only loud song; its last window is the join
-        if not len(loud):
-            check(f'D5 delay {delay}: qa found', False, f'max={np.max(t) if len(t) else None}')
+        x = load(root, f'd5-{delay}')
+        b = after_loud(x)  # qa is the only loud song: its last loud sample is the join
+        if b is None:
+            check(f'D5 delay {delay}: qa found', False, f'max={np.max(np.abs(x)) if len(x) else None}')
             continue
-        join = int(loud[-1]) + 1
-        check(f"D5 delay {delay}: qa's tail stays within its own level", np.max(t[:join]) <= qa_own * margin,
-              f'max before the join={np.max(t[:join]):.4f} limit={qa_own * margin:.4f}')
-        # One window straddles the join; qb itself is 0.056 while held and 0.079 once raised.
-        raised = np.where(t[join + 2:] >= 0.07)[0]
-        at = (raised[0] + 2) * 0.01 if len(raised) else None
+        tail = np.max(np.abs(x[:b]))
+        check(f"D5 delay {delay}: qa's tail stays within its own level", tail <= qa_own * margin,
+              f'max up to the join={tail:.4f} limit={qa_own * margin:.4f}')
+        raised = np.where(peaks(x[b:]) >= 0.07)[0]
+        at = raised[0] * 0.01 if len(raised) else None
         check(f'D5 delay {delay}: qb is raised only after the 0.5 s hold', at is not None and at >= 0.4,
-              f'join at {join * 0.01:.2f}s, qb raised {at}s after it')
+              f'join at {b / RATE:.2f}s, qb raised {at}s after it')
 
 
 def a1(root):
@@ -216,38 +227,55 @@ def a1(root):
     shuffled = phase('shuffle-toggle')
     check('A1 shuffle toggled in the last 3 s: nothing clipped', len(shuffled) > 50
           and max(r['boost']['clipSamples'] for r in shuffled) == 0, f'samples={len(shuffled)}')
-    lossless_clips = [r['boost']['clipSamples'] for r in rows if not r['phase'].startswith('lossy')
-                      and not r['phase'].startswith('a2-')]
-    check('A1 lossless: clipSamples stays 0 (joins, EQ, repeat-one, shuffle, cross-fade)',
-          max(lossless_clips) == 0, f'max={max(lossless_clips)} over {len(lossless_clips)} samples')
-    # L is a -8 dBFS sine boosted to 1 dB under full scale: a lossy decode that overshoots the
-    # tagged peak by more than the margin clips. The margin is the owner's decision, so a count
-    # is reported, not asserted.
+    # Clamped samples per phase and song: the counter's rises, attributed to the song the status
+    # row names. Nothing may clamp except L itself in a lossy phase (L sits 1 dB under full scale,
+    # and the margin is the owner's decision, so its count is reported, not asserted).
+    clamped = {}
+    previous = None
+    for r in rows:
+        count = r['boost']['clipSamples']
+        if previous is not None and count > previous:
+            key = (r['phase'], r['songId'])
+            clamped[key] = clamped.get(key, 0) + count - previous
+        previous = count
+    for (phase_name, song), n in sorted(clamped.items()):
+        print(f'INFO A1 clamped samples in {phase_name} while {song} played: {n}')
+    if not clamped:
+        print('INFO A1 clamped samples: none in any phase')
+    unexpected = {k: v for k, v in clamped.items() if not (k[0].startswith('lossy-') and k[1] == 'rgl-1')}
+    check('A1 no clamped sample in any phase except L itself in a lossy phase', not unexpected,
+          f'unexpected={unexpected}')
     for codec in ('opus', 'mp3'):
         rs = phase(f'lossy-{codec}')
         lossy = [r for r in mid(rs, 4000, 25000) if r['songId'] == 'rgl-1']
         check(f'A1 lossy {codec}: L is boosted ~7 dB', len(lossy) > 20
               and 6.5 <= float(np.median([r['boost']['appliedDb'] for r in lossy])) <= 7.5,
               f'n={len(lossy)} median={float(np.median([r["boost"]["appliedDb"] for r in lossy])) if lossy else None}')
-        counts = [r['boost']['clipSamples'] for r in rs]
-        added = sum(max(0, b - a) for a, b in zip(counts, counts[1:]))
-        print(f'INFO A1 lossy {codec}: clamped samples while playing L (boost 7 dB, 1 dB under its peak): {added}')
 
 
     # A2: switches and queue edits around a boosted Q. The processor's applied boost may never
     # exceed the playing song's own boost, whichever command moved the index.
     a2 = [r for r in rows if r['phase'].startswith('a2-')]
-    check('A2 samples recorded for skip, jump, remove and edit-above phases', len(a2) > 300 and
-          len({r['phase'] for r in a2}) >= 6, f'rows={len(a2)} phases={sorted({r["phase"] for r in a2})}')
+    check('A2 samples recorded for skip, jump, remove, edit-above, Play and insert phases', len(a2) > 300 and
+          len({r['phase'] for r in a2}) >= 8, f'rows={len(a2)} phases={sorted({r["phase"] for r in a2})}')
     check('A2 clipSamples stays 0', a2 and max(r['boost']['clipSamples'] for r in a2) == 0,
           f'max={max([r["boost"]["clipSamples"] for r in a2] or [None])}')
+    done = [r for r in phase('a2-play-completed') if r['songId'] == 'rgq-1' and (r['positionMs'] or 0) > 28000]
+    again = [r for r in phase('a2-play-completed') if r['songId'] == 'rgq-1' and r.get('playing')
+             and r['positionMs'] is not None and r['positionMs'] < 5000]
+    # The API's Play resumes the ended last song on the emulator; handler.dart's restart-at-index-0
+    # branch is not taken there (no `restartCompleted` anomaly), so that path rests on the unit tests.
+    check('A2 Play on the completed queue played Q to its end and Q played again',
+          len(done) > 3 and len(again) > 3, f'Q end rows={len(done)} Q restart rows={len(again)}')
+    resumed = [r for r in phase('a2-insert-resume') if r['songId'] == 'rgh-2' and r.get('playing')]
+    check('A2 an insert into the completed queue resumed at the inserted song (H2)', len(resumed) > 3,
+          f'H2 rows={len(resumed)}')
     over = [r for r in a2 if r['boost']['appliedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3]
     check("A2 the applied boost never exceeds the playing song's own", not over,
           f'violations={len(over)} first={over[0]["songId"] + " " + str(over[0]["boost"]) if over else None}')
-    mis = [r for r in a2 if r['boost']['requestedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3
-           and r['positionMs'] is not None and r['positionMs'] > 1500]
-    check("A2 the boost the processor was asked for never exceeds the playing song's own after its first 1.5 s", not mis,
-          f'violations={len(mis)} first={mis[0]["songId"] + " " + str(mis[0]["boost"]) if mis else None}')
+    mis = [r for r in a2 if r['boost']['requestedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3]
+    check("A2 the boost the processor was asked for never exceeds the playing song's own, from its first sample", not mis,
+          f'violations={len(mis)} first={mis[0]["songId"] + " @" + str(mis[0]["positionMs"]) + " " + str(mis[0]["boost"]) if mis else None}')
     late = [r for r in phase('a2-speed') if r['songId'] == 'rgq-1' and r['positionMs'] is not None
             and r['positionMs'] >= 25800 and r['boost']['sentDb'] is not None]
     check('A2 a 2x to 1x change inside the window keeps Q guarded to 0', len(late) > 3

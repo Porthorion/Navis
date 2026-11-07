@@ -1315,6 +1315,7 @@ class AudioPlayer {
   Future<void> setReplayGainBoost({
     required double currentDb,
     bool guarded = false,
+    int? index,
     Map<IndexedAudioSource, double> bySource = const {},
   }) async {
     if (_disposed || !_active) return;
@@ -1329,7 +1330,7 @@ class AudioPlayer {
       if (uri != null) byUri[uri] = entry.value;
     }
     final request = SetReplayGainBoostRequest(
-        currentDb: currentDb, guarded: guarded, byUri: byUri);
+        currentDb: currentDb, guarded: guarded, index: index, byUri: byUri);
     final platform = await _platform;
     // The caller re-sends on every index event; an unchanged per-file map to
     // the same native player says nothing new. A message without a map

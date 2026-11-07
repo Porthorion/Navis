@@ -142,8 +142,8 @@ print(json.dumps({"t": round(time.time(), 3), "songId": v.get("songId"), "positi
   done
 }
 # Pause at 26 s of a 30 s song and capture its natural end and the next song.
-join() { # join <label> <queue> [capture seconds] [seek ms]
-  play_queue "$2"; route; sleep 2; post /v1/playback/pause
+join() { # join <label> <queue> [capture seconds] [seek ms]; JOIN_PRESLEEP seconds before the seek
+  play_queue "$2"; route; sleep "${JOIN_PRESLEEP:-2}"; post /v1/playback/pause
   post /v1/playback/seek "{\"positionMs\":${4:-26000}}"
   rec_start "$1"; post /v1/playback/play; rec_stop "${3:-8}"
 }
@@ -204,8 +204,11 @@ import sys, time
 from pathlib import Path
 sys.path.insert(0, sys.argv[2])
 import seek_reliability_diagnostics as seek
+# Media bodies are paced at 800 KB/s (a 2.2 MB song takes ~2.7 s, 11x the song's own bit rate): a song
+# is still downloading when the join seeks into it, so the first pass plays from the stream. The
+# tail the seek asks for (4 s of audio, 0.3 MB) arrives in time.
 library = seek.TranscodeLibrary(Path(sys.argv[1]) / 'fixture-media', artists=1, albums=1, tracks=1, replay_gain_levels=True)
-server, _ = seek.start_transcoding_server(library)
+server, _ = seek.start_transcoding_server(library, original_bytes_per_second=800_000)
 print(server.server_port, flush=True)
 time.sleep(3600)
 PY
@@ -224,10 +227,13 @@ PY
   api POST /v1/presentation/onboarding/complete '{}' > /dev/null
   api POST /v1/playback/volume '{"value":1}' > /dev/null || true
   post /v1/playback/replay-gain '{"mode":"track","preamp":0}'
+  # st: fresh songs, still downloading at the join (the stream plays); st2: the same songs again,
+  # now complete in the rolling cache (a file plays). The H->Q join uses the other pair of songs so
+  # it is fresh in the first pass too.
   for pass in st st2; do
-    join "$pass-qh" '["rgq-1","rgh-1"]'
+    JOIN_PRESLEEP=0.5 join "$pass-qh" '["rgq-1","rgh-1"]'
     api GET /v1/playback/status > "$OUTPUT_ROOT/$pass-qh-status.json"
-    join "$pass-hq" '["rgh-1","rgq-1"]'
+    JOIN_PRESLEEP=0.5 join "$pass-hq" '["rgh-2","rgq-2"]'
     api GET /v1/playback/status > "$OUTPUT_ROOT/$pass-hq-status.json"
   done
   stop_app

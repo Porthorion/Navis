@@ -290,3 +290,8 @@ lowering makes an equal value new again.
 `AudioPlayer.sequenceEditInFlight` exposes whether a playlist edit's platform
 call is still running, so a caller can tell that `sequence` is already the
 edited list while `currentIndex` still counts the old one.
+
+The Android bridge ignores a `setReplayGainBoost` value above 0 whose `index`
+is not `player.getCurrentMediaItemIndex()`, so a message that raced a song
+switch cannot raise the new song. A 0, or a message without an index, is
+applied as before. `AudioPlayer.setReplayGainBoost` passes `index` through.

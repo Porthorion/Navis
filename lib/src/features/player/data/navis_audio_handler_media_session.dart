@@ -447,9 +447,11 @@ extension _NavisMediaSession on NavisAudioHandler {
       _captureTranscodeEndOccurrence(indexEvent: true);
       _updateScrobbleSession(item, currentIndex: resolved.currentIndex);
       // just_audio emits the index again on every playback event: only a new
-      // index is a song start that forgets the guard.
-      if (index != _boostIndexSeen) {
-        _boostIndexSeen = index;
+      // index, or another song at the same index (the playing one was
+      // removed), is a song start that forgets the guard.
+      final songKey = (index: index, songId: item?.id);
+      if (songKey != _boostSongSeen) {
+        _boostSongSeen = songKey;
         _resetBoostGuard();
       }
       _applyReplayGainVolume();
@@ -769,25 +771,33 @@ extension _NavisMediaSession on NavisAudioHandler {
   }
 
   /// Tells [deck]'s processor the boost for its playing song, guarded as
-  /// [_androidBoostFor] says. [boost] is that value when the caller has it.
-  /// While a seek may still be in flight the heard deck only goes down.
+  /// [_androidBoostFor] says, and the index it was computed for (the native
+  /// side ignores a non-zero value for another index). [boost] is that value
+  /// when the caller has it. While a seek may still be in flight the heard
+  /// deck's value may only go down: native already lowered it to 0, so an equal
+  /// value would raise it again.
   Future<void> _sendAndroidBoostTo(
     AudioPlayer deck, {
     ({double db, bool guarded})? boost,
   }) async {
     final value = boost ?? _androidBoostFor(deck);
+    if (value == null) return;
     final last = _sentBoost[deck];
     final until = _boostLowerOnlyUntil;
     if (identical(deck, _player) &&
         until != null &&
         _boostClock.elapsed < until &&
         last != null &&
-        value.db > last.db) {
+        value.db >= last.db) {
       return;
     }
     _sentBoost[deck] = value;
     if (identical(deck, _player)) _boostGuardedNow = value.guarded;
-    await deck.setReplayGainBoost(currentDb: value.db, guarded: value.guarded);
+    await deck.setReplayGainBoost(
+      currentDb: value.db,
+      guarded: value.guarded,
+      index: deck.currentIndex,
+    );
   }
 
   /// The boost [deck]'s processor may apply to its playing song now, and
@@ -804,10 +814,12 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// replies, while [AudioPlayer.currentIndex] still counts the old list, so
   /// `sequence[currentIndex]` can be another song. While an edit is in flight,
   /// or when the heard deck's source is not the song the index listener
-  /// published, the answer is 0, guarded: only an under-boost.
-  ({double db, bool guarded}) _androidBoostFor(AudioPlayer deck) {
-    const unknown = (db: 0.0, guarded: true);
-    if (deck.sequenceEditInFlight) return unknown;
+  /// published, the answer is null: nothing is sent. That is safe: a value
+  /// already in the processor was computed for the playing song, native lowers
+  /// it before any command that switches songs (and before edits while
+  /// guarded), and a value that was never sent cannot raise anything.
+  ({double db, bool guarded})? _androidBoostFor(AudioPlayer deck) {
+    if (deck.sequenceEditInFlight) return null;
     final sequence = deck.sequence;
     final current = deck.currentIndex;
     if (current == null || current >= sequence.length) {
@@ -815,7 +827,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     }
     final heard = identical(deck, _player);
     final currentItem = _mediaItemOfSource(sequence[current]);
-    if (heard && currentItem?.id != _currentMediaItem?.id) return unknown;
+    if (heard && currentItem?.id != _currentMediaItem?.id) return null;
     double boostAt(int index) {
       final item = _mediaItemOfSource(sequence[index]);
       if (item == null) return 0;
@@ -901,7 +913,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     }
     try {
       final boost = _androidBoostFor(_player);
-      if (boost.guarded || _sentBoost[_player] != boost) {
+      if (boost != null && (boost.guarded || _sentBoost[_player] != boost)) {
         unawaited(
           _sendAndroidBoostTo(_player, boost: boost).catchError((Object error) {
             AppLogger.debug('ReplayGain boost could not be applied: $error');

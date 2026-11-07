@@ -20,3 +20,7 @@ reads as "no boost stage here".
 
 `EqualizerStateMessage` adds `boostRequestedDb`, `boostAppliedDb` and
 `boostClipSamples` (all default 0), read from the Android processor's state.
+
+`SetReplayGainBoostRequest.index` is the queue index the boost was computed for;
+a backend that knows which song it plays ignores a non-zero value for another
+index.
