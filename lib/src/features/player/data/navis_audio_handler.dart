@@ -378,6 +378,12 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Materialised queue: mirrors the native player's playlist one to one.
   final _RevisionedList<MediaItem> _queueItems = _RevisionedList<MediaItem>();
 
+  /// The album ids Smart ReplayGain saw next to each song, by song id, frozen
+  /// at the song's start so a queue edit cannot make the level jump mid-song.
+  /// See `_smartNeighbourAlbums` for when an entry is dropped.
+  final Map<String, ({String? prev, String? next})> _smartNeighbours =
+      <String, ({String? prev, String? next})>{};
+
   /// Songs queued after [_queueItems] that the native player does not hold
   /// yet; released in pages as playback approaches them.
   final _RevisionedList<_DeferredQueueEntry> _deferredTail =
@@ -2487,7 +2493,9 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     await _setPlaybackAdjustments(desired);
 
-    // Apply ReplayGain volume normalization for current track.
+    // Apply ReplayGain volume normalization for current track. A settings
+    // pass (mode included) takes Smart decisions again.
+    _smartNeighbours.clear();
     _applyReplayGainVolume();
 
     if (equalizerCapabilities.supported) {
@@ -2755,6 +2763,7 @@ class NavisAudioHandler extends BaseAudioHandler
         'phases': Map<String, int>.of(_crossfadePhaseCounts),
       },
       'shuffleEnabled': _shuffleEnabled,
+      'replayGain': currentReplayGainDecision?.toJson(),
       // Native order as the player holds it, for parity checks against the
       // logical queue (limited so large queues stay cheap to report).
       'native': <String, Object?>{

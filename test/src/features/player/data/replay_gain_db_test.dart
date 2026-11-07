@@ -91,9 +91,148 @@ void main() {
     });
   });
 
-  test('new profiles and unloaded settings default to track mode', () {
-    expect(const AppSettingsModel.defaults().replayGainMode, 'track');
-    expect(const PlaybackRuntimeSettings.defaults().replayGainMode, 'track');
+  test('new profiles and unloaded settings default to smart mode', () {
+    expect(const AppSettingsModel.defaults().replayGainMode, 'smart');
+    expect(const PlaybackRuntimeSettings.defaults().replayGainMode, 'smart');
+  });
+
+  group('resolveReplayGainMode', () {
+    String smart({String? album, String? prev, String? next}) =>
+        resolveReplayGainMode(
+          'smart',
+          albumId: album,
+          prevAlbumId: prev,
+          nextAlbumId: next,
+        );
+
+    test('an album played in order gets album gain at every position', () {
+      expect(smart(album: 'a', next: 'a'), 'album'); // first track
+      expect(smart(album: 'a', prev: 'a', next: 'a'), 'album'); // middle
+      expect(smart(album: 'a', prev: 'a'), 'album'); // last track
+    });
+
+    test('a song alone, or among other albums, gets track gain', () {
+      expect(smart(album: 'a'), 'track');
+      expect(smart(album: 'a', prev: 'b', next: 'c'), 'track');
+    });
+
+    test('a shuffled album (every neighbour the same album) is album', () {
+      expect(smart(album: 'a', prev: 'a', next: 'a'), 'album');
+    });
+
+    test('a null album id never matches, not even another null', () {
+      expect(smart(prev: 'a', next: 'a'), 'track');
+      // Remote songs with the same albumName but no id have null ids.
+      expect(smart(), 'track');
+    });
+
+    test('the other modes pass through unchanged', () {
+      for (final mode in ['off', 'track', 'album']) {
+        expect(
+          resolveReplayGainMode(
+            mode,
+            albumId: 'a',
+            prevAlbumId: 'a',
+            nextAlbumId: 'a',
+          ),
+          mode,
+        );
+      }
+    });
+  });
+
+  group('replayGainDecision', () {
+    ReplayGainDecision decide({
+      String mode = 'smart',
+      String? album,
+      String? prev,
+      String? next,
+      double? track,
+      double? albumGain,
+      double? trackPeak,
+      double preamp = 0,
+    }) => replayGainDecision(
+      mode: mode,
+      albumId: album,
+      prevAlbumId: prev,
+      nextAlbumId: next,
+      trackGain: track,
+      albumGain: albumGain,
+      trackPeak: trackPeak,
+      preampDb: preamp,
+      untaggedDb: -8,
+    );
+
+    test('smart in an album run uses the album gain and says so', () {
+      final d = decide(album: 'a', next: 'a', track: -10, albumGain: -4);
+      expect(d.db, -4);
+      expect(d.source, ReplayGainSource.album);
+      expect(d.resolvedMode, 'album');
+      expect(d.mode, 'smart');
+    });
+
+    test('smart among other albums uses the track gain', () {
+      final d = decide(album: 'a', prev: 'b', track: -10, albumGain: -4);
+      expect(d.db, -10);
+      expect(d.source, ReplayGainSource.track);
+      expect(d.resolvedMode, 'track');
+    });
+
+    test('the source is the gain actually used, after the fallback', () {
+      // Album chosen but only a track gain exists.
+      final d = decide(album: 'a', next: 'a', track: -10);
+      expect(d.resolvedMode, 'album');
+      expect(d.source, ReplayGainSource.track);
+      expect(d.db, -10);
+    });
+
+    test('an untagged song reports the untagged level', () {
+      final d = decide(album: 'a', next: 'a');
+      expect(d.source, ReplayGainSource.untagged);
+      expect(d.db, -8);
+    });
+
+    test('a fixed mode stays as set; off has no gain', () {
+      final fixed = decide(mode: 'track', album: 'a', next: 'a', track: -10);
+      expect(fixed.mode, 'track');
+      expect(fixed.resolvedMode, 'track');
+      final off = decide(mode: 'off', track: -10);
+      expect(off.db, isNull);
+      expect(off.source, isNull);
+      expect(off.resolvedMode, 'off');
+    });
+
+    test('decision db equals replayGainDb for the resolved mode', () {
+      final d = decide(
+        album: 'a',
+        next: 'a',
+        track: -10,
+        albumGain: -4,
+        trackPeak: 0.5,
+        preamp: 2,
+      );
+      expect(
+        d.db,
+        replayGainDb(
+          mode: 'album',
+          trackGain: -10,
+          albumGain: -4,
+          trackPeak: 0.5,
+          preampDb: 2,
+          untaggedDb: -8,
+        ),
+      );
+    });
+
+    test('toJson reports the diagnostics fields', () {
+      final d = decide(album: 'a', next: 'a', track: -10, albumGain: -4);
+      expect(d.toJson(), {
+        'mode': 'smart',
+        'resolvedMode': 'album',
+        'source': 'album',
+        'db': -4.0,
+      });
+    });
   });
 
   group('automaticUntaggedGainDb', () {

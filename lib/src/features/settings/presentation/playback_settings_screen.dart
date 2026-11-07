@@ -410,6 +410,10 @@ class _PlaybackSettingsScreenState
                         child: Text(l10n.playbackSettingsReplayGainModeOff),
                       ),
                       DropdownMenuItem(
+                        value: 'smart',
+                        child: Text(l10n.playbackSettingsReplayGainModeSmart),
+                      ),
+                      DropdownMenuItem(
                         value: 'track',
                         child: Text(l10n.playbackSettingsReplayGainModeTrack),
                       ),
@@ -431,11 +435,15 @@ class _PlaybackSettingsScreenState
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    _replayGainMode == 'off'
-                        ? l10n.playbackSettingsReplayGainModeOffDescription
-                        : _replayGainMode == 'track'
-                        ? l10n.playbackSettingsReplayGainModeTrackDescription
-                        : l10n.playbackSettingsReplayGainModeAlbumDescription,
+                    switch (_replayGainMode) {
+                      'off' =>
+                        l10n.playbackSettingsReplayGainModeOffDescription,
+                      'smart' =>
+                        l10n.playbackSettingsReplayGainModeSmartDescription,
+                      'track' =>
+                        l10n.playbackSettingsReplayGainModeTrackDescription,
+                      _ => l10n.playbackSettingsReplayGainModeAlbumDescription,
+                    },
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),

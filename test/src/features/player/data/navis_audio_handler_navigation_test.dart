@@ -15937,6 +15937,223 @@ void main() {
     }
   });
 
+  group('ReplayGain Smart mode', () {
+    const exo = PlaybackAdjustmentCapabilities.android;
+    double linear(double db) => pow(10, db / 20).toDouble();
+    // Every song has a -10 dB track gain and a -4 dB album gain, so the
+    // volume says which one the handler chose.
+    final trackVolume = linear(-10);
+    final albumVolume = linear(-4);
+
+    // song-N belongs to albums[N]; a null entry has no album id.
+    Future<(NavisAudioHandler, _ControllableAudioPlayer)> smart(
+      List<String?> albums, {
+      String mode = 'smart',
+      String Function()? readMode,
+      bool crossfade = false,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis-rgs-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        albums.length,
+        crossfade: crossfade,
+        replayGainMode: mode,
+        readReplayGainMode: readMode,
+        adjustmentCapabilities: exo,
+        seed: (database) async {
+          await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+            for (final id in albums.whereType<String>().toSet())
+              AlbumsTableCompanion.insert(id: id, name: id),
+          ]);
+          for (var i = 0; i < albums.length; i++) {
+            await (database.update(
+              database.songsTable,
+            )..where((song) => song.id.equals('song-$i'))).write(
+              SongsTableCompanion(
+                albumId: Value(albums[i]),
+                replayGainTrackGain: const Value(-10),
+                replayGainAlbumGain: const Value(-4),
+              ),
+            );
+          }
+        },
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      return (handler, player);
+    }
+
+    List<String> ids(int count) => [for (var i = 0; i < count; i++) 'song-$i'];
+
+    for (final start in [0, 1, 2]) {
+      test(
+        'an album in order plays at album gain from track ${start + 1}',
+        () async {
+          final (handler, player) = await smart(['a', 'a', 'a']);
+          await handler.replaceQueue(
+            ids(3),
+            startIndex: start,
+            expandMatchFlows: false,
+          );
+          expect(player.volume, closeTo(albumVolume, 0.00001));
+        },
+      );
+    }
+
+    test('a lone song plays at track gain', () async {
+      final (handler, player) = await smart(['a']);
+      await handler.replaceQueue(ids(1), expandMatchFlows: false);
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+    });
+
+    test('songs from mixed albums play at track gain', () async {
+      final (handler, player) = await smart(['a', 'b', 'c']);
+      await handler.replaceQueue(
+        ids(3),
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+    });
+
+    test('songs without an album id play at track gain', () async {
+      final (handler, player) = await smart([null, null, null]);
+      await handler.replaceQueue(
+        ids(3),
+        startIndex: 1,
+        expandMatchFlows: false,
+      );
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+    });
+
+    test(
+      'a queue edit mid-song keeps the volume until the next song',
+      () async {
+        final (handler, player) = await smart(['a', 'b', 'a']);
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        expect(player.volume, closeTo(trackVolume, 0.00001));
+        // song-2 shares song-0's album and is now next, which would flip the
+        // decision if it were taken again mid-song.
+        await handler.playNext(['song-2'], expandMatchFlows: false);
+        await settleQueue(handler);
+        await handler.setVolume(1);
+        expect(player.volume, closeTo(trackVolume, 0.00001));
+        await handler.skipToNext();
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(player.volume, closeTo(albumVolume, 0.00001));
+      },
+    );
+
+    test('a settings pass re-resolves a frozen decision', () async {
+      final (handler, player) = await smart(['a', 'b', 'a']);
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      await handler.playNext(['song-2'], expandMatchFlows: false);
+      await settleQueue(handler);
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+      await handler.applyRuntimeSettings();
+      await pumpEventQueue();
+      expect(player.volume, closeTo(albumVolume, 0.00001));
+    });
+
+    test('a replaced queue resolves the same song again', () async {
+      final (handler, player) = await smart(['a', 'b', 'a']);
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+      await handler.replaceQueue(['song-0', 'song-2'], expandMatchFlows: false);
+      expect(player.volume, closeTo(albumVolume, 0.00001));
+    });
+
+    test(
+      'turning shuffle on keeps this song and re-resolves the next',
+      () async {
+        final (handler, player) = await smart(['a', 'a', 'b', 'a', 'b', 'a']);
+        await handler.replaceQueue(ids(6), expandMatchFlows: false);
+        expect(player.volume, closeTo(albumVolume, 0.00001));
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+        await settleQueue(handler);
+        expect(player.volume, closeTo(albumVolume, 0.00001));
+        await handler.skipToNext();
+        await settleQueue(handler);
+        // The expected level comes from the neighbours in the new play order.
+        final queue = handler.queue.value;
+        final index = handler.snapshot.currentIndex!;
+        String? album(int i) => i < 0 || i >= queue.length
+            ? null
+            : queue[i].extras?['albumId'] as String?;
+        final resolved = resolveReplayGainMode(
+          'smart',
+          albumId: album(index),
+          prevAlbumId: album(index - 1),
+          nextAlbumId: album(index + 1),
+        );
+        expect(
+          player.volume,
+          closeTo(resolved == 'album' ? albumVolume : trackVolume, 0.00001),
+        );
+      },
+    );
+
+    test('a mode change applies at once', () async {
+      var mode = 'track';
+      final (handler, player) = await smart(['a', 'a'], readMode: () => mode);
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+      mode = 'smart';
+      await handler.applyRuntimeSettings();
+      await pumpEventQueue();
+      expect(player.volume, closeTo(albumVolume, 0.00001));
+      mode = 'track';
+      await handler.applyRuntimeSettings();
+      await pumpEventQueue();
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+    });
+
+    test(
+      'the cross-fade incoming song resolves with its own neighbours',
+      () async {
+        final (handler, outgoing) = await smart([
+          'a',
+          'b',
+          'b',
+        ], crossfade: true);
+        await handler.setVolume(0.8);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        // song-0 sits next to another album: track gain.
+        expect(outgoing.volume, closeTo(0.8 * trackVolume, 0.00001));
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        handler.debugCheckCrossfadeTrigger(const Duration(seconds: 175));
+        for (
+          var i = 0;
+          i < 800 && !(incoming.playing && incoming.volume > 0);
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+        }
+        await handler.debugCompleteCrossfade();
+        // song-1 is followed by song-2 of its own album: album gain.
+        expect(incoming.volume, closeTo(0.8 * albumVolume, 0.00001));
+      },
+    );
+
+    test('diagnostics report the decision', () async {
+      final (handler, _) = await smart(['a', 'a']);
+      await handler.replaceQueue(ids(2), expandMatchFlows: false);
+      expect(handler.collectPlaybackDiagnostics()['replayGain'], {
+        'mode': 'smart',
+        'resolvedMode': 'album',
+        'source': 'album',
+        'db': -4.0,
+      });
+    });
+  });
+
   group('cross-fade deck', () {
     List<String> ids(int count, [int from = 0]) =>
         List<String>.generate(count - from, (i) => 'song-${i + from}');

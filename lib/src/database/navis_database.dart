@@ -1955,8 +1955,9 @@ FROM scrobble_queue;
         likedQueueEnabled: const Value(true),
         matchFlowEnabled: const Value(false),
         // Only applies when this creates the row (insertOrIgnore). A profile
-        // upgraded from older schemas keeps a SQL default of 'off'.
-        replayGainMode: const Value('track'),
+        // upgraded from older schemas keeps a SQL default of 'off', and the
+        // column's own default stays 'track' (changing it is a schema change).
+        replayGainMode: const Value('smart'),
         updatedAt: DateTime.now(),
       ),
       mode: InsertMode.insertOrIgnore,

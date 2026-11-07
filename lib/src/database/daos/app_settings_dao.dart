@@ -330,7 +330,7 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         crossfadeEnabled: Value(false),
         crossfadeDurationSeconds: Value(5),
         crossfadeType: Value('normal'),
-        replayGainMode: Value('track'),
+        replayGainMode: Value('smart'),
         replayGainPreamp: Value(0),
         replayGainUntaggedDb: Value(null),
         albumQueueEnabled: Value(true),

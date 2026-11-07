@@ -4884,7 +4884,27 @@ Desktop volume follows a parallel local-settings path:
    converts dB to a player volume: `10^(dB/20)` on ExoPlayer and AVPlayer, where
    volume is linear, and `10^(dB/60)` on media_kit/mpv, whose volume is cubic
    (the backend is `playbackAdjustmentCapabilities`). Radio stays at the user
-   volume. New profiles start in Track mode; stored modes are never rewritten.
+   volume. New profiles start in Smart mode; stored modes are never rewritten.
+   The row-creation value, `resetPlaybackDefaults`, `AppSettingsModel` and
+   `PlaybackRuntimeSettings.defaults()` say 'smart'; the Drift column default
+   stays 'track' so there is no schema change.
+
+   Smart (`resolveReplayGainMode`, `replayGainDecision`) plays album gain when
+   the song before or after it in play order has the same non-null `albumId`,
+   and track gain otherwise (the usual track/album fallbacks and the untagged
+   level still apply). Navis owns shuffle, so the materialised queue
+   `_queueItems` is the play order and the neighbours are its adjacent items
+   (no loop-all wrap; the released window always keeps them materialised). The
+   neighbour album ids are frozen per song in `_smartNeighbours` the first
+   time `_replayGainVolumeFor` sees the song, so ducking, cross-fade ramps,
+   shuffle toggles and queue edits never change the level mid-song. An entry
+   is dropped when another song starts (`_applyReplayGainVolume`), when the
+   queue is replaced or cleared (`_clearDeferredTail`) and on every settings
+   pass (`applyRuntimeSettings`, so a mode change applies at once); nothing is
+   frozen while a queue load settles. The cross-fade incoming song resolves
+   with its own neighbours. `NavisAudioHandler.currentReplayGainDecision`
+   (mode, resolved mode, source track/album/untagged, dB) is reported as
+   `replayGain` by `GET /v1/playback/status`.
    Schema 111 (`from110To111`) adds the nullable `replay_gain_untagged_db`
    column (null = Automatic) and leaves the stored mode and pre-amp as they are.
 
