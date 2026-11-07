@@ -5,7 +5,8 @@ import 'package:flutter/foundation.dart'
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
 /// Whether the audio backend on this platform can run the equalizer: Android's
-/// player, or libmpv with its libavfilter audio filters on Linux, Windows and
+/// player, iOS's AVFoundation player (an MTAudioProcessingTap in the vendored
+/// just_audio Darwin code, independent of media_kit), or libmpv with its libavfilter audio filters on Linux, Windows and
 /// macOS (each bundles Navis's own libmpv build, which includes them).
 ///
 /// A build that turns out to lack the filters at runtime still falls back to
@@ -13,16 +14,18 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 /// rebuilt without it.
 bool navisEqualizerSupportedOn({
   required bool android,
+  required bool ios,
   required bool linux,
   required bool windows,
   required bool macos,
   required bool mediaKitRegistered,
-}) => android || ((linux || windows || macos) && mediaKitRegistered);
+}) => android || ios || ((linux || windows || macos) && mediaKitRegistered);
 
 /// [navisEqualizerSupportedOn] for the running platform; [android] lets the
 /// audio handler pass its own runtime flag.
 bool navisEqualizerSupported({bool? android}) => navisEqualizerSupportedOn(
   android: android ?? Platform.isAndroid,
+  ios: Platform.isIOS,
   linux: Platform.isLinux,
   windows: Platform.isWindows,
   macos: Platform.isMacOS,

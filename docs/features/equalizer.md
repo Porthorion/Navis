@@ -25,7 +25,34 @@ workspace built from the existing theme, typography, and adaptive shell; see
 | Linux media-kit/libmpv | Native floating-point filter chain; actual captured output and clean restart are covered |
 | Windows media-kit/libmpv | The Linux filter chain, on the full libmpv Navis pins and bundles (see [Releasing for Windows](../release/release-windows.md#bundled-libmpv)); a build without the filters falls back to EQ unavailable |
 | macOS media-kit/libmpv | The same filter chain, on the Navis-built universal libmpv the macOS app bundles (see [Releasing for macOS](../release/release-macos.md#bundled-libmpv)); a build without the filters falls back to EQ unavailable |
-| Default Apple backend and web | UI disabled; processing is unavailable |
+| iOS AVFoundation | An `MTAudioProcessingTap` on each queued `AVPlayerItem` runs the same biquads and auto-headroom in C (`NavisEqualizerDsp.c`); see [iOS](#ios) |
+| macOS debug (AVFoundation) and web | UI disabled; processing is unavailable. The Darwin tap is compiled only for iOS (`TARGET_OS_IOS`), so macOS playback is unchanged |
+
+### iOS
+
+AVFoundation hands no PCM to just_audio, so the vendored Darwin player
+(`third_party/just_audio/darwin`) attaches a `MTAudioProcessingTap` (pre-effects,
+so the DSP sees the source sample rate before speed changes) to the first two
+items of each `AVQueuePlayer` once their audio track has loaded, using the
+config map Android receives (`equalizerConfiguration`, `setEqualizer`,
+`getEqualizerState`). The tap stays installed with EQ off and bypasses inside
+the DSP, because changing an item's audio mix during playback can drop out.
+Banks are built off the audio thread and swapped at a block boundary with the
+same 20 ms crossfade as Android; the render callback has no locks, allocation,
+Objective-C or `log`/`pow`. Only non-interleaved 32-bit float PCM of one to
+eight channels is processed; any other format plays unchanged and `reason` says
+so. The tap sits behind the player's own volume and speed, so crossfade decks,
+gapless advance and 1.5× speed all use the same path (each deck owns its own
+equalizer instance).
+
+State adds two iOS-only fields, surfaced in `/v1/equalizer` `application`:
+`processedFrames` (frames processed by this platform player, which grows while
+audio plays and restarts from zero when the app swaps decks or rebuilds the
+player) and `levelDeltaDb` (output minus input level in dB over about the last
+second of played audio, restarted when an edit takes effect; `null` before audio has played). The audio thread
+only accumulates sums of squares; the dB conversion runs on the main thread.
+The DSP is covered by `third_party/just_audio/darwin/test/navis_equalizer_dsp_test.c`,
+run from `tool/equalizer_native_test.sh` (it needs only a C compiler).
 
 The Android processor currently receives 16-bit PCM. Coefficients and filter
 history use doubles internally; this is not a bit-perfect high-resolution path.

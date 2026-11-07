@@ -168,6 +168,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'iOS: the equalizer now works, with the same presets, filters and '
+        'headroom protection as Android',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'macOS: the licences screen lists the bundled libmpv and FFmpeg '
         'libraries',
         type: ChangelogEntryType.improvement,

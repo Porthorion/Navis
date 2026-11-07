@@ -54,6 +54,8 @@ class EqualizerStateMessage {
     this.headroomDb = 0,
     this.reason,
     this.pending = false,
+    this.processedFrames,
+    this.levelDeltaDb,
   });
 
   final bool enabled;
@@ -63,6 +65,14 @@ class EqualizerStateMessage {
   final String? reason;
   final bool pending;
 
+  /// Frames the backend's equalizer has processed since the player started
+  /// (Darwin only; null elsewhere). Grows while audio plays.
+  final int? processedFrames;
+
+  /// Output-minus-input level in dB over a recent window of played audio
+  /// (Darwin only; null elsewhere or before any audio has played).
+  final double? levelDeltaDb;
+
   static EqualizerStateMessage fromMap(Map<dynamic, dynamic> map) =>
       EqualizerStateMessage(
         enabled: map['enabled'] as bool,
@@ -71,5 +81,7 @@ class EqualizerStateMessage {
         headroomDb: (map['headroomDb'] as num?)?.toDouble() ?? 0,
         reason: map['reason'] as String?,
         pending: map['pending'] as bool? ?? false,
+        processedFrames: (map['processedFrames'] as num?)?.toInt(),
+        levelDeltaDb: (map['levelDeltaDb'] as num?)?.toDouble(),
       );
 }

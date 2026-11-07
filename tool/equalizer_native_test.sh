@@ -4,6 +4,19 @@ set -euo pipefail
 navis_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 navis_studio_jdk="${HOME}/android-studio/jbr"
 [[ "$(uname -s)" != Darwin ]] || navis_studio_jdk='/Applications/Android Studio.app/Contents/jbr/Contents/Home'
+# Darwin (iOS) equalizer DSP: plain C11, so any host C compiler runs it.
+navis_darwin_source="${navis_root}/third_party/just_audio/darwin"
+if navis_cc="$(command -v cc || command -v gcc || command -v clang)"; then
+  navis_c_out="$(mktemp -d)"
+  "${navis_cc}" -std=c11 -O2 -Wall -Wextra -Werror -pthread -D_POSIX_C_SOURCE=200809L \
+    "${navis_darwin_source}/test/navis_equalizer_dsp_test.c" \
+    "${navis_darwin_source}/just_audio/Sources/just_audio/NavisEqualizerDsp.c" \
+    -lm -o "${navis_c_out}/navis_equalizer_dsp_test"
+  "${navis_c_out}/navis_equalizer_dsp_test"
+  rm -rf "${navis_c_out}"
+else
+  echo 'SKIPPED: Darwin equalizer DSP test needs a C compiler (cc, gcc or clang).' >&2
+fi
 navis_jdk="${ANDROID_STUDIO_JDK:-${JAVA_HOME:-${navis_studio_jdk}}}"
 # Probe that javac runs: macOS ships a /usr/bin/javac stub that fails without a JDK.
 if javac -version >/dev/null 2>&1; then

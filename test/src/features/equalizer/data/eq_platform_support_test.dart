@@ -5,12 +5,14 @@ import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
 void main() {
   bool supported({
     bool android = false,
+    bool ios = false,
     bool linux = false,
     bool windows = false,
     bool macos = false,
     bool mediaKit = false,
   }) => navisEqualizerSupportedOn(
     android: android,
+    ios: ios,
     linux: linux,
     windows: windows,
     macos: macos,
@@ -28,6 +30,11 @@ void main() {
     expect(supported(linux: true), isFalse);
     expect(supported(windows: true), isFalse);
     expect(supported(macos: true), isFalse);
+  });
+
+  test('iOS always supports the equalizer (native tap, not media_kit)', () {
+    expect(supported(ios: true), isTrue);
+    expect(supported(ios: true, mediaKit: true), isTrue);
   });
 
   test('other platforms do not', () {
