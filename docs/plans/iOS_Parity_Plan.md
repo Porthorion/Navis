@@ -58,8 +58,8 @@ simulator or device yet; every runtime claim is *unverified*.
 | I4 | Downloads folder: hide the custom-folder picker on iOS (the app container is the only durable place without bookmarks); mark permanent downloads and caches excluded from iCloud backup (`isExcludedFromBackup`; nothing sets it today, and App Review rejects backed-up re-downloadable media); optionally expose downloads in the Files app | low | merged 2026-11-07 (`ebdbe05f`): `<Documents>/Downloads` root on iOS, no custom folder (settings note, persisted choice ignored), `isExcludedFromBackup` on the downloads root and the permanent artwork root, database moved out of `Documents`, stored absolute paths rebased to the current container when iOS changes its UUID; evidence in the PR description and [progress.md](../project/progress.md) | #350 |
 | I5 | Device pass: lock screen, Control Center, AirPods, artwork, scrubbing, background survival on the owner's iPhone (free Personal Team signing, 7-day install); the local network prompt appears for a LAN server and streaming works after Allow; a second sign-in over an existing keychain item (PR #347 Opus review: the plugin's `containsKey` synced-first query with this-device accessibility is unverified on hardware) | risky (system integration) | approved; device only when really needed, owner told beforehand (borrowed iPhone) | – |
 | I6 | Native project: drop the leftover CocoaPods integration, real launch screen, `ITSAppUsesNonExemptEncryption`, privacy manifest entries for the APIs used | low | merged 2026-11-07 (`eee9daa2`): CocoaPods removed, dark-only launch screen, `ITSAppUsesNonExemptEncryption` false, privacy manifest (no tracking/collected data, E174.1, C617.1); Flash review nothing blocking; launch screen look pending the next simulator runtime pass | #348 |
-| I7 | Release path: TestFlight/App Store upload in `tool/release.sh` (App Store Connect API key, export options), App Store privacy answers | risky (release) | approved (owner: TestFlight/App Store); needs the paid Apple Developer Program | – |
-| I8 | Docs and CI: iOS status in README and `technical-overview.md`, an iOS testing playbook, an iOS build check (`flutter build ios --no-codesign`) on a macOS runner if CI minutes allow | low | approved | – |
+| I7 | Release path: TestFlight/App Store upload in `tool/release.sh` (App Store Connect API key, export options), App Store privacy answers | risky (release) | approved (owner: TestFlight/App Store); the owner now has the paid Apple Developer Program (2026-11-07), so this is unblocked | – |
+| I8 | Docs and CI: iOS status in README and `technical-overview.md`, an iOS testing playbook, an iOS build check (`flutter build ios --no-codesign`) on a macOS runner if CI minutes allow | low | implemented, PR pending (2026-11-07): README iOS row and "iOS status" section, `technical-overview.md` row, [iOS testing playbook](../platforms/ios-testing-playbook.md) (simulator workflow, what the simulator cannot test, the I5 device checklist), and a CI `ios` job (`macos-latest`, `flutter build ios --simulator --debug`, 30-minute limit, required by the `ci` aggregate; the simulator build needs no signing and is the build the runtime loop uses; no CocoaPods step since I6). The README Platforms badge stays unchanged until iOS is released | – |
 | I9 | Equalizer on iOS (owner 2026-11-07: iOS does not ship without EQ). AVFoundation exposes no PCM to just_audio; candidate: an `MTAudioProcessingTap` on each `AVPlayerItem` in the vendored `third_party/just_audio` Darwin code running Navis's EQ bands as biquads (one tap per player, so crossfade keeps working), fed by the existing EQ settings; the alternative, an `AVAudioEngine` player with `AVAudioUnitEQ`, is a far larger rewrite. Opus feasibility done 2026-11-07: tap approach chosen (AVAudioEngine would replace the whole Darwin player and risk the download → cache → stream order); build plan in [macOS_iOS_Handoff_2026-11-07b.md](macOS_iOS_Handoff_2026-11-07b.md) | risky (playback, native, realtime) | merged 2026-11-07 (`413dabc7`) after three Sonnet/Opus review rounds; simulator proof via `/v1/equalizer` (levelDeltaDb −12.000 at flat −12 dB, 0 off; local, proxied, download, gapless, crossfade, 1.5×; resetCount flat in steady play at 44.1/48/96 kHz, +1 per seek/resume). Device checks (audible A/B, AirPlay, lock screen, CPU on hi-res, interruptions) go to I5. Deviation from the plan: taps attach to the current and next queue item, not at every item insertion, to avoid loading the tracks of a whole queue over the network | #335 |
 | I10 | iOS layout polish (owner: one shared design plus iOS conventions, no Cupertino overhaul). Known: the Material `NavigationBar` is 80 pt plus the 34 pt home-indicator inset on iPhone (native tab bar 49 + 34), so shorten it on iOS; the transport row's left slot is an invisible EQ placeholder on iOS (fills once I9 lands). More from I11 | low (UI) | nav bar (64 pt on iOS) merged; transport slot verified 2026-11-07 on the simulator: the left slot shows the EQ button and opens the EQ sheet (screenshots taken during the PR #350 runtime pass) | #330 |
 | I11 | Research: must-have features of popular iPhone music players, cross-referenced with Navis (DeepSeek Flash survey 2026-11-07; web fetch was unavailable, so claims rest on Apple's documented APIs and the code; gaps spot-checked by the coordinator). Result: items I12–I20 and the pending owner questions below | – | done; questions pending | – |
@@ -96,6 +96,14 @@ Testing is simulator-first; the iPhone is borrowed, so a device pass is
 requested only when the simulator cannot answer, with notice. CarPlay scope
 is open (the owner asked what it takes; see the CarPlay note below).
 
+Owner decisions (2026-11-07, I14 and I18 follow-ups):
+
+- A download deleted in the Files app is dropped from downloads at the next
+  launch, not re-downloaded (keep the current behaviour; the README says to
+  remove downloads inside Navis).
+- iPhone SE/mini (Now Playing transport rows under 340 dp) keep 40 pt
+  transport buttons for 1.5.2.
+
 Out of scope for 1.5.2 unless the owner decides otherwise: CarPlay (needs an
 Apple-granted entitlement), independent pitch on AVFoundation (new native
 audio graph; the equalizer moved in scope as I9, owner 2026-11-07), fast seeking, notifications and background library sync.
@@ -106,9 +114,10 @@ exists, I8 last.
 
 ## Owner actions
 
-- Apple Developer Program (paid) for TestFlight and App Store, and for a
-  notarized macOS release; until then iOS installs only on the owner's own
-  device with the free Personal Team (re-sign every 7 days).
+- Apple Developer Program (paid; owner has it since 2026-11-07) for TestFlight
+  and App Store, and for a notarized macOS release; before that iOS installed
+  only on the owner's own device with the free Personal Team (re-sign every
+  7 days).
 - An iPhone for the I5 device pass (borrowed: give notice, keep passes rare).
 
 ## CarPlay note (open owner decision)
