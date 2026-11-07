@@ -374,7 +374,8 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: NavisShapeData.of(context).xlAll,
-        onLongPress: showInlineEditor ? null : onHold,
+        // A no-op while the editor is open, so a hold there never pages.
+        onLongPress: showInlineEditor ? () {} : onHold,
         onTap: () => setState(() {
           _pageIndex = (activeIndex + 1) % pages.length;
           _pageLabel = pages[_pageIndex].semanticLabel;
