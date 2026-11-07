@@ -130,6 +130,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Volume normalization has a new Smart mode, now the default for new '
+        'installs. It keeps an album\'s own loudness balance when you play '
+        'the album in order, and levels songs one by one for shuffles and '
+        'mixes. Your current choice stays as it is',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Playing a Deezer copy of a single you already have now links it to '
         'your library song, so Search no longer lists the song twice. Titles '
         'with curly quotes or long dashes match too',

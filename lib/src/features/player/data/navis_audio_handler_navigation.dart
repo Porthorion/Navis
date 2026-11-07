@@ -126,6 +126,9 @@ extension _NavisNavigation on NavisAudioHandler {
         'positionMs': _player.position.inMilliseconds,
       },
     );
+    // Every navigation is a song start, even to another copy of the song
+    // that plays now: Smart ReplayGain looks at the neighbours again.
+    _smartNeighbours.clear();
     if (_navigationInFlightRevision != null) {
       _navigationSupersededCount++;
     }
