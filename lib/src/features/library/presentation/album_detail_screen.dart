@@ -1636,7 +1636,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           song.starred != null;
                       // A remote copy cannot be liked: shown disabled, the
                       // tap explains why.
-                      final isRemote = !isServerAddressableSongId(song.id);
+                      final isRemote = isRemoteSong(
+                        id: song.id,
+                        isExternal: song.isExternal,
+                      );
                       final disabledColor = Theme.of(context)
                           .colorScheme
                           .onSurface
@@ -1805,7 +1808,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           value: _AlbumSongContextAction.toggleLike,
           // Dimmed but clickable: a click explains why (a disabled popup
           // item swallows it).
-          textStyle: isServerAddressableSongId(song.id)
+          textStyle: !isRemoteSong(id: song.id, isExternal: song.isExternal)
               ? null
               : TextStyle(
                   color: Theme.of(context).colorScheme.onSurface
@@ -1862,7 +1865,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         _playNext(song);
         return;
       case _AlbumSongContextAction.toggleLike:
-        if (!isServerAddressableSongId(song.id)) {
+        if (isRemoteSong(id: song.id, isExternal: song.isExternal)) {
           showAppNotice(
             context,
             message: l10n.remoteSourceActionUnavailable,

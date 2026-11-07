@@ -1,3 +1,5 @@
+import 'package:navis/src/utils/catalog_source.dart';
+
 /// Returns true when [id] refers to a song that can be addressed via the
 /// Subsonic API (star, unstar, setRating, getInstantMix seed, etc.).
 ///
@@ -13,3 +15,11 @@ bool isServerAddressableSongId(String id) {
   }
   return true;
 }
+
+/// Whether a song is a remote catalogue copy that can never be liked: its id
+/// is not server-addressable, or the catalogue flags it external ([isExternal]
+/// when known, else the id prefix). Streaming and downloads keep using
+/// [isServerAddressableSongId].
+bool isRemoteSong({required String id, bool? isExternal}) =>
+    !isServerAddressableSongId(id) ||
+    isExternalCatalogSource(id: id, apiIsExternal: isExternal);

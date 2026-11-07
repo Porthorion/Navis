@@ -402,6 +402,21 @@ void main() {
             reason: 'Artist column must start at the same x on every row',
           );
         }
+        // Wide rows show a library row's heart; the remote one is dimmed.
+        if (width >= 1400) {
+          expect(
+            find.byTooltip('Like unavailable for remote songs'),
+            findsOneWidget,
+          );
+          expect(
+            find.byKey(
+              const ValueKey<String>(
+                'artist-top-track-heart-ext-deezer-song-1',
+              ),
+            ),
+            findsOneWidget,
+          );
+        }
         final remoteTime = find.text('3:34');
         final localTime = find.text('4:15');
         expect(remoteTime, findsOneWidget);
