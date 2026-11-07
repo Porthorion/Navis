@@ -315,6 +315,20 @@ void main() {
       expect(head['sameEntry'], isTrue);
     });
 
+    test(
+      'a stale old-source sample after a queue replacement is no replay',
+      () {
+        sample(0, 75856, song: 'old-song', durationMs: 80000);
+        recorder.expect('transport');
+        sample(500, 76309, entry: entryB, song: 'new-song', durationMs: 72000);
+        sample(1900, 0, entry: entryB, song: 'new-song', durationMs: 72000);
+        sample(2200, 122, entry: entryB, song: 'new-song', durationMs: 72000);
+
+        expect(logs, isEmpty);
+        expect(recorder.recent, isEmpty);
+      },
+    );
+
     test('Repeat One suppresses both records without a loop expectation', () {
       sample(0, 196000, repeatOne: true);
       sample(200, 400, repeatOne: true);
