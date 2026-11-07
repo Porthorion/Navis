@@ -4374,7 +4374,20 @@ use. URLs, accounts, tokens, titles and media IDs cannot be passed to this API.
 Nothing is uploaded automatically; the privacy diagnostics text describes local
 retention until copying.
 
-The existing LibrarySyncController lifecycle listener captures the writer
+The LibrarySyncController lifecycle listener maps the app lifecycle to
+foreground through the pure `librarySyncForegroundFor`: foreground means the
+user can see the app. On mobile only `resumed` is foreground (`inactive` is the
+app switcher or notification shade). On desktop `inactive` is a visible but
+unfocused window, so `resumed` and `inactive` are foreground and only `hidden`,
+`paused` and `detached` background it; otherwise `librarySyncWorkAllowed`
+would defer an opened album's hydration while the window is unfocused (#349).
+Resume and background run once per foreground change. A desktop focus flip
+keeps foreground true and runs no database or worker reconciliation; when focus
+returns after at least 30 seconds it only refreshes the update check and
+network state and re-arms the periodic sync timer (a lock or sleep can leave
+that one-shot timer late). The 30 seconds run from the focus loss, also when
+the window is then hidden, and a restore that lands unfocused starts its own
+focus-loss mark. The listener also captures the writer
 connection's `PRAGMA main.data_version` before backgrounding. Resume compares it
 on that same connection using a short exclusive Drift scope, not a pooled
 reader. An external commit announces all mapped tables once (SQLite supplies no

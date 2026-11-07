@@ -23,6 +23,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/update_pull_check.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -121,6 +122,19 @@ class LibrarySyncForegroundController extends Notifier<bool> {
     state = value;
   }
 }
+
+/// Whether sync counts the app as foreground in [state] (null: not yet
+/// reported, so foreground). Foreground means the user can see the app: on
+/// desktop `inactive` is a visible but unfocused window, so only `hidden`,
+/// `paused` and `detached` background it. On mobile `inactive` is the app
+/// switcher or the notification shade and backgrounds it.
+bool librarySyncForegroundFor(
+  AppLifecycleState? state, {
+  required bool desktop,
+}) =>
+    state == null ||
+    state == AppLifecycleState.resumed ||
+    (desktop && state == AppLifecycleState.inactive);
 
 final librarySyncForegroundProvider =
     NotifierProvider<LibrarySyncForegroundController, bool>(
@@ -337,6 +351,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   ServerReachabilityStatus? _lastReachabilityStatus;
   bool _isForeground = true;
   DateTime? _backgroundedAt;
+
+  /// Desktop: when the still-visible window lost focus; null while focused.
+  DateTime? _unfocusedAt;
   Future<int?>? _pausedDataVersion;
   Future<void>? _resumeReconciliation;
   Timer? _workerReconciliationTimer;
@@ -367,9 +384,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   @override
   LibrarySyncState build() {
-    final lifecycleState = WidgetsBinding.instance.lifecycleState;
-    _isForeground =
-        lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
+    _isForeground = librarySyncForegroundFor(
+      WidgetsBinding.instance.lifecycleState,
+      desktop: isDesktopRuntime,
+    );
     unawaited(
       Future<void>.microtask(() {
         if (ref.mounted) {
@@ -380,11 +398,23 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       }),
     );
     _lifecycleListener = AppLifecycleListener(
-      onResume: _onAppResumed,
-      onInactive: _onAppBackgrounded,
-      onPause: _onAppBackgrounded,
-      onHide: _onAppBackgrounded,
-      onDetach: _onAppBackgrounded,
+      onStateChange: (state) {
+        final desktop = isDesktopRuntime;
+        final foreground = librarySyncForegroundFor(state, desktop: desktop);
+        if (foreground != _isForeground) {
+          if (foreground) {
+            _onAppResumed();
+            // Restored without focus: a later focus measures from now.
+            _unfocusedAt = desktop && state == AppLifecycleState.inactive
+                ? ref.read(nowProvider)()
+                : null;
+          } else {
+            _onAppBackgrounded();
+          }
+        } else if (desktop && foreground) {
+          _onWindowFocusChanged(state);
+        }
+      },
     );
     ref.onDispose(() {
       _lifecycleListener.dispose();
@@ -1842,13 +1872,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   void _onAppBackgrounded() {
     if (_isForeground) {
-      _backgroundedAt = ref.read(nowProvider)();
+      // Desktop: time away counts from losing focus, not from hiding.
+      _backgroundedAt = _unfocusedAt ?? ref.read(nowProvider)();
       _pausedDataVersion =
           ref.read(serverConfigStateProvider).asData?.value == null
           ? null
           : _readResumeDataVersion();
     }
     _isForeground = false;
+    _unfocusedAt = null;
     _cancelWorkerReconciliation();
     ref.read(librarySyncForegroundProvider.notifier).setForeground(false);
     _cancelPeriodicSync();
@@ -1879,6 +1911,24 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     unawaited(
       _reconcileDatabaseOnResume(pausedVersion, _workerReconciliationEpoch),
     );
+    _startResumeReconciliation();
+  }
+
+  /// Desktop focus flip of a visible window: foreground stays true, so only
+  /// the time-based refresh (update check, network) and the one-shot periodic
+  /// timer, which can fire late after a lock or sleep, are redone. Its 30 s
+  /// threshold measures from the focus loss.
+  void _onWindowFocusChanged(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive) {
+      _unfocusedAt ??= ref.read(nowProvider)();
+    } else if (state == AppLifecycleState.resumed && _unfocusedAt != null) {
+      _backgroundedAt = _unfocusedAt;
+      _unfocusedAt = null;
+      _startResumeReconciliation();
+    }
+  }
+
+  void _startResumeReconciliation() {
     _resumeReconciliation ??= _reconcileOnResume().whenComplete(() {
       _resumeReconciliation = null;
       if (ref.mounted && _isForeground) {
