@@ -3,8 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 
+// ASCII punctuation plus the typographic quotes and dashes a remote catalog
+// writes where the library has the straight form (or the reverse).
 final _identityPunctuation = RegExp(
-  r'''[!"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~]''',
+  r'''[!"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~‘’‚‛“”„‐‑‒–—]''',
 );
 final _identityWhitespace = RegExp(r'\s+');
 
@@ -14,7 +16,16 @@ String? normalizeMusicBrainzId(String? value) {
   return normalized == null || normalized.isEmpty ? null : normalized;
 }
 
-enum SongIdentityMatchReason { sameId, recordingMbid, exactMetadata }
+enum SongIdentityMatchReason {
+  sameId,
+  recordingMbid,
+  exactMetadata,
+
+  /// Last resort when no album-keyed match exists: a remote single's copy of
+  /// an album track. Title and artist agree, the durations are within 3 s and
+  /// exactly one provisional row fits.
+  titleArtistDuration,
+}
 
 sealed class SongIdentityMatchResult {
   const new();
@@ -242,7 +253,18 @@ class SongIdentityReconciliationSession {
       claimsByCandidate.putIfAbsent(claim.provisional.id, () => []).add(claim);
     }
     for (final entry in claimsByCandidate.entries) {
-      final claims = entry.value;
+      var claims = entry.value;
+      // A title-and-artist claim never contests a stronger one: another
+      // library song (a compilation) must not block an exact album match.
+      final strong = claims
+          .where(
+            (claim) =>
+                claim.reason != SongIdentityMatchReason.titleArtistDuration,
+          )
+          .toList(growable: false);
+      if (strong.isNotEmpty) {
+        claims = strong;
+      }
       if (claims.length == 1) {
         await _applyDecision(claims.single);
         continue;
@@ -327,6 +349,10 @@ class _ProvisionalIdentityIndex {
       if (metadata != null) {
         (_byMetadata[metadata] ??= <SongsTableData>[]).add(song);
       }
+      final titleArtist = _metadataKey(song, withAlbum: false);
+      if (titleArtist != null) {
+        (_byTitleArtist[titleArtist] ??= <SongsTableData>[]).add(song);
+      }
     }
   }
 
@@ -335,6 +361,8 @@ class _ProvisionalIdentityIndex {
   final Map<String, List<SongsTableData>> _byMbid =
       <String, List<SongsTableData>>{};
   final Map<String, List<SongsTableData>> _byMetadata =
+      <String, List<SongsTableData>>{};
+  final Map<String, List<SongsTableData>> _byTitleArtist =
       <String, List<SongsTableData>>{};
 
   int get remainingCount => _remaining.length;
@@ -363,10 +391,12 @@ class _ProvisionalIdentityIndex {
         );
       }
     }
-    final duration = canonicalSong.duration;
-    final key = _metadataKey(canonicalSong);
-    if (duration == null || key == null) {
+    if (canonicalSong.duration == null) {
       return const SongIdentityUnmatched();
+    }
+    final key = _metadataKey(canonicalSong);
+    if (key == null) {
+      return _matchTitleArtistDuration(canonicalSong);
     }
     final matches = _active(_byMetadata[key])
         .where(
@@ -401,6 +431,38 @@ class _ProvisionalIdentityIndex {
         candidateIds: matches.map((song) => song.id).toList(growable: false),
       );
     }
+    return _matchTitleArtistDuration(canonicalSong);
+  }
+
+  /// The last tier, tried only when the exact metadata tier found nothing:
+  /// title and artist without album or positions (a single's copy of an
+  /// album track), durations both present within 3 s, no MBID conflict and
+  /// exactly one candidate (several are left unmatched, not reviewed: this tier
+  /// is a guess, so it adds no review entries).
+  SongIdentityMatchResult _matchTitleArtistDuration(
+    SongsTableData canonicalSong,
+  ) {
+    final key = _metadataKey(canonicalSong, withAlbum: false);
+    if (key == null) {
+      return const SongIdentityUnmatched();
+    }
+    final matches = _active(_byTitleArtist[key])
+        .where(
+          (candidate) =>
+              candidate.duration != null &&
+              (candidate.duration! - canonicalSong.duration!).abs() <= 3 &&
+              !_reconciler._mbidsConflict(
+                canonicalSong.recordingMbid,
+                candidate.recordingMbid,
+              ),
+        )
+        .toList(growable: false);
+    if (matches.length == 1) {
+      return SongIdentityMatched(
+        provisionalSong: matches.single,
+        reason: SongIdentityMatchReason.titleArtistDuration,
+      );
+    }
     return const SongIdentityUnmatched();
   }
 
@@ -417,15 +479,18 @@ class _ProvisionalIdentityIndex {
         .toList(growable: false);
   }
 
-  String? _metadataKey(SongsTableData song) {
+  String? _metadataKey(SongsTableData song, {bool withAlbum = true}) {
     final title = _reconciler._normalizeIdentityMetadata(song.title);
     final artist = _reconciler._normalizeIdentityMetadata(
       song.artistName ?? '',
     );
-    final album = _reconciler._normalizeIdentityMetadata(song.albumName ?? '');
-    if (title.isEmpty || artist.isEmpty || album.isEmpty) {
+    if (title.isEmpty || artist.isEmpty) {
       return null;
     }
-    return '$title\u0000$artist\u0000$album';
+    if (!withAlbum) {
+      return '$title\u0000$artist';
+    }
+    final album = _reconciler._normalizeIdentityMetadata(song.albumName ?? '');
+    return album.isEmpty ? null : '$title\u0000$artist\u0000$album';
   }
 }

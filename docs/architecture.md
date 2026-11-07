@@ -6679,7 +6679,13 @@ contract.
   `LibraryDao`).
 - **Identity recovery.** `SongIdentityReconciler` matches on same ID, unique
   recording MBID, then exact normalized title/artist/album with the existing
-  three-second duration tolerance — with two hard rules: contradictory
+  three-second duration tolerance, then (only when that tier found nothing)
+  `titleArtistDuration`: title and artist without album, track or disc, both
+  durations present within three seconds and exactly one candidate (a remote
+  single's copy of an album track; several candidates stay unmatched and add
+  no review entry). The identity key folds typographic quotes and dashes
+  (`’ “ ” –` and friends) like the ASCII ones. A `titleArtistDuration` claim
+  never contests a stronger claim on the same candidate. Two hard rules: contradictory
   non-empty MBIDs prohibit metadata-only matching, and ambiguity never merges
   regardless of page order. Matched claims buffer during canonical paging and
   apply at `finalize()` only after the complete replacement set is observed:
