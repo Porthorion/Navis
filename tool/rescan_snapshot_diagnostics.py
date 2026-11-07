@@ -330,6 +330,18 @@ def main():
         state = run.sql("SELECT candidate_status FROM library_sync_state")[0][0]
         check(state == "awaitingDeletionConfirmation", f"sixteen vanished albums wait for confirmation ({state})")
         check(run.sql("SELECT COUNT(*) FROM songs WHERE id LIKE 'rs-s20' OR id LIKE 'rs-s30'")[0][0] == 2, "the held removal has not been applied")
+        # Nothing but the dialog's confirmation applies the hold: Force rescan
+        # (a repair with no confirmation) and an automatic pass collect the
+        # same removal set and hold again.
+        removed = "SELECT COUNT(*) FROM songs WHERE id LIKE 'rs-s20' OR id LIKE 'rs-s30'"
+        run.post("/v1/sync/repair")
+        run.idle()
+        check(run.sql("SELECT candidate_status FROM library_sync_state")[0][0] == "awaitingDeletionConfirmation", "Force rescan keeps the hold")
+        check(run.sql(removed)[0][0] == 2, "Force rescan does not apply the held removal")
+        run.post("/v1/sync/automatic")
+        run.idle()
+        check(run.sql("SELECT candidate_status FROM library_sync_state")[0][0] == "awaitingDeletionConfirmation", "an automatic pass keeps the hold")
+        check(run.sql(removed)[0][0] == 2, "an automatic pass does not apply the held removal")
         # A scan completed since the hold (G); the user presses Repair Library,
         # and another scan (H) lands while that confirming run is collecting.
         run.set_phase("G")
@@ -344,14 +356,15 @@ def main():
                 time.sleep(0.05)
 
         threading.Thread(target=flip_during_confirm, daemon=True).start()
-        run.post("/v1/sync/repair")
+        run.post("/v1/sync/repair", {"confirmHeldDeletion": True})
         run.idle()
         flipped_repair.set()
         check(run.sql("SELECT candidate_status FROM library_sync_state")[0][0] == "awaitingDeletionConfirmation", "a scan landing during the confirming press keeps the hold")
         check(run.sql("SELECT COUNT(*) FROM songs WHERE id LIKE 'rs-s20' OR id LIKE 'rs-s30'")[0][0] == 2, "the unconfirmed removal has not been applied")
-        repairs = [r for r in run.runs() if r["intent"] == "repairLibrary"]
-        check(repairs and repairs[0]["outcome"] == "deferred" and repairs[0]["reason"] == "scanChanged", f"the confirming press that waited is reported as deferred {repairs[:1]}")
-        run.post("/v1/sync/repair")  # the server is quiet at H: the retry confirms
+        repairs = [r for r in run.runs() if r["intent"] == "repairLibrary" and r["outcome"] == "deferred"]
+        check(repairs and repairs[-1]["reason"] == "scanChanged", f"the confirming press that waited is reported as deferred {repairs[-1:]}")
+        # The server is quiet at H: the next dialog confirmation applies it.
+        run.post("/v1/sync/repair", {"confirmHeldDeletion": True})
         run.idle()
         check(run.sql("SELECT candidate_status FROM library_sync_state")[0][0] is None, "the retry after the scan applies the removal without a second hold")
         check(run.sql("SELECT COUNT(*) FROM songs WHERE id LIKE 'rs-s20' OR id LIKE 'rs-s30'")[0][0] == 0, "the removed albums' songs are gone")

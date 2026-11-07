@@ -1997,6 +1997,36 @@ void main() {
     expect(reset.statusCode, HttpStatus.forbidden);
   });
 
+  test('Z1: repair diagnostics confirms a held deletion only when asked and '
+      'only the hold the controller shows', () async {
+    final controller = _RepairRouteController(
+      const LibrarySyncState(
+        status: LibrarySyncStatus.partial,
+        stage: LibrarySyncStage.validatingCandidate,
+        candidateGeneration: 7,
+        candidateStatus: 'awaitingDeletionConfirmation',
+        deletionCandidateCount: 3,
+      ),
+    );
+    final fixture = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      overrides: [librarySyncControllerProvider.overrideWith(() => controller)],
+    );
+    addTearDown(fixture.close);
+
+    await fixture.post('/v1/sync/repair', const {});
+    await fixture.post('/v1/sync/repair', const {'confirmHeldDeletion': true});
+
+    expect(
+      controller.repairConfirmations.first,
+      isNull,
+      reason: 'Force rescan',
+    );
+    final confirmation = controller.repairConfirmations.last!;
+    expect(confirmation.generation, 7);
+    expect(confirmation.count, 3);
+  });
+
   test(
     'repair diagnostics uses the repair session and forwards mobile consent',
     () async {
@@ -2013,6 +2043,7 @@ void main() {
       });
       expect(start.statusCode, HttpStatus.accepted);
       expect(controller.repairGrants, [true]);
+      expect(controller.repairConfirmations, [null]);
       expect(controller.forceFullCalls, 0);
     },
   );
@@ -4454,17 +4485,23 @@ class _Response {
 }
 
 class _RepairRouteController extends LibrarySyncController {
+  _RepairRouteController([this.initial = const LibrarySyncState.idle()]);
+
+  final LibrarySyncState initial;
   final List<bool> repairGrants = [];
+  final List<HeldDeletionConfirmation?> repairConfirmations = [];
   int forceFullCalls = 0;
 
   @override
-  LibrarySyncState build() => const LibrarySyncState.idle();
+  LibrarySyncState build() => initial;
 
   @override
   Future<LibrarySyncState> repairLibrary({
     bool allowMeteredBroadOverride = false,
+    HeldDeletionConfirmation? confirmation,
   }) async {
     repairGrants.add(allowMeteredBroadOverride);
+    repairConfirmations.add(confirmation);
     return const LibrarySyncState(
       status: LibrarySyncStatus.succeeded,
       stage: LibrarySyncStage.completed,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
@@ -11,6 +12,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -84,6 +86,19 @@ void main() {
     for (final row in await database.select(database.songsTable).get())
       row.id: row,
   };
+
+  /// The plan of the dialog's explicit confirmation: a full repair that
+  /// carries what the dialog showed (the held generation and item count).
+  Future<SyncExecutionPlan> confirmPlan({int? count, int? generation}) async {
+    final state = await database.librarySyncDao.getOrCreateState(serverId);
+    return syncPlanForTest(
+      LibrarySyncPlanKind.fullRepair,
+      confirms: HeldDeletionConfirmation(
+        generation: generation ?? state.candidateGeneration!,
+        count: count ?? state.deletionCandidateCount,
+      ),
+    );
+  }
 
   setUp(() async {
     database = NavisDatabase(NativeDatabase.memory());
@@ -603,9 +618,7 @@ void main() {
 
     // A quiet watcher scan completes before the user presses Repair Library.
     serve(removalSongs(), removalAlbums(), scan3);
-    await engine.executeSyncPlan(
-      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-    );
+    await engine.executeSyncPlan(await confirmPlan());
 
     expect(
       (await database.librarySyncDao.getOrCreateState(serverId))
@@ -636,9 +649,7 @@ void main() {
       [albumRow('a99', '1', 1), ...removalAlbums()],
       scan3,
     );
-    await engine.executeSyncPlan(
-      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-    );
+    await engine.executeSyncPlan(await confirmPlan());
     expect(
       (await database.librarySyncDao.getOrCreateState(serverId))
           .candidateStatus,
@@ -685,9 +696,7 @@ void main() {
     api.scanStatusQueue.add(
       ScanStatus(scanning: false, count: 12, lastScan: scan3),
     );
-    final press = await engine.executeSyncPlan(
-      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-    );
+    final press = await engine.executeSyncPlan(await confirmPlan());
     expect(press.status, LibrarySyncStatus.deferred, reason: 'not a success');
     expect(press.candidateStatus, 'awaitingDeletionConfirmation');
     expect(
@@ -699,9 +708,7 @@ void main() {
 
     // The server is quiet again: the retry confirms without a second hold.
     serve(removalSongs(), removalAlbums(), scan4);
-    final retry = await engine.executeSyncPlan(
-      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-    );
+    final retry = await engine.executeSyncPlan(await confirmPlan());
     expect(retry.status, LibrarySyncStatus.succeeded);
     expect(
       (await database.librarySyncDao.getOrCreateState(serverId))
@@ -914,9 +921,7 @@ void main() {
         ],
         scan3,
       );
-      await engine.executeSyncPlan(
-        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-      );
+      await engine.executeSyncPlan(await confirmPlan());
 
       final state = await database.librarySyncDao.getOrCreateState(serverId);
       expect(state.candidateStatus, 'awaitingDeletionConfirmation');
@@ -942,9 +947,7 @@ void main() {
     api.scanStatusQueue.add(
       ScanStatus(scanning: false, count: 12, lastScan: scan3),
     );
-    final press = await engine.executeSyncPlan(
-      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-    );
+    final press = await engine.executeSyncPlan(await confirmPlan());
     expect(press.status, LibrarySyncStatus.deferred);
     return press;
   }
@@ -985,9 +988,7 @@ void main() {
 
       final scan4 = DateTime.utc(2026, 11, 7, 14);
       serve(removalSongs(), removalAlbums(), scan4);
-      await engine.executeSyncPlan(
-        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-      );
+      await engine.executeSyncPlan(await confirmPlan());
 
       expect(
         (await database.librarySyncDao.getOrCreateState(serverId))
@@ -1017,9 +1018,7 @@ void main() {
         ],
         scan4,
       );
-      await engine.executeSyncPlan(
-        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-      );
+      await engine.executeSyncPlan(await confirmPlan());
 
       expect(
         (await database.librarySyncDao.getOrCreateState(serverId))
@@ -1039,9 +1038,7 @@ void main() {
     await snapshot(scanTriggered: true);
 
     api.throwOnFastPath = const SubsonicConnectionException('connection drop');
-    await engine.executeSyncPlan(
-      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-    );
+    await engine.executeSyncPlan(await confirmPlan());
     api.throwOnFastPath = null;
     expect(
       (await database.librarySyncDao.getOrCreateState(serverId))
@@ -1051,9 +1048,7 @@ void main() {
     );
 
     serve(removalSongs(), removalAlbums(), scan3);
-    await engine.executeSyncPlan(
-      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-    );
+    await engine.executeSyncPlan(await confirmPlan());
     expect(
       (await database.librarySyncDao.getOrCreateState(serverId))
           .candidateStatus,
@@ -1080,14 +1075,225 @@ void main() {
       api.scanStatusQueue.add(
         ScanStatus(scanning: false, count: 12, lastScan: scan3),
       );
-      await engine.executeSyncPlan(
-        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-      );
+      await engine.executeSyncPlan(await confirmPlan());
 
       final state = await database.librarySyncDao.getOrCreateState(serverId);
       expect(state.candidateStatus, isNot('awaitingDeletionConfirmation'));
       expect(state.deletionCandidateCount, 0);
       expect(state.deletionCandidateFingerprint, isNull);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  Future<void> expectStillHeld() async {
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      'awaitingDeletionConfirmation',
+    );
+    final rows = await songsById();
+    expect(rows.containsKey('s7'), isTrue, reason: 'nothing was deleted');
+    expect(rows.containsKey('s8'), isTrue);
+  }
+
+  for (final age in [const Duration(hours: 2), const Duration(days: 30)]) {
+    test(
+      'Z1: a scan snapshot never applies a held deletion (hold aged $age)',
+      () async {
+        serve(removalSongs(), removalAlbums(), scan2);
+        await snapshot(scanTriggered: true);
+        await ageHold(age);
+        final agedFingerprint = (await database.librarySyncDao.getOrCreateState(
+          serverId,
+        )).deletionCandidateFingerprint;
+
+        serve(removalSongs(), removalAlbums(), DateTime.utc(2026, 11, 7, 13));
+        await snapshot(scanTriggered: true);
+
+        await expectStillHeld();
+        // Inside the 24 h window the hold resumes with its start time; past it
+        // a run that carries no confirmation starts a new candidate (the
+        // fingerprint pins the start), and the dialog asks again.
+        final after = (await database.librarySyncDao.getOrCreateState(serverId))
+            .deletionCandidateFingerprint;
+        expect(after == agedFingerprint, age < const Duration(hours: 24));
+      },
+      skip: !sqliteAvailable,
+    );
+  }
+
+  test('Z1: Force rescan (a repair with no confirmation) never applies a held deletion', () async {
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+    await ageHold(const Duration(days: 30));
+
+    serve(removalSongs(), removalAlbums(), scan2);
+    await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+
+    await expectStillHeld();
+  }, skip: !sqliteAvailable);
+
+  test(
+    'Z1: the dialog confirmation applies the held deletion, at any age',
+    () async {
+      serve(removalSongs(), removalAlbums(), scan2);
+      await snapshot(scanTriggered: true);
+      await ageHold(const Duration(days: 30));
+
+      serve(removalSongs(), removalAlbums(), scan2);
+      await engine.executeSyncPlan(await confirmPlan());
+
+      expect(
+        (await database.librarySyncDao.getOrCreateState(serverId))
+            .candidateStatus,
+        isNull,
+      );
+      expect((await songsById()).containsKey('s7'), isFalse);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'Z1: a confirmation of another count or generation holds again',
+    () async {
+      serve(removalSongs(), removalAlbums(), scan2);
+      await snapshot(scanTriggered: true);
+      final held = await database.librarySyncDao.getOrCreateState(serverId);
+
+      await engine.executeSyncPlan(
+        await confirmPlan(count: held.deletionCandidateCount + 1),
+      );
+      await expectStillHeld();
+
+      await engine.executeSyncPlan(
+        await confirmPlan(generation: held.candidateGeneration! + 1),
+      );
+      await expectStillHeld();
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('Z1: a confirmation on anything but a full repair is ignored', () async {
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+    final held = await database.librarySyncDao.getOrCreateState(serverId);
+
+    await engine.executeSyncPlan(
+      syncPlanForTest(
+        LibrarySyncPlanKind.catalogSnapshot,
+        scanTriggered: true,
+        confirms: HeldDeletionConfirmation(
+          generation: held.candidateGeneration!,
+          count: held.deletionCandidateCount,
+        ),
+      ),
+    );
+
+    await expectStillHeld();
+  }, skip: !sqliteAvailable);
+
+  test('Z1: an aged held candidate that a plain run abandons leaves no phantom hold', () async {
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+    await ageHold(const Duration(days: 30));
+
+    api.throwOnFastPath = Exception('server down');
+    await snapshot(scanTriggered: true);
+    api.throwOnFastPath = null;
+
+    final state = await database.librarySyncDao.getOrCreateState(serverId);
+    expect(state.candidateStatus, isNot('awaitingDeletionConfirmation'));
+  }, skip: !sqliteAvailable);
+
+  test('Z3: a Discard during a confirming run is not overridden', () async {
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+    final held = await database.librarySyncDao.getOrCreateState(serverId);
+    final plan = await confirmPlan();
+    final gate = Completer<void>();
+    api.pageGates[0] = gate;
+    api.calls.clear();
+    final run = engine.executeSyncPlan(plan);
+    for (
+      var n = 0;
+      n < 500 && !api.calls.any((c) => c.startsWith('getAlbumListPage:0'));
+      n++
+    ) {
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+    }
+    // The user declines while the run is collecting.
+    final discarded = await database.librarySyncDao
+        .discardAwaitingRepairCandidate(
+          serverId: serverId,
+          generation: held.candidateGeneration!,
+        );
+    gate.complete();
+    await run;
+    api.pageGates.clear();
+
+    expect(discarded, isTrue);
+    expect((await songsById()).containsKey('s7'), isTrue);
+    final after = await database.librarySyncDao.getOrCreateState(serverId);
+    expect(after.candidateStatus, isNull);
+    expect(after.candidateGeneration, isNull);
+  }, skip: !sqliteAvailable);
+
+  test('Z5: a confirming run protects local ratings made since the run began, not since the hold', () async {
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+    await ageHold(const Duration(days: 30));
+    // A rating the user set 10 days ago and that already reached the server
+    // value must not still shield the song from the fresh server data.
+    await database
+        .into(database.librarySyncLocalMutationsTable)
+        .insert(
+          LibrarySyncLocalMutationsTableCompanion.insert(
+            entityType: 'song',
+            entityId: 's1',
+            operation: 'rating',
+            createdAt: DateTime.now().subtract(const Duration(days: 10)),
+          ),
+        );
+    final server = [
+      for (final s in removalSongs())
+        s.id == 's1' ? s.copyWith(userRating: 5) : s,
+    ];
+    serve(server, removalAlbums(), scan2);
+
+    await engine.executeSyncPlan(await confirmPlan());
+
+    expect((await songsById())['s1']!.userRating, 5);
+  }, skip: !sqliteAvailable);
+
+  test(
+    'Z6: a hold caused by songs alone (more than 500) is confirmed too',
+    () async {
+      List<Song> big() => [
+        ...baseSongs(),
+        for (var n = 0; n < 600; n++) song('big$n', 'a1', track: 10 + n),
+      ];
+      List<Album> albums(int a1Songs) => [
+        albumRow('a1', '1', a1Songs),
+        for (final a in baseAlbums().skip(1)) a,
+      ];
+      serve(big(), albums(601), scan2);
+      await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+      expect((await songsById()).containsKey('big599'), isTrue);
+
+      final scan3 = DateTime.utc(2026, 11, 7, 13);
+      serve(baseSongs(), albums(1), scan3);
+      await snapshot(scanTriggered: true);
+      final held = await database.librarySyncDao.getOrCreateState(serverId);
+      expect(held.candidateStatus, 'awaitingDeletionConfirmation');
+      expect(held.deletionCandidateCount, 600);
+      expect((await songsById()).containsKey('big599'), isTrue);
+
+      await engine.executeSyncPlan(await confirmPlan());
+      expect((await songsById()).containsKey('big599'), isFalse);
     },
     skip: !sqliteAvailable,
   );

@@ -137,6 +137,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         intent: request.intent,
         target: request.target,
         grant: SyncNetworkGrant.broadMeteredOnce,
+        confirmsHeldDeletion: request.confirmsHeldDeletion,
       );
     }
     final consented =
@@ -555,6 +556,11 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 request.intent == SyncRunIntent.manualCatalogCheck ||
                 (request.intent == SyncRunIntent.automaticCatalogCheck &&
                     isDue),
+            // A held large deletion waits for the user's explicit
+            // confirmation; a snapshot run must not touch it. The queued row
+            // stays for after the hold is confirmed or discarded.
+            deletionHeld:
+                persisted.candidateStatus == 'awaitingDeletionConfirmation',
           )
         : null;
     final resumedRequest = resumedWork == null
@@ -1934,6 +1940,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     SyncNetworkPolicy policy,
     LibrarySyncRequest request, {
     bool catalogWorkOnly = false,
+    bool deletionHeld = false,
   }) {
     for (final work in runnable) {
       final kind = LibrarySyncPlanKind.values.where(
@@ -1943,6 +1950,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         continue;
       }
       final planKind = kind.first;
+      if (deletionHeld && planKind == LibrarySyncPlanKind.catalogSnapshot) {
+        continue;
+      }
       if (catalogWorkOnly &&
           (planKind == LibrarySyncPlanKind.targetedHydration ||
               (request.intent == SyncRunIntent.manualCatalogCheck &&

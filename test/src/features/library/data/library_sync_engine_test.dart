@@ -2538,7 +2538,7 @@ void main() {
         );
 
         final second = await engine.executeSyncPlan(
-          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+          await repairPlanAfterDialog(database),
         );
         expect(second.status, LibrarySyncStatus.succeeded);
         expect(await database.libraryDao.getAlbumById('album-stale'), isNull);
@@ -2641,7 +2641,7 @@ void main() {
         );
         expect(first.freshness, LibrarySyncFreshness.repairRecommended);
         final second = await protectedEngine.executeSyncPlan(
-          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+          await repairPlanAfterDialog(database),
         );
         expect(second.status, LibrarySyncStatus.succeeded);
 

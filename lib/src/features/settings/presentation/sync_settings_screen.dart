@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -617,6 +618,15 @@ class SyncSettingsScreen extends ConsumerWidget {
     final awaitingDeletionConfirmation =
         syncState.candidateStatus == 'awaitingDeletionConfirmation' &&
         syncState.deletionCandidateCount > 0;
+    // What the dialog shows is what the user confirms: this generation and
+    // this item count, once. A hold that changed meanwhile asks again.
+    final confirmation =
+        awaitingDeletionConfirmation && syncState.candidateGeneration != null
+        ? HeldDeletionConfirmation(
+            generation: syncState.candidateGeneration!,
+            count: syncState.deletionCandidateCount,
+          )
+        : null;
     if (awaitingDeletionConfirmation) {
       final confirmed = await _confirm(
         context,
@@ -649,7 +659,10 @@ class SyncSettingsScreen extends ConsumerWidget {
     unawaited(
       ref
           .read(librarySyncControllerProvider.notifier)
-          .repairLibrary(allowMeteredBroadOverride: allowMeteredBroadOverride),
+          .repairLibrary(
+            allowMeteredBroadOverride: allowMeteredBroadOverride,
+            confirmation: confirmation,
+          ),
     );
   }
 
@@ -665,9 +678,16 @@ class SyncSettingsScreen extends ConsumerWidget {
       action: l10n.syncSettingsRepairDiscardCandidate,
     );
     if (confirmed && context.mounted) {
-      await ref
+      final discarded = await ref
           .read(librarySyncControllerProvider.notifier)
           .discardAwaitingRepairCandidate();
+      if (!discarded && context.mounted) {
+        // A sync started meanwhile and owns the candidate until it ends.
+        showAppNotice(
+          context,
+          message: l10n.syncSettingsRepairDiscardCandidateBusy,
+        );
+      }
     }
   }
 

@@ -108,6 +108,19 @@ String librarySyncTargetEntityIdFromWorkKey(
       : workKey;
 }
 
+/// The user's explicit confirmation of a held large deletion: what the Sync
+/// settings "Apply library repair" dialog showed (the candidate generation and
+/// the number of items). It travels on that one request only, never in a work
+/// row and never inferred from the request's origin, so no other run (an
+/// automatic pass, a scan snapshot, a requeued row, Force rescan) can apply a
+/// held deletion.
+class HeldDeletionConfirmation {
+  const new({required this.generation, required this.count});
+
+  final int generation;
+  final int count;
+}
+
 /// Immutable caller policy shared by planning, admission and execution.
 class LibrarySyncRequest {
   const new({
@@ -115,6 +128,7 @@ class LibrarySyncRequest {
     required this.intent,
     this.target = const LibrarySyncTarget.catalog(),
     this.grant = SyncNetworkGrant.none,
+    this.confirmsHeldDeletion,
   });
 
   const new automatic({SyncRunOrigin origin = SyncRunOrigin.timer})
@@ -138,6 +152,9 @@ class LibrarySyncRequest {
   static const int currentContractVersion = 1;
 
   final SyncRunOrigin origin;
+
+  /// Set only by the explicit dialog confirmation of a held deletion.
+  final HeldDeletionConfirmation? confirmsHeldDeletion;
   final SyncRunIntent intent;
   final LibrarySyncTarget target;
 

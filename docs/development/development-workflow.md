@@ -676,8 +676,8 @@ NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
   seen only when more than half of that gap is frozen), a freeze at a track
   change (its first sample is lost) and syncs shorter than about 3 s. Against a
   server that has rescanned since the clone's last reconciled scan it measures
-  the scan-triggered catalog snapshot during playback; it stamps the clone model-current first so
-  no startup repair runs.
+  the scan-triggered catalog snapshot during playback; it stamps the clone
+  model-current first so no startup repair runs.
 - `folder-import` builds `--folder-files` (default 400) small files named
   `<artist>/<title>.<suffix>` from the catalogue (FLAC files get a minimal
   header) and adopts them through `POST /v1/downloads/folder/adopt`, which

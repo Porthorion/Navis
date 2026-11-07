@@ -2648,6 +2648,20 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     // window applies to it; a changed removal set still holds again.
     final held =
         persistentState.candidateStatus == 'awaitingDeletionConfirmation';
+    final runStartedAt = DateTime.now();
+    // Only the dialog's explicit, one-shot confirmation applies a held
+    // deletion, and only on a full repair for the generation it showed. A
+    // matching removal set alone (an automatic pass, a queued scan snapshot,
+    // Force rescan) never confirms: those runs hold again.
+    final offered = _activeExecutionPlan?.kind == LibrarySyncPlanKind.fullRepair
+        ? _activeExecutionPlan?.request.confirmsHeldDeletion
+        : null;
+    final confirmation =
+        held &&
+            offered != null &&
+            offered.generation == persistentState.candidateGeneration
+        ? offered
+        : null;
     var resumableGeneration =
         const <String>{
               'collecting',
@@ -2656,7 +2670,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
               'applying',
             }.contains(persistentState.candidateStatus) &&
             persistentState.candidateStartedAt != null &&
-            (held ||
+            (confirmation != null ||
                 DateTime.now().difference(persistentState.candidateStartedAt!) <
                     const Duration(hours: 24))
         ? persistentState.candidateGeneration
@@ -2709,14 +2723,16 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         entityIds: {'$catalogGeneration'},
       );
     }
+    // A run that resumes the held generation keeps the hold visible from its
+    // start, so a press that fails or is cancelled can be retried even after
+    // a new scan. A run that starts another generation drops it.
+    final keepHold = held && resumableGeneration == catalogGeneration;
     await _database.librarySyncDao.writeState(
       LibrarySyncStateTableCompanion(
         serverId: Value(serverId),
         candidateGeneration: Value(catalogGeneration),
-        // A confirming run keeps the hold visible from its start, so a press
-        // that fails or is cancelled can be retried even after a new scan.
         candidateStatus: Value(
-          held ? 'awaitingDeletionConfirmation' : 'collecting',
+          keepHold ? 'awaitingDeletionConfirmation' : 'collecting',
         ),
         candidateStartedAt: Value(candidateStartedAt),
         candidateCarriedForwardCount: const Value(0),
@@ -2974,6 +2990,13 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     )) {
       staleSongIds.addAll(page.map((row) => row.id));
     }
+    if (keepHold &&
+        await _holdDiscarded(
+          serverId: serverId,
+          generation: catalogGeneration,
+        )) {
+      return _holdDiscardedState(current, metrics);
+    }
     final deletionAllowed = await _confirmSnapshotDeletion(
       serverId: serverConfig.id,
       persistentState: persistentState,
@@ -2982,7 +3005,9 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       staleSongIds: staleSongIds,
       generation: catalogGeneration,
       candidateStartedAt: candidateStartedAt,
-      allowPreviousConfirmation: resumableGeneration == catalogGeneration,
+      confirmedCount: confirmation != null && keepHold
+          ? confirmation.count
+          : null,
       artistCount: existingArtists.length,
       albumCount: existingAlbums.length,
     );
@@ -3035,6 +3060,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     final promoted = await _promoteFullSyncCandidate(
       serverId: serverId,
       generation: catalogGeneration,
+      collectionStartedAt: held ? runStartedAt : null,
       scanTokenAtCollection: scanTokenAtCollection,
       startedHeld: holdStillNeeded,
       droppedHold: held && !holdStillNeeded,
@@ -3317,6 +3343,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     required (String?, bool) scanTokenAtCollection,
     required bool startedHeld,
     required bool droppedHold,
+    required DateTime? collectionStartedAt,
     required String? reconcileToken,
     required bool explicitRepair,
     required List<String> staleArtistIds,
@@ -3325,8 +3352,13 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     required void Function(LibrarySyncStage) onStage,
   }) async {
     final syncState = await _database.librarySyncDao.getOrCreateState(serverId);
+    // A held generation keeps its start time (it pins the fingerprint), but
+    // the protection windows and the verification stamp belong to the pages
+    // this run collected, so they begin when the run did.
     final candidateStartedAt =
-        syncState.candidateStartedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        collectionStartedAt ??
+        syncState.candidateStartedAt ??
+        DateTime.fromMillisecondsSinceEpoch(0);
     final scanAtPromotion = await _recordScanObservation(
       serverId: serverId,
       metrics: metrics,
@@ -3876,6 +3908,28 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       staleAlbumCount * 10 > albumCount ||
       staleSongCount > 500;
 
+  /// True when the user discarded the held candidate while this run was
+  /// collecting: the run stops without resurrecting it.
+  Future<bool> _holdDiscarded({
+    required int serverId,
+    required int generation,
+  }) async =>
+      (await _database.librarySyncDao.getOrCreateState(serverId))
+          .candidateGeneration !=
+      generation;
+
+  LibrarySyncState _holdDiscardedState(
+    LibrarySyncState current,
+    _SyncRunMetrics metrics,
+  ) => _withMetrics(
+    current.copyWith(
+      stage: LibrarySyncStage.validatingCandidate,
+      clearCandidateStatus: true,
+      clearCandidateGeneration: true,
+    ),
+    metrics,
+  );
+
   Future<bool> _confirmSnapshotDeletion({
     required int? serverId,
     required LibrarySyncStateTableData? persistentState,
@@ -3884,7 +3938,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     required List<String> staleSongIds,
     required int generation,
     required DateTime candidateStartedAt,
-    required bool allowPreviousConfirmation,
+    required int? confirmedCount,
     required int artistCount,
     required int albumCount,
   }) async {
@@ -3921,7 +3975,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         .toString();
     final candidateCount =
         staleArtistIds.length + staleAlbumIds.length + staleSongCount;
-    if (allowPreviousConfirmation &&
+    if (confirmedCount == candidateCount &&
         persistentState.deletionCandidateFingerprint == fingerprint &&
         persistentState.deletionCandidateCount == candidateCount) {
       return true;

@@ -6856,18 +6856,36 @@ contract.
   the server is still at that token; otherwise its pages are discarded and
   collected again. A candidate written by an older build carries no token and
   is discarded and collected again once. A held large-deletion candidate is
-  exempt from the token rule and from the 24 hour resume window: it always
-  collects fresh pages, its generation and start time pin the confirmation
-  fingerprint, and a retry hours or days later still applies the confirmed
-  removal unless the removed set changed (then it holds again). If a scan lands
+  exempt from the token rule, and a run that carries the dialog's confirmation
+  is exempt from the 24 hour resume window too: it always collects fresh
+  pages, and its generation and start time pin the confirmation fingerprint.
+  Only the explicit, one-shot confirmation of the Apply Library Repair dialog
+  applies a held deletion. It is a `HeldDeletionConfirmation(generation, count)`
+  that `repairLibrary` puts on that one request (`confirmsHeldDeletion`); it is
+  never stored on a work row and never inferred from the origin, because Force
+  rescan shares the `settingsRepair` origin and `repairLibrary` intent. The
+  engine applies it only on a full repair that resumes the held generation and
+  only when the confirmed generation and count equal the stored hold and the
+  recollected removal set still matches the stored fingerprint, after a check
+  that the candidate was not discarded since the run began. A matching removal set alone confirms nothing: an automatic
+  pass, a scan-triggered snapshot, a queued or failed snapshot row and Force
+  rescan collect, find the hold and hold again. The coordinator therefore
+  skips `catalogSnapshot` rows while a hold waits and leaves them queued. If the
+  removed set changed since the dialog, or another count or generation was
+  confirmed, the run holds again and the dialog asks again. The protection
+  windows for local stars and ratings and the `songs_verified_at` stamp begin
+  when the confirming run started, not at the hold. If a scan lands
   during the confirming run itself, the hold is kept (and visible from the
   start of a confirming run, so a failed or cancelled press keeps it too) and
   the run is reported as deferred, so the repair row is not completed. Nothing
   retries a deferred confirmation by itself: automatic runs refuse a full
-  repair, so only the user's next Repair Library press confirms it, and that
-  press releases the row at once (its short backoff never delays it). Discard
-  removes the held candidate together with that queued or failed repair row. If
-  the removal no longer applies when a scan lands mid-run, no hold or prompt is
+  repair, so only the user's next Repair Library press confirms it (the dialog
+  shows again and carries a new confirmation), and that press releases the row
+  at once (its short backoff never delays it). Discard removes the held
+  candidate together with that server's queued or failed repair row; it is
+  refused (the dialog says a sync is running) while a run holds the execution
+  lease, and a run that finds its candidate discarded stops without restoring
+  it. If the removal no longer applies when a scan lands mid-run, no hold or prompt is
   restored. When the status read
   fails (or the server has no status), the current scan is unknown: the
   candidate is kept and only the scan its pages were collected under is

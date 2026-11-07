@@ -33,6 +33,7 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   final void Function({required bool allowMeteredBroadOverride})? onSyncNow;
   final Future<bool> Function()? onDiscardRepairCandidate;
   int repairCalls = 0;
+  HeldDeletionConfirmation? lastRepairConfirmation;
   bool? lastRepairMeteredOverride;
 
   @override
@@ -67,8 +68,10 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   @override
   Future<LibrarySyncState> repairLibrary({
     bool allowMeteredBroadOverride = false,
+    HeldDeletionConfirmation? confirmation,
   }) async {
     repairCalls++;
+    lastRepairConfirmation = confirmation;
     lastRepairMeteredOverride = allowMeteredBroadOverride;
     return stateValue;
   }
@@ -569,6 +572,7 @@ void main() {
             ).read(librarySyncControllerProvider.notifier)
             as _FakeLibrarySyncController;
     expect(controller.repairCalls, 1);
+    expect(controller.lastRepairConfirmation, isNull);
     expect(controller.lastRepairMeteredOverride, isFalse);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -905,6 +909,9 @@ void main() {
             ).read(librarySyncControllerProvider.notifier)
             as _FakeLibrarySyncController;
     expect(controller.repairCalls, 1);
+    // The dialog's confirmation carries exactly what it showed.
+    expect(controller.lastRepairConfirmation?.generation, 12);
+    expect(controller.lastRepairConfirmation?.count, 531);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));

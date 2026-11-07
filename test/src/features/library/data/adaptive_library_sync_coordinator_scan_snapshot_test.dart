@@ -423,6 +423,38 @@ void main() {
       expect((await work(_snapshot))!.status, 'awaitingConfirmation');
     }, skip: !sqliteAvailable);
 
+    for (final status in ['queued', 'failed']) {
+      test(
+        'Z2: a $status snapshot row never runs while a deletion is held',
+        () async {
+          await database.librarySyncDao.writeState(
+            const LibrarySyncStateTableCompanion(
+              serverId: Value(_serverId),
+              candidateGeneration: Value(2),
+              candidateStatus: Value('awaitingDeletionConfirmation'),
+            ),
+          );
+          await seedWork(
+            _snapshot,
+            status: status,
+            age: const Duration(days: 2),
+          );
+          for (final request in [automatic, manual]) {
+            final executor = executorObserving();
+            await coordinatorFor(executor).requestSync(request);
+            expect(
+              _catalogKinds(executor),
+              isNot(contains(LibrarySyncPlanKind.catalogSnapshot)),
+              reason: '${request.intent}',
+            );
+          }
+          // Left in place for after the hold is confirmed or discarded.
+          expect((await work(_snapshot))!.status, status);
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
     test('a failed snapshot keeps its backoff for automatic passes and is '
         'released by a manual check', () async {
       final retryAt = _clock.add(const Duration(hours: 2));
@@ -964,48 +996,48 @@ void main() {
       skip: !sqliteAvailable,
     );
 
-    test('a deferred confirming repair gets the plain backoff, never the daily wait', () async {
-      await database
-          .update(database.serverConfigTable)
-          .write(
-            ServerConfigTableCompanion(
-              capabilities: Value(
-                jsonEncode({
-                  'navis': {'libraryScanDeferralStreak': '4'},
-                }),
+    for (final (streak, minutes) in [(1, 15), (2, 30), (3, 60), (4, 60)]) {
+      test('a deferred confirming repair at streak $streak waits exactly '
+          '$minutes min, never the daily wait', () async {
+        await database
+            .update(database.serverConfigTable)
+            .write(
+              ServerConfigTableCompanion(
+                capabilities: Value(
+                  jsonEncode({
+                    'navis': {'libraryScanDeferralStreak': '$streak'},
+                  }),
+                ),
               ),
-            ),
-          );
-      final executor = executorReturning(
-        (plan) => plan.kind == LibrarySyncPlanKind.fullRepair
-            ? LibrarySyncState(
-                status: LibrarySyncStatus.deferred,
-                stage: LibrarySyncStage.collectingCandidate,
-                candidateGeneration: 2,
-                candidateStatus: 'awaitingDeletionConfirmation',
-                failureCategory: 'scanChanged',
-                completedAt: clock,
-              )
-            : LibrarySyncState(
-                status: LibrarySyncStatus.succeeded,
-                stage: LibrarySyncStage.completed,
-                metadataReady: true,
-                completedAt: clock,
-              ),
-      );
-      await coordinatorFor(executor).requestSync(
-        const LibrarySyncRequest(
-          origin: SyncRunOrigin.settingsRepair,
-          intent: SyncRunIntent.repairLibrary,
-        ),
-      );
-      final row = (await work('fullRepair'))!;
-      expect(row.status, 'queued');
-      expect(
-        row.notBefore!.difference(clock),
-        lessThanOrEqualTo(const Duration(hours: 1)),
-      );
-    }, skip: !sqliteAvailable);
+            );
+        final executor = executorReturning(
+          (plan) => plan.kind == LibrarySyncPlanKind.fullRepair
+              ? LibrarySyncState(
+                  status: LibrarySyncStatus.deferred,
+                  stage: LibrarySyncStage.collectingCandidate,
+                  candidateGeneration: 2,
+                  candidateStatus: 'awaitingDeletionConfirmation',
+                  failureCategory: 'scanChanged',
+                  completedAt: clock,
+                )
+              : LibrarySyncState(
+                  status: LibrarySyncStatus.succeeded,
+                  stage: LibrarySyncStage.completed,
+                  metadataReady: true,
+                  completedAt: clock,
+                ),
+        );
+        await coordinatorFor(executor).requestSync(
+          const LibrarySyncRequest(
+            origin: SyncRunOrigin.settingsRepair,
+            intent: SyncRunIntent.repairLibrary,
+          ),
+        );
+        final row = (await work('fullRepair'))!;
+        expect(row.status, 'queued');
+        expect(row.notBefore!.difference(clock), Duration(minutes: minutes));
+      }, skip: !sqliteAvailable);
+    }
 
     test(
       'discarding a held candidate removes the deferred repair row',
