@@ -357,6 +357,9 @@ abstract class _DelegatingNavisPlaybackHandler
       _delegate.currentReplayGainDecision;
 
   @override
+  bool get replayGainBoostSupported => _delegate.replayGainBoostSupported;
+
+  @override
   Stream<MediaItem?> get mediaItemStream => _delegate.mediaItemStream;
 
   @override

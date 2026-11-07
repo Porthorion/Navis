@@ -29,6 +29,9 @@ class InertPlaybackHandler implements NavisPlaybackHandler {
   Set<String> get rollingCacheProtectedSongIds => const <String>{};
   @override
   ReplayGainDecision? get currentReplayGainDecision => null;
+
+  @override
+  bool get replayGainBoostSupported => false;
   @override
   Stream<MediaItem?> get mediaItemStream => const Stream.empty();
   @override

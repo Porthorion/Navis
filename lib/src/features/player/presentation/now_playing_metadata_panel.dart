@@ -595,9 +595,11 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
     ),
     if (replayGain?.db case final db?)
       _NowPlayingInfoPage(
-        icon: Icons.volume_down_outlined,
+        icon: replayGain!.boostDb > 0
+            ? Icons.volume_up_outlined
+            : Icons.volume_down_outlined,
         semanticLabel: l10n.mediaInfoReplayGain,
-        value: _formatReplayGain(l10n, replayGain!, db, untaggedAutomatic),
+        value: _formatReplayGain(l10n, replayGain, db, untaggedAutomatic),
         isReplayGainPage: true,
       ),
     _NowPlayingInfoPage(
@@ -910,8 +912,9 @@ String _formatAudioQuality({
   return parts.join(' • ');
 }
 
-/// "−6.2 dB · album (Smart)": the dB ReplayGain applies and why. One decimal,
-/// a real minus sign, and never "−0.0".
+/// "−6.2 dB · album (Smart)" or "+6.2 dB · track": the dB ReplayGain applies
+/// and why. One decimal, a real minus sign, a plus sign for a boost, and never
+/// "−0.0".
 String _formatReplayGain(
   AppLocalizations l10n,
   ReplayGainDecision decision,
@@ -919,17 +922,19 @@ String _formatReplayGain(
   bool untaggedAutomatic,
 ) {
   final fixed = db.toStringAsFixed(1);
+  final shown = switch (fixed) {
+    '-0.0' || '0.0' => '0.0',
+    _ when db > 0 => '+$fixed',
+    _ => fixed.replaceFirst('-', '−'),
+  };
   final smart = decision.mode == 'smart';
   final isAlbum = decision.source == ReplayGainSource.album;
-  return l10n.nowPlayingReplayGainValue(
-    fixed == '-0.0' ? '0.0' : fixed.replaceFirst('-', '−'),
-    switch (decision.source) {
-      ReplayGainSource.untagged =>
-        untaggedAutomatic ? 'untaggedAutomatic' : 'untaggedFixed',
-      _ when smart => isAlbum ? 'smartAlbum' : 'smartTrack',
-      _ => isAlbum ? 'album' : 'track',
-    },
-  );
+  return l10n.nowPlayingReplayGainValue(shown, switch (decision.source) {
+    ReplayGainSource.untagged =>
+      untaggedAutomatic ? 'untaggedAutomatic' : 'untaggedFixed',
+    _ when smart => isAlbum ? 'smartAlbum' : 'smartTrack',
+    _ => isAlbum ? 'album' : 'track',
+  });
 }
 
 String _formatReleaseDate(SongsTableData? song, AlbumsTableData? album) {

@@ -3205,6 +3205,28 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'POST' && path == '/v1/playback/replay-gain') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        // Runtime checks of ReplayGain: `mode` and `preamp` (dB) as set in
+        // Settings > Playback, applied to the playing song at once.
+        final body = await _readJson(request);
+        final repository = _container.read(settingsRepositoryProvider);
+        final current = await repository.getSettings();
+        final mode = body['mode'] as String?;
+        final preamp = (body['preamp'] as num?)?.toDouble();
+        await repository.saveSettings(
+          current.copyWith(replayGainMode: mode, replayGainPreamp: preamp),
+        );
+        await (await _waitForPlaybackHandler()).applyRuntimeSettings();
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'mode': mode ?? current.replayGainMode,
+          'preamp': preamp ?? current.replayGainPreamp,
+        });
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/artists/playback/status') {
         await _respond(
           request,

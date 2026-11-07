@@ -960,6 +960,14 @@ tools and NumPy. The quality gate includes the new conversion/controller, paired
 handler, storage, API and responsive widget regression tests through the full
 suite; native device/host coverage must still be reported separately.
 
+### ReplayGain boost release evidence
+
+Playback changes that touch the ReplayGain boost (rule, handler send path or the
+media_kit adapter) also run `tool/replaygain_boost_diagnostics.sh` on Linux; it
+is not part of `./tool/check.sh` because it needs a profile build, a PulseAudio
+null sink and a compositor. Windows (the `\\?\` path key) and a lossy stream
+are not covered. See [development-workflow.md](development-workflow.md).
+
 ### Equalizer release evidence
 
 The quality gate includes native JVM response/PCM fixtures as well as Dart,

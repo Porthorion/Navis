@@ -12,3 +12,8 @@ calculations are also used by the Linux mpv chain compiler.
 `ProgressiveAudioSourceOptionsMessage.androidUseDefaultLoadErrorHandling`
 serializes the radio opt-out from Navis's Android unknown-length VOD retry
 policy. It defaults to false; other platform adapters ignore the option.
+
+`AudioPlayerPlatform.setReplayGainBoost` carries Navis's ReplayGain boost
+(positive gain): the playing song's boost and a per-URI map for backends that
+switch gain per file. The default throws `UnimplementedError`, which the app
+reads as "no boost stage here".

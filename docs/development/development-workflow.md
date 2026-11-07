@@ -915,7 +915,9 @@ the tree remains otherwise usable.
   `{"op":"move","from":a,"to":b}`) and returns the playback diagnostics;
   `POST /v1/playback/quality` sets the Wi-Fi and cellular streaming format and
   bit rate (`{"wifi":{"format":"opus","maxBitRate":128},"cellular":{...}}`) and
-  applies them to the handler; `POST /v1/playback/recovery-fixture` also accepts
+  applies them to the handler; `POST /v1/playback/replay-gain`
+  (`{"mode":"track","preamp":3}`) sets the ReplayGain mode and pre-amp (dB) and
+  applies them to the playing song; `POST /v1/playback/recovery-fixture` also accepts
   `action: rawSeekBack` (a raw player seek about 6 s back that bypasses the
   handler). In a diagnostics build `GET /v1/playback/status` adds
   `transportTrace`, a 200-entry ring of timestamped native-transport events
@@ -2286,6 +2288,29 @@ selection (asserted through `GET /v1/equalizer`), and opening and closing the
 Equalizer page from both the desktop view and Mini Player.
 These controls require normal diagnostics authentication and mutation is
 forbidden in primary-certification mode.
+
+### ReplayGain boost diagnostics
+
+`./tool/replaygain_boost_diagnostics.sh [--scenarios d1,d2,d4,d5]` is the Linux
+runtime gate for the desktop ReplayGain boost (changes to
+`navis_playback_rules.dart` boost rules, `_applyReplayGainBoost`, or the
+media_kit adapter's `ReplayGainBoostState`). It clones the profile, adds
+synthetic songs (Q: a -30 dBFS sine tagged +10 dB with its peak; H: -1 dBFS
+tagged -3 dB), and captures the app's output from a disposable null sink with
+`parec`. `tool/replaygain_boost_analyze.py` asserts the levels: Q plays at -20
+dBFS and H at -4 dBFS (d1), no sample above H's own level at either join, the
+boost adds nothing over a control where Q has no peak, Q's head is held down
+then raised, and the hook's gain write lands at the song change (d3 samples in
+the same run); skip, queue jump, seek, removing the playing song and repeat-one
+keep the right level (d2); cross-fade on has no over-boost and no 50 ms RMS
+step (d4); a pre-amp rise in a song's last second never lifts its tail (d5).
+With no display it starts a private headless `kwin_wayland` and passes
+`--no-enable-impeller` to the build (`NAVIS_DIAGNOSTICS_RUN_ARGS`), since
+Impeller's GLES backend cannot get a framebuffer there. `POST
+/v1/playback/replay-gain` sets the mode and pre-amp for d5. The same Q/H songs
+exist for the streaming fixture server as `TranscodeLibrary(...,
+replay_gain_levels=True)` in `tool/seek_reliability_diagnostics.py`. Evidence
+lives under `build/replaygain-boost-diagnostics/`.
 
 ### Equalizer diagnostics
 

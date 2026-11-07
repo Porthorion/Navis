@@ -1255,6 +1255,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'ReplayGain turns loud songs down so they all play at a similar volume. It never turns songs up, so overall volume may sound lower: turn the volume up to compensate.';
 
   @override
+  String get playbackSettingsReplayGainIntroBoost =>
+      'ReplayGain plays every song at a similar volume. It turns loud songs down, and turns quiet songs up only as far as their peak level allows without distortion. Songs without ReplayGain data are never turned up. Most songs still end up quieter, so raise the volume to compensate.';
+
+  @override
   String get playbackSettingsReplayGainPreampSubtitleDown =>
       'Turns every song down further. It can\'t push a song above its original level.';
 
@@ -1265,6 +1269,18 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get playbackSettingsReplayGainPreampSubtitleUp =>
       'Gives back some of the turn-down, but never pushes a song above its original level.';
+
+  @override
+  String get playbackSettingsReplayGainPreampSubtitleDownBoost =>
+      'Turns every song down further.';
+
+  @override
+  String get playbackSettingsReplayGainPreampSubtitleZeroBoost =>
+      'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB.';
+
+  @override
+  String get playbackSettingsReplayGainPreampSubtitleUpBoost =>
+      'Turns every song up, but never past what its peak level allows. Songs without ReplayGain data or a peak level are never pushed above their original level.';
 
   @override
   String playbackSettingsReplayGainCoverage(

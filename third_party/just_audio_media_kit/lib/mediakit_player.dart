@@ -13,6 +13,7 @@ import 'src/icy_property_source.dart';
 import 'src/mpv_errors.dart';
 import 'src/set_property.dart';
 import 'src/equalizer_chain.dart';
+import 'src/replay_gain_boost.dart';
 
 /// An [AudioPlayerPlatform] which wraps `package:media_kit`'s [Player]
 class MediaKitPlayer extends AudioPlayerPlatform {
@@ -76,6 +77,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       return start.position;
     });
 
+    // Navis: ReplayGain boost (positive gain) rides mpv's per-file
+    // `volume-gain`, set from the `on_load` hook so it ends with the file.
+    configureReplayGainBoost(
+        _player, (index, path) => _boost.onLoad(position: index, path: path));
+
     _nativeSeekingReady = configureNativeSeeking(_player, (seeking) {
       _nativeSeeking = seeking;
       // mpv reports `seeking` only once a file's playback is initialized;
@@ -128,6 +134,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         _updatePlaybackEvent();
       }),
       _player.stream.position.listen((position) {
+        _raiseBoostIfDue(position);
         if (!_mediaOpened) return;
         _position = position;
         final start = _currentMedia?.start;
@@ -274,6 +281,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// Seeks sent before that are rejected, so retained positions wait for it.
   bool _playbackInitialized = false;
 
+  /// The ReplayGain boost of the playing file and the queue (see
+  /// [setReplayGainBoost]).
+  final _boost = ReplayGainBoostState();
+
   /// The entry and position mpv starts the next load of that entry at.
   ({int index, Duration position})? _nativeStart;
   bool _nativeStartSupported = false;
@@ -362,6 +373,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         'requestedPlaying': _playing,
         'pendingPosition': _deferredSeek.isPending,
         'seeking': _nativeSeeking,
+        // What mpv itself reports, then what the adapter meant to write.
+        'replayGainBoostDb': nativeVolumeGain(_player),
+        'replayGainBoostIntendedDb': _boost.applied,
+        'replayGainBoostHeldDb': _boost.held,
       };
 
   EqualizerConfigurationMessage? _equalizer;
@@ -448,6 +463,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     _loadCompleter = load;
     _deferredSeek.beginLoad(request.initialPosition);
     _currentIndex = request.initialIndex ?? 0;
+    _boost.expectSwitch(_currentIndex);
     final initialPosition = request.initialPosition;
     _nativeStart = _nativeStartSupported &&
             initialPosition != null &&
@@ -585,6 +601,26 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     return _eqState;
   }
 
+  /// Stores the boost of every queued URI for the `on_load` hook and applies
+  /// the playing file's own boost now (see [ReplayGainBoostState]).
+  @override
+  Future<void> setReplayGainBoost(SetReplayGainBoostRequest request) async {
+    if (_released) return;
+    _writeBoost(_boost.update(request.byUri));
+  }
+
+  void _raiseBoostIfDue(Duration position) {
+    if (_released) return;
+    _writeBoost(_boost.raiseDue(position));
+  }
+
+  void _writeBoost(double? db) {
+    if (db == null || _released) return;
+    // Synchronous, like the hook: an awaited property set could land on the
+    // file that follows.
+    writeFileLocalVolumeGain(_player, db);
+  }
+
   @override
   Future<EqualizerStateMessage> getEqualizerState() async {
     await _audioLane;
@@ -642,6 +678,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     if (request.index != null && !sameEntry) {
       final position = request.position;
       _playbackInitialized = false;
+      // mpv ignores a jump to the entry it is already on, and then no hook
+      // follows; its own position tells, media_kit's state lags it.
+      if (nativePlaylistPosition(_player) != request.index) {
+        _boost.expectSwitch(request.index!);
+      }
       // A fresh entry starts at zero; only non-zero positions need a seek.
       _deferredSeek.beginLoad(position);
       _nativeStart =
@@ -705,6 +746,17 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // One playback event for the range, as for inserts, rather than one per
     // removed child.
     _bulkPlaylistMutation = true;
+    // Removing the playing entry replaces the file and clears mpv's buffer,
+    // but only when an entry follows it to be loaded.
+    final playing =
+        nativePlaylistPosition(_player) ?? _player.state.playlist.index;
+    final remaining = _player.state.playlist.medias.length -
+        (request.endIndex - request.startIndex);
+    if (playing >= request.startIndex &&
+        playing < request.endIndex &&
+        remaining > request.startIndex) {
+      _boost.expectSwitch(request.startIndex);
+    }
     try {
       for (var i = request.startIndex; i < request.endIndex; i++) {
         await _player.remove(request.startIndex);

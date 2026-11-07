@@ -64,7 +64,7 @@ const _playing = PlaybackSnapshot(
 ReplayGainDecision _decision(String mode, double? db) => ReplayGainDecision(
   mode: mode,
   resolvedMode: mode == 'smart' ? 'album' : mode,
-  db: db,
+  cutDb: db,
   source: db == null ? null : ReplayGainSource.album,
 );
 

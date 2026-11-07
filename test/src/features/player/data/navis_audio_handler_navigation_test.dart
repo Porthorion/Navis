@@ -890,6 +890,34 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     for (final source in _sources) ...source.sequence,
   ];
 
+  /// Every ReplayGain boost message this deck received, oldest first.
+  final boostMessages =
+      <
+        ({
+          double currentDb,
+          bool guarded,
+          bool playing,
+          Map<String?, double> bySongId,
+        })
+      >[];
+
+  @override
+  Future<void> setReplayGainBoost({
+    required double currentDb,
+    bool guarded = false,
+    Map<IndexedAudioSource, double> bySource = const {},
+  }) async {
+    boostMessages.add((
+      currentDb: currentDb,
+      guarded: guarded,
+      playing: isPlaying,
+      bySongId: {
+        for (final entry in bySource.entries)
+          navisNativeSourceSongId(entry.key): entry.value,
+      },
+    ));
+  }
+
   @override
   Future<void> setVolume(double value) async {
     await volumeHold?.future;
@@ -15702,9 +15730,11 @@ void main() {
     double mpvFactor(double db) => pow(10, db / 60).toDouble();
     double linearFactor(double db) => pow(10, db / 20).toDouble();
 
-    // song-N carries gains[N]; a null entry is an untagged song.
+    // song-N carries gains[N]; a null entry is an untagged song. peaks[N] is
+    // its track peak (a sample ratio), when given.
     Future<(NavisAudioHandler, _ControllableAudioPlayer)> gained(
       List<double?> gains, {
+      List<double?>? peaks,
       PlaybackAdjustmentCapabilities caps = exo,
       String mode = 'track',
       String Function()? readMode,
@@ -15725,7 +15755,10 @@ void main() {
             await (database.update(
               database.songsTable,
             )..where((song) => song.id.equals('song-$i'))).write(
-              SongsTableCompanion(replayGainTrackGain: Value(gains[i])),
+              SongsTableCompanion(
+                replayGainTrackGain: Value(gains[i]),
+                replayGainTrackPeak: Value(peaks?.elementAtOrNull(i)),
+              ),
             );
           }
         },
@@ -15761,6 +15794,121 @@ void main() {
         expect(player.volume, 0.25);
       });
     }
+
+    group('boost', () {
+      test(
+        'a quiet song with room is turned up on mpv, not by the volume',
+        () async {
+          final (handler, player) = await gained(
+            [6, -10.5],
+            peaks: [0.1, 0.5],
+            caps: mpv,
+          );
+          await handler.setVolume(0.25);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          expect(handler.replayGainBoostSupported, isTrue);
+          expect(player.volume, 0.25, reason: 'the cut is 0 dB');
+          expect(handler.currentReplayGainDecision?.boostDb, 6);
+          expect(handler.currentReplayGainDecision?.db, 6);
+          final sent = player.boostMessages.last;
+          expect(sent.currentDb, 6);
+          expect(sent.bySongId, {'song-0': 6.0, 'song-1': 0.0});
+        },
+      );
+
+      test('a cut song sends no boost and keeps its volume cut', () async {
+        final (handler, player) = await gained(
+          [-10.5],
+          peaks: [0.1],
+          caps: mpv,
+        );
+        await handler.setVolume(0.25);
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        expect(player.volume, closeTo(0.25 * mpvFactor(-10.5), 0.00001));
+        expect(player.boostMessages.last.currentDb, 0);
+      });
+
+      test('a song without a peak is never boosted', () async {
+        final (handler, player) = await gained([6], caps: mpv);
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        expect(player.boostMessages.last.currentDb, 0);
+        expect(handler.currentReplayGainDecision?.boostDb, 0);
+      });
+
+      test('the boost stops 1 dB under the peak ceiling', () async {
+        // Peak 0.5 -> ceiling 6.02 dB -> boost 5.02 dB.
+        final (handler, player) = await gained([9], peaks: [0.5], caps: mpv);
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        expect(
+          player.boostMessages.last.currentDb,
+          closeTo(20 * log(2) / ln10 - 1, 0.001),
+        );
+      });
+
+      test('skipping sends the next song\'s own boost', () async {
+        final (handler, player) = await gained(
+          [6, 3],
+          peaks: [0.1, 0.1],
+          caps: mpv,
+        );
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        expect(player.boostMessages.last.currentDb, 6);
+        await handler.skipToNext();
+        await settleQueue(handler);
+        expect(player.boostMessages.last.currentDb, 3);
+      });
+
+      test('a settings change re-sends the boost', () async {
+        var mode = 'track';
+        final (handler, player) = await gained(
+          [6],
+          peaks: [0.1],
+          caps: mpv,
+          readMode: () => mode,
+        );
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        expect(player.boostMessages.last.currentDb, 6);
+        mode = 'off';
+        await handler.applyRuntimeSettings();
+        await pumpEventQueue();
+        expect(player.boostMessages.last.currentDb, 0);
+        expect(handler.currentReplayGainDecision?.db, isNull);
+      });
+
+      test(
+        'ExoPlayer has no boost stage: nothing is sent, boost is 0',
+        () async {
+          final (handler, player) = await gained([6], peaks: [0.1], caps: exo);
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          expect(handler.replayGainBoostSupported, isFalse);
+          expect(player.boostMessages, isEmpty);
+          expect(handler.currentReplayGainDecision?.boostDb, 0);
+          expect(handler.currentReplayGainDecision?.db, 0);
+          expect(
+            (handler.collectPlaybackDiagnostics()['replayGain']
+                as Map<String, Object?>)['boostDb'],
+            0,
+          );
+        },
+      );
+
+      test('diagnostics report the cut and the boost', () async {
+        final (handler, _) = await gained([6], peaks: [0.1], caps: mpv);
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        final json =
+            handler.collectPlaybackDiagnostics()['replayGain']
+                as Map<String, Object?>;
+        expect(json['cutDb'], 0);
+        expect(json['boostDb'], 6);
+        expect(json['db'], 6);
+      });
+    });
 
     test('an untagged song takes the fallback level', () async {
       final (handler, player) = await gained([null, -10.5], caps: mpv);
@@ -16277,6 +16425,8 @@ void main() {
         'resolvedMode': 'album',
         'source': 'album',
         'db': -4.0,
+        'cutDb': -4.0,
+        'boostDb': 0.0,
       });
     });
   });
@@ -16300,6 +16450,7 @@ void main() {
       bool transcodeOffset = false,
       NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
+      Future<void> Function(NavisDatabase database)? seed,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-fade-');
       final created = await createHandler(
@@ -16324,6 +16475,7 @@ void main() {
         replayGainMode: replayGainMode,
         replayGainUntaggedDb: replayGainUntaggedDb,
         adjustmentCapabilities: adjustmentCapabilities,
+        seed: seed,
       );
       addTearDown(() async {
         await created.$1.disposeHandler();
@@ -16339,6 +16491,72 @@ void main() {
       }
       expect(condition(), isTrue, reason: 'crossfade did not settle');
     }
+
+    group('ReplayGain boost', () {
+      const mpv = PlaybackAdjustmentCapabilities.mediaKit;
+
+      // song-0 +6 dB (peak 0.1), song-1 +3 dB (peak 0.1), song-2 -4 dB.
+      Future<void> seedGains(NavisDatabase database) async {
+        for (final (i, gain, peak) in [
+          (0, 6.0, 0.1),
+          (1, 3.0, 0.1),
+          (2, -4.0, 0.1),
+        ]) {
+          await (database.update(
+            database.songsTable,
+          )..where((song) => song.id.equals('song-$i'))).write(
+            SongsTableCompanion(
+              replayGainTrackGain: Value(gain),
+              replayGainTrackPeak: Value(peak),
+            ),
+          );
+        }
+      }
+
+      test('F3: the incoming deck has its own boost before it plays', () async {
+        final (handler, _, _) = await crossfading(
+          3,
+          adjustmentCapabilities: mpv,
+          replayGainMode: 'track',
+          seed: seedGains,
+        );
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        await handler.debugStartCrossfade();
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        await waitForFade(() => incoming.playing);
+        final beforePlay = incoming.boostMessages.where((m) => !m.playing);
+        expect(beforePlay, isNotEmpty);
+        expect(
+          beforePlay.last.currentDb,
+          3,
+          reason: "song-1's own boost, sent before play",
+        );
+        expect(beforePlay.last.bySongId['song-1'], 3);
+        await handler.debugCompleteCrossfade();
+        // Nothing steps at the handover: the last message still says the same.
+        expect(incoming.boostMessages.last.currentDb, 3);
+      });
+
+      test(
+        'F6: a boost send never freezes Smart for the inactive deck',
+        () async {
+          final (handler, _, _) = await crossfading(
+            3,
+            adjustmentCapabilities: mpv,
+            replayGainMode: 'smart',
+            seed: seedGains,
+          );
+          await handler.replaceQueue(ids(3), expandMatchFlows: false);
+          await handler.debugStartCrossfade();
+          await handler.debugCompleteCrossfade();
+          // The old deck is idle and still points at song-0.
+          final idle = handler.debugInactiveDeck!;
+          expect(idle.currentIndex, 0);
+          await handler.debugSendReplayGainBoostTo(idle);
+          expect(handler.debugSmartFrozenSongIds, isNot(contains('song-0')));
+        },
+      );
+    });
 
     group('after a swap off an offset stream', () {
       // Song 0 plays as a transcode opened at 90 s, then crossfades into

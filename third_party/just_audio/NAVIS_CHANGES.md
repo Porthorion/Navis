@@ -266,3 +266,8 @@ that retire a source clear `onDownloadStart` so it cannot re-register afterwards
 or headers were set, so a Navis `content://` (Android SAF) download reached
 `HttpClient.getUrl` ("Unsupported scheme 'content'") and ExoPlayer failed with
 "unexpected end of stream". `content://`, `file://` and `asset` sources load directly.
+
+`AudioPlayer.setReplayGainBoost` passes Navis's ReplayGain boost (positive
+gain) to the platform, translating the boost of each queued source to the URI
+the platform loads it from. A backend without a boost stage throws
+`UnimplementedError`.

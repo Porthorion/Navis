@@ -1663,6 +1663,28 @@ void main() {
     expect(applied, 1);
   });
 
+  test('replay-gain saves mode and pre-amp and applies them', () async {
+    final handler = _MockPlaybackHandler();
+    var applied = 0;
+    when(() => handler.loadFailureStream)
+        .thenAnswer((_) => const Stream<PlaybackLoadFailure>.empty());
+    when(handler.waitUntilReady).thenAnswer((_) async {});
+    when(handler.applyRuntimeSettings).thenAnswer((_) async => applied++);
+    final clone = await _startFixture(
+      SyncDiagnosticsMode.clone,
+      handler: handler,
+    );
+    addTearDown(clone.close);
+
+    final response = await clone.post('/v1/playback/replay-gain', {
+      'mode': 'track',
+      'preamp': 3,
+    });
+    expect(response.statusCode, HttpStatus.ok);
+    expect(response.body, {'mode': 'track', 'preamp': 3.0});
+    expect(applied, 1);
+  });
+
   test('heartbeat reports ordered p95 event-loop samples', () async {
     final fixture = await _startFixture(SyncDiagnosticsMode.clone);
     addTearDown(fixture.close);
