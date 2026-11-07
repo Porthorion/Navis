@@ -48,17 +48,22 @@ extension _NavisCrossfade on NavisAudioHandler {
 
   /// Returns the effective queue index of the next track, accounting for
   /// shuffle and loop modes. Returns `null` when there is no next track.
-  int? _getNextEffectiveIndex() {
-    final currentIndex = _player.currentIndex;
-    if (currentIndex == null || _queueItems.isEmpty) {
+  int? _getNextEffectiveIndex() =>
+      _queueItems.isEmpty ? null : _nextEffectiveIndexOf(_player);
+
+  /// The index [deck] plays after its current song, by its own loop mode and
+  /// play order, or null at the end of its queue.
+  int? _nextEffectiveIndexOf(AudioPlayer deck) {
+    final currentIndex = deck.currentIndex;
+    if (currentIndex == null) {
       return null;
     }
 
-    if (_player.loopMode == LoopMode.one) {
+    if (deck.loopMode == LoopMode.one) {
       return currentIndex;
     }
 
-    final effectiveIndices = _player.effectiveIndices;
+    final effectiveIndices = deck.effectiveIndices;
     if (effectiveIndices.isEmpty) {
       return null;
     }
@@ -73,7 +78,7 @@ extension _NavisCrossfade on NavisAudioHandler {
     }
 
     // At the end of the queue – only wrap if looping all.
-    if (_player.loopMode == LoopMode.all && effectiveIndices.isNotEmpty) {
+    if (deck.loopMode == LoopMode.all && effectiveIndices.isNotEmpty) {
       return effectiveIndices.first;
     }
     return null;

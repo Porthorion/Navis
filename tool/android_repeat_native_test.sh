@@ -23,7 +23,7 @@ fi
 export NAVIS_SELF_UPDATE=true
 cd "${navis_root}/android"
 timeout --kill-after=10s 10m ./gradlew \
-  :app:testSideloadDebugUnitTest --tests '*JustAudioRepeat*Test' \
+  :app:testSideloadDebugUnitTest --tests '*JustAudioRepeat*Test' --tests '*JustAudioReplayGainBoost*Test' \
   --no-daemon --max-workers=1 --console=plain \
   '-Dorg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=768m -XX:ReservedCodeCacheSize=256m' \
   -Pkotlin.compiler.execution.strategy=in-process
@@ -34,11 +34,11 @@ import sys
 import xml.etree.ElementTree as ET
 
 total = 0
-for name in ("JustAudioRepeatBoundaryTest", "JustAudioRepeatCallbackTest"):
+for name in ("JustAudioRepeatBoundaryTest", "JustAudioRepeatCallbackTest", "JustAudioReplayGainBoostTest"):
     suite = ET.parse(pathlib.Path(sys.argv[1]) / f"TEST-com.navis.app.navis.{name}.xml").getroot()
     executed = int(suite.attrib["tests"]) - int(suite.get("skipped", "0"))
     if executed <= 0 or int(suite.get("failures", "0")) or int(suite.get("errors", "0")):
         sys.exit(f"Android repeat bridge: {name} must execute tests with no failures.")
     total += executed
-print(f"Android repeat bridge: {total} tests, 0 failures.")
+print(f"Android repeat bridge and ReplayGain boost: {total} tests, 0 failures.")
 PYTHON

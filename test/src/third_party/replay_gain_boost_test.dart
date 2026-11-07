@@ -39,7 +39,7 @@ void main() {
   });
 
   group('ReplayGainBoostState', () {
-    var now = DateTime(2026);
+    var now = Duration.zero;
     // A queue [a (+10), b (0), c (+6)] whose first file has just loaded.
     ReplayGainBoostState loaded(Map<String, double> map, String path) {
       final state = ReplayGainBoostState(clock: () => now)
@@ -50,7 +50,7 @@ void main() {
     }
 
     const map = {_a: 10.0, _b: 0.0, _c: 6.0};
-    setUp(() => now = DateTime(2026));
+    setUp(() => now = Duration.zero);
 
     test("the first load is explicit and starts at the file's gain", () {
       final state = ReplayGainBoostState(clock: () => now)
@@ -153,18 +153,21 @@ void main() {
 
     test('F2: a switch that loads nothing goes stale instead of lingering', () {
       final state = loaded(map, '/music/a.flac')..expectSwitch(1);
-      now = now.add(const Duration(seconds: 10));
+      now += const Duration(seconds: 10);
       // A much later natural join to index 1 is not explicit.
       expect(state.onLoad(position: 1, path: '/music/c.flac'), 6);
       expect(state.held, 6);
     });
 
-    test('F2: a cancelled switch leaves no flag', () {
-      final state = loaded(map, '/music/a.flac')
-        ..expectSwitch(1)
-        ..cancelSwitch();
+    test('F2: an expectation expires on the monotonic clock', () {
+      final state = loaded(map, '/music/a.flac')..expectSwitch(1);
+      now += const Duration(seconds: 4);
       expect(state.onLoad(position: 1, path: '/music/c.flac'), 6);
-      expect(state.held, 6);
+      expect(
+        state.held,
+        isNull,
+        reason: 'a fresh expectation makes the hook explicit',
+      );
     });
 
     test('F5: only the position of the landed seek releases the hold', () {
