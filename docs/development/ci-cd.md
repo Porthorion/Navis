@@ -581,6 +581,7 @@ Builds selected release artifacts, tags the commit, and publishes the assets plu
 ./tool/release.sh v0.2.0 --targets=linux --linux-package=deb
 ./tool/release.sh v0.2.0 --targets=windows --windows-package=exe
 ./tool/release.sh v0.2.0 --targets=macos --macos-notarize
+./tool/release.sh v0.2.0 --targets=ios --build-only --ios-upload
 ./tool/release.sh v0.2.0 --targets=linux,windows --linux-ssh="linux-builder" --windows-ssh="windows-builder"
 ./tool/release.sh v0.2.0 --allow-existing-version
 ```
@@ -636,6 +637,11 @@ publication isolation, source/checksum guards and exact dist-file uploads.
    `force-version-code-ignoring-abi=true` in `android/gradle.properties` skips
    Flutter's ABI version-code offsets, so all four APKs share the release build
    number and can update over one another. See [release-r2.md](../release/release-r2.md).
+   `ios` builds a signed App Store IPA into `build/ios/ipa/` (never a release
+   asset); `--ios-upload` uploads it with `altool`, after a preflight of `ASC_KEY_ID`,
+   `ASC_ISSUER_ID` and the key file. An iOS-only run needs `--build-only`
+   ([release-ios.md](../release/release-ios.md)). `tool/ios_release_test.sh`
+   covers this with stubbed tools.
    Linux x86_64 builds use the Ubuntu 22.04 container, preserving glibc 2.35
    compatibility, release AOT with split debug info and separate LGPL libmpv.
    Select `--linux-package=bundle|deb|rpm|all`; `all` packages one bundle three ways.
@@ -661,7 +667,7 @@ publication isolation, source/checksum guards and exact dist-file uploads.
 8. Publishes to R2 with `tool/r2_publish.sh publish`: uploads each updater asset to
    `navis/releases/<tag>/`, writes `SHA256SUMS`, signs and uploads the channel manifest
    last, then verifies it against the pinned key and the uploaded files. Assets with no
-   updater install mode (such as the `.ipa`) are skipped.
+   updater install mode are skipped.
 9. With `--forgejo` only, creates a Forgejo release (`prerelease=true` for the dev
    channel or when `--prerelease` is passed) and uploads the same assets to it.
    Both calls load Authorization from a mode-600 header file in the private

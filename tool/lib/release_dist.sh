@@ -76,7 +76,7 @@ load_release_dist() {
   ASSET_NAMES=()
   while IFS= read -r name || [[ -n "${name}" ]]; do
     case "${name}" in
-      "${prefix}-${VERSION}.apk"|"${prefix}-${VERSION}.ipa"|\
+      "${prefix}-${VERSION}.apk"|\
       "${prefix}-${VERSION}-android-arm64-v8a.apk"|"${prefix}-${VERSION}-android-armeabi-v7a.apk"|\
       "${prefix}-${VERSION}-android-x86_64.apk"|"${prefix}-${VERSION}-linux.tar.gz"|\
       "${prefix}-${VERSION}-linux-amd64.deb"|"${prefix}-${VERSION}-linux-x86_64.rpm"|\
