@@ -444,6 +444,118 @@ void main() {
         );
       },
     );
+
+    test('Android boosts while its EQ processor pipeline is installed', () {
+      expect(
+        navisReplayGainBoostSupported(
+          usesMpv: false,
+          isMacOS: false,
+          androidProcessor: true,
+        ),
+        isTrue,
+      );
+      expect(
+        navisReplayGainBoostSupported(
+          usesMpv: false,
+          isMacOS: false,
+          androidProcessor: false,
+        ),
+        isFalse,
+        reason: 'the player was rebuilt without the processor',
+      );
+    });
+  });
+
+  group('guardedBoostDb', () {
+    double guarded({
+      double own = 8,
+      double? next = 3,
+      int? remaining = 2000,
+      double speed = 1,
+      int? duration = 180000,
+      double? latched,
+    }) => guardedBoostDb(
+      ownDb: own,
+      nextDb: next,
+      remainingMs: remaining,
+      speed: speed,
+      songDurationMs: duration,
+      latchedDb: latched,
+    );
+
+    test('outside the last 3 s a song keeps its own boost', () {
+      expect(guarded(remaining: 3001), 8);
+      expect(guarded(remaining: 120000), 8);
+    });
+
+    test('inside the window the lower of the two boosts applies', () {
+      expect(guarded(), 3);
+      expect(guarded(remaining: 3000), 3);
+      expect(guarded(next: 12), 8, reason: 'a louder successor never raises');
+    });
+
+    test('no next song, or the same song again, is its own boost', () {
+      expect(guarded(next: null), 8);
+      expect(guarded(next: 8), 8);
+    });
+
+    test('the latch only ever goes down inside the window', () {
+      expect(guarded(latched: 1), 1);
+      expect(guarded(latched: 5), 3);
+      expect(guarded(next: 12, latched: 6), 6);
+    });
+
+    test('a latched song stays guarded after the window closes', () {
+      // A speed drop moves the window; samples already ahead are unchanged.
+      expect(guarded(remaining: 10000, latched: 1), 1);
+      expect(guarded(remaining: 10000, latched: 5), 3);
+      expect(
+        replayGainBoostGuarded(
+          remainingMs: 10000,
+          speed: 1,
+          songDurationMs: 180000,
+          latched: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a short song is guarded from its start', () {
+      expect(guarded(remaining: 3900, duration: 3900), 3);
+      expect(guarded(remaining: 3900, duration: 3999), 3);
+      expect(guarded(remaining: 5000, duration: 4000), 8);
+    });
+
+    test('unknown timing is guarded', () {
+      expect(guarded(remaining: null), 3);
+      expect(guarded(duration: null, remaining: 100000), 3);
+    });
+
+    test('the window is wall-clock time, so speed widens it in media time', () {
+      expect(guarded(remaining: 5000, speed: 2), 3);
+      expect(guarded(remaining: 5000, speed: 1), 8);
+      expect(guarded(remaining: 1500, speed: 0.5), 3);
+      expect(guarded(remaining: 2000, speed: 0.5), 8);
+    });
+
+    test('replayGainBoostGuarded names the window', () {
+      expect(
+        replayGainBoostGuarded(
+          remainingMs: 2000,
+          speed: 1,
+          songDurationMs: 180000,
+        ),
+        isTrue,
+      );
+      expect(
+        replayGainBoostGuarded(
+          remainingMs: 4000,
+          speed: 1,
+          songDurationMs: 180000,
+        ),
+        isFalse,
+      );
+    });
   });
 
   group('automaticUntaggedGainDb', () {

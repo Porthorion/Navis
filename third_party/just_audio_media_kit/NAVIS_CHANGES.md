@@ -24,3 +24,7 @@ down) until it has played 0.5 s (`ReplayGainBoostState`,
 entry are explicit switches, tied to the playlist position they load. Gain
 writes are synchronous. The global
 `volume-gain` is never set.
+
+`ReplayGainBoostState` measures the lifetime of an expected switch on a
+monotonic `Stopwatch` instead of the wall clock, and no longer has the unused
+`cancelSwitch()`.

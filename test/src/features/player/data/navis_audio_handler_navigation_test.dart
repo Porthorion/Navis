@@ -39,6 +39,7 @@ import 'package:path/path.dart' as p;
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/player/data/radio_metadata_service.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/models/models.dart' as models;
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
@@ -803,11 +804,54 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Stream<PositionDiscontinuity> get positionDiscontinuityStream =>
       _discontinuities.stream;
 
-  @override
-  Stream<bool> get shuffleModeEnabledStream => const Stream<bool>.empty();
+  final _shuffleModes = StreamController<bool>.broadcast();
+  final _loopModes = StreamController<LoopMode>.broadcast();
+
+  /// Announces a loop or shuffle change, as the player does after the native
+  /// call completes.
+  void emitLoopMode(LoopMode mode) => _loopModes.add(mode);
+
+  /// just_audio re-emits the unchanged index on a seek's player event.
+  void emitIndexAgain() => _indices.add(index);
+  void emitDiscontinuity(PositionDiscontinuityReason reason) => _discontinuities
+      .add(PositionDiscontinuity(reason, playbackEvent, playbackEvent));
+  void emitShuffleMode(bool enabled) => _shuffleModes.add(enabled);
 
   @override
-  Stream<LoopMode> get loopModeStream => const Stream<LoopMode>.empty();
+  Stream<bool> get shuffleModeEnabledStream => _shuffleModes.stream;
+
+  @override
+  Stream<LoopMode> get loopModeStream => _loopModes.stream;
+
+  /// A queue edit whose platform call has not completed (just_audio's
+  /// `sequenceEditInFlight`), and the stale-index state it leaves.
+  bool editInFlight = false;
+
+  bool throwOnEditCheck = false;
+
+  @override
+  bool get sequenceEditInFlight {
+    if (throwOnEditCheck) throw StateError('boost state could not be read');
+    return editInFlight;
+  }
+
+  /// Drops source [at] as just_audio does: the sequence is the edited list at
+  /// once and the index stays the old one until the platform replies.
+  void removeSourceKeepingIndex(int at) => _sources.removeAt(at);
+
+  /// What the native processor reports back (Android EQ state and boost).
+  EqualizerStateMessage nativeEqualizerState = const EqualizerStateMessage(
+    enabled: false,
+  );
+
+  @override
+  Future<EqualizerStateMessage> getEqualizerState() async =>
+      nativeEqualizerState;
+
+  @override
+  Future<EqualizerStateMessage> setEqualizer(
+    EqualizerConfigurationMessage configuration,
+  ) async => nativeEqualizerState;
 
   final _bufferedPositions = StreamController<Duration>.broadcast();
 
@@ -897,25 +941,37 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
           double currentDb,
           bool guarded,
           bool playing,
+          int? index,
           Map<String?, double> bySongId,
         })
       >[];
+
+  /// The native processor as AudioPlayer.java models it: a seek to another
+  /// song lowers the boost to 0 and moves the native index at once, and a
+  /// non-zero value computed for another index is ignored.
+  double nativeBoostDb = 0;
+  int? nativeIndexOverride;
+  int get nativeIndex => nativeIndexOverride ?? index ?? -1;
 
   @override
   Future<void> setReplayGainBoost({
     required double currentDb,
     bool guarded = false,
+    int? index,
     Map<IndexedAudioSource, double> bySource = const {},
   }) async {
     boostMessages.add((
       currentDb: currentDb,
       guarded: guarded,
       playing: isPlaying,
+      index: index,
       bySongId: {
         for (final entry in bySource.entries)
           navisNativeSourceSongId(entry.key): entry.value,
       },
     ));
+    if (currentDb > 0 && index != null && index != nativeIndex) return;
+    nativeBoostDb = currentDb;
   }
 
   @override
@@ -1340,6 +1396,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> seek(Duration? position, {int? index}) => _mutate(() async {
     seekCalls++;
+    if (index != null && index != nativeIndex) {
+      nativeBoostDb = 0;
+      nativeIndexOverride = index;
+    }
     if (rejectNextSeek) {
       rejectNextSeek = false;
       throw StateError('native seek failed');
@@ -1363,6 +1423,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       }
     }
     if (index != null) this.index = index;
+    nativeIndexOverride = null;
     _indices.add(this.index);
     emitPlayerEvent();
   });
@@ -1558,6 +1619,7 @@ void main() {
     double Function()? readReplayGainUntaggedDb,
     PlaybackAdjustmentCapabilities adjustmentCapabilities =
         PlaybackAdjustmentCapabilities.android,
+    EqCapabilities? equalizerCapabilities,
     _ControllableAudioPlayer? initialPlayer,
     bool waitForReady = true,
     NavisDatabase? sharedDatabase,
@@ -1700,6 +1762,7 @@ void main() {
         matchFlowEnabled: matchFlow,
       ),
       adjustmentCapabilities: adjustmentCapabilities,
+      equalizerCapabilities: equalizerCapabilities,
       crossfadePlayerFactory: () {
         final deck = _ControllableAudioPlayer();
         if (positionStreams) deck.positionPlayer = _HandlerPositionPlayer(deck);
@@ -15736,6 +15799,10 @@ void main() {
       List<double?> gains, {
       List<double?>? peaks,
       PlaybackAdjustmentCapabilities caps = exo,
+      EqCapabilities? eq,
+      bool crossfade = false,
+      bool positionStreams = false,
+      int? durationSeconds,
       String mode = 'track',
       String Function()? readMode,
       double untagged = replayGainFallbackUntaggedDb,
@@ -15749,6 +15816,9 @@ void main() {
         readReplayGainMode: readMode,
         replayGainUntaggedDb: untagged,
         adjustmentCapabilities: caps,
+        equalizerCapabilities: eq,
+        crossfade: crossfade,
+        positionStreams: positionStreams,
         readRadioPlaybackAllowed: radioAllowed,
         seed: (database) async {
           for (var i = 0; i < gains.length; i++) {
@@ -15758,6 +15828,7 @@ void main() {
               SongsTableCompanion(
                 replayGainTrackGain: Value(gains[i]),
                 replayGainTrackPeak: Value(peaks?.elementAtOrNull(i)),
+                duration: Value(durationSeconds),
               ),
             );
           }
@@ -15907,6 +15978,941 @@ void main() {
         expect(json['cutDb'], 0);
         expect(json['boostDb'], 6);
         expect(json['db'], 6);
+      });
+
+      group('on Android', () {
+        const eq = EqCapabilities.available;
+        const minute = Duration(minutes: 1);
+
+        // Songs carry gains[N] with a 0.1 peak (19 dB of room).
+        Future<(NavisAudioHandler, _ControllableAudioPlayer)> android(
+          List<double> gains, {
+          bool positionStreams = false,
+          bool crossfade = false,
+          EqCapabilities? caps = eq,
+          Duration duration = const Duration(minutes: 3),
+        }) async {
+          final (handler, player) = await gained(
+            gains,
+            peaks: [for (final _ in gains) 0.1],
+            caps: exo,
+            eq: caps,
+            positionStreams: positionStreams,
+            crossfade: crossfade,
+            durationSeconds: duration.inSeconds,
+          );
+          player.simulatedDuration = duration;
+          return (handler, player);
+        }
+
+        test('the processor pipeline makes Android boost-capable', () async {
+          final (handler, player) = await android([6, 3]);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          expect(handler.replayGainBoostSupported, isTrue);
+          expect(player.volume, 1, reason: 'the cut is 0 dB');
+          final sent = player.boostMessages.last;
+          expect(sent.currentDb, 6);
+          expect(sent.guarded, isFalse);
+          expect(sent.bySongId, isEmpty, reason: 'Android ignores the map');
+        });
+
+        test('without the processor pipeline nothing is boosted', () async {
+          final (handler, player) = await android([6], caps: null);
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          expect(handler.replayGainBoostSupported, isFalse);
+          expect(player.boostMessages, isEmpty);
+          expect(handler.currentReplayGainDecision?.boostDb, 0);
+        });
+
+        test('a rebuild without the EQ turns the boost off', () async {
+          final rebuilt = <_ControllableAudioPlayer>[];
+          final directory = await Directory.systemTemp.createTemp('navis-rgr-');
+          final (handler, player, database) = await createHandler(
+            directory,
+            2,
+            replayGainMode: 'track',
+            adjustmentCapabilities: exo,
+            equalizerCapabilities: eq,
+            rebuiltPlayers: rebuilt,
+            seed: (database) async {
+              await (database.update(database.songsTable)).write(
+                const SongsTableCompanion(
+                  replayGainTrackGain: Value(6),
+                  replayGainTrackPeak: Value(0.1),
+                ),
+              );
+            },
+          );
+          addTearDown(() async {
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          expect(handler.replayGainBoostSupported, isTrue);
+          expect(player.boostMessages.last.currentDb, 6);
+          await handler.debugRebuildPlayerWithoutEqualizer();
+          expect(handler.equalizerCapabilities.supported, isFalse);
+          expect(handler.replayGainBoostSupported, isFalse);
+          expect(handler.currentReplayGainDecision?.boostDb, 0);
+          await handler.applyRuntimeSettings();
+          await pumpEventQueue();
+          expect(
+            rebuilt.expand((deck) => deck.boostMessages),
+            isEmpty,
+            reason: 'the rebuilt player has no processor to tell',
+          );
+        });
+
+        test(
+          'the last 3 s send the lower of the two boosts, guarded',
+          () async {
+            final (handler, player) = await android([6, 3]);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+            await handler.applyRuntimeSettings();
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 3);
+            expect(player.boostMessages.last.guarded, isTrue);
+          },
+        );
+
+        test('outside the window a song keeps its own boost', () async {
+          final (handler, player) = await android([6, 3]);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          player.simulatedPosition = minute;
+          await handler.applyRuntimeSettings();
+          await pumpEventQueue();
+          expect(player.boostMessages.last.currentDb, 6);
+          expect(player.boostMessages.last.guarded, isFalse);
+        });
+
+        test('the end of the queue is its own boost', () async {
+          final (handler, player) = await android([6, 3]);
+          await handler.replaceQueue(
+            ['song-0', 'song-1'],
+            startIndex: 1,
+            expandMatchFlows: false,
+          );
+          player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+          await handler.applyRuntimeSettings();
+          await pumpEventQueue();
+          expect(player.boostMessages.last.currentDb, 3);
+          expect(player.boostMessages.last.guarded, isTrue);
+        });
+
+        test('skipping lifts the latch and sends the next own boost', () async {
+          // Both songs are shorter than the window plus 1 s, so they are
+          // guarded from their start and the latch is what matters.
+          final (handler, player) = await android([
+            3,
+            9,
+          ], duration: const Duration(seconds: 3));
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          expect(player.boostMessages.last.currentDb, 3);
+          expect(player.boostMessages.last.guarded, isTrue);
+          await handler.skipToNext();
+          await settleQueue(handler);
+          expect(handler.snapshot.currentSongId, 'song-1');
+          expect(player.boostMessages.last.currentDb, 9);
+        });
+
+        test(
+          'a loop or shuffle change re-raises what the bridge lowered',
+          () async {
+            final (handler, player) = await android([6, 3]);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            final before = player.boostMessages.length;
+            player.emitLoopMode(LoopMode.off);
+            await pumpEventQueue();
+            expect(player.boostMessages.length, greaterThan(before));
+            final afterLoop = player.boostMessages.length;
+            player.emitShuffleMode(true);
+            await pumpEventQueue();
+            expect(player.boostMessages.length, greaterThan(afterLoop));
+            expect(player.boostMessages.last.currentDb, 6);
+          },
+        );
+
+        test('a queue edit re-raises the boost', () async {
+          final (handler, player) = await android([6, 3, 3]);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          final before = player.boostMessages.length;
+          await handler.playNext(['song-2'], expandMatchFlows: false);
+          await settleQueue(handler);
+          expect(player.boostMessages.length, greaterThan(before));
+          expect(player.boostMessages.last.currentDb, 6);
+        });
+
+        test('the position tick guards with crossfade off', () async {
+          final (handler, player) = await android([
+            6,
+            3,
+          ], positionStreams: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          player
+            ..isPlaying = true
+            ..state = ProcessingState.ready;
+          expect(player.boostMessages.last.currentDb, 6);
+          player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+          for (
+            var i = 0;
+            i < 200 && player.boostMessages.last.currentDb != 3;
+            i++
+          ) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          expect(player.boostMessages.last.currentDb, 3);
+          expect(player.boostMessages.last.guarded, isTrue);
+          // Unchanged ticks say nothing more.
+          final settled = player.boostMessages.length;
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(player.boostMessages.length, settled);
+        });
+
+        test('a seek out of the window lets the song back up', () async {
+          final (handler, player) = await android([
+            6,
+            3,
+          ], positionStreams: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          player
+            ..isPlaying = true
+            ..state = ProcessingState.ready
+            ..simulateProgress = true;
+          player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+          for (
+            var i = 0;
+            i < 200 && player.boostMessages.last.currentDb != 3;
+            i++
+          ) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          expect(player.boostMessages.last.currentDb, 3);
+          player.simulatedPosition = minute;
+          player.emitDiscontinuity(PositionDiscontinuityReason.seek);
+          for (
+            var i = 0;
+            i < 400 && player.boostMessages.last.currentDb != 6;
+            i++
+          ) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          expect(player.boostMessages.last.currentDb, 6);
+          expect(player.boostMessages.last.guarded, isFalse);
+        });
+
+        test(
+          'both cross-fade decks get Android\'s own-boost message',
+          () async {
+            final (handler, _) = await android([6, 3, 3], crossfade: true);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+              'song-2',
+            ], expandMatchFlows: false);
+            await handler.debugStartCrossfade();
+            final incoming =
+                handler.debugInactiveDeck! as _ControllableAudioPlayer;
+            for (var i = 0; i < 800 && !incoming.playing; i++) {
+              await Future<void>.delayed(const Duration(milliseconds: 10));
+            }
+            final beforePlay = incoming.boostMessages.where((m) => !m.playing);
+            expect(beforePlay, isNotEmpty);
+            expect(beforePlay.last.currentDb, 3);
+            expect(beforePlay.last.guarded, isFalse);
+          },
+        );
+
+        test('R1: an edit before the playing song never sends another song\'s boost', () async {
+          // song-1 (hot, boost 0) plays; song-2 would be boosted 10 dB.
+          final (handler, player) = await android([
+            0,
+            -3,
+            10,
+          ], positionStreams: true);
+          await handler.replaceQueue(
+            ['song-0', 'song-1', 'song-2'],
+            startIndex: 1,
+            expandMatchFlows: false,
+          );
+          player
+            ..isPlaying = true
+            ..state = ProcessingState.ready;
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+          expect(player.boostMessages.last.currentDb, 0);
+          // just_audio: the sequence is the edited list, the index still old.
+          player.removeSourceKeepingIndex(0);
+          player.simulatedPosition = const Duration(seconds: 10);
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(
+            player.boostMessages.map((m) => m.currentDb).reduce(max),
+            0,
+            reason:
+                'song-2\'s 10 dB must never reach the processor playing song-1',
+          );
+        });
+
+        test('Y3: while an edit is in flight nothing is sent, so a boosted song does not dip', () async {
+          final (handler, player) = await android([
+            6,
+            3,
+          ], positionStreams: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          player
+            ..isPlaying = true
+            ..state = ProcessingState.ready
+            ..simulateProgress = true;
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+          expect(player.boostMessages.last.currentDb, 6);
+          final before = player.boostMessages.length;
+          player.editInFlight = true;
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(
+            player.boostMessages.length,
+            before,
+            reason: 'neither a 0 nor a value goes out while the edit runs',
+          );
+          expect(player.nativeBoostDb, 6);
+          player.editInFlight = false;
+          await Future<void>.delayed(const Duration(milliseconds: 600));
+          expect(player.boostMessages.last.currentDb, 6);
+        });
+
+        test(
+          'R1: a loop change during a stale index does not raise either',
+          () async {
+            final (handler, player) = await android([0, -3, 10]);
+            await handler.replaceQueue(
+              ['song-0', 'song-1', 'song-2'],
+              startIndex: 1,
+              expandMatchFlows: false,
+            );
+            player.removeSourceKeepingIndex(0);
+            player.emitLoopMode(LoopMode.off);
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 0);
+          },
+        );
+
+        for (final (from, to, remaining) in [(4.0, 1.0, 12), (8.0, 2.0, 24)]) {
+          test(
+            'R2: a speed drop from $from x to $to x inside the window never raises the boost',
+            () async {
+              final (handler, player) = await android([9, 3]);
+              await handler.replaceQueue([
+                'song-0',
+                'song-1',
+              ], expandMatchFlows: false);
+              player.simulatedPosition =
+                  Duration(minutes: 3) - Duration(seconds: remaining);
+              await handler.setPlaybackAdjustments(
+                PlaybackAdjustments(speed: from),
+              );
+              await pumpEventQueue();
+              expect(
+                player.boostMessages.last.currentDb,
+                3,
+                reason: 'in the window at $from x',
+              );
+              await handler.setPlaybackAdjustments(
+                PlaybackAdjustments(speed: to),
+              );
+              await pumpEventQueue();
+              expect(
+                player.boostMessages.last.currentDb,
+                lessThanOrEqualTo(3),
+                reason: '$from x to $to x with ${remaining}s left',
+              );
+              expect(player.boostMessages.last.guarded, isTrue);
+            },
+          );
+        }
+
+        test(
+          'R2: a settings pass that drops the speed never raises the boost',
+          () async {
+            final (handler, player) = await android([9, 3]);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            player.simulatedPosition = const Duration(minutes: 3, seconds: -12);
+            await handler.setPlaybackAdjustments(
+              const PlaybackAdjustments(speed: 4),
+            );
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 3);
+            await handler.setPlaybackAdjustments(
+              const PlaybackAdjustments(speed: 1),
+            );
+            // just_audio re-emits the unchanged index on every playback event.
+            player.moveTo(player.index!);
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 3);
+            // The runtime settings say 1x: the pass puts the speed back and
+            // re-applies ReplayGain, which must not reopen the window.
+            await handler.applyRuntimeSettings();
+            await pumpEventQueue();
+            expect(player.boostMessages.map((m) => m.currentDb).last, 3);
+          },
+        );
+
+        test(
+          'R3: a stream opened part-way gets its boost outside the window',
+          () async {
+            final (handler, player) = await android([6, 3]);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            // The fork reports song time: 2:00 of 3:00, a stream that opened at 1:00.
+            player._sources[0] = AudioSource.uri(
+              Uri.parse('file:///fixture.flac'),
+              tag: player.sequence[0].tag,
+              positionOffset: const Duration(minutes: 1),
+            );
+            player.simulatedPosition = const Duration(minutes: 2);
+            await handler.applyRuntimeSettings();
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 6);
+            expect(player.boostMessages.last.guarded, isFalse);
+          },
+        );
+
+        test(
+          'R4: a seek discontinuity raises nothing before the index event',
+          () async {
+            final (handler, player) = await android([9, 0]);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            expect(player.boostMessages.last.currentDb, 9);
+            final before = player.boostMessages.length;
+            // Next: the discontinuity still carries the old index.
+            player.emitDiscontinuity(PositionDiscontinuityReason.seek);
+            await pumpEventQueue();
+            expect(
+              player.boostMessages.skip(before).where((m) => m.currentDb > 0),
+              isEmpty,
+            );
+            player.moveTo(1);
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 0);
+          },
+        );
+
+        test(
+          'R4: after a seek the tick holds a raise until the seek has landed',
+          () async {
+            final (handler, player) = await android([
+              6,
+              3,
+            ], positionStreams: true);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            player
+              ..isPlaying = true
+              ..state = ProcessingState.ready;
+            player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+            for (
+              var i = 0;
+              i < 200 && player.boostMessages.last.currentDb != 3;
+              i++
+            ) {
+              await Future<void>.delayed(const Duration(milliseconds: 10));
+            }
+            expect(player.boostMessages.last.currentDb, 3);
+            player.simulatedPosition = minute;
+            player.simulateProgress = true;
+            player.emitDiscontinuity(PositionDiscontinuityReason.seek);
+            // just_audio re-emits the unchanged index on every playback event.
+            player.moveTo(player.index!);
+            await Future<void>.delayed(const Duration(milliseconds: 600));
+            expect(
+              player.boostMessages.last.currentDb,
+              3,
+              reason: 'held while the seek may still be in flight',
+            );
+            for (
+              var i = 0;
+              i < 400 && player.boostMessages.last.currentDb != 6;
+              i++
+            ) {
+              await Future<void>.delayed(const Duration(milliseconds: 10));
+            }
+            expect(player.boostMessages.last.currentDb, 6);
+            expect(player.boostMessages.last.guarded, isFalse);
+          },
+        );
+
+        test(
+          'R5: while guarded every tick re-sends, undoing a native lowering',
+          () async {
+            final (handler, player) = await android([
+              6,
+              3,
+            ], positionStreams: true);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            player
+              ..isPlaying = true
+              ..state = ProcessingState.ready;
+            player.simulatedPosition = const Duration(minutes: 2, seconds: 56);
+            player.simulateProgress = true;
+            for (
+              var i = 0;
+              i < 200 && player.boostMessages.last.currentDb != 3;
+              i++
+            ) {
+              await Future<void>.delayed(const Duration(milliseconds: 10));
+            }
+            final before = player.boostMessages.length;
+            await Future<void>.delayed(const Duration(milliseconds: 1300));
+            expect(
+              player.boostMessages.length - before,
+              greaterThanOrEqualTo(2),
+              reason: 'a guarded value is re-sent on each tick',
+            );
+            expect(
+              player.boostMessages
+                  .skip(before)
+                  .every((m) => m.currentDb == 3 && m.guarded),
+              isTrue,
+            );
+          },
+        );
+
+        // A rolling-cache source has no tag: the song is the id in its URL.
+        // ignore: experimental_member_use, reason: Android rolling-cache playback uses LockCachingAudioSource.
+        AudioSource tagless(String id) => LockCachingAudioSource(
+          Uri.parse('https://example.com/rest/stream.view?id=$id'),
+          cacheFile: File('${Directory.systemTemp.path}/navis-rg-$id.cache'),
+        );
+
+        test('R6: a tag-less next song is found by its stream id', () async {
+          // song-0 +9, next song-1 +3: the guard needs song-1's own boost.
+          final (handler, player) = await android([9, 3]);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          player._sources[1] = tagless('song-1');
+          player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+          await handler.applyRuntimeSettings();
+          await pumpEventQueue();
+          expect(player.boostMessages.last.currentDb, 3);
+          expect(player.boostMessages.last.guarded, isTrue);
+        });
+
+        test(
+          'R6: a tag-less playing song is boosted by its stream id',
+          () async {
+            final (handler, player) = await android([9, 3]);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            player._sources[0] = tagless('song-0');
+            await handler.applyRuntimeSettings();
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 9);
+          },
+        );
+
+        test(
+          'R6: a stream id that is not in the queue gets no boost',
+          () async {
+            final (handler, player) = await android([9, 3]);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            player._sources[1] = tagless('unknown-song');
+            player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+            await handler.applyRuntimeSettings();
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 0);
+            player._sources[0] = tagless('unknown-song');
+            player.simulatedPosition = minute;
+            await handler.applyRuntimeSettings();
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 0);
+          },
+        );
+
+        test(
+          'R6: the next song\'s guard comes from the heard deck\'s play order',
+          () async {
+            // Song-1 plays at +9 and repeat-all wraps to song-0 at +3.
+            final (handler, player) = await android([3, 9]);
+            await handler.replaceQueue(
+              ['song-0', 'song-1'],
+              startIndex: 1,
+              expandMatchFlows: false,
+            );
+            player.appliedLoopMode = LoopMode.all;
+            player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+            await handler.applyRuntimeSettings();
+            await pumpEventQueue();
+            expect(
+              player.boostMessages.last.currentDb,
+              3,
+              reason: 'wraps to song-0',
+            );
+            expect(handler.debugNextEffectiveIndexOf(player), 0);
+            player.appliedLoopMode = LoopMode.off;
+            expect(handler.debugNextEffectiveIndexOf(player), isNull);
+          },
+        );
+
+        test(
+          'R6: the idle deck\'s next index is its own, not the heard deck\'s',
+          () async {
+            final (handler, player) = await android([3, 9, 5], crossfade: true);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+              'song-2',
+            ], expandMatchFlows: false);
+            final idle = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+            await handler.debugStartCrossfade();
+            expect(idle.sequence.length, 3);
+            idle.index = 0;
+            idle.appliedLoopMode = LoopMode.all;
+            player.index = 2;
+            player.appliedLoopMode = LoopMode.off;
+            expect(handler.debugNextEffectiveIndexOf(player), isNull);
+            expect(handler.debugNextEffectiveIndexOf(idle), 1);
+            idle.index = 2;
+            expect(
+              handler.debugNextEffectiveIndexOf(idle),
+              0,
+              reason: 'wraps on its own loop mode',
+            );
+            // Its own play order and loop mode, whatever the heard deck says.
+            idle.appliedLoopMode = LoopMode.one;
+            player.appliedLoopMode = LoopMode.off;
+            expect(handler.debugNextEffectiveIndexOf(idle), 2);
+            idle.appliedLoopMode = LoopMode.off;
+            idle._sources.removeLast();
+            idle.index = 1;
+            player.index = 0;
+            expect(handler.debugNextEffectiveIndexOf(idle), isNull);
+            expect(handler.debugNextEffectiveIndexOf(player), 1);
+          },
+        );
+
+        test(
+          'R6: a latch from the last song does not cap the next song\'s window',
+          () async {
+            // Both songs are short, so each is guarded from its start.
+            final (handler, player) = await android([
+              3,
+              9,
+            ], duration: const Duration(seconds: 3));
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            expect(
+              player.boostMessages.last.currentDb,
+              3,
+              reason: 'song-0 latches 3',
+            );
+            // A natural advance: only the index event, no queue load.
+            player.moveTo(1);
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 9);
+          },
+        );
+
+        test(
+          'Y1: every message carries the index it was computed for',
+          () async {
+            final (handler, player) = await android([6, 3]);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            expect(player.boostMessages.last.index, 0);
+            player.moveTo(1);
+            await pumpEventQueue();
+            expect(player.boostMessages.last.index, 1);
+          },
+        );
+
+        test(
+          'Y1: a re-emitted index after a seek sends nothing equal or higher',
+          () async {
+            final (handler, player) = await android([
+              9,
+              9,
+              0,
+            ], positionStreams: true);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+              'song-2',
+            ], expandMatchFlows: false);
+            player
+              ..isPlaying = true
+              ..state = ProcessingState.ready
+              ..simulatedPosition = const Duration(minutes: 2, seconds: 58)
+              ..simulateProgress = true;
+            for (
+              var i = 0;
+              i < 200 &&
+                  !(player.boostMessages.last.currentDb == 9 &&
+                      player.boostMessages.last.guarded);
+              i++
+            ) {
+              await Future<void>.delayed(const Duration(milliseconds: 10));
+            }
+            expect(player.boostMessages.last.currentDb, 9);
+            final before = player.boostMessages.length;
+            // A jump to song-2: the discontinuity and the old index again.
+            player.emitDiscontinuity(PositionDiscontinuityReason.seek);
+            player.moveTo(player.index!);
+            await Future<void>.delayed(const Duration(milliseconds: 800));
+            expect(
+              player.boostMessages.skip(before).where((m) => m.currentDb >= 9),
+              isEmpty,
+            );
+          },
+        );
+
+        test('Y1: Play on a completed queue never leaves the old boost on the restarted song', () async {
+          final (handler, player) = await android([
+            0,
+            9,
+          ], positionStreams: true);
+          await handler.replaceQueue(
+            ['song-0', 'song-1'],
+            startIndex: 1,
+            expandMatchFlows: false,
+          );
+          player
+            ..isPlaying = true
+            ..state = ProcessingState.ready
+            ..simulateProgress = true;
+          for (var i = 0; i < 300 && player.nativeBoostDb != 9; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          expect(player.nativeBoostDb, 9, reason: 'song-1 plays boosted');
+          player.finishCurrentTrack();
+          expect(player.state, ProcessingState.completed);
+          final gate = Completer<void>();
+          player.seekGate = gate;
+          player.seekEntered = Completer<void>();
+          final play = handler.play();
+          await player.seekEntered!.future.timeout(const Duration(seconds: 5));
+          // The native seek to song-0 has run (index 0, boost 0). just_audio
+          // announced the seek before it and now re-emits the old index.
+          expect(player.nativeIndex, 0);
+          player.emitDiscontinuity(PositionDiscontinuityReason.seek);
+          player.emitIndexAgain();
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(
+            player.nativeBoostDb,
+            0,
+            reason: "song-1's 9 dB must not reach the restarted song-0",
+          );
+          gate.complete();
+          await play;
+          await pumpEventQueue();
+          expect(player.nativeBoostDb, 0, reason: 'song-0 is not boosted');
+        });
+
+        test('Y1: inserting into a completed queue and resuming never carries the old boost over', () async {
+          final (handler, player) = await android([
+            0,
+            9,
+            0,
+          ], positionStreams: true);
+          await handler.replaceQueue(
+            ['song-0', 'song-1'],
+            startIndex: 1,
+            expandMatchFlows: false,
+          );
+          player
+            ..isPlaying = true
+            ..state = ProcessingState.ready
+            ..simulateProgress = true;
+          for (var i = 0; i < 300 && player.nativeBoostDb != 9; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          expect(player.nativeBoostDb, 9);
+          player.finishCurrentTrack();
+          final gate = Completer<void>();
+          player.seekGate = gate;
+          player.seekEntered = Completer<void>();
+          final add = handler.addToQueue(['song-2'], expandMatchFlows: false);
+          await player.seekEntered!.future.timeout(const Duration(seconds: 5));
+          expect(player.nativeIndex, 2, reason: 'the resume seek to song-2');
+          player.emitDiscontinuity(PositionDiscontinuityReason.seek);
+          player.emitIndexAgain();
+          await Future<void>.delayed(const Duration(milliseconds: 900));
+          expect(
+            player.nativeBoostDb,
+            0,
+            reason: "song-1's 9 dB must not reach the resumed song-2",
+          );
+          gate.complete();
+          await add;
+          await pumpEventQueue();
+          expect(player.nativeBoostDb, 0);
+        });
+
+        test(
+          'Y2: removing the playing song in its window frees the next song',
+          () async {
+            final (handler, player) = await android([9, 6, 0]);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+              'song-2',
+            ], expandMatchFlows: false);
+            player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+            await handler.applyRuntimeSettings();
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 6, reason: 'latched');
+            await handler.removeQueueItemAt(0);
+            await settleQueue(handler);
+            player.simulatedPosition = Duration.zero;
+            player.emitIndexAgain();
+            await pumpEventQueue();
+            expect(handler.snapshot.currentSongId, 'song-1');
+            player.simulatedPosition = minute;
+            await handler.applyRuntimeSettings();
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, 6);
+            expect(player.boostMessages.last.guarded, isFalse);
+          },
+        );
+
+        test('Y4: a song that left the window after a speed drop is still sent as guarded', () async {
+          final (handler, player) = await android([9, 3]);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          player.simulatedPosition =
+              Duration(minutes: 3) - const Duration(seconds: 12);
+          await handler.setPlaybackAdjustments(
+            const PlaybackAdjustments(speed: 4),
+          );
+          await pumpEventQueue();
+          await handler.setPlaybackAdjustments(
+            const PlaybackAdjustments(speed: 1),
+          );
+          await pumpEventQueue();
+          expect(player.boostMessages.last.currentDb, 3);
+          expect(
+            player.boostMessages.last.guarded,
+            isTrue,
+            reason: 'native lowers before queue edits only while guarded',
+          );
+        });
+
+        test('Y4: the first raise after a Next is not held', () async {
+          final (handler, player) = await android([6, 9]);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          expect(player.boostMessages.last.currentDb, 6);
+          player.emitDiscontinuity(PositionDiscontinuityReason.seek);
+          player.moveTo(1);
+          await pumpEventQueue();
+          expect(player.boostMessages.last.currentDb, 9);
+        });
+
+        test('Y4: a tick that cannot read the boost state still runs the cross-fade trigger', () async {
+          final (handler, player) = await android(
+            [6, 3, 3],
+            positionStreams: true,
+            crossfade: true,
+          );
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+            'song-2',
+          ], expandMatchFlows: false);
+          final incoming =
+              handler.debugInactiveDeck! as _ControllableAudioPlayer;
+          player
+            ..isPlaying = true
+            ..state = ProcessingState.ready
+            ..throwOnEditCheck = true
+            ..simulatedPosition = const Duration(minutes: 2, seconds: 58)
+            ..simulateProgress = true;
+          for (var i = 0; i < 300 && !incoming.playing; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          expect(incoming.playing, isTrue);
+          player.throwOnEditCheck = false;
+        });
+
+        test('status reports what the processor applied', () async {
+          final (handler, player) = await android([6]);
+          player.nativeEqualizerState = const EqualizerStateMessage(
+            enabled: false,
+            boostAppliedDb: 6,
+            boostRequestedDb: 6,
+            boostClipSamples: 4,
+          );
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          await handler.refreshEqualizerState();
+          final boost =
+              handler.collectPlaybackDiagnostics()['replayGainBoost']
+                  as Map<String, Object?>;
+          expect(boost['appliedDb'], 6);
+          expect(boost['requestedDb'], 6);
+          expect(boost['clipSamples'], 4);
+          expect(boost['guarded'], isFalse);
+        });
+
+        test('status has no boost block without a boost stage', () async {
+          final (handler, _) = await android([6], caps: null);
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          expect(
+            handler.collectPlaybackDiagnostics()['replayGainBoost'],
+            isNull,
+          );
+        });
       });
     });
 
@@ -16102,6 +17108,12 @@ void main() {
       String Function()? readMode,
       double Function()? readUntagged,
       bool crossfade = false,
+      PlaybackAdjustmentCapabilities caps = exo,
+      EqCapabilities? eq,
+      bool positionStreams = false,
+      double trackGain = -10,
+      double albumGain = -4,
+      double? peak,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-rgs-');
       final (handler, player, database) = await createHandler(
@@ -16111,7 +17123,9 @@ void main() {
         replayGainMode: mode,
         readReplayGainMode: readMode,
         readReplayGainUntaggedDb: readUntagged,
-        adjustmentCapabilities: exo,
+        adjustmentCapabilities: caps,
+        equalizerCapabilities: eq,
+        positionStreams: positionStreams,
         seed: (database) async {
           await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
             for (final id in albums.whereType<String>().toSet())
@@ -16123,8 +17137,10 @@ void main() {
             )..where((song) => song.id.equals('song-$i'))).write(
               SongsTableCompanion(
                 albumId: Value(albums[i]),
-                replayGainTrackGain: const Value(-10),
-                replayGainAlbumGain: const Value(-4),
+                replayGainTrackGain: Value(trackGain),
+                replayGainAlbumGain: Value(albumGain),
+                replayGainTrackPeak: Value(peak),
+                replayGainAlbumPeak: Value(peak),
               ),
             );
           }
@@ -16202,6 +17218,63 @@ void main() {
         expect(player.volume, closeTo(albumVolume, 0.00001));
       },
     );
+
+    test(
+      'a guard read of the next song never freezes its Smart decision',
+      () async {
+        // Android: track +10 dB, album +4 dB, room for both.
+        final (handler, player) = await smart(
+          ['a', 'b', 'b'],
+          caps: exo,
+          eq: EqCapabilities.available,
+          trackGain: 10,
+          albumGain: 4,
+          peak: 0.1,
+        );
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+        await handler.applyRuntimeSettings(); // the guard reads song-1 as next
+        await pumpEventQueue();
+        expect(player.boostMessages.last.guarded, isTrue);
+        // Only the heard song is frozen; song-1 is decided when it starts.
+        expect(handler.debugSmartFrozenSongIds, isNot(contains('song-1')));
+        await handler.addToQueue(['song-2'], expandMatchFlows: false);
+        await settleQueue(handler);
+        player.simulatedPosition = Duration.zero;
+        player.moveTo(1);
+        await pumpEventQueue();
+        expect(handler.snapshot.currentSongId, 'song-1');
+        // song-2 (album b) now follows song-1: album gain, +4 dB.
+        expect(player.boostMessages.last.currentDb, 4);
+      },
+    );
+
+    test('a boost send leaves the next song\'s cut unchanged', () async {
+      // mpv has the boost stage, so every song start sends a boost message.
+      const mpv = PlaybackAdjustmentCapabilities.mediaKit;
+      final track = pow(10, -10 / 60).toDouble();
+      final album = pow(10, -4 / 60).toDouble();
+      final (handler, player) = await smart(['a', 'b', 'a'], caps: mpv);
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      expect(player.boostMessages, isNotEmpty);
+      expect(player.volume, closeTo(track, 0.00001));
+      // song-2 shares song-0's album and is now next. A boost send reads it
+      // without freezing, so its cut still follows its neighbours at its start.
+      await handler.playNext(['song-2'], expandMatchFlows: false);
+      await settleQueue(handler);
+      final sent = player.boostMessages.length;
+      await handler.applyRuntimeSettings();
+      await pumpEventQueue();
+      expect(player.boostMessages.length, greaterThan(sent));
+      expect(player.volume, closeTo(track, 0.00001));
+      await handler.skipToNext();
+      await settleQueue(handler);
+      expect(handler.snapshot.currentSongId, 'song-2');
+      expect(player.volume, closeTo(album, 0.00001));
+    });
 
     test('an unrelated settings pass keeps a frozen decision', () async {
       var untagged = -8.0;

@@ -179,6 +179,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
     _captureTranscodeEndOccurrence(indexEvent: true);
     _broadcastPlaybackState();
+    _resetBoostGuard();
     _applyReplayGainVolume();
     _syncRemotePlaybackStallWatchdog();
     _rearmHeldRemoteRecovery();
