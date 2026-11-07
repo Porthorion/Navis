@@ -183,6 +183,11 @@ class PlaybackSourceResolver {
        _readSupportsTranscodeOffset = readSupportsTranscodeOffset ?? _readFalse;
 
   final CacheDao _cacheDao;
+
+  /// True when this launch's iOS container path rebase failed, so a file that
+  /// looks missing may only have a stale stored path.
+  Future<bool> _pathsUnverified() =>
+      _cacheDao.attachedDatabase.hasUnverifiedContainerPaths();
   final LibraryDao? _libraryDao;
   final RollingCacheManager _rollingCacheManager;
   final SubsonicApiClient? Function() _readApiClient;
@@ -239,11 +244,15 @@ class PlaybackSourceResolver {
     // filesystem damage). Repair that single stale record immediately before
     // choosing a source so it cannot keep presenting as downloaded/cached.
     if (cachedTrack != null && !await _cachedLocatorExists(cachedTrack)) {
-      await _cacheDao.removeCachedTrack(song.id);
-      AppLogger.info(
-        'Removed missing ${cachedTrack.cacheType.name} cache entry for '
-        'song=${song.id} during source resolution.',
-      );
+      // A failed iOS path rebase leaves stored paths stale, not missing:
+      // keep the record, but still treat it as unusable for this launch.
+      if (!await _pathsUnverified()) {
+        await _cacheDao.removeCachedTrack(song.id);
+        AppLogger.info(
+          'Removed missing ${cachedTrack.cacheType.name} cache entry for '
+          'song=${song.id} during source resolution.',
+        );
+      }
       cachedTrack = null;
     }
     final cachePolicy = song.serverDeletedAt != null
@@ -295,8 +304,10 @@ class PlaybackSourceResolver {
     }
 
     if (cachePolicy == null) {
-      await _cacheDao.removeCachedTrack(song.id);
-      await _libraryDao?.deleteLocalOnlySong(song.id);
+      if (!await _pathsUnverified()) {
+        await _cacheDao.removeCachedTrack(song.id);
+        await _libraryDao?.deleteLocalOnlySong(song.id);
+      }
       throw const PlaybackSourceUnavailableException(
         'Downloaded file is no longer available.',
       );

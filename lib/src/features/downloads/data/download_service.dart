@@ -178,20 +178,28 @@ class DownloadService {
     AppLocalizations Function()? readLocalizations,
     this._reportNetworkUsage,
     Future<Directory> Function()? readApplicationSupportDirectory,
+    Future<Directory> Function()? readApplicationDocumentsDirectory,
     PermanentArtworkStore? artworkStore,
     Future<void> Function(Directory)? validateCustomRoot,
     this.folderRecheckInterval = const Duration(seconds: 5),
     this.playbackHoldLimit = const Duration(seconds: 15),
     Dio? dio,
     bool? isAndroid,
+    bool? isIOS,
     this._rejectsCustomFolder = cloneRejectsDownloadFolder,
     this._resolveLibraryIds,
   }) : _readIsOnline = readIsOnline ?? (() => true),
        _readFreeBytes = readFreeBytes ?? downloadStorageFreeBytes,
        _cacheDao = cacheDao,
        _libraryDao = libraryDao,
-       _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
-       _readCustomDownloadFolderPath = readCustomDownloadFolderPath,
+       _isIOS = isIOS ?? Platform.isIOS,
+       // iOS has no custom folder: an old persisted choice is ignored.
+       _readCustomDownloadFolderEnabled = (isIOS ?? Platform.isIOS)
+           ? (() => false)
+           : readCustomDownloadFolderEnabled,
+       _readCustomDownloadFolderPath = (isIOS ?? Platform.isIOS)
+           ? (() => null)
+           : readCustomDownloadFolderPath,
        _readLyricsAllowed = readLyricsAllowed ?? (() => true),
        _readDeezerArtworkAllowed = readDeezerArtworkAllowed ?? (() => false),
        _allowsArtworkUri = allowsArtworkUri ?? ((_) => false),
@@ -210,6 +218,8 @@ class DownloadService {
          readCustomDownloadFolderEnabled: readCustomDownloadFolderEnabled,
          readCustomDownloadFolderPath: readCustomDownloadFolderPath,
          readApplicationSupportDirectory: readApplicationSupportDirectory,
+         readApplicationDocumentsDirectory: readApplicationDocumentsDirectory,
+         isIOS: isIOS,
        ),
        _permanentDownloadImportService = PermanentDownloadImportService(
          cacheDao: cacheDao,
@@ -235,6 +245,7 @@ class DownloadService {
   int _spaceRequired = 0;
   bool _providerSpaceExhausted = false;
   static const _spaceMargin = 16 * 1024 * 1024;
+  final bool _isIOS;
   final bool Function() _readCustomDownloadFolderEnabled;
   final String? Function() _readCustomDownloadFolderPath;
   final LrclibClient _lrclibClient;
@@ -636,7 +647,8 @@ class DownloadService {
             if (_folderProblem != null) return;
             await _downloadQueueDao.requeueStuckDownloads();
             _checkRecovery(generation);
-            if (!_readCustomDownloadFolderEnabled()) {
+            // Files shows the iOS root, so a file the user put there is theirs.
+            if (!_readCustomDownloadFolderEnabled() && !_isIOS) {
               await _cleanupOrphanedFiles(generation);
             }
             _checkRecovery(generation);
@@ -2558,10 +2570,25 @@ class DownloadService {
     }
   }
 
+  /// A failed iOS container path rebase leaves stored paths possibly stale:
+  /// startup recovery must not drop, requeue or delete anything for them.
+  Future<bool> _pathsUnverified() async {
+    if (!await _cacheDao.attachedDatabase.hasUnverifiedContainerPaths()) {
+      return false;
+    }
+    AppLogger.warning(
+      'Download recovery skipped: stored paths are unverified.',
+    );
+    return true;
+  }
+
   Future<void> _reconcileMissingDownloads(int generation) async {
+    if (await _pathsUnverified()) return;
     final entries = await _cacheDao.getPermanentEntries();
     if (entries.isEmpty) return;
-    final appAudio = _readCustomDownloadFolderEnabled()
+    // iOS has no user folder to disconnect, so every record is checked,
+    // including old ones that point into the former app-support location.
+    final appAudio = _readCustomDownloadFolderEnabled() || _isIOS
         ? null
         : await _appAudioIdentity();
     for (final entry in entries) {
@@ -2676,7 +2703,10 @@ class DownloadService {
     if (_isSafRoot(cached.filePath)
         ? !await _safStorage.exists(cached.filePath)
         : !await _filesystemDownloadExists(cached.filePath)) {
-      await _cacheDao.removeCachedTrack(songId);
+      // Stale, not missing, when the iOS path rebase failed this launch.
+      if (!await _cacheDao.attachedDatabase.hasUnverifiedContainerPaths()) {
+        await _cacheDao.removeCachedTrack(songId);
+      }
       return false;
     }
 
@@ -2856,6 +2886,7 @@ class DownloadService {
   /// This recovers disk space from files orphaned by the old CASCADE FK
   /// behavior (where sync would delete the DB record but leave the file).
   Future<void> _cleanupOrphanedFiles(int generation) async {
+    if (await _pathsUnverified()) return;
     try {
       final permDir = await _permanentDirectory();
       // Keep metadata access asynchronous so storage latency cannot stall UI.

@@ -2892,15 +2892,22 @@ layouts.
 
 ## Database file location
 
-Linux, Windows and macOS store `navis.sqlite.sqlite` in the application support
-directory; Android and iOS use application documents. `database_location.dart`
+Linux, Windows, macOS and iOS store `navis.sqlite.sqlite` in the application
+support directory; Android uses application documents. (iOS moved because the
+Files app shows the whole `Documents` folder; see **iOS downloads in the Files
+app** below.) `database_location.dart`
 resolves both through path_provider, preserving clone diagnostics overrides.
-Before opening on desktop, a missing support database is migrated from documents
+Before opening off Android, a missing support database is migrated from documents
 along with any `-wal`, `-shm` and `-journal` files. Cross-device copies are size
 verified before originals are deleted. Failure restores transferred files and
 falls back to documents; a rollback failure preserves the remaining copy and
 fails opening rather than choosing an incomplete database. An existing support
-database wins and leaves legacy files untouched. No schema changes are involved.
+database wins and leaves legacy files untouched. A copy-fallback move deletes
+the legacy sidecars before the legacy main file. A crash between the main-file
+and sidecar renames is a known window inherited from the desktop migration;
+iOS shares it on test builds only (Navis never shipped on iOS), and a stranded
+legacy sidecar is deliberately not adopted, because it cannot be proved fresh.
+No schema changes are involved.
 
 ## External integration policy
 
@@ -7301,6 +7308,50 @@ download naming throws when all 100 collision candidates are occupied.
    keys and cannot cascade on catalog reset (Match Flow entries cascade only
    when their own `match_flows` parent is deleted). Lyrics retain their existing
    cache/garbage-collection policy; this reset adds no cleanup.
+
+### iOS downloads in the Files app
+
+On iOS the permanent download root is `<Documents>/Downloads`
+(`PermanentDownloadPathResolver.resolveDefaultRoot`), and `Info.plist` sets
+`UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`, so the folder
+shows in Files under On My iPhone > Navis. There is no custom folder on iOS (no
+security-scoped bookmarks): the resolver and `DownloadService` ignore a
+persisted custom-folder setting, and Settings shows a note instead of the
+switch. Because Files exposes all of `Documents`, nothing else lives there: the
+database moved to application support (migration above). The startup sweep that
+deletes unreferenced files in the default root does not run on iOS, so a file
+the user puts into the folder stays. A file deleted in Files is noticed at the
+next launch, not live: `RollingCacheManager` prunes the stale record (the
+song stops showing as downloaded; observed on the simulator), and
+`DownloadService` startup recovery, which checks every record on iOS, re-queues
+it when it sees the record first, as for a missing file on any platform. Downloads and the permanent artwork
+store (`<support>/artwork/permanent`) are marked excluded from iCloud and iTunes
+backup (`excludeFromBackup` on the `com.navis.app/storage_capacity` channel,
+`BackupExclusion`): when the directory is created and once per process
+otherwise, because deleting and recreating a directory drops the attribute. The
+rolling cache and cover caches live in the temporary directory and are never
+backed up.
+
+iOS can give the app a new container path (a new UUID) when it is updated or
+reinstalled, and Navis stores absolute paths. `NavisDatabase.beforeOpen` calls
+`CacheDao.rebaseContainerPaths`, which rewrites the container prefix
+(`.../Containers/Data/Application/<uuid>`) of every `cached_tracks.file_path`
+and of the `path`, `partPath` and `publicationLocator` fields of
+`download_queue.finish_journal` to the current container (the parent of
+Documents) in one transaction. Drift completes `beforeOpen` before any other
+query, so the audio handler's cache pruning and the download service's startup
+recovery only see paths in the current container. It is a no-op off iOS, when
+the home is not an app container (diagnostics clones) and when nothing differs. The container segment is matched non-greedily (the first one is the app's), and rows already under the current home are skipped in SQL. If the rebase fails, `NavisDatabase.containerRebaseFailed` is set and, for that launch, the rolling/permanent cache prunes, the orphan sweeps and the download service's missing-file reconcile are skipped (each guard opens the database first, because the rebase runs on the first query), so no record or file is dropped over a stale path. The on-access repairs obey the same flag: the playback source resolver and the download queue's compatible-cache check still treat a missing-looking file as unusable (playback streams where allowed) but no longer delete the cache record or the local-only song.
+No other table or index stores an absolute container path: the artwork index and
+the download folder index are rebuilt from directory listings and relative
+paths, and the cover-art caches store paths relative to their base directory.
+
+Files shows the download folder read-write (`UIFileSharingEnabled` cannot
+expose it read-only), so the user can delete, rename or add files. Downloads are
+best removed inside Navis. A file deleted in Files is not downloaded again
+automatically: the record is dropped at the next launch. Downloads made by
+earlier iOS test builds under `<support>/audio/permanent` are left where they
+are and keep playing in place (those builds were never released).
 
 ### Download quality, concurrency and artwork
 

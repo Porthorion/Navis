@@ -1034,20 +1034,22 @@ class _DownloadedTrackTile extends ConsumerWidget {
                   );
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.folder_open_outlined),
-                title: Text(l10n.downloadsOpenFolderAction),
-                onTap: () async {
-                  Navigator.of(sheetContext).pop();
-                  await _handleTrackMenuAction(
-                    context,
-                    ref,
-                    track,
-                    l10n,
-                    _DownloadedTrackAction.openFolder,
-                  );
-                },
-              ),
+              // iOS cannot open a folder in Files from the app.
+              if (!Platform.isIOS)
+                ListTile(
+                  leading: const Icon(Icons.folder_open_outlined),
+                  title: Text(l10n.downloadsOpenFolderAction),
+                  onTap: () async {
+                    Navigator.of(sheetContext).pop();
+                    await _handleTrackMenuAction(
+                      context,
+                      ref,
+                      track,
+                      l10n,
+                      _DownloadedTrackAction.openFolder,
+                    );
+                  },
+                ),
               const Divider(height: 1),
               ListTile(
                 leading: Icon(
@@ -1161,6 +1163,12 @@ class _DownloadedTrackTile extends ConsumerWidget {
   }
 }
 
+/// iOS keeps permanent downloads in the app's Documents folder, which the
+/// Files app shows. There is no folder to choose (no security-scoped
+/// bookmarks), so the settings show a note instead of the custom-folder
+/// controls.
+final downloadsInFilesAppProvider = Provider<bool>((ref) => Platform.isIOS);
+
 enum _DownloadedTrackAction {
   playNow,
   changeQuality,
@@ -1190,7 +1198,6 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
 
   bool get _supportsCustomDownloadFolderSelection =>
       Platform.isAndroid ||
-      Platform.isIOS ||
       Platform.isLinux ||
       Platform.isMacOS ||
       Platform.isWindows;
@@ -1406,7 +1413,9 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final permanentStats = ref.watch(permanentCacheStatsProvider);
-    final customFolderEnabled = ref.watch(customDownloadFolderEnabledProvider);
+    final inFilesApp = ref.watch(downloadsInFilesAppProvider);
+    final customFolderEnabled =
+        !inFilesApp && ref.watch(customDownloadFolderEnabledProvider);
     final customFolderPath = ref.watch(customDownloadFolderPathProvider);
     final manualMatching = ref.watch(manualDownloadMatchingProvider);
     final updatingFolder = ref
@@ -1451,24 +1460,33 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
           value: ref.watch(autoDownloadStarredOnWifiProvider),
           onChanged: _updateAutoDownloadLiked,
         ),
-        NavisSwitchListTile(
-          key: const ValueKey<String>('downloadsCustomFolderSwitch'),
-          title: Text(l10n.downloadsCustomFolderTitle),
-          subtitle:
-              _supportsCustomDownloadFolderSelection &&
-                  customFolderEnabled &&
-                  customFolderPath != null
-              ? _CustomFolderLabel(path: customFolderPath)
-              : Text(
-                  _supportsCustomDownloadFolderSelection
-                      ? l10n.downloadsCustomFolderSubtitle
-                      : l10n.downloadsCustomFolderUnsupported,
-                ),
-          value: customFolderEnabled,
-          onChanged: _supportsCustomDownloadFolderSelection
-              ? (enabled) => _toggleCustomDownloadFolder(context, ref, enabled)
-              : null,
-        ),
+        if (inFilesApp)
+          ListTile(
+            key: const ValueKey<String>('downloadsFilesAppTile'),
+            leading: const Icon(Icons.folder_outlined),
+            title: Text(l10n.downloadsFilesAppTitle),
+            subtitle: Text(l10n.downloadsFilesAppSubtitle),
+          )
+        else
+          NavisSwitchListTile(
+            key: const ValueKey<String>('downloadsCustomFolderSwitch'),
+            title: Text(l10n.downloadsCustomFolderTitle),
+            subtitle:
+                _supportsCustomDownloadFolderSelection &&
+                    customFolderEnabled &&
+                    customFolderPath != null
+                ? _CustomFolderLabel(path: customFolderPath)
+                : Text(
+                    _supportsCustomDownloadFolderSelection
+                        ? l10n.downloadsCustomFolderSubtitle
+                        : l10n.downloadsCustomFolderUnsupported,
+                  ),
+            value: customFolderEnabled,
+            onChanged: _supportsCustomDownloadFolderSelection
+                ? (enabled) =>
+                      _toggleCustomDownloadFolder(context, ref, enabled)
+                : null,
+          ),
         if (_supportsCustomDownloadFolderSelection && customFolderEnabled)
           ListTile(
             leading: const Icon(Icons.folder_open_outlined),

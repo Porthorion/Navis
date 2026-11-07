@@ -181,6 +181,7 @@ void main() {
     String? Function()? customPath,
     Future<void> Function(Directory)? validateCustomRoot,
     bool? isAndroid,
+    bool? isIOS,
     Future<int?> Function(String)? readFreeBytes,
     Duration folderRecheckInterval = const Duration(seconds: 5),
     Duration playbackHoldLimit = const Duration(seconds: 15),
@@ -204,6 +205,9 @@ void main() {
       readCustomDownloadFolderPath: customPath ?? () => null,
       validateCustomRoot: validateCustomRoot,
       isAndroid: isAndroid,
+      isIOS: isIOS,
+      readApplicationDocumentsDirectory: () async =>
+          Directory(p.join(supportDir.path, 'documents')),
       folderRecheckInterval: folderRecheckInterval,
       playbackHoldLimit: playbackHoldLimit,
       resolveLibraryIds: resolveLibraryIds,
@@ -1767,6 +1771,126 @@ void main() {
     },
     skip: !sqliteAvailable,
   );
+
+  test(
+    'iOS startup requeues a missing file from the former app-support location '
+    'and ignores a persisted custom folder',
+    () async {
+      await database.appSettingsDao.updateDownloadsPaused(paused: true);
+      await addSongs(2);
+      final kept = File(p.join(supportDir.path, 'audio', 'permanent', 'a.mp3'));
+      await kept.parent.create(recursive: true);
+      await kept.writeAsBytes([1]);
+      for (final entry in {
+        'song-0': kept.path,
+        'song-1': p.join(supportDir.path, 'audio', 'permanent', 'gone.mp3'),
+      }.entries) {
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: entry.key,
+            filePath: entry.value,
+            fileSize: 1,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime(2026),
+          ),
+        );
+      }
+      // A file the user copied into the Files-visible folder is not an orphan.
+      final foreign = File(
+        p.join(supportDir.path, 'documents', 'Downloads', 'mine.mp3'),
+      );
+      await foreign.parent.create(recursive: true);
+      await foreign.writeAsBytes([9]);
+      final service = buildService(
+        isIOS: true,
+        customEnabled: () => true,
+        customPath: () => p.join(supportDir.path, 'custom'),
+      );
+      await service.start();
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
+      expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
+      expect((await queue()).single.songId, 'song-1');
+      expect(
+        await service.resolveActivePermanentDownloadPath(),
+        p.join(supportDir.path, 'documents', 'Downloads'),
+      );
+      expect(service.folderProblem, isNull);
+      expect(foreign.existsSync(), isTrue);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('startup recovery deletes and requeues nothing when the iOS container '
+      'path rebase failed', () async {
+    final previous = NavisDatabase.containerHomeReader;
+    addTearDown(() => NavisDatabase.containerHomeReader = previous);
+    final file = File(p.join(supportDir.path, 'recovery.sqlite'));
+    // Seed a profile, then reopen it so the service's own start() is the
+    // first thing to touch the database: its guard has to open it first.
+    await database.close();
+    database = createTestDatabase(file: file);
+    await database.appSettingsDao.updateDownloadsPaused(paused: true);
+    await addSongs(1);
+    final root = Directory(p.join(supportDir.path, 'audio', 'permanent'));
+    final orphan = File(p.join(root.path, 'orphan.mp3'));
+    await orphan.parent.create(recursive: true);
+    await orphan.writeAsBytes([1]);
+    await database.cacheDao.upsertCachedTrack(
+      CachedTracksTableCompanion.insert(
+        songId: 'song-0',
+        filePath: p.join(root.path, 'stale-path.mp3'),
+        fileSize: 1,
+        format: 'mp3',
+        cacheType: CacheType.permanent,
+        downloadStatus: DownloadStatus.complete,
+        lastAccessedAt: DateTime(2026),
+      ),
+    );
+    await database.close();
+    NavisDatabase.containerHomeReader = () async => throw StateError('boom');
+    database = createTestDatabase(file: file);
+    await buildService().start();
+    expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
+    expect(await queue(), isEmpty);
+    expect(orphan.existsSync(), isTrue);
+    expect(database.containerRebaseFailed, isTrue);
+  }, skip: !sqliteAvailable);
+
+  for (final unverified in [true, false]) {
+    test('queued download with a missing cached file '
+        '${unverified ? 'keeps' : 'removes'} the record when '
+        'rebase failed=$unverified', () async {
+      final service = buildService();
+      await service.start();
+      await service.setPaused(paused: true);
+      await addSongs(1);
+      await service.enqueueSong('song-0');
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'song-0',
+          filePath: p.join(supportDir.path, 'audio', 'permanent', 'gone.mp3'),
+          fileSize: 4,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime(2026),
+        ),
+      );
+      database.containerRebaseFailed = unverified;
+      await service.setPaused(paused: false);
+      // The transfer is held at the gate, so the record is observed after the
+      // cache check and before the download can replace it.
+      await waitUntil(() => server.active == 1);
+      expect(
+        await database.cacheDao.getCachedTrack('song-0'),
+        unverified ? isNotNull : isNull,
+      );
+      server.releaseAll();
+      await service.processQueuedDownloads();
+    }, skip: !sqliteAvailable);
+  }
 
   test(
     'custom cleanup preserves foreign suffix files without ownership',

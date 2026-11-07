@@ -5583,6 +5583,18 @@ abstract class AppLocalizations {
   /// **'Custom download folders are not available on this platform.'**
   String get downloadsCustomFolderUnsupported;
 
+  /// No description provided for @downloadsFilesAppTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads in Files'**
+  String get downloadsFilesAppTitle;
+
+  /// No description provided for @downloadsFilesAppSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads appear in the Files app under On My iPhone › Navis.'**
+  String get downloadsFilesAppSubtitle;
+
   /// No description provided for @downloadsCustomFolderChooseAction.
   ///
   /// In en, this message translates to:

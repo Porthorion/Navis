@@ -7,6 +7,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart'
     show kMaxArtworkResponseBytes;
+import 'package:navis/src/features/downloads/data/download_storage_capacity.dart';
 import 'package:navis/src/features/player/data/system_media_art.dart'
     show imageExtensionForBytes;
 import 'package:navis/src/utils/app_logger.dart';
@@ -44,8 +45,14 @@ class PermanentArtworkStore {
     Future<Directory> Function()? readApplicationSupportDirectory,
     Dio? dio,
     this._reportNetworkUsage,
+    bool? isIOS,
+    Future<bool> Function(String path)? excludeFromBackup,
   }) : _readApplicationSupportDirectory =
            readApplicationSupportDirectory ?? getApplicationSupportDirectory,
+       _backupExclusion = BackupExclusion(
+         isIOS: isIOS,
+         exclude: excludeFromBackup,
+       ),
        _dio = dio ?? Dio();
 
   /// One size serves every in-app use (Now Playing is the largest, 768) and
@@ -60,6 +67,7 @@ class PermanentArtworkStore {
       '273a4dbd61dfbb0a12d5d8ffe780eb7a3d4d000bc9771c5411cc70ae4dfa8a1f';
 
   final Future<Directory> Function() _readApplicationSupportDirectory;
+  final BackupExclusion _backupExclusion;
   final Dio _dio;
   final NetworkUsageReporter? _reportNetworkUsage;
 
@@ -246,7 +254,11 @@ class PermanentArtworkStore {
       if (extension == null) return false;
       final index = await _loadIndex();
       final root = await _root();
+      // Keep metadata access asynchronous so storage latency cannot stall UI.
+      // ignore: avoid_slow_async_io
+      final created = !await root.exists();
       await root.create(recursive: true);
+      await _backupExclusion.apply(root, created: created);
       final key = keyFor(id);
       _verifiedPresent.remove(key);
       final target = File(p.join(root.path, '$key$extension'));

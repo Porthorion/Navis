@@ -173,6 +173,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'iOS: downloads now appear in the Files app under On My iPhone › '
+        'Navis, and downloads stay out of iCloud and computer backups',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'macOS: the licences screen lists the bundled libmpv and FFmpeg '
         'libraries',
         type: ChangelogEntryType.improvement,
