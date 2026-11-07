@@ -753,7 +753,9 @@ if [[ "${BUILD_IOS}" == "true" ]]; then
   # version, and the pubspec number never changes within one. Reuse the
   # monotonic dev allocator (also used for Android dev versionCodes).
   IOS_BUILD_NUMBER="$(python3 "${SCRIPT_DIR}/dev_build_number.py")"
-  flutter build ipa --release --export-options-plist=ios/ExportOptions.plist \
+  # Xcode's IPA export shells out to rsync and fails ("Copy failed") with a
+  # newer rsync (MacPorts/Homebrew 3.x) ahead of /usr/bin on PATH.
+  PATH="/usr/bin:${PATH}" flutter build ipa --release --export-options-plist=ios/ExportOptions.plist \
     "--build-number=${IOS_BUILD_NUMBER}" "${SYMBOL_ARGS[@]}" "${DART_DEFINE_ARGS[@]}"
 
   FOUND_IPA="$(find "${IPA_DIR}" -maxdepth 2 -name "*.ipa" | head -1)"
