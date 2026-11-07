@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/internet_radio_station.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
+import 'package:navis/src/common_widgets/navis_refresh_indicator.dart';
 import 'package:navis/src/features/library/presentation/radio_station_dialogs.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -176,7 +177,7 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
     final content = Stack(
       children: [
         Positioned.fill(
-          child: RefreshIndicator(
+          child: NavisRefreshIndicator(
             onRefresh: () async {
               ref.invalidate(radioStationsProvider);
               try {

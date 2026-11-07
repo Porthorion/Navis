@@ -2,6 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -95,6 +96,11 @@ AudioServiceRepeatMode nextRepeatMode(AudioServiceRepeatMode mode) =>
 
 /// Pauses when [isPlaying], otherwise plays. A missing handler is ignored.
 Future<void> togglePlayPause(WidgetRef ref, {required bool isPlaying}) async {
+  if (isPlaying) {
+    NavisHaptics.release();
+  } else {
+    NavisHaptics.press();
+  }
   final handler = ref.read(audioHandlerProvider);
   if (handler == null) {
     return;

@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/mouse_drag_scroll.dart';
+import 'package:navis/src/common_widgets/navis_refresh_indicator.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:flutter/rendering.dart' show RenderAbstractViewport, RenderBox;
 import 'package:flutter/services.dart';
@@ -1295,12 +1296,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         : resolvedContent;
 
     final refreshContainer = useCustomHomePullRefresh
-        ? RefreshIndicator.noSpinner(
+        ? NavisRefreshIndicator(
+            noSpinner: true,
             onRefresh: _runHomeRefresh,
             onStatusChange: _handleHomeRefreshStatusChanged,
             child: scrollObservedContent,
           )
-        : RefreshIndicator(
+        : NavisRefreshIndicator(
             onRefresh: _runHomeRefresh,
             child: scrollObservedContent,
           );

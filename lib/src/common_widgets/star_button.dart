@@ -1,7 +1,6 @@
-import 'dart:async';
-
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 class StarButton extends StatefulWidget {
@@ -76,7 +75,11 @@ class _StarButtonState extends State<StarButton>
   }
 
   void _handlePress() {
-    unawaited(HapticFeedback.lightImpact());
+    if (widget.isStarred) {
+      NavisHaptics.tick();
+    } else {
+      NavisHaptics.confirm();
+    }
     widget.onPressed?.call();
   }
 

@@ -29,6 +29,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/fake_eq_controller.dart';
+import '../../../../helpers/haptics_spy.dart';
 import '../../../../helpers/library_copy_api.dart';
 import '../../../../helpers/now_playing_harness.dart';
 import '../../../../helpers/test_database.dart';
@@ -251,9 +252,11 @@ void main() {
       tester.getSemantics(like).flagsCollection.isEnabled,
       isNot(Tristate.isTrue),
     );
+    final spy = HapticsSpy.install(tester);
     await tester.tap(like);
     await tester.pump();
     expect(notices.notice?.message, 'Not available for remote tracks.');
+    expect(await spy.take(tester), ['reject']);
     handle.dispose();
   }, skip: !sqliteAvailable);
 

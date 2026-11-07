@@ -198,7 +198,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
                 onClear: _clearFilter,
               ),
             Expanded(
-              child: RefreshIndicator(
+              child: NavisRefreshIndicator(
                 onRefresh: () async {
                   ref.invalidate(playlistSyncProvider);
                   await ref.read(playlistSyncProvider.future);
@@ -615,7 +615,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
                 ),
               ),
               if (playlist.isLocal)
-                SwitchListTile(
+                NavisSwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: Text(l10n.playlistsSaveOnServerTitle),
                   subtitle: Text(
@@ -777,7 +777,7 @@ class LikedAlbumsAllScreen extends ConsumerWidget {
         children: <Widget>[
           _likedSyncBanner(refresh),
           Expanded(
-            child: RefreshIndicator(
+            child: NavisRefreshIndicator(
               onRefresh: refresh,
               child: likedAlbumsAsync.when(
                 loading: () => const _LoadingListPlaceholder(),
@@ -919,7 +919,7 @@ class LikedArtistsAllScreen extends ConsumerWidget {
         children: <Widget>[
           _likedSyncBanner(refresh),
           Expanded(
-            child: RefreshIndicator(
+            child: NavisRefreshIndicator(
               onRefresh: refresh,
               child: artists.when(
                 loading: () => const _LoadingListPlaceholder(),

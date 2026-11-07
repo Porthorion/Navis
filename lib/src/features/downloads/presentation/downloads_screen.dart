@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -1447,20 +1448,20 @@ class _DownloadSettingsTabState extends ConsumerState<_DownloadSettingsTab> {
         const _ConcurrentDownloadsTile(),
         const Divider(),
         if (!isDesktopRuntime)
-          SwitchListTile(
+          NavisSwitchListTile(
             title: Text(l10n.cacheSettingsWifiOnlyDownloads),
             subtitle: Text(l10n.cacheSettingsWifiOnlyDownloadsSub),
             value: ref.watch(wifiOnlyDownloadsProvider),
             onChanged: _updateWifiOnlyDownloads,
           ),
-        SwitchListTile(
+        NavisSwitchListTile(
           key: const ValueKey<String>('downloadsAutoDownloadLikedSwitch'),
           title: Text(l10n.cacheSettingsAutoDownloadStarred),
           subtitle: Text(l10n.cacheSettingsAutoDownloadStarredSub),
           value: ref.watch(autoDownloadStarredOnWifiProvider),
           onChanged: _updateAutoDownloadLiked,
         ),
-        SwitchListTile(
+        NavisSwitchListTile(
           key: const ValueKey<String>('downloadsCustomFolderSwitch'),
           title: Text(l10n.downloadsCustomFolderTitle),
           subtitle:

@@ -16,6 +16,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/genre_chips.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -1451,7 +1452,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     if (_isRefreshingAlbum) {
       return;
     }
-    await HapticFeedback.lightImpact();
+    NavisHaptics.press();
     // An album stream that failed is read again.
     final albumStream = albumProvider(widget.albumId);
     if (ref.read(albumStream).hasError) ref.invalidate(albumStream);
@@ -2242,7 +2243,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 
   Future<void> _copyTitle(BuildContext context, String text) async {
     final l10n = AppLocalizations.of(context)!;
-    unawaited(HapticFeedback.selectionClick());
+    NavisHaptics.confirm();
     await Clipboard.setData(ClipboardData(text: text));
     if (!context.mounted) return;
     showAppNotice(

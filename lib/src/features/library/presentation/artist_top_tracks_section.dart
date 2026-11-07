@@ -10,6 +10,7 @@ import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -507,7 +508,7 @@ class _TopTrackTile extends ConsumerWidget {
       onTap: enabled ? onTap : null,
       onLongPress: enabled && dbSong != null
           ? () {
-              unawaited(HapticFeedback.mediumImpact());
+              NavisHaptics.longPress();
               unawaited(showSongContextMenu(context, ref, dbSong));
             }
           : null,

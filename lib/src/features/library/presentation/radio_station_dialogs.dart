@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/api/models/internet_radio_station.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 /// Opens the add/edit dialog. New stations stay on this device unless an
@@ -225,7 +226,7 @@ class _RadioStationEditorState extends ConsumerState<_RadioStationEditor> {
               ),
             ),
             if (widget.canChooseServer)
-              SwitchListTile(
+              NavisSwitchListTile(
                 key: const ValueKey<String>('radioEditorSaveToServer'),
                 contentPadding: EdgeInsets.zero,
                 title: Text(l10n.radioEditorSaveToServer),

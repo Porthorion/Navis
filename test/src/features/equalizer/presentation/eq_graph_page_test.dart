@@ -6,6 +6,7 @@ import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_graph_geometry.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_screen.dart';
 
+import '../../../../helpers/haptics_spy.dart';
 import '../../../../helpers/test_database.dart';
 import 'eq_test_harness.dart';
 
@@ -201,6 +202,60 @@ void main() {
         container.read(equalizerProvider).requireValue.configuration,
         original,
       );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  testWidgets(
+    'selecting a band clicks and dragging its gain ticks once per whole dB',
+    (tester) async {
+      final spy = HapticsSpy.install(tester);
+      final container = await mount(
+        tester,
+        configuration: EqConfiguration(
+          mode: EqMode.advanced,
+          filters: const [
+            EqFilter(frequencyHz: 200),
+            EqFilter(frequencyHz: 5000, gainDb: 3.1),
+          ],
+        ),
+      );
+      final before = container
+          .read(equalizerProvider)
+          .requireValue
+          .configuration
+          .filters[1];
+      final plot = tester.getRect(find.byKey(const ValueKey('eq-graph-plot')));
+      final geometry = EqGraphGeometry.inside(plot.size);
+      final handle = plot.topLeft + geometry.handle(before);
+
+      await tester.tapAt(handle);
+      await tester.pumpAndSettle();
+      expect(await spy.take(tester), ['contextClick']);
+
+      final gesture = await tester.startGesture(handle);
+      await gesture.moveBy(const Offset(0, 20));
+      await tester.pump();
+      for (var i = 0; i < 12; i++) {
+        await gesture.moveBy(const Offset(0, -5));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      final after = container
+          .read(equalizerProvider)
+          .requireValue
+          .configuration
+          .filters[1]
+          .gainDb;
+      final kinds = await spy.take(tester);
+      // Down through 0 dB and back up: a firm click each time, a tick for
+      // every other whole dB, and no second selection click for a band that
+      // is already selected.
+      expect(kinds.where((k) => k == 'firm'), hasLength(2));
+      expect(kinds.where((k) => k == 'tick').length, greaterThan(5));
+      expect(kinds.toSet().difference({'tick', 'firm'}), isEmpty);
+      expect(after, greaterThan(before.gainDb));
     },
     skip: !sqliteAvailable,
   );

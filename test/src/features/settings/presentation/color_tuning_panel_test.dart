@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -262,6 +263,28 @@ void main() {
       expect(commits.single, previews.last);
       expect(previewEnds, isEmpty);
     });
+
+    for (final (name, tuning, stepper) in [
+      ('color-plus', const ColorTuning(vividness: 3), 'color-plus'),
+      ('color-minus', const ColorTuning(vividness: -3), 'color-minus'),
+    ]) {
+      testWidgets('holding $name to the limit stops there without errors', (
+        tester,
+      ) async {
+        await open(tester, tuning: tuning);
+        final gesture = await tester.startGesture(
+          tester.getCenter(_key(stepper)),
+        );
+        await tester.pump(kLongPressTimeout + const Duration(milliseconds: 10));
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(const Duration(milliseconds: 130));
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(commits, isNotEmpty);
+      });
+    }
 
     testWidgets('steppers commit each press and stop at the ends', (
       tester,

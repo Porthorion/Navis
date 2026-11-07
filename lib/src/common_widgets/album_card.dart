@@ -10,6 +10,7 @@ import 'package:navis/src/common_widgets/album_context_menu.dart';
 import 'package:navis/src/common_widgets/artwork_scrim.dart';
 import 'package:navis/src/common_widgets/caption_tint_resolver.dart';
 import 'package:navis/src/common_widgets/frame_budget_dispatcher.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/features/home/presentation/cover_colour_worker.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
@@ -149,7 +150,7 @@ class AlbumCardContent extends ConsumerWidget {
             onLongPress: onLongPress == null
                 ? null
                 : () {
-                    unawaited(HapticFeedback.mediumImpact());
+                    NavisHaptics.longPress();
                     onLongPress!();
                   },
             child: Stack(

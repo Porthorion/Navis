@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/features/player/presentation/now_playing_artwork_scope.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -76,8 +77,14 @@ class QueueSheet extends ConsumerWidget {
                         : const ClampingScrollPhysics(),
                     padding: const EdgeInsets.only(bottom: 80),
                     itemCount: queueIds.length,
-                    onReorderStart: (_) => onReorderDragChanged?.call(true),
-                    onReorderEnd: (_) => onReorderDragChanged?.call(false),
+                    onReorderStart: (_) {
+                      NavisHaptics.dragStart();
+                      onReorderDragChanged?.call(true);
+                    },
+                    onReorderEnd: (_) {
+                      NavisHaptics.dragEnd();
+                      onReorderDragChanged?.call(false);
+                    },
                     onReorderItem: (oldIndex, newIndex) async {
                       if (actionsDisabled) return;
                       await reorderQueueItem(ref, oldIndex, newIndex);

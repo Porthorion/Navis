@@ -117,7 +117,7 @@ void _miniSkipPrevious(WidgetRef ref) {
   if (handler == null) {
     return;
   }
-  unawaited(HapticFeedback.lightImpact());
+  NavisHaptics.firm();
   unawaited(handler.skipToPrevious());
 }
 
@@ -126,7 +126,7 @@ void _miniSkipNext(WidgetRef ref) {
   if (handler == null) {
     return;
   }
-  unawaited(HapticFeedback.lightImpact());
+  NavisHaptics.firm();
   unawaited(handler.skipToNext());
 }
 
@@ -151,6 +151,7 @@ void _miniToggleLike(
   bool isExternal,
 ) {
   if (_isRemoteSong(songId, isExternal)) {
+    NavisHaptics.reject();
     showAppNotice(
       context,
       message: AppLocalizations.of(context)!.remoteSourceActionUnavailable,
@@ -158,7 +159,11 @@ void _miniToggleLike(
     );
     return;
   }
-  unawaited(HapticFeedback.lightImpact());
+  if (ref.read(playerStateProvider).isCurrentSongLiked) {
+    NavisHaptics.tick();
+  } else {
+    NavisHaptics.confirm();
+  }
   unawaited(ref.read(audioHandlerProvider)?.toggleLike());
 }
 
@@ -503,7 +508,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                       if (handler == null) {
                                         return;
                                       }
-                                      unawaited(HapticFeedback.lightImpact());
+                                      NavisHaptics.firm();
                                       if (widget.isRadio) {
                                         await handler.stopRadio();
                                       } else {
@@ -750,7 +755,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
       return;
     }
     _expandedFromDrag = true;
-    unawaited(HapticFeedback.selectionClick());
+    NavisHaptics.dragEnd();
     widget.onTap();
   }
 
@@ -820,10 +825,10 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                 return;
               }
               if (velocity < 0) {
-                unawaited(HapticFeedback.mediumImpact());
+                NavisHaptics.firm();
                 unawaited(handler.skipToNext());
               } else {
-                unawaited(HapticFeedback.mediumImpact());
+                NavisHaptics.firm();
                 unawaited(handler.skipToPrevious());
               }
             },
