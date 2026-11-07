@@ -8,7 +8,16 @@ navis_studio_jdk="${HOME}/android-studio/jbr"
 navis_darwin_source="${navis_root}/third_party/just_audio/darwin"
 if navis_cc="$(command -v cc || command -v gcc || command -v clang)"; then
   navis_c_out="$(mktemp -d)"
-  "${navis_cc}" -std=c11 -O2 -Wall -Wextra -Werror -pthread -D_POSIX_C_SOURCE=200809L \
+  # Memory errors in the realtime code must fail CI: use ASan/UBSan when the compiler has them.
+  navis_c_sanitize=()
+  printf 'int main(void){return 0;}\n' > "${navis_c_out}/probe.c"
+  if "${navis_cc}" -fsanitize=address,undefined "${navis_c_out}/probe.c" -o "${navis_c_out}/probe" >/dev/null 2>&1 \
+      && "${navis_c_out}/probe" >/dev/null 2>&1; then
+    navis_c_sanitize=(-fsanitize=address,undefined -fno-omit-frame-pointer)
+  else
+    echo 'NOTE: this compiler lacks working ASan/UBSan; running the Darwin DSP test unsanitized.' >&2
+  fi
+  "${navis_cc}" -std=c11 -O1 -g ${navis_c_sanitize[@]+"${navis_c_sanitize[@]}"} -Wall -Wextra -Werror -pthread -D_POSIX_C_SOURCE=200809L \
     "${navis_darwin_source}/test/navis_equalizer_dsp_test.c" \
     "${navis_darwin_source}/just_audio/Sources/just_audio/NavisEqualizerDsp.c" \
     -lm -o "${navis_c_out}/navis_equalizer_dsp_test"

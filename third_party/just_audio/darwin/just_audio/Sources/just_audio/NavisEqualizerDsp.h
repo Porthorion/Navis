@@ -100,6 +100,13 @@ bool navis_eq_stream_request(NavisEqStream *stream, const NavisEqConfig *config)
 void navis_eq_stream_sweep(NavisEqStream *stream);
 void navis_eq_stream_state(NavisEqStream *stream, NavisEqStreamState *out);
 int navis_eq_stream_channels(const NavisEqStream *stream);
+int navis_eq_stream_sample_rate(const NavisEqStream *stream);
+/// Banks still allocated (applied, requested, fading and not-yet-freed retired
+/// ones). Bounded regardless of how many edits arrive.
+int navis_eq_stream_bank_count(const NavisEqStream *stream);
+/// Audio thread only: forget the filter history, as after a seek or when
+/// playback resumes (MTAudioProcessingTap StartOfStream); like Android's onFlush.
+void navis_eq_stream_reset_history(NavisEqStream *stream);
 /// In-place, non-interleaved float channels. A channel count that differs from
 /// the stream's passes through untouched.
 void navis_eq_stream_process(NavisEqStream *stream, float *const *channels, int channelCount, int frames);

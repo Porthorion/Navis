@@ -197,6 +197,7 @@ struct NavisEqStream {
     int sampleRate, channels, fadeFrames;
     _Atomic(NavisEqBank *) requested, applied, outgoing;
     _Atomic uint64_t calls, frames;
+    _Atomic bool busy; // a process call is running
     _Atomic double inPower, outPower;
     // Audio thread only.
     int fadeRemaining;
@@ -218,6 +219,7 @@ NavisEqStream *navis_eq_stream_new(const NavisEqConfig *config, int sampleRate, 
     atomic_init(&s->applied, bank);
     atomic_init(&s->outgoing, NULL);
     atomic_init(&s->calls, 0);
+    atomic_init(&s->busy, false);
     atomic_init(&s->frames, 0);
     atomic_init(&s->inPower, 0.0);
     atomic_init(&s->outPower, 0.0);
@@ -236,15 +238,18 @@ void navis_eq_stream_free(NavisEqStream *s) {
 
 void navis_eq_stream_sweep(NavisEqStream *s) {
     uint64_t calls = atomic_load(&s->calls);
+    bool busy = atomic_load(&s->busy);
     NavisEqBank *applied = atomic_load(&s->applied);
     NavisEqBank *outgoing = atomic_load(&s->outgoing);
     NavisEqBank **link = &s->banks;
     while (*link) {
         NavisEqBank *b = *link;
         // A bank leaves `requested` only here; a process call that started
-        // before that may still hold it, so wait for one call to finish. After
-        // that the audio thread can only reach it through applied/outgoing.
-        if (b->retired && calls > b->retiredAt && b != applied && b != outgoing) {
+        // before that may still hold it. It is safe once one call has finished
+        // since, or when no call is running now (a call starting later reads
+        // the new `requested`). After that the audio thread can only reach it
+        // through applied/outgoing.
+        if (b->retired && (calls > b->retiredAt || !busy) && b != applied && b != outgoing) {
             *link = b->next;
             navis_eq_bank_free(b);
         } else {
@@ -280,9 +285,27 @@ void navis_eq_stream_state(NavisEqStream *s, NavisEqStreamState *out) {
 }
 
 int navis_eq_stream_channels(const NavisEqStream *s) { return s->channels; }
+int navis_eq_stream_sample_rate(const NavisEqStream *s) { return s->sampleRate; }
+
+int navis_eq_stream_bank_count(const NavisEqStream *s) {
+    int n = 0;
+    for (const NavisEqBank *b = s->banks; b; b = b->next) n++;
+    return n;
+}
+
+void navis_eq_stream_reset_history(NavisEqStream *s) {
+    // Only the audio thread touches the history of the applied and fading banks.
+    NavisEqBank *banks[2] = {atomic_load(&s->applied), s->fadeBank};
+    for (int i = 0; i < 2; i++) {
+        if (!banks[i]) continue;
+        memset(banks[i]->z1, 0, sizeof banks[i]->z1);
+        memset(banks[i]->z2, 0, sizeof banks[i]->z2);
+    }
+}
 
 void navis_eq_stream_process(NavisEqStream *s, float *const *ch, int channelCount, int frames) {
     if (frames <= 0 || channelCount != s->channels) return;
+    atomic_store(&s->busy, true);
     NavisEqBank *requested = atomic_load(&s->requested);
     NavisEqBank *current = atomic_load(&s->applied);
     if (s->fadeRemaining == 0 && requested != current) {
@@ -330,5 +353,6 @@ void navis_eq_stream_process(NavisEqStream *s, float *const *ch, int channelCoun
     atomic_store(&s->inPower, atomic_load(&s->inPower) * keep + inSum);
     atomic_store(&s->outPower, atomic_load(&s->outPower) * keep + outSum);
     atomic_fetch_add(&s->frames, (uint64_t)frames);
-    atomic_fetch_add(&s->calls, 1); // last: tells sweep this call no longer holds any bank
+    atomic_fetch_add(&s->calls, 1); // tells sweep this call no longer holds any bank
+    atomic_store(&s->busy, false);
 }

@@ -32,8 +32,10 @@ workspace built from the existing theme, typography, and adaptive shell; see
 
 AVFoundation hands no PCM to just_audio, so the vendored Darwin player
 (`third_party/just_audio/darwin`) attaches a `MTAudioProcessingTap` (pre-effects,
-so the DSP sees the source sample rate before speed changes) to the first two
-items of each `AVQueuePlayer` once their audio track has loaded, using the
+so the DSP sees the source sample rate before speed changes) to the current
+and next item of each `AVQueuePlayer` (not to every queued item: loading the
+audio tracks of a whole queue would hit the network) as soon as their audio
+track has loaded, using the
 config map Android receives (`equalizerConfiguration`, `setEqualizer`,
 `getEqualizerState`). The tap stays installed with EQ off and bypasses inside
 the DSP, because changing an item's audio mix during playback can drop out.
@@ -41,9 +43,15 @@ Banks are built off the audio thread and swapped at a block boundary with the
 same 20 ms crossfade as Android; the render callback has no locks, allocation,
 Objective-C or `log`/`pow`. Only non-interleaved 32-bit float PCM of one to
 eight channels is processed; any other format plays unchanged and `reason` says
-so. The tap sits behind the player's own volume and speed, so crossfade decks,
-gapless advance and 1.5× speed all use the same path (each deck owns its own
-equalizer instance).
+so. The tap runs before the player's own effects (speed, volume), so crossfade
+decks, gapless advance and 1.5× speed all use the same path (each deck owns its
+own equalizer instance). When playback stops the audio machinery calls
+unprepare and the DSP stream is freed (the last state stays readable and edits
+apply on resume); a seek or resume is a jump in the source time range, which
+resets the filter history like Android's flush (the header's StartOfStream flag
+is only set on the first block after prepare). The reported `reason` names why
+the current item is not processed: still attaching, no audio track (for example
+HLS before playback), the tap could not be created, or an unsupported format.
 
 State adds two iOS-only fields, surfaced in `/v1/equalizer` `application`:
 `processedFrames` (frames processed by this platform player, which grows while

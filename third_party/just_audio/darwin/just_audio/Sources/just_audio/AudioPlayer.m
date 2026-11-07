@@ -118,6 +118,8 @@
         NSString *equalizerError = nil;
         _equalizer = [[NavisEqualizer alloc] initWithConfiguration:equalizerConfiguration error:&equalizerError];
         if (!_equalizer) NSLog(@"just_audio: equalizer unavailable: %@", equalizerError);
+        __weak __typeof__(self) weakSelf = self;
+        _equalizer.currentItemProvider = ^AVPlayerItem *{ return weakSelf.player.currentItem; };
     }
 #endif
     _speed = 1.0f;

@@ -198,14 +198,43 @@ static void testStream(void) {
     near(mono[0], 0.5, 0, "mismatched channel count untouched");
     check(!navis_eq_stream_request(s, &(NavisEqConfig){.preamp = 99}), "invalid request rejected");
 
-    // Many edits while paused (no process calls) stay bounded by sweep.
+    // Many edits while no audio is processing stay bounded: a stream that is
+    // not running holds applied + requested (+ at most one fading bank).
     for (int i = 0; i < 500; i++) {
         NavisEqConfig c = config(true, true, -(double)(i % 20), flat, 2);
         check(navis_eq_stream_request(s, &c), "edit while paused");
     }
+    check(navis_eq_stream_bank_count(s) <= 3, "idle stream keeps a bounded number of banks");
+    // Same while audio runs, with edits between blocks.
+    for (int i = 0; i < 200; i++) {
+        NavisEqConfig c = config(true, false, -(double)(i % 20), flat, 2);
+        check(navis_eq_stream_request(s, &c), "edit while running");
+        if (i % 3 == 0) runBlocks(s, 1, &position);
+    }
+    check(navis_eq_stream_bank_count(s) <= 4, "running stream keeps a bounded number of banks");
     navis_eq_stream_free(s);
     free(planar[0]);
     free(planar[1]);
+}
+
+// A discontinuity (seek, resumed playback) forgets the filter history.
+static void testDiscontinuity(void) {
+    NavisEqFilter fs[] = {filter(NAVIS_EQ_LOW_PASS, 200, 0, 0.7), filter(NAVIS_EQ_PEAKING, 500, 9, 2)};
+    NavisEqConfig c = config(true, false, 0, fs, 2);
+    NavisEqStream *s = navis_eq_stream_new(&c, 48000, 2);
+    float left[256], right[256], freshL[256], freshR[256];
+    float *ch[2] = {left, right}, *fresh[2] = {freshL, freshR};
+    for (int i = 0; i < 256; i++) left[i] = right[i] = (float)sin(i * 0.3); // loud signal fills the history
+    navis_eq_stream_process(s, ch, 2, 256);
+    for (int i = 0; i < 256; i++) left[i] = right[i] = i == 0 ? 1.0f : 0.0f;
+    navis_eq_stream_reset_history(s);
+    navis_eq_stream_process(s, ch, 2, 256);
+    NavisEqStream *reference = navis_eq_stream_new(&c, 48000, 2);
+    for (int i = 0; i < 256; i++) freshL[i] = freshR[i] = i == 0 ? 1.0f : 0.0f;
+    navis_eq_stream_process(reference, fresh, 2, 256);
+    for (int i = 0; i < 256; i++) near(left[i], freshL[i], 1e-7, "impulse after reset matches a fresh stream");
+    navis_eq_stream_free(s);
+    navis_eq_stream_free(reference);
 }
 
 typedef struct {
@@ -257,12 +286,15 @@ static void testThreadedEdits(void) {
     atomic_store(&t.stop, true);
     pthread_join(thread, NULL);
     check(!atomic_load(&t.bad), "nonfinite or exploding output during edits");
+    navis_eq_stream_request(t.stream, &c0);
+    check(navis_eq_stream_bank_count(t.stream) <= 4, "threaded edits leave a bounded number of banks");
     navis_eq_stream_free(t.stream);
 }
 
 int main(void) {
     testDspMirror();
     testStream();
+    testDiscontinuity();
     testThreadedEdits();
     puts("Navis Darwin equalizer DSP: response, headroom, bypass, limits, stream swap/crossfade, levels and threaded edits passed.");
     return 0;

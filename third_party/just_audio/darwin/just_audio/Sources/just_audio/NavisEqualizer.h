@@ -20,6 +20,8 @@
 /// Installs the tap once the asset's audio track has loaded. Idempotent.
 - (void)attachToItem:(AVPlayerItem *)item;
 - (void)dispose;
+/// The player's current item (main thread); the state describes that item.
+@property (nonatomic, copy) AVPlayerItem *(^currentItemProvider)(void);
 
 @end
 
