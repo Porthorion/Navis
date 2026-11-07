@@ -255,7 +255,7 @@ class SongHeartButton extends ConsumerWidget {
   final bool outlined;
 
   /// Marks a song the catalogue flags as remote although its id looks
-  /// server-addressable.
+  /// server-addressable (`pl-deezer-*` is also caught by id).
   final bool isRemote;
 
   @override
@@ -264,7 +264,7 @@ class SongHeartButton extends ConsumerWidget {
     final isLiked =
         ref.watch(songStarredProvider(songId)).asData?.value ?? false;
     // A remote copy cannot be liked: shown disabled, the tap explains why.
-    final remote = isRemote || !isServerAddressableSongId(songId);
+    final remote = isRemote || isRemoteSong(id: songId);
     void toggle() {
       if (remote) {
         showAppNotice(
@@ -296,7 +296,8 @@ class SongHeartButton extends ConsumerWidget {
         : l10n.actionLike;
     final disabledColor = Theme.of(context).disabledColor;
     final icon = Icon(
-      isLiked ? Icons.favorite : Icons.favorite_border,
+      // A remote copy is never liked, even with a stale star.
+      isLiked && !remote ? Icons.favorite : Icons.favorite_border,
       color: remote ? disabledColor : null,
     );
     final button = outlined

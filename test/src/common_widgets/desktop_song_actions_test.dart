@@ -9,10 +9,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/adaptive_track_row.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/content_layout.dart';
 
 import '../../helpers/adaptive_test_harness.dart';
 import '../../helpers/test_theme.dart';
@@ -185,6 +187,110 @@ void main() {
 
     expect(find.byIcon(Icons.favorite_border), findsNothing);
     expect(find.text('3:05'), findsOneWidget);
+  });
+
+  Future<void> pumpActions(
+    WidgetTester tester,
+    Widget actions, {
+    TrackRowMode? mode,
+  }) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          songStarredProvider.overrideWith(
+            (ref, songId) => Stream.value(songId == 'ext-stale'),
+          ),
+          songDownloadStateProvider.overrideWith(
+            (ref, songId) => SongDownloadState.none,
+          ),
+        ],
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Align(
+              alignment: Alignment.topRight,
+              child: mode == null
+                  ? actions
+                  : TrackRowModeScope(mode: mode, child: actions),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  for (final width in <double>[1100, 1399]) {
+    testWidgets('remote rows keep the heart at $width px', (tester) async {
+      setAdaptiveTestViewport(tester, Size(width, 800));
+      await tester.pumpWidget(_harness(_song(isExternal: true)));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byTooltip('Like unavailable for remote songs'),
+        findsOneWidget,
+      );
+    });
+  }
+
+  testWidgets('remote rows take the action width of library rows per mode', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(1400, 800));
+    for (final mode in TrackRowMode.values) {
+      await pumpActions(
+        tester,
+        DesktopSongActions(song: _song(isExternal: false)),
+        mode: mode,
+      );
+      final local = tester.getSize(find.byType(DesktopSongActions)).width;
+      await pumpActions(
+        tester,
+        DesktopSongActions(song: _song(isExternal: true)),
+        mode: mode,
+      );
+      final remote = tester.getSize(find.byType(DesktopSongActions)).width;
+      await pumpActions(
+        tester,
+        DesktopSongActions.forSongId(
+          songId: 'ext-deezer-song-1',
+          isExternal: true,
+          onMore: (_) {},
+        ),
+        mode: mode,
+      );
+      final search = tester.getSize(find.byType(DesktopSongActions)).width;
+      expect(remote, local, reason: '$mode remote vs local');
+      expect(search, local, reason: '$mode Search vs local');
+      expect(
+        find.byTooltip('Like unavailable for remote songs'),
+        mode == TrackRowMode.wide ? findsOneWidget : findsNothing,
+      );
+    }
+  });
+
+  testWidgets('a remote heart shows the outline even with a stale star', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          songStarredProvider.overrideWith((ref, songId) => Stream.value(true)),
+        ],
+        child: MaterialApp(
+          theme: testTheme(),
+          localizationsDelegates: navisLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const Scaffold(body: SongHeartButton(songId: 'ext-stale')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byIcon(Icons.favorite), findsNothing);
+    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
   });
 
   testWidgets('a remote song heart is disabled and explains itself on tap', (

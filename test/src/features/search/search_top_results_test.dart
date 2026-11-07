@@ -557,6 +557,27 @@ void main() {
       );
     });
 
+    testWidgets('an external song with a plain id keeps its heart dimmed', (
+      tester,
+    ) async {
+      if (!sqliteAvailable) return;
+      await pump(
+        tester,
+        [
+          const TopSongResult(
+            Song(id: 'pl-deezer-1', title: 'Creep', isExternal: true),
+          ),
+        ],
+        desktop: true,
+        size: const Size(1200, 700),
+      );
+      expect(
+        find.byTooltip('Like unavailable for remote songs'),
+        findsOneWidget,
+      );
+      expect(find.byTooltip('Like'), findsNothing);
+    });
+
     testWidgets('three albums (Albums filter): hero and two tiles', (
       tester,
     ) async {

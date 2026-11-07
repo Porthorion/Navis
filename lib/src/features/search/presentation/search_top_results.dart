@@ -332,6 +332,7 @@ class _TopHero extends ConsumerWidget {
       // A remote song's heart is shown disabled and explains itself on tap.
       TopSongResult(:final song) => SongHeartButton(
         songId: song.id,
+        isRemote: view.isRemote,
         keyPrefix: 'search-top-song',
         outlined: true,
       ),
