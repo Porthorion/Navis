@@ -1737,7 +1737,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsReplayGainModeSmartDescription.
   ///
   /// In en, this message translates to:
-  /// **'Album levels when you play an album in order, track levels for shuffles and mixes.'**
+  /// **'Uses album levels when songs from one album play in a row, and track levels otherwise.'**
   String get playbackSettingsReplayGainModeSmartDescription;
 
   /// No description provided for @playbackSettingsReplayGainModeTrack.
@@ -1749,7 +1749,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsReplayGainModeTrackDescription.
   ///
   /// In en, this message translates to:
-  /// **'Normalize volume on a per-track basis.'**
+  /// **'Every song is levelled on its own. Best for shuffle and playlists.'**
   String get playbackSettingsReplayGainModeTrackDescription;
 
   /// No description provided for @playbackSettingsReplayGainModeAlbum.
@@ -1761,7 +1761,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsReplayGainModeAlbumDescription.
   ///
   /// In en, this message translates to:
-  /// **'Normalize volume on a per-album basis, preserving relative loudness.'**
+  /// **'A whole album is levelled together, so its quiet and loud songs stay as the artist set them. Best for playing whole albums.'**
   String get playbackSettingsReplayGainModeAlbumDescription;
 
   /// No description provided for @playbackSettingsReplayGainPreampLabel.
@@ -1770,11 +1770,57 @@ abstract class AppLocalizations {
   /// **'Pre-Amp (dB)'**
   String get playbackSettingsReplayGainPreampLabel;
 
-  /// No description provided for @playbackSettingsReplayGainPreampSubtitle.
+  /// No description provided for @playbackSettingsReplayGainIntro.
   ///
   /// In en, this message translates to:
-  /// **'Additional gain adjustment. Range: −6 to +6 dB.'**
-  String get playbackSettingsReplayGainPreampSubtitle;
+  /// **'ReplayGain turns loud songs down so they all play at a similar volume. It never turns songs up, so overall volume may sound lower: turn the volume up to compensate.'**
+  String get playbackSettingsReplayGainIntro;
+
+  /// No description provided for @playbackSettingsReplayGainPreampSubtitleDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Turns every song down further. It can\'t push a song above its original level.'**
+  String get playbackSettingsReplayGainPreampSubtitleDown;
+
+  /// No description provided for @playbackSettingsReplayGainPreampSubtitleZero.
+  ///
+  /// In en, this message translates to:
+  /// **'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB. It can\'t push a song above its original level.'**
+  String get playbackSettingsReplayGainPreampSubtitleZero;
+
+  /// No description provided for @playbackSettingsReplayGainPreampSubtitleUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Gives back some of the turn-down, but never pushes a song above its original level.'**
+  String get playbackSettingsReplayGainPreampSubtitleUp;
+
+  /// No description provided for @playbackSettingsReplayGainCoverage.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% of your {total, plural, =1{song has} other{songs have}} ReplayGain data ({withData} of {total}).'**
+  String playbackSettingsReplayGainCoverage(
+    int percent,
+    int total,
+    int withData,
+  );
+
+  /// No description provided for @playbackSettingsReplayGainCoverageRest.
+  ///
+  /// In en, this message translates to:
+  /// **'{kind, select, automatic{The rest, and online songs, play at {level} dB (Automatic).} other{The rest, and online songs, play at {level} dB (fixed level).}}'**
+  String playbackSettingsReplayGainCoverageRest(String kind, String level);
+
+  /// No description provided for @playbackSettingsReplayGainCoverageOff.
+  ///
+  /// In en, this message translates to:
+  /// **'ReplayGain is off.'**
+  String get playbackSettingsReplayGainCoverageOff;
+
+  /// No description provided for @playbackSettingsReplayGainCoverageTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Tag your files with rsgain or MusicBrainz Picard, then rescan your library, to cover the rest.'**
+  String get playbackSettingsReplayGainCoverageTip;
 
   /// No description provided for @playbackSettingsReplayGainUntaggedLabel.
   ///
@@ -10538,6 +10584,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'ReplayGain'**
   String get mediaInfoReplayGain;
+
+  /// No description provided for @nowPlayingReplayGainValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{db} dB · {kind, select, track{track} album{album} smartTrack{track (Smart)} smartAlbum{album (Smart)} untaggedAutomatic{untagged (Automatic)} other{untagged (fixed level)}}'**
+  String nowPlayingReplayGainValue(String db, String kind);
+
+  /// No description provided for @nowPlayingHoldForReplayGainSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold for ReplayGain settings'**
+  String get nowPlayingHoldForReplayGainSettings;
+
+  /// No description provided for @nowPlayingReplayGainSettingsAction.
+  ///
+  /// In en, this message translates to:
+  /// **'ReplayGain settings'**
+  String get nowPlayingReplayGainSettingsAction;
 
   /// No description provided for @mediaInfoReplayGainTrack.
   ///

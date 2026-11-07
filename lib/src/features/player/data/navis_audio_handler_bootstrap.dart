@@ -360,6 +360,10 @@ abstract class _DelegatingNavisPlaybackHandler
       _delegate.rollingCacheProtectedSongIds;
 
   @override
+  ReplayGainDecision? get currentReplayGainDecision =>
+      _delegate.currentReplayGainDecision;
+
+  @override
   Stream<MediaItem?> get mediaItemStream => _delegate.mediaItemStream;
 
   @override
