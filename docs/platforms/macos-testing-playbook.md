@@ -27,7 +27,7 @@ sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
 sudo xcodebuild -runFirstLaunch
 ```
 
-If iOS simulator testing is needed later, install Simulator runtimes via Xcode > Settings > Platforms.
+iOS simulator testing is in the [iOS testing playbook](ios-testing-playbook.md).
 
 ## 2) Quick validation (10-20 min)
 

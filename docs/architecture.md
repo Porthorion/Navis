@@ -2240,7 +2240,7 @@ all display paths find them and pruning retains them. Empty cover IDs remain
 missing; there is no synthetic display key or cover provenance. A Deezer cover
 therefore persists even if server art is added later.
 
-The iOS runner remains an unreleased scaffold and macOS is not released yet.
+Neither iOS nor macOS is released yet; iOS status is in the [iOS testing playbook](platforms/ios-testing-playbook.md).
 Their native configuration floors are iOS 16 and macOS 12; Linux validation does
 not certify either runner. macOS status and open work are in the
 [macOS parity plan](plans/macOS_Parity_Plan.md).

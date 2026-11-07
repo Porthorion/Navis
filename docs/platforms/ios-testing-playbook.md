@@ -35,7 +35,7 @@ Valid on the simulator: playback logic (stream through the loopback proxy, perma
 
 ## 4) Device-pass checklist
 
-Run once on a physical iPhone, signed in to a real server, in a build installed with the owner's signing (free Personal Team installs expire after 7 days). Note pass or fail and the commit hash for each line.
+Run once on a physical iPhone, signed in to a real server, in a TestFlight build (the owner has the paid Apple Developer Program since 2026-11-07; see I7). Note pass or fail and the commit hash for each line.
 
 - Lock screen and Control Center show title, artist, album, artwork and a moving position; scrubbing there seeks; play, pause, next and previous work.
 - Background playback survives locking the phone and switching apps; playback continues to the next track while locked (keychain readable while locked).
