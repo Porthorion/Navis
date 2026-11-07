@@ -2637,10 +2637,14 @@ void main() {
       expect(settings?.customDownloadFolderPath, isNull);
     }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
-    for (final copyFails in [true, false]) {
+    for (final mode in ['fails', 'lands', 'occupied']) {
+      final copyFails = mode == 'fails';
       test(
-        'cross-volume relocation copy '
-        '${copyFails ? 'leaves no truncated file at the final path' : 'lands whole through a part file'}',
+        'cross-volume relocation copy ${switch (mode) {
+          'fails' => 'leaves no truncated file at the final path',
+          'lands' => 'lands whole through a part file',
+          _ => 'refuses an occupied part name and leaves it alone',
+        }}',
         () async {
           final supportDir = await Directory.systemTemp.createTemp(
             'navis_default_support_',
@@ -2689,6 +2693,13 @@ void main() {
             ),
           );
 
+          final foreignPart = File(
+            '${customDir.path}/Slipknot/Duality.mp3.navis-part',
+          );
+          if (mode == 'occupied') {
+            foreignPart.createSync(recursive: true);
+            foreignPart.writeAsBytesSync(<int>[9, 9]);
+          }
           // The source cannot be renamed (another volume); its copy either
           // dies after writing some bytes or succeeds.
           final relocation = IOOverrides.runZoned(
@@ -2708,7 +2719,12 @@ void main() {
               .whereType<File>()
               .where((f) => !f.path.endsWith('.sqlite'))
               .toList();
-          if (copyFails) {
+          if (mode == 'occupied') {
+            await expectLater(relocation, throwsA(isA<FileSystemException>()));
+            expect(moved().single.path, foreignPart.path);
+            expect(foreignPart.readAsBytesSync(), <int>[9, 9]);
+            expect(legacyFile.existsSync(), isTrue);
+          } else if (copyFails) {
             await expectLater(relocation, throwsA(isA<FileSystemException>()));
             expect(moved(), isEmpty);
             expect(legacyFile.existsSync(), isTrue);

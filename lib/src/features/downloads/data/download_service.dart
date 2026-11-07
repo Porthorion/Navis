@@ -645,7 +645,10 @@ class DownloadService {
             await _reconcileMissingDownloads(generation);
             _checkRecovery(generation);
             if (_folderProblem != null) return;
-            await _downloadQueueDao.requeueStuckDownloads();
+            await _downloadQueueDao.requeueStuckDownloads(
+              keepJournaled: await _cacheDao.attachedDatabase
+                  .hasUnverifiedContainerPaths(),
+            );
             _checkRecovery(generation);
             // Files shows the iOS root, so a file the user put there is theirs.
             if (!_readCustomDownloadFolderEnabled() && !_isIOS) {
@@ -1767,10 +1770,18 @@ class DownloadService {
     if (_playbackHoldTimer != null) return;
     final now = DateTime.now();
     DateTime? nextRetry;
+    bool? pathsUnverified;
     for (final item in queue) {
       if (_stopped || _maintenanceInProgress) return;
       if (_workers.length >= effectiveConcurrency) break;
       if (_workers.containsKey(item.id)) continue;
+      // A finished-download journal at a path that may be stale waits for a
+      // launch whose rebase succeeds; downloading again would overwrite it.
+      if (_hasFinishedJournal(item) &&
+          (pathsUnverified ??= await _cacheDao.attachedDatabase
+              .hasUnverifiedContainerPaths())) {
+        continue;
+      }
       final notBefore = _retryNotBefore[item.id];
       if (notBefore != null && notBefore.isAfter(now)) {
         if (nextRetry == null || notBefore.isBefore(nextRetry)) {
@@ -1792,6 +1803,17 @@ class DownloadService {
         : Timer(nextRetry.difference(now), () {
             if (!_stopped) unawaited(_processNext());
           });
+  }
+
+  static bool _hasFinishedJournal(DownloadQueueTableData item) {
+    final journal = item.finishJournal;
+    if (journal == null) return false;
+    try {
+      return (jsonDecode(journal) as Map<String, dynamic>)['phase'] !=
+          'transferring';
+    } on Object {
+      return true;
+    }
   }
 
   void _startWorker(DownloadQueueTableData item) {
@@ -3780,16 +3802,28 @@ class DownloadService {
   }
 
   /// Copies [source] to [destination] through a part file, so a crash or
-  /// failure mid-copy never leaves a truncated file at the final path.
+  /// failure mid-copy never leaves a truncated file at the final path. An
+  /// occupied part name is refused, never overwritten.
   static Future<void> _copyThroughPartFile(
     File source,
     String destination,
   ) async {
     final part = File('$destination$downloadPartSuffix');
+    // A part name in a user folder is not proof of ownership: refuse it
+    // before the copy can truncate it or the cleanup can remove it.
+    // Keep storage latency off the UI isolate.
+    // ignore: avoid_slow_async_io
+    if (await FileSystemEntity.type(part.path, followLinks: false) !=
+        FileSystemEntityType.notFound) {
+      throw FileSystemException(
+        'The temporary copy name is occupied.',
+        part.path,
+      );
+    }
     try {
       await source.copy(part.path);
       await renameWithRetry(part, destination);
-    } on FileSystemException {
+    } on Object {
       await tryDeleteFile(part);
       rethrow;
     }
