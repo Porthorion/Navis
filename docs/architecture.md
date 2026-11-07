@@ -5010,10 +5010,11 @@ Desktop volume follows a parallel local-settings path:
    guard keeps a song's boost no higher than the next song's in the song's last
    3 s of wall-clock time (`guardedBoostDb`, `replayGainBoostGuarded`): the lower
    of the two, which is valid for both songs. A per-deck latch keeps that value
-   from ever rising, and a latched song stays guarded until its next start (a
-   new index, or another song at the same index), a seek, a queue load or a
-   loop or shuffle change, which also drop it (a settings or speed change only
-   lowers it), so a speed drop cannot widen the window back over samples
+   from ever rising, and a latched song stays guarded until another song starts
+   (the playing song id changes; an edit above it, a loop or shuffle change, a
+   settings pass or a speed change keep the latch and can only lower it; no song
+   start is decided while an edit is in flight, because the published song can
+   flip to its neighbour and back during one), a seek or a queue load, so a speed drop cannot widen the window back over samples
    already ahead. Songs shorter than 4 s, and songs
    whose timing is unknown, are guarded from their start. Position and duration
    are song time (the fork adds a transcode's start offset). The next song comes
@@ -5033,7 +5034,8 @@ Desktop volume follows a parallel local-settings path:
    value whose index is not the current one (a 0 is always applied), so a message
    that raced a seek, a jump, Play on a completed queue or a resume after an
    insert cannot put the old song's boost on the new song. After a seek the heard
-   deck's boost may only go strictly down for a second, because the discontinuity (and any
+   deck's boost may only go strictly down for a second (an equal value still goes
+   out when only the guard flag flips to guarded), because the discontinuity (and any
    tick before the index event) still describes the old song at the old index.
    Before any command that can change which song plays next, the native bridge
    lowers the requested boost to 0 on the main thread (`load`, `seek` to another

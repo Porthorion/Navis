@@ -446,12 +446,17 @@ extension _NavisMediaSession on NavisAudioHandler {
       }
       _captureTranscodeEndOccurrence(indexEvent: true);
       _updateScrobbleSession(item, currentIndex: resolved.currentIndex);
-      // just_audio emits the index again on every playback event: only a new
-      // index, or another song at the same index (the playing one was
-      // removed), is a song start that forgets the guard.
-      final songKey = (index: index, songId: item?.id);
-      if (songKey != _boostSongSeen) {
-        _boostSongSeen = songKey;
+      // just_audio emits the index again on every playback event, and an edit
+      // above the song only shifts it: only another song is a song start that
+      // forgets the guard. (A seek resets it on its own discontinuity. A natural
+      // advance to the same song needs no reset: the latch of a song whose
+      // successor is itself is its own boost.)
+      // While an edit runs the published song can flip to its neighbour and
+      // back (the queue is trimmed before the native index follows), so no
+      // song start is decided until the edit is done.
+      final songId = item?.id;
+      if (!_player.sequenceEditInFlight && songId != _boostSongIdSeen) {
+        _boostSongIdSeen = songId;
         _resetBoostGuard();
       }
       _applyReplayGainVolume();
@@ -784,11 +789,16 @@ extension _NavisMediaSession on NavisAudioHandler {
     if (value == null) return;
     final last = _sentBoost[deck];
     final until = _boostLowerOnlyUntil;
+    // A flag that only flips to guarded restricts, so an equal value may go
+    // through: native lowers before queue edits only while it knows it is
+    // guarded.
+    final onlyGuards = last != null && value.guarded && !last.guarded;
     if (identical(deck, _player) &&
         until != null &&
         _boostClock.elapsed < until &&
         last != null &&
-        value.db >= last.db) {
+        value.db >= last.db &&
+        !(onlyGuards && value.db == last.db)) {
       return;
     }
     _sentBoost[deck] = value;
@@ -883,12 +893,12 @@ extension _NavisMediaSession on NavisAudioHandler {
     _boostLowerOnlyUntil = null;
   }
 
-  /// Resets the guard (unless [keepLatch]) and tells the decks, for an event
-  /// that changes the window or what plays next without a song start. A speed
-  /// change keeps the latch: inside the window the value only goes down.
-  void _refreshBoostGuard({bool keepLatch = false}) {
+  /// Tells the decks again, for an event that changes the window or what plays
+  /// next without a song start (speed, loop, shuffle). The latch stays: inside
+  /// the window the value only goes down, and the min with the new next song
+  /// can still lower it.
+  void _refreshBoostGuard() {
     if (!_usesAndroidBoost) return;
-    if (!keepLatch) _resetBoostGuard();
     _applyReplayGainBoost();
   }
 
@@ -1152,7 +1162,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           (player) => _applyAdjustmentsToPlayer(player, values),
         );
         _appliedAdjustments = values;
-        _refreshBoostGuard(keepLatch: true);
+        _refreshBoostGuard();
         if (!_adjustmentController.isClosed) _adjustmentController.add(values);
         _broadcastPlaybackState();
       } on Object {

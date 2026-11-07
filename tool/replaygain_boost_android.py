@@ -358,6 +358,28 @@ class Run:
         self.post('/v1/playback/queue-edit', {'op': 'add', 'songIds': [H2]})
         time.sleep(4)
 
+        # Z1: a 2x to 1x drop with 5 s of Q left (inside the window at 2x, outside it at 1x), then an
+        # action that changes the index, the loop mode or the play order. Q's next song is H, so any
+        # value above 0 sent before the song changes is the old song's own boost on H's samples.
+        for action in ('remove-above', 'loop', 'shuffle'):
+            self.phase = f'a2-latch-{action}'
+            self.post('/v1/playback/adjustments', {'speed': 2})
+            self.queue([H2, Q1, H1])
+            self.post('/v1/playback/queue-index', {'index': 1})
+            self.play_from(24000)
+            time.sleep(.5)
+            self.post('/v1/playback/adjustments', {'speed': 1})
+            time.sleep(.3)
+            if action == 'remove-above':
+                self.post('/v1/playback/queue-edit', {'op': 'remove', 'index': 0})
+            elif action == 'loop':
+                self.post('/v1/playback/repeat', {'mode': 'all'})
+            else:
+                self.post('/v1/playback/shuffle', {'enabled': True})
+            time.sleep(3.5)
+            self.post('/v1/playback/repeat', {'mode': 'none'})
+            self.post('/v1/playback/shuffle', {'enabled': False})
+
         self.phase = 'a2-speed'
         self.queue([Q1, H1])
         self.post('/v1/playback/adjustments', {'speed': 2})

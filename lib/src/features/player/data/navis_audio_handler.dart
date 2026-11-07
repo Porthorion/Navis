@@ -398,8 +398,9 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Whether the active deck's last boost message was a guarded one.
   bool _boostGuardedNow = false;
 
-  /// The last (index, song) the boost guard saw an index event for.
-  ({int? index, String? songId})? _boostSongSeen;
+  /// The song the boost guard last saw an index event for: the latch lives
+  /// for one song, whatever index it sits at.
+  String? _boostSongIdSeen;
 
   /// After a seek, until this time on [_boostClock], the heard deck's boost
   /// may only go down: the seek may switch songs, and the old song's value must

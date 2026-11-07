@@ -56,12 +56,12 @@ def d1(root):
     # (present without any boost); the boost must add nothing to it.
     check('D1 H->Q: the boost adds nothing over the no-boost control', len(hq) and np.max(np.abs(hq)) <= np.max(np.abs(hqn)) + 0.01,
           f'hq max={np.max(np.abs(hq)) if len(hq) else None} control max={np.max(np.abs(hqn)) if len(hqn) else None}')
-    t = peaks(hq)
-    hi = np.where(t >= 0.5)[0]
-    if len(hi):
-        after = t[hi[-1] + 1:hi[-1] + 201]  # 10 ms windows
-        check('D1 Q head held down after H->Q (<= 0.05)', np.max(after[:30]) <= 0.05, f'head max={np.max(after[:30])}')
-        check('D1 Q boosted again within ~1.2 s', np.median(after[120:160]) >= 0.085, f'late median={np.median(after[120:160])}')
+    b = after_loud(hq)
+    if b is not None:
+        late = peaks(hq[b:])  # per-sample boundary: H's last half-cycle is not Q's head
+        head = np.max(np.abs(hq[b:b + int(0.3 * RATE)]))
+        check('D1 Q head held down after H->Q (<= 0.05)', head <= 0.05, f'head max={head:.4f}')
+        check('D1 Q boosted again within ~1.2 s', np.median(late[119:159]) >= 0.085, f'late median={np.median(late[119:159])}')
     else:
         check('D1 H->Q join found', False, 'no H region')
 
@@ -174,6 +174,32 @@ def d5(root):
               f'join at {b / RATE:.2f}s, qb raised {at}s after it')
 
 
+def unexpected_clamps(rows):
+    """Clamp-counter rises per (phase, song) and the ones that are not allowed.
+
+    A rise is seen about 100 ms after it happened, and the processor runs up to ~0.75 s ahead of the
+    speaker, so the status can still name L while H's first samples clamp (the L to H join). Only a
+    rise mid-song for L in a lossy phase is exempt (reported, not asserted: L sits 1 dB under full
+    scale and the margin is the owner's decision): the row, the one before and the one after are
+    unguarded, and L is between 1.5 s and 30 s - 3 s - 0.75 s. Any rise in L's guard window or after
+    it fails, as does any rise while another song plays."""
+    clamped, unexpected = {}, {}
+    for i in range(1, len(rows)):
+        r, before = rows[i], rows[i - 1]
+        if r['boost']['clipSamples'] <= before['boost']['clipSamples']:
+            continue
+        n = r['boost']['clipSamples'] - before['boost']['clipSamples']
+        key = (r['phase'], r['songId'])
+        clamped[key] = clamped.get(key, 0) + n
+        neighbours = rows[max(0, i - 1):i + 2]
+        exempt = (r['phase'].startswith('lossy-') and r['songId'] == 'rgl-1'
+                  and all(not x['boost']['guarded'] and x['songId'] == 'rgl-1' for x in neighbours)
+                  and r['positionMs'] is not None and 1500 <= r['positionMs'] <= 26250)
+        if not exempt:
+            unexpected[key] = unexpected.get(key, 0) + n
+    return clamped, unexpected
+
+
 def a1(root):
     import json
     path = os.path.join(root, 'a1', 'a1-samples.jsonl')
@@ -227,23 +253,14 @@ def a1(root):
     shuffled = phase('shuffle-toggle')
     check('A1 shuffle toggled in the last 3 s: nothing clipped', len(shuffled) > 50
           and max(r['boost']['clipSamples'] for r in shuffled) == 0, f'samples={len(shuffled)}')
-    # Clamped samples per phase and song: the counter's rises, attributed to the song the status
-    # row names. Nothing may clamp except L itself in a lossy phase (L sits 1 dB under full scale,
-    # and the margin is the owner's decision, so its count is reported, not asserted).
-    clamped = {}
-    previous = None
-    for r in rows:
-        count = r['boost']['clipSamples']
-        if previous is not None and count > previous:
-            key = (r['phase'], r['songId'])
-            clamped[key] = clamped.get(key, 0) + count - previous
-        previous = count
+    # Clamped samples per phase and song (see unexpected_clamps for what is exempt).
+    clamped, unexpected = unexpected_clamps(rows)
     for (phase_name, song), n in sorted(clamped.items()):
-        print(f'INFO A1 clamped samples in {phase_name} while {song} played: {n}')
+        print(f'INFO A1 clamped samples in {phase_name} while {song} played: {n}'
+              + (' (mid-song L, exempt)' if (phase_name, song) not in unexpected else ''))
     if not clamped:
         print('INFO A1 clamped samples: none in any phase')
-    unexpected = {k: v for k, v in clamped.items() if not (k[0].startswith('lossy-') and k[1] == 'rgl-1')}
-    check('A1 no clamped sample in any phase except L itself in a lossy phase', not unexpected,
+    check('A1 no clamped sample except L mid-song in a lossy phase (the L to H join included)', not unexpected,
           f'unexpected={unexpected}')
     for codec in ('opus', 'mp3'):
         rs = phase(f'lossy-{codec}')
@@ -257,16 +274,31 @@ def a1(root):
     # exceed the playing song's own boost, whichever command moved the index.
     a2 = [r for r in rows if r['phase'].startswith('a2-')]
     check('A2 samples recorded for skip, jump, remove, edit-above, Play and insert phases', len(a2) > 300 and
-          len({r['phase'] for r in a2}) >= 8, f'rows={len(a2)} phases={sorted({r["phase"] for r in a2})}')
-    check('A2 clipSamples stays 0', a2 and max(r['boost']['clipSamples'] for r in a2) == 0,
-          f'max={max([r["boost"]["clipSamples"] for r in a2] or [None])}')
+          len({r['phase'] for r in a2}) >= 11, f'rows={len(a2)} phases={sorted({r["phase"] for r in a2})}')
+    a2_rises = unexpected_clamps(a2)[1]  # the counter is cumulative: count its rises, not its value
+    check('A2 no clamped sample in any A2 phase', not a2_rises, f'rises={a2_rises}')
     done = [r for r in phase('a2-play-completed') if r['songId'] == 'rgq-1' and (r['positionMs'] or 0) > 28000]
+    restarted = [r for r in phase('a2-play-completed') if r['songId'] == 'rgh-1' and r.get('playing')]
     again = [r for r in phase('a2-play-completed') if r['songId'] == 'rgq-1' and r.get('playing')
              and r['positionMs'] is not None and r['positionMs'] < 5000]
-    # The API's Play resumes the ended last song on the emulator; handler.dart's restart-at-index-0
-    # branch is not taken there (no `restartCompleted` anomaly), so that path rests on the unit tests.
-    check('A2 Play on the completed queue played Q to its end and Q played again',
-          len(done) > 3 and len(again) > 3, f'Q end rows={len(done)} Q restart rows={len(again)}')
+    if len(done) > 3 and len(restarted) > 3:
+        check('A2 Play on the completed queue restarted at song 0 (H)', True,
+              f'Q end rows={len(done)} H restart rows={len(restarted)}')
+    elif len(done) > 3 and len(again) > 3:
+        # The API's Play (handler.play(), like the Now Playing button) replays the ended last song on the
+        # emulator and never takes handler.dart's restart-at-index-0 branch: that path is not exercised.
+        print('SKIP A2 Play on the completed queue restarted at song 0 (H): the branch was not reached, '
+              f'Q played again instead (Q end rows={len(done)} Q restart rows={len(again)})')
+    else:
+        check('A2 Play on the completed queue restarted at song 0 or replayed Q', False,
+              f'Q end rows={len(done)} H restart rows={len(restarted)} Q again rows={len(again)}')
+    for action in ('remove-above', 'loop', 'shuffle'):
+        rs = [r for r in phase(f'a2-latch-{action}') if r['songId'] == 'rgq-1' and r.get('playing')
+              and r['positionMs'] is not None and 25200 <= r['positionMs'] <= 26800
+              and r['boost']['sentDb'] is not None]
+        check(f'A2 {action} after a 2x to 1x drop with 5 s left: Q stays guarded to 0 until the window', len(rs) > 3
+              and max(r['boost']['sentDb'] for r in rs) == 0,
+              f'n={len(rs)} max sentDb={max([r["boost"]["sentDb"] for r in rs] or [None])}')
     resumed = [r for r in phase('a2-insert-resume') if r['songId'] == 'rgh-2' and r.get('playing')]
     check('A2 an insert into the completed queue resumed at the inserted song (H2)', len(resumed) > 3,
           f'H2 rows={len(resumed)}')
