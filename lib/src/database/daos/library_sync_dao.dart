@@ -1200,13 +1200,14 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   Future<void> markRunning(int id, {DateTime? now}) =>
       _writeWork((table) => table.id.equals(id), status: 'running', now: now);
 
-  Future<void> requeue(int id, {DateTime? now}) => _writeWork(
-    (table) => table.id.equals(id),
-    status: 'queued',
-    now: now,
-    notBefore: const Value(null),
-    lastErrorType: const Value(null),
-  );
+  Future<void> requeue(int id, {DateTime? now, DateTime? notBefore}) =>
+      _writeWork(
+        (table) => table.id.equals(id),
+        status: 'queued',
+        now: now,
+        notBefore: Value(notBefore),
+        lastErrorType: const Value(null),
+      );
 
   Future<void> markCompleted(
     int id, {

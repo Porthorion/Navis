@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/api/models/models.dart' show ScanStatus;
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
@@ -476,6 +477,7 @@ void main() {
     lockedCoordinator({
       required void Function(int reads) onPolicyRead,
       bool Function()? hasActivePlayback,
+      FakeLibrarySyncApi? api,
     }) async {
       await database.librarySyncDao.releaseExecutionLease(
         serverId: 1,
@@ -504,7 +506,7 @@ void main() {
       var policyReads = 0;
       final coordinator = AdaptiveLibrarySyncCoordinator(
         executor: serialDriftEngine(
-          api: FakeLibrarySyncApi(),
+          api: api ?? FakeLibrarySyncApi(),
           database: database,
           repository: repository,
           networkType: NetworkType.wifi,
@@ -578,11 +580,14 @@ void main() {
     test('13a a request write that times out on a lock is lease held, not a failure', () async {
       final raw = await reopenWithBusyHandler();
       var locked = false;
+      var playbackReads = 0;
       final (:coordinator, :serverId) = await lockedCoordinator(
         onPolicyRead: (_) {},
-        // Read while planning, right before enqueueSyncRun writes the request.
+        // The first read is the scan-snapshot trigger's admission check; the
+        // second is the planner's, right before enqueueSyncRun writes the
+        // request (a lock taken earlier is absorbed by the reads in between).
         hasActivePlayback: () {
-          if (!locked) {
+          if (++playbackReads == 2) {
             locked = true;
             holdWriterLock(raw, const Duration(seconds: 7));
           }
@@ -599,6 +604,54 @@ void main() {
       expect(
         await database.select(database.librarySyncRunRequestTable).get(),
         isEmpty,
+      );
+    }, timeout: const Timeout(Duration(seconds: 60)));
+
+    test('13c the scan-snapshot trigger enqueue that times out on a lock is lease held, not a failure', () async {
+      final raw = await reopenWithBusyHandler();
+      // A completed scan no promoted snapshot has covered: the trigger reaches
+      // its enqueue, which is the first write of the request.
+      final dao = database.librarySyncDao;
+      for (final token in ['2026-11-07T04:00:00Z', '2026-11-07T12:00:00Z']) {
+        await dao.recordScanObservation(
+          serverId: 1,
+          scanInProgress: false,
+          supported: true,
+          providerScanToken: token,
+        );
+        if (token.contains('T04')) {
+          await dao.markScanReconciled(serverId: 1, token: token);
+        }
+      }
+      final api = FakeLibrarySyncApi()
+        ..scanStatus = ScanStatus(
+          scanning: false,
+          count: 0,
+          lastScan: DateTime.parse('2026-11-07T12:00:00Z'),
+        );
+      var locked = false;
+      final (:coordinator, :serverId) = await lockedCoordinator(
+        onPolicyRead: (_) {},
+        api: api,
+        // The first playback read is the trigger's admission check, before
+        // its observation and enqueue; the lock outlasts the enqueue's own
+        // 5 s busy wait.
+        hasActivePlayback: () {
+          if (!locked) {
+            locked = true;
+            holdWriterLock(raw, const Duration(seconds: 12));
+          }
+          return false;
+        },
+      );
+      final result = await coordinator.requestSync(
+        const LibrarySyncRequest.checkForUpdates(),
+      );
+      expect(locked, isTrue);
+      await expectBusyNotFailure(result, serverId);
+      expect(
+        await dao.getWork(serverId: serverId, kind: 'catalogSnapshot'),
+        isNull,
       );
     }, timeout: const Timeout(Duration(seconds: 60)));
 

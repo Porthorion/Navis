@@ -26,6 +26,7 @@ import json
 import os
 import pathlib
 import random
+import re
 import shlex
 import shutil
 import sqlite3
@@ -817,6 +818,124 @@ class Runner:
     def idle(self, seconds: float):
         time.sleep(seconds)
 
+    def sync_during_playback(self):
+        """Check for updates (a scan-triggered catalog snapshot when the server
+        has rescanned) while a queue plays: records the sync outcome and
+        whether playback ever stalled, failed or lost its place meanwhile."""
+        self.play_queue(30, 90)
+        # Control: the position must advance on its own before the sync starts,
+        # or the stall figure below measures the device, not the sync.
+        first = self.app.api('/v1/playback/status')
+        (self.app.output / 'sync-playback-first-status.json').write_text(
+            json.dumps(first))
+        time.sleep(10)
+        before = self.app.api('/v1/playback/status')
+        advanced_ms = ((before.get('positionMs') or 0) - (first.get('positionMs') or 0)
+                       if before.get('songId') == first.get('songId') else None)
+        # The harness keeps automatic sync off; a manual check needs it on.
+        self.app.api('/v1/diagnostics/overrides',
+                     {'networkType': 'wifi', 'nativeMetered': False,
+                      'automaticSyncAllowed': True})
+        self.app.api('/v1/sync/check', {})
+        started = time.monotonic()
+        last = (before.get('songId'), before.get('positionMs'))
+        last_moved = started
+        longest_stall = 0.0
+        songs = {before.get('songId')}
+        loading_s = 0.0
+        failures = []
+        timeout_log = []
+        slow_log = []
+        slowest_call_ms = 0
+        status = {}
+        stage = None
+        timeline = []
+
+        def call(route):
+            nonlocal slowest_call_ms
+            began = time.monotonic()
+            try:
+                value = self.app.api(route, timeout=15)
+            except Exception as error:
+                timeout_log.append({
+                    'tS': round(began - started, 1), 'route': route,
+                    'stage': stage, 'error': type(error).__name__})
+                return None
+            elapsed_ms = round((time.monotonic() - began) * 1000)
+            slowest_call_ms = max(slowest_call_ms, elapsed_ms)
+            if elapsed_ms > 2000:
+                slow_log.append({'tS': round(began - started, 1),
+                                 'route': route, 'ms': elapsed_ms,
+                                 'stage': stage})
+            return value
+
+        while time.monotonic() - started < 900:
+            status = call('/v1/sync/status') or status
+            stage = status.get('stage')
+            playback = call('/v1/playback/status')
+            if playback is None:
+                time.sleep(0.5)
+                continue
+            now = time.monotonic()
+            position = (playback.get('songId'), playback.get('positionMs'))
+            songs.add(playback.get('songId'))
+            timeline.append((round(now - started, 1), position[0],
+                             position[1], playback.get('playing'),
+                             stage, playback.get('processingState'),
+                             playback.get('isLoading')))
+            if position != last:
+                last, last_moved = position, now
+            elif playback.get('playing'):
+                longest_stall = max(longest_stall, now - last_moved)
+            if playback.get('isLoading'):
+                loading_s += 0.5
+            if playback.get('failure'):
+                failures.append(playback['failure'])
+            if not status.get('requestActive') and now - started > 3:
+                break
+            time.sleep(0.5)
+        after = self.app.api('/v1/playback/status')
+        (self.app.output / 'sync-playback-timeline.json').write_text(
+            json.dumps(timeline))
+        (self.app.output / 'sync-playback-api-timeouts.json').write_text(
+            json.dumps(timeout_log))
+        # Verdicts. The stall figure only means something when the position
+        # advances on its own before the sync starts.
+        position_advances = advanced_ms is not None and advanced_ms >= 2000
+        stall_s = round(longest_stall, 1)
+        if not position_advances:
+            stall_verdict = 'INVALID (position does not advance without a sync)'
+        else:
+            stall_verdict = 'PASS' if stall_s < 3 else 'FAIL'
+        playing_before = bool(before.get('playing'))
+        playback_verdict = ('PASS' if playing_before and after.get('playing')
+                            and not failures else 'FAIL')
+        triggered = (status.get('planKind') == 'catalogSnapshot' and
+                     status.get('status') == 'succeeded')
+        return {
+            'baselineAdvancedMsIn10s': advanced_ms,
+            'syncS': round(time.monotonic() - started, 1),
+            'syncStatus': status.get('status'),
+            'planKind': status.get('planKind'),
+            'planReason': status.get('planReason'),
+            'requests': status.get('requests'),
+            'bytes': status.get('bytes'),
+            'apiTimeouts': len(timeout_log),
+            'apiTimeoutLog': timeout_log[:8],
+            'slowestApiCallMs': slowest_call_ms,
+            'slowApiCalls': slow_log[:8],
+            'songsPlayed': len(songs),
+            'longestPlaybackStallS': stall_s,
+            'loadingS': loading_s,
+            'playbackFailures': failures[:3],
+            'playingBefore': playing_before,
+            'stillPlaying': after.get('playing'),
+            'syncVerdict': ('PASS' if triggered else
+                            'NOT TRIGGERED (no catalog snapshot ran)'),
+            'stallVerdict': stall_verdict,
+            'playbackVerdict': playback_verdict,
+        }
+
     def play_queue(self, count: int, fill_timeout: float, skips: int = 0):
         ids = self.song_ids(count, seed=count)
         started = time.monotonic()
@@ -1000,8 +1119,8 @@ def main() -> int:
     parser.add_argument('--scenarios', default='all',
                         help='comma list: idle,queue2k,library,search,queue10k,'
                              'artist,artist-remote,artist-crossfade,'
-                             'folder-import,cold (artist-crossfade runs only '
-                             'when named)')
+                             'folder-import,cold (artist-crossfade and '
+                             'sync-playback run only when named)')
     parser.add_argument('--unhydrate-artist', action='store_true',
                         help='forget the remote artist\'s album songs in the '
                              'clone (all but two albums), so playing it '
@@ -1032,6 +1151,18 @@ def main() -> int:
         print(f"[perf] built in {summary['buildS']}s", flush=True)
         return 0
     prepare_profile(credentials, args.fresh)
+    if 'sync-playback' in wanted:
+        # A profile exported from another build would schedule a startup full
+        # repair; make it model-current so only the scan-triggered snapshot
+        # can reconcile it.
+        model = re.search(
+            r"const currentLibrarySyncModelVersion = '([^']+)'",
+            (ROOT / 'lib/src/features/library/presentation/'
+             'library_sync_provider.dart').read_text()).group(1)
+        with sqlite3.connect(PROFILE / 'navis.sqlite') as clone:
+            clone.execute('UPDATE app_settings SET last_full_sync_app_build=?',
+                          (model,))
+            clone.commit()
     if args.crossfade is not None:
         with sqlite3.connect(PROFILE / 'navis.sqlite') as clone:
             clone.execute(
@@ -1128,6 +1259,9 @@ def main() -> int:
                 fade = args.crossfade if args.crossfade else 5
                 runner.measure('S7c_remote_artist_crossfade',
                                lambda: runner.remote_artist_crossfade(fade))
+        if 'sync-playback' in wanted:
+            runner.measure('S9_sync_during_playback',
+                           runner.sync_during_playback, heartbeat=True)
         if enabled('folder-import'):
             app.api('/v1/presentation/navigate', {'location': '/'})
             time.sleep(2)

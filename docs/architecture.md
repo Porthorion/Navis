@@ -6502,7 +6502,8 @@ collaborators does not read locale settings or open the database for localizatio
    than replacing an explicit discovery request. On a metered connection,
    ordinary Check for updates inspects one bounded 50-album newest page and
    hydrates at most three changed albums; it never runs an artist sweep or
-   bulk-song index. Remaining work
+   bulk-song index (this also holds for the scan-triggered snapshot: it needs
+   one-time broad consent). Remaining work
    waits for an unmetered connection, the user disabling the unmetered-only
    setting, or one-time mobile-data consent for broad discovery. Discrepant
    on-server albums use ordinary song hydration and identity/cache reconciliation, so a new album does not wait
@@ -6813,22 +6814,67 @@ contract.
 
 #### Scan awareness, catalog availability, and identity recovery
 
-- **Scan detection.** The scheduled probe reads `getScanStatus` once per
-  eligible check (no separate polling loop) through the typed
-  `SubsonicApiClient.getScanStatus`. Standard `scanning`/`count` fields are
-  supported; Navidrome's optional `lastScan` supplies the scan token. A newly
-  completed token opens one pending reconciliation (`library_scan_observation`)
-  that flows through the existing probe → snapshot path, and collection
-  re-observes the token before promotion: if a scan landed mid-collection, the
-  candidate's completeness evidence is withheld, the ledger records
-  `scanChangedDuringCollection` (with a per-server deferral streak in
-  `libraryScanDeferralStreak`), and the resumable planner recollects. After
-  three consecutive deferrals the engine waits a bounded window for a running
-  scan to finish and releases the promotion once the server is quiet
-  (`scanChurnCapRelease` ledger entry) so a continuously rescanning server
-  cannot defer full-sync promotion forever. Servers
-  without the endpoint are recorded once as unsupported and stay on the
-  existing discovery/audit mechanisms.
+- **Scan detection.** Navidrome exposes no change token below the scan, so a
+  newly completed scan (`lastScan`) is the only signal that song tags
+  (ReplayGain, titles, genres) or membership changed. `getScanStatus` is read
+  through the typed `SubsonicApiClient.getScanStatus`; standard
+  `scanning`/`count` fields are supported and `lastScan` supplies the scan
+  token. A completed token that no promoted snapshot has covered opens a
+  pending reconciliation (`library_scan_observation`). The coordinator turns it
+  into one durable `catalogSnapshot` work row (priority 70, above a queued
+  delta) before selecting resumed work, so the ordinary resume path runs the
+  existing bulk `search3` snapshot, diff analyzer, deletion guard and
+  promotion, and promotion marks reconciled only the scan the candidate was
+  collected under. The coordinator makes
+  one unscoped `getScanStatus` request (`SyncPlanExecutor.observeServerScan`,
+  outside the run budget) only on a catalog pass that could run a snapshot: a
+  manual Check for updates, or an automatic pass that is due, with a baseline,
+  on a network and visibility state that admit a snapshot. A work row the
+  trigger wrote (its checkpoint carries the scan token as `evidenceVersion`)
+  never runs on a metered connection without the one-time broad mobile-data
+  grant, at enqueue, at selection and at execution, so a snapshot an
+  interruption left queued, or a Wi-Fi pass that flipped to cellular, stops
+  there too; the first-setup snapshot is unchanged. A manual check runs the
+  snapshot whenever the server has scanned since the last reconciled one. An
+  automatic pass runs it at most once per 24 hours from the previous attempt
+  (the work row's last transition; a clock that moved back counts as due), and
+  a failed snapshot retries automatically at most once per 24 hours too, while
+  a manual check retries it at once. A failed or incomplete rescan snapshot is
+  not a successful check and leaves the failure circuit alone. While a
+  large-deletion candidate waits for confirmation no new snapshot is queued, so
+  the retag in that candidate waits with the deletions. Installing the update
+  runs one snapshot at the first eligible pass if the server scanned since the
+  last reconciled token. A server that answers `getScanStatus` without a
+  `lastScan` records no token, and one without the endpoint is recorded once as
+  unsupported; both keep the album verification rotation (16 albums per pass,
+  7 days), and the one-request observation still runs before each eligible
+  manual or due automatic pass. Collection reads the token before it starts
+  and promotion re-observes it: if a scan landed mid-collection the promotion
+  waits, the ledger records `scanChangedDuringCollection` (with a per-server
+  deferral streak in `libraryScanDeferralStreak`), and the candidate, stored
+  with its collection token (`libraryCandidateScanToken`), resumes only while
+  the server is still at that token; otherwise its pages are discarded and
+  collected again. A held large-deletion candidate is exempt: it always
+  collects fresh pages, and confirming it must not depend on whether a scan
+  landed since the hold. When the current scan token cannot be read, the
+  candidate is kept and only the scan its pages were collected under is
+  reconciled. The token is compared before the album-page boundary check, so a
+  candidate that cannot resume costs no page requests. A scan-triggered snapshot
+  whose promotion waits is reported as deferred (`scanChanged`, and
+  `LibrarySyncState.scanDeferred`), not as a success: it shows neither an
+  update notice nor a mobile-data action, the Android worker records it as
+  `deferredScanChanged`, and neither `lastCheckedAt` nor `lastCatalogSyncedAt`
+  advances. Its work row stays queued (a queued row ignores the 24 hour
+  attempt clock, which the requeue still stamps) with the existing 15, 30 and
+  60 minute backoff, and a manual check retries it at once. After three
+  consecutive deferrals the engine waits a bounded window for a running scan to
+  finish and releases the promotion of the data it just collected once the
+  server is quiet (`scanChurnCapRelease` ledger entry), which leaves the newer
+  scan pending. If the server has still not settled, the next automatic retry
+  waits at least 24 hours, so a server that never stops scanning costs at most
+  four automatic full passes in the first day and one a day afterwards. A scan-triggered snapshot is not a repair: it bumps
+  `cover_art_revision` only for songs whose cover id changed, never for a
+  ReplayGain or play-count change, so artwork is not downloaded again.
 - **Catalog availability.** Songs, albums, and artists carry a typed
   `catalog_availability` (`present`/`suspectedMissing`/`confirmedMissing`).
   Transport, authentication, rate-limit, and decoding failures never advance
@@ -7762,7 +7808,7 @@ Endpoint admission, actual retry attempts, byte counts, concurrency and elapsed
 limits belong to that scope; unrelated UI traffic is excluded. Automatic passes
 have a 30-second, 96-request, 32-album-detail and 32-MiB ceiling (three concurrent
 requests). Manual discovery has 60 seconds, 200 requests, 64 details and 64 MiB;
-initial/repair snapshots have ten minutes and 512 MiB. Limits defer persisted work
+initial/repair snapshots, and the scan-triggered snapshot, have ten minutes and 512 MiB. Limits defer persisted work
 without discarding committed hydration batches. Long Retry-After responses are
 scheduled through durable retry state.
 The engine obeys the admitted execution plan even when a safely promoted partial

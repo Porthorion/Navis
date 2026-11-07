@@ -48,7 +48,7 @@ class StubLibrarySyncEngine extends LibrarySyncEngine {
 /// A [SyncPlanExecutor] that logs every executed plan and delegates the
 /// result to a handler.
 class StubSyncPlanExecutor implements SyncPlanExecutor {
-  new(this._handler);
+  new(this._handler, {this.onObserveScan});
 
   final Future<LibrarySyncState> Function(
     SyncExecutionPlan plan, {
@@ -56,11 +56,22 @@ class StubSyncPlanExecutor implements SyncPlanExecutor {
   })
   _handler;
 
+  /// Simulates the scan observation the real engine records; a test uses it
+  /// to make the "server" report a new completed scan.
+  final Future<void> Function()? onObserveScan;
+
   final plans = <SyncExecutionPlan>[];
   int cancelCalls = 0;
+  int observeScanCalls = 0;
 
   @override
   void cancelSync() => cancelCalls++;
+
+  @override
+  Future<void> observeServerScan(int serverId) async {
+    observeScanCalls++;
+    await onObserveScan?.call();
+  }
 
   @override
   Future<LibrarySyncState> executeSyncPlan(

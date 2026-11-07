@@ -88,6 +88,7 @@ class LibrarySyncState {
     this.probeIndexesUnsupported = false,
     this.probeDiscoveryDebtStreak,
     this.updatesAvailable = false,
+    this.scanDeferred = false,
   });
 
   const new idle({
@@ -181,6 +182,10 @@ class LibrarySyncState {
   final int? probeDiscoveryDebtStreak;
   final bool updatesAvailable;
 
+  /// A scan-triggered snapshot whose promotion waits for a quiet server. It
+  /// heals by itself: it is neither an update notice nor a degradation.
+  final bool scanDeferred;
+
   bool get isRunning => status == LibrarySyncStatus.running;
 
   /// A lock timeout the scheduler retries on its own; never shown as an error.
@@ -262,6 +267,7 @@ class LibrarySyncState {
     bool? probeIndexesUnsupported,
     int? probeDiscoveryDebtStreak,
     bool? updatesAvailable,
+    bool? scanDeferred,
   }) {
     return LibrarySyncState(
       status: status ?? this.status,
@@ -346,6 +352,7 @@ class LibrarySyncState {
       probeDiscoveryDebtStreak:
           probeDiscoveryDebtStreak ?? this.probeDiscoveryDebtStreak,
       updatesAvailable: updatesAvailable ?? this.updatesAvailable,
+      scanDeferred: scanDeferred ?? this.scanDeferred,
     );
   }
 }
