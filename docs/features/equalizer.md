@@ -47,11 +47,19 @@ so. The tap runs before the player's own effects (speed, volume), so crossfade
 decks, gapless advance and 1.5× speed all use the same path (each deck owns its
 own equalizer instance). When playback stops the audio machinery calls
 unprepare and the DSP stream is freed (the last state stays readable and edits
-apply on resume); a seek or resume is a jump in the source time range, which
-resets the filter history like Android's flush (the header's StartOfStream flag
-is only set on the first block after prepare). The reported `reason` names why
+apply on resume). A seek or resume resets the filter history like Android's
+flush: it shows up as a start that is more than 2.5 ms away from where the
+previous block ended (start plus frames over sample rate; the tolerance covers
+rounding of both ends to a timescale as coarse as 600), because the header's
+StartOfStream flag is only set on the first block after prepare. While paused
+or seeking the tap is still called with empty source ranges (zero duration),
+which are ignored. `resetCount` in the diagnostics `application` counts these
+resets (one for the start, one per resume, one or two per seek: measured below). The reported `reason` names why
 the current item is not processed: still attaching, no audio track (for example
-HLS before playback), the tap could not be created, or an unsupported format.
+HLS before playback), the track load failed, the tap could not be created, or
+an unsupported format. Known limitation: an asset whose track load never
+completes or fails (a stalled network) keeps reporting "attaching" until it
+does.
 
 State adds two iOS-only fields, surfaced in `/v1/equalizer` `application`:
 `processedFrames` (frames processed by this platform player, which grows while

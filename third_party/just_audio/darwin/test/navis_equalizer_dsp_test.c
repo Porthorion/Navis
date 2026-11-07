@@ -237,22 +237,95 @@ static void testDiscontinuity(void) {
     navis_eq_stream_free(reference);
 }
 
+// Block start times as the tap reports them: CMTime values with a timescale,
+// each start rounded on its own (the duration is not used).
+static double cmtime(double seconds, int timescale) { return floor(seconds * timescale + 0.5) / timescale; }
+
+static void testContinuity(void) {
+    const int timescales[] = {44100, 48000, 600};
+    const int rates[] = {44100, 48000, 96000};
+    const int sizes[] = {1, 441, 882, 883, 1024, 4096};
+    NavisEqConfig c = config(true, false, 0, NULL, 0);
+    for (int t = 0; t < 3; t++) {
+        for (int r = 0; r < 3; r++) {
+            NavisEqStream *s = navis_eq_stream_new(&c, rates[r], 2);
+            long frames = 123457; // not aligned to the timescale
+            int falsePositives = 0;
+            for (int i = 0; i < 4000; i++) {
+                int n = sizes[i % 6];
+                if (navis_eq_stream_source_block(s, cmtime((double)frames / rates[r], timescales[t]), n)) falsePositives++;
+                frames += n;
+            }
+            // The first block has nothing to compare with.
+            near(falsePositives, 0, 0, "contiguous blocks give no reset");
+            int jumps = 0;
+            jumps += navis_eq_stream_source_block(s, cmtime((double)frames / rates[r] + 0.020, timescales[t]), 1024); // 20 ms ahead
+            frames += 1024 + (long)(0.020 * rates[r]);
+            near(navis_eq_stream_source_block(s, cmtime((double)frames / rates[r], timescales[t]), 1024), 0, 0, "contiguous after a jump");
+            frames += 1024;
+            jumps += navis_eq_stream_source_block(s, cmtime((double)(frames - 3 * rates[r]) / rates[r], timescales[t]), 1024); // seek back 3 s
+            near(jumps, 2, 0, "a 20 ms jump and a backwards seek give exactly one reset each");
+            navis_eq_stream_free(s);
+        }
+    }
+    // Pause and seek: the tap is called with empty source ranges (no frames,
+    // position stuck) while nothing plays. They are neither a jump nor a new
+    // expected end; the first real block after them is what gets compared.
+    {
+        NavisEqStream *p = navis_eq_stream_new(&c, 48000, 2);
+        double t = 4.0;
+        int resets = 0;
+        for (int i = 0; i < 10; i++, t += 4096.0 / 48000) resets += navis_eq_stream_source_block(p, cmtime(t, 48000), 4096);
+        near(resets, 0, 0, "steady playback before the pause");
+        for (int i = 0; i < 25; i++) resets += navis_eq_stream_source_block(p, cmtime(t - 4096.0 / 48000, 48000), 0); // paused
+        near(resets, 0, 0, "empty source ranges are not jumps");
+        resets += navis_eq_stream_source_block(p, cmtime(t - 0.021, 48000), 4096); // resume re-reads 21 ms
+        near(resets, 1, 0, "the resume is one reset");
+        t = t - 0.021 + 4096.0 / 48000;
+        resets += navis_eq_stream_source_block(p, cmtime(t, 48000), 4096);
+        navis_eq_stream_source_block(p, 60.0, 0); // seek: empty range at the target
+        navis_eq_stream_source_block(p, 60.0, 0);
+        resets += navis_eq_stream_source_block(p, 60.064, 4096);
+        near(resets, 2, 0, "the seek is one reset");
+        resets += navis_eq_stream_source_block(p, 60.064 + 4096.0 / 48000, 4096);
+        near(resets, 2, 0, "contiguous after the seek");
+        navis_eq_stream_free(p);
+    }
+    // resetCount counts resets.
+    NavisEqStream *s = navis_eq_stream_new(&c, 44100, 2);
+    NavisEqStreamState st;
+    navis_eq_stream_state(s, &st);
+    near((double)st.resetCount, 0, 0, "no resets yet");
+    navis_eq_stream_reset_history(s);
+    navis_eq_stream_reset_history(s);
+    navis_eq_stream_state(s, &st);
+    near((double)st.resetCount, 2, 0, "resetCount counts resets");
+    navis_eq_stream_free(s);
+}
+
 typedef struct {
     NavisEqStream *stream;
+    const int *sizes;
+    int sizeCount;
     atomic_bool stop;
     atomic_bool bad;
 } AudioThread;
 
+// Random block sizes and random history resets, like the tap would deliver.
 static void *audioMain(void *arg) {
     AudioThread *t = arg;
-    float *chans[2] = {malloc(512 * sizeof(float)), malloc(512 * sizeof(float))};
+    float *chans[2] = {malloc(4096 * sizeof(float)), malloc(4096 * sizeof(float))};
     long pos = 0;
+    unsigned r = 12345;
     while (!atomic_load(&t->stop)) {
-        for (int i = 0; i < 512; i++, pos++) {
+        r = r * 1664525u + 1013904223u;
+        int n = t->sizes[(r >> 16) % (unsigned)t->sizeCount];
+        for (int i = 0; i < n; i++, pos++) {
             chans[0][i] = chans[1][i] = (float)(0.2 * sin(2 * NAVIS_PI * 440 * pos / 44100));
         }
-        navis_eq_stream_process(t->stream, chans, 2, 512);
-        for (int i = 0; i < 512; i++) {
+        if (((r >> 8) & 7) == 0) navis_eq_stream_reset_history(t->stream);
+        navis_eq_stream_process(t->stream, chans, 2, n);
+        for (int i = 0; i < n; i++) {
             if (!isfinite(chans[0][i]) || fabsf(chans[0][i]) > 8) atomic_store(&t->bad, true);
         }
     }
@@ -261,23 +334,31 @@ static void *audioMain(void *arg) {
     return NULL;
 }
 
-// Run under ASan/TSan when available: edits race the audio thread, the sweep
-// must never free a bank the audio thread can reach.
-static void testThreadedEdits(void) {
-    NavisEqFilter fs[] = {filter(NAVIS_EQ_PEAKING, 800, 6, 1), filter(NAVIS_EQ_HIGH_SHELF, 8000, -4, 0.7)};
+// Run under ASan/TSan when available: edits and sweeps race the audio thread,
+// the sweep must never free a bank the audio thread can reach, and the bank
+// count stays bounded. Block sizes make a swap and the end of its fade land
+// in one call (882/883 frames is the 20 ms fade at 44.1 kHz).
+static void runThreaded(int sampleRate, const int *sizes, int sizeCount, int iterations) {
+    NavisEqFilter fs[] = {filter(NAVIS_EQ_PEAKING, 800, 6, 1), filter(NAVIS_EQ_HIGH_SHELF, 8000 > sampleRate / 3 ? sampleRate / 3 : 8000, -4, 0.7)};
     NavisEqConfig c0 = config(true, true, 0, fs, 2);
     AudioThread t;
-    t.stream = navis_eq_stream_new(&c0, 44100, 2);
+    t.stream = navis_eq_stream_new(&c0, sampleRate, 2);
+    t.sizes = sizes;
+    t.sizeCount = sizeCount;
     atomic_init(&t.stop, false);
     atomic_init(&t.bad, false);
     pthread_t thread;
     pthread_create(&thread, NULL, audioMain, &t);
-    for (int i = 0; i < 20000; i++) {
+    int maxBanks = 0;
+    for (int i = 0; i < iterations; i++) {
         NavisEqConfig c = config(i % 7 != 0, i % 2 == 0, -(double)(i % 24), fs, 2);
         c.filters[0].gain = (i % 25) - 12;
         navis_eq_stream_request(t.stream, &c);
         NavisEqStreamState st;
         navis_eq_stream_state(t.stream, &st);
+        if (i % 3 == 0) navis_eq_stream_sweep(t.stream);
+        int banks = navis_eq_stream_bank_count(t.stream);
+        if (banks > maxBanks) maxBanks = banks;
         if (i % 50 == 0) {
             struct timespec ts = {0, 200000};
             nanosleep(&ts, NULL);
@@ -286,15 +367,25 @@ static void testThreadedEdits(void) {
     atomic_store(&t.stop, true);
     pthread_join(thread, NULL);
     check(!atomic_load(&t.bad), "nonfinite or exploding output during edits");
+    check(maxBanks <= 16, "threaded edits keep a bounded number of banks");
     navis_eq_stream_request(t.stream, &c0);
     check(navis_eq_stream_bank_count(t.stream) <= 4, "threaded edits leave a bounded number of banks");
     navis_eq_stream_free(t.stream);
+}
+
+static void testThreadedEdits(void) {
+    const int mixed[] = {1, 441, 882, 883, 4096};
+    const int small[] = {1, 2, 3, 7, 64};
+    runThreaded(44100, mixed, 5, 6000);
+    runThreaded(2000, small, 5, 6000); // 40-frame fade: fade end lands inside most calls
+    runThreaded(96000, mixed, 5, 3000);
 }
 
 int main(void) {
     testDspMirror();
     testStream();
     testDiscontinuity();
+    testContinuity();
     testThreadedEdits();
     puts("Navis Darwin equalizer DSP: response, headroom, bypass, limits, stream swap/crossfade, levels and threaded edits passed.");
     return 0;

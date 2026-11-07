@@ -11,6 +11,7 @@ void main() {
       headroomDb: -0.5,
       processedFrames: 4096,
       levelDeltaDb: -12.0,
+      resetCount: 2,
     );
     final json = state.toDiagnosticsJson();
     expect(json['sampleRate'], 44100);
@@ -18,6 +19,7 @@ void main() {
     expect(json['pending'], isFalse);
     expect(json['processedFrames'], 4096);
     expect(json['levelDeltaDb'], -12.0);
+    expect(json['resetCount'], 2);
     expect(json['enabled'], state.applied.enabled);
     expect(json['configuration'], state.applied.toJson());
   });
@@ -30,5 +32,6 @@ void main() {
     expect(json.containsKey('processedFrames'), isTrue);
     expect(json['processedFrames'], isNull);
     expect(json['levelDeltaDb'], isNull);
+    expect(json['resetCount'], isNull);
   });
 }

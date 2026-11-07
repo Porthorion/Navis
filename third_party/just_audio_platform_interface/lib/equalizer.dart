@@ -56,6 +56,7 @@ class EqualizerStateMessage {
     this.pending = false,
     this.processedFrames,
     this.levelDeltaDb,
+    this.resetCount,
   });
 
   final bool enabled;
@@ -73,6 +74,10 @@ class EqualizerStateMessage {
   /// (Darwin only; null elsewhere or before any audio has played).
   final double? levelDeltaDb;
 
+  /// Times the equalizer dropped its filter history because playback started,
+  /// resumed or jumped (Darwin only; null elsewhere), for diagnostics.
+  final int? resetCount;
+
   static EqualizerStateMessage fromMap(Map<dynamic, dynamic> map) =>
       EqualizerStateMessage(
         enabled: map['enabled'] as bool,
@@ -83,5 +88,6 @@ class EqualizerStateMessage {
         pending: map['pending'] as bool? ?? false,
         processedFrames: (map['processedFrames'] as num?)?.toInt(),
         levelDeltaDb: (map['levelDeltaDb'] as num?)?.toDouble(),
+        resetCount: (map['resetCount'] as num?)?.toInt(),
       );
 }

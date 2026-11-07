@@ -88,6 +88,7 @@ typedef struct {
     double headroomDb;
     const char *reason;
     uint64_t processedFrames;
+    uint64_t resetCount; // filter-history resets (start, resume, seek)
     double levelDeltaDb; // 10 log10(out/in) over a recent window; valid if hasLevel
 } NavisEqStreamState;
 
@@ -107,6 +108,15 @@ int navis_eq_stream_bank_count(const NavisEqStream *stream);
 /// Audio thread only: forget the filter history, as after a seek or when
 /// playback resumes (MTAudioProcessingTap StartOfStream); like Android's onFlush.
 void navis_eq_stream_reset_history(NavisEqStream *stream);
+/// Audio thread only. Tells the stream where a block of `frames` frames starts
+/// in the source timeline (seconds) and returns true when that is not where
+/// the previous block ended, i.e. a seek or resume. The expected end is
+/// `start + frames / sampleRate` (not the reported duration, which is rounded
+/// separately), compared with a tolerance that covers rounding of both ends to
+/// the coarsest CMTime timescale (600). Blocks with no source frames (the tap
+/// is called with an empty range while paused or seeking) are ignored. Call it
+/// for every block, including ones that cannot be processed.
+bool navis_eq_stream_source_block(NavisEqStream *stream, double startSeconds, int frames);
 /// In-place, non-interleaved float channels. A channel count that differs from
 /// the stream's passes through untouched.
 void navis_eq_stream_process(NavisEqStream *stream, float *const *channels, int channelCount, int frames);

@@ -11,7 +11,9 @@ void main() {
       'pending': false,
       'processedFrames': 123456,
       'levelDeltaDb': -12.0,
+      'resetCount': 3,
     });
+    expect(state.resetCount, 3);
     expect(state.processedFrames, 123456);
     expect(state.levelDeltaDb, -12.0);
     expect(state.sampleRate, 44100.0);
@@ -21,6 +23,7 @@ void main() {
     final state = EqualizerStateMessage.fromMap({'enabled': false});
     expect(state.processedFrames, isNull);
     expect(state.levelDeltaDb, isNull);
+    expect(state.resetCount, isNull);
   });
 
   test('fromMap accepts integral levelDeltaDb and 64-bit frame counts', () {

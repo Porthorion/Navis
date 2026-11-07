@@ -14,6 +14,9 @@ if navis_cc="$(command -v cc || command -v gcc || command -v clang)"; then
   if "${navis_cc}" -fsanitize=address,undefined "${navis_c_out}/probe.c" -o "${navis_c_out}/probe" >/dev/null 2>&1 \
       && "${navis_c_out}/probe" >/dev/null 2>&1; then
     navis_c_sanitize=(-fsanitize=address,undefined -fno-omit-frame-pointer)
+  elif [[ -n "${CI:-}" ]]; then
+    echo 'ERROR: CI needs a compiler with working ASan/UBSan for the Darwin DSP test.' >&2
+    exit 1
   else
     echo 'NOTE: this compiler lacks working ASan/UBSan; running the Darwin DSP test unsanitized.' >&2
   fi

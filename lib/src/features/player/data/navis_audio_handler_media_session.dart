@@ -730,6 +730,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         pending: native.pending,
         processedFrames: native.processedFrames,
         levelDeltaDb: native.levelDeltaDb,
+        resetCount: native.resetCount,
       ),
     );
   }

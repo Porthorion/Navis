@@ -196,10 +196,12 @@ double navis_eq_bank_process(NavisEqBank *bank, double value, int channel) {
 struct NavisEqStream {
     int sampleRate, channels, fadeFrames;
     _Atomic(NavisEqBank *) requested, applied, outgoing;
-    _Atomic uint64_t calls, frames;
+    _Atomic uint64_t calls, frames, resets;
     _Atomic bool busy; // a process call is running
     _Atomic double inPower, outPower;
     // Audio thread only.
+    bool haveSourceEnd;
+    double sourceEnd; // where the next block should start in the source timeline
     int fadeRemaining;
     NavisEqBank *fadeBank;
     // Non-audio thread only: every bank not yet freed.
@@ -221,6 +223,7 @@ NavisEqStream *navis_eq_stream_new(const NavisEqConfig *config, int sampleRate, 
     atomic_init(&s->calls, 0);
     atomic_init(&s->busy, false);
     atomic_init(&s->frames, 0);
+    atomic_init(&s->resets, 0);
     atomic_init(&s->inPower, 0.0);
     atomic_init(&s->outPower, 0.0);
     return s;
@@ -279,6 +282,7 @@ void navis_eq_stream_state(NavisEqStream *s, NavisEqStreamState *out) {
     out->reason = applied->reason;
     out->pending = atomic_load(&s->requested) != applied;
     out->processedFrames = atomic_load(&s->frames);
+    out->resetCount = atomic_load(&s->resets);
     double in = atomic_load(&s->inPower), outP = atomic_load(&s->outPower);
     out->hasLevel = in > 1e-9;
     out->levelDeltaDb = out->hasLevel ? 10 * log10((outP > 1e-30 ? outP : 1e-30) / in) : 0;
@@ -293,7 +297,20 @@ int navis_eq_stream_bank_count(const NavisEqStream *s) {
     return n;
 }
 
+// Rounding the start and the end to a CMTime timescale as coarse as 600 is off
+// by up to 0.83 ms each; real seek and resume jumps are tens of ms or more.
+#define NAVIS_EQ_CONTINUITY_TOLERANCE 0.0025
+
+bool navis_eq_stream_source_block(NavisEqStream *s, double start, int frames) {
+    if (frames <= 0) return false; // empty range: nothing is playing (pause, seek in progress)
+    bool jump = s->haveSourceEnd && fabs(start - s->sourceEnd) > NAVIS_EQ_CONTINUITY_TOLERANCE;
+    s->sourceEnd = start + (double)frames / s->sampleRate;
+    s->haveSourceEnd = true;
+    return jump;
+}
+
 void navis_eq_stream_reset_history(NavisEqStream *s) {
+    atomic_fetch_add(&s->resets, 1);
     // Only the audio thread touches the history of the applied and fading banks.
     NavisEqBank *banks[2] = {atomic_load(&s->applied), s->fadeBank};
     for (int i = 0; i < 2; i++) {

@@ -23,10 +23,8 @@ typedef struct NavisTapContext {
     NavisEqConfig snapshotConfig;      // guarded by lock
     const char *formatReason;          // guarded by lock
     uint64_t retiredFrames;            // frames of streams already freed; guarded by lock
+    uint64_t retiredResets;            // history resets of streams already freed; guarded by lock
     atomic_int refs;                   // registry wrapper + tap
-    // Audio thread only (prepare resets them before the first process call).
-    bool haveSourceEnd;
-    double sourceEnd;                  // end of the previous block, in the tap's timeline
 } NavisTapContext;
 
 static NavisTapContext *contextNew(const NavisEqConfig *config) {
@@ -66,10 +64,10 @@ static void tapPrepare(MTAudioProcessingTapRef tap, CMItemCount maxFrames,
         NavisEqStreamState st;
         navis_eq_stream_state(old, &st);
         c->retiredFrames += st.processedFrames;
+        c->retiredResets += st.resetCount;
         navis_eq_stream_free(old);
     }
     c->hasSnapshot = false;
-    c->haveSourceEnd = false;
     c->formatReason = NULL;
     BOOL planarFloat = format->mFormatID == kAudioFormatLinearPCM
         && (format->mFormatFlags & kAudioFormatFlagIsFloat)
@@ -93,10 +91,12 @@ static void tapUnprepare(MTAudioProcessingTapRef tap) {
     NavisEqStream *stream = atomic_exchange(&c->stream, NULL);
     if (stream) {
         navis_eq_stream_state(stream, &c->snapshot);
-        c->snapshot.pending = false;
+        // snapshot.pending keeps "requested != applied": an edit that never got
+        // swapped in still counts as pending while the tap is stopped.
         c->snapshotConfig = c->config;
         c->hasSnapshot = true;
         c->retiredFrames += c->snapshot.processedFrames;
+        c->retiredResets += c->snapshot.resetCount;
         navis_eq_stream_free(stream);
     }
     pthread_mutex_unlock(&c->lock);
@@ -115,26 +115,29 @@ static void tapProcess(MTAudioProcessingTapRef tap, CMItemCount numberFrames,
     }
     NavisTapContext *c = MTAudioProcessingTapGetStorage(tap);
     NavisEqStream *stream = atomic_load_explicit(&c->stream, memory_order_acquire);
+    if (!stream) return;
+    // The source is not continuous with the last block (seek, resumed playback):
+    // drop the filter history, like Android's onFlush. The header says the
+    // StartOfStream flag marks this, but on iOS 27 it is set only on the first
+    // block after prepare, not after a pause or seek; those show up as a jump
+    // in the source time range, so check both. The check runs for every block,
+    // including ones that cannot be processed below, to keep the expected end
+    // of the previous block current.
+    BOOL discontinuity = (*flagsOut & kMTAudioProcessingTapFlag_StartOfStream) != 0;
+    // While paused or seeking the tap is still called, with an empty source
+    // range (zero duration, position stuck); that is not audio, so pass 0 frames.
+    if (CMTIMERANGE_IS_VALID(sourceRange) &&
+        navis_eq_stream_source_block(stream, CMTimeGetSeconds(sourceRange.start),
+                                     CMTimeGetSeconds(sourceRange.duration) > 0 ? (int)*numberFramesOut : 0)) {
+        discontinuity = YES;
+    }
     UInt32 count = bufferList->mNumberBuffers;
-    if (!stream || count == 0 || count > NAVIS_EQ_MAX_CHANNELS) return;
+    if (count == 0 || count > NAVIS_EQ_MAX_CHANNELS) return;
     float *channels[NAVIS_EQ_MAX_CHANNELS];
     for (UInt32 i = 0; i < count; i++) {
         if (bufferList->mBuffers[i].mNumberChannels != 1
             || bufferList->mBuffers[i].mDataByteSize < *numberFramesOut * sizeof(float)) return;
         channels[i] = bufferList->mBuffers[i].mData;
-    }
-    // The source is not continuous with the last block (seek, resumed playback):
-    // drop the filter history, like Android's onFlush. The header says the
-    // StartOfStream flag marks this, but on iOS 27 it is set only on the first
-    // block after prepare, not after a pause or seek; those show up as a jump
-    // in the source time range, so check both.
-    BOOL discontinuity = (*flagsOut & kMTAudioProcessingTapFlag_StartOfStream) != 0;
-    if (CMTIMERANGE_IS_VALID(sourceRange)) {
-        double start = CMTimeGetSeconds(sourceRange.start);
-        // More than a quarter of a frame off the previous block's end.
-        if (c->haveSourceEnd && fabs(start - c->sourceEnd) > 0.25 / navis_eq_stream_sample_rate(stream)) discontinuity = YES;
-        c->sourceEnd = start + CMTimeGetSeconds(sourceRange.duration);
-        c->haveSourceEnd = true;
     }
     if (discontinuity) navis_eq_stream_reset_history(stream);
     navis_eq_stream_process(stream, channels, (int)count, (int)*numberFramesOut);
@@ -192,6 +195,7 @@ static BOOL decodeConfiguration(NSDictionary *raw, NavisEqConfig *out, NSString 
 typedef NS_ENUM(NSInteger, NavisEqItemStatus) {
     NavisEqItemAttaching = 1, // tracks still loading
     NavisEqItemNoTrack,       // no audio track (HLS before playback, empty track list)
+    NavisEqItemLoadFailed,    // the asset failed to load its tracks (or was cancelled)
     NavisEqItemCreateFailed,  // MTAudioProcessingTapCreate failed
     NavisEqItemInstalled,
 };
@@ -271,7 +275,7 @@ typedef NS_ENUM(NSInteger, NavisEqItemStatus) {
 }
 
 static NSDictionary *stateDictionary(const char *reason, BOOL enabled, id sampleRate, double headroom,
-                                     BOOL pending, uint64_t total, id level) {
+                                     BOOL pending, uint64_t total, id level, id resets) {
     return @{
         @"enabled": @(enabled),
         @"sampleRate": sampleRate ?: (id)[NSNull null],
@@ -280,6 +284,7 @@ static NSDictionary *stateDictionary(const char *reason, BOOL enabled, id sample
         @"pending": @(pending),
         @"processedFrames": @((long long)total),
         @"levelDeltaDb": level ?: (id)[NSNull null],
+        @"resetCount": resets ?: (id)[NSNull null],
     };
 }
 
@@ -293,11 +298,13 @@ static BOOL tapState(NavisTapContext *c, NavisEqStreamState *out, const char **f
     if (stream) {
         navis_eq_stream_state(stream, out);
         navis_eq_stream_sweep(stream);
+        out->resetCount += c->retiredResets;
         known = YES;
     } else if (c->hasSnapshot) {
         *out = c->snapshot;
+        out->resetCount = c->retiredResets; // includes the snapshot's own
         // An edit made while stopped applies when playback resumes.
-        out->pending = !navis_eq_config_same(&c->snapshotConfig, &c->config);
+        out->pending = out->pending || !navis_eq_config_same(&c->snapshotConfig, &c->config);
         known = YES;
     } else {
         *formatReason = c->formatReason;
@@ -329,14 +336,16 @@ static BOOL tapState(NavisTapContext *c, NavisEqStreamState *out, const char **f
         NavisEqItemRecord *record = [_records objectForKey:current];
         switch (record ? record.status : NavisEqItemAttaching) {
             case NavisEqItemNoTrack:
-                return stateDictionary("This song has no audio track the equalizer can process.", NO, nil, 0, NO, total, nil);
+                return stateDictionary("This song has no audio track the equalizer can process.", NO, nil, 0, NO, total, nil, nil);
+            case NavisEqItemLoadFailed:
+                return stateDictionary("The equalizer could not load this song's audio track.", NO, nil, 0, NO, total, nil, nil);
             case NavisEqItemCreateFailed:
-                return stateDictionary("The equalizer could not attach to this song.", NO, nil, 0, NO, total, nil);
+                return stateDictionary("The equalizer could not attach to this song.", NO, nil, 0, NO, total, nil, nil);
             case NavisEqItemInstalled:
                 context = record.tap->context;
                 break;
             default:
-                return stateDictionary("The equalizer is attaching to this song.", NO, nil, 0, NO, total, nil);
+                return stateDictionary("The equalizer is attaching to this song.", NO, nil, 0, NO, total, nil, nil);
         }
     } else {
         // No current item (nothing loaded): the latest tap that is running.
@@ -344,15 +353,15 @@ static BOOL tapState(NavisTapContext *c, NavisEqStreamState *out, const char **f
             if (atomic_load(&_taps[i]->context->stream)) context = _taps[i]->context;
         }
     }
-    if (!context) return stateDictionary(NULL, NO, nil, 0, NO, total, nil);
+    if (!context) return stateDictionary(NULL, NO, nil, 0, NO, total, nil, nil);
     NavisEqStreamState st = {0};
     const char *formatReason = NULL;
     if (!tapState(context, &st, &formatReason)) {
         // Installed but not prepared: waiting for audio, or an unsupported format.
-        return stateDictionary(formatReason ?: "The equalizer is attaching to this song.", NO, nil, 0, NO, total, nil);
+        return stateDictionary(formatReason ?: "The equalizer is attaching to this song.", NO, nil, 0, NO, total, nil, nil);
     }
     return stateDictionary(st.reason, st.enabled, @(st.sampleRate), st.headroomDb, st.pending, total,
-                           st.hasLevel ? @(st.levelDeltaDb) : nil);
+                           st.hasLevel ? @(st.levelDeltaDb) : nil, @((long long)st.resetCount));
 }
 
 - (void)attachToItem:(AVPlayerItem *)item {
@@ -385,12 +394,15 @@ static BOOL tapState(NavisTapContext *c, NavisEqStreamState *out, const char **f
     if (_disposed || !record || record.status != NavisEqItemAttaching) return;
     AVAsset *asset = item.asset;
     AVAssetTrack *track = nil;
-    if ([asset statusOfValueForKey:@"tracks" error:nil] == AVKeyValueStatusLoaded) {
+    AVKeyValueStatus loadStatus = [asset statusOfValueForKey:@"tracks" error:nil];
+    if (loadStatus == AVKeyValueStatusLoaded) {
         track = [asset tracksWithMediaType:AVMediaTypeAudio].firstObject;
     }
     if (!track) {
-        // Not ready (or HLS without a track list yet): a later attach retries.
-        record.status = NavisEqItemNoTrack;
+        // A failed load, or no audio track (HLS without a track list yet): a
+        // later attach retries.
+        record.status = loadStatus == AVKeyValueStatusFailed || loadStatus == AVKeyValueStatusCancelled
+            ? NavisEqItemLoadFailed : NavisEqItemNoTrack;
         return;
     }
     NavisTapContext *context = contextNew(&_config);

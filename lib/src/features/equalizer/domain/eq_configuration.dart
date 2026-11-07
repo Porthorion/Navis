@@ -376,6 +376,7 @@ class EqApplicationState {
     this.pending = false,
     this.processedFrames,
     this.levelDeltaDb,
+    this.resetCount,
   });
 
   final EqConfiguration desired;
@@ -392,6 +393,9 @@ class EqApplicationState {
   /// Output-minus-input level in dB over recently played audio (iOS only).
   final double? levelDeltaDb;
 
+  /// Filter-history resets of the native equalizer (iOS only), for diagnostics.
+  final int? resetCount;
+
   /// The `application` object of the diagnostics API's `/v1/equalizer`.
   Map<String, Object?> toDiagnosticsJson() => {
     'configuration': applied.toJson(),
@@ -403,5 +407,6 @@ class EqApplicationState {
     'pending': pending,
     'processedFrames': processedFrames,
     'levelDeltaDb': levelDeltaDb,
+    'resetCount': resetCount,
   };
 }
