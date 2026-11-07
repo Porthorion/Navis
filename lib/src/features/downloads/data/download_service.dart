@@ -178,20 +178,28 @@ class DownloadService {
     AppLocalizations Function()? readLocalizations,
     this._reportNetworkUsage,
     Future<Directory> Function()? readApplicationSupportDirectory,
+    Future<Directory> Function()? readApplicationDocumentsDirectory,
     PermanentArtworkStore? artworkStore,
     Future<void> Function(Directory)? validateCustomRoot,
     this.folderRecheckInterval = const Duration(seconds: 5),
     this.playbackHoldLimit = const Duration(seconds: 15),
     Dio? dio,
     bool? isAndroid,
+    bool? isIOS,
     this._rejectsCustomFolder = cloneRejectsDownloadFolder,
     this._resolveLibraryIds,
   }) : _readIsOnline = readIsOnline ?? (() => true),
        _readFreeBytes = readFreeBytes ?? downloadStorageFreeBytes,
        _cacheDao = cacheDao,
        _libraryDao = libraryDao,
-       _readCustomDownloadFolderEnabled = readCustomDownloadFolderEnabled,
-       _readCustomDownloadFolderPath = readCustomDownloadFolderPath,
+       _isIOS = isIOS ?? Platform.isIOS,
+       // iOS has no custom folder: an old persisted choice is ignored.
+       _readCustomDownloadFolderEnabled = (isIOS ?? Platform.isIOS)
+           ? (() => false)
+           : readCustomDownloadFolderEnabled,
+       _readCustomDownloadFolderPath = (isIOS ?? Platform.isIOS)
+           ? (() => null)
+           : readCustomDownloadFolderPath,
        _readLyricsAllowed = readLyricsAllowed ?? (() => true),
        _readDeezerArtworkAllowed = readDeezerArtworkAllowed ?? (() => false),
        _allowsArtworkUri = allowsArtworkUri ?? ((_) => false),
@@ -210,6 +218,8 @@ class DownloadService {
          readCustomDownloadFolderEnabled: readCustomDownloadFolderEnabled,
          readCustomDownloadFolderPath: readCustomDownloadFolderPath,
          readApplicationSupportDirectory: readApplicationSupportDirectory,
+         readApplicationDocumentsDirectory: readApplicationDocumentsDirectory,
+         isIOS: isIOS,
        ),
        _permanentDownloadImportService = PermanentDownloadImportService(
          cacheDao: cacheDao,
@@ -235,6 +245,7 @@ class DownloadService {
   int _spaceRequired = 0;
   bool _providerSpaceExhausted = false;
   static const _spaceMargin = 16 * 1024 * 1024;
+  final bool _isIOS;
   final bool Function() _readCustomDownloadFolderEnabled;
   final String? Function() _readCustomDownloadFolderPath;
   final LrclibClient _lrclibClient;
@@ -636,7 +647,8 @@ class DownloadService {
             if (_folderProblem != null) return;
             await _downloadQueueDao.requeueStuckDownloads();
             _checkRecovery(generation);
-            if (!_readCustomDownloadFolderEnabled()) {
+            // Files shows the iOS root, so a file the user put there is theirs.
+            if (!_readCustomDownloadFolderEnabled() && !_isIOS) {
               await _cleanupOrphanedFiles(generation);
             }
             _checkRecovery(generation);
@@ -2561,7 +2573,9 @@ class DownloadService {
   Future<void> _reconcileMissingDownloads(int generation) async {
     final entries = await _cacheDao.getPermanentEntries();
     if (entries.isEmpty) return;
-    final appAudio = _readCustomDownloadFolderEnabled()
+    // iOS has no user folder to disconnect, so every record is checked,
+    // including old ones that point into the former app-support location.
+    final appAudio = _readCustomDownloadFolderEnabled() || _isIOS
         ? null
         : await _appAudioIdentity();
     for (final entry in entries) {

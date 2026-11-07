@@ -3563,6 +3563,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Custom download folders are not available on this platform.';
 
   @override
+  String get downloadsFilesAppTitle => 'Downloads in Files';
+
+  @override
+  String get downloadsFilesAppSubtitle =>
+      'Downloads appear in the Files app under On My iPhone › Navis.';
+
+  @override
   String get downloadsCustomFolderChooseAction => 'Choose Folder';
 
   @override

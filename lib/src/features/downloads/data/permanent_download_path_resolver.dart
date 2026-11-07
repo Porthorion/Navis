@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/data/download_storage_capacity.dart';
 import 'package:navis/src/utils/file_utils.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -21,9 +22,20 @@ class PermanentDownloadPathResolver {
     required this._readCustomDownloadFolderEnabled,
     required this._readCustomDownloadFolderPath,
     Future<Directory> Function()? readApplicationSupportDirectory,
+    Future<Directory> Function()? readApplicationDocumentsDirectory,
     Future<void> Function(Directory)? validateCustomRoot,
+    bool? isIOS,
+    Future<bool> Function(String path)? excludeFromBackup,
   }) : _readApplicationSupportDirectory =
            readApplicationSupportDirectory ?? getApplicationSupportDirectory,
+       _readApplicationDocumentsDirectory =
+           readApplicationDocumentsDirectory ??
+           getApplicationDocumentsDirectory,
+       _isIOS = isIOS ?? Platform.isIOS,
+       _backupExclusion = BackupExclusion(
+         isIOS: isIOS,
+         exclude: excludeFromBackup,
+       ),
        _validateCustomRoot = validateCustomRoot ?? _probeWritableRoot;
 
   static const String unknownArtistDirectory = 'Unknown Artist';
@@ -32,6 +44,9 @@ class PermanentDownloadPathResolver {
   final bool Function() _readCustomDownloadFolderEnabled;
   final String? Function() _readCustomDownloadFolderPath;
   final Future<Directory> Function() _readApplicationSupportDirectory;
+  final Future<Directory> Function() _readApplicationDocumentsDirectory;
+  final bool _isIOS;
+  final BackupExclusion _backupExclusion;
 
   final Future<void> Function(Directory) _validateCustomRoot;
 
@@ -45,14 +60,30 @@ class PermanentDownloadPathResolver {
     }
   }
 
+  /// `<support>/audio/permanent`; on iOS `<Documents>/Downloads`, which the
+  /// Files app shows (On My iPhone > Navis) and which stays out of backups.
   Future<Directory> resolveDefaultRoot() async {
-    final root = await _readApplicationSupportDirectory();
-    final directory = Directory(p.join(root.path, 'audio', 'permanent'));
+    final directory = _isIOS
+        ? Directory(
+            p.join(
+              (await _readApplicationDocumentsDirectory()).path,
+              'Downloads',
+            ),
+          )
+        : Directory(
+            p.join(
+              (await _readApplicationSupportDirectory()).path,
+              'audio',
+              'permanent',
+            ),
+          );
     // Keep metadata access asynchronous so storage latency cannot stall UI.
     // ignore: avoid_slow_async_io
-    if (!await directory.exists()) {
+    final created = !await directory.exists();
+    if (created) {
       await directory.create(recursive: true);
     }
+    await _backupExclusion.apply(directory, created: created);
     return directory;
   }
 
@@ -60,7 +91,9 @@ class PermanentDownloadPathResolver {
     required bool customDownloadFolderEnabled,
     String? customDownloadFolderPath,
   }) async {
-    if (!customDownloadFolderEnabled) {
+    // iOS has no durable custom folder (no security-scoped bookmarks); an old
+    // test build may still persist the setting.
+    if (_isIOS || !customDownloadFolderEnabled) {
       return await resolveDefaultRoot();
     }
     final trimmed = customDownloadFolderPath?.trim();

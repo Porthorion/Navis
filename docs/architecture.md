@@ -2892,10 +2892,12 @@ layouts.
 
 ## Database file location
 
-Linux, Windows and macOS store `navis.sqlite.sqlite` in the application support
-directory; Android and iOS use application documents. `database_location.dart`
+Linux, Windows, macOS and iOS store `navis.sqlite.sqlite` in the application
+support directory; Android uses application documents. (iOS moved because the
+Files app shows the whole `Documents` folder; see **iOS downloads in the Files
+app** below.) `database_location.dart`
 resolves both through path_provider, preserving clone diagnostics overrides.
-Before opening on desktop, a missing support database is migrated from documents
+Before opening off Android, a missing support database is migrated from documents
 along with any `-wal`, `-shm` and `-journal` files. Cross-device copies are size
 verified before originals are deleted. Failure restores transferred files and
 falls back to documents; a rollback failure preserves the remaining copy and
@@ -7301,6 +7303,29 @@ download naming throws when all 100 collision candidates are occupied.
    keys and cannot cascade on catalog reset (Match Flow entries cascade only
    when their own `match_flows` parent is deleted). Lyrics retain their existing
    cache/garbage-collection policy; this reset adds no cleanup.
+
+### iOS downloads in the Files app
+
+On iOS the permanent download root is `<Documents>/Downloads`
+(`PermanentDownloadPathResolver.resolveDefaultRoot`), and `Info.plist` sets
+`UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace`, so the folder
+shows in Files under On My iPhone > Navis. There is no custom folder on iOS (no
+security-scoped bookmarks): the resolver and `DownloadService` ignore a
+persisted custom-folder setting, and Settings shows a note instead of the
+switch. Because Files exposes all of `Documents`, nothing else lives there: the
+database moved to application support (migration above). The startup sweep that
+deletes unreferenced files in the default root does not run on iOS, so a file
+the user puts into the folder stays. A file deleted in Files is noticed at the
+next launch, not live: `RollingCacheManager` prunes the stale record (the
+song stops showing as downloaded; observed on the simulator), and
+`DownloadService` startup recovery, which checks every record on iOS, re-queues
+it when it sees the record first, as for a missing file on any platform. Downloads and the permanent artwork
+store (`<support>/artwork/permanent`) are marked excluded from iCloud and iTunes
+backup (`excludeFromBackup` on the `com.navis.app/storage_capacity` channel,
+`BackupExclusion`): when the directory is created and once per process
+otherwise, because deleting and recreating a directory drops the attribute. The
+rolling cache and cover caches live in the temporary directory and are never
+backed up.
 
 ### Download quality, concurrency and artwork
 

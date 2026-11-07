@@ -181,6 +181,7 @@ void main() {
     String? Function()? customPath,
     Future<void> Function(Directory)? validateCustomRoot,
     bool? isAndroid,
+    bool? isIOS,
     Future<int?> Function(String)? readFreeBytes,
     Duration folderRecheckInterval = const Duration(seconds: 5),
     Duration playbackHoldLimit = const Duration(seconds: 15),
@@ -204,6 +205,9 @@ void main() {
       readCustomDownloadFolderPath: customPath ?? () => null,
       validateCustomRoot: validateCustomRoot,
       isAndroid: isAndroid,
+      isIOS: isIOS,
+      readApplicationDocumentsDirectory: () async =>
+          Directory(p.join(supportDir.path, 'documents')),
       folderRecheckInterval: folderRecheckInterval,
       playbackHoldLimit: playbackHoldLimit,
       resolveLibraryIds: resolveLibraryIds,
@@ -1764,6 +1768,56 @@ void main() {
       expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
       expect((await queue()).single.songId, 'song-0');
       expect((await queue()).single.quality, '192');
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'iOS startup requeues a missing file from the former app-support location '
+    'and ignores a persisted custom folder',
+    () async {
+      await database.appSettingsDao.updateDownloadsPaused(paused: true);
+      await addSongs(2);
+      final kept = File(p.join(supportDir.path, 'audio', 'permanent', 'a.mp3'));
+      await kept.parent.create(recursive: true);
+      await kept.writeAsBytes([1]);
+      for (final entry in {
+        'song-0': kept.path,
+        'song-1': p.join(supportDir.path, 'audio', 'permanent', 'gone.mp3'),
+      }.entries) {
+        await database.cacheDao.upsertCachedTrack(
+          CachedTracksTableCompanion.insert(
+            songId: entry.key,
+            filePath: entry.value,
+            fileSize: 1,
+            format: 'mp3',
+            cacheType: CacheType.permanent,
+            downloadStatus: DownloadStatus.complete,
+            lastAccessedAt: DateTime(2026),
+          ),
+        );
+      }
+      // A file the user copied into the Files-visible folder is not an orphan.
+      final foreign = File(
+        p.join(supportDir.path, 'documents', 'Downloads', 'mine.mp3'),
+      );
+      await foreign.parent.create(recursive: true);
+      await foreign.writeAsBytes([9]);
+      final service = buildService(
+        isIOS: true,
+        customEnabled: () => true,
+        customPath: () => p.join(supportDir.path, 'custom'),
+      );
+      await service.start();
+      expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
+      expect(await database.cacheDao.getCachedTrack('song-1'), isNull);
+      expect((await queue()).single.songId, 'song-1');
+      expect(
+        await service.resolveActivePermanentDownloadPath(),
+        p.join(supportDir.path, 'documents', 'Downloads'),
+      );
+      expect(service.folderProblem, isNull);
+      expect(foreign.existsSync(), isTrue);
     },
     skip: !sqliteAvailable,
   );

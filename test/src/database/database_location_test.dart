@@ -13,11 +13,11 @@ void main() {
   File newFile(String suffix) =>
       File(p.join(support.path, 'navis.sqlite.sqlite$suffix'));
   Future<File> resolve({
-    bool desktop = true,
+    bool useSupportDirectory = true,
     Future<File> Function(File, String)? rename,
     Future<File> Function(File, String)? copy,
   }) => resolveDatabaseFile(
-    desktop: desktop,
+    useSupportDirectory: useSupportDirectory,
     readApplicationDocumentsDirectory: () async => documents,
     readApplicationSupportDirectory: () async => support,
     renameFile: rename,
@@ -31,17 +31,26 @@ void main() {
   tearDown(() async {
     await root.delete(recursive: true);
   });
-  test(
-    'fresh desktop install selects support and creates its directory',
-    () async {
-      expect((await resolve()).path, newFile('').path);
-      expect(support.existsSync(), isTrue);
-      expect(newFile('').existsSync(), isFalse);
-    },
-  );
-  test('mobile retains documents without reading support', () async {
+  test('fresh install selects support and creates its directory', () async {
+    expect((await resolve()).path, newFile('').path);
+    expect(support.existsSync(), isTrue);
+    expect(newFile('').existsSync(), isFalse);
+  });
+  test('only Android keeps the database in documents by default', () {
+    expect(databaseUsesSupportDirectory('ios'), isTrue);
+    expect(databaseUsesSupportDirectory('macos'), isTrue);
+    expect(databaseUsesSupportDirectory('linux'), isTrue);
+    expect(databaseUsesSupportDirectory('windows'), isTrue);
+    expect(databaseUsesSupportDirectory('android'), isFalse);
+  });
+  test('a missing documents directory still selects support', () async {
+    documents.deleteSync();
+    expect((await resolve()).path, newFile('').path);
+    expect(support.existsSync(), isTrue);
+  });
+  test('android retains documents without reading support', () async {
     final file = await resolveDatabaseFile(
-      desktop: false,
+      useSupportDirectory: false,
       readApplicationDocumentsDirectory: () async => documents,
       readApplicationSupportDirectory: () async => throw StateError('unused'),
     );
