@@ -19,6 +19,8 @@ import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
 import 'package:navis/src/features/settings/presentation/update_pull_check.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart'
+    show debugDesktopRuntimeOverride;
 
 import '../../helpers/reachability_fakes.dart';
 
@@ -320,12 +322,49 @@ void main() {
     await container.read(updateProvider.future);
     expect(store.forces, [false]);
 
-    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     clock = clock.add(const Duration(seconds: 31));
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await container.read(updateProvider.future);
     expect(store.forces, [false, false]);
   });
+
+  for (final (name, desktop, seconds, refreshes) in [
+    ('desktop focus regained after 30 s', true, 31, true),
+    ('desktop focus regained within 30 s', true, 29, false),
+    ('mobile app switcher return after 30 s', false, 31, true),
+  ]) {
+    test(
+      '$name re-runs the update check only when away long enough (#349)',
+      () async {
+        final binding = TestWidgetsFlutterBinding.ensureInitialized();
+        debugDesktopRuntimeOverride = desktop;
+        clock = DateTime.utc(2026, 10, 16, 12);
+        final store = _Store(allowAutomatic: true);
+        final container = resumeContainer(
+          settings: const AppSettingsModel.defaults(),
+          store: store,
+        );
+        addTearDown(() async {
+          debugDesktopRuntimeOverride = null;
+          container.dispose();
+          binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        });
+        container.read(librarySyncControllerProvider.notifier);
+        container.listen(updateProvider, (_, _) {});
+        await container.read(updateProvider.future);
+        expect(store.forces, [false]);
+
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        clock = clock.add(Duration(seconds: seconds));
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await container.read(updateProvider.future);
+        expect(store.forces, refreshes ? [false, false] : [false]);
+        expect(container.read(librarySyncForegroundProvider), isTrue);
+      },
+    );
+  }
 
   test(
     'resume skips the update check while automatic checks are off',
@@ -348,8 +387,9 @@ void main() {
       await container.read(updateProvider.future);
       expect(store.forces, isEmpty);
 
-      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       clock = clock.add(const Duration(seconds: 31));
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await Future<void>.delayed(Duration.zero);
       expect(store.forces, isEmpty);
@@ -373,8 +413,9 @@ void main() {
     await container.read(updateProvider.future);
     expect(store.forces, [false]);
 
-    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     clock = clock.add(const Duration(seconds: 29));
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await Future<void>.delayed(Duration.zero);
     expect(store.forces, [false]);

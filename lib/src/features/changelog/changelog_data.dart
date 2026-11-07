@@ -193,6 +193,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'On desktop, album pages no longer show "Could not load" when Navis '
+        'is open but another window has focus',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Now Playing can show how much volume normalization (ReplayGain) is '
         'turning the current song down; hold it to open Playback settings. '
         'Those settings now explain each mode and the pre-amp, say that '
