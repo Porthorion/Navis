@@ -37,6 +37,7 @@ stub sha256sum 'exit 0'
 stub dart 'exit 0'
 # A stale IPA left in build/ios/ipa must be gone before flutter runs.
 stub flutter 'echo "flutter:$*" >> "$LOG"
+[[ "${PATH%%:*}" == /usr/bin ]] || echo "PATH does not start with /usr/bin" >> "$LOG"
 dir="$PWD/build/ios/ipa"
 [[ -z "$(ls -A "$dir" 2>/dev/null)" ]] || { echo "stale IPA present" >> "$LOG"; exit 1; }
 mkdir -p "$dir"
@@ -101,7 +102,7 @@ run_ok --targets=ios
 calls="$(cat "${LOG}")"
 expect_in 'flutter:build ipa --release --export-options-plist=' "${calls}"
 expect_in 'ios/ExportOptions.plist' "${calls}"
-expect_not_in 'ad-hoc' "${calls}"; expect_not_in 'export-method' "${calls}"
+expect_not_in 'ad-hoc' "${calls}"; expect_not_in 'PATH does not start' "${calls}"; expect_not_in 'export-method' "${calls}"
 expect_not_in 'xcrun' "${calls}"
 first_number="$(sed -n 's/.*--build-number=\([0-9]*\).*/\1/p' "${LOG}")"
 [[ "${first_number}" -gt 10500 ]] || fail "iOS build number missing or not allocated: ${first_number}"

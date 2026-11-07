@@ -29,7 +29,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Navis only reads your photo library when you choose a photo in a file picker.</string>
+	<string>Navis does not use your photo library. The system file picker it includes requires this entry.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Navis connects to music servers on your local network.</string>
 	<key>NSAppTransportSecurity</key>

@@ -11,8 +11,10 @@ Team ID `BFBNSCVKXH` (a public identifier) is set as `DEVELOPMENT_TEAM` on the
 Runner target. Debug and Profile sign automatically; the Runner Release
 configuration signs manually with the `Apple Distribution` certificate and the
 App Store provisioning profile `Navis App Store`, because automatic signing
-archives with a development profile, which needs a registered device. The bundle ID is `com.navis.app.navis`,
-the same as Android and macOS.
+archives with a development profile, which needs a registered device. Release
+is therefore for `flutter build ipa` only: a Release app cannot be installed on
+a phone directly, so use Profile or Debug on a device. The bundle ID is
+`com.navis.app.navis`, the same as Android and macOS.
 
 ## One-time setup
 
