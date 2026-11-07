@@ -649,4 +649,71 @@ void main() {
       handle.dispose();
     });
   });
+  group('RulerStepButton haptics', () {
+    late List<Object?> haptics;
+
+    Future<void> pumpButton(WidgetTester tester, bool Function() onStep) async {
+      haptics = <Object?>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'HapticFeedback.vibrate') {
+            haptics.add(call.arguments);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RulerStepButton(
+              icon: Icons.add,
+              tooltip: 'More',
+              enabled: true,
+              onStep: onStep,
+              onEnd: () {},
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('a tap that steps clicks once', (tester) async {
+      await pumpButton(tester, () => true);
+      await tester.tap(find.byType(IconButton));
+      await tester.pump();
+      expect(haptics, ['HapticFeedbackType.selectionClick']);
+    });
+
+    testWidgets('a tap at a limit stays silent', (tester) async {
+      await pumpButton(tester, () => false);
+      await tester.tap(find.byType(IconButton));
+      await tester.pump();
+      expect(haptics, isEmpty);
+    });
+
+    testWidgets('holding clicks on every repeated step until the limit', (
+      tester,
+    ) async {
+      var steps = 0;
+      await pumpButton(tester, () => ++steps <= 4);
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(IconButton)),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 120));
+      }
+      await gesture.up();
+      await tester.pump();
+      // Four steps took effect; the fifth hit the limit and stayed silent.
+      expect(haptics, hasLength(4));
+    });
+  });
 }
