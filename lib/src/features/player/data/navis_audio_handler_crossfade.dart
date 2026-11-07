@@ -786,6 +786,12 @@ extension _NavisCrossfade on NavisAudioHandler {
     if (nextIndex < 0 || nextIndex >= _queueItems.length) {
       throw StateError('Next index $nextIndex is out of queue range.');
     }
+    // This deck last played the song before, and the hand-over refresh may have
+    // written that song's end-of-song guard for it while it sat paused. The
+    // new song starts unguarded: a stale latch would send it the old song's
+    // lower value, and a mid-fade refresh would latch that natively.
+    _boostLatch[player] = null;
+    _sentBoost[player] = null;
     if (_crossfadeLocalOnlyDeck) {
       // Load only the incoming local file. Mirroring remote neighbours here
       // would let ExoPlayer prefetch them despite the cellular policy.

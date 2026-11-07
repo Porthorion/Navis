@@ -40,6 +40,7 @@ class Run:
         self.client: dict = {}
         self.phase = 'setup'
         self.samples = (self.out / 'a1-samples.jsonl').open('w')
+        self.ordering = (self.out / 'a1-ordering.jsonl').open('w')
         self.stop_sampling = threading.Event()
         self.sampler = None
 
@@ -215,6 +216,7 @@ class Run:
         finally:
             self.stop_sampler()
             self.samples.close()
+            self.ordering.close()
             subprocess.run(self.adb + ['shell', 'am', 'force-stop', PACKAGE], capture_output=True)
             server.shutdown()
 
@@ -268,6 +270,20 @@ class Run:
         self.queue([Q1, H1, Q2, H2])
         for _ in range(3):
             self.join(seconds_after=5, from_ms=24000)
+        # A speed change in the middle of the fade to Q2: its deck was Q1's, and the hand-over refresh
+        # wrote Q1's end guard for it while it sat paused.
+        self.phase = 'crossfade-speed'
+        self.queue([Q1, H1, Q2, H2])
+        self.play_from(24000)
+        self.wait(lambda: self.heard() == H1, 20, .1, 'the first cross-fade')
+        time.sleep(1)
+        self.play_from(24000)
+        self.wait(lambda: self.heard() == H1 and (self.status().get('playerPositionMs') or 0) >= 27600,
+                  20, .1, 'the middle of the fade to Q2')
+        self.post('/v1/playback/adjustments', {'speed': 1.25})
+        self.wait(lambda: self.heard() == Q2, 15, .1, 'the hand-over to Q2')
+        time.sleep(8)
+        self.post('/v1/playback/adjustments', {'speed': 1})
         self.phase = 'crossfade-teardown'
         self.restart(lambda db: db.execute('UPDATE app_settings SET crossfade_enabled=0'))
 
@@ -307,10 +323,10 @@ class Run:
         poller.join(2)
         order = ('before-reply' if seen[0] is not None and seen[0] <= replied[0]
                  else 'after-reply' if seen[0] is not None else 'not-seen')
-        with (self.out / 'a1-ordering.jsonl').open('a') as log:
-            log.write(json.dumps({'edit': 'remove-above', 'replyMs': round((replied[0] - started) * 1000),
-                                  'indexSeenMs': None if seen[0] is None else round((seen[0] - started) * 1000),
-                                  'order': order}) + '\n')
+        self.ordering.write(json.dumps({'edit': 'remove-above', 'replyMs': round((replied[0] - started) * 1000),
+                                        'indexSeenMs': None if seen[0] is None else round((seen[0] - started) * 1000),
+                                        'order': order}) + '\n')
+        self.ordering.flush()
 
     def a2(self):
         """A2: song switches and queue edits around a boosted Q: nothing may reach the processor

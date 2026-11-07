@@ -296,12 +296,15 @@ is not `player.getCurrentMediaItemIndex()`, so a message that raced a song
 switch cannot raise the new song. A 0, or a message without an index, is
 applied as before. `AudioPlayer.setReplayGainBoost` passes `index` through.
 
-The Android bridge also keeps a native end-of-song latch (`AudioPlayer.applyBoost`),
-so a lost Dart-side latch cannot over-boost. Once a `guarded: true` value is applied,
-every later boost is clamped to `min(value, latch)` and applied as guarded, whatever
-flag Dart sends; the latch only goes down, and a 0 is always applied (and does not
-clear it). Only a playing deck latches: a crossfade deck is prepared paused, with its
-song's timing unknown, so Dart guards it, and its start raises no discontinuity. It is cleared by `load`, by `onPositionDiscontinuity` with reason
-`AUTO_TRANSITION` or `SEEK` (a new play of the song) and by a discontinuity whose old
-and new media-item uids differ. `REMOVE` or `INTERNAL` around the same uid (a queue
-edit) keeps it. `JustAudioReplayGainBoostTest` covers each rule.
+The Android bridge also keeps a native end-of-song latch
+(`AudioPlayer.applyBoost`), so a lost Dart-side latch cannot over-boost. Once a
+`guarded: true` value is applied, every later boost is clamped to
+`min(value, latch)` and applied as guarded, whatever flag Dart sends. The latch
+only goes down, a 0 is always applied (and does not clear it), and a value whose
+`index` is not the current one (a stale message) is applied if it is a 0 but
+never latches. The latch is cleared by `load`, by `onPositionDiscontinuity`
+with reason `AUTO_TRANSITION` or `SEEK` (a new play of the song) and by a
+discontinuity whose old and new media-item uids differ. `REMOVE` or `INTERNAL`
+around the same uid (a queue edit) keeps it. A paused deck latches too: a
+crossfade deck's stale Dart latch is cleared by the Dart side when the deck is
+prepared. `JustAudioReplayGainBoostTest` covers each rule.

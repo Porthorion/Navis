@@ -11,7 +11,7 @@ import sys
 
 import numpy as np
 
-from replaygain_boost_clamps import unexpected_clamps
+from replaygain_boost_clamps import edit_landed, unexpected_clamps
 
 RATE = 44100
 WIN = RATE // 100  # 10 ms
@@ -198,6 +198,14 @@ def a1(root):
         values = [r['boost']['clipSamples'] for r in phase(name)]
         check(f'A1 {name}: processor reported and clipped nothing', len(values) > 100 and max(values) == 0,
               f'samples={len(values)} max={max(values) if values else None}')
+    # A speed change in the middle of the fade to Q2: the incoming deck must not carry the old song's guard
+    # into Q2 (a stale latch there would hold Q2 below its own boost for the whole song).
+    fast = [r for r in mid(phase('crossfade-speed'), 3000, 20000) if r['songId'] == 'rgq-2']
+    check('A1 crossfade with a speed change mid-fade: Q is boosted ~10 dB all song',
+          len(fast) > 10 and 9.5 <= float(np.median([r['boost']['appliedDb'] for r in fast])) <= 10.5
+          and min(r['boost']['requestedDb'] for r in fast) >= 9.5,
+          f'n={len(fast)} median={float(np.median([r["boost"]["appliedDb"] for r in fast])) if fast else None} '
+          f'min requested={min([r["boost"]["requestedDb"] for r in fast] or [None])}')
     songs = [r['songId'] for r in phase('joins')]
     changes = sum(1 for i in range(1, len(songs)) if songs[i] != songs[i - 1])
     check('A1 at least 10 gapless joins', changes >= 10, f'joins={changes}')
@@ -277,6 +285,11 @@ def a1(root):
         rs = [r for r in phase(f'a2-latch-{action}') if r['songId'] == 'rgq-1' and r.get('playing')
               and r['positionMs'] is not None and 25200 <= r['positionMs'] <= 26800
               and r['boost']['sentDb'] is not None]
+        # The edit must have landed, or the phase proves nothing: the drop alone makes the latch.
+        moved = {'insert-above': (1, 2)}.get(action, (1, 0) if action.startswith('remove-above') else None)
+        if moved:
+            check(f'A2 {action}: the edit landed (Q moved from queue index {moved[0]} to {moved[1]})',
+                  edit_landed(rows, f'a2-latch-{action}', 'rgq-1', *moved), f'moved={moved}')
         check(f'A2 {action} after a 2x to 1x drop with 5 s left: Q stays guarded to 0 until the window',
               len(rs) > 3 and max(r['boost']['sentDb'] for r in rs) == 0,
               f'n={len(rs)} max sentDb={max([r["boost"]["sentDb"] for r in rs] or [None])}')
@@ -298,6 +311,9 @@ def a1(root):
         print(f'INFO A2 remove-above ordering: reply at {o["replyMs"]} ms, new index seen at {o["indexSeenMs"]} ms: {o["order"]}')
     print('INFO A2 remove-above status-index timing (Dart status over HTTP, not native ordering): ' + ', '.join(
         f'{k}={sum(1 for o in orders if o["order"] == k)}' for k in ('before-reply', 'after-reply', 'not-seen')))
+    check('A2 the status index changed after every remove-above edit (5 probes, none not-seen)',
+          len(orders) == 5 and all(o['order'] != 'not-seen' for o in orders),
+          f'probes={len(orders)} not-seen={sum(1 for o in orders if o["order"] == "not-seen")}')
     resumed = [r for r in phase('a2-insert-resume') if r['songId'] == 'rgh-2' and r.get('playing')]
     check('A2 an insert into the completed queue resumed at the inserted song (H2)', len(resumed) > 3,
           f'H2 rows={len(resumed)}')

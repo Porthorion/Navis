@@ -63,7 +63,18 @@ def main():
     stream = rows(25500, guarded_from=99999)
     stream[[r['positionMs'] for r in stream].index(25500)]['positionMs'] = None
     assert unexpected(stream) == {('lossy-opus', 'rgl-1'): 10}, 'a clamp without a position fails cleanly'
-    print('ReplayGain analyzer self-test: 20 clamp rules passed.')
+    # A phase passes only when its queue edit landed: the index change must be in its rows.
+    def edit_rows(indices, phase='a2-latch-remove-above-1'):
+        return [{'phase': phase, 'songId': 'rgq-1', 'index': i} for i in indices]
+    assert clamps.edit_landed(edit_rows([1, 1, 1, 0, 0]), 'a2-latch-remove-above-1', 'rgq-1', 1, 0), 'a landed edit'
+    assert not clamps.edit_landed(edit_rows([1, 1, 1, 1, 1]), 'a2-latch-remove-above-1', 'rgq-1', 1, 0), \
+        'an edit that never landed (a doctored capture pinned to index 1) must not count'
+    assert not clamps.edit_landed(edit_rows([0, 0, 1, 1]), 'a2-latch-remove-above-1', 'rgq-1', 1, 0), \
+        'the index change must come after the start'
+    assert clamps.edit_landed(edit_rows([1, 1, 2, 2], 'a2-latch-insert-above'), 'a2-latch-insert-above', 'rgq-1', 1, 2)
+    assert not clamps.edit_landed(edit_rows([1, 1, 1], 'a2-latch-insert-above'), 'a2-latch-insert-above', 'rgq-1', 1, 2)
+    assert not clamps.edit_landed(edit_rows([1, 0]), 'a2-latch-insert-above', 'rgq-1', 1, 0), 'another phase does not count'
+    print('ReplayGain analyzer self-test: 26 clamp rules passed.')
 
 
 if __name__ == '__main__':

@@ -27,3 +27,10 @@ def unexpected_clamps(rows):
         if not exempt:
             unexpected[key] = unexpected.get(key, 0) + n
     return clamped, unexpected
+
+
+def edit_landed(rows, phase, song, before, after):
+    """Whether `song`'s rows of `phase` show the queue index `before` and, later, `after`: the proof that
+    the phase's queue edit happened (a remove above moves Q from 1 to 0, an insert above from 1 to 2)."""
+    seen = [r['index'] for r in rows if r['phase'] == phase and r['songId'] == song and r.get('index') is not None]
+    return before in seen and after in seen[seen.index(before):]

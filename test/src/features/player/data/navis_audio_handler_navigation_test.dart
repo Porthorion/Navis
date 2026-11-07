@@ -16260,6 +16260,77 @@ void main() {
           },
         );
 
+        test(
+          "RV6-A: a crossfade deck is prepared without the old song's guard, "
+          'and a mid-fade refresh never latches it below its own boost',
+          () async {
+            final (handler, player) = await android([
+              6,
+              3,
+              6,
+              3,
+            ], crossfade: true);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+              'song-2',
+              'song-3',
+            ], expandMatchFlows: false);
+            player
+              ..isPlaying = true
+              ..state = ProcessingState.ready;
+            // song-0 is in its last 3 s when the first fade hands over, so the
+            // hand-over refresh writes a guard for the paused outgoing deck.
+            player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+            await handler.debugStartCrossfade();
+            final deckB =
+                handler.debugInactiveDeck! as _ControllableAudioPlayer;
+            for (var i = 0; i < 800 && !deckB.playing; i++) {
+              await Future<void>.delayed(const Duration(milliseconds: 10));
+            }
+            await handler.debugCompleteCrossfade();
+            await Future<void>.delayed(const Duration(milliseconds: 50));
+            // song-1 plays on deck B, mid-song; the fade to song-2 reuses deck A.
+            deckB
+              ..isPlaying = true
+              ..state = ProcessingState.ready
+              ..simulatedPosition = const Duration(minutes: 1);
+            final before = player.boostMessages.length;
+            await handler.debugStartCrossfade();
+            final incoming =
+                handler.debugInactiveDeck! as _ControllableAudioPlayer;
+            expect(identical(incoming, player), isTrue);
+            for (var i = 0; i < 800 && !incoming.playing; i++) {
+              await Future<void>.delayed(const Duration(milliseconds: 10));
+            }
+            final prepare = incoming.boostMessages
+                .skip(before)
+                .where((m) => m.index == 2 && m.currentDb > 0)
+                .toList();
+            expect(prepare, isNotEmpty);
+            expect(
+              prepare.every((m) => !m.guarded && m.currentDb == 6),
+              isTrue,
+              reason: "the prepared deck started from the old song's guard",
+            );
+            final midFade = incoming.boostMessages.length;
+            await handler.setRepeatMode(AudioServiceRepeatMode.all);
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+            await handler.setSpeed(1.5);
+            await Future<void>.delayed(const Duration(milliseconds: 100));
+            expect(
+              incoming.boostMessages
+                  .skip(midFade)
+                  .where((m) => m.playing && m.guarded && m.currentDb < 6),
+              isEmpty,
+              reason:
+                  "a guarded value below song-2's own, sent to its playing "
+                  'deck, latches natively and no discontinuity clears it at '
+                  'the swap',
+            );
+          },
+        );
+
         test('R1: an edit before the playing song never sends another song\'s boost', () async {
           // song-1 (hot, boost 0) plays; song-2 would be boosted 10 dB.
           final (handler, player) = await android([

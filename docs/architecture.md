@@ -5024,14 +5024,16 @@ Desktop volume follows a parallel local-settings path:
    that must not reset the latch. For the same reason no song start is decided
    while an edit is in flight (the published song can flip to its neighbour and
    back during one). Native keeps its own latch (`AudioPlayer.applyBoost`):
-   once a guarded value is applied to a playing deck, later boosts for that item
-   are clamped to the lowest guarded value and applied as guarded whatever flag
-   Dart sends; a 0 is always applied. A paused deck does not latch (a crossfade
-   deck is prepared paused with its song's timing unknown, so Dart guards it, and
-   its start raises no discontinuity). It is cleared by `load`, an auto-transition or seek
+   once a guarded value is applied, later boosts for that item are clamped to
+   the lowest guarded value and applied as guarded whatever flag Dart sends; a 0
+   is always applied, and a stale-index message (computed for another song)
+   never latches. It is cleared by `load`, an auto-transition or seek
    discontinuity, or a change of media-item uid, and kept by a queue edit around
    the same item (REMOVE or INTERNAL with the same uid), so a lost Dart latch
-   cannot over-boost. The tick re-resolves the playing
+   cannot over-boost. A crossfade deck forgets its Dart latch when it is
+   prepared for the next song: the hand-over refresh writes the old song's
+   guard for the paused outgoing deck, and a mid-fade refresh would otherwise
+   send that guard to the playing deck and latch it natively. The tick re-resolves the playing
    source once the edit is done and resets only when the same new source shows
    on two ticks in a row, because a natural advance or a removal of the playing
    song seen only during an edit leaves no event behind and the gap between an

@@ -350,21 +350,40 @@ class JustAudioReplayGainBoostTest {
         assertEquals(2.0, f.requested(), 0.0)
         f.boost(8.0, true, forIndex = 0)
         assertEquals("the latch only ever goes down", 2.0, f.requested(), 0.0)
+        f.boost(9.0, false, forIndex = 0)
+        assertEquals("and a raised guarded value did not raise it", 2.0, f.requested(), 0.0)
     }
 
-    @Test fun aGuardedValueAppliedWhilePausedDoesNotLatch() {
-        // A crossfade deck is prepared paused: its song's timing is unknown, so Dart guards it
-        // (0). When the song then starts, Dart's own latch is fresh, and native must not hold
-        // the prepared deck's 0 against it: no discontinuity marks that start.
+    @Test fun aGuardedValueAppliedWhilePausedLatches() {
+        // A seek or a restore while paused into the last 3 s: the net must hold before the
+        // first playing tick, not after it.
         val f = Fixture()
         f.playWhenReady = false
-        f.boost(0.0, true, forIndex = 0)
+        f.boost(3.0, true, forIndex = 0)
         f.playWhenReady = true
         f.boost(9.0, false, forIndex = 0)
-        assertEquals(9.0, f.requested(), 0.0)
+        assertEquals(3.0, f.requested(), 0.0)
+    }
+
+    @Test fun aStaleIndexZeroIsAppliedButDoesNotLatch() {
+        // A's last guarded 0 (the next song was untagged then) lands after the transition to B.
+        val f = Fixture()
         f.boost(3.0, true, forIndex = 0)
-        f.boost(9.0, false, forIndex = 0)
-        assertEquals("a guarded value applied while playing still latches", 3.0, f.requested(), 0.0)
+        f.discontinuity(autoTransition, from = "a", to = "b")
+        f.index = 1
+        f.boost(0.0, true, forIndex = 0)
+        assertEquals("the 0 is still applied", 0.0, f.requested(), 0.0)
+        f.boost(9.0, false, forIndex = 1)
+        assertEquals("but B is not held at 0 for its whole length", 9.0, f.requested(), 0.0)
+    }
+
+    @Test fun aCurrentIndexZeroLatchesAndAMessageWithoutAnIndexToo() {
+        for (index in listOf<Int?>(0, null)) {
+            val f = Fixture()
+            f.boost(0.0, true, forIndex = index)
+            f.boost(9.0, false, forIndex = index)
+            assertEquals("index $index", 0.0, f.requested(), 0.0)
+        }
     }
 
     @Test fun aZeroIsAlwaysAppliedWhateverTheLatch() {

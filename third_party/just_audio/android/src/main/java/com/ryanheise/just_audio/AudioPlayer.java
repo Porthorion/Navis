@@ -636,12 +636,14 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                     Integer boostIndex = call.<Integer>argument("index");
                     // A value is only right for the song it was computed for. One that
                     // raced a song switch must not reach the new song: ignore a non-zero
-                    // value whose index is not the current one. A 0 is always applied.
-                    if (boostDb > 0 && boostIndex != null
-                            && boostIndex != player.getCurrentMediaItemIndex()) {
+                    // value whose index is not the current one. A 0 is always applied,
+                    // but a stale one must not latch the new song at 0.
+                    boolean stale = boostIndex != null
+                            && boostIndex != player.getCurrentMediaItemIndex();
+                    if (boostDb > 0 && stale) {
                         result.success(new HashMap<String, Object>());
                     } else {
-                        applyBoost(boostDb, Boolean.TRUE.equals(call.<Boolean>argument("guarded")));
+                        applyBoost(boostDb, Boolean.TRUE.equals(call.<Boolean>argument("guarded")), !stale);
                         result.success(new HashMap<String, Object>());
                     }
                 }
@@ -998,33 +1000,32 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
      * [onlyWhenGuarded] limits it to edits that can change the next song while the
      * boost is the lowered end-of-song value.
      */
+    private void lowerBoost(boolean onlyWhenGuarded) {
+        if (navisEqualizer != null && (!onlyWhenGuarded || navisEqualizer.boostGuarded())) {
+            navisEqualizer.lowerBoost();
+        }
+    }
+
     /**
      * Native end-of-song latch: once a guarded value is applied, every later boost for the
      * same playing item is clamped to it, whatever guarded flag Dart sends, so a Dart-side
-     * latch that was lost cannot over-boost. 0 is always applied.
+     * latch that was lost cannot over-boost. 0 is always applied. A value computed for
+     * another index (a stale message that raced a song switch) never latches.
      */
     private boolean boostLatched;
     private double boostLatchDb;
 
-    private void applyBoost(double boostDb, boolean guarded) {
+    private void applyBoost(double boostDb, boolean guarded, boolean mayLatch) {
         double applied = boostDb;
         if (boostDb > 0 && boostLatched) {
             applied = Math.min(boostDb, boostLatchDb);
             guarded = true;
         }
-        // Only a playing deck latches: a crossfade deck is prepared paused with its song's
-        // timing unknown, so Dart guards it, and its start raises no discontinuity.
-        if (guarded && player.getPlayWhenReady()) {
+        if (guarded && mayLatch) {
             boostLatchDb = boostLatched ? Math.min(boostLatchDb, applied) : applied;
             boostLatched = true;
         }
         navisEqualizer.setBoost(applied, guarded);
-    }
-
-    private void lowerBoost(boolean onlyWhenGuarded) {
-        if (navisEqualizer != null && (!onlyWhenGuarded || navisEqualizer.boostGuarded())) {
-            navisEqualizer.lowerBoost();
-        }
     }
 
     private void load(final List<MediaSource> mediaSources, ShuffleOrder shuffleOrder, final long initialPosition, final Integer initialIndex, final Result result) {
