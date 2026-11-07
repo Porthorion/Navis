@@ -348,6 +348,19 @@ URLs, media/entity IDs, titles, or paths. Run history is a diagnostics record,
 not a scheduler input; `library_sync_work` owns the durable queue. Use
 `durableOperations` for the separate atomic destructive-mutation audit.
 
+`tool/rescan_snapshot_diagnostics.py` is the gate for server rescans. It
+copies the primary profile into a first-setup clone, serves the fixture's
+`rescan` scenario (`auth_lifecycle_fixture_server.py --scenario rescan
+--phase-file --request-log`; the phase file flips the library from baseline A to
+retagged B and to a further scan C), builds the baseline, then asserts through
+the authenticated API, the clone database and the fixture request log that
+Check for updates runs one catalog snapshot that lands the retag, removals,
+move, rename and genre change and reconciles the scan token; that a restart and
+a second check run no snapshot; that an automatic pass respects the 24 h
+throttle and a held large-deletion candidate; and that a metered network makes
+no `getScanStatus` or bulk song request. Run it alone: it builds the profile
+Linux app.
+
 `tool/manual_discovery_diagnostics.sh` is the corresponding bounded
 unchanged-cursor discovery gate. It may seed a copied, isolated database and
 loopback fixture before launch, but its acceptance action is the running

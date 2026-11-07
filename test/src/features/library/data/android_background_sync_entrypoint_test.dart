@@ -140,7 +140,9 @@ void main() {
     addTearDown(() => httpServer.close(force: true));
     httpServer.listen((request) async {
       requests.add(request.uri.path);
-      if (requests.length == 1) {
+      // The scan observation precedes the lease; hold the first run request.
+      if (!heldRequestArrived.isCompleted &&
+          !request.uri.path.contains('getScanStatus')) {
         heldRequestArrived.complete();
         await answerHeldRequest.future;
       }

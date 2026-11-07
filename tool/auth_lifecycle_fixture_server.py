@@ -275,6 +275,106 @@ def _configure_partial_album_fixture():
     ALL_ALBUMS = ARTIST_ALBUMS
 
 
+# Rescan scenario: a small library whose server side changes between two
+# phases (the phase file holds "A" or "B"), as after a retag plus a rescan.
+RESCAN_ENABLED = False
+PHASE_FILE = ""
+REQUEST_LOG = ""
+RESCAN_SCANS = {
+    "A": "2026-11-07T04:00:00Z",
+    "B": "2026-11-07T12:00:00Z",
+    "C": "2026-11-07T18:00:00Z",
+}
+RESCAN_INDEXES = {"A": 1780000000000, "B": 1780000600000, "C": 1780001200000}
+RESCAN_ALBUM_COUNT = 100  # the bulk song path needs at least 96 pending albums
+
+
+def _rescan_phase():
+    try:
+        with open(PHASE_FILE, encoding="utf-8") as handle:
+            value = handle.read().strip()
+            return value if value in RESCAN_SCANS else "A"
+    except OSError:
+        return "A"
+
+
+def _rescan_library(phase):
+    """Return (artists, albums, songs) for a phase; C is B after another scan.
+    Phase B holds a ReplayGain
+    retag (s1 changed, s4 cleared), s5 removed from a two-song album, a whole
+    album (a7) removed, s2 moved a2 to a3, s8 renamed and re-artisted, and a
+    genre on s9. One album of a hundred disappears, under the deletion guard."""
+    b = phase in ("B", "C")
+    artists = {
+        "rs-artist-1": {"id": "rs-artist-1", "name": "Rescan Artist 1", "coverArt": "fixture-cover"},
+        "rs-artist-2": {"id": "rs-artist-2", "name": "Rescan Artist 2", "coverArt": "fixture-cover"},
+    }
+    songs = {}
+
+    def add(song_id, album_id, track, title=None, artist="rs-artist-1", gain=None, genres=()):
+        row = {
+            **SONG,
+            "id": song_id,
+            "title": title or f"Rescan {song_id}",
+            "albumId": album_id,
+            "album": f"Rescan {album_id}",
+            "artistId": artist,
+            "artist": artists[artist]["name"],
+            "track": track,
+        }
+        if gain is not None:
+            row["replayGain"] = {"trackGain": gain, "albumGain": gain, "trackPeak": 1.0, "albumPeak": 1.0}
+        if genres:
+            row["genre"] = genres[0]
+            row["genres"] = [{"name": name} for name in genres]
+        songs[song_id] = row
+
+    for n in range(1, RESCAN_ALBUM_COUNT + 1):
+        if b and n == 7:
+            continue
+        gain = -6.0 - n
+        if b and n == 1:
+            gain = -3.5
+        if b and n == 4:
+            gain = None
+        title = "Renamed" if b and n == 8 else None
+        artist = "rs-artist-2" if b and n == 8 else "rs-artist-1"
+        genres = ("Jazz",) if b and n == 9 else ()
+        add(f"rs-s{n}", f"rs-a{n}", 1, title, artist, gain, genres)
+    add("rs-s2b", "rs-a2", 2)
+    add("rs-s5b", "rs-a5", 2)
+    if b:
+        del songs["rs-s5"]
+        songs["rs-s2"] = {**songs["rs-s2"], "albumId": "rs-a3", "album": "Rescan rs-a3", "track": 2}
+    albums = {}
+    for song in songs.values():
+        album_id = song["albumId"]
+        album = albums.setdefault(album_id, {
+            "id": album_id,
+            "name": song["album"],
+            "artist": song["artist"],
+            "artistId": song["artistId"],
+            "songCount": 0,
+            "duration": 0,
+            "year": 2026,
+            "coverArt": "fixture-cover",
+            "created": "2026-01-01T00:00:00Z",
+        })
+        album["songCount"] += 1
+        album["duration"] += song["duration"]
+    for artist in artists.values():
+        artist["albumCount"] = sum(1 for a in albums.values() if a["artistId"] == artist["id"])
+    return artists, albums, songs
+
+
+def _log_request(endpoint, query):
+    if not REQUEST_LOG or endpoint in {"stream", "download", "getCoverArt"}:
+        return
+    keep = {key: query[key] for key in ("type", "size", "offset", "songCount", "songOffset", "query") if key in query}
+    with open(REQUEST_LOG, "a", encoding="utf-8") as output:
+        output.write(json.dumps({"endpoint": endpoint, "query": keep}) + "\n")
+
+
 def _root(**content):
     return {
         "subsonic-response": {
@@ -341,10 +441,54 @@ class Handler(BaseHTTPRequestHandler):
             # A cancelled or paused download closes its transfer.
             return
 
+    def _rescan(self, endpoint, query):
+        phase = _rescan_phase()
+        artists, albums, songs = _rescan_library(phase)
+        ordered_albums = sorted(albums.values(), key=lambda album: album["id"])
+
+        def page(items, size_key="size", offset_key="offset", default=500):
+            offset = int(query.get(offset_key, ["0"])[0])
+            size = int(query.get(size_key, [str(default)])[0])
+            return items[offset : offset + size]
+
+        if endpoint == "getScanStatus":
+            self._json(_root(scanStatus={"scanning": False, "count": len(songs), "lastScan": RESCAN_SCANS[phase]}))
+        elif endpoint == "getIndexes":
+            self._json(_root(indexes={"lastModified": RESCAN_INDEXES[phase], "index": [{"name": "R", "artist": list(artists.values())}]}))
+        elif endpoint == "getArtists":
+            self._json(_root(artists={"index": [{"name": "R", "artist": list(artists.values())}]}))
+        elif endpoint == "getArtist":
+            artist = artists.get(query.get("id", [""])[0])
+            if artist is None:
+                self._json(_root(status="failed", error={"code": 70, "message": "Artist not found"}))
+            else:
+                mine = [a for a in ordered_albums if a["artistId"] == artist["id"]]
+                self._json(_root(artist={**artist, "album": mine}))
+        elif endpoint == "getAlbumList2":
+            self._json(_root(albumList2={"album": page(ordered_albums)}))
+        elif endpoint == "getAlbum":
+            album = albums.get(query.get("id", [""])[0])
+            if album is None:
+                self._json(_root(status="failed", error={"code": 70, "message": "Album not found"}))
+            else:
+                mine = sorted((s for s in songs.values() if s["albumId"] == album["id"]), key=lambda s: s["track"])
+                self._json(_root(album={**album, "song": mine}))
+        elif endpoint == "search3":
+            ordered_songs = sorted(songs.values(), key=lambda song: song["id"])
+            self._json(_root(searchResult3={"song": page(ordered_songs, "songCount", "songOffset", 20)}))
+        elif endpoint == "getStarred2":
+            self._json(_root(starred2={"artist": [], "album": [], "song": []}))
+        else:
+            return False
+        return True
+
     def do_GET(self):
         parsed = urlparse(self.path)
         endpoint = os.path.basename(parsed.path).removesuffix(".view")
         query = parse_qs(parsed.query)
+        _log_request(endpoint, query)
+        if RESCAN_ENABLED and self._rescan(endpoint, query):
+            return
         if endpoint == "getArtists" and FAILURE_FLAG and os.path.exists(FAILURE_FLAG):
             self._json(
                 {
@@ -477,6 +621,7 @@ def main():
             "partial-album",
             "downloads",
             "genres",
+            "rescan",
         ),
         default="auth-lifecycle",
     )
@@ -503,14 +648,23 @@ def main():
         help="Give each extra song in downloads mode its own cover id.",
     )
     parser.add_argument("--annotation-log")
+    parser.add_argument(
+        "--phase-file",
+        help="Rescan mode: file read per request holding the library phase: A, B or C.",
+    )
+    parser.add_argument(
+        "--request-log",
+        help="Append one JSON line per non-media request (endpoint and paging).",
+    )
     parser.add_argument("--partial-album-flag")
     parser.add_argument(
         "--album-error-flag",
         help="While this file exists, the incomplete album's detail fails.",
     )
     args = parser.parse_args()
-    global ANNOTATION_LOG
+    global ANNOTATION_LOG, RESCAN_ENABLED, PHASE_FILE, REQUEST_LOG
     ANNOTATION_LOG = args.annotation_log
+    REQUEST_LOG = os.path.realpath(args.request_log) if args.request_log else ""
     FAILURE_FLAG = os.path.realpath(args.failure_flag)
     PARTIAL_ALBUM_FLAG = (
         os.path.realpath(args.partial_album_flag)
@@ -531,6 +685,11 @@ def main():
         _configure_manual_discovery_fixture(args.omit_existing_artist_album)
     if args.scenario == "genres":
         _configure_genres_fixture()
+    if args.scenario == "rescan":
+        if not args.phase_file:
+            parser.error("--phase-file is required for rescan")
+        RESCAN_ENABLED = True
+        PHASE_FILE = os.path.realpath(args.phase_file)
     if args.scenario == "partial-album":
         if not PARTIAL_ALBUM_FLAG:
             parser.error("--partial-album-flag is required for partial-album")

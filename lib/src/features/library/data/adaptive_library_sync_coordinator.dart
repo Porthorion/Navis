@@ -522,6 +522,17 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final auditDue =
         persisted.lastAuditAt == null ||
         timestamp.difference(persisted.lastAuditAt!) >= auditInterval;
+    final hasBaseline =
+        persisted.currentGeneration > 0 || config.lastSynced != null;
+    await _enqueueScanSnapshotIfDue(
+      serverId: serverId,
+      request: request,
+      policy: policy,
+      persisted: persisted,
+      hasBaseline: hasBaseline,
+      isDue: isDue,
+      now: timestamp,
+    );
     final runnableBeforePlanning = await _database.librarySyncDao
         .getRunnableWork(serverId: serverId, now: timestamp, limit: 8);
     final resumedWork =
@@ -554,8 +565,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           LibrarySyncPlannerContext(
             request: request,
             networkPolicy: policy,
-            hasAuthoritativeBaseline:
-                persisted.currentGeneration > 0 || config.lastSynced != null,
+            hasAuthoritativeBaseline: hasBaseline,
             isCatalogCheckDue: isDue,
             pendingHydrationCount: localPendingHydration,
             pendingWorkCount: pendingWork,
@@ -1629,6 +1639,78 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       priority: kind == LibrarySyncPlanKind.deltaReconcile ? 50 : 40,
       workClass: 'background',
       releaseCooldown: true,
+      now: now,
+    );
+  }
+
+  /// Queues one catalog snapshot when the server has completed a scan that no
+  /// promoted snapshot has covered yet.
+  ///
+  /// Navidrome exposes no change token below the scan itself, so a new scan is
+  /// the only signal that song tags (ReplayGain, titles, genres) or membership
+  /// changed, and the bulk snapshot is the cheap way to find which. The row is
+  /// enqueued ahead of any queued delta so selection picks it up through the
+  /// ordinary resume path. Automatic passes run it at most once per
+  /// [librarySyncAutomaticSnapshotInterval] and never on a metered network
+  /// without the one-time broad grant; a manual check always may.
+  Future<void> _enqueueScanSnapshotIfDue({
+    required int serverId,
+    required LibrarySyncRequest request,
+    required SyncNetworkPolicy policy,
+    required LibrarySyncStateTableData persisted,
+    required bool hasBaseline,
+    required bool isDue,
+    required DateTime now,
+  }) async {
+    final manual = request.intent == SyncRunIntent.manualCatalogCheck;
+    if (request.target.kind != LibrarySyncTargetKind.catalog ||
+        !(manual ||
+            (request.intent == SyncRunIntent.automaticCatalogCheck && isDue)) ||
+        !hasBaseline ||
+        (policy.isMetered &&
+            request.grant != SyncNetworkGrant.broadMeteredOnce) ||
+        // A large-deletion candidate waits for the user's confirmation; a new
+        // pass would only re-collect it.
+        persisted.candidateStatus == 'awaitingDeletionConfirmation' ||
+        !_workAllowed(
+          'background',
+          policy,
+          request,
+          planKind: LibrarySyncPlanKind.catalogSnapshot,
+        )) {
+      return;
+    }
+    final existing = await _database.librarySyncDao.getWork(
+      serverId: serverId,
+      kind: LibrarySyncPlanKind.catalogSnapshot.name,
+    );
+    if (!scanSnapshotWorkDue(work: existing, now: now, manual: manual)) {
+      return;
+    }
+    await _executor.observeServerScan();
+    final observation = await _database.librarySyncDao.getScanObservation(
+      serverId,
+    );
+    if (!scanSnapshotDue(
+      observation: observation,
+      work: existing,
+      now: now,
+      manual: manual,
+    )) {
+      return;
+    }
+    // Not _enqueueCatalogFollowUp: that clears the retry backoff, which an
+    // automatic pass must leave alone. The scan token is the evidence version.
+    // Evidence merging keeps the previous checkpoint, so an automatic pass
+    // overwrites a stale manual provenance instead of inheriting it.
+    await _database.librarySyncDao.enqueueWork(
+      serverId: serverId,
+      kind: LibrarySyncPlanKind.catalogSnapshot.name,
+      priority: 60,
+      evidenceVersion: observation!.observedToken,
+      reactivateTerminal: true,
+      releaseCooldown: manual,
+      checkpointJson: _workCheckpoint(request) ?? '{"intent":null}',
       now: now,
     );
   }

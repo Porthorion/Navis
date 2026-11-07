@@ -309,6 +309,12 @@ With `NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING=1` and
 a partial artist detail and proves a user Check for updates retains an omitted
 existing sibling album while importing the new one.
 
+Server-rescan reconciliation has its own isolated Linux gate,
+`python3 tool/rescan_snapshot_diagnostics.py`, which serves the fixture's
+`rescan` scenario and asserts a retag, removals and a new scan token reach the
+library through Check for updates, the 24 h automatic throttle, and the
+metered-network restrictions (see development-workflow.md).
+
 The live clone suite requires the no-override cellular Repair Library action
 to defer for `waitingForMobileConsent` before creating repair work or sending
 requests. A false `updatesAvailable` value is valid for this consent state.

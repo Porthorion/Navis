@@ -1,3 +1,4 @@
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -152,4 +153,54 @@ bool librarySyncWorkAllowed({
         request.grant == SyncNetworkGrant.boundedMeteredDiscovery;
   }
   return policy.allowsBackgroundSync;
+}
+
+/// Longest automatic interval between scan-triggered catalog snapshots,
+/// measured from the previous attempt. A manual check ignores it.
+const librarySyncAutomaticSnapshotInterval = Duration(hours: 24);
+
+/// Whether the snapshot work row's own state allows a new scan-triggered
+/// snapshot, before any network request is spent finding out about the scan.
+///
+/// Queued and running work is picked up by selection. A failed snapshot keeps
+/// its retry backoff unless the user asks. Otherwise an automatic pass waits
+/// [librarySyncAutomaticSnapshotInterval] from the last attempt (the row's
+/// last transition, so completed, cancelled and deferred attempts all count)
+/// and a manual check never waits.
+bool scanSnapshotWorkDue({
+  required LibrarySyncWorkTableData? work,
+  required DateTime now,
+  required bool manual,
+}) {
+  switch (work?.status) {
+    case null:
+      return true;
+    case 'queued' || 'running':
+      return false;
+    case 'failed':
+      return manual;
+    default:
+      return manual ||
+          now.difference(work!.updatedAt) >=
+              librarySyncAutomaticSnapshotInterval;
+  }
+}
+
+/// Whether a completed server scan has not yet been reconciled by a promoted
+/// catalog snapshot and a new snapshot may start now.
+///
+/// A scan in progress records no token and so is never pending.
+bool scanSnapshotDue({
+  required LibraryScanObservationTableData? observation,
+  required LibrarySyncWorkTableData? work,
+  required DateTime now,
+  required bool manual,
+}) {
+  final token = observation?.observedToken;
+  return observation != null &&
+      observation.scanSupported &&
+      observation.pendingReconciliation &&
+      token != null &&
+      token != observation.reconciledToken &&
+      scanSnapshotWorkDue(work: work, now: now, manual: manual);
 }

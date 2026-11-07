@@ -121,6 +121,11 @@ abstract interface class SyncPlanExecutor {
   });
 
   void cancelSync();
+
+  /// Records the server's current scan state (one `getScanStatus` request,
+  /// outside any run budget). Never throws: offline, unsupported and
+  /// authentication failures surface from the run that follows.
+  Future<void> observeServerScan();
 }
 
 abstract class LibrarySyncApi {
@@ -3124,6 +3129,23 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     } on SubsonicException catch (error) {
       AppLogger.warning('Scan status unavailable: $error');
       return (null, false);
+    }
+  }
+
+  @override
+  Future<void> observeServerScan() async {
+    final serverId = (await _serverConfigRepository.getActiveServer())?.id;
+    if (serverId == null) return;
+    // A cancelled previous run leaves the API client refusing requests until
+    // the next run begins; an idle engine can safely clear that flag.
+    if (_inFlight == null) _api.beginRun();
+    try {
+      await _recordScanObservation(
+        serverId: serverId,
+        metrics: _SyncRunMetrics(),
+      );
+    } on Object catch (error) {
+      AppLogger.warning('Scan observation skipped: $error');
     }
   }
 
