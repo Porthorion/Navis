@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
@@ -696,6 +697,50 @@ void main() {
       await tester.tap(find.byType(IconButton));
       await tester.pump();
       expect(haptics, isEmpty);
+    });
+
+    testWidgets('reaching a limit that disables the button ends the hold '
+        'after the build, never during it', (tester) async {
+      var value = 0;
+      var ends = 0;
+      var endedDuringBuild = false;
+      haptics = <Object?>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => RulerStepButton(
+                icon: Icons.add,
+                tooltip: 'More',
+                // Disabled once the limit is reached, like Speed and colour.
+                enabled: value < 3,
+                onStep: () {
+                  if (value >= 3) return false;
+                  setState(() => value++);
+                  return true;
+                },
+                onEnd: () {
+                  ends++;
+                  endedDuringBuild |=
+                      WidgetsBinding.instance.buildOwner!.debugBuilding;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(IconButton)),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 10));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 130));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(value, 3);
+      expect(ends, 1);
+      expect(endedDuringBuild, isFalse);
     });
 
     testWidgets('holding clicks on every repeated step until the limit', (

@@ -177,6 +177,15 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Taps and gestures now feel like what they do on Android: switches '
+        'click on and off, Play and Pause differ, pull to refresh ticks as you '
+        'pull, firms at the trigger point and confirms when it finishes, and '
+        'liking, skipping, reordering, swiping a queue row away, dragging an '
+        'equalizer band and long presses each have their own feel. Your '
+        'phone\'s touch feedback setting still applies',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Albums and downloads can be added to a playlist from their menu',
         type: ChangelogEntryType.improvement,
       ),

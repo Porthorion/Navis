@@ -7,6 +7,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_context_menu.dart';
 import 'package:navis/src/common_widgets/genre_chips.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
+import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_download_status_icon.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/library/domain/set_rating.dart';
@@ -163,11 +164,7 @@ Future<void> showSongContextMenu(
                       title: Text(isLiked ? l10n.actionLiked : l10n.actionLike),
                       onTap: () {
                         if (isServerActionUnavailable) {
-                          showAppNotice(
-                            context,
-                            message: l10n.remoteSourceActionUnavailable,
-                            level: AppNoticeLevel.error,
-                          );
+                          showRemoteSourceActionUnavailable(context);
                           return;
                         }
                         unawaited(
@@ -225,11 +222,7 @@ Future<void> showSongContextMenu(
                               },
                             ),
                       onTap: isServerActionUnavailable
-                          ? () => showAppNotice(
-                              context,
-                              message: l10n.remoteSourceActionUnavailable,
-                              level: AppNoticeLevel.error,
-                            )
+                          ? () => showRemoteSourceActionUnavailable(context)
                           : null,
                     ),
                     if (song.artistId != null && song.artistId!.isNotEmpty)
@@ -305,11 +298,7 @@ Future<void> showSongContextMenu(
                         title: Text(l10n.downloadAction),
                         onTap: () {
                           if (isServerActionUnavailable) {
-                            showAppNotice(
-                              context,
-                              message: l10n.remoteSourceActionUnavailable,
-                              level: AppNoticeLevel.error,
-                            );
+                            showRemoteSourceActionUnavailable(context);
                             return;
                           }
                           Navigator.of(sheetContext).pop();
@@ -497,11 +486,7 @@ Future<void> _showDesktopSongContextMenu(
       return;
     case _SongContextAction.toggleLike:
       if (isServerActionUnavailable) {
-        showAppNotice(
-          context,
-          message: l10n.remoteSourceActionUnavailable,
-          level: AppNoticeLevel.error,
-        );
+        showRemoteSourceActionUnavailable(context);
         return;
       }
       try {

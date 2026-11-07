@@ -31,6 +31,7 @@ class MainActivity : AudioServiceActivity() {
     private val distributionChannelName = "com.navis.app/distribution"
     private val powerChannelName = "com.navis.app/power"
     private val deviceChannelName = "com.navis.app/device"
+    private val hapticsChannelName = "com.navis.app/haptics"
     private val backgroundSyncChannelName = "com.navis.app/background_sync"
     private val diagnosticsHandshakeChannelName = "com.navis.app/diagnostics_handshake"
     private val permanentDownloadStorageChannelName = "com.navis.app/permanent_download_storage"
@@ -146,6 +147,21 @@ class MainActivity : AudioServiceActivity() {
                 }
                 else -> result.notImplemented()
             }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            hapticsChannelName
+        ).setMethodCallHandler { call, result ->
+            if (call.method != "perform") {
+                result.notImplemented()
+                return@setMethodCallHandler
+            }
+            // False means "not performed": the API level lacks the constant, or
+            // there is no view yet. Dart then plays its Flutter primitive.
+            val constant = (call.arguments as? String)
+                ?.let { HapticKinds.constantFor(it, Build.VERSION.SDK_INT) }
+            result.success(constant != null && window.decorView.performHapticFeedback(constant))
         }
 
         registerNetworkCostChannel(applicationContext, flutterEngine.dartExecutor.binaryMessenger)

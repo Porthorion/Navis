@@ -11,6 +11,7 @@ import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/cache/data/rolling_cache_manager.dart';
 import 'package:navis/src/features/library/presentation/required_library_rebuild.dart';
@@ -531,7 +532,7 @@ class _CacheSettingsScreenState extends ConsumerState<CacheSettingsScreen> {
                           ),
                         ),
                       if (_coverArtMax != null) ...[
-                        SwitchListTile(
+                        NavisSwitchListTile(
                           value: _coverArtMax == 0,
                           onChanged: (unlimited) async {
                             final newMax = unlimited ? 0 : _minCoverArt;

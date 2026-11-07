@@ -1,10 +1,9 @@
-import 'dart:async';
-
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/star_button.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -106,7 +105,7 @@ class ArtistCard extends StatelessWidget {
       onLongPress: onLongPress == null
           ? null
           : () {
-              unawaited(HapticFeedback.mediumImpact());
+              NavisHaptics.longPress();
               onLongPress!();
             },
     );
@@ -152,7 +151,7 @@ class _ArtistGridTile extends ConsumerWidget {
       onLongPress: onLongPress == null
           ? null
           : () {
-              unawaited(HapticFeedback.mediumImpact());
+              NavisHaptics.longPress();
               onLongPress!();
             },
       // No inner padding: the cell is the tile, so the grid's gap is the only
