@@ -350,4 +350,40 @@ void main() {
     expect(find.textContaining('apt lock held'), findsNothing);
     expect(find.text('Download Manually'), findsOneWidget);
   });
+
+  testWidgets('release-page updates offer the page, not an install', (
+    tester,
+  ) async {
+    final service = _PackageUpdateService();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme(),
+        localizationsDelegates: navisLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: FilledButton(
+              onPressed: () => showUpdateDialog(
+                context,
+                const UpdateInfo(
+                  sha256: null,
+                  size: null,
+                  tagName: 'v1.5.2',
+                  htmlUrl: 'https://example.invalid/navis/releases/tag/v1.5.2',
+                  delivery: UpdateDelivery.releasePage,
+                ),
+                updateService: service,
+              ),
+              child: const Text('Open update'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open update'));
+    await tester.pumpAndSettle();
+    expect(find.text('Download'), findsOneWidget);
+    expect(find.text('Install'), findsNothing);
+    expect(service.downloads, 0);
+  });
 }

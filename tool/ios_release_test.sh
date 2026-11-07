@@ -17,7 +17,7 @@ cp "${SCRIPT_DIR}/release.sh" "${SCRIPT_DIR}/release_tag_guard.sh" "${SCRIPT_DIR
 cp "${SCRIPT_DIR}/lib/"{release_dist,lastfm_key_defines,r2_tags,github_release,scan_artifact_secret}.sh "${repo}/tool/lib/"
 cp "${SCRIPT_DIR}/../ios/ExportOptions.plist" "${repo}/ios/"
 printf 'version: 1.5.0+10500\n' > "${repo}/pubspec.yaml"
-printf 'build/\ndist/\ntool/release.env\n*.zip\n' > "${repo}/.gitignore"
+printf 'build/\ndist/\ntool/release.env\n*.zip\n*.ipa\n' > "${repo}/.gitignore"
 # A fake Windows builder: proves the upload waits for every target.
 printf '#!/bin/bash\necho "windows:$*" >> "$LOG"\necho zip > "$PWD/navis-v1.5.0-windows.zip"\n' > "${repo}/tool/remote_build_windows.sh"
 chmod +x "${repo}/tool/remote_build_windows.sh"
@@ -35,13 +35,34 @@ stub uname 'echo Darwin'
 stub xcodebuild 'exit 0'
 stub sha256sum 'exit 0'
 stub dart 'exit 0'
-# A stale IPA left in build/ios/ipa must be gone before flutter runs.
-stub flutter 'echo "flutter:$*" >> "$LOG"
+# Two builds, told apart by the subcommand. Stale outputs of either must be
+# gone before flutter runs, and only the sideload build may carry the define.
+cat > "${tmp}/bin/flutter" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+echo "flutter:$*" >> "$LOG"
 [[ "${PATH%%:*}" == /usr/bin ]] || echo "PATH does not start with /usr/bin" >> "$LOG"
-dir="$PWD/build/ios/ipa"
-[[ -z "$(ls -A "$dir" 2>/dev/null)" ]] || { echo "stale IPA present" >> "$LOG"; exit 1; }
-mkdir -p "$dir"
-python3 -I -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1], \"w\").writestr(\"Payload/App\", \"ipa \" + sys.argv[2])" "$dir/Navis.ipa" "${LEAK_INTO_IPA:-}"'
+if [[ "$1 $2" == "build ios" ]]; then
+  args=" $* "
+  [[ "$args" == *" --release "* && "$args" == *" --no-codesign "* && "$args" == *" --dart-define=NAVIS_IOS_SIDELOAD=true "* ]] || { echo "sideload build flags wrong" >> "$LOG"; exit 1; }
+  [[ "$*" != *--build-number* && "$*" != *export-options* ]] || { echo "sideload build mixed with App Store flags" >> "$LOG"; exit 1; }
+  app="$PWD/build/ios/iphoneos/Runner.app"
+  [[ ! -e "$app" ]] || { echo "stale sideload app present" >> "$LOG"; exit 1; }
+  mkdir -p "$app"
+  python3 -I -c "import plistlib, sys; plistlib.dump({\"CFBundleShortVersionString\": \"1.5.0\", \"CFBundleVersion\": \"${BAD_BUILD:-10500}\"}, open(sys.argv[1], \"wb\"))" "$app/Info.plist"
+  printf 'runner %s' "${LEAK_INTO_SIDELOAD:-}" > "$app/Runner"
+  [[ "${SIDELOAD_NO_APP:-}" != 1 ]] || rm -rf "$app"
+elif [[ "$1 $2" == "build ipa" ]]; then
+  [[ "$*" != *NAVIS_IOS_SIDELOAD* && "$*" != *--no-codesign* ]] || { echo "App Store build carries the sideload define" >> "$LOG"; exit 1; }
+  dir="$PWD/build/ios/ipa"
+  [[ -z "$(ls -A "$dir" 2>/dev/null)" ]] || { echo "stale IPA present" >> "$LOG"; exit 1; }
+  mkdir -p "$dir"
+  python3 -I -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1], \"w\").writestr(\"Payload/App\", \"ipa \" + sys.argv[2])" "$dir/Navis.ipa" "${LEAK_INTO_IPA:-}"
+else
+  echo "unexpected flutter call" >> "$LOG"; exit 1
+fi
+STUB
+chmod +x "${tmp}/bin/flutter"
 stub ssh 'exit 0'
 stub scp 'exit 0'
 stub xcrun 'echo "xcrun:$*" >> "$LOG"; [[ "${XCRUN_FAIL:-}" != 1 ]]'
@@ -55,7 +76,7 @@ mkdir -p "$(dirname "${key_file}")"
 printf '%s\n' "${secret}" > "${key_file}"
 
 out=""
-run() { : > "${LOG}"; (cd "${repo}" && ./tool/release.sh v1.5.0 --build-only --skip-checks "$@") > "${tmp}/out" 2>&1 && return 0 || return 1; }
+run() { : > "${LOG}"; rm -rf "${repo}/dist"; (cd "${repo}" && ./tool/release.sh v1.5.0 --build-only --skip-checks "$@") > "${tmp}/out" 2>&1 && return 0 || return 1; }
 run_ok() { run "$@" || { cat "${tmp}/out" >&2; fail "expected success: $*"; }; out="$(cat "${tmp}/out")"; }
 run_bad() { if run "$@"; then fail "expected failure: $*"; fi; out="$(cat "${tmp}/out")"; }
 expect_in() { [[ "$2" == *"$1"* ]] || fail "missing '$1' in: $2"; }
@@ -82,10 +103,11 @@ expect_in 'ASC_KEY_PATH' "${out}"; expect_not_in "${tmp}/nope.p8" "${out}"
 [[ ! -s "${LOG}" ]] || fail "flutter ran despite a bad ASC_KEY_PATH"
 printf '%s\n' "${secret}" > "${key_file}"
 
-# An iOS-only run publishes nothing, so a non-build-only run is refused up front.
-(cd "${repo}" && ./tool/release.sh v1.5.0 --skip-checks --targets=ios > "${tmp}/out" 2>&1) && fail "ios-only publish accepted"
+# An iOS-only dev run has nothing to publish (the sideload IPA is stable-only),
+# so a non-build-only run is refused up front.
+(cd "${repo}" && ./tool/release.sh v1.5.0-dev.1 --skip-checks --targets=ios --channel=dev > "${tmp}/out" 2>&1) && fail "ios-only dev publish accepted"
 expect_in 'not published' "$(cat "${tmp}/out")"
-[[ ! -s "${LOG}" ]] || fail "ios-only publish built something"
+[[ ! -s "${LOG}" ]] || fail "ios-only dev publish built something"
 
 # App Store builds need a plain version, so the dev channel is refused.
 asc run_bad --targets=ios --ios-upload --channel=dev
@@ -98,9 +120,15 @@ expect_in 'cannot be combined' "$(cat "${tmp}/out")"
 
 # Build only: export-options build, no ad-hoc, no upload, IPA left in place.
 mkdir -p "${repo}/build/ios/ipa" && echo stale > "${repo}/build/ios/ipa/Old.ipa"
+mkdir -p "${repo}/build/ios/iphoneos/Runner.app" && echo stale > "${repo}/build/ios/iphoneos/Runner.app/stale"
 run_ok --targets=ios
 calls="$(cat "${LOG}")"
 expect_in 'flutter:build ipa --release --export-options-plist=' "${calls}"
+expect_in 'flutter:build ios --release --no-codesign' "${calls}"
+expect_in '--dart-define=NAVIS_IOS_SIDELOAD=true' "${calls}"
+[[ "$(grep -c NAVIS_IOS_SIDELOAD "${LOG}")" == 1 ]] || fail "the sideload define must reach exactly one build: ${calls}"
+[[ "${calls}" == *'flutter:build ios'*$'\n'*'flutter:build ipa'* ]] || fail "sideload build must run before the App Store build: ${calls}"
+expect_not_in 'stale' "${calls}"
 expect_in 'ios/ExportOptions.plist' "${calls}"
 expect_not_in 'ad-hoc' "${calls}"; expect_not_in 'PATH does not start' "${calls}"; expect_not_in 'export-method' "${calls}"
 expect_not_in 'xcrun' "${calls}"
@@ -108,8 +136,20 @@ first_number="$(sed -n 's/.*--build-number=\([0-9]*\).*/\1/p' "${LOG}")"
 [[ "${first_number}" -gt 10500 ]] || fail "iOS build number missing or not allocated: ${first_number}"
 expect_in "build/ios/ipa/Navis.ipa" "${out}"
 [[ ! -e "${repo}/build/ios/ipa/Old.ipa" ]] || fail "stale IPA survived"
-[[ -z "$(find "${repo}" -maxdepth 1 -name '*.ipa')" ]] || fail "IPA copied into the release assets"
-[[ ! -e "${repo}/dist" ]] || fail "iOS-only build staged an empty bundle"
+# The sideload IPA is the only IPA among the release assets; the App Store IPA never is.
+[[ "$(find "${repo}" -maxdepth 1 -name '*.ipa' -exec basename {} \;)" == navis-v1.5.0-ios-sideload.ipa ]] || fail "unexpected IPA among the release assets"
+[[ "$(ls "${repo}/dist/v1.5.0" | grep -c '\.ipa$')" == 1 && -s "${repo}/dist/v1.5.0/navis-v1.5.0-ios-sideload.ipa" ]] || fail "sideload IPA not staged"
+[[ ! -e "${repo}/dist/v1.5.0/Navis.ipa" ]] || fail "App Store IPA staged"
+# The unsigned IPA is a Payload/Runner.app zip that keeps Info.plist and its version.
+python3 -I - "${repo}/dist/v1.5.0/navis-v1.5.0-ios-sideload.ipa" <<'PY' || fail "sideload IPA layout"
+import plistlib, sys, zipfile
+z = zipfile.ZipFile(sys.argv[1])
+plist = plistlib.loads(z.read("Payload/Runner.app/Info.plist"))
+assert plist["CFBundleShortVersionString"] == "1.5.0" and plist["CFBundleVersion"] == "10500", plist
+assert "Payload/Runner.app/Runner" in z.namelist(), z.namelist()
+assert not any("stale" in n for n in z.namelist()), z.namelist()
+PY
+grep -qx 'navis-v1.5.0-ios-sideload.ipa' "${repo}/dist/v1.5.0/assets.txt" || fail "sideload IPA missing from assets.txt"
 
 # Upload: altool gets the freshly built IPA and the default key file location.
 asc run_ok --targets=ios --ios-upload
@@ -137,7 +177,7 @@ stub uname 'echo Darwin'
 # Relative ASC_KEY_PATH from another cwd: altool gets an absolute path.
 mkdir -p "${tmp}/elsewhere"
 cp "${key_file}" "${tmp}/elsewhere/rel key.p8"
-: > "${LOG}"
+: > "${LOG}"; rm -rf "${repo}/dist"
 (cd "${tmp}/elsewhere" && ASC_KEY_ID="${key_id}" ASC_ISSUER_ID="${issuer}" ASC_KEY_PATH="rel key.p8" \
   "${repo}/tool/release.sh" v1.5.0 --build-only --skip-checks --targets=ios --ios-upload) > "${tmp}/out" 2>&1 \
   || { cat "${tmp}/out" >&2; fail "relative ASC_KEY_PATH run failed"; }
@@ -146,19 +186,41 @@ expect_in "--p8-file-path ${tmp}/elsewhere/rel key.p8" "$(cat "${LOG}")"
 # The IPA secret scan runs, and a leaked Last.fm key fails the release before any upload.
 NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_ok --targets=ios --ios-upload
 expect_in 'Scanning Navis.ipa' "${out}"
+expect_in 'Scanning navis-v1.5.0-ios-sideload.ipa' "${out}"
 LEAK_INTO_IPA=fixture-lastfm-key NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_bad --targets=ios --ios-upload
 expect_in 'plaintext Last.fm API key' "${out}"
 expect_not_in 'xcrun' "$(cat "${LOG}")"
+
+# A leaked key in the sideload IPA fails the release before the App Store build.
+LEAK_INTO_SIDELOAD=fixture-lastfm-key NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_bad --targets=ios --ios-upload
+expect_in 'Scanning navis-v1.5.0-ios-sideload.ipa' "${out}"
+expect_in 'plaintext Last.fm API key' "${out}"
+expect_not_in 'flutter:build ipa' "$(cat "${LOG}")"
+expect_not_in 'xcrun' "$(cat "${LOG}")"
+
+# The unsigned app must still carry the release version and build number, and exist.
+BAD_BUILD=1 run_bad --targets=ios
+expect_in 'Info.plist' "${out}"
+SIDELOAD_NO_APP=1 run_bad --targets=ios
+expect_in 'Runner.app' "${out}"
+
+# The dev channel builds the App Store flavour only: no sideload build or asset.
+run_ok --targets=ios --channel=dev
+calls="$(cat "${LOG}")"
+expect_in 'flutter:build ipa' "${calls}"
+expect_not_in 'flutter:build ios' "${calls}"
+expect_not_in 'NAVIS_IOS_SIDELOAD' "${calls}"
+[[ ! -e "${repo}/dist" ]] || fail "dev iOS build staged an empty bundle"
 
 # iOS beside another target: the upload follows every build, and no IPA is staged.
 asc run_ok --targets=ios,windows --windows-ssh=fixture@builder --ios-upload
 calls="$(cat "${LOG}")"
 [[ "${calls}" == flutter:*$'\n'windows:*$'\n'xcrun:* ]] || fail "upload must follow all builds: ${calls}"
 [[ -f "${repo}/dist/v1.5.0/navis-v1.5.0-windows.zip" ]] || fail "windows asset not staged"
-[[ -z "$(find "${repo}/dist" -name '*.ipa')" ]] || fail "IPA staged into the bundle"
+[[ "$(find "${repo}/dist" -name '*.ipa' -exec basename {} \;)" == navis-v1.5.0-ios-sideload.ipa ]] || fail "only the sideload IPA belongs in the bundle"
 rm -rf "${repo}/dist"
 
 # A failed upload fails the release.
 XCRUN_FAIL=1 asc run_bad --targets=ios --ios-upload
 
-echo "ios release: upload flag, credential preflight, export-options build, stale IPA, altool arguments OK"
+echo "ios release: upload flag, credential preflight, export-options build, stale IPA, altool arguments, sideload IPA OK"

@@ -8,4 +8,8 @@ enum UpdateDelivery {
 
   /// Redirect the user to the platform store listing (e.g. Google Play).
   storeRedirect,
+
+  /// Open the GitHub release page (the iOS sideload build, which cannot
+  /// install an update by itself).
+  releasePage,
 }

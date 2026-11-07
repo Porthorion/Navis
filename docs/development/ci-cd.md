@@ -639,7 +639,9 @@ publication isolation, source/checksum guards and exact dist-file uploads.
    number and can update over one another. See [release-r2.md](../release/release-r2.md).
    `ios` builds a signed App Store IPA into `build/ios/ipa/` (never a release
    asset); `--ios-upload` uploads it with `altool`, after a preflight of `ASC_KEY_ID`,
-   `ASC_ISSUER_ID` and the key file. An iOS-only run needs `--build-only`
+   `ASC_ISSUER_ID` and the key file. A stable run first builds an unsigned
+   sideload IPA with `NAVIS_IOS_SIDELOAD=true` and attaches it as
+   `<prefix>-<tag>-ios-sideload.ipa`; an iOS-only dev run needs `--build-only`
    ([release-ios.md](../release/release-ios.md)). `tool/ios_release_test.sh`
    covers this with stubbed tools.
    Linux x86_64 builds use the Ubuntu 22.04 container, preserving glibc 2.35

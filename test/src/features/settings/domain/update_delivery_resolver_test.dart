@@ -15,6 +15,17 @@ void main() {
       );
     });
 
+    test('links to the release page on the iOS sideload build', () {
+      expect(
+        resolveUpdateDelivery(
+          isAndroid: false,
+          isIOS: true,
+          selfUpdateBuildEnabled: true,
+        ),
+        UpdateDelivery.releasePage,
+      );
+    });
+
     test('uses store redirect when self-update build is disabled', () {
       expect(
         resolveUpdateDelivery(

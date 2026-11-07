@@ -108,6 +108,7 @@ void main() {
   UpdateRepository repository({
     UpdateSource source = UpdateSource.porthorion,
     bool isIOS = false,
+    bool iosSideload = false,
     bool isAndroid = false,
     String? installer,
     String? primaryAbi,
@@ -121,6 +122,7 @@ void main() {
     signingPublicKey: signingKey ?? publicKey,
     updateCheckStore: store,
     isIOS: isIOS,
+    iosSideload: iosSideload,
     isAndroid: isAndroid,
     installSourceService: _FakeInstallSourceService(installer, primaryAbi),
     installModeDetector: () => mode,
@@ -392,6 +394,42 @@ void main() {
     expect(await repo.checkForUpdate(forceCheck: true), isNull);
     expect(requests, isEmpty);
     expect(repo.lastCheck, isNull);
+  });
+
+  group('iOS sideload build', () {
+    test('offers the release page, never a download', () async {
+      (payload['assets']! as Map)['iosSideload'] = {
+        'url':
+            '${AppConstants.updateBaseUrl}releases/v1.5.1/navis-v1.5.1-ios-sideload.ipa',
+        'sha256': _hash,
+        'size': 123,
+      };
+      envelope = await sign(payload);
+      final repo = repository(isIOS: true, iosSideload: true);
+      final result = await repo.checkForUpdate();
+      expect(result!.delivery, UpdateDelivery.releasePage);
+      expect(
+        result.htmlUrl,
+        '${AppConstants.githubReleasesBaseUrl}/tag/v1.5.1',
+      );
+      expect(result.downloadUrl, isNull);
+      expect(result.sha256, isNull);
+      expect(result.size, isNull);
+      expect(repo.lastCheck!.assetKey, 'iosSideload');
+    });
+
+    test('never falls back to another platform asset', () async {
+      // The fixture manifest carries linuxPortable, androidApk and linuxDeb.
+      final repo = repository(isIOS: true, iosSideload: true);
+      expect(await repo.checkForUpdate(), isNull);
+      expect(repo.lastCheck!.rejectReason, 'missing_asset');
+    });
+
+    test('does not change another platform', () async {
+      final result = await repository(iosSideload: true).checkForUpdate();
+      expect(result!.delivery, UpdateDelivery.desktopSelfUpdate);
+      expect(result.downloadUrl, _assetUrl);
+    });
   });
 
   test('Play installs redirect without download integrity metadata', () async {

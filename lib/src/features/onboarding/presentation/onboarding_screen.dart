@@ -18,6 +18,7 @@ import 'package:navis/src/features/integrations/presentation/integration_copy.da
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
+import 'package:navis/src/features/settings/domain/update_delivery_resolver.dart';
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/settings/presentation/appearance_options.dart';
@@ -1291,9 +1292,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   /// update itself, as in About.
   List<IntegrationService> get _integrationStepServices => [
     for (final service in IntegrationService.values)
-      if (service != IntegrationService.updates ||
-          (!kIsWeb && defaultTargetPlatform != TargetPlatform.iOS))
-        service,
+      if (service != IntegrationService.updates || updateUiAvailable) service,
   ];
 
   /// The draft's integration choices. A Last.fm key counts as verified when

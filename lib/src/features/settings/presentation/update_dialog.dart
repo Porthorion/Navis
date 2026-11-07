@@ -87,6 +87,8 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
   bool get _isStoreRedirect =>
       widget.info.delivery == UpdateDelivery.storeRedirect;
 
+  bool get _isReleasePage => widget.info.delivery == UpdateDelivery.releasePage;
+
   bool get _isSelfUpdate => widget.info.delivery == UpdateDelivery.selfUpdate;
 
   Future<void> _openPlayStore() async {
@@ -106,6 +108,11 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
     if (mounted) {
       Navigator.of(context).pop();
     }
+  }
+
+  Future<void> _openReleasePage() async {
+    await launchExternalHttpUrl(widget.info.htmlUrl);
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _startDownload() async {
@@ -360,12 +367,20 @@ class _UpdateDownloadDialogState extends State<_UpdateDownloadDialog> {
             child: Text(l10n.updateDismiss),
           ),
           FilledButton.icon(
-            onPressed: _startDownload,
+            onPressed: _isReleasePage ? _openReleasePage : _startDownload,
             icon: Icon(
-              _isStoreRedirect ? Icons.shop_2_outlined : Icons.download,
+              _isStoreRedirect
+                  ? Icons.shop_2_outlined
+                  : _isReleasePage
+                  ? Icons.open_in_new
+                  : Icons.download,
             ),
             label: Text(
-              _isStoreRedirect ? l10n.updateOpenPlayStore : l10n.updateInstall,
+              _isStoreRedirect
+                  ? l10n.updateOpenPlayStore
+                  : _isReleasePage
+                  ? l10n.updateDownload
+                  : l10n.updateInstall,
             ),
           ),
         ];

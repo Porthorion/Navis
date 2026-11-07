@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:navis/src/features/settings/domain/update_delivery.dart';
 import 'package:navis/src/utils/constants.dart';
 
@@ -17,7 +18,9 @@ UpdateDelivery resolveUpdateDelivery({
   required bool isAndroid,
   required bool selfUpdateBuildEnabled,
   String? installerPackage,
+  bool isIOS = false,
 }) {
+  if (isIOS) return UpdateDelivery.releasePage;
   if (!isAndroid) {
     return UpdateDelivery.desktopSelfUpdate;
   }
@@ -38,3 +41,9 @@ UpdateDelivery resolveUpdateDelivery({
 
 /// Whether the compile-time self-update capability is enabled for this build.
 bool get selfUpdateBuildEnabled => AppConstants.selfUpdateEnabled;
+
+/// Whether update checks and update settings exist on this platform. iOS has
+/// them only in the sideload build; App Store and TestFlight builds hide them.
+bool get updateUiAvailable =>
+    !kIsWeb &&
+    (defaultTargetPlatform != TargetPlatform.iOS || AppConstants.iosSideload);

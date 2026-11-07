@@ -130,6 +130,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'iOS: GitHub releases now include an unsigned IPA for AltStore and '
+        'SideStore, which tells you when a newer version is out and links to '
+        'its release page',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'iOS: a launch where the app cannot update its saved download '
         'locations no longer re-downloads finished songs, and moving a '
         'download between volumes no longer leaves a half-written file in '
