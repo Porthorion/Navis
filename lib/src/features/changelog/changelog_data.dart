@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Turning crossfade, gapless, ReplayGain, speed or pitch off or on in '
+        'Settings now takes effect right away during playback',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'macOS: pausing from Control Center no longer shows the old '
         'position for a moment',
         type: ChangelogEntryType.fix,

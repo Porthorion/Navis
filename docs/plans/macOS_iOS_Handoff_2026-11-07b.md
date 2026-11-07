@@ -6,10 +6,12 @@ Ledger: [iOS_Parity_Plan.md](iOS_Parity_Plan.md) (update its rows).
 
 ## State
 
-- Merged this session: #323 (previous hand-off), #322 (I0 simulator diagnostics),
-  #325 (I3 keychain), #327 (anomaly recorder false positive), #329 (owner
-  decisions), and — if green before this hand-off merged — #328 and #330 (see
-  "In flight" for whichever are still open).
+- dev = `2c87db11`. Merged this session: #323 (previous hand-off), #322 (I0
+  simulator diagnostics, `97c5ce94`), #325 (I3 keychain, `9f3966c8`), #327
+  (anomaly recorder false positive, `1186b1f4`), #329 (owner decisions), #328
+  (playback settings re-apply after the settings stream updates, every
+  platform, `dcb5a1b3`), #330 (I10: 64 pt bottom bar on iPhone, `2c87db11`).
+  Their branches and worktrees are deleted.
 - Owner decisions 2026-11-07 (in the plan): iOS does not ship without EQ (I9);
   one shared design plus iOS conventions, no Cupertino overhaul (I10); feature
   research done (I11), its questions are **held until the owner is back**
@@ -25,16 +27,9 @@ Ledger: [iOS_Parity_Plan.md](iOS_Parity_Plan.md) (update its rows).
 
 ## In flight
 
-- **#328** `fix(player): apply playback settings after the settings stream
-  updates` (crossfade-off never reached the handler; every platform). Reviewed
-  (Sonnet high, nothing blocking; error logging added). Worktree
-  `.claude/worktrees/agent-aaefb664149c67e34`. Merge when CI is green.
-- **#330** `feat(ios): shorter bottom navigation bar on iPhone` (I10 part 1).
-  Reviewed (Sonnet high, nothing blocking). Worktree
-  `.claude/worktrees/agent-aa5fc2f2d95738fec`. Merge when CI is green.
-- After merging: delete the branches and worktrees (check nothing symlinks into
-  them), mark I1 runtime-done and I10 nav bar merged in the plan if not already.
-- Nothing else running. No subagents or worker threads.
+Nothing: no open PRs of ours, no subagents, delegates or worker threads. Not
+ours, left alone: the `t3/ios-release-readiness-survey` worktree under
+`~/.t3/worktrees/Navis` and the `chore/macos-ios-readiness` branch.
 
 ## Next steps
 
