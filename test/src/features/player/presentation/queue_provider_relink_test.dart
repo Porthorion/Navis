@@ -83,6 +83,68 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test(
+    'a remote single relinks to the album track and search lists one row',
+    () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final handler = _Handler();
+      when(() => handler.applySongIdentityAliases(any()))
+          .thenAnswer((_) async {});
+      when(() => handler.snapshotStream)
+          .thenAnswer((_) => const Stream<PlaybackSnapshot>.empty());
+      when(() => handler.snapshot).thenReturn(const PlaybackSnapshot.idle());
+      await database
+          .into(database.songsTable)
+          .insert(
+            SongsTableData(
+              id: 'lib',
+              title: 'Set Fire to the Rain',
+              artistName: 'Adele',
+              albumName: '21',
+              duration: 243,
+              track: 2,
+              discNumber: 1,
+              isProvisional: false,
+              isExternal: false,
+            ),
+          );
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+      final container = ProviderContainer(
+        overrides: [
+          ...withTestDatabase(database),
+          audioHandlerProvider.overrideWithValue(handler),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await container.read(queueProvider.notifier).storeProvisionalSongs(<Song>[
+        const Song(
+          id: 'ext-deezer-song-8086130',
+          title: 'Set Fire to the Rain',
+          artist: 'Adele',
+          album: 'Set Fire to the Rain - Single',
+          duration: 242,
+          track: 1,
+          discNumber: 1,
+          isExternal: true,
+        ),
+      ]);
+
+      expect(
+        (await database.libraryDao.searchCachedSongs('set fire'))
+            .map((song) => song.id),
+        <String>['lib'],
+      );
+      verify(
+        () => handler.applySongIdentityAliases(<String, String>{
+          'ext-deezer-song-8086130': 'lib',
+        }),
+      ).called(1);
+    },
+    skip: !sqliteAvailable,
+  );
+
   group('queue entry points hand over first, then relink once', () {
     const extId = 'ext-deezer-song-8086130';
     SongsTableData row(String id, {required bool external}) => SongsTableData(

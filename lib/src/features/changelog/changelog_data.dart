@@ -145,6 +145,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'Playing a Deezer copy of a single you already have now links it to '
+        'your library song, so Search no longer lists the song twice. Titles '
+        'with curly quotes or long dashes match too',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Songs from Deezer now show the greyed-out heart in Search and in '
         'Artist top tracks on desktop, the same as everywhere else',
         type: ChangelogEntryType.fix,

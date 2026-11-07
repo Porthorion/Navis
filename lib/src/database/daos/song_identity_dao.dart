@@ -139,8 +139,11 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
   // ponytail: rows the search index has not covered yet are not candidates
   // (a miss until the index refresh or the next full promotion), and
   // match_title drops round-bracket qualifiers but keeps square ones, so
-  // "Song (Live)" never meets "Song [Live]". Both are misses, never false
-  // merges. Upgrade: LibraryDao.getTrackMatchCandidates (full scans).
+  // "Song (Live)" never meets "Song [Live]". A missing candidate is a miss
+  // for the exact tiers but could hide a rival from the title-and-artist
+  // tier, which therefore runs only while
+  // `LibraryDao.isSongSearchIndexCurrent` holds. Upgrade:
+  // LibraryDao.getTrackMatchCandidates (full scans).
   Future<List<SongsTableData>> getLibrarySongsByMatchTitle(
     Iterable<String> titles,
   ) async {
@@ -157,6 +160,11 @@ class SongIdentityDao extends DatabaseAccessor<NavisDatabase>
     ).get();
     return [for (final row in rows) songsTable.map(row.data)];
   }
+
+  /// Whether the match index behind [getLibrarySongsByMatchTitle] covers
+  /// every song, so its candidate list is complete.
+  Future<bool> isLibraryMatchIndexCurrent() =>
+      attachedDatabase.libraryDao.isSongSearchIndexCurrent();
 
   Future<List<SongIdentityAlias>> getAliases() => _songAliases().get();
 
