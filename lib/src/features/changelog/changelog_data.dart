@@ -130,6 +130,14 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Now Playing can show how much volume normalization (ReplayGain) is '
+        'turning the current song down; hold it to open Playback settings. '
+        'Those settings now explain each mode and the pre-amp, say that '
+        'normalization only turns songs down, and show how many of your '
+        'songs have ReplayGain data',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Volume normalization has a new Smart mode, now the default for new '
         'installs. It keeps an album\'s own loudness balance when you play '
         'the album in order, and levels songs one by one for shuffles and '

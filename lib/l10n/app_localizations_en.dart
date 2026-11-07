@@ -1170,28 +1170,71 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackSettingsReplayGainModeSmartDescription =>
-      'Album levels when you play an album in order, track levels for shuffles and mixes.';
+      'Uses album levels when songs from one album play in a row, and track levels otherwise.';
 
   @override
   String get playbackSettingsReplayGainModeTrack => 'Track';
 
   @override
   String get playbackSettingsReplayGainModeTrackDescription =>
-      'Normalize volume on a per-track basis.';
+      'Every song is levelled on its own. Best for shuffle and playlists.';
 
   @override
   String get playbackSettingsReplayGainModeAlbum => 'Album';
 
   @override
   String get playbackSettingsReplayGainModeAlbumDescription =>
-      'Normalize volume on a per-album basis, preserving relative loudness.';
+      'A whole album is levelled together, so its quiet and loud songs stay as the artist set them. Best for playing whole albums.';
 
   @override
   String get playbackSettingsReplayGainPreampLabel => 'Pre-Amp (dB)';
 
   @override
-  String get playbackSettingsReplayGainPreampSubtitle =>
-      'Additional gain adjustment. Range: −6 to +6 dB.';
+  String get playbackSettingsReplayGainIntro =>
+      'ReplayGain turns loud songs down so they all play at a similar volume. It never turns songs up, so overall volume may sound lower: turn the volume up to compensate.';
+
+  @override
+  String get playbackSettingsReplayGainPreampSubtitleDown =>
+      'Turns every song down further. It can\'t push a song above its original level.';
+
+  @override
+  String get playbackSettingsReplayGainPreampSubtitleZero =>
+      'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB. It can\'t push a song above its original level.';
+
+  @override
+  String get playbackSettingsReplayGainPreampSubtitleUp =>
+      'Gives back some of the turn-down, but never pushes a song above its original level.';
+
+  @override
+  String playbackSettingsReplayGainCoverage(
+    int percent,
+    int total,
+    int withData,
+  ) {
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other: 'songs have',
+      one: 'song has',
+    );
+    return '$percent% of your $_temp0 ReplayGain data ($withData of $total).';
+  }
+
+  @override
+  String playbackSettingsReplayGainCoverageRest(String kind, String level) {
+    String _temp0 = intl.Intl.selectLogic(kind, {
+      'automatic': 'The rest, and online songs, play at $level dB (Automatic).',
+      'other': 'The rest, and online songs, play at $level dB (fixed level).',
+    });
+    return '$_temp0';
+  }
+
+  @override
+  String get playbackSettingsReplayGainCoverageOff => 'ReplayGain is off.';
+
+  @override
+  String get playbackSettingsReplayGainCoverageTip =>
+      'Tag your files with rsgain or MusicBrainz Picard, then rescan your library, to cover the rest.';
 
   @override
   String get playbackSettingsReplayGainUntaggedLabel => 'Untagged songs';
@@ -6566,6 +6609,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mediaInfoReplayGain => 'ReplayGain';
+
+  @override
+  String nowPlayingReplayGainValue(String db, String kind) {
+    String _temp0 = intl.Intl.selectLogic(kind, {
+      'track': 'track',
+      'album': 'album',
+      'smartTrack': 'track (Smart)',
+      'smartAlbum': 'album (Smart)',
+      'untaggedAutomatic': 'untagged (Automatic)',
+      'other': 'untagged (fixed level)',
+    });
+    return '$db dB · $_temp0';
+  }
+
+  @override
+  String get nowPlayingHoldForReplayGainSettings =>
+      'Hold for ReplayGain settings';
+
+  @override
+  String get nowPlayingReplayGainSettingsAction => 'ReplayGain settings';
 
   @override
   String mediaInfoReplayGainTrack(String gain) {

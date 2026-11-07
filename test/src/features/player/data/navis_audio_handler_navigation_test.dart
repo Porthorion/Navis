@@ -16153,6 +16153,39 @@ void main() {
       expect(player.volume, closeTo(trackVolume, 0.00001));
     });
 
+    test('the public decision shows album gain once the queue settles and '
+        'reading it freezes nothing', () async {
+      var mode = 'track';
+      final (handler, player) = await smart([
+        'a',
+        'b',
+        'a',
+      ], readMode: () => mode);
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      await handler.playNext(['song-2'], expandMatchFlows: false);
+      await settleQueue(handler);
+      mode = 'smart';
+      final decision = handler.currentReplayGainDecision;
+      expect(decision?.mode, 'smart');
+      expect(decision?.resolvedMode, 'album');
+      expect(decision?.source, ReplayGainSource.album);
+      expect(decision?.db, closeTo(-4, 0.00001));
+      // Read twice, then change the neighbours: nothing was stored.
+      expect(handler.currentReplayGainDecision?.resolvedMode, 'album');
+      await handler.removeAt(1);
+      await settleQueue(handler);
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+    });
+
+    test('a lone song reads as track gain in the public decision', () async {
+      final (handler, _) = await smart(['a']);
+      await handler.replaceQueue(ids(1), expandMatchFlows: false);
+      final decision = handler.currentReplayGainDecision;
+      expect(decision?.resolvedMode, 'track');
+      expect(decision?.source, ReplayGainSource.track);
+      expect(decision?.db, closeTo(-10, 0.00001));
+    });
+
     test('a replaced queue resolves the same song again', () async {
       final (handler, player) = await smart(['a', 'b', 'a']);
       await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);

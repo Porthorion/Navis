@@ -778,6 +778,10 @@ class NavisAudioHandler extends BaseAudioHandler
   Set<String> get rollingCacheProtectedSongIds => _rollingCacheKeepSongIds();
 
   @override
+  ReplayGainDecision? get currentReplayGainDecision =>
+      _currentReplayGainDecision;
+
+  @override
   Stream<MediaItem?> get mediaItemStream => mediaItem;
 
   @override
