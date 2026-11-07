@@ -823,11 +823,19 @@ class _RulerStepButtonState extends State<RulerStepButton> {
   static const _repeatInterval = Duration(milliseconds: 120);
   Timer? _repeat;
 
+  /// One step with the click a drag over a ruler line gives; a step stopped
+  /// by a limit stays silent.
+  bool _step() {
+    final stepped = widget.onStep();
+    if (stepped) unawaited(HapticFeedback.selectionClick());
+    return stepped;
+  }
+
   void _startRepeat() {
-    if (!widget.onStep()) return;
+    if (!_step()) return;
     _repeat?.cancel();
     _repeat = Timer.periodic(_repeatInterval, (_) {
-      if (!mounted || !widget.onStep()) _stopRepeat();
+      if (!mounted || !_step()) _stopRepeat();
     });
   }
 
@@ -858,7 +866,7 @@ class _RulerStepButtonState extends State<RulerStepButton> {
         child: IconButton(
           onPressed: widget.enabled
               ? () {
-                  if (widget.onStep()) widget.onEnd();
+                  if (_step()) widget.onEnd();
                 }
               : null,
           icon: Icon(widget.icon),

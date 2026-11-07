@@ -422,7 +422,10 @@ class _PlaybackSettingsScreenState
                         ? null
                         : (value) {
                             if (value != null) {
-                              setState(() => _replayGainMode = value);
+                              setState(() {
+                                _replayGainMode = value;
+                                _untaggedPreview = null;
+                              });
                             }
                           },
                   ),
@@ -623,31 +626,39 @@ class _PlaybackSettingsScreenState
 
   Widget _buildUntaggedLevel(BuildContext context, AppLocalizations l10n) {
     final theme = Theme.of(context);
-    final auto = effectiveReplayGainUntaggedDb(
-      fixed: null,
-      auto: ref.watch(replayGainAutoUntaggedDbProvider),
-    );
+    final autoAsync = ref.watch(replayGainAutoUntaggedDbProvider);
+    final auto = effectiveReplayGainUntaggedDb(fixed: null, auto: autoAsync);
     final automatic = _replayGainUntaggedDb == null;
-    final level = _untaggedPreview ?? _replayGainUntaggedDb ?? auto;
+    // A preview only exists while a fixed level is being dragged.
+    final level = automatic
+        ? auto
+        : (_untaggedPreview ?? _replayGainUntaggedDb ?? auto);
     String text(double db) =>
         l10n.playbackSettingsReplayGainUntaggedFixed(_dbText(db));
 
-    void commit() => setState(() {
-      _replayGainUntaggedDb = _untaggedPreview ?? _replayGainUntaggedDb;
-      _untaggedPreview = null;
-    });
+    void commit() {
+      // Nothing to commit also keeps this safe when a stepper reports the end
+      // of a hold from didUpdateWidget, during build.
+      if (_untaggedPreview == null) return;
+      setState(() {
+        _replayGainUntaggedDb = _untaggedPreview;
+        _untaggedPreview = null;
+      });
+    }
 
     Widget stepper({required bool up}) {
-      final next = level + (up ? 1 : -1);
-      final inRange = next >= replayGainMinUntaggedDb && next <= 0;
       return RulerStepButton(
         key: ValueKey<String>('replayGainUntagged-${up ? 'plus' : 'minus'}'),
         icon: up ? Icons.add : Icons.remove,
         tooltip: up
             ? l10n.playbackAdjustmentIncreaseBy(text(1))
             : l10n.playbackAdjustmentDecreaseBy(text(1)),
-        enabled: !automatic && !_isSaving && inRange,
+        // Stays enabled at the limits: onStep returns false there, which ends a
+        // hold through the button's normal path (disabling it mid-hold would
+        // end the hold during build).
+        enabled: !automatic,
         onStep: () {
+          if (_isSaving) return false;
           final target = (_untaggedPreview ?? level) + (up ? 1 : -1);
           if (target < replayGainMinUntaggedDb || target > 0) return false;
           setState(() => _untaggedPreview = target);
@@ -664,7 +675,9 @@ class _PlaybackSettingsScreenState
           key: const ValueKey<String>('replayGainUntagged-automatic'),
           contentPadding: EdgeInsets.zero,
           value: automatic,
-          onChanged: _isSaving
+          // Turning it off copies the automatic level, so wait until the
+          // library level is known rather than store the fallback.
+          onChanged: _isSaving || (automatic && !autoAsync.hasValue)
               ? null
               : (value) => setState(() {
                   _untaggedPreview = null;
@@ -687,10 +700,13 @@ class _PlaybackSettingsScreenState
                 style: theme.textTheme.titleSmall,
               ),
             ),
-            Text(
-              text(level),
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontFeatures: const [FontFeature.tabularFigures()],
+            Flexible(
+              child: Text(
+                text(level),
+                textAlign: TextAlign.end,
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
             ),
           ],
@@ -749,6 +765,7 @@ class _PlaybackSettingsScreenState
     _replayGainMode = settings.replayGainMode;
     _replayGainPreamp = _normalizeReplayGainPreamp(settings.replayGainPreamp);
     _replayGainUntaggedDb = _normalizeUntaggedDb(settings.replayGainUntaggedDb);
+    _untaggedPreview = null;
     _lastSavedSignature = _formSignature();
   }
 
