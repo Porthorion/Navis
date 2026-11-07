@@ -207,7 +207,9 @@ class PlaybackAnomalyRecorder {
       // A queue replacement can deliver one stale old-source sample tagged
       // with the new song; drop it as a baseline so the next one is not
       // compared against it. Accepted: a seek into the last 1.5 s followed
-      // by a genuine replay loses its near-end mark (later samples set it).
+      // by a genuine replay loses its near-end mark (later samples set it),
+      // and a backward jump landing between the last in-window sample and the
+      // first sample after the window has no baseline to compare against.
       _prev = null;
       return;
     }
