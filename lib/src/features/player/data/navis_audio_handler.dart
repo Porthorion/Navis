@@ -782,6 +782,9 @@ class NavisAudioHandler extends BaseAudioHandler
       _currentReplayGainDecision;
 
   @override
+  bool get replayGainBoostSupported => _usesMpv;
+
+  @override
   Stream<MediaItem?> get mediaItemStream => mediaItem;
 
   @override

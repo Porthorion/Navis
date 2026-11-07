@@ -670,26 +670,59 @@ extension _NavisMediaSession on NavisAudioHandler {
       (id, _) => id != current?.id && id != incoming,
     );
     unawaited(_player.setVolume(_replayGainVolumeFor(current)));
+    _applyReplayGainBoost();
   }
 
+  /// Whether the player is mpv through media_kit (Linux, Windows and macOS).
+  /// Tests inject the backend through the adjustment capabilities instead.
+  bool get _usesMpv => _adjustmentCapabilities != null
+      ? _adjustmentCapabilities == PlaybackAdjustmentCapabilities.mediaKit
+      : JustAudioMediaKit.isRegistered;
+
   /// The player volume for [item]: the user volume (ducked or not) scaled by
-  /// its ReplayGain level, which only ever turns the song down.
+  /// its ReplayGain cut, which only ever turns the song down. Turning a song
+  /// up is the platform's boost stage ([_applyReplayGainBoost]), which a
+  /// 0..1 volume cannot do.
   ///
   /// ExoPlayer's volume is linear, so the gain is `10^(dB/20)`. mpv's volume
   /// is cubic (volume 50 is -18 dB), so the same dB needs `10^(dB/60)`.
   /// Radio has no gain data and is left at the user volume.
   double _replayGainVolumeFor(MediaItem? item) {
     final base = _isDucked ? _userVolume * 2 / 5 : _userVolume;
-    final gainDb = _replayGainDecisionFor(item)?.db;
+    final gainDb = _replayGainDecisionFor(item)?.cutDb;
     if (gainDb == null) return base;
-    // media_kit registers on Linux, Windows and macOS. Tests inject the
-    // backend through the adjustment capabilities instead.
-    final usesMpv = _adjustmentCapabilities != null
-        ? _adjustmentCapabilities == PlaybackAdjustmentCapabilities.mediaKit
-        : JustAudioMediaKit.isRegistered;
-    return (math.pow(10, gainDb / (usesMpv ? 60 : 20)).toDouble() * base).clamp(
-      0.0,
-      1.0,
+    return (math.pow(10, gainDb / (_usesMpv ? 60 : 20)).toDouble() * base)
+        .clamp(0.0, 1.0);
+  }
+
+  /// Tells every deck how much each queued song is turned up.
+  ///
+  /// mpv switches the gain per file from the queued songs' boost and applies
+  /// the playing song's now (see the media_kit adapter), which keeps the end
+  /// of a quiet song from playing at its louder successor's gain. A backend
+  /// without a boost stage ([replayGainBoostSupported] false) gets nothing.
+  /// Boost is derived from the same frozen decision as the cut, except for
+  /// songs not playing yet, which read it without freezing.
+  void _applyReplayGainBoost() {
+    if (!replayGainBoostSupported) return;
+    unawaited(
+      _applyToStableDecks((player) async {
+        final current = player.currentIndex;
+        final bySource = <IndexedAudioSource, double>{};
+        final sequence = player.sequence;
+        for (var i = 0; i < sequence.length; i++) {
+          final tag = sequence[i].tag;
+          if (tag is! MediaItem) continue;
+          bySource[sequence[i]] =
+              _replayGainDecisionFor(tag, freeze: i == current)?.boostDb ?? 0;
+        }
+        await player.setReplayGainBoost(
+          currentDb: bySource[current == null ? null : sequence[current]] ?? 0,
+          bySource: bySource,
+        );
+      }).catchError((Object error) {
+        AppLogger.debug('ReplayGain boost could not be applied: $error');
+      }),
     );
   }
 
@@ -715,6 +748,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         ? _smartNeighbourAlbums(item, freeze: freeze)
         : null;
     return replayGainDecision(
+      boostSupported: replayGainBoostSupported,
       mode: runtime.replayGainMode,
       albumId: extras?['albumId'] as String?,
       prevAlbumId: neighbours?.prev,

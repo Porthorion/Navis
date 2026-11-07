@@ -73,3 +73,41 @@ class EqualizerStateMessage {
         pending: map['pending'] as bool? ?? false,
       );
 }
+
+/// The ReplayGain boost (positive gain) the backend applies on top of the
+/// player volume, which only ever turns songs down.
+///
+/// [currentDb] is the boost of the song that is playing now. [byUri] holds the
+/// boost of every queued song by its source URI, for backends that switch
+/// gain per file (desktop mpv). Both are 0 or more.
+class SetReplayGainBoostRequest {
+  const SetReplayGainBoostRequest({
+    required this.currentDb,
+    this.guarded = false,
+    this.byUri = const <String, double>{},
+  });
+
+  final double currentDb;
+
+  /// Whether the caller wants [currentDb] to be a lowered value that may only
+  /// go down until the next song starts.
+  final bool guarded;
+  final Map<String, double> byUri;
+
+  Map<String, Object> toMap() => {
+        'currentDb': currentDb,
+        'guarded': guarded,
+        'byUri': byUri,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is SetReplayGainBoostRequest &&
+      other.currentDb == currentDb &&
+      other.guarded == guarded &&
+      other.byUri.length == byUri.length &&
+      byUri.entries.every((entry) => other.byUri[entry.key] == entry.value);
+
+  @override
+  int get hashCode => Object.hash(currentDb, guarded, byUri.length);
+}

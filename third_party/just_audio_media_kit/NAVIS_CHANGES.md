@@ -13,3 +13,12 @@ media_kit's seek-on-completed behavior in `play()` is unchanged.
 
 Keep upgrades narrow and re-run the vendored adapter fixtures and Navis
 playback tests when updating this package.
+
+ReplayGain boost (positive gain): `setReplayGainBoost` keeps a per-URI boost
+map and an `on_load` hook (`configureReplayGainBoost`, next to
+`configureStartPosition`) sets mpv's file-local `volume-gain` from it, so the
+gain ends with the file. mpv applies `volume-gain` to audio it has already
+queued, so a natural join starts at `min(previous, own)` and is raised after
+0.5 s (`ReplayGainBoostState`, `src/replay_gain_boost.dart`); load, indexed
+seeks and removing the playing entry are explicit switches. The global
+`volume-gain` is never set.

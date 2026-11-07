@@ -4965,10 +4965,28 @@ Desktop volume follows a parallel local-settings path:
    transport and mini-player volume controls are desktop-only. Crossfade,
    ReplayGain and ducking scale relative to that 1.0 user volume.
 
-   ReplayGain (`replayGainDb`, `navis_playback_rules.dart`) only turns songs
-   down. Track and album gain fall back to each other; a gain beyond +-24 dB is
+   ReplayGain (`replayGainLevels`, `navis_playback_rules.dart`) splits a
+   song's level into a cut (`cutDb`, 0 or less) and a boost (`boostDb`, 0 or
+   more). Track and album gain fall back to each other; a gain beyond +-24 dB is
    garbage and counts as untagged, and a known peak limits the result. The dB is
-   added to the clamped pre-amp and capped at 0 dB. A song with no usable gain
+   added to the clamped pre-amp. The cut is that capped at 0 dB and is the only
+   part that rides the player volume. The boost is its positive part, only for a
+   song with both a gain and a valid peak (so never an untagged song, whatever
+   the pre-amp), stopping 1 dB under the peak ceiling `-20*log10(peak)` (no
+   limiter follows; a lossy copy can overshoot the tagged peak) and at 12 dB
+   (`replayGainMaxBoostDb`, mpv's `volume-gain-max`). A platform without a boost
+   stage (`replayGainBoostSupported` false) always has boost 0. The invariant
+   every boost stage relies on: a stage never applies more than a song's own
+   boost to that song's samples, so a timing error can only under-boost.
+   Desktop (media_kit/mpv) is the first stage: `_applyReplayGainBoost` sends
+   `setReplayGainBoost` (platform interface) with the boost of every queued URI,
+   and the media_kit adapter sets mpv's file-local `volume-gain` from an
+   `on_load` hook (`ReplayGainBoostState`). mpv applies `volume-gain` to audio
+   it has already queued, so at a natural join the new file starts at
+   `min(previous, own)` and is raised once it has played 0.5 s; an explicit
+   switch (load, skip, removing the playing song) starts at its own value.
+   Android and iOS report boost unsupported and keep today's behaviour.
+   A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
    (`replayGainUntaggedDb`, -15..0 dB in 0.1 dB steps, set on the pitch/speed
    `AdjustmentRuler` counting in tens of dB so a click is 0.1 dB and a labelled
@@ -5002,12 +5020,15 @@ Desktop volume follows a parallel local-settings path:
    nothing is frozen while a queue load settles, and the diagnostics read
    never freezes. An empty album id counts as none. The cross-fade incoming song resolves
    with its own neighbours. `NavisAudioHandler.currentReplayGainDecision`
-   (mode, resolved mode, source track/album/untagged, dB) is reported as
-   `replayGain` by `GET /v1/playback/status`.
+   (mode, resolved mode, source track/album/untagged, signed `db`, `cutDb`,
+   `boostDb`) is reported as `replayGain` by `GET /v1/playback/status`; on
+   desktop `native.mediaKitTransport[*].replayGainBoostDb` is the gain the
+   adapter last wrote to mpv.
 
-   Guidance. Playback settings explain what ReplayGain does (it only turns
-   songs down, so raise the volume), each mode, and what the pre-amp cannot do
-   (push a song above its original level). The coverage line counts library
+   Guidance. Playback settings explain what ReplayGain does (with a boost
+   stage: it turns quiet songs up only as far as their peak allows; without
+   one: it only turns songs down; either way raise the volume), each mode, and
+   what the pre-amp does (separate copy per capability). The coverage line counts library
    songs with a usable track or album gain out of all live songs (not
    provisional, external or server-deleted), floors the percentage, names the
    untagged level (Automatic or fixed) or says ReplayGain is off, and points to

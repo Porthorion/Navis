@@ -105,6 +105,28 @@ bool configureStartPosition(
   return true;
 }
 
+/// Sets the file-local `volume-gain` (dB) of every playlist entry mpv is about
+/// to load, from [gainFor] (given its playlist index and `path`), so the gain
+/// ends with the file and cannot leak into the next one. Returns whether the
+/// backend supports it.
+bool configureReplayGainBoost(
+    Player player, double Function(int index, String path) gainFor) {
+  final native = player.platform;
+  if (native is! NativePlayer) return false;
+  native.onLoadHooks.add(() async {
+    // Synchronous libmpv calls only, as in [configureStartPosition].
+    final index = int.tryParse(_readString(native, 'playlist-pos') ?? '');
+    final path = _readString(native, 'path');
+    if (index == null || path == null) return;
+    final name = 'file-local-options/volume-gain'.toNativeUtf8();
+    final value = gainFor(index, path).toStringAsFixed(3).toNativeUtf8();
+    native.mpv.mpv_set_property_string(native.ctx, name.cast(), value.cast());
+    calloc.free(name);
+    calloc.free(value);
+  });
+  return true;
+}
+
 /// mpv's current playback position, or null while no file is initialized.
 Future<Duration?> nativePosition(Player player) async {
   final native = player.platform;

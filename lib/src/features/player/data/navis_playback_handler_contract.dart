@@ -67,6 +67,10 @@ abstract class NavisPlaybackHandler {
   /// What ReplayGain does to the playing song (null: radio, nothing playing
   /// or off). A read never freezes a Smart decision or changes playback.
   ReplayGainDecision? get currentReplayGainDecision => null;
+
+  /// Whether this platform's player has a stage that turns quiet songs up
+  /// (ReplayGain boost). Without one a song is only ever turned down.
+  bool get replayGainBoostSupported => false;
   Stream<MediaItem?> get mediaItemStream;
   Stream<PlaybackLoadFailure> get loadFailureStream;
 

@@ -21,6 +21,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
+import '../../../../helpers/fake_playback_handler.dart';
 import '../../../../helpers/test_theme.dart';
 
 class _MockSettingsRepository extends Mock implements SettingsRepository;
@@ -550,6 +551,7 @@ void main() {
         double preamp = 0,
         double? untaggedDb,
         LibraryGainStats? stats,
+        bool boost = false,
       }) async {
         setAdaptiveTestViewport(tester, const Size(1280, 1800));
         when(() => repository.getSettings())
@@ -567,6 +569,8 @@ void main() {
                   ),
                 ),
               ),
+              if (boost)
+                audioHandlerProvider.overrideWithValue(_BoostHandler()),
               replayGainLibraryGainsProvider.overrideWith(
                 (ref) async =>
                     stats ?? (count: 3, median: -9.0, total: 100, withData: 82),
@@ -581,6 +585,46 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+      }
+
+      testWidgets('the intro says what a boost does where one exists', (
+        tester,
+      ) async {
+        await pump(tester, boost: true);
+        expect(
+          find.text(
+            'ReplayGain plays every song at a similar volume. It turns loud '
+            'songs down, and turns quiet songs up only as far as their peak '
+            'level allows without distortion. Songs without ReplayGain data '
+            'are never turned up. Most songs still end up quieter, so raise '
+            'the volume to compensate.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.textContaining('never turns songs up'), findsNothing);
+      });
+
+      for (final (preamp, text) in [
+        (-3.0, 'Turns every song down further.'),
+        (
+          0.0,
+          'Songs play at their ReplayGain level. Move it to turn every song '
+              'down or up by up to 6 dB.',
+        ),
+        (
+          4.0,
+          'Turns every song up, but never past what its peak level allows. '
+              'Songs without ReplayGain data or a peak level are never pushed '
+              'above their original level.',
+        ),
+      ]) {
+        testWidgets(
+          'with a boost stage the pre-amp says what $preamp dB does',
+          (tester) async {
+            await pump(tester, preamp: preamp, boost: true);
+            expect(find.text(text), findsOneWidget);
+          },
+        );
       }
 
       testWidgets('the intro says it only turns songs down', (tester) async {
@@ -1454,4 +1498,9 @@ Widget _buildTestApp({bool desktopMode = false, double textScale = 1}) {
           )
         : const PlaybackSettingsScreen(),
   );
+}
+
+class _BoostHandler extends InertPlaybackHandler {
+  @override
+  bool get replayGainBoostSupported => true;
 }

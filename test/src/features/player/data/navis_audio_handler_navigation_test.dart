@@ -890,6 +890,26 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     for (final source in _sources) ...source.sequence,
   ];
 
+  /// Every ReplayGain boost message this deck received, oldest first.
+  final boostMessages =
+      <({double currentDb, bool guarded, Map<String?, double> bySongId})>[];
+
+  @override
+  Future<void> setReplayGainBoost({
+    required double currentDb,
+    bool guarded = false,
+    Map<IndexedAudioSource, double> bySource = const {},
+  }) async {
+    boostMessages.add((
+      currentDb: currentDb,
+      guarded: guarded,
+      bySongId: {
+        for (final entry in bySource.entries)
+          navisNativeSourceSongId(entry.key): entry.value,
+      },
+    ));
+  }
+
   @override
   Future<void> setVolume(double value) async {
     await volumeHold?.future;
@@ -15702,9 +15722,11 @@ void main() {
     double mpvFactor(double db) => pow(10, db / 60).toDouble();
     double linearFactor(double db) => pow(10, db / 20).toDouble();
 
-    // song-N carries gains[N]; a null entry is an untagged song.
+    // song-N carries gains[N]; a null entry is an untagged song. peaks[N] is
+    // its track peak (a sample ratio), when given.
     Future<(NavisAudioHandler, _ControllableAudioPlayer)> gained(
       List<double?> gains, {
+      List<double?>? peaks,
       PlaybackAdjustmentCapabilities caps = exo,
       String mode = 'track',
       String Function()? readMode,
@@ -15725,7 +15747,10 @@ void main() {
             await (database.update(
               database.songsTable,
             )..where((song) => song.id.equals('song-$i'))).write(
-              SongsTableCompanion(replayGainTrackGain: Value(gains[i])),
+              SongsTableCompanion(
+                replayGainTrackGain: Value(gains[i]),
+                replayGainTrackPeak: Value(peaks?.elementAtOrNull(i)),
+              ),
             );
           }
         },
@@ -15761,6 +15786,121 @@ void main() {
         expect(player.volume, 0.25);
       });
     }
+
+    group('boost', () {
+      test(
+        'a quiet song with room is turned up on mpv, not by the volume',
+        () async {
+          final (handler, player) = await gained(
+            [6, -10.5],
+            peaks: [0.1, 0.5],
+            caps: mpv,
+          );
+          await handler.setVolume(0.25);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          expect(handler.replayGainBoostSupported, isTrue);
+          expect(player.volume, 0.25, reason: 'the cut is 0 dB');
+          expect(handler.currentReplayGainDecision?.boostDb, 6);
+          expect(handler.currentReplayGainDecision?.db, 6);
+          final sent = player.boostMessages.last;
+          expect(sent.currentDb, 6);
+          expect(sent.bySongId, {'song-0': 6.0, 'song-1': 0.0});
+        },
+      );
+
+      test('a cut song sends no boost and keeps its volume cut', () async {
+        final (handler, player) = await gained(
+          [-10.5],
+          peaks: [0.1],
+          caps: mpv,
+        );
+        await handler.setVolume(0.25);
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        expect(player.volume, closeTo(0.25 * mpvFactor(-10.5), 0.00001));
+        expect(player.boostMessages.last.currentDb, 0);
+      });
+
+      test('a song without a peak is never boosted', () async {
+        final (handler, player) = await gained([6], caps: mpv);
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        expect(player.boostMessages.last.currentDb, 0);
+        expect(handler.currentReplayGainDecision?.boostDb, 0);
+      });
+
+      test('the boost stops 1 dB under the peak ceiling', () async {
+        // Peak 0.5 -> ceiling 6.02 dB -> boost 5.02 dB.
+        final (handler, player) = await gained([9], peaks: [0.5], caps: mpv);
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        expect(
+          player.boostMessages.last.currentDb,
+          closeTo(20 * log(2) / ln10 - 1, 0.001),
+        );
+      });
+
+      test('skipping sends the next song\'s own boost', () async {
+        final (handler, player) = await gained(
+          [6, 3],
+          peaks: [0.1, 0.1],
+          caps: mpv,
+        );
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        expect(player.boostMessages.last.currentDb, 6);
+        await handler.skipToNext();
+        await settleQueue(handler);
+        expect(player.boostMessages.last.currentDb, 3);
+      });
+
+      test('a settings change re-sends the boost', () async {
+        var mode = 'track';
+        final (handler, player) = await gained(
+          [6],
+          peaks: [0.1],
+          caps: mpv,
+          readMode: () => mode,
+        );
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        expect(player.boostMessages.last.currentDb, 6);
+        mode = 'off';
+        await handler.applyRuntimeSettings();
+        await pumpEventQueue();
+        expect(player.boostMessages.last.currentDb, 0);
+        expect(handler.currentReplayGainDecision?.db, isNull);
+      });
+
+      test(
+        'ExoPlayer has no boost stage: nothing is sent, boost is 0',
+        () async {
+          final (handler, player) = await gained([6], peaks: [0.1], caps: exo);
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          expect(handler.replayGainBoostSupported, isFalse);
+          expect(player.boostMessages, isEmpty);
+          expect(handler.currentReplayGainDecision?.boostDb, 0);
+          expect(handler.currentReplayGainDecision?.db, 0);
+          expect(
+            (handler.collectPlaybackDiagnostics()['replayGain']
+                as Map<String, Object?>)['boostDb'],
+            0,
+          );
+        },
+      );
+
+      test('diagnostics report the cut and the boost', () async {
+        final (handler, _) = await gained([6], peaks: [0.1], caps: mpv);
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        final json =
+            handler.collectPlaybackDiagnostics()['replayGain']
+                as Map<String, Object?>;
+        expect(json['cutDb'], 0);
+        expect(json['boostDb'], 6);
+        expect(json['db'], 6);
+      });
+    });
 
     test('an untagged song takes the fallback level', () async {
       final (handler, player) = await gained([null, -10.5], caps: mpv);
@@ -16277,6 +16417,8 @@ void main() {
         'resolvedMode': 'album',
         'source': 'album',
         'db': -4.0,
+        'cutDb': -4.0,
+        'boostDb': 0.0,
       });
     });
   });

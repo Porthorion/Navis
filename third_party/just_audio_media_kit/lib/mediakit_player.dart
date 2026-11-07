@@ -13,6 +13,7 @@ import 'src/icy_property_source.dart';
 import 'src/mpv_errors.dart';
 import 'src/set_property.dart';
 import 'src/equalizer_chain.dart';
+import 'src/replay_gain_boost.dart';
 
 /// An [AudioPlayerPlatform] which wraps `package:media_kit`'s [Player]
 class MediaKitPlayer extends AudioPlayerPlatform {
@@ -76,6 +77,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       return start.position;
     });
 
+    // Navis: ReplayGain boost (positive gain) rides mpv's per-file
+    // `volume-gain`, set from the `on_load` hook so it ends with the file.
+    configureReplayGainBoost(
+        _player, (index, path) => _boost.onLoad(index: index, path: path));
+
     _nativeSeekingReady = configureNativeSeeking(_player, (seeking) {
       _nativeSeeking = seeking;
       // mpv reports `seeking` only once a file's playback is initialized;
@@ -128,6 +134,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         _updatePlaybackEvent();
       }),
       _player.stream.position.listen((position) {
+        _raiseBoostIfDue(position);
         if (!_mediaOpened) return;
         _position = position;
         final start = _currentMedia?.start;
@@ -274,6 +281,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// Seeks sent before that are rejected, so retained positions wait for it.
   bool _playbackInitialized = false;
 
+  /// The ReplayGain boost of the playing file and the queue (see
+  /// [setReplayGainBoost]).
+  final _boost = ReplayGainBoostState();
+
   /// The entry and position mpv starts the next load of that entry at.
   ({int index, Duration position})? _nativeStart;
   bool _nativeStartSupported = false;
@@ -362,6 +373,8 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         'requestedPlaying': _playing,
         'pendingPosition': _deferredSeek.isPending,
         'seeking': _nativeSeeking,
+        'replayGainBoostDb': _boost.applied,
+        'replayGainBoostArmedDb': _boost.armed?.target,
       };
 
   EqualizerConfigurationMessage? _equalizer;
@@ -438,6 +451,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // A later load supersedes the old wait. The previous caller must settle
     // even if libmpv never emits a ready event for its retired source.
     _completeLoad(null);
+    _boost.explicitSwitch = true;
     final generation = ++_loadGeneration;
     final load = Completer<Duration?>();
     unawaited(
@@ -585,6 +599,25 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     return _eqState;
   }
 
+  /// Stores the boost of every queued URI for the `on_load` hook and applies
+  /// the playing file's own boost now (see [ReplayGainBoostState]).
+  @override
+  Future<void> setReplayGainBoost(SetReplayGainBoostRequest request) async {
+    if (_released) return;
+    _writeBoost(_boost.update(request.byUri));
+  }
+
+  void _raiseBoostIfDue(Duration position) {
+    if (_released) return;
+    _writeBoost(_boost.raiseDue(_player.state.playlist.index, position));
+  }
+
+  void _writeBoost(double? db) {
+    if (db == null || _released) return;
+    unawaited(setProperty(
+        _player, 'file-local-options/volume-gain', db.toStringAsFixed(3)));
+  }
+
   @override
   Future<EqualizerStateMessage> getEqualizerState() async {
     await _audioLane;
@@ -642,6 +675,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     if (request.index != null && !sameEntry) {
       final position = request.position;
       _playbackInitialized = false;
+      _boost.explicitSwitch = true;
       // A fresh entry starts at zero; only non-zero positions need a seek.
       _deferredSeek.beginLoad(position);
       _nativeStart =
@@ -656,6 +690,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     if (position != null) {
       if (request.index == null || sameEntry) _deferredSeek.request(position);
       await _deferredSeek.flush();
+      // The seek emptied mpv's audio buffer, so a held-down join has nothing
+      // of the previous file left to protect.
+      if (request.index == null || sameEntry) _writeBoost(_boost.raiseNow());
     } else {
       _position = Duration.zero;
     }
@@ -705,6 +742,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // One playback event for the range, as for inserts, rather than one per
     // removed child.
     _bulkPlaylistMutation = true;
+    // Removing the playing entry replaces the file and clears mpv's buffer.
+    if (_player.state.playlist.index >= request.startIndex &&
+        _player.state.playlist.index < request.endIndex) {
+      _boost.explicitSwitch = true;
+    }
     try {
       for (var i = request.startIndex; i < request.endIndex; i++) {
         await _player.remove(request.startIndex);

@@ -318,7 +318,7 @@ void main() {
           const ReplayGainDecision(
             mode: 'smart',
             resolvedMode: 'album',
-            db: -6.2,
+            cutDb: -6.2,
             source: ReplayGainSource.album,
           ),
         ),

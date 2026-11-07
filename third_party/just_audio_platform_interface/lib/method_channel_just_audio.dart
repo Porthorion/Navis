@@ -47,6 +47,10 @@ class MethodChannelAudioPlayer extends AudioPlayerPlatform {
   }
 
   @override
+  Future<void> setReplayGainBoost(SetReplayGainBoostRequest request) =>
+      _channel.invokeMethod<void>('setReplayGainBoost', request.toMap());
+
+  @override
   Future<EqualizerStateMessage> getEqualizerState() async {
     return EqualizerStateMessage.fromMap((await _channel
         .invokeMethod<Map<dynamic, dynamic>>('getEqualizerState'))!);

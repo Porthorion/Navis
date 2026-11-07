@@ -149,10 +149,17 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Now Playing can show how much volume normalization (ReplayGain) is '
-        'turning the current song down; hold it to open Playback settings. '
-        'Those settings now explain each mode and the pre-amp, say that '
-        'normalization only turns songs down, and show how many of your '
+        'turning the current song up or down; hold it to open Playback '
+        'settings. Those settings now explain each mode and the pre-amp, say '
+        'what normalization does on your device, and show how many of your '
         'songs have ReplayGain data',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'On Windows, macOS and Linux, volume normalization (ReplayGain) now '
+        'turns quiet songs up when their tags show room, stopping 1 dB '
+        'below the song\'s peak so nothing distorts. Songs without '
+        'ReplayGain data are only ever turned down',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

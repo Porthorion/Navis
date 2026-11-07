@@ -20,4 +20,8 @@ bool configureStartPosition(
         Player player, Duration? Function(int index) startFor) =>
     false;
 
+bool configureReplayGainBoost(
+        Player player, double Function(int index, String path) gainFor) =>
+    false;
+
 Future<Duration?> nativePosition(Player player) async => null;
