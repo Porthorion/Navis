@@ -176,6 +176,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'The ReplayGain level for untagged songs now moves in 0.1 dB steps, '
+        'with the same ticks and haptics as the speed and pitch rulers',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Downloads at a chosen quality, such as on mobile data, no longer '
         'fail partway through',
         type: ChangelogEntryType.fix,
