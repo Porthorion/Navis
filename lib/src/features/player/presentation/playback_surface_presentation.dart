@@ -6,6 +6,7 @@ import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/features/player/presentation/instant_mix_notifier.dart';
 import 'package:navis/src/features/player/presentation/same_vibes_notifier.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 /// What the Mix transport button shows: which engine the preferred mode
 /// selects, and whether that engine is active or refilling.
@@ -97,9 +98,9 @@ AudioServiceRepeatMode nextRepeatMode(AudioServiceRepeatMode mode) =>
 /// Pauses when [isPlaying], otherwise plays. A missing handler is ignored.
 Future<void> togglePlayPause(WidgetRef ref, {required bool isPlaying}) async {
   if (isPlaying) {
-    NavisHaptics.release();
+    NavisHaptics.release(HapticCategory.playbackButtons);
   } else {
-    NavisHaptics.press();
+    NavisHaptics.press(HapticCategory.playbackButtons);
   }
   final handler = ref.read(audioHandlerProvider);
   if (handler == null) {

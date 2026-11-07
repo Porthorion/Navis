@@ -35,6 +35,10 @@ import '../../../../helpers/haptics_spy.dart';
 import '../../../../helpers/library_copy_api.dart';
 import '../../../../helpers/now_playing_harness.dart';
 import '../../../../helpers/test_database.dart';
+import '../../../../helpers/fake_playback_handler.dart';
+
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 const PlaybackSnapshot _songPlayback = PlaybackSnapshot(
   queueSongIds: <String>['song-1'],
@@ -1340,4 +1344,126 @@ void main() {
       );
     }
   }
+
+  testWidgets('the art swipe is a Player Gesture and the skip button a '
+      'Playback Button', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer(
+      overrides: [
+        audioHandlerProvider.overrideWithValue(InertPlaybackHandler()),
+        connectivityProvider.overrideWith((_) => const Stream.empty()),
+      ],
+    );
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
+    await _pumpNowPlaying(tester, container);
+    await tester.pumpAndSettle();
+    final spy = HapticsSpy.install(tester);
+    final art = find
+        .byWidgetPredicate(
+          (w) => w is GestureDetector && w.onHorizontalDragEnd != null,
+        )
+        .first;
+
+    await tester.fling(art, const Offset(-300, 0), 1500);
+    await tester.pumpAndSettle();
+    expect(await spy.take(tester), ['firm']);
+
+    NavisHaptics.prefs = HapticsPrefs.fromColumns(
+      true,
+      HapticCategory.playerGestures.bit,
+    );
+    await tester.fling(art, const Offset(-300, 0), 1500);
+    await tester.pumpAndSettle();
+    expect(await spy.take(tester), isEmpty);
+    await tester.tap(find.byTooltip('Next'));
+    await tester.pump();
+    expect(await spy.take(tester), ['firm']);
+
+    NavisHaptics.prefs = HapticsPrefs.fromColumns(
+      true,
+      HapticCategory.playbackButtons.bit,
+    );
+    await tester.tap(find.byTooltip('Next'));
+    await tester.pump();
+    expect(await spy.take(tester), isEmpty);
+    await tester.tap(find.byTooltip('Pause'));
+    await tester.pump();
+    expect(await spy.take(tester), isEmpty);
+  }, skip: !sqliteAvailable);
+
+  testWidgets('Now Playing buttons, seek bar and like each follow their own '
+      'haptic category', (tester) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer(
+      overrides: [
+        audioHandlerProvider.overrideWithValue(InertPlaybackHandler()),
+        connectivityProvider.overrideWith((_) => const Stream.empty()),
+      ],
+    );
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
+    await _pumpNowPlaying(tester, container);
+    await tester.pumpAndSettle();
+    final spy = HapticsSpy.install(tester);
+
+    // With [category] off the action is silent; with only another category off
+    // it plays [kind].
+    Future<void> check(
+      String site,
+      HapticCategory category,
+      String kind,
+      Future<void> Function() act,
+    ) async {
+      final other = category == HapticCategory.switchesAndSteppers
+          ? HapticCategory.listsAndMenus
+          : HapticCategory.switchesAndSteppers;
+      NavisHaptics.prefs = HapticsPrefs.fromColumns(true, category.bit);
+      await act();
+      expect(await spy.take(tester), isEmpty, reason: '$site, category off');
+      NavisHaptics.prefs = HapticsPrefs.fromColumns(true, other.bit);
+      await act();
+      expect(await spy.take(tester), [kind], reason: '$site, category on');
+    }
+
+    const buttons = HapticCategory.playbackButtons;
+    await check('previous', buttons, 'firm', () async {
+      await tester.tap(find.byTooltip('Previous'));
+      await tester.pump();
+    });
+    await check('next', buttons, 'firm', () async {
+      await tester.tap(find.byTooltip('Next'));
+      await tester.pump();
+    });
+    await check('pause', buttons, 'release', () async {
+      await tester.tap(find.byTooltip('Pause'));
+      await tester.pump();
+    });
+    await check('repeat', buttons, 'tick', () async {
+      await tester.tap(find.byTooltip('Repeat Off'));
+      await tester.pump();
+    });
+    // The Now Playing artwork tap is Play/Pause (owner answer Q3).
+    await check('artwork tap', buttons, 'release', () async {
+      await tester.tapAt(tester.getCenter(_artGesture()));
+      await tester.pump();
+    });
+    await check('seek bar', HapticCategory.slidersAndRulers, 'tick', () async {
+      await tester.drag(
+        find.byKey(const ValueKey('nowPlayingSeekSlider')),
+        const Offset(40, 0),
+      );
+      await tester.pump();
+    });
+    await check('like', HapticCategory.likesAndAlerts, 'confirm', () async {
+      await tester.tap(find.byTooltip('Like'));
+      await tester.pump();
+    });
+  }, skip: !sqliteAvailable);
 }
+
+Finder _artGesture() => find
+    .byWidgetPredicate(
+      (w) => w is GestureDetector && w.onHorizontalDragEnd != null,
+    )
+    .first;

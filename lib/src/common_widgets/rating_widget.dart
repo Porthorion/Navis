@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 class RatingWidget extends StatelessWidget {
   const new({
@@ -27,7 +28,7 @@ class RatingWidget extends StatelessWidget {
       stars.add(
         InkResponse(
           onTap: () {
-            NavisHaptics.tick();
+            NavisHaptics.tick(HapticCategory.likesAndAlerts);
             onChanged(i == effectiveRating ? 0 : i);
           },
           radius: compact ? 16 : 20,

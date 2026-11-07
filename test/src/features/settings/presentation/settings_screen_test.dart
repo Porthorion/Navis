@@ -236,8 +236,9 @@ void main() {
         tester,
       ) async {
         await pump(tester, entry.value, SetupHighlight.values.toSet());
+        // Haptics sits between the two tagged entries on phones and tablets.
         await tester.scrollUntilVisible(
-          find.text('Appearance'),
+          find.text('Run Quick Customization'),
           200,
           scrollable: find.byType(Scrollable).first,
         );
@@ -360,5 +361,32 @@ void main() {
       );
       expect(find.byType(NewFeatureTag), findsNWidgets(2));
     });
+  });
+
+  testWidgets('the Haptics entry shows on a phone and a tablet, not on '
+      'desktop', (tester) async {
+    for (final (size, shown) in [
+      (const Size(390, 2400), true),
+      (const Size(840, 2400), true),
+      (const Size(1200, 1000), false),
+    ]) {
+      setAdaptiveTestViewport(tester, size);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _noHighlights,
+          child: MaterialApp(
+            localizationsDelegates: navisLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const SettingsScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Vibration for taps and gestures.'),
+        shown ? findsOneWidget : findsNothing,
+        reason: '$size',
+      );
+    }
   });
 }

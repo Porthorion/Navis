@@ -10,6 +10,7 @@ import 'package:navis/src/common_widgets/artist_playback_action.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/features/library/presentation/artist_playback_controller.dart';
@@ -366,7 +367,8 @@ class _TopHero extends ConsumerWidget {
         child: InkWell(
           excludeFromSemantics: true,
           onTap: view.open,
-          onLongPress: () => view.menu(null),
+          enableFeedback: false,
+          onLongPress: withLongPressHaptic(() => view.menu(null)),
           onSecondaryTapDown: (details) => view.menu(details.globalPosition),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -503,7 +505,8 @@ class _TopTile extends ConsumerWidget {
         onLongPress: () => view.menu(null),
         child: InkWell(
           onTap: view.open,
-          onLongPress: () => view.menu(null),
+          enableFeedback: false,
+          onLongPress: withLongPressHaptic(() => view.menu(null)),
           onSecondaryTapDown: (details) => view.menu(details.globalPosition),
           child: Padding(
             padding: const EdgeInsets.all(12),

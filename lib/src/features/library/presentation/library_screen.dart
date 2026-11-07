@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_refresh_indicator.dart';
 import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';

@@ -9,6 +9,7 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart' show songByIdProvider;
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 /// Queue edits are blocked while a logical queue replacement is still loading.
 bool queueActionsDisabled(PlaybackSnapshot playback) =>
@@ -109,9 +110,9 @@ class _QueueTrackRowState extends ConsumerState<QueueTrackRow> {
       if (details.progress == 0) _committed = false;
     } else if (details.reached != details.previousReached) {
       if (details.reached) {
-        NavisHaptics.thresholdOn();
+        NavisHaptics.thresholdOn(HapticCategory.listsAndMenus);
       } else {
-        NavisHaptics.thresholdOff();
+        NavisHaptics.thresholdOff(HapticCategory.listsAndMenus);
       }
     }
     final swiping = details.progress > 0.0;
@@ -209,7 +210,7 @@ class _QueueTrackRowState extends ConsumerState<QueueTrackRow> {
           ),
           confirmDismiss: (_) async {
             _committed = true;
-            NavisHaptics.reject();
+            NavisHaptics.reject(HapticCategory.listsAndMenus);
             widget.onRemove();
             return false;
           },

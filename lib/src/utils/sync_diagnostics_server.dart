@@ -27,6 +27,8 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
@@ -1146,6 +1148,53 @@ class SyncDiagnosticsServer {
           }
         }
         await _respond(request, HttpStatus.ok, await _integrationsSnapshot());
+        return;
+      }
+      if ((request.method == 'GET' || request.method == 'POST') &&
+          path == '/v1/presentation/haptics') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        final dao = _container.read(navisDatabaseProvider).appSettingsDao;
+        if (request.method == 'POST') {
+          final body = await _readJson(request);
+          final master = body['master'];
+          final category = HapticCategory.values.asNameMap()[body['category']];
+          final enabled = body['enabled'];
+          if (body.isEmpty ||
+              body.keys.any(
+                (name) =>
+                    !const {'master', 'category', 'enabled'}.contains(name),
+              ) ||
+              (master != null && master is! bool) ||
+              (body['category'] == null) != (enabled == null) ||
+              (body['category'] != null && category == null) ||
+              (enabled != null && enabled is! bool)) {
+            throw const FormatException();
+          }
+          if (master is bool) await dao.setHapticsEnabled(enabled: master);
+          if (category != null && enabled is bool) {
+            await dao.setHapticCategoryEnabled(category, enabled: enabled);
+          }
+        }
+        final row = await dao.getSettings();
+        Map<String, Object?> describe(HapticsPrefs prefs) => {
+          'master': prefs.enabled,
+          'disabled': [
+            for (final c in HapticCategory.values)
+              if (!prefs.isOn(c)) c.name,
+          ],
+        };
+        await _respond(request, HttpStatus.ok, {
+          ...describe(
+            HapticsPrefs.fromColumns(
+              row?.hapticsEnabled ?? true,
+              row?.hapticsDisabled ?? 0,
+            ),
+          ),
+          'live': describe(NavisHaptics.prefs),
+        });
         return;
       }
       if ((request.method == 'GET' || request.method == 'POST') &&

@@ -66,6 +66,11 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../helpers/haptics_spy.dart';
+import '../../helpers/fake_playback_handler.dart';
+
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
+
 import '../../helpers/library_copy_api.dart';
 import '../../helpers/test_database.dart';
 import '../../helpers/test_theme.dart';
@@ -2493,6 +2498,53 @@ void main() {
 
     expect(playbackHandler.toggleLikeCalls, 0);
     expect(find.text('Not available for remote tracks.'), findsOneWidget);
+  });
+
+  testWidgets('the mini player swipe is a Player Gesture and its skip button '
+      'a Playback Button', (tester) async {
+    final container = _createContainerWithDatabase(
+      overrides: <Override>[
+        ..._authenticatedShellOverrides(),
+        audioHandlerProvider.overrideWithValue(InertPlaybackHandler()),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+    final spy = HapticsSpy.install(tester);
+    final strip = find
+        .byWidgetPredicate(
+          (w) => w is GestureDetector && w.onHorizontalDragEnd != null,
+        )
+        .first;
+    Future<void> swipe() async {
+      await tester.fling(strip, const Offset(-300, 0), 1500);
+      await tester.pump();
+    }
+
+    await swipe();
+    expect(await spy.take(tester), ['firm'], reason: 'swipe, category on');
+
+    NavisHaptics.prefs = HapticsPrefs.fromColumns(
+      true,
+      HapticCategory.playerGestures.bit,
+    );
+    await swipe();
+    expect(await spy.take(tester), isEmpty, reason: 'swipe, category off');
+    await tester.tap(find.byTooltip('Skip to Next'));
+    await tester.pump();
+    expect(await spy.take(tester), ['firm'], reason: 'skip, other cat off');
+
+    NavisHaptics.prefs = HapticsPrefs.fromColumns(
+      true,
+      HapticCategory.playbackButtons.bit,
+    );
+    await tester.tap(find.byTooltip('Skip to Next'));
+    await tester.pump();
+    expect(await spy.take(tester), isEmpty, reason: 'skip, category off');
+    await swipe();
+    expect(await spy.take(tester), ['firm'], reason: 'swipe, other cat off');
   });
 
   testWidgets('mobile mini player like on a flagged external song is refused', (

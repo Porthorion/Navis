@@ -116,9 +116,9 @@ class _ActionRowState extends ConsumerState<_ActionRow>
               }
             : () {
                 if (widget.isLiked) {
-                  NavisHaptics.tick();
+                  NavisHaptics.tick(HapticCategory.likesAndAlerts);
                 } else {
-                  NavisHaptics.confirm();
+                  NavisHaptics.confirm(HapticCategory.likesAndAlerts);
                 }
                 final handler = ref.read(audioHandlerProvider);
                 unawaited(handler?.toggleLike());

@@ -117,7 +117,7 @@ void _miniSkipPrevious(WidgetRef ref) {
   if (handler == null) {
     return;
   }
-  NavisHaptics.firm();
+  NavisHaptics.firm(HapticCategory.playbackButtons);
   unawaited(handler.skipToPrevious());
 }
 
@@ -126,7 +126,7 @@ void _miniSkipNext(WidgetRef ref) {
   if (handler == null) {
     return;
   }
-  NavisHaptics.firm();
+  NavisHaptics.firm(HapticCategory.playbackButtons);
   unawaited(handler.skipToNext());
 }
 
@@ -155,9 +155,9 @@ void _miniToggleLike(
     return;
   }
   if (ref.read(playerStateProvider).isCurrentSongLiked) {
-    NavisHaptics.tick();
+    NavisHaptics.tick(HapticCategory.likesAndAlerts);
   } else {
-    NavisHaptics.confirm();
+    NavisHaptics.confirm(HapticCategory.likesAndAlerts);
   }
   unawaited(ref.read(audioHandlerProvider)?.toggleLike());
 }
@@ -503,7 +503,9 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                       if (handler == null) {
                                         return;
                                       }
-                                      NavisHaptics.firm();
+                                      NavisHaptics.firm(
+                                        HapticCategory.playbackButtons,
+                                      );
                                       if (widget.isRadio) {
                                         await handler.stopRadio();
                                       } else {
@@ -753,7 +755,7 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
       return;
     }
     _expandedFromDrag = true;
-    NavisHaptics.dragEnd();
+    NavisHaptics.dragEnd(HapticCategory.playerGestures);
     widget.onTap();
   }
 
@@ -823,10 +825,10 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                 return;
               }
               if (velocity < 0) {
-                NavisHaptics.firm();
+                NavisHaptics.firm(HapticCategory.playerGestures);
                 unawaited(handler.skipToNext());
               } else {
-                NavisHaptics.firm();
+                NavisHaptics.firm(HapticCategory.playerGestures);
                 unawaited(handler.skipToPrevious());
               }
             },

@@ -6,6 +6,7 @@ import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_density_scope.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/utils/format_utils.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 
 class TrackRowModeScope extends InheritedWidget {
   const new({required this.mode, required super.child, super.key});
@@ -358,7 +359,8 @@ class AdaptiveTrackRow extends StatelessWidget {
               borderRadius: NavisShapeData.of(context).mdAll,
               child: InkWell(
                 onTap: onTap,
-                onLongPress: onLongPress,
+                enableFeedback: false,
+                onLongPress: withLongPressHaptic(onLongPress),
                 onSecondaryTapDown: onSecondaryTapDown,
                 borderRadius: NavisShapeData.of(context).mdAll,
                 child: ConstrainedBox(

@@ -1,12 +1,13 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 /// Gives a switch's `onChanged` its on/off haptic. A null stays null, so a
 /// disabled switch stays disabled and silent.
 ValueChanged<bool>? _withToggleHaptic(ValueChanged<bool>? onChanged) {
   if (onChanged == null) return null;
   return (value) {
-    NavisHaptics.toggle(value);
+    NavisHaptics.toggle(HapticCategory.switchesAndSteppers, value);
     onChanged(value);
   };
 }
@@ -25,6 +26,7 @@ class NavisSwitchListTile extends StatelessWidget {
     this.contentPadding,
     this.secondary,
     this.adaptive = false,
+    this.haptic = true,
     Key? key,
   }) : _tileKey = key;
 
@@ -37,6 +39,7 @@ class NavisSwitchListTile extends StatelessWidget {
     this.secondary,
     Key? key,
   }) : adaptive = true,
+       haptic = true,
        _tileKey = key;
 
   final bool value;
@@ -46,11 +49,14 @@ class NavisSwitchListTile extends StatelessWidget {
   final EdgeInsetsGeometry? contentPadding;
   final Widget? secondary;
   final bool adaptive;
+
+  /// False for a tile that plays its own click (the Haptics master tile).
+  final bool haptic;
   final Key? _tileKey;
 
   @override
   Widget build(BuildContext context) {
-    final changed = _withToggleHaptic(onChanged);
+    final changed = haptic ? _withToggleHaptic(onChanged) : onChanged;
     return adaptive
         ? SwitchListTile.adaptive(
             key: _tileKey,

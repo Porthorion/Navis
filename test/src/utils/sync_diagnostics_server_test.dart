@@ -904,6 +904,54 @@ void main() {
   });
 
   test(
+    'haptics diagnostics report and change the choices, clone-only',
+    () async {
+      final fixture = await _startFixture(SyncDiagnosticsMode.clone);
+      addTearDown(fixture.close);
+      final unauthorized = await _request(
+        fixture.port,
+        '/v1/presentation/haptics',
+        method: 'POST',
+        body: {'master': false},
+      );
+      expect(unauthorized.statusCode, HttpStatus.unauthorized);
+
+      for (final body in [
+        <String, Object?>{},
+        <String, Object?>{'master': 'false'},
+        <String, Object?>{'unknown': true},
+        <String, Object?>{'category': 'playerGestures'},
+        <String, Object?>{'enabled': false},
+        <String, Object?>{'category': 'nope', 'enabled': false},
+        <String, Object?>{'category': 7, 'enabled': false},
+        <String, Object?>{'category': 'playerGestures', 'enabled': 'no'},
+        <String, Object?>{'master': false, 'extra': 1},
+      ]) {
+        final invalid = await fixture.post('/v1/presentation/haptics', body);
+        expect(invalid.statusCode, HttpStatus.badRequest, reason: '$body');
+      }
+
+      final initial = await fixture.get('/v1/presentation/haptics');
+      expect(initial.statusCode, HttpStatus.ok);
+      expect(initial.body['master'], isTrue);
+      expect(initial.body['disabled'], isEmpty);
+      expect(initial.body['live'], {'master': true, 'disabled': <String>[]});
+
+      final changed = await fixture.post('/v1/presentation/haptics', {
+        'category': 'playerGestures',
+        'enabled': false,
+      });
+      expect(changed.statusCode, HttpStatus.ok);
+      expect(changed.body['disabled'], ['playerGestures']);
+      final master = await fixture.post('/v1/presentation/haptics', {
+        'master': false,
+      });
+      expect(master.body['master'], isFalse);
+      expect(master.body['disabled'], ['playerGestures']);
+    },
+  );
+
+  test(
     'integrations diagnostics report and change the policy, clone-only',
     () async {
       final fixture = await _startFixture(SyncDiagnosticsMode.clone);

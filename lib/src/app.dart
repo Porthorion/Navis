@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/player/presentation/media_info.dart';
@@ -55,6 +56,16 @@ class _NavisAppState extends ConsumerState<NavisApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Pushes the haptics choices into the static every haptic call reads. Null
+    // (loading or a stream error) keeps the last known choices, so an error
+    // never turns vibration back on for someone who switched it off.
+    ref.listenManual(
+      appSettingsProvider.select((s) => s.asData?.value.hapticsPrefs),
+      (_, prefs) {
+        if (prefs != null) NavisHaptics.prefs = prefs;
+      },
+      fireImmediately: true,
+    );
     if (!widget.requirePlaybackBootstrap ||
         !widget.schedulePlaybackBootstrap ||
         _didScheduleBootstrap) {

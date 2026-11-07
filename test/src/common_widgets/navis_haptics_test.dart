@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 void main() {
   final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -43,65 +44,66 @@ void main() {
     });
   }
 
+  const c = HapticCategory.playerGestures;
   final vocabulary = <String, ({void Function() fire, String fallback})>{
     'toggleOn': (
-      fire: () => NavisHaptics.toggle(true),
+      fire: () => NavisHaptics.toggle(c, true),
       fallback: 'HapticFeedbackType.lightImpact',
     ),
     'toggleOff': (
-      fire: () => NavisHaptics.toggle(false),
+      fire: () => NavisHaptics.toggle(c, false),
       fallback: 'HapticFeedbackType.selectionClick',
     ),
     'press': (
-      fire: NavisHaptics.press,
+      fire: () => NavisHaptics.press(c),
       fallback: 'HapticFeedbackType.lightImpact',
     ),
     'release': (
-      fire: NavisHaptics.release,
+      fire: () => NavisHaptics.release(c),
       fallback: 'HapticFeedbackType.selectionClick',
     ),
     'firm': (
-      fire: NavisHaptics.firm,
+      fire: () => NavisHaptics.firm(c),
       fallback: 'HapticFeedbackType.mediumImpact',
     ),
     'tick': (
-      fire: NavisHaptics.tick,
+      fire: () => NavisHaptics.tick(c),
       fallback: 'HapticFeedbackType.selectionClick',
     ),
     'frequentTick': (
-      fire: NavisHaptics.frequentTick,
+      fire: () => NavisHaptics.frequentTick(c),
       fallback: 'HapticFeedbackType.selectionClick',
     ),
     'contextClick': (
-      fire: NavisHaptics.contextClick,
+      fire: () => NavisHaptics.contextClick(c),
       fallback: 'HapticFeedbackType.selectionClick',
     ),
     'confirm': (
-      fire: NavisHaptics.confirm,
+      fire: () => NavisHaptics.confirm(c),
       fallback: 'HapticFeedbackType.lightImpact',
     ),
     'reject': (
-      fire: NavisHaptics.reject,
+      fire: () => NavisHaptics.reject(c),
       fallback: 'HapticFeedbackType.heavyImpact',
     ),
     'thresholdOn': (
-      fire: NavisHaptics.thresholdOn,
+      fire: () => NavisHaptics.thresholdOn(c),
       fallback: 'HapticFeedbackType.mediumImpact',
     ),
     'thresholdOff': (
-      fire: NavisHaptics.thresholdOff,
+      fire: () => NavisHaptics.thresholdOff(c),
       fallback: 'HapticFeedbackType.selectionClick',
     ),
     'dragStart': (
-      fire: NavisHaptics.dragStart,
+      fire: () => NavisHaptics.dragStart(c),
       fallback: 'HapticFeedbackType.mediumImpact',
     ),
     'dragEnd': (
-      fire: NavisHaptics.dragEnd,
+      fire: () => NavisHaptics.dragEnd(c),
       fallback: 'HapticFeedbackType.lightImpact',
     ),
     'longPress': (
-      fire: NavisHaptics.longPress,
+      fire: () => NavisHaptics.longPress(c),
       fallback: 'HapticFeedbackType.heavyImpact',
     ),
   };
@@ -133,10 +135,10 @@ void main() {
       channelCalls++;
       return null;
     });
-    NavisHaptics.tick();
+    NavisHaptics.tick(c);
     await settle();
-    NavisHaptics.tick();
-    NavisHaptics.confirm();
+    NavisHaptics.tick(c);
+    NavisHaptics.confirm(c);
     await settle();
     expect(channelCalls, 1);
     expect(fallbacks, [
@@ -151,7 +153,7 @@ void main() {
     messenger.setMockMethodCallHandler(channel, (call) async {
       throw PlatformException(code: 'boom');
     });
-    NavisHaptics.reject();
+    NavisHaptics.reject(c);
     await settle();
     expect(fallbacks, ['HapticFeedbackType.heavyImpact']);
   });
@@ -161,7 +163,7 @@ void main() {
     () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       nativeAnswers(true);
-      NavisHaptics.toggle(true);
+      NavisHaptics.toggle(c, true);
       await settle();
       expect(kinds, isEmpty);
       expect(fallbacks, ['HapticFeedbackType.lightImpact']);
@@ -184,4 +186,58 @@ void main() {
       expect(fallbacks, isEmpty);
     });
   }
+
+  group('prefs gate', () {
+    test('a category off plays nothing while the others still play', () async {
+      nativeAnswers(true);
+      NavisHaptics.prefs = HapticsPrefs.fromColumns(
+        true,
+        HapticCategory.listsAndMenus.bit,
+      );
+      NavisHaptics.longPress(HapticCategory.listsAndMenus);
+      NavisHaptics.tick(HapticCategory.likesAndAlerts);
+      await settle();
+      expect(kinds, ['tick']);
+      expect(fallbacks, isEmpty);
+    });
+
+    test('master off plays nothing, but masterToggle still clicks', () async {
+      nativeAnswers(true);
+      NavisHaptics.prefs = const HapticsPrefs(enabled: false);
+      for (final category in HapticCategory.values) {
+        NavisHaptics.firm(category);
+      }
+      await settle();
+      expect(kinds, isEmpty);
+      NavisHaptics.masterToggle(true);
+      NavisHaptics.masterToggle(false);
+      await settle();
+      expect(kinds, ['toggleOn', 'toggleOff']);
+    });
+
+    test('allows agrees with the prefs', () {
+      NavisHaptics.prefs = HapticsPrefs.fromColumns(
+        true,
+        HapticCategory.slidersAndRulers.bit,
+      );
+      expect(NavisHaptics.allows(HapticCategory.slidersAndRulers), isFalse);
+      expect(NavisHaptics.allows(HapticCategory.playerGestures), isTrue);
+      NavisHaptics.prefs = const HapticsPrefs(enabled: false);
+      expect(NavisHaptics.allows(HapticCategory.playerGestures), isFalse);
+    });
+
+    test('resetForTest restores everything on', () {
+      NavisHaptics.prefs = const HapticsPrefs(enabled: false, disabledBits: 63);
+      NavisHaptics.resetForTest();
+      expect(NavisHaptics.prefs, const HapticsPrefs());
+    });
+
+    test('a desktop platform stays silent even when allowed', () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      nativeAnswers(true);
+      NavisHaptics.masterToggle(true);
+      await settle();
+      expect(kinds, isEmpty);
+    });
+  });
 }

@@ -2,7 +2,6 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
-import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -109,12 +108,7 @@ class TrackListTile extends ConsumerWidget {
       badge: badge,
       onTap: onTap,
       padding: contentPadding,
-      onLongPress: onLongPress == null
-          ? null
-          : () {
-              NavisHaptics.longPress();
-              onLongPress!();
-            },
+      onLongPress: onLongPress,
       onSecondaryTapDown: onSecondaryTapDown,
     );
     return SongPlaybackSemantics(state: playbackState, child: interactiveTile);

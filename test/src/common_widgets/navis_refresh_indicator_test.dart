@@ -7,6 +7,9 @@ import 'package:navis/src/common_widgets/navis_refresh_indicator.dart';
 
 import '../../helpers/haptics_spy.dart';
 
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
+
 void main() {
   late HapticsSpy spy;
   var refreshes = 0;
@@ -237,6 +240,20 @@ void main() {
     await gesture.up();
     await tester.pumpAndSettle();
     expect(refreshes, 0);
+    expect(await spy.take(tester), isEmpty);
+  });
+
+  testWidgets('Lists & Menus off silences pulling to refresh', (tester) async {
+    await pumpList(tester);
+    NavisHaptics.prefs = HapticsPrefs.fromColumns(
+      true,
+      HapticCategory.listsAndMenus.bit,
+    );
+    final gesture = await startPull(tester);
+    await pullTo(tester, gesture, 0, 190);
+    await gesture.up();
+    await tester.pumpAndSettle();
+    expect(refreshes, 1);
     expect(await spy.take(tester), isEmpty);
   });
 }

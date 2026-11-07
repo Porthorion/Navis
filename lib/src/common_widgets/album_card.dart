@@ -147,12 +147,8 @@ class AlbumCardContent extends ConsumerWidget {
             key: const ValueKey('albumCardTapTarget'),
             onTap: onTap,
             onSecondaryTapDown: onSecondaryTapDown,
-            onLongPress: onLongPress == null
-                ? null
-                : () {
-                    NavisHaptics.longPress();
-                    onLongPress!();
-                  },
+            enableFeedback: false,
+            onLongPress: withLongPressHaptic(onLongPress),
             child: Stack(
               fit: StackFit.expand,
               children: <Widget>[

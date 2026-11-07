@@ -10,6 +10,10 @@ class HapticsSpy {
 
   final List<String> kinds = <String>[];
 
+  /// The framework's own `HapticFeedback.vibrate` calls (a platform channel
+  /// message), which Material controls play unless `enableFeedback` is false.
+  final List<Object?> framework = <Object?>[];
+
   /// Installs the spy for one test, and removes it afterwards.
   static HapticsSpy install(WidgetTester tester) {
     final spy = HapticsSpy._();
@@ -22,15 +26,29 @@ class HapticsSpy {
         return true;
       },
     );
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'HapticFeedback.vibrate') {
+        spy.framework.add(call.arguments);
+      }
+      return null;
+    });
     addTearDown(() {
       messenger.setMockMethodCallHandler(
         const MethodChannel(navisHapticsChannelName),
         null,
       );
+      messenger.setMockMethodCallHandler(SystemChannels.platform, null);
       NavisHaptics.resetForTest();
       debugDefaultTargetPlatformOverride = null;
     });
     return spy;
+  }
+
+  /// Returns and clears the framework haptic calls recorded so far.
+  List<Object?> takeFramework() {
+    final taken = List<Object?>.of(framework);
+    framework.clear();
+    return taken;
   }
 
   /// Lets the unawaited channel calls complete, then returns and clears the

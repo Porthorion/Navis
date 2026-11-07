@@ -200,7 +200,8 @@ class _ShowcaseCoverCard extends ConsumerWidget {
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap,
-            onLongPress: onLongPress,
+            enableFeedback: false,
+            onLongPress: withLongPressHaptic(onLongPress),
             onSecondaryTapDown: onSecondaryTapDown,
             child: Stack(
               fit: StackFit.expand,
