@@ -695,6 +695,8 @@ void main() {
           ('Don\u02BCt Stop', "Don't Stop"),
           ('Don\u00B4t Stop', "Don't Stop"),
           ('5\u2032 Heels', "5' Heels"),
+          ('5\u2033 Heels', '5" Heels'),
+          ('Now \u2015 Then', 'Now - Then'),
           ('Re\u2212Entry', 'Re-Entry'),
           ('Wait\u2026', 'Wait...'),
         ]) {

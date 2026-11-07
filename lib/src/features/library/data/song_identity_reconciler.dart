@@ -6,7 +6,7 @@ import 'package:navis/src/database/navis_database.dart';
 // ASCII punctuation plus the typographic quotes and dashes a remote catalog
 // writes where the library has the straight form (or the reverse).
 final _identityPunctuation = RegExp(
-  r'''[!"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~‘’‚‛“”„‐‑‒–—ʼ´′−…]''',
+  r'''[!"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~‘’‚‛“”„‐‑‒–—―ʼ´′″−…]''',
 );
 final _identityWhitespace = RegExp(r'\s+');
 

@@ -6688,8 +6688,10 @@ contract.
   re-recordings, remix and live albums stay apart without a word list; the
   known limit is a same-title re-recording single against an unqualified
   library title. The tier is opt-in (`startSession(allowSingleCopy: true)`) and
-  only the play-time relink (`relinkExternalCopies`) uses it, as a second
-  session over the copies the exact tiers left alone. Hydration batches see one
+  only `relinkExternalCopies` uses it, as a second session over the copies the
+  exact tiers left alone. That relink runs for copies the user acted on: played
+  or queued, downloaded, or liked (sync moves an unsent remote like through it).
+  Bulk sync and promotion sessions never use the tier. Hydration batches see one
   album at a time and promotion sessions let the exact tier claim library songs
   before the single tier could compete for them, so neither can tell whether
   another library song fits; a single copy missed during sync relinks the next
@@ -6699,7 +6701,7 @@ contract.
   rival must not make the match look unique. A candidate several library songs contest stays
   unmatched and adds no review entry. A single's copy whose album copy is
   promoted in the same batch is left behind and relinks on a later pass. The
-  identity key folds typographic quotes and dashes (`’ “ ” – ′ … ʼ ´ −` and friends)
+  identity key folds typographic quotes and dashes (`’ “ ” – ― ′ ″ … ʼ ´ −` and friends)
   like the ASCII ones. A `singleCopy` claim never contests a stronger claim on
   the same candidate. Two hard rules: contradictory
   non-empty MBIDs prohibit metadata-only matching, and ambiguity never merges
