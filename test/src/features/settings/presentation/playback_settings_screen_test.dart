@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
@@ -108,6 +109,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            replayGainLibraryGainsProvider.overrideWith(
+              (ref) async => (count: 0, median: null, total: 0, withData: 0),
+            ),
             settingsRepositoryProvider.overrideWithValue(repository),
             appSettingsProvider.overrideWithValue(
               const AsyncData(initialSettings),
@@ -153,6 +157,9 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              replayGainLibraryGainsProvider.overrideWith(
+                (ref) async => (count: 0, median: null, total: 0, withData: 0),
+              ),
               settingsRepositoryProvider.overrideWithValue(repository),
               appSettingsProvider.overrideWithValue(
                 AsyncData(
@@ -189,6 +196,7 @@ void main() {
 
       Future<void> toggleAutomatic(WidgetTester tester) async {
         await tester.ensureVisible(switchFinder);
+        await tester.pumpAndSettle();
         await tester.tap(switchFinder);
         await tester.pumpAndSettle(const Duration(milliseconds: 600));
       }
@@ -383,8 +391,8 @@ void main() {
         expect(saved?.replayGainMode, 'smart');
         expect(
           find.text(
-            'Album levels when you play an album in order, track levels for '
-            'shuffles and mixes.',
+            'Uses album levels when songs from one album play in a row, and '
+            'track levels otherwise.',
           ),
           findsOneWidget,
         );
@@ -413,6 +421,179 @@ void main() {
       });
     });
 
+    group('ReplayGain guidance', () {
+      Future<void> pump(
+        WidgetTester tester, {
+        String mode = 'smart',
+        double preamp = 0,
+        double? untaggedDb,
+        LibraryGainStats? stats,
+      }) async {
+        setAdaptiveTestViewport(tester, const Size(1280, 1800));
+        when(() => repository.getSettings())
+            .thenAnswer((_) async => initialSettings);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              settingsRepositoryProvider.overrideWithValue(repository),
+              appSettingsProvider.overrideWithValue(
+                AsyncData(
+                  initialSettings.copyWith(
+                    replayGainMode: mode,
+                    replayGainPreamp: preamp,
+                    replayGainUntaggedDb: untaggedDb,
+                  ),
+                ),
+              ),
+              replayGainLibraryGainsProvider.overrideWith(
+                (ref) async =>
+                    stats ?? (count: 3, median: -9.0, total: 100, withData: 82),
+              ),
+              replayGainAutoUntaggedDbProvider.overrideWith(
+                (ref) async => -9.1,
+              ),
+              playbackAdjustmentsProvider.overrideWith(_FakeAdjustments.new),
+              equalizerProvider.overrideWith(_FakeEq.new),
+            ],
+            child: _buildTestApp(desktopMode: true),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      testWidgets('the intro says it only turns songs down', (tester) async {
+        await pump(tester);
+        expect(
+          find.text(
+            'ReplayGain turns loud songs down so they all play at a similar '
+            'volume. It never turns songs up, so overall volume may sound '
+            'lower: turn the volume up to compensate.',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      for (final (mode, text) in [
+        ('off', 'No volume normalization applied.'),
+        (
+          'track',
+          'Every song is levelled on its own. Best for shuffle and playlists.',
+        ),
+        (
+          'album',
+          'A whole album is levelled together, so its quiet and loud songs '
+              'stay as the artist set them. Best for playing whole albums.',
+        ),
+        (
+          'smart',
+          'Uses album levels when songs from one album play in a row, and '
+              'track levels otherwise.',
+        ),
+      ]) {
+        testWidgets('the $mode mode explains itself', (tester) async {
+          await pump(tester, mode: mode);
+          expect(find.text(text), findsOneWidget);
+        });
+      }
+
+      const cap = "It can't push a song above its original level.";
+      for (final (preamp, text) in [
+        (-3.0, 'Turns every song down further. $cap'),
+        (
+          0.0,
+          'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB. $cap',
+        ),
+        (
+          4.0,
+          'Gives back some of the turn-down, but never pushes a song above '
+              'its original level.',
+        ),
+      ]) {
+        testWidgets('the pre-amp says what $preamp dB does', (tester) async {
+          await pump(tester, preamp: preamp);
+          expect(find.text(text), findsOneWidget);
+        });
+      }
+
+      testWidgets('coverage names the share, the tools and the Automatic '
+          'level', (tester) async {
+        await pump(tester);
+        expect(
+          find.text('82% of your songs have ReplayGain data (82 of 100).'),
+          findsOneWidget,
+        );
+        expect(
+          find.text('The rest, and online songs, play at -9.1 dB (Automatic).'),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            'Tag your files with rsgain or MusicBrainz Picard, then rescan '
+            'your library, to cover the rest.',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('coverage names a fixed level', (tester) async {
+        await pump(tester, untaggedDb: -12);
+        expect(
+          find.text(
+            'The rest, and online songs, play at -12 dB (fixed level).',
+          ),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('coverage floors the percentage and says when off', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          mode: 'off',
+          stats: (count: 0, median: null, total: 3, withData: 2),
+        );
+        expect(
+          find.text('66% of your songs have ReplayGain data (2 of 3).'),
+          findsOneWidget,
+        );
+        expect(find.text('ReplayGain is off.'), findsOneWidget);
+        expect(find.textContaining('online songs'), findsNothing);
+      });
+
+      testWidgets('full coverage needs no tagging tip', (tester) async {
+        await pump(
+          tester,
+          stats: (count: 5, median: -9.0, total: 5, withData: 5),
+        );
+        expect(
+          find.text('100% of your songs have ReplayGain data (5 of 5).'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('rsgain'), findsNothing);
+      });
+
+      testWidgets('one song reads in the singular', (tester) async {
+        await pump(
+          tester,
+          stats: (count: 0, median: null, total: 1, withData: 0),
+        );
+        expect(
+          find.text('0% of your song has ReplayGain data (0 of 1).'),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('coverage is hidden for an empty library', (tester) async {
+        await pump(
+          tester,
+          stats: (count: 0, median: null, total: 0, withData: 0),
+        );
+        expect(find.textContaining('have ReplayGain data'), findsNothing);
+        expect(find.textContaining('rsgain'), findsNothing);
+      });
+    });
+
     for (final platform in [
       TargetPlatform.linux,
       TargetPlatform.windows,
@@ -431,6 +612,9 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              replayGainLibraryGainsProvider.overrideWith(
+                (ref) async => (count: 0, median: null, total: 0, withData: 0),
+              ),
               settingsRepositoryProvider.overrideWithValue(repository),
               appSettingsProvider.overrideWithValue(
                 const AsyncData(initialSettings),
@@ -473,6 +657,9 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              replayGainLibraryGainsProvider.overrideWith(
+                (ref) async => (count: 0, median: null, total: 0, withData: 0),
+              ),
               settingsRepositoryProvider.overrideWithValue(repository),
               appSettingsProvider.overrideWithValue(
                 AsyncData(
@@ -543,6 +730,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            replayGainLibraryGainsProvider.overrideWith(
+              (ref) async => (count: 0, median: null, total: 0, withData: 0),
+            ),
             settingsRepositoryProvider.overrideWithValue(repository),
             appSettingsProvider.overrideWithValue(
               const AsyncData(initialSettings),
@@ -568,6 +758,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            replayGainLibraryGainsProvider.overrideWith(
+              (ref) async => (count: 0, median: null, total: 0, withData: 0),
+            ),
             settingsRepositoryProvider.overrideWithValue(repository),
             appSettingsProvider.overrideWithValue(
               const AsyncData(initialSettings),
@@ -667,6 +860,9 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              replayGainLibraryGainsProvider.overrideWith(
+                (ref) async => (count: 0, median: null, total: 0, withData: 0),
+              ),
               settingsRepositoryProvider.overrideWithValue(repository),
               appSettingsProvider.overrideWithValue(
                 const AsyncData(initialSettings),
@@ -744,6 +940,9 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              replayGainLibraryGainsProvider.overrideWith(
+                (ref) async => (count: 0, median: null, total: 0, withData: 0),
+              ),
               settingsRepositoryProvider.overrideWithValue(repository),
               appSettingsProvider.overrideWithValue(
                 const AsyncData(initialSettings),
@@ -789,6 +988,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            replayGainLibraryGainsProvider.overrideWith(
+              (ref) async => (count: 0, median: null, total: 0, withData: 0),
+            ),
             settingsRepositoryProvider.overrideWithValue(repository),
             appSettingsProvider.overrideWithValue(
               const AsyncData(initialSettings),
@@ -838,6 +1040,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            replayGainLibraryGainsProvider.overrideWith(
+              (ref) async => (count: 0, median: null, total: 0, withData: 0),
+            ),
             settingsRepositoryProvider.overrideWithValue(repository),
             appSettingsProvider.overrideWithValue(AsyncData(storedSettings)),
           ],
@@ -885,6 +1090,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            replayGainLibraryGainsProvider.overrideWith(
+              (ref) async => (count: 0, median: null, total: 0, withData: 0),
+            ),
             settingsRepositoryProvider.overrideWithValue(repository),
             appSettingsProvider.overrideWithValue(
               AsyncData(
@@ -928,6 +1136,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            replayGainLibraryGainsProvider.overrideWith(
+              (ref) async => (count: 0, median: null, total: 0, withData: 0),
+            ),
             settingsRepositoryProvider.overrideWithValue(repository),
             appSettingsProvider.overrideWithValue(
               const AsyncData(initialSettings),
@@ -961,6 +1172,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            replayGainLibraryGainsProvider.overrideWith(
+              (ref) async => (count: 0, median: null, total: 0, withData: 0),
+            ),
             settingsRepositoryProvider.overrideWithValue(repository),
             appSettingsProvider.overrideWithValue(
               AsyncData(initialSettings.copyWith(gaplessEnabled: false)),
@@ -1022,6 +1236,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            replayGainLibraryGainsProvider.overrideWith(
+              (ref) async => (count: 0, median: null, total: 0, withData: 0),
+            ),
             settingsRepositoryProvider.overrideWithValue(repository),
             appSettingsProvider.overrideWithValue(
               const AsyncData(initialSettings),
@@ -1052,6 +1269,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            replayGainLibraryGainsProvider.overrideWith(
+              (ref) async => (count: 0, median: null, total: 0, withData: 0),
+            ),
             settingsRepositoryProvider.overrideWithValue(repository),
             appSettingsProvider.overrideWith((_) => settings.stream),
           ],

@@ -693,9 +693,9 @@ extension _NavisMediaSession on NavisAudioHandler {
     );
   }
 
-  /// What ReplayGain does to the current song, or null for radio. Read by diagnostics (`replayGain`) and, later, the Now
-  /// Playing page.
-  ReplayGainDecision? get currentReplayGainDecision => _replayGainDecisionFor(
+  /// What ReplayGain does to the current song, or null for radio. Read by
+  /// diagnostics (`replayGain`) and the Now Playing page.
+  ReplayGainDecision? get _currentReplayGainDecision => _replayGainDecisionFor(
     _resolveCurrentQueueMetadata().mediaItem,
     freeze: false,
   );
