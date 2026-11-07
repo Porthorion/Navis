@@ -384,10 +384,11 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, ({String? prev, String? next})> _smartNeighbours =
       <String, ({String? prev, String? next})>{};
 
-  /// Android's ReplayGain boost guard: the lowest boost each deck was given
-  /// since its song's last-seconds window opened (see [guardedBoostDb]). A
-  /// fresh Expando forgets it; that happens at a song start, a seek, a queue
-  /// load and a settings or speed change.
+  /// Android's ReplayGain boost guard: the lowest boost the heard deck was
+  /// given since its song's last-seconds window opened (see [guardedBoostDb]).
+  /// Only the heard deck is latched, so an inactive cross-fade deck never holds
+  /// a stale guard. A fresh Expando forgets it; that happens at a song start,
+  /// a seek, a queue load and a settings or speed change.
   Expando<double> _boostLatch = Expando<double>();
 
   /// The last boost message each deck was sent, so the position tick only
