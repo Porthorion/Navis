@@ -91,12 +91,27 @@ void main() {
       expect(calls.length, 3);
     });
 
+    test('a refused exclusion is retried until it succeeds', () async {
+      final results = [false, true];
+      var calls = 0;
+      final exclusion = BackupExclusion(
+        isIOS: true,
+        exclude: (_) async => results[calls++ < 1 ? 0 : 1],
+      );
+      await exclusion.apply(directory, created: false);
+      await exclusion.apply(directory, created: false);
+      expect(calls, 2);
+      await exclusion.apply(directory, created: false);
+      expect(calls, 2);
+    });
+
     test('a throwing exclusion never propagates', () async {
       final exclusion = BackupExclusion(
         isIOS: true,
         exclude: (_) async => throw StateError('boom'),
       );
       await exclusion.apply(directory, created: true);
+      await exclusion.apply(directory, created: false);
     });
   });
 }

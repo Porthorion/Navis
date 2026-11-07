@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:navis/src/database/sync_write_fence.dart';
 import 'package:drift/native.dart';
 // ignore: experimental_member_use, reason: DriftRemoteException is how drift's isolates report a SQLite error.
@@ -309,8 +310,32 @@ class NavisDatabase extends _$NavisDatabase {
       await customStatement('PRAGMA foreign_keys = ON');
       await customStatement('PRAGMA journal_mode = WAL');
       await _createIndexes();
+      await _rebaseContainerPaths();
     },
   );
+
+  /// Reads the current iOS container root; replaced by tests.
+  @visibleForTesting
+  static Future<String?> Function() containerHomeReader = iosContainerHome;
+
+  /// Runs inside beforeOpen, which Drift completes before any other query:
+  /// the audio handler's cache pruning and the download service's startup
+  /// recovery can only read paths already moved to the current iOS container.
+  Future<void> _rebaseContainerPaths() async {
+    try {
+      final home = await containerHomeReader();
+      if (home == null) return;
+      final rewritten = await cacheDao.rebaseContainerPaths(home);
+      if (rewritten > 0) {
+        AppLogger.info(
+          'Moved $rewritten stored file path(s) to this container.',
+        );
+      }
+    } on Object catch (error) {
+      // A failed move only costs a re-download, never the database.
+      AppLogger.warning('Container path rebase failed: ${error.runtimeType}');
+    }
+  }
 
   Future<void> _createFreshDatabase(Migrator migrator) async {
     await migrator.createAll();

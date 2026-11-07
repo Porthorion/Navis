@@ -51,10 +51,17 @@ class BackupExclusion {
 
   Future<void> apply(Directory directory, {required bool created}) async {
     if (!_isIOS) return;
-    if (!_applied.add(directory.path) && !created) return;
+    if (!created && _applied.contains(directory.path)) return;
     try {
-      await _exclude(directory.path);
+      // Only a confirmed exclusion counts as done; a refusal is retried on
+      // the next call.
+      if (await _exclude(directory.path)) {
+        _applied.add(directory.path);
+      } else {
+        _applied.remove(directory.path);
+      }
     } on Object catch (error) {
+      _applied.remove(directory.path);
       AppLogger.warning('Backup exclusion failed: ${error.runtimeType}');
     }
   }

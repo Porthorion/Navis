@@ -83,6 +83,39 @@ void main() {
     expect((await resolve()).path, newFile('').path);
     expect(await oldFile('').readAsString(), 'legacy');
   });
+  for (final copyFallback in [false, true]) {
+    test('sidecars left behind by a crash after the main file moved are '
+        'adopted copyFallback=$copyFallback', () async {
+      await support.create();
+      await newFile('').writeAsString('moved main');
+      await oldFile('-wal').writeAsString('stranded wal');
+      await oldFile('-shm').writeAsString('stranded shm');
+      await newFile('-shm').writeAsString('current shm');
+      final selected = await resolve(
+        rename: copyFallback
+            ? (_, _) async => throw const FileSystemException('cross-device')
+            : null,
+      );
+      expect(selected.path, newFile('').path);
+      expect(await newFile('-wal').readAsString(), 'stranded wal');
+      expect(oldFile('-wal').existsSync(), isFalse);
+      // A sidecar whose destination exists is never overwritten.
+      expect(await newFile('-shm').readAsString(), 'current shm');
+      expect(await oldFile('-shm').readAsString(), 'stranded shm');
+    });
+  }
+  test(
+    'legacy sidecars stay when the legacy main file is still there',
+    () async {
+      await support.create();
+      await newFile('').writeAsString('current');
+      await oldFile('').writeAsString('legacy');
+      await oldFile('-wal').writeAsString('legacy wal');
+      await resolve();
+      expect(newFile('-wal').existsSync(), isFalse);
+      expect(await oldFile('-wal').readAsString(), 'legacy wal');
+    },
+  );
   test(
     'partial move and copy failure roll back before legacy fallback',
     () async {

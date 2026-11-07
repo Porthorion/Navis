@@ -2902,7 +2902,10 @@ along with any `-wal`, `-shm` and `-journal` files. Cross-device copies are size
 verified before originals are deleted. Failure restores transferred files and
 falls back to documents; a rollback failure preserves the remaining copy and
 fails opening rather than choosing an incomplete database. An existing support
-database wins and leaves legacy files untouched. No schema changes are involved.
+database wins and leaves legacy files untouched, except that when the legacy
+main file is gone, any legacy `-wal`, `-shm` or `-journal` file whose
+destination is missing is moved too (a crash between the renames would
+otherwise strand the WAL and lose its commits); this applies to desktop and iOS. No schema changes are involved.
 
 ## External integration policy
 
@@ -7326,6 +7329,27 @@ backup (`excludeFromBackup` on the `com.navis.app/storage_capacity` channel,
 otherwise, because deleting and recreating a directory drops the attribute. The
 rolling cache and cover caches live in the temporary directory and are never
 backed up.
+
+iOS can give the app a new container path (a new UUID) when it is updated or
+reinstalled, and Navis stores absolute paths. `NavisDatabase.beforeOpen` calls
+`CacheDao.rebaseContainerPaths`, which rewrites the container prefix
+(`.../Containers/Data/Application/<uuid>`) of every `cached_tracks.file_path`
+and of the `path`, `partPath` and `publicationLocator` fields of
+`download_queue.finish_journal` to the current container (the parent of
+Documents) in one transaction. Drift completes `beforeOpen` before any other
+query, so the audio handler's cache pruning and the download service's startup
+recovery only see paths in the current container. It is a no-op off iOS, when
+the home is not an app container (diagnostics clones) and when nothing differs.
+No other table or index stores an absolute container path: the artwork index and
+the download folder index are rebuilt from directory listings and relative
+paths, and the cover-art caches store paths relative to their base directory.
+
+Files shows the download folder read-write (`UIFileSharingEnabled` cannot
+expose it read-only), so the user can delete, rename or add files. Downloads are
+best removed inside Navis. A file deleted in Files is not downloaded again
+automatically: the record is dropped at the next launch. Downloads made by
+earlier iOS test builds under `<support>/audio/permanent` are left where they
+are and keep playing in place (those builds were never released).
 
 ### Download quality, concurrency and artwork
 

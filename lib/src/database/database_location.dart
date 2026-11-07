@@ -12,6 +12,18 @@ import 'package:path_provider/path_provider.dart';
 bool databaseUsesSupportDirectory(String operatingSystem) =>
     const {'linux', 'windows', 'macos', 'ios'}.contains(operatingSystem);
 
+/// The iOS app container root (the parent of Documents), or null elsewhere.
+/// The container path changes when iOS updates or reinstalls the app.
+Future<String?> iosContainerHome({
+  bool? isIOS,
+  Future<Directory> Function()? readDocuments,
+}) async {
+  if (!(isIOS ?? Platform.isIOS)) return null;
+  return (await (readDocuments ?? getApplicationDocumentsDirectory)())
+      .parent
+      .path;
+}
+
 /// Resolves the database file, moving a legacy documents database to the
 /// application support directory before opening (every platform but Android).
 /// Directory readers use path_provider so diagnostics profile overrides apply.
@@ -41,7 +53,19 @@ Future<File> resolveDatabaseFile({
         await (readApplicationSupportDirectory ??
             getApplicationSupportDirectory)();
     final target = File(p.join(support.path, 'navis.sqlite.sqlite'));
-    if (await _exists(target)) return target;
+    if (await _exists(target)) {
+      // A crash between the renames moves the main file first and strands its
+      // sidecars: adopt them, or their commits are lost and they stay behind.
+      if (!await _exists(legacy)) {
+        await _adoptStrandedSidecars(
+          legacy,
+          target,
+          renameFile ?? _rename,
+          copyFile ?? _copy,
+        );
+      }
+      return target;
+    }
     await support.create(recursive: true);
     if (!await _exists(legacy)) return target;
     for (final suffix in ['', '-wal', '-shm', '-journal']) {
@@ -94,6 +118,35 @@ Future<File> resolveDatabaseFile({
       '${error.runtimeType}',
     );
     return legacy;
+  }
+}
+
+Future<void> _adoptStrandedSidecars(
+  File legacy,
+  File target,
+  Future<File> Function(File source, String destination) rename,
+  Future<File> Function(File source, String destination) copy,
+) async {
+  for (final suffix in ['-wal', '-shm', '-journal']) {
+    final source = File('${legacy.path}$suffix');
+    final destination = '${target.path}$suffix';
+    try {
+      if (!await _exists(source) || await _exists(File(destination))) continue;
+      try {
+        await rename(source, destination);
+      } on FileSystemException {
+        await copy(source, destination);
+        if (await source.length() != await File(destination).length()) {
+          await File(destination).delete();
+          continue;
+        }
+        await source.delete();
+      }
+    } on FileSystemException catch (error) {
+      AppLogger.warning(
+        'Stranded database sidecar not moved: ${error.runtimeType}',
+      );
+    }
   }
 }
 

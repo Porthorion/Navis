@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:navis/src/database/database_utils.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -20,6 +22,22 @@ typedef DownloadMetadataGap = ({
   bool hasPlainLyrics,
   ExternalLyricsCacheTableData? lyricsCache,
 });
+
+const _containerMarker = '/Containers/Data/Application/';
+final _containerRoot = RegExp(
+  r'^.*/Containers/Data/Application/[0-9A-Fa-f-]{36}$',
+);
+final _containerPrefix = RegExp(
+  r'^.*/Containers/Data/Application/[0-9A-Fa-f-]{36}(?=/|$)',
+);
+
+/// [path] moved to the container root [home], or null when [path] is not in an
+/// iOS app container or already is in [home].
+String? rebaseContainerPath(String path, String home) {
+  final match = _containerPrefix.matchAsPrefix(path);
+  if (match == null || match.group(0) == home) return null;
+  return '$home${path.substring(match.end)}';
+}
 
 @DriftAccessor(tables: [CachedTracksTable, ListenBrainzWeeklyCacheTable])
 class CacheDao extends DatabaseAccessor<NavisDatabase>
@@ -223,6 +241,61 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
     if (outside.isEmpty) return 0;
     await deleteCachedTracksBySongIds(outside);
     return outside.length;
+  }
+
+  /// iOS can give the app a new container (a new UUID in every absolute path)
+  /// when it is updated or reinstalled, while Navis stores absolute paths.
+  /// Rewrites the container prefix of every stored path, the cache rows and the
+  /// finish journal of queued downloads, to [home] (the current container
+  /// root). Does nothing when [home] is not an app container or when no path
+  /// differs. Returns the number of rewritten cache rows.
+  Future<int> rebaseContainerPaths(String home) async {
+    if (!_containerRoot.hasMatch(home)) return 0;
+    return transaction(() async {
+      var rewritten = 0;
+      final rows = await (select(
+        cachedTracksTable,
+      )..where((t) => t.filePath.like('%$_containerMarker%'))).get();
+      for (final row in rows) {
+        final path = rebaseContainerPath(row.filePath, home);
+        if (path == null) continue;
+        await (update(cachedTracksTable)
+              ..where((t) => t.songId.equals(row.songId)))
+            .write(CachedTracksTableCompanion(filePath: Value(path)));
+        rewritten++;
+      }
+      final queue = attachedDatabase.downloadQueueTable;
+      final items = await (attachedDatabase.select(
+        queue,
+      )..where((t) => t.finishJournal.like('%$_containerMarker%'))).get();
+      for (final item in items) {
+        final journal = _rebaseJournal(item.finishJournal!, home);
+        if (journal == null) continue;
+        await (attachedDatabase.update(queue)
+              ..where((t) => t.id.equals(item.id)))
+            .write(DownloadQueueTableCompanion(finishJournal: Value(journal)));
+      }
+      return rewritten;
+    });
+  }
+
+  static String? _rebaseJournal(String journal, String home) {
+    try {
+      final decoded = jsonDecode(journal);
+      if (decoded is! Map<String, dynamic>) return null;
+      var changed = false;
+      for (final entry in decoded.entries.toList()) {
+        final value = entry.value;
+        if (value is! String) continue;
+        final path = rebaseContainerPath(value, home);
+        if (path == null) continue;
+        decoded[entry.key] = path;
+        changed = true;
+      }
+      return changed ? jsonEncode(decoded) : null;
+    } on FormatException {
+      return null;
+    }
   }
 
   Future<List<CachedTracksTableData>> getPermanentEntries() {
