@@ -64,11 +64,18 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
   });
 
   /// Toggles the like of [songId] and returns its new state, or null when the
-  /// song is a remote catalog copy (`ext-`): the server cannot address it, so
+  /// song is a remote catalog copy (`ext-`, or flagged external): the server cannot address it, so
   /// nothing is starred locally or queued. Callers show the "not available
   /// for remote tracks" notice where there is UI.
   Future<bool?> toggleSongStarred(String songId) => transaction(() async {
-    if (!isServerAddressableSongId(songId)) {
+    // A row the catalogue flagged external (`pl-deezer-*`, ...) is refused
+    // too, whatever its id looks like.
+    final flagged = await customSelect(
+      'SELECT 1 FROM songs WHERE id = ? AND is_external = 1',
+      variables: [Variable.withString(songId)],
+      readsFrom: {attachedDatabase.songsTable},
+    ).get();
+    if (!isServerAddressableSongId(songId) || flagged.isNotEmpty) {
       AppLogger.info('StarSyncDao: like refused for remote song $songId');
       return null;
     }
@@ -78,15 +85,20 @@ class StarSyncDao extends DatabaseAccessor<NavisDatabase>
     return liked;
   });
 
-  /// Clears the local like of remote catalog copies (`ext-`, `remote-`) and
+  /// Clears the local like of remote catalog copies (`ext-`, `remote-`, or
+  /// flagged external) and
   /// their pending deliveries, returning how many songs lost it. Local only:
   /// the server resolves such an id to the library song, so an unstar sent
   /// for it would unstar that song. With [keepUnsent], a like whose star has
   /// not been sent yet (a pending star row) is left alone.
   Future<int> dropRemoteSongLikes({bool keepUnsent = false}) => transaction(
     () async {
-      const remoteId = "(id LIKE 'ext-%' OR id LIKE 'remote-%')";
-      const remoteItem = "(item_id LIKE 'ext-%' OR item_id LIKE 'remote-%')";
+      const flagged = '(SELECT id FROM songs WHERE is_external = 1)';
+      const remoteId =
+          "(id LIKE 'ext-%' OR id LIKE 'remote-%' OR id IN $flagged)";
+      const remoteItem =
+          "(item_id LIKE 'ext-%' OR item_id LIKE 'remote-%' "
+          'OR item_id IN $flagged)';
       const unsent =
           "EXISTS (SELECT 1 FROM star_sync_queue q WHERE q.item_type = 'song' "
           "AND q.operation = 'star' AND q.action = 'star' "

@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -79,6 +80,46 @@ void main() {
           isNull,
         );
         expect(await database.libraryDao.getSongStarred('lib-1'), isNull);
+        expect(await database.starSyncDao.getPendingActions(), isEmpty);
+      }, skip: !sqliteAvailable);
+
+      Future<void> seedFlagged() =>
+          database.libraryDao.upsertSongs(<SongsTableCompanion>[
+            SongsTableCompanion.insert(
+              id: 'pl-deezer-1',
+              title: 'Flagged',
+              isExternal: const Value(true),
+            ),
+          ]);
+
+      test('a song flagged external with a plain id is refused', () async {
+        await seedFlagged();
+
+        expect(
+          await database.starSyncDao.toggleSongStarred('pl-deezer-1'),
+          isNull,
+        );
+        expect(await database.libraryDao.getSongStarred('pl-deezer-1'), isNull);
+        expect(await database.starSyncDao.getPendingActions(), isEmpty);
+      }, skip: !sqliteAvailable);
+
+      test('dropRemoteSongLikes also clears external-flagged rows', () async {
+        await seed();
+        await seedFlagged();
+        await database.libraryDao.setEntityStarred(
+          'song',
+          'pl-deezer-1',
+          DateTime(2026),
+        );
+        await database.starSyncDao.queueStarAction(
+          itemId: 'pl-deezer-1',
+          itemType: 'song',
+          action: 'star',
+        );
+
+        expect(await database.starSyncDao.dropRemoteSongLikes(), 1);
+
+        expect(await database.libraryDao.getSongStarred('pl-deezer-1'), isNull);
         expect(await database.starSyncDao.getPendingActions(), isEmpty);
       }, skip: !sqliteAvailable);
 
