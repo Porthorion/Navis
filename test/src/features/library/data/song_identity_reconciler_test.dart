@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/database/daos/song_identity_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/library/data/song_identity_reconciler.dart';
@@ -431,6 +433,378 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('single-copy tier', () {
+    // Real data (2026-11-07, issue #209 item L): Deezer's copy of the single
+    // never shares the album, track or disc of the library's album track.
+    SongsTableData library({
+      String id = 'lib',
+      String album = '21',
+      int duration = 243,
+      String? mbid,
+    }) => _song(
+      id: id,
+      provisional: false,
+      title: 'Set Fire to the Rain',
+      artist: 'Adele',
+      album: album,
+      duration: duration,
+      track: 2,
+      recordingMbid: mbid,
+    );
+
+    SongsTableData single({
+      String id = 'ext-deezer-song-1',
+      int duration = 242,
+      String? mbid,
+    }) => _song(
+      id: id,
+      provisional: true,
+      external: true,
+      title: 'Set Fire to the Rain',
+      artist: 'Adele',
+      album: 'Set Fire to the Rain - Single',
+      duration: duration,
+      track: 1,
+      recordingMbid: mbid,
+    );
+
+    test('a remote single relinks to the library album track', () {
+      final result = reconciler.matchCanonicalSong(
+        allowSingleCopy: true,
+        canonicalSong: library(),
+        provisionalSongs: <SongsTableData>[single()],
+      );
+
+      expect(result, isA<SongIdentityMatched>());
+      expect(
+        (result as SongIdentityMatched).reason,
+        SongIdentityMatchReason.singleCopy,
+      );
+    }, skip: !sqliteAvailable);
+
+    test('a 10 s gap (live or edit) is not matched', () {
+      expect(
+        reconciler.matchCanonicalSong(
+          allowSingleCopy: true,
+          canonicalSong: library(),
+          provisionalSongs: <SongsTableData>[single(duration: 233)],
+        ),
+        isA<SongIdentityUnmatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    test('a conflicting recording MBID blocks it', () {
+      expect(
+        reconciler.matchCanonicalSong(
+          allowSingleCopy: true,
+          canonicalSong: library(mbid: 'mbid-a'),
+          provisionalSongs: <SongsTableData>[single(mbid: 'mbid-b')],
+        ),
+        isA<SongIdentityUnmatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    test('a missing duration on either side blocks it', () {
+      expect(
+        reconciler.matchCanonicalSong(
+          allowSingleCopy: true,
+          canonicalSong: library(),
+          provisionalSongs: <SongsTableData>[
+            single().copyWith(duration: const Value(null)),
+          ],
+        ),
+        isA<SongIdentityUnmatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    test('two remote copies in range are never guessed between', () {
+      expect(
+        reconciler.matchCanonicalSong(
+          allowSingleCopy: true,
+          canonicalSong: library(),
+          provisionalSongs: <SongsTableData>[
+            single(),
+            single(id: 'ext-deezer-song-2', duration: 244),
+          ],
+        ),
+        isA<SongIdentityUnmatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    test('the exact album tier still wins when it matches', () {
+      final result = reconciler.matchCanonicalSong(
+        allowSingleCopy: true,
+        canonicalSong: library(),
+        provisionalSongs: <SongsTableData>[
+          single().copyWith(
+            albumName: const Value('21'),
+            track: const Value(2),
+          ),
+        ],
+      );
+
+      expect(
+        (result as SongIdentityMatched).reason,
+        SongIdentityMatchReason.exactMetadata,
+      );
+    }, skip: !sqliteAvailable);
+
+    SongsTableData interlude({
+      String id = 'lib',
+      String album = 'Album X',
+      int duration = 200,
+      int track = 3,
+      String title = 'Interlude',
+      bool provisional = false,
+    }) => _song(
+      id: id,
+      provisional: provisional,
+      external: provisional,
+      title: title,
+      artist: 'Artist',
+      album: album,
+      duration: duration,
+      track: track,
+    );
+
+    test('tracks under 90 s are not matched by title and artist', () {
+      expect(
+        reconciler.matchCanonicalSong(
+          allowSingleCopy: true,
+          canonicalSong: interlude(duration: 45, album: 'Album X'),
+          provisionalSongs: <SongsTableData>[
+            interlude(
+              id: 'ext-deezer-song-1',
+              provisional: true,
+              album: 'Intro - Single',
+              duration: 47,
+            ),
+          ],
+        ),
+        isA<SongIdentityUnmatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    SongsTableData loveStory({
+      String id = 'lib',
+      String album = 'Fearless',
+      bool provisional = false,
+      int duration = 235,
+    }) => _song(
+      id: id,
+      provisional: provisional,
+      external: provisional,
+      title: 'Love Story',
+      artist: 'Taylor Swift',
+      album: album,
+      duration: duration,
+      track: 3,
+    );
+
+    for (final album in [
+      "Fearless (Taylor's Version)",
+      'The Remixes',
+      'MTV Unplugged',
+      'Sessions',
+      'Fearless (Extended Edition)',
+    ]) {
+      test('a copy from "$album" is not a single and never matches', () {
+        expect(
+          reconciler.matchCanonicalSong(
+            allowSingleCopy: true,
+            canonicalSong: loveStory(),
+            provisionalSongs: <SongsTableData>[
+              loveStory(
+                id: 'ext-deezer-song-1',
+                album: album,
+                provisional: true,
+                duration: 236,
+              ),
+            ],
+          ),
+          isA<SongIdentityUnmatched>(),
+        );
+      }, skip: !sqliteAvailable);
+    }
+
+    for (final album in ['Hello - Single', 'Hello', 'Hello - EP']) {
+      test('a "Hello" copy from "$album" matches', () {
+        final result = reconciler.matchCanonicalSong(
+          allowSingleCopy: true,
+          canonicalSong: _song(
+            id: 'lib',
+            provisional: false,
+            title: 'Hello',
+            artist: 'Adele',
+            album: '25',
+            duration: 295,
+            track: 1,
+          ),
+          provisionalSongs: <SongsTableData>[
+            _song(
+              id: 'ext-deezer-song-1',
+              provisional: true,
+              external: true,
+              title: 'Hello',
+              artist: 'Adele',
+              album: album,
+              duration: 295,
+              track: 1,
+            ),
+          ],
+        );
+        expect(
+          (result as SongIdentityMatched).reason,
+          SongIdentityMatchReason.singleCopy,
+        );
+      }, skip: !sqliteAvailable);
+    }
+
+    test('a copy on an album named after the song matches', () {
+      expect(
+        reconciler.matchCanonicalSong(
+          allowSingleCopy: true,
+          canonicalSong: library(),
+          provisionalSongs: <SongsTableData>[
+            single().copyWith(albumName: const Value('Set Fire to the Rain')),
+          ],
+        ),
+        isA<SongIdentityMatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    test('a row that is not an external copy never matches', () {
+      // Full-promotion sessions hand over server-deleted and retained library
+      // rows, which are provisional but not remote catalog copies.
+      expect(
+        reconciler.matchCanonicalSong(
+          allowSingleCopy: true,
+          canonicalSong: library(),
+          provisionalSongs: <SongsTableData>[
+            single().copyWith(isExternal: false),
+          ],
+        ),
+        isA<SongIdentityUnmatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    test(
+      'typographic prime, minus, ellipsis and modifier apostrophes fold',
+      () {
+        for (final (a, b) in <(String, String)>[
+          ('Don\u02BCt Stop', "Don't Stop"),
+          ('Don\u00B4t Stop', "Don't Stop"),
+          ('5\u2032 Heels', "5' Heels"),
+          ('5\u2033 Heels', '5" Heels'),
+          ('Now \u2015 Then', 'Now - Then'),
+          ('Re\u2212Entry', 'Re-Entry'),
+          ('Wait\u2026', 'Wait...'),
+        ]) {
+          expect(
+            reconciler.matchCanonicalSong(
+              canonicalSong: _song(id: 'lib', provisional: false, title: a),
+              provisionalSongs: <SongsTableData>[
+                _song(id: 'ext-1', provisional: true, title: b),
+              ],
+            ),
+            isA<SongIdentityMatched>(),
+            reason: '$a / $b',
+          );
+        }
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('the tier is off unless a caller opts in', () {
+      expect(
+        reconciler.matchCanonicalSong(
+          canonicalSong: library(),
+          provisionalSongs: <SongsTableData>[single()],
+        ),
+        isA<SongIdentityUnmatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    test('hydration batches never merge a single copy (P, A, B)', () async {
+      // A hydration session (default startSession) sees one album at a time,
+      // so whichever album hydrated first would take the copy.
+      final session = await reconciler.startSession(
+        provisionalSongs: <SongsTableData>[single()],
+      );
+      await session.reconcile(<SongsTableData>[library()]);
+      await session.finalize();
+      await session.reconcile(<SongsTableData>[
+        library(id: 'lib-2', album: 'Now 80'),
+      ]);
+      await session.finalize();
+
+      expect(session.summary.aliases, isEmpty);
+      expect(session.summary.canonicalizedSongCount, 0);
+      expect(session.summary.retainedProvisionalCount, 1);
+    }, skip: !sqliteAvailable);
+
+    test('a weak claim contested across pages is dropped silently', () async {
+      final session = await reconciler.startSession(
+        provisionalSongs: <SongsTableData>[single()],
+      );
+      await session.reconcile(<SongsTableData>[library()]);
+      await session.reconcile(<SongsTableData>[
+        library(id: 'lib-2', album: 'Now 80'),
+      ]);
+      await session.finalize();
+
+      final summary = session.summary;
+      expect(summary.aliases, isEmpty);
+      expect(summary.canonicalizedSongCount, 0);
+      expect(summary.ambiguousMatchCount, 0);
+      expect(summary.ambiguousCases, isEmpty);
+      expect(summary.retainedProvisionalCount, 1);
+    }, skip: !sqliteAvailable);
+
+    test('a straight apostrophe matches a curly one', () {
+      final result = reconciler.matchCanonicalSong(
+        allowSingleCopy: true,
+        canonicalSong: _song(
+          id: 'lib',
+          provisional: false,
+          title: 'Don\u2019t You Remember',
+        ),
+        provisionalSongs: <SongsTableData>[
+          _song(
+            id: 'ext-deezer-song-1',
+            provisional: true,
+            title: "Don't You Remember",
+          ),
+        ],
+      );
+
+      expect(
+        (result as SongIdentityMatched).reason,
+        SongIdentityMatchReason.exactMetadata,
+      );
+    }, skip: !sqliteAvailable);
+
+    test('typographic dashes and double quotes fold too', () {
+      final result = reconciler.matchCanonicalSong(
+        allowSingleCopy: true,
+        canonicalSong: _song(
+          id: 'lib',
+          provisional: false,
+          title: '\u201CHeroes\u201D \u2013 Live',
+        ),
+        provisionalSongs: <SongsTableData>[
+          _song(
+            id: 'ext-deezer-song-1',
+            provisional: true,
+            title: '"Heroes" - Live',
+          ),
+        ],
+      );
+
+      expect(result, isA<SongIdentityMatched>());
+    }, skip: !sqliteAvailable);
+  });
+
   group('relinkExternalCopies', () {
     Future<void> insert(SongsTableData song) =>
         database.into(database.songsTable).insert(song);
@@ -619,6 +993,224 @@ void main() {
       );
     }, skip: !sqliteAvailable);
 
+    SongsTableData albumTrack({String id = 'lib', String album = '21'}) =>
+        _song(
+          id: id,
+          provisional: false,
+          title: 'Set Fire to the Rain',
+          artist: 'Adele',
+          album: album,
+          duration: 243,
+          track: 2,
+        );
+
+    test('a remote single relinks and search returns one row', () async {
+      await insert(albumTrack());
+      await insert(
+        remote(album: 'Set Fire to the Rain - Single')
+            .copyWith(duration: const Value(242), track: const Value(1)),
+      );
+      await database
+          .into(database.playHistoryTable)
+          .insert(
+            PlayHistoryTableCompanion.insert(
+              songId: 'ext-deezer-song-8086130',
+              playedAt: DateTime.utc(2026, 11, 7),
+            ),
+          );
+
+      expect(await refreshAndRelink(<String>['ext-deezer-song-8086130']), {
+        'ext-deezer-song-8086130': 'lib',
+      });
+      expect(
+        (await database.libraryDao.searchCachedSongs('set fire'))
+            .map((song) => song.id),
+        <String>['lib'],
+      );
+      expect(
+        (await database.songIdentityDao.getAliases()).single.matchReason,
+        'singleCopy',
+      );
+    }, skip: !sqliteAvailable);
+
+    test('the same song on an album and a compilation never relinks', () async {
+      await insert(albumTrack());
+      await insert(albumTrack(id: 'lib-2', album: 'Now 80'));
+      await insert(
+        remote(album: 'Set Fire to the Rain - Single')
+            .copyWith(duration: const Value(242), track: const Value(1)),
+      );
+
+      expect(
+        await refreshAndRelink(<String>['ext-deezer-song-8086130']),
+        isEmpty,
+      );
+      expect(
+        await database.libraryDao.getSongById('ext-deezer-song-8086130'),
+        isNotNull,
+      );
+    }, skip: !sqliteAvailable);
+
+    test('an exact album match is not blocked by a compilation', () async {
+      await insert(albumTrack());
+      await insert(albumTrack(id: 'lib-2', album: 'Now 80'));
+      await insert(
+        remote().copyWith(duration: const Value(243), track: const Value(2)),
+      );
+
+      expect(await refreshAndRelink(<String>['ext-deezer-song-8086130']), {
+        'ext-deezer-song-8086130': 'lib',
+      });
+    }, skip: !sqliteAvailable);
+
+    test('a stale search index never lets the weak tier merge', () async {
+      Future<void> insertAlbumTrack(String id, String album, int duration) =>
+          insert(
+            _song(
+              id: id,
+              provisional: false,
+              title: 'Interlude',
+              artist: 'Artist',
+              album: album,
+              duration: duration,
+              track: 3,
+            ),
+          );
+      await insertAlbumTrack('lib-1', 'Album A', 200);
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+      // Inserted after the refresh, so the match index has not seen it yet.
+      await insertAlbumTrack('lib-2', 'Album B', 201);
+      await insert(
+        _song(
+          id: 'ext-deezer-song-1',
+          provisional: true,
+          external: true,
+          title: 'Interlude',
+          artist: 'Artist',
+          album: 'Interlude - Single',
+          duration: 200,
+          track: 1,
+        ),
+      );
+
+      expect(
+        await reconciler.relinkExternalCopies(<String>['ext-deezer-song-1']),
+        isEmpty,
+      );
+      // Once the index is current both candidates are visible: still ambiguous.
+      expect(await refreshAndRelink(<String>['ext-deezer-song-1']), isEmpty);
+      expect(
+        await database.libraryDao.getSongById('ext-deezer-song-1'),
+        isNotNull,
+      );
+    }, skip: !sqliteAvailable);
+
+    group('the index-current check is lazy', () {
+      late _SpyIdentityDao spy;
+      late SongIdentityReconciler spied;
+
+      setUp(() {
+        spy = _SpyIdentityDao(database);
+        spied = SongIdentityReconciler(spy);
+      });
+
+      test('not called when no copy is a single', () async {
+        await insert(albumTrack());
+        await insert(remote(album: 'Another Album'));
+        await database.libraryDao.scheduleSongSearchIndexRefresh();
+
+        await spied.relinkExternalCopies(<String>['ext-deezer-song-8086130']);
+
+        expect(spy.indexChecks, 0);
+      });
+
+      test('not called for a single under 90 s', () async {
+        await insert(albumTrack());
+        await insert(
+          remote(album: 'Set Fire to the Rain - Single')
+              .copyWith(duration: const Value(60)),
+        );
+        await database.libraryDao.scheduleSongSearchIndexRefresh();
+
+        await spied.relinkExternalCopies(<String>['ext-deezer-song-8086130']);
+
+        expect(spy.indexChecks, 0);
+      });
+
+      test('not called when the exact tier already matched the copy', () async {
+        // Album named after the song on both sides: a single-looking copy that
+        // the exact tier matches, so the single tier is moot.
+        await insert(library(album: 'Set Fire to the Rain'));
+        await insert(remote(album: 'Set Fire to the Rain'));
+        await database.libraryDao.scheduleSongSearchIndexRefresh();
+
+        expect(
+          await spied.relinkExternalCopies(<String>['ext-deezer-song-8086130']),
+          hasLength(1),
+        );
+        expect(spy.indexChecks, 0);
+      });
+
+      test('called once for an unmatched single', () async {
+        await insert(albumTrack());
+        await insert(
+          remote(album: 'Set Fire to the Rain - Single')
+              .copyWith(duration: const Value(242), track: const Value(1)),
+        );
+        await database.libraryDao.scheduleSongSearchIndexRefresh();
+
+        expect(
+          await spied.relinkExternalCopies(<String>['ext-deezer-song-8086130']),
+          hasLength(1),
+        );
+        expect(spy.indexChecks, 2); // before and after the candidate read
+      });
+
+      test('a flip between the two checks blocks the single tier', () async {
+        await insert(albumTrack());
+        await insert(
+          remote(album: 'Set Fire to the Rain - Single')
+              .copyWith(duration: const Value(242), track: const Value(1)),
+        );
+        await database.libraryDao.scheduleSongSearchIndexRefresh();
+        spy.results = [true, false];
+
+        expect(
+          await spied.relinkExternalCopies(<String>['ext-deezer-song-8086130']),
+          isEmpty,
+        );
+        expect(spy.indexChecks, 2);
+      });
+
+      test('a stale first check skips the read and the tier', () async {
+        await insert(albumTrack());
+        await insert(
+          remote(album: 'Set Fire to the Rain - Single')
+              .copyWith(duration: const Value(242), track: const Value(1)),
+        );
+        await database.libraryDao.scheduleSongSearchIndexRefresh();
+        spy.results = [false, true];
+
+        expect(
+          await spied.relinkExternalCopies(<String>['ext-deezer-song-8086130']),
+          isEmpty,
+        );
+      });
+    }, skip: !sqliteAvailable);
+
+    test('a live version 10 s longer is left alone', () async {
+      await insert(albumTrack());
+      await insert(
+        remote(album: 'Set Fire to the Rain - Single')
+            .copyWith(duration: const Value(253)),
+      );
+
+      expect(
+        await refreshAndRelink(<String>['ext-deezer-song-8086130']),
+        isEmpty,
+      );
+    }, skip: !sqliteAvailable);
+
     test('leaves a cover by another artist alone', () async {
       await insert(library(artist: 'Adele'));
       await insert(remote(artist: 'No Resolve', album: 'Covers'));
@@ -674,4 +1266,23 @@ SongsTableData _song({
     isProvisional: provisional,
     isExternal: external,
   );
+}
+
+class _SpyIdentityDao extends SongIdentityDao {
+  _SpyIdentityDao(super.db);
+
+  var indexChecks = 0;
+
+  /// Scripted answers, one per call; the real check once exhausted.
+  List<bool>? results;
+
+  @override
+  Future<bool> isLibraryMatchIndexCurrent() {
+    indexChecks++;
+    final scripted = results;
+    if (scripted != null && scripted.isNotEmpty) {
+      return Future.value(scripted.removeAt(0));
+    }
+    return super.isLibraryMatchIndexCurrent();
+  }
 }
