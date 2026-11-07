@@ -37,6 +37,7 @@ final serverReachabilityControllerProvider =
     );
 
 class ServerReachabilityController extends Notifier<ServerReachabilityState> {
+  final _configGate = DeferredListenerGate();
   Timer? _retryTimer;
   bool _isChecking = false;
   bool _pendingCheck = false;
@@ -61,8 +62,11 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
 
     ref.listen<AsyncValue<ServerConfigModel?>>(
       serverConfigStateProvider,
-      (_, next) =>
-          runOutsideWidgetBuild(ref, () => _onServerConfigChanged(next)),
+      (_, next) => runOutsideWidgetBuild(
+        ref,
+        _configGate,
+        () => _onServerConfigChanged(next),
+      ),
     );
 
     // The API client appears shortly after the session (its credentials are

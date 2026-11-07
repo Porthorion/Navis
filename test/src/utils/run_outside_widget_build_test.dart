@@ -41,18 +41,21 @@ void main() {
     late ProviderContainer container;
     late StubLibrarySyncEngine engine;
     var pingCalls = 0;
+    late List<Object?> engineZones;
 
     setUp(() {
+      engineZones = <Object?>[];
       pingCalls = 0;
       final database = createTestDatabase();
       addTearDown(database.close);
-      engine = StubLibrarySyncEngine.returning(
-        LibrarySyncState(
+      engine = StubLibrarySyncEngine((request, {onProgress}) async {
+        engineZones.add(Zone.current[#navisZone]);
+        return LibrarySyncState(
           status: LibrarySyncStatus.succeeded,
           stage: LibrarySyncStage.completed,
           completedAt: DateTime.utc(2026, 8, 4),
-        ),
-      );
+        );
+      });
       container = ProviderContainer(
         overrides: [
           syncIntervalMinutesProvider.overrideWithValue(0),
@@ -71,7 +74,11 @@ void main() {
       );
       addTearDown(container.dispose);
       container.listen(serverReachabilityControllerProvider, (_, _) {});
-      container.listen(librarySyncControllerProvider, (_, _) {});
+      // The controller binds its listener to the zone that built it.
+      runZoned(
+        () => container.listen(librarySyncControllerProvider, (_, _) {}),
+        zoneValues: {#navisZone: 'bound'},
+      );
     });
 
     Future<void> settleAndDispose(WidgetTester tester) async {
@@ -106,6 +113,36 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(pingCalls, greaterThanOrEqualTo(1));
+      expect(engine.requests, isNotEmpty);
+      expect(engineZones, contains('bound'));
+      await settleAndDispose(tester);
+    });
+
+    testWidgets('a later delivery supersedes a deferred one', (tester) async {
+      final source = container.read(_configSource.notifier);
+      source.set(const AsyncData(_alice));
+      // Alice is delivered inside the build and deferred; sign-out is
+      // delivered synchronously after it, before the deferred body runs.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        source.set(const AsyncData(null));
+        container.read(serverConfigStateProvider);
+      });
+      await buildFirstFrame(tester);
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      expect(pingCalls, 0);
+      expect(
+        container.read(serverReachabilityControllerProvider).status,
+        ServerReachabilityStatus.checking,
+      );
+      expect(engine.requests, isEmpty);
+
+      // Alice signing in again is a new session, not the one never applied.
+      source.set(const AsyncData(_alice));
+      container.read(serverConfigStateProvider);
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
       expect(engine.requests, isNotEmpty);
       await settleAndDispose(tester);
     });
@@ -143,6 +180,7 @@ void main() {
   group('runOutsideWidgetBuild', () {
     late List<String> log;
     late Ref capturedRef;
+    late DeferredListenerGate gate;
 
     ProviderContainer makeContainer() {
       final container = ProviderContainer();
@@ -154,29 +192,32 @@ void main() {
       return container;
     }
 
-    setUp(() => log = <String>[]);
+    setUp(() {
+      log = <String>[];
+      gate = DeferredListenerGate();
+    });
 
-    testWidgets('defers inside a build, in order, and runs outside at once', (
+    testWidgets('defers inside a build and runs outside at once', (
       tester,
     ) async {
       final container = makeContainer();
       addTearDown(container.dispose);
 
-      runOutsideWidgetBuild(capturedRef, () => log.add('sync'));
+      runOutsideWidgetBuild(capturedRef, gate, () => log.add('sync'));
       expect(log, ['sync']);
 
       await tester.pumpWidget(
         Builder(
           builder: (context) {
-            runOutsideWidgetBuild(capturedRef, () => log.add('first'));
-            runOutsideWidgetBuild(capturedRef, () => log.add('second'));
+            runOutsideWidgetBuild(capturedRef, gate, () => log.add('first'));
+            runOutsideWidgetBuild(capturedRef, gate, () => log.add('second'));
             log.add('built');
             return const SizedBox();
           },
         ),
       );
-      // 'built' before 'first': the bodies were deferred, not run in build.
-      expect(log, ['sync', 'built', 'first', 'second']);
+      // Deferred ('built' comes first) and only the latest delivery applies.
+      expect(log, ['sync', 'built', 'second']);
     });
 
     testWidgets('skips a deferred body whose ref was disposed', (tester) async {
@@ -184,7 +225,7 @@ void main() {
       await tester.pumpWidget(
         Builder(
           builder: (context) {
-            runOutsideWidgetBuild(capturedRef, () => log.add('ran'));
+            runOutsideWidgetBuild(capturedRef, gate, () => log.add('ran'));
             container.dispose();
             return const SizedBox();
           },
