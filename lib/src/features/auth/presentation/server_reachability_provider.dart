@@ -7,6 +7,7 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/utils/run_outside_widget_build.dart';
 
 typedef PingServer = Future<String> Function();
 
@@ -60,7 +61,8 @@ class ServerReachabilityController extends Notifier<ServerReachabilityState> {
 
     ref.listen<AsyncValue<ServerConfigModel?>>(
       serverConfigStateProvider,
-      (_, next) => _onServerConfigChanged(next),
+      (_, next) =>
+          runOutsideWidgetBuild(ref, () => _onServerConfigChanged(next)),
     );
 
     // The API client appears shortly after the session (its credentials are
