@@ -74,7 +74,36 @@ def main():
     assert clamps.edit_landed(edit_rows([1, 1, 2, 2], 'a2-latch-insert-above'), 'a2-latch-insert-above', 'rgq-1', 1, 2)
     assert not clamps.edit_landed(edit_rows([1, 1, 1], 'a2-latch-insert-above'), 'a2-latch-insert-above', 'rgq-1', 1, 2)
     assert not clamps.edit_landed(edit_rows([1, 0]), 'a2-latch-insert-above', 'rgq-1', 1, 0), 'another phase does not count'
-    print('ReplayGain analyzer self-test: 26 clamp rules passed.')
+    # The A2 latch phases as the analyzer runs them: a capture whose edits never landed must fail every landing
+    # check, a healthy one none, so the wiring of `edit_landed` cannot be bypassed without this test noticing.
+    def capture(landed):
+        out = []
+        for action in clamps.LATCH_ACTIONS:
+            moved = clamps.MOVED.get(action)
+            for n, pos in enumerate(range(25200, 26900, 100)):
+                after = landed and n >= 8
+                out.append({'phase': f'a2-latch-{action}', 'songId': 'rgq-1', 'playing': True, 'positionMs': pos,
+                            'index': (moved[1] if after else moved[0]) if moved else 1,
+                            'repeat': 'all' if action == 'loop' and after else 'none',
+                            'shuffle': action == 'shuffle' and after,
+                            'boost': {'sentDb': 0.0, 'requestedDb': 0.0, 'appliedDb': 0.0, 'guarded': True,
+                                      'clipSamples': 0}})
+        return out
+    healthy = clamps.latch_phase_results(capture(True))
+    doctored = clamps.latch_phase_results(capture(False))
+    assert len(healthy) == len(doctored) == 16 and all(ok for _, ok, _ in healthy), 'a landed run passes all 16 checks'
+    landing = [ok for label, ok, _ in doctored if 'landed' in label]
+    assert len(landing) == 8 and not any(landing), 'a capture whose edits never landed fails all 8 landing checks'
+    assert all(ok for label, ok, _ in doctored if 'stays guarded' in label), 'the guard rows alone still pass: only the landing checks catch it'
+    # The crossfade-speed phase: the speed change must land while H1 fades to Q2.
+    def fade(speed, pos=27800, then='rgq-2'):
+        return [{'phase': 'crossfade-speed', 'songId': 'rgh-1', 'positionMs': pos, 'speed': speed},
+                {'phase': 'crossfade-speed', 'songId': then, 'positionMs': 500, 'speed': speed}]
+    assert clamps.speed_changed_mid_fade(fade(1.25)), 'a speed change in the fade'
+    assert not clamps.speed_changed_mid_fade(fade(1.0)), 'no speed change'
+    assert not clamps.speed_changed_mid_fade(fade(1.25, pos=20000)), 'a change before the fade'
+    assert not clamps.speed_changed_mid_fade(fade(1.25, then='rgh-2')), 'Q2 never heard'
+    print('ReplayGain analyzer self-test: 35 clamp rules passed.')
 
 
 if __name__ == '__main__':

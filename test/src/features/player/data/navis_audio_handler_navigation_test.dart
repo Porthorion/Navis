@@ -16331,6 +16331,105 @@ void main() {
           },
         );
 
+        test('R7-X1: a speed change while the reused deck is being prepared '
+            'does not leave the stale guard for its next song', () async {
+          final (handler, player) = await android([
+            6,
+            3,
+            6,
+            3,
+          ], crossfade: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+            'song-2',
+            'song-3',
+          ], expandMatchFlows: false);
+          player
+            ..isPlaying = true
+            ..state = ProcessingState.ready;
+          player.simulatedPosition = const Duration(minutes: 2, seconds: 58);
+          await handler.debugStartCrossfade();
+          final deckB = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+          for (var i = 0; i < 800 && !deckB.playing; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          await handler.debugCompleteCrossfade();
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          deckB
+            ..isPlaying = true
+            ..state = ProcessingState.ready
+            ..simulatedPosition = const Duration(minutes: 1);
+          final before = player.boostMessages.length;
+          // Hold the reused deck's prepare at its first await, as a slow
+          // native call would, and change the speed inside that window.
+          player.pauseGate = Completer<void>();
+          player.pauseEntered = Completer<void>();
+          final gate = player.pauseGate!;
+          final started = handler.debugStartCrossfade();
+          await player.pauseEntered!.future;
+          await handler.setSpeed(1.5);
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          gate.complete();
+          await started;
+          for (var i = 0; i < 800 && !player.playing; i++) {
+            await Future<void>.delayed(const Duration(milliseconds: 10));
+          }
+          final prepare = player.boostMessages
+              .skip(before)
+              .where((m) => m.index == 2 && m.currentDb > 0)
+              .toList();
+          expect(prepare, isNotEmpty);
+          expect(
+            prepare.every((m) => !m.guarded && m.currentDb == 6),
+            isTrue,
+            reason: "the speed change re-latched the old song's guard",
+          );
+        });
+
+        test('R7-X2: the heard deck keeps its latch while the other deck is '
+            'prepared', () async {
+          final (handler, player) = await android([
+            6,
+            3,
+            6,
+            3,
+          ], crossfade: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+            'song-2',
+            'song-3',
+          ], expandMatchFlows: false);
+          player
+            ..isPlaying = true
+            ..state = ProcessingState.ready;
+          await handler.setSpeed(2);
+          player.simulatedPosition = const Duration(minutes: 2, seconds: 56);
+          handler.debugTickReplayGainBoost();
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          expect(player.boostMessages.last.currentDb, 3);
+          expect(player.boostMessages.last.guarded, isTrue);
+          await handler.setSpeed(1);
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          handler.debugTickReplayGainBoost();
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          expect(
+            player.boostMessages.last.currentDb,
+            3,
+            reason: 'latched through the speed drop',
+          );
+          final before = player.boostMessages.length;
+          await handler.debugStartCrossfade();
+          handler.debugTickReplayGainBoost();
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          expect(
+            player.boostMessages.skip(before).every((m) => m.currentDb <= 3),
+            isTrue,
+            reason: 'the heard deck lost its latch and was sent its own 6',
+          );
+        });
+
         test('R1: an edit before the playing song never sends another song\'s boost', () async {
           // song-1 (hot, boost 0) plays; song-2 would be boosted 10 dB.
           final (handler, player) = await android([

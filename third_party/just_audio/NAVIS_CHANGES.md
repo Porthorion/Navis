@@ -305,6 +305,6 @@ only goes down, a 0 is always applied (and does not clear it), and a value whose
 never latches. The latch is cleared by `load`, by `onPositionDiscontinuity`
 with reason `AUTO_TRANSITION` or `SEEK` (a new play of the song) and by a
 discontinuity whose old and new media-item uids differ. `REMOVE` or `INTERNAL`
-around the same uid (a queue edit) keeps it. A paused deck latches too: a
-crossfade deck's stale Dart latch is cleared by the Dart side when the deck is
-prepared. `JustAudioReplayGainBoostTest` covers each rule.
+around the same uid (a queue edit) keeps it. A paused deck latches too (Navis's
+Dart side latches only the heard deck, so a prepared crossfade deck is not sent
+the old song's guard). `JustAudioReplayGainBoostTest` covers each rule.

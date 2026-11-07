@@ -5030,10 +5030,14 @@ Desktop volume follows a parallel local-settings path:
    never latches. It is cleared by `load`, an auto-transition or seek
    discontinuity, or a change of media-item uid, and kept by a queue edit around
    the same item (REMOVE or INTERNAL with the same uid), so a lost Dart latch
-   cannot over-boost. A crossfade deck forgets its Dart latch when it is
-   prepared for the next song: the hand-over refresh writes the old song's
-   guard for the paused outgoing deck, and a mid-fade refresh would otherwise
-   send that guard to the playing deck and latch it natively. The tick re-resolves the playing
+   cannot over-boost. Only the heard deck latches in Dart: the refresh
+   that follows a cross-fade hand-over also reaches the paused outgoing deck,
+   and a latch written there would start the next song on that deck at the old
+   song's lower value (a mid-fade refresh would then latch it natively). The
+   outgoing deck is the heard one until the swap, so its tail is still
+   latched, and the incoming deck is latched by the first guarded tick after
+   it becomes heard; a guarded send that reaches it earlier, while it plays
+   its fade-in, is held by the native latch. The tick re-resolves the playing
    source once the edit is done and resets only when the same new source shows
    on two ticks in a row, because a natural advance or a removal of the playing
    song seen only during an edit leaves no event behind and the gap between an

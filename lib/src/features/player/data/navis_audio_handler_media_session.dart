@@ -876,7 +876,11 @@ extension _NavisMediaSession on NavisAudioHandler {
       songDurationMs: duration?.inMilliseconds,
       latchedDb: latched,
     );
-    if (guarded) _boostLatch[deck] = value;
+    // Only the heard deck latches. A cross-fade's outgoing deck is the heard one
+    // until the swap; after it, the refresh that also reaches the paused
+    // outgoing deck would otherwise write that song's end guard for it, and the
+    // fade that reuses the deck would start the next song at the old value.
+    if (guarded && heard) _boostLatch[deck] = value;
     return (db: value, guarded: guarded);
   }
 

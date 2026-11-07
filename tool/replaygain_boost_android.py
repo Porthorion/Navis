@@ -79,7 +79,8 @@ class Run:
                     v = self.status()
                     row = {'t': round(time.time(), 3), 'phase': self.phase, 'songId': v.get('songId'),
                            'index': v.get('currentIndex'), 'positionMs': v.get('playerPositionMs'), 'durationMs': v.get('durationMs'),
-                           'playing': v.get('playing'),
+                           'playing': v.get('playing'), 'repeat': v.get('repeatMode'),
+                           'shuffle': v.get('shuffleEnabled'), 'speed': v.get('playerSpeed'),
                            'boost': v.get('replayGainBoost'), 'decision': v.get('replayGain')}
                     self.samples.write(json.dumps(row) + '\n')
                     self.samples.flush()
@@ -318,7 +319,9 @@ class Run:
         poller.start()
         self.post('/v1/playback/queue-edit', {'op': 'remove', 'index': 0})
         replied[0] = time.time()
-        time.sleep(.6)
+        time.sleep(.5)
+        self.nudge()
+        time.sleep(.1)
         stop.set()
         poller.join(2)
         order = ('before-reply' if seen[0] is not None and seen[0] <= replied[0]
@@ -327,6 +330,16 @@ class Run:
                                         'indexSeenMs': None if seen[0] is None else round((seen[0] - started) * 1000),
                                         'order': order}) + '\n')
         self.ordering.flush()
+
+    def nudge(self):
+        """A speed change (1.01, then back) about 0.5 s after an edit, so Dart re-sends its boost after the edit:
+        with the Dart latch disabled (a throwaway build), `requestedDb` staying at the guarded value then shows
+        that the native latch survived the edit."""
+        if not getattr(self.args, 'nudge_after_edits', False):
+            return
+        self.post('/v1/playback/adjustments', {'speed': 1.01})
+        time.sleep(.3)
+        self.post('/v1/playback/adjustments', {'speed': 1})
 
     def a2(self):
         """A2: song switches and queue edits around a boosted Q: nothing may reach the processor
@@ -425,6 +438,8 @@ class Run:
                 # Insert above the playing Q: an append, then a move of the new entry to the top.
                 self.post('/v1/playback/queue-edit', {'op': 'add', 'songIds': [H2]})
                 self.post('/v1/playback/queue-edit', {'op': 'move', 'from': 3, 'to': 0})
+                time.sleep(.5)
+                self.nudge()
             elif action == 'loop':
                 self.post('/v1/playback/repeat', {'mode': 'all'})
             else:
@@ -438,6 +453,10 @@ class Run:
         self.phase = 'a2-duplicate'
         self.queue([Q1, Q1, H1])
         self.play_from(26000)
+        if getattr(self.args, 'nudge_after_edits', False):
+            self.wait(lambda: self.status().get('currentIndex') == 1, 15, .1, 'the second copy of Q')
+            time.sleep(.5)
+            self.nudge()
         time.sleep(9)
 
         # Repeat-one wraps Q onto itself; repeat off in the second pass must not leave Q guarded.
@@ -464,6 +483,8 @@ def main():
     parser.add_argument('--serial', required=True)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--reuse-apk', action='store_true', help='install output/app.apk instead of building')
+    parser.add_argument('--nudge-after-edits', action='store_true',
+                        help='change the speed 0.5 s after each A2 edit (for a throwaway build with the Dart latch off)')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     Run(args).run()

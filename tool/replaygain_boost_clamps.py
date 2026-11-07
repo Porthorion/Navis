@@ -1,4 +1,5 @@
-"""Clamp rules of the ReplayGain boost runtime checks. Pure Python: the self-test runs without numpy."""
+"""Pure-Python rules of the ReplayGain boost runtime checks (clamps, edit landing, the A2 latch phases): the
+self-test runs without numpy."""
 
 
 def unexpected_clamps(rows):
@@ -34,3 +35,46 @@ def edit_landed(rows, phase, song, before, after):
     the phase's queue edit happened (a remove above moves Q from 1 to 0, an insert above from 1 to 2)."""
     seen = [r['index'] for r in rows if r['phase'] == phase and r['songId'] == song and r.get('index') is not None]
     return before in seen and after in seen[seen.index(before):]
+
+
+def field_changed(rows, phase, key):
+    """Whether `key` took two different values in `phase`: the proof that a loop, shuffle or speed change landed."""
+    return len({r.get(key) for r in rows if r['phase'] == phase and r.get(key) is not None}) >= 2
+
+
+def speed_changed_mid_fade(rows):
+    """The crossfade-speed phase: a row of H1 in its fade (from 27 s) at another speed, then Q2 heard."""
+    seq = [r for r in rows if r['phase'] == 'crossfade-speed']
+    for i, r in enumerate(seq):
+        if (r['songId'] == 'rgh-1' and (r.get('positionMs') or 0) >= 27000 and (r.get('speed') or 1) >= 1.2
+                and any(x['songId'] == 'rgq-2' for x in seq[i:])):
+            return True
+    return False
+
+
+LATCH_ACTIONS = [f'remove-above-{n}' for n in range(1, 6)] + ['insert-above', 'loop', 'shuffle']
+MOVED = {'insert-above': (1, 2), **{f'remove-above-{n}': (1, 0) for n in range(1, 6)}}
+CHANGED = {'loop': 'repeat', 'shuffle': 'shuffle'}
+
+
+def latch_phase_results(rows):
+    """(label, ok, detail) per A2 latch phase: the edit landed (an index change, or a loop or shuffle value
+    change), and Q stays guarded to 0 in 25.2-26.8 s. Each run asserts on its own: a pooled maximum would hide one
+    bad run among five good ones, and the 2x to 1x drop alone makes the latch, so a no-op edit must fail."""
+    results = []
+    for action in LATCH_ACTIONS:
+        phase = f'a2-latch-{action}'
+        if action in MOVED:
+            before, after = MOVED[action]
+            results.append((f'A2 {action}: the edit landed (Q moved from queue index {before} to {after})',
+                            edit_landed(rows, phase, 'rgq-1', before, after), f'moved={MOVED[action]}'))
+        else:
+            results.append((f'A2 {action}: the change landed (the status {CHANGED[action]} value changed)',
+                            field_changed(rows, phase, CHANGED[action]), f'key={CHANGED[action]}'))
+        rs = [r for r in rows if r['phase'] == phase and r['songId'] == 'rgq-1' and r.get('playing')
+              and r['positionMs'] is not None and 25200 <= r['positionMs'] <= 26800
+              and r['boost']['sentDb'] is not None]
+        results.append((f'A2 {action} after a 2x to 1x drop with 5 s left: Q stays guarded to 0 until the window',
+                        len(rs) > 3 and max(r['boost']['sentDb'] for r in rs) == 0,
+                        f'n={len(rs)} max sentDb={max([r["boost"]["sentDb"] for r in rs] or [None])}'))
+    return results

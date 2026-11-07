@@ -11,7 +11,7 @@ import sys
 
 import numpy as np
 
-from replaygain_boost_clamps import edit_landed, unexpected_clamps
+from replaygain_boost_clamps import latch_phase_results, speed_changed_mid_fade, unexpected_clamps
 
 RATE = 44100
 WIN = RATE // 100  # 10 ms
@@ -201,6 +201,8 @@ def a1(root):
     # A speed change in the middle of the fade to Q2: the incoming deck must not carry the old song's guard
     # into Q2 (a stale latch there would hold Q2 below its own boost for the whole song).
     fast = [r for r in mid(phase('crossfade-speed'), 3000, 20000) if r['songId'] == 'rgq-2']
+    check('A1 crossfade-speed: the speed change landed in the fade to Q2 (H1 from 27 s at another speed, then Q2)',
+          speed_changed_mid_fade(rows), 'rows=%d' % len(phase('crossfade-speed')))
     check('A1 crossfade with a speed change mid-fade: Q is boosted ~10 dB all song',
           len(fast) > 10 and 9.5 <= float(np.median([r['boost']['appliedDb'] for r in fast])) <= 10.5
           and min(r['boost']['requestedDb'] for r in fast) >= 9.5,
@@ -280,19 +282,8 @@ def a1(root):
     else:
         check('A2 Play on the completed queue restarted at song 0 or replayed Q', False,
               f'Q end rows={len(done)} H restart rows={len(restarted)} Q again rows={len(again)}')
-    # Each run asserts on its own: a pooled maximum would hide one bad run among five good ones.
-    for action in [f'remove-above-{n}' for n in range(1, 6)] + ['insert-above', 'loop', 'shuffle']:
-        rs = [r for r in phase(f'a2-latch-{action}') if r['songId'] == 'rgq-1' and r.get('playing')
-              and r['positionMs'] is not None and 25200 <= r['positionMs'] <= 26800
-              and r['boost']['sentDb'] is not None]
-        # The edit must have landed, or the phase proves nothing: the drop alone makes the latch.
-        moved = {'insert-above': (1, 2)}.get(action, (1, 0) if action.startswith('remove-above') else None)
-        if moved:
-            check(f'A2 {action}: the edit landed (Q moved from queue index {moved[0]} to {moved[1]})',
-                  edit_landed(rows, f'a2-latch-{action}', 'rgq-1', *moved), f'moved={moved}')
-        check(f'A2 {action} after a 2x to 1x drop with 5 s left: Q stays guarded to 0 until the window',
-              len(rs) > 3 and max(r['boost']['sentDb'] for r in rs) == 0,
-              f'n={len(rs)} max sentDb={max([r["boost"]["sentDb"] for r in rs] or [None])}')
+    for label, ok_, detail in latch_phase_results(rows):
+        check(label, ok_, detail)
     # A new play of the same song: a duplicate entry (index 1 of [Q, Q, H]) and the repeat pass of repeat-one.
     second = [r for r in phase('a2-duplicate') if r['songId'] == 'rgq-1' and r.get('index') == 1 and r.get('playing')
               and r['positionMs'] is not None and 1500 <= r['positionMs'] <= 6000]
