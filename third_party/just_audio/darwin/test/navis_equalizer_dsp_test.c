@@ -242,11 +242,11 @@ static void testDiscontinuity(void) {
 static double cmtime(double seconds, int timescale) { return floor(seconds * timescale + 0.5) / timescale; }
 
 static void testContinuity(void) {
-    const int timescales[] = {44100, 48000, 600};
+    const int timescales[] = {44100, 48000, 600, 1000, 96000, 22050};
     const int rates[] = {44100, 48000, 96000};
     const int sizes[] = {1, 441, 882, 883, 1024, 4096};
     NavisEqConfig c = config(true, false, 0, NULL, 0);
-    for (int t = 0; t < 3; t++) {
+    for (int t = 0; t < 6; t++) {
         for (int r = 0; r < 3; r++) {
             NavisEqStream *s = navis_eq_stream_new(&c, rates[r], 2);
             long frames = 123457; // not aligned to the timescale
@@ -349,7 +349,6 @@ static void runThreaded(int sampleRate, const int *sizes, int sizeCount, int ite
     atomic_init(&t.bad, false);
     pthread_t thread;
     pthread_create(&thread, NULL, audioMain, &t);
-    int maxBanks = 0;
     for (int i = 0; i < iterations; i++) {
         NavisEqConfig c = config(i % 7 != 0, i % 2 == 0, -(double)(i % 24), fs, 2);
         c.filters[0].gain = (i % 25) - 12;
@@ -357,8 +356,25 @@ static void runThreaded(int sampleRate, const int *sizes, int sizeCount, int ite
         NavisEqStreamState st;
         navis_eq_stream_state(t.stream, &st);
         if (i % 3 == 0) navis_eq_stream_sweep(t.stream);
-        int banks = navis_eq_stream_bank_count(t.stream);
-        if (banks > maxBanks) maxBanks = banks;
+        // The bank count is only bounded once the audio thread has run: a
+        // descheduled audio thread legitimately delays frees, so the peak
+        // while it runs is not asserted. At a quiescent point (two more audio
+        // calls since the edit, capped at 1 s) a sweep leaves applied,
+        // requested, a fading bank and at most one straggler.
+        if (i % 200 == 0) {
+            NavisEqStreamState before, now;
+            navis_eq_stream_state(t.stream, &before);
+            int advances = 0;
+            uint64_t last = before.processedFrames;
+            for (int wait = 0; wait < 1000 && advances < 2; wait++) {
+                struct timespec ts = {0, 1000000};
+                nanosleep(&ts, NULL);
+                navis_eq_stream_state(t.stream, &now);
+                if (now.processedFrames != last) { advances++; last = now.processedFrames; }
+            }
+            navis_eq_stream_sweep(t.stream);
+            if (advances >= 2) check(navis_eq_stream_bank_count(t.stream) <= 5, "quiescent edit leaves a bounded number of banks");
+        }
         if (i % 50 == 0) {
             struct timespec ts = {0, 200000};
             nanosleep(&ts, NULL);
@@ -367,7 +383,6 @@ static void runThreaded(int sampleRate, const int *sizes, int sizeCount, int ite
     atomic_store(&t.stop, true);
     pthread_join(thread, NULL);
     check(!atomic_load(&t.bad), "nonfinite or exploding output during edits");
-    check(maxBanks <= 16, "threaded edits keep a bounded number of banks");
     navis_eq_stream_request(t.stream, &c0);
     check(navis_eq_stream_bank_count(t.stream) <= 4, "threaded edits leave a bounded number of banks");
     navis_eq_stream_free(t.stream);

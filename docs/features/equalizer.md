@@ -54,7 +54,7 @@ rounding of both ends to a timescale as coarse as 600), because the header's
 StartOfStream flag is only set on the first block after prepare. While paused
 or seeking the tap is still called with empty source ranges (zero duration),
 which are ignored. `resetCount` in the diagnostics `application` counts these
-resets (one for the start, one per resume, one or two per seek: measured below). The reported `reason` names why
+resets (measured on the iOS simulator with a +9 dB, 60 Hz filter on 96, 48 and 44.1 kHz FLAC files at 1× and 1.5× and a 44.1 kHz proxied stream at 1×: 1 at the start, no growth over 35 s of steady playback, +1 per pause and resume, +1 per seek). The reported `reason` names why
 the current item is not processed: still attaching, no audio track (for example
 HLS before playback), the track load failed, the tap could not be created, or
 an unsupported format. Known limitation: an asset whose track load never
