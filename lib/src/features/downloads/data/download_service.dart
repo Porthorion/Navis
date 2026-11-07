@@ -1679,14 +1679,7 @@ class DownloadService {
       // ignore: avoid_slow_async_io
       if (!await destination.exists() ||
           await destination.length() != await file.length()) {
-        final part = File('$newPath$downloadPartSuffix');
-        try {
-          await file.copy(part.path);
-          await renameWithRetry(part, destination.path);
-        } on FileSystemException {
-          await tryDeleteFile(part);
-          rethrow;
-        }
+        await _copyThroughPartFile(file, destination.path);
       }
     } on FileSystemException catch (e) {
       await _holdForFolderFailure(e);
@@ -2438,6 +2431,9 @@ class DownloadService {
   ///
   /// A part file is deliberately never resumed, even when it is complete.
   Future<void> _reconcileFinishedDownloads(int generation) async {
+    // Stale journal paths would read as missing files and requeue valid
+    // downloads; a launch whose rebase succeeds rewrites them first.
+    if (await _pathsUnverified()) return;
     for (final item in await _downloadQueueDao.watchQueue().first) {
       _checkRecovery(generation);
       if (item.finishJournal == null || item.songId == null) continue;
@@ -3564,7 +3560,7 @@ class DownloadService {
             : File(entry.filePath).parent;
         if (sourceWasSaf) {
           await Directory(p.dirname(targetPath)).create(recursive: true);
-          await sourceFile.copy(targetPath);
+          await _copyThroughPartFile(sourceFile, targetPath);
         } else {
           await _movePermanentFileSet(entry.filePath, targetPath);
         }
@@ -3778,8 +3774,24 @@ class DownloadService {
     try {
       await source.rename(destination.path);
     } on FileSystemException {
-      await source.copy(destination.path);
+      await _copyThroughPartFile(source, destination.path);
       await source.delete();
+    }
+  }
+
+  /// Copies [source] to [destination] through a part file, so a crash or
+  /// failure mid-copy never leaves a truncated file at the final path.
+  static Future<void> _copyThroughPartFile(
+    File source,
+    String destination,
+  ) async {
+    final part = File('$destination$downloadPartSuffix');
+    try {
+      await source.copy(part.path);
+      await renameWithRetry(part, destination);
+    } on FileSystemException {
+      await tryDeleteFile(part);
+      rethrow;
     }
   }
 

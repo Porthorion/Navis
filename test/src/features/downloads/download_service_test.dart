@@ -2637,6 +2637,92 @@ void main() {
       expect(settings?.customDownloadFolderPath, isNull);
     }, skip: sqliteAvailable ? null : 'sqlite3 not available');
 
+    for (final copyFails in [true, false]) {
+      test(
+        'cross-volume relocation copy '
+        '${copyFails ? 'leaves no truncated file at the final path' : 'lands whole through a part file'}',
+        () async {
+          final supportDir = await Directory.systemTemp.createTemp(
+            'navis_default_support_',
+          );
+          final customDir = await Directory.systemTemp.createTemp(
+            'navis_custom_downloads_',
+          );
+          addTearDown(() => supportDir.delete(recursive: true));
+          addTearDown(() => customDir.delete(recursive: true));
+          final legacyDir = Directory('${supportDir.path}/audio/permanent')
+            ..createSync(recursive: true);
+          final legacyFile = File('${legacyDir.path}/song-1_legacy.mp3')
+            ..writeAsBytesSync(<int>[4, 5, 6]);
+          final movingService = DownloadService(
+            appSettingsDao: database.appSettingsDao,
+            cacheDao: database.cacheDao,
+            downloadQueueDao: database.downloadQueueDao,
+            libraryDao: database.libraryDao,
+            readApiClient: () => null,
+            readWifiOnly: () => false,
+            readIsWifi: () => true,
+            readCustomDownloadFolderEnabled: () => false,
+            readCustomDownloadFolderPath: () => null,
+            lrclibClient: LrclibClient(),
+            readCoverArtCacheManager: _MockCacheManager.new,
+            artworkStore: _OfflineArtworkStore(),
+            readApplicationSupportDirectory: () async => supportDir,
+          );
+          addTearDown(movingService.stop);
+          await database.libraryDao.upsertSongs(<SongsTableCompanion>[
+            SongsTableCompanion.insert(
+              id: 'song-1',
+              title: 'Duality',
+              artistName: const Value('Slipknot'),
+            ),
+          ]);
+          await database.cacheDao.upsertCachedTrack(
+            CachedTracksTableCompanion.insert(
+              songId: 'song-1',
+              filePath: legacyFile.path,
+              fileSize: 3,
+              format: 'mp3',
+              cacheType: CacheType.permanent,
+              downloadStatus: DownloadStatus.complete,
+              lastAccessedAt: DateTime.now(),
+            ),
+          );
+
+          // The source cannot be renamed (another volume); its copy either
+          // dies after writing some bytes or succeeds.
+          final relocation = IOOverrides.runZoned(
+            () => movingService.configureCustomDownloadFolder(
+              enabled: true,
+              path: customDir.path,
+            ),
+            createFile: (path) {
+              final file = Zone.root.run(() => File(path));
+              return path == legacyFile.path
+                  ? _CrossVolumeFile(file, copyFails: copyFails)
+                  : file;
+            },
+          );
+          List<File> moved() => customDir
+              .listSync(recursive: true)
+              .whereType<File>()
+              .where((f) => !f.path.endsWith('.sqlite'))
+              .toList();
+          if (copyFails) {
+            await expectLater(relocation, throwsA(isA<FileSystemException>()));
+            expect(moved(), isEmpty);
+            expect(legacyFile.existsSync(), isTrue);
+          } else {
+            await relocation;
+            expect(moved().single.readAsBytesSync(), <int>[4, 5, 6]);
+            expect(moved().single.path, isNot(endsWith('.navis-part')));
+            expect(legacyFile.existsSync(), isFalse);
+          }
+        },
+        skip: sqliteAvailable ? null : 'sqlite3 not available',
+      );
+    }
+
     group('leaving a custom folder', () {
       late Directory supportDir;
       late Directory customDir;
@@ -3316,4 +3402,35 @@ void main() {
     expect(shouldPersistDownloadProgress(previous: 0.5, next: 0.509), isFalse);
     expect(shouldPersistDownloadProgress(previous: 0.995, next: 1), isTrue);
   });
+}
+
+/// A file on another volume: renaming it fails, and its copy either writes a
+/// truncated target before failing or succeeds.
+class _CrossVolumeFile extends Fake implements File {
+  new(this.inner, {required this.copyFails});
+  final File inner;
+  final bool copyFails;
+  @override
+  String get path => inner.path;
+  @override
+  Directory get parent => inner.parent;
+  @override
+  Future<bool> exists() async => inner.existsSync();
+  @override
+  Future<int> length() => inner.length();
+  @override
+  Future<String> resolveSymbolicLinks() => inner.resolveSymbolicLinks();
+  @override
+  Future<File> rename(String newPath) =>
+      throw FileSystemException('cross-device link', path);
+  @override
+  Future<File> copy(String newPath) async {
+    if (!copyFails) return await inner.copy(newPath);
+    File(newPath).writeAsBytesSync(<int>[4]);
+    throw FileSystemException('disk full', newPath);
+  }
+
+  @override
+  Future<FileSystemEntity> delete({bool recursive = false}) =>
+      inner.delete(recursive: recursive);
 }

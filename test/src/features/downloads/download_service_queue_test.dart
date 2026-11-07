@@ -1523,6 +1523,33 @@ void main() {
     }, skip: !sqliteAvailable);
   }
 
+  test('startup keeps finish journals untouched when the container path '
+      'rebase failed', () async {
+    await database.appSettingsDao.updateDownloadsPaused(paused: true);
+    await addSongs(1);
+    final id = await database.downloadQueueDao.enqueue(
+      DownloadQueueTableCompanion.insert(
+        songId: const Value('song-0'),
+        status: DownloadStatus.downloading,
+        addedAt: DateTime(2026),
+      ),
+    );
+    // A stale (pre-rebase) path: no file there, though the download is whole.
+    final journal = jsonEncode({
+      'path': p.join(supportDir.path, 'audio', 'permanent', 'stale.mp3'),
+      'size': 4,
+      'sha256': sha256.convert([1, 2, 3, 4]).toString(),
+      'format': 'mp3',
+      'bitRate': 192,
+    });
+    await database.downloadQueueDao.writeFinishJournal(id, journal);
+    database.containerRebaseFailed = true;
+    await buildService().start();
+    expect((await queue()).single.finishJournal, journal);
+    expect(await database.cacheDao.getCachedTrack('song-0'), isNull);
+    expect(server.requests, isEmpty);
+  }, skip: !sqliteAvailable);
+
   for (final phase in ['verified', 'published']) {
     for (final saf in [false, true]) {
       test(
