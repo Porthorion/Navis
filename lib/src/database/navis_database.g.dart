@@ -1938,6 +1938,33 @@ class $AppSettingsTableTable extends AppSettingsTable
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _hapticsEnabledMeta = const VerificationMeta(
+    'hapticsEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> hapticsEnabled = GeneratedColumn<bool>(
+    'haptics_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("haptics_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _hapticsDisabledMeta = const VerificationMeta(
+    'hapticsDisabled',
+  );
+  @override
+  late final GeneratedColumn<int> hapticsDisabled = GeneratedColumn<int>(
+    'haptics_disabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _externalIntegrationsEnabledMeta =
       const VerificationMeta('externalIntegrationsEnabled');
   @override
@@ -2142,6 +2169,8 @@ class $AppSettingsTableTable extends AppSettingsTable
     listenBrainzTokenValid,
     listenBrainzUserName,
     customVoyageServers,
+    hapticsEnabled,
+    hapticsDisabled,
     externalIntegrationsEnabled,
     disabledIntegrations,
     integrationsNoticeDismissed,
@@ -3084,6 +3113,24 @@ class $AppSettingsTableTable extends AppSettingsTable
         ),
       );
     }
+    if (data.containsKey('haptics_enabled')) {
+      context.handle(
+        _hapticsEnabledMeta,
+        hapticsEnabled.isAcceptableOrUnknown(
+          data['haptics_enabled']!,
+          _hapticsEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('haptics_disabled')) {
+      context.handle(
+        _hapticsDisabledMeta,
+        hapticsDisabled.isAcceptableOrUnknown(
+          data['haptics_disabled']!,
+          _hapticsDisabledMeta,
+        ),
+      );
+    }
     if (data.containsKey('external_integrations_enabled')) {
       context.handle(
         _externalIntegrationsEnabledMeta,
@@ -3584,6 +3631,14 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.string,
         data['${effectivePrefix}custom_voyage_servers'],
       ),
+      hapticsEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}haptics_enabled'],
+      )!,
+      hapticsDisabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}haptics_disabled'],
+      )!,
       externalIntegrationsEnabled: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}external_integrations_enabled'],
@@ -3905,6 +3960,15 @@ class AppSettingsTableData extends DataClass
   /// [{"label":"Home","url":"https://voyage.example.com"}]
   final String? customVoyageServers;
 
+  /// The Haptics master switch. Off means Navis never vibrates; the category
+  /// choices are kept. Written only by the haptics writers, never by the
+  /// full-row save.
+  final bool hapticsEnabled;
+
+  /// Bitmask of switched-off `HapticCategory` bits; 0 = every category on.
+  /// Written only by the haptics writers, never by the full-row save.
+  final int hapticsDisabled;
+
   /// The "Online services" master switch. Off means Navis only talks to the
   /// user's server. Written only by the integration-policy writers, never by
   /// the full-row save.
@@ -4040,6 +4104,8 @@ class AppSettingsTableData extends DataClass
     required this.listenBrainzTokenValid,
     this.listenBrainzUserName,
     this.customVoyageServers,
+    required this.hapticsEnabled,
+    required this.hapticsDisabled,
     required this.externalIntegrationsEnabled,
     required this.disabledIntegrations,
     required this.integrationsNoticeDismissed,
@@ -4227,6 +4293,8 @@ class AppSettingsTableData extends DataClass
     if (!nullToAbsent || customVoyageServers != null) {
       map['custom_voyage_servers'] = Variable<String>(customVoyageServers);
     }
+    map['haptics_enabled'] = Variable<bool>(hapticsEnabled);
+    map['haptics_disabled'] = Variable<int>(hapticsDisabled);
     map['external_integrations_enabled'] = Variable<bool>(
       externalIntegrationsEnabled,
     );
@@ -4401,6 +4469,8 @@ class AppSettingsTableData extends DataClass
       customVoyageServers: customVoyageServers == null && nullToAbsent
           ? const Value.absent()
           : Value(customVoyageServers),
+      hapticsEnabled: Value(hapticsEnabled),
+      hapticsDisabled: Value(hapticsDisabled),
       externalIntegrationsEnabled: Value(externalIntegrationsEnabled),
       disabledIntegrations: Value(disabledIntegrations),
       integrationsNoticeDismissed: Value(integrationsNoticeDismissed),
@@ -4623,6 +4693,8 @@ class AppSettingsTableData extends DataClass
       customVoyageServers: serializer.fromJson<String?>(
         json['customVoyageServers'],
       ),
+      hapticsEnabled: serializer.fromJson<bool>(json['hapticsEnabled']),
+      hapticsDisabled: serializer.fromJson<int>(json['hapticsDisabled']),
       externalIntegrationsEnabled: serializer.fromJson<bool>(
         json['externalIntegrationsEnabled'],
       ),
@@ -4800,6 +4872,8 @@ class AppSettingsTableData extends DataClass
       'listenBrainzTokenValid': serializer.toJson<bool>(listenBrainzTokenValid),
       'listenBrainzUserName': serializer.toJson<String?>(listenBrainzUserName),
       'customVoyageServers': serializer.toJson<String?>(customVoyageServers),
+      'hapticsEnabled': serializer.toJson<bool>(hapticsEnabled),
+      'hapticsDisabled': serializer.toJson<int>(hapticsDisabled),
       'externalIntegrationsEnabled': serializer.toJson<bool>(
         externalIntegrationsEnabled,
       ),
@@ -4925,6 +4999,8 @@ class AppSettingsTableData extends DataClass
     bool? listenBrainzTokenValid,
     Value<String?> listenBrainzUserName = const Value.absent(),
     Value<String?> customVoyageServers = const Value.absent(),
+    bool? hapticsEnabled,
+    int? hapticsDisabled,
     bool? externalIntegrationsEnabled,
     String? disabledIntegrations,
     bool? integrationsNoticeDismissed,
@@ -5096,6 +5172,8 @@ class AppSettingsTableData extends DataClass
     customVoyageServers: customVoyageServers.present
         ? customVoyageServers.value
         : this.customVoyageServers,
+    hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
+    hapticsDisabled: hapticsDisabled ?? this.hapticsDisabled,
     externalIntegrationsEnabled:
         externalIntegrationsEnabled ?? this.externalIntegrationsEnabled,
     disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
@@ -5424,6 +5502,12 @@ class AppSettingsTableData extends DataClass
       customVoyageServers: data.customVoyageServers.present
           ? data.customVoyageServers.value
           : this.customVoyageServers,
+      hapticsEnabled: data.hapticsEnabled.present
+          ? data.hapticsEnabled.value
+          : this.hapticsEnabled,
+      hapticsDisabled: data.hapticsDisabled.present
+          ? data.hapticsDisabled.value
+          : this.hapticsDisabled,
       externalIntegrationsEnabled: data.externalIntegrationsEnabled.present
           ? data.externalIntegrationsEnabled.value
           : this.externalIntegrationsEnabled,
@@ -5565,6 +5649,8 @@ class AppSettingsTableData extends DataClass
           ..write('listenBrainzTokenValid: $listenBrainzTokenValid, ')
           ..write('listenBrainzUserName: $listenBrainzUserName, ')
           ..write('customVoyageServers: $customVoyageServers, ')
+          ..write('hapticsEnabled: $hapticsEnabled, ')
+          ..write('hapticsDisabled: $hapticsDisabled, ')
           ..write('externalIntegrationsEnabled: $externalIntegrationsEnabled, ')
           ..write('disabledIntegrations: $disabledIntegrations, ')
           ..write('integrationsNoticeDismissed: $integrationsNoticeDismissed, ')
@@ -5684,6 +5770,8 @@ class AppSettingsTableData extends DataClass
     listenBrainzTokenValid,
     listenBrainzUserName,
     customVoyageServers,
+    hapticsEnabled,
+    hapticsDisabled,
     externalIntegrationsEnabled,
     disabledIntegrations,
     integrationsNoticeDismissed,
@@ -5808,6 +5896,8 @@ class AppSettingsTableData extends DataClass
           other.listenBrainzTokenValid == this.listenBrainzTokenValid &&
           other.listenBrainzUserName == this.listenBrainzUserName &&
           other.customVoyageServers == this.customVoyageServers &&
+          other.hapticsEnabled == this.hapticsEnabled &&
+          other.hapticsDisabled == this.hapticsDisabled &&
           other.externalIntegrationsEnabled ==
               this.externalIntegrationsEnabled &&
           other.disabledIntegrations == this.disabledIntegrations &&
@@ -5926,6 +6016,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> listenBrainzTokenValid;
   final Value<String?> listenBrainzUserName;
   final Value<String?> customVoyageServers;
+  final Value<bool> hapticsEnabled;
+  final Value<int> hapticsDisabled;
   final Value<bool> externalIntegrationsEnabled;
   final Value<String> disabledIntegrations;
   final Value<bool> integrationsNoticeDismissed;
@@ -6040,6 +6132,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.listenBrainzTokenValid = const Value.absent(),
     this.listenBrainzUserName = const Value.absent(),
     this.customVoyageServers = const Value.absent(),
+    this.hapticsEnabled = const Value.absent(),
+    this.hapticsDisabled = const Value.absent(),
     this.externalIntegrationsEnabled = const Value.absent(),
     this.disabledIntegrations = const Value.absent(),
     this.integrationsNoticeDismissed = const Value.absent(),
@@ -6155,6 +6249,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.listenBrainzTokenValid = const Value.absent(),
     this.listenBrainzUserName = const Value.absent(),
     this.customVoyageServers = const Value.absent(),
+    this.hapticsEnabled = const Value.absent(),
+    this.hapticsDisabled = const Value.absent(),
     this.externalIntegrationsEnabled = const Value.absent(),
     this.disabledIntegrations = const Value.absent(),
     this.integrationsNoticeDismissed = const Value.absent(),
@@ -6270,6 +6366,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? listenBrainzTokenValid,
     Expression<String>? listenBrainzUserName,
     Expression<String>? customVoyageServers,
+    Expression<bool>? hapticsEnabled,
+    Expression<int>? hapticsDisabled,
     Expression<bool>? externalIntegrationsEnabled,
     Expression<String>? disabledIntegrations,
     Expression<bool>? integrationsNoticeDismissed,
@@ -6435,6 +6533,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'listen_brainz_user_name': listenBrainzUserName,
       if (customVoyageServers != null)
         'custom_voyage_servers': customVoyageServers,
+      if (hapticsEnabled != null) 'haptics_enabled': hapticsEnabled,
+      if (hapticsDisabled != null) 'haptics_disabled': hapticsDisabled,
       if (externalIntegrationsEnabled != null)
         'external_integrations_enabled': externalIntegrationsEnabled,
       if (disabledIntegrations != null)
@@ -6559,6 +6659,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? listenBrainzTokenValid,
     Value<String?>? listenBrainzUserName,
     Value<String?>? customVoyageServers,
+    Value<bool>? hapticsEnabled,
+    Value<int>? hapticsDisabled,
     Value<bool>? externalIntegrationsEnabled,
     Value<String>? disabledIntegrations,
     Value<bool>? integrationsNoticeDismissed,
@@ -6703,6 +6805,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           listenBrainzTokenValid ?? this.listenBrainzTokenValid,
       listenBrainzUserName: listenBrainzUserName ?? this.listenBrainzUserName,
       customVoyageServers: customVoyageServers ?? this.customVoyageServers,
+      hapticsEnabled: hapticsEnabled ?? this.hapticsEnabled,
+      hapticsDisabled: hapticsDisabled ?? this.hapticsDisabled,
       externalIntegrationsEnabled:
           externalIntegrationsEnabled ?? this.externalIntegrationsEnabled,
       disabledIntegrations: disabledIntegrations ?? this.disabledIntegrations,
@@ -7110,6 +7214,12 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         customVoyageServers.value,
       );
     }
+    if (hapticsEnabled.present) {
+      map['haptics_enabled'] = Variable<bool>(hapticsEnabled.value);
+    }
+    if (hapticsDisabled.present) {
+      map['haptics_disabled'] = Variable<int>(hapticsDisabled.value);
+    }
     if (externalIntegrationsEnabled.present) {
       map['external_integrations_enabled'] = Variable<bool>(
         externalIntegrationsEnabled.value,
@@ -7267,6 +7377,8 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('listenBrainzTokenValid: $listenBrainzTokenValid, ')
           ..write('listenBrainzUserName: $listenBrainzUserName, ')
           ..write('customVoyageServers: $customVoyageServers, ')
+          ..write('hapticsEnabled: $hapticsEnabled, ')
+          ..write('hapticsDisabled: $hapticsDisabled, ')
           ..write('externalIntegrationsEnabled: $externalIntegrationsEnabled, ')
           ..write('disabledIntegrations: $disabledIntegrations, ')
           ..write('integrationsNoticeDismissed: $integrationsNoticeDismissed, ')
@@ -36463,6 +36575,8 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> listenBrainzTokenValid,
       Value<String?> listenBrainzUserName,
       Value<String?> customVoyageServers,
+      Value<bool> hapticsEnabled,
+      Value<int> hapticsDisabled,
       Value<bool> externalIntegrationsEnabled,
       Value<String> disabledIntegrations,
       Value<bool> integrationsNoticeDismissed,
@@ -36579,6 +36693,8 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> listenBrainzTokenValid,
       Value<String?> listenBrainzUserName,
       Value<String?> customVoyageServers,
+      Value<bool> hapticsEnabled,
+      Value<int> hapticsDisabled,
       Value<bool> externalIntegrationsEnabled,
       Value<String> disabledIntegrations,
       Value<bool> integrationsNoticeDismissed,
@@ -37121,6 +37237,16 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<String> get customVoyageServers => $composableBuilder(
     column: $table.customVoyageServers,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get hapticsEnabled => $composableBuilder(
+    column: $table.hapticsEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get hapticsDisabled => $composableBuilder(
+    column: $table.hapticsDisabled,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -37701,6 +37827,16 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get hapticsEnabled => $composableBuilder(
+    column: $table.hapticsEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get hapticsDisabled => $composableBuilder(
+    column: $table.hapticsDisabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get externalIntegrationsEnabled => $composableBuilder(
     column: $table.externalIntegrationsEnabled,
     builder: (column) => ColumnOrderings(column),
@@ -38268,6 +38404,16 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get hapticsEnabled => $composableBuilder(
+    column: $table.hapticsEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get hapticsDisabled => $composableBuilder(
+    column: $table.hapticsDisabled,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get externalIntegrationsEnabled => $composableBuilder(
     column: $table.externalIntegrationsEnabled,
     builder: (column) => column,
@@ -38453,6 +38599,8 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> listenBrainzTokenValid = const Value.absent(),
                 Value<String?> listenBrainzUserName = const Value.absent(),
                 Value<String?> customVoyageServers = const Value.absent(),
+                Value<bool> hapticsEnabled = const Value.absent(),
+                Value<int> hapticsDisabled = const Value.absent(),
                 Value<bool> externalIntegrationsEnabled = const Value.absent(),
                 Value<String> disabledIntegrations = const Value.absent(),
                 Value<bool> integrationsNoticeDismissed = const Value.absent(),
@@ -38569,6 +38717,8 @@ class $$AppSettingsTableTableTableManager
                 listenBrainzTokenValid: listenBrainzTokenValid,
                 listenBrainzUserName: listenBrainzUserName,
                 customVoyageServers: customVoyageServers,
+                hapticsEnabled: hapticsEnabled,
+                hapticsDisabled: hapticsDisabled,
                 externalIntegrationsEnabled: externalIntegrationsEnabled,
                 disabledIntegrations: disabledIntegrations,
                 integrationsNoticeDismissed: integrationsNoticeDismissed,
@@ -38689,6 +38839,8 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> listenBrainzTokenValid = const Value.absent(),
                 Value<String?> listenBrainzUserName = const Value.absent(),
                 Value<String?> customVoyageServers = const Value.absent(),
+                Value<bool> hapticsEnabled = const Value.absent(),
+                Value<int> hapticsDisabled = const Value.absent(),
                 Value<bool> externalIntegrationsEnabled = const Value.absent(),
                 Value<String> disabledIntegrations = const Value.absent(),
                 Value<bool> integrationsNoticeDismissed = const Value.absent(),
@@ -38805,6 +38957,8 @@ class $$AppSettingsTableTableTableManager
                 listenBrainzTokenValid: listenBrainzTokenValid,
                 listenBrainzUserName: listenBrainzUserName,
                 customVoyageServers: customVoyageServers,
+                hapticsEnabled: hapticsEnabled,
+                hapticsDisabled: hapticsDisabled,
                 externalIntegrationsEnabled: externalIntegrationsEnabled,
                 disabledIntegrations: disabledIntegrations,
                 integrationsNoticeDismissed: integrationsNoticeDismissed,

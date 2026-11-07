@@ -50,6 +50,7 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 /// An album's page. An album the library does not hold yet, or a remote
 /// (`ext-…`) album without tracks, is fetched from the server first: the page
@@ -1471,7 +1472,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (!mounted || generation != _hydrationGeneration) {
         return;
       }
-      if (!requestFailed) NavisHaptics.confirm();
+      if (!requestFailed) NavisHaptics.confirm(HapticCategory.likesAndAlerts);
       ref.invalidate(albumInfoProvider(widget.albumId));
       // A page without the album shows the failure itself.
       if (!requestFailed ||
@@ -2145,8 +2146,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
             artist.id,
             name: artist.name,
           ),
-          onLongPress: () =>
-              unawaited(showArtistContextMenu(context, ref, artist.id)),
+          enableFeedback: false,
+          onLongPress: withLongPressHaptic(
+            () => unawaited(showArtistContextMenu(context, ref, artist.id)),
+          ),
           onSecondaryTapDown: (details) => unawaited(
             showArtistContextMenu(
               context,
@@ -2235,7 +2238,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 
   Future<void> _copyTitle(BuildContext context, String text) async {
     final l10n = AppLocalizations.of(context)!;
-    NavisHaptics.confirm();
+    NavisHaptics.confirm(HapticCategory.likesAndAlerts);
     await Clipboard.setData(ClipboardData(text: text));
     if (!context.mounted) return;
     showAppNotice(

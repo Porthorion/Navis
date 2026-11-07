@@ -27,7 +27,11 @@ import 'package:navis/src/features/settings/presentation/playback_settings_scree
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
 
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
+
 import '../../../../helpers/adaptive_test_harness.dart';
+import '../../../../helpers/haptics_spy.dart';
 import '../../../../helpers/now_playing_harness.dart';
 import '../../../../helpers/test_database.dart';
 
@@ -292,6 +296,44 @@ void main() {
       await tester.fling(_infoText, const Offset(0, 300), 1200);
       await tester.pumpAndSettle();
       expect(collapsed, isTrue);
+    }, skip: !sqliteAvailable);
+  });
+
+  group('a hold is a Lists & Menus haptic', () {
+    // The framework's own long-press vibration is off, so the master switch
+    // and the category decide.
+    Future<void> checkHold(WidgetTester tester, Finder target) async {
+      final spy = HapticsSpy.install(tester);
+      NavisHaptics.prefs = HapticsPrefs.fromColumns(
+        true,
+        HapticCategory.listsAndMenus.bit,
+      );
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      expect(mediaInfoOpen(), isTrue);
+      expect(await spy.take(tester), isEmpty, reason: 'category off');
+      expect(spy.takeFramework(), isEmpty);
+      await tester.tap(find.byKey(const ValueKey('mediaInfoClose')));
+      await tester.pumpAndSettle();
+
+      NavisHaptics.prefs = HapticsPrefs.fromColumns(
+        true,
+        HapticCategory.playerGestures.bit,
+      );
+      await tester.longPress(target);
+      await tester.pumpAndSettle();
+      expect(await spy.take(tester), ['longPress'], reason: 'category on');
+      expect(spy.takeFramework(), isEmpty);
+    }
+
+    testWidgets('the phone info chip', (tester) async {
+      await pumpSheet(tester);
+      await checkHold(tester, _infoText);
+    }, skip: !sqliteAvailable);
+
+    testWidgets('a desktop info-grid cell', (tester) async {
+      await pumpSheet(tester, withSheet: false, size: const Size(1000, 900));
+      await checkHold(tester, find.text(_quality));
     }, skip: !sqliteAvailable);
   });
 

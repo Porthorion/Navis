@@ -16,6 +16,7 @@ import 'package:navis/src/features/equalizer/presentation/eq_graph_geometry.dart
 import 'package:navis/src/features/equalizer/presentation/eq_graph_painter.dart';
 import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 /// A graph of authored bands with independent, explicitly labelled output gain.
 class EqGraphEditor extends StatefulWidget {
@@ -286,9 +287,9 @@ class EqGraphEditorState extends State<EqGraphEditor> {
   void _tickGain(double from, double to) {
     switch (rulerTickFeedback(from, to, 0, perUnit: 1, majorEvery: null)) {
       case RulerTick.neutral:
-        NavisHaptics.firm();
+        NavisHaptics.firm(HapticCategory.slidersAndRulers);
       case RulerTick.minor:
-        NavisHaptics.tick();
+        NavisHaptics.tick(HapticCategory.slidersAndRulers);
       case RulerTick.major:
       case RulerTick.none:
         break;
@@ -299,7 +300,8 @@ class EqGraphEditorState extends State<EqGraphEditor> {
     if (hits.isEmpty || !widget.enabled) return;
     _focus.requestFocus();
     if (hits.length == 1) {
-      if (widget.selectedBand != hits.single) NavisHaptics.contextClick();
+      if (widget.selectedBand != hits.single)
+        NavisHaptics.contextClick(HapticCategory.slidersAndRulers);
       widget.onSelect(hits.single);
       return;
     }
@@ -660,7 +662,9 @@ class EqGraphEditorState extends State<EqGraphEditor> {
                           final index = targets.single;
                           _focus.requestFocus();
                           if (widget.selectedBand != index) {
-                            NavisHaptics.contextClick();
+                            NavisHaptics.contextClick(
+                              HapticCategory.slidersAndRulers,
+                            );
                           }
                           widget.onSelect(index);
                           _lastGainDb = current.filters[index].gainDb;

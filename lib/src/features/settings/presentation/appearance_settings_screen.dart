@@ -36,6 +36,7 @@ import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 class AppearanceSettingsScreen extends ConsumerStatefulWidget {
   const new({this.focusLibraryPages = false, super.key});
@@ -1897,8 +1898,9 @@ class _HomeSectionReorderState extends State<_HomeSectionReorder> {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       itemCount: _localOrder.length,
-      onReorderStart: (_) => NavisHaptics.dragStart(),
-      onReorderEnd: (_) => NavisHaptics.dragEnd(),
+      onReorderStart: (_) =>
+          NavisHaptics.dragStart(HapticCategory.listsAndMenus),
+      onReorderEnd: (_) => NavisHaptics.dragEnd(HapticCategory.listsAndMenus),
       onReorderItem: (oldIndex, newIndex) {
         setState(() {
           final item = _localOrder.removeAt(oldIndex);
@@ -2007,8 +2009,9 @@ class _LibraryPageReorderState extends State<_LibraryPageReorder> {
       physics: const NeverScrollableScrollPhysics(),
       buildDefaultDragHandles: false,
       itemCount: _localOrder.length,
-      onReorderStart: (_) => NavisHaptics.dragStart(),
-      onReorderEnd: (_) => NavisHaptics.dragEnd(),
+      onReorderStart: (_) =>
+          NavisHaptics.dragStart(HapticCategory.listsAndMenus),
+      onReorderEnd: (_) => NavisHaptics.dragEnd(HapticCategory.listsAndMenus),
       onReorderItem: (oldIndex, newIndex) {
         setState(() {
           final item = _localOrder.removeAt(oldIndex);

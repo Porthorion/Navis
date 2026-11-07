@@ -369,6 +369,16 @@ class AppSettingsTable extends Table {
   /// [{"label":"Home","url":"https://voyage.example.com"}]
   TextColumn get customVoyageServers => text().nullable()();
 
+  /// The Haptics master switch. Off means Navis never vibrates; the category
+  /// choices are kept. Written only by the haptics writers, never by the
+  /// full-row save.
+  BoolColumn get hapticsEnabled =>
+      boolean().withDefault(const Constant(true))();
+
+  /// Bitmask of switched-off `HapticCategory` bits; 0 = every category on.
+  /// Written only by the haptics writers, never by the full-row save.
+  IntColumn get hapticsDisabled => integer().withDefault(const Constant(0))();
+
   /// The "Online services" master switch. Off means Navis only talks to the
   /// user's server. Written only by the integration-policy writers, never by
   /// the full-row save.

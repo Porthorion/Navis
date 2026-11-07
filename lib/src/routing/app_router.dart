@@ -24,6 +24,7 @@ import 'package:navis/src/features/onboarding/presentation/onboarding_provider.d
 import 'package:navis/src/features/onboarding/presentation/onboarding_screen.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_detail_screen.dart';
 import 'package:navis/src/features/search/presentation/search_screen.dart';
+import 'package:navis/src/features/settings/presentation/haptics_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/about_screen.dart';
 import 'package:navis/src/features/settings/presentation/cache_settings_screen.dart';
@@ -108,6 +109,10 @@ Page<T> buildSlideFadePage<T>({
 /// Desktop-only Settings pages are not reachable on phones and tablets.
 String? _desktopOnlyRedirect(BuildContext context, GoRouterState state) =>
     isDesktopRuntime ? null : AppRoutes.settings;
+
+/// Haptics settings are not reachable on desktop, where haptics are silent.
+String? _mobileOnlyRedirect(BuildContext context, GoRouterState state) =>
+    isDesktopRuntime ? AppRoutes.settings : null;
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   // Keep the router instance stable. A sync completion updates the server
@@ -573,6 +578,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                         ),
                       ),
                     ],
+                  ),
+                  GoRoute(
+                    path: AppRoutes.settingsHapticsSegment,
+                    redirect: _mobileOnlyRedirect,
+                    pageBuilder: (context, state) => buildSlideFadePage(
+                      context: context,
+                      key: state.pageKey,
+                      child: const HapticsSettingsScreen(),
+                    ),
                   ),
                   GoRoute(
                     path: AppRoutes.settingsDesktopWindowSegment,

@@ -568,6 +568,114 @@ abstract class AppLocalizations {
   /// **'Themes, colors and display preferences.'**
   String get settingsAppearanceSubtitle;
 
+  /// No description provided for @hapticsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Haptics'**
+  String get hapticsTitle;
+
+  /// No description provided for @hapticsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Vibration for taps and gestures.'**
+  String get hapticsSubtitle;
+
+  /// No description provided for @hapticsMasterTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Haptics'**
+  String get hapticsMasterTitle;
+
+  /// No description provided for @hapticsMasterSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Off: Navis never vibrates. Your phone\'s touch feedback setting also applies.'**
+  String get hapticsMasterSubtitle;
+
+  /// No description provided for @hapticsPlayerGesturesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Player Gestures'**
+  String get hapticsPlayerGesturesTitle;
+
+  /// No description provided for @hapticsPlayerGesturesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Dragging the player open or closed, and swiping to skip.'**
+  String get hapticsPlayerGesturesSubtitle;
+
+  /// No description provided for @hapticsPlaybackButtonsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback Buttons'**
+  String get hapticsPlaybackButtonsTitle;
+
+  /// No description provided for @hapticsPlaybackButtonsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Play, pause, skip, repeat and shuffle.'**
+  String get hapticsPlaybackButtonsSubtitle;
+
+  /// No description provided for @hapticsSlidersAndRulersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sliders & Rulers'**
+  String get hapticsSlidersAndRulersTitle;
+
+  /// No description provided for @hapticsSlidersAndRulersSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Seek bar, speed, pitch and color rulers, and the equalizer.'**
+  String get hapticsSlidersAndRulersSubtitle;
+
+  /// No description provided for @hapticsSwitchesAndSteppersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Switches & Steppers'**
+  String get hapticsSwitchesAndSteppersTitle;
+
+  /// No description provided for @hapticsSwitchesAndSteppersSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Switches, and the − and + buttons.'**
+  String get hapticsSwitchesAndSteppersSubtitle;
+
+  /// No description provided for @hapticsListsAndMenusTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Lists & Menus'**
+  String get hapticsListsAndMenusTitle;
+
+  /// No description provided for @hapticsListsAndMenusSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Long-press menus, reordering, swiping a queue row away and pull to refresh.'**
+  String get hapticsListsAndMenusSubtitle;
+
+  /// No description provided for @hapticsLikesAndAlertsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes & Alerts'**
+  String get hapticsLikesAndAlertsTitle;
+
+  /// No description provided for @hapticsLikesAndAlertsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes, ratings, downloads, copying and actions that aren\'t available.'**
+  String get hapticsLikesAndAlertsSubtitle;
+
+  /// No description provided for @hapticsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could Not Load Haptics Settings'**
+  String get hapticsLoadError;
+
+  /// No description provided for @hapticsSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save this change. Try again.'**
+  String get hapticsSaveError;
+
   /// No description provided for @settingsGroupConnection.
   ///
   /// In en, this message translates to:

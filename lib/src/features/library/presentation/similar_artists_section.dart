@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/responsive_content_grid.dart';
 import 'package:navis/src/common_widgets/artist_context_menu.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
@@ -129,10 +130,14 @@ class _SimilarArtistCard extends ConsumerWidget {
           );
         }
       },
-      onLongPress: libraryArtistId == null
-          ? null
-          : () =>
-                unawaited(showArtistContextMenu(context, ref, libraryArtistId)),
+      enableFeedback: false,
+      onLongPress: withLongPressHaptic(
+        libraryArtistId == null
+            ? null
+            : () => unawaited(
+                showArtistContextMenu(context, ref, libraryArtistId),
+              ),
+      ),
       onSecondaryTapDown: libraryArtistId == null
           ? null
           : (details) => unawaited(

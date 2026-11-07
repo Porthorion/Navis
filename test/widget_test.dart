@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/app.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/features/auth/data/secure_credential_store.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
@@ -429,4 +433,38 @@ void main() {
       expect(find.text('Sign Out and Clear Local Data'), findsOneWidget);
     },
   );
+
+  testWidgets('the app root pushes haptics choices into NavisHaptics and '
+      'keeps them through a stream error', (tester) async {
+    addTearDown(NavisHaptics.resetForTest);
+    NavisHaptics.resetForTest();
+    final settings = StreamController<AppSettingsModel>();
+    addTearDown(settings.close);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          appSettingsProvider.overrideWith((_) => settings.stream),
+          onboardingVersionProvider.overrideWithValue(
+            const AsyncData(currentOnboardingVersion),
+          ),
+          retainedServerProvider.overrideWith((_) async => null),
+          serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+        ],
+        child: testNavisApp,
+      ),
+    );
+    await tester.pump();
+    expect(NavisHaptics.prefs, const HapticsPrefs());
+
+    const off = HapticsPrefs(enabled: false, disabledBits: 4);
+    settings.add(const AppSettingsModel.defaults().copyWith(hapticsPrefs: off));
+    await tester.pump();
+    await tester.pump();
+    expect(NavisHaptics.prefs, off);
+
+    settings.addError(StateError('stream broke'));
+    await tester.pump();
+    await tester.pump();
+    expect(NavisHaptics.prefs, off);
+  });
 }

@@ -25,6 +25,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/album_detail_screen.dart';
 import 'package:navis/src/features/library/presentation/genre_detail_screen.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
+import 'package:navis/src/features/settings/presentation/haptics_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
@@ -451,6 +452,72 @@ void main() {
     );
     expect(find.text('Unknown track'), findsNothing);
   });
+
+  for (final desktop in [false, true]) {
+    testWidgets(
+      'the Haptics page ${desktop ? 'redirects to Settings on '
+                'desktop' : 'opens on a phone'}',
+      (tester) async {
+        debugDesktopRuntimeOverride = desktop;
+        addTearDown(() => debugDesktopRuntimeOverride = null);
+        final container = await _createContainerWithDatabase(
+          overrides: [
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData(
+                ServerConfigModel(
+                  url: 'https://example.com',
+                  username: 'alice',
+                  password: 'secret',
+                  apiVersion: '1.16.1',
+                ),
+              ),
+            ),
+            serverReachabilityControllerProvider.overrideWith(
+              () => _StaticReachabilityController(
+                const ServerReachabilityState(
+                  status: ServerReachabilityStatus.online,
+                ),
+              ),
+            ),
+            librarySyncControllerProvider.overrideWith(
+              _StaticLibrarySyncController.new,
+            ),
+            homeRecentlyPlayedProvider.overrideWithValue(
+              const AsyncData(<SongsTableData>[]),
+            ),
+            homeRecentlyAddedProvider.overrideWithValue(
+              const AsyncData(<Album>[]),
+            ),
+            homeFrequentAlbumsProvider.overrideWithValue(
+              const AsyncData(<Album>[]),
+            ),
+            homeRandomAlbumsProvider.overrideWithValue(
+              const AsyncData(<Album>[]),
+            ),
+            artistInfoProvider.overrideWith((ref, artistId) async => null),
+            scrobbleDispatchControllerProvider.overrideWith(
+              _NoopScrobbleDispatchController.new,
+            ),
+          ],
+        );
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: container, child: _testApp),
+        );
+        await tester.pumpAndSettle();
+        final router = container.read(appRouterProvider);
+        router.go(SettingsPage.haptics.location);
+        await tester.pumpAndSettle();
+        expect(
+          router.routeInformationProvider.value.uri.path,
+          desktop ? AppRoutes.settings : SettingsPage.haptics.location,
+        );
+        expect(
+          find.byType(HapticsSettingsScreen),
+          desktop ? findsNothing : findsOneWidget,
+        );
+      },
+    );
+  }
 
   testWidgets('fresh authenticated profile stays on required library setup', (
     tester,

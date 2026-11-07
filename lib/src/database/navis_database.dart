@@ -280,7 +280,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 111;
+  static const currentSchemaVersion = 112;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -411,6 +411,7 @@ class NavisDatabase extends _$NavisDatabase {
       from108To109,
       from109To110,
       from110To111,
+      from111To112,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -450,6 +451,24 @@ class NavisDatabase extends _$NavisDatabase {
       await migrator.addColumn(
         appSettingsTable,
         appSettingsTable.replayGainUntaggedDb,
+      );
+    }
+  }
+
+  /// Haptics settings: a master switch (on) and a mask of switched-off
+  /// categories (0 = all on). Adds two columns only, so every profile starts
+  /// with every haptic on and the library cache is untouched.
+  Future<void> from111To112(Migrator migrator) async {
+    if (!await _columnExists('app_settings', 'haptics_enabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.hapticsEnabled,
+      );
+    }
+    if (!await _columnExists('app_settings', 'haptics_disabled')) {
+      await migrator.addColumn(
+        appSettingsTable,
+        appSettingsTable.hapticsDisabled,
       );
     }
   }

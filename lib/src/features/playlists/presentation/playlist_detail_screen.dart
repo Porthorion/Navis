@@ -31,6 +31,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 class PlaylistDetailScreen extends ConsumerStatefulWidget {
   const new({required this.playlistId, super.key});
@@ -425,8 +426,10 @@ class _PlaylistDetailScreenState extends ConsumerState<PlaylistDetailScreen> {
             SliverPadding(
               padding: desktopMode ? desktopTrackPadding : EdgeInsets.zero,
               sliver: SliverReorderableList(
-                onReorderStart: (_) => NavisHaptics.dragStart(),
-                onReorderEnd: (_) => NavisHaptics.dragEnd(),
+                onReorderStart: (_) =>
+                    NavisHaptics.dragStart(HapticCategory.listsAndMenus),
+                onReorderEnd: (_) =>
+                    NavisHaptics.dragEnd(HapticCategory.listsAndMenus),
                 onReorderItem: (oldIndex, newIndex) => unawaited(
                   _reorderTrack(playlist, songs, oldIndex, newIndex),
                 ),

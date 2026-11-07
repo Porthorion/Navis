@@ -5,7 +5,9 @@ import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 
 /// Strength of the haptic tick for a ruler movement.
@@ -327,6 +329,7 @@ class _AdjustmentRulerState extends State<AdjustmentRuler>
   Duration? _lastMinorTick;
 
   void _tick(RulerTick tick, Duration? at) {
+    if (!NavisHaptics.allows(HapticCategory.slidersAndRulers)) return;
     switch (tick) {
       case RulerTick.none:
         return;
@@ -826,7 +829,9 @@ class _RulerStepButtonState extends State<RulerStepButton> {
   /// by a limit stays silent.
   bool _step() {
     final stepped = widget.onStep();
-    if (stepped) unawaited(HapticFeedback.selectionClick());
+    if (stepped && NavisHaptics.allows(HapticCategory.switchesAndSteppers)) {
+      unawaited(HapticFeedback.selectionClick());
+    }
     return stepped;
   }
 

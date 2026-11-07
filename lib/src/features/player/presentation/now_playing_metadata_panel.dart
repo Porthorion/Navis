@@ -374,8 +374,10 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: NavisShapeData.of(context).xlAll,
-        // A no-op while the editor is open, so a hold there never pages.
-        onLongPress: showInlineEditor ? () {} : onHold,
+        // A no-op while the editor is open, so a hold there never pages. It
+        // stays silent too: nothing happens.
+        enableFeedback: false,
+        onLongPress: showInlineEditor ? () {} : withLongPressHaptic(onHold),
         onTap: () => setState(() {
           _pageIndex = (activeIndex + 1) % pages.length;
           _pageLabel = pages[_pageIndex].semanticLabel;
@@ -811,8 +813,9 @@ class _NowPlayingInfoGridCell extends StatelessWidget {
       open,
       InkWell(
         borderRadius: NavisShapeData.of(context).smAll,
+        enableFeedback: false,
         onTap: () => unawaited(open()),
-        onLongPress: () => unawaited(open()),
+        onLongPress: withLongPressHaptic(() => unawaited(open())),
         child: cell,
       ),
     );

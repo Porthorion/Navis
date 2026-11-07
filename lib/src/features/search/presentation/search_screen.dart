@@ -15,6 +15,7 @@ import 'package:navis/src/common_widgets/hero_cover_art.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
 import 'package:navis/src/common_widgets/error_state.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/shimmer_placeholder.dart';
@@ -858,8 +859,10 @@ class _ArtistResultsSection extends ConsumerWidget {
               artist.id,
               name: artist.name,
             ),
-            onLongPress: () =>
-                unawaited(showArtistContextMenu(context, ref, artist.id)),
+            enableFeedback: false,
+            onLongPress: withLongPressHaptic(
+              () => unawaited(showArtistContextMenu(context, ref, artist.id)),
+            ),
             trailing: Builder(
               builder: (buttonContext) => IconButton(
                 icon: const Icon(Icons.more_horiz),

@@ -130,6 +130,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Settings › Haptics turns vibration off entirely or for Player '
+        'Gestures, Playback Buttons, Sliders & Rulers, Switches & Steppers, '
+        'Lists & Menus or Likes & Alerts, so you can keep the ones you like',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'On Now Playing, the quality and ReplayGain lines now react to a hold '
         'anywhere on them, not only on the text, and holding ReplayGain '
         'scrolls Playback settings to the ReplayGain section. On desktop, '

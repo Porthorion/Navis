@@ -2,7 +2,11 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/common_widgets/expandable_player_sheet.dart';
 
+import '../../helpers/haptics_spy.dart';
 import '../../helpers/test_theme.dart';
+
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 class _SheetHarness extends StatefulWidget {
   const new({
@@ -399,6 +403,38 @@ void main() {
 
       expect(rig.progress.value, 0);
       expect(rig.expandCalls.value, 0);
+    });
+
+    testWidgets('releasing a drag mid-way is a Player Gesture haptic', (
+      tester,
+    ) async {
+      final rig = await pumpRig(tester);
+      final spy = HapticsSpy.install(tester);
+
+      Future<void> dragMidway() async {
+        final gesture = await tester.startGesture(
+          tester.getCenter(find.byKey(const Key('mini-player'))),
+        );
+        await gesture.moveBy(const Offset(0, -40));
+        await tester.pump();
+        await gesture.up();
+        await tester.pumpAndSettle();
+      }
+
+      NavisHaptics.prefs = HapticsPrefs.fromColumns(
+        true,
+        HapticCategory.playerGestures.bit,
+      );
+      await dragMidway();
+      expect(await spy.take(tester), isEmpty, reason: 'category off');
+
+      NavisHaptics.prefs = HapticsPrefs.fromColumns(
+        true,
+        HapticCategory.playbackButtons.bit,
+      );
+      await dragMidway();
+      expect(await spy.take(tester), ['dragEnd'], reason: 'category on');
+      expect(rig.progress.value, 0);
     });
 
     testWidgets('reduced motion jumps to the target on release and reports '

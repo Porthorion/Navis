@@ -24,7 +24,8 @@ class _LikedArtistStripTile extends ConsumerWidget {
     return InkWell(
       borderRadius: NavisShapeData.of(context).mdAll,
       onTap: onTap,
-      onLongPress: onLongPress,
+      enableFeedback: false,
+      onLongPress: withLongPressHaptic(onLongPress),
       onSecondaryTapDown: onSecondaryTapDown,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
@@ -491,9 +492,12 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
             )
           : const Icon(Icons.chevron_right),
       onTap: () => NavService.openPlaylistDetail(context, ref, playlist.id),
-      onLongPress: desktopMode || !canEdit
-          ? null
-          : () => _showPlaylistActions(context, playlist),
+      enableFeedback: false,
+      onLongPress: withLongPressHaptic(
+        desktopMode || !canEdit
+            ? null
+            : () => _showPlaylistActions(context, playlist),
+      ),
     );
     if (!desktopMode || !canEdit) return tile;
     return GestureDetector(

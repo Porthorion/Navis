@@ -8,6 +8,7 @@ import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 /// The resolved download/cache state of a single song.
 enum SongDownloadStatus {
@@ -117,7 +118,7 @@ class SongDownloadStatusIcon extends ConsumerWidget {
   final double size;
 
   void _startDownload() {
-    NavisHaptics.confirm();
+    NavisHaptics.confirm(HapticCategory.likesAndAlerts);
     onDownload!();
   }
 
