@@ -21,7 +21,6 @@ import 'package:navis/src/features/settings/data/settings_repository.dart';
 import 'package:navis/src/features/settings/data/update_service.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/providers/provider_retry.dart';
-import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/android_diagnostics_startup.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -147,15 +146,6 @@ Future<void> _runNavis() async {
         onBootstrapOverlayDismissed: diagnosticsPresentation?.markAppReady,
       ),
     );
-    if (kDebugMode && _syncDiagnosticsRuntimeEnabled) {
-      // iOS simulator diagnostics run only (the one debug build with
-      // diagnostics): the router's providers first mount inside
-      // NavisApp.build, where their listeners can publish state as soon as
-      // the session config resolves, and debug asserts on that. Mount them
-      // before the first build. Other debug builds keep their startup; the
-      // underlying race is tracked in docs/plans/iOS_Parity_Plan.md (I0).
-      rootContainer.read(appRouterProvider);
-    }
     runApp(diagnosticsPresentation?.wrap(app) ?? app);
     // A macOS updater script waits for this: only a first frame after a
     // successful desktop bootstrap (database and settings opened) proves the
