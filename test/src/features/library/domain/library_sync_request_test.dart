@@ -44,6 +44,7 @@ void main() {
       'legacyAmbiguous',
       'unknownFailure',
       'databaseBusy',
+      'scanChanged',
     ]);
   });
 

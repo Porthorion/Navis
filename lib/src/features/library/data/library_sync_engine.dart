@@ -122,10 +122,10 @@ abstract interface class SyncPlanExecutor {
 
   void cancelSync();
 
-  /// Records the server's current scan state (one `getScanStatus` request,
+  /// Records [serverId]'s current scan state (one `getScanStatus` request,
   /// outside any run budget). Never throws: offline, unsupported and
   /// authentication failures surface from the run that follows.
-  Future<void> observeServerScan();
+  Future<void> observeServerScan(int serverId);
 }
 
 abstract class LibrarySyncApi {
@@ -360,6 +360,14 @@ const _bulkSearchProbeQueries = <String>[''];
 const _defaultHealthProbeStaleAfter = Duration(hours: 12);
 const _libraryDiscoveryDebtStreakCapabilityKey = 'libraryDiscoveryDebtStreak';
 const _libraryScanDeferralStreakCapabilityKey = 'libraryScanDeferralStreak';
+
+/// The completed-scan token the hidden candidate was collected under. A
+/// candidate may only resume while the server is still at that token.
+const _libraryCandidateScanTokenCapabilityKey = 'libraryCandidateScanToken';
+
+/// `failureCategory` of a scan-triggered run whose promotion waits because
+/// the server scanned during collection.
+const _scanChangedCategory = 'scanChanged';
 
 /// Consecutive scan-churn deferrals after which a settled server releases
 /// the withheld promotion. Without a cap, a server that rescans constantly
@@ -671,6 +679,17 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
   void _ensureBackgroundWorkAllowed() {
     SyncRequestScope.current?.check();
     final policy = _currentSyncPolicy;
+    final plan = _activeExecutionPlan;
+    if (plan != null &&
+        plan.scanTriggered &&
+        policy.isMetered &&
+        plan.request.grant != SyncNetworkGrant.broadMeteredOnce) {
+      // A scan-triggered snapshot never runs on metered data without the
+      // one-time broad grant, even when the Wi-Fi pass that started it flipped
+      // to cellular mid-run.
+      _api.cancelActiveRequests();
+      throw const SyncNetworkDeferredException();
+    }
     if (!policy.isOffline &&
         (policy.allowsBackgroundSync ||
             _activeExecutionPlan?.request.grant ==
@@ -1704,7 +1723,9 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
 
       final succeeded = _withMetrics(
         state.copyWith(
-          status: LibrarySyncStatus.succeeded,
+          status: state.failureCategory == _scanChangedCategory
+              ? LibrarySyncStatus.deferred
+              : LibrarySyncStatus.succeeded,
           stage: LibrarySyncStage.completed,
           completedAt: syncedAt,
           lastSyncedAt: fullyCurrent ? syncedAt : serverConfig.lastSynced,
@@ -2615,6 +2636,12 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     final persistentState = await _database.librarySyncDao.getOrCreateState(
       serverId,
     );
+    // Read before the resume decision: song pages collected under an older
+    // scan must not be reused for (or reconciled against) a newer one.
+    final scanTokenAtCollection = await _recordScanObservation(
+      serverId: serverId,
+      metrics: metrics,
+    );
     var resumableGeneration =
         const <String>{
               'collecting',
@@ -2634,6 +2661,14 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
           resumableGeneration,
           metrics,
         )) {
+      resumableGeneration = null;
+    }
+    if (resumableGeneration != null &&
+        _readNavisStringCapability(
+              serverConfig.capabilitiesJson,
+              _libraryCandidateScanTokenCapabilityKey,
+            ) !=
+            scanTokenAtCollection.$1) {
       resumableGeneration = null;
     }
     final catalogGeneration =
@@ -2672,10 +2707,11 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       ),
     );
     metrics.metadataChanged = true;
-    final scanTokenAtCollection = await _recordScanObservation(
-      serverId: serverId,
-      metrics: metrics,
-    );
+    if (resumableGeneration != catalogGeneration) {
+      await _updateVerificationCapabilities(<String, Object?>{
+        _libraryCandidateScanTokenCapabilityKey: scanTokenAtCollection.$1,
+      }, metrics);
+    }
     var current = _withMetrics(
       state.copyWith(
         stage: LibrarySyncStage.fetchingArtists,
@@ -2974,7 +3010,8 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       serverId: serverId,
       generation: catalogGeneration,
       scanTokenAtCollection: scanTokenAtCollection,
-      explicitRepair: mode == LibrarySyncMode.forceFull,
+      explicitRepair:
+          _activeExecutionPlan?.kind == LibrarySyncPlanKind.fullRepair,
       staleArtistIds: staleArtistIds,
       staleAlbumIds: staleAlbumIds,
       metrics: metrics,
@@ -2993,11 +3030,17 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       },
     );
     if (!promoted) {
+      // A scan-triggered snapshot that waits for a quiet server heals by
+      // itself: no repair hint, and the coordinator reports it as deferred.
+      final scanTriggered = _activeExecutionPlan?.scanTriggered == true;
       current = _withMetrics(
         current.copyWith(
           stage: LibrarySyncStage.collectingCandidate,
           candidateStatus: 'collecting',
-          freshness: LibrarySyncFreshness.repairRecommended,
+          freshness: scanTriggered
+              ? LibrarySyncFreshness.verificationPending
+              : LibrarySyncFreshness.repairRecommended,
+          failureCategory: scanTriggered ? _scanChangedCategory : null,
         ),
         metrics,
       );
@@ -3133,9 +3176,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
   }
 
   @override
-  Future<void> observeServerScan() async {
-    final serverId = (await _serverConfigRepository.getActiveServer())?.id;
-    if (serverId == null) return;
+  Future<void> observeServerScan(int serverId) async {
     // A cancelled previous run leaves the API client refusing requests until
     // the next run begins; an idle engine can safely clear that flag.
     if (_inFlight == null) _api.beginRun();
@@ -3454,9 +3495,11 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             ),
         id: (row) => row.id,
       )) {
-        if (explicitRepair) {
+        {
           // Read before the upsert: tag-only changes (the post-upgrade genre
-          // backfill) must not refetch song artwork.
+          // backfill, a ReplayGain retag) must not refetch song artwork. A
+          // repair refetches every changed song; any other snapshot only the
+          // songs whose cover id changed.
           final existing = {
             for (final row in await _database.libraryDao.getSongsByIds(
               page.map((song) => song.id),
@@ -3465,10 +3508,13 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
           };
           changedSongIds.addAll([
             for (final song in page)
-              if (LibraryCatalogDiffAnalyzer.songChangedBesidesGenres(
-                song,
-                existing[song.id],
-              ))
+              if (explicitRepair
+                  ? LibraryCatalogDiffAnalyzer.songChangedBesidesGenres(
+                      song,
+                      existing[song.id],
+                    )
+                  : existing[song.id] != null &&
+                        existing[song.id]!.coverArt != song.coverArt)
                 song.id,
           ]);
         }
@@ -3515,13 +3561,11 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
 
       // Explicit repairs may carry new cover bytes behind unchanged cover-art
       // IDs. A targeted revision bump refetches exactly the changed entries.
-      if (explicitRepair) {
-        await _database.libraryDao.bumpCoverArtRevisions(
-          songIds: changedSongIds,
-          albumIds: changedAlbumIds,
-          artistIds: changedArtistIds,
-        );
-      }
+      await _database.libraryDao.bumpCoverArtRevisions(
+        songIds: changedSongIds,
+        albumIds: explicitRepair ? changedAlbumIds : const <String>[],
+        artistIds: explicitRepair ? changedArtistIds : const <String>[],
+      );
 
       // Verified candidate tracks include bulk snapshots, but never locally
       // carried-forward content. Refresh the evidence even for no-op diffs.
@@ -3740,13 +3784,17 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       serverId: serverId,
       generation: generation,
     );
-    if (scanAtPromotion.$1 != null) {
-      // The promoted snapshot covered this scan's server state.
+    if (scanTokenAtCollection.$1 != null) {
+      // The promoted data was collected under this scan only. A newer scan
+      // (a cap-released promotion) stays pending for the next snapshot.
       await _database.librarySyncDao.markScanReconciled(
         serverId: serverId,
-        token: scanAtPromotion.$1!,
+        token: scanTokenAtCollection.$1!,
       );
     }
+    await _updateVerificationCapabilities(<String, Object?>{
+      _libraryCandidateScanTokenCapabilityKey: null,
+    }, metrics);
     // A promotion supersedes any recorded scan-churn deferral streak.
     final promotedServer = await _serverConfigRepository.getActiveServer();
     if (_readNavisIntCapability(

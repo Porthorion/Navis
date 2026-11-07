@@ -8,6 +8,7 @@ import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
@@ -44,9 +45,11 @@ void main() {
   late NavisDatabase database;
   late ServerConfigRepository repository;
   var playing = false;
+  var clock = _clock;
 
   setUp(() async {
     playing = false;
+    clock = _clock;
     database = createTestDatabase();
     repository = ServerConfigRepository(
       database,
@@ -114,7 +117,7 @@ void main() {
     readSyncNetworkPolicy: policy == null ? null : () => policy,
     staleAfter: const Duration(hours: 1),
     readHasActivePlayback: () => playing,
-    now: () => _clock,
+    now: () => clock,
   );
 
   Future<void> seedWork(
@@ -159,7 +162,7 @@ void main() {
           _delta,
           status: 'queued',
           age: const Duration(hours: 5),
-          priority: 50,
+          priority: 60, // a manual check queues its delta at 60
         );
         final executor = executorObserving();
 
@@ -465,6 +468,343 @@ void main() {
       final executor = executorObserving();
       await coordinatorFor(executor).requestSync(manual);
       expect(executor.observeScanCalls, 0);
+    }, skip: !sqliteAvailable);
+  });
+
+  StubSyncPlanExecutor executorReturning(
+    LibrarySyncState Function(SyncExecutionPlan plan) result,
+  ) => StubSyncPlanExecutor(
+    (plan, {onProgress}) async => result(plan),
+    onObserveScan: () => database.librarySyncDao.recordScanObservation(
+      serverId: _serverId,
+      scanInProgress: false,
+      supported: true,
+      providerScanToken: 'T2',
+    ),
+  );
+
+  const evidence = '{"intent":null,"evidenceVersion":"T2"}';
+
+  group('a queued scan snapshot on metered data (W2)', () {
+    test('needs the one-time broad grant, for manual and automatic', () async {
+      await seedWork(
+        _snapshot,
+        status: 'queued',
+        age: const Duration(minutes: 30),
+        checkpointJson: evidence,
+      );
+      for (final request in [manual, automatic]) {
+        final executor = executorObserving();
+        await coordinatorFor(
+          executor,
+          policy: _unmeteredLimitOff,
+        ).requestSync(request);
+        expect(
+          _catalogKinds(executor),
+          isNot(contains(LibrarySyncPlanKind.catalogSnapshot)),
+          reason: '${request.intent}',
+        );
+        // The queued snapshot must not block the ordinary pass behind it.
+        expect(
+          _catalogKinds(executor),
+          isNotEmpty,
+          reason: '${request.intent}',
+        );
+      }
+      final granted = executorObserving();
+      await coordinatorFor(granted, policy: _unmeteredLimitOff).requestSync(
+        const LibrarySyncRequest.checkForUpdates(
+          grant: SyncNetworkGrant.broadMeteredOnce,
+        ),
+      );
+      expect(_catalogKinds(granted), [LibrarySyncPlanKind.catalogSnapshot]);
+    }, skip: !sqliteAvailable);
+
+    test('a first-setup snapshot row is not affected', () async {
+      await seedWork(
+        _snapshot,
+        status: 'queued',
+        age: const Duration(minutes: 30),
+      );
+      final executor = executorObserving();
+      await coordinatorFor(
+        executor,
+        policy: _unmeteredLimitOff,
+      ).requestSync(manual);
+      expect(_catalogKinds(executor), [LibrarySyncPlanKind.catalogSnapshot]);
+    }, skip: !sqliteAvailable);
+
+    test('a Wi-Fi to cellular flip mid-run defers it', () async {
+      var policy = const SyncNetworkPolicy(
+        networkType: NetworkType.wifi,
+        isMetered: false,
+        allowsBackgroundSync: true,
+        allowsHardProbe: true,
+        allowsInteractiveHydration: true,
+      );
+      final executor = executorObserving();
+      final coordinator = AdaptiveLibrarySyncCoordinator(
+        executor: StubSyncPlanExecutor(
+          (plan, {onProgress}) async {
+            expect(plan.scanTriggered, isTrue);
+            return LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+              metadataReady: true,
+              completedAt: clock,
+            );
+          },
+          onObserveScan: () async {
+            await executor.observeServerScan(_serverId);
+            policy = _unmeteredLimitOff;
+          },
+        ),
+        database: database,
+        serverConfigRepository: repository,
+        readSyncNetworkPolicy: () => policy,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+        now: () => clock,
+      );
+      // Admitted at enqueue on Wi-Fi, then the network turns metered before
+      // the run starts: it must not run.
+      await coordinator.requestSync(manual);
+      expect(
+        (await work(_snapshot))?.status,
+        isNot('completed'),
+        reason: 'the metered flip stops the run',
+      );
+    }, skip: !sqliteAvailable);
+  });
+
+  group('failed snapshots (W3)', () {
+    LibrarySyncState failingSnapshot(SyncExecutionPlan plan) =>
+        plan.kind == LibrarySyncPlanKind.catalogSnapshot
+        ? LibrarySyncState(
+            status: LibrarySyncStatus.failed,
+            stage: LibrarySyncStage.completed,
+            failureCategory: 'sync',
+            completedAt: clock,
+          )
+        : LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            metadataReady: true,
+            completedAt: clock,
+          );
+
+    test(
+      'an automatic retry waits 24 h from the attempt, manual does not',
+      () async {
+        final executor = executorReturning(failingSnapshot);
+        int snapshots() =>
+            _catalogKinds(executor)
+                .where((k) => k == LibrarySyncPlanKind.catalogSnapshot)
+                .length;
+        final sync = coordinatorFor(executor);
+
+        await sync.requestSync(automatic);
+        expect(snapshots(), 1);
+        expect((await work(_snapshot))!.status, 'failed');
+
+        clock = clock.add(const Duration(hours: 1));
+        await sync.requestSync(automatic);
+        expect(snapshots(), 1, reason: 'backoff over, but within 24 h');
+
+        clock = clock.add(const Duration(hours: 2));
+        await sync.requestSync(manual);
+        expect(snapshots(), 2, reason: 'a manual check may retry');
+
+        clock = clock.add(const Duration(hours: 5));
+        await sync.requestSync(automatic);
+        expect(snapshots(), 2);
+
+        clock = clock.add(const Duration(hours: 25));
+        await sync.requestSync(automatic);
+        expect(snapshots(), 3);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('an incomplete snapshot is neither a successful check nor a circuit reset', () async {
+      await database.librarySyncDao.writeState(
+        const LibrarySyncStateTableCompanion(
+          serverId: Value(_serverId),
+          failureStreak: Value(2),
+        ),
+      );
+      final executor = executorReturning(
+        (plan) => plan.kind == LibrarySyncPlanKind.catalogSnapshot
+            ? LibrarySyncState(
+                status: LibrarySyncStatus.partial,
+                stage: LibrarySyncStage.completed,
+                metadataReady: true,
+                candidateGeneration: 2,
+                candidateStatus: 'collecting',
+                completedAt: clock,
+              )
+            : LibrarySyncState(
+                status: LibrarySyncStatus.succeeded,
+                stage: LibrarySyncStage.completed,
+                metadataReady: true,
+                completedAt: clock,
+              ),
+      );
+
+      await coordinatorFor(executor).requestSync(manual);
+
+      final state = await database.librarySyncDao.getOrCreateState(_serverId);
+      expect(state.failureStreak, 2);
+      expect(state.lastCheckedAt, isNull);
+      expect((await work(_snapshot))!.status, 'failed');
+    }, skip: !sqliteAvailable);
+  });
+
+  group('a promotion that waits for a quiet server (W4)', () {
+    LibrarySyncState waiting(SyncExecutionPlan plan) =>
+        plan.kind == LibrarySyncPlanKind.catalogSnapshot
+        ? LibrarySyncState(
+            status: LibrarySyncStatus.deferred,
+            stage: LibrarySyncStage.collectingCandidate,
+            metadataReady: true,
+            candidateGeneration: 2,
+            candidateStatus: 'collecting',
+            failureCategory: 'scanChanged',
+            completedAt: clock,
+          )
+        : LibrarySyncState(
+            status: LibrarySyncStatus.succeeded,
+            stage: LibrarySyncStage.completed,
+            metadataReady: true,
+            completedAt: clock,
+          );
+
+    test(
+      'stays queued with a short backoff and is reported as deferred',
+      () async {
+        final checked = _clock.subtract(const Duration(hours: 5));
+        await database.librarySyncDao.writeState(
+          LibrarySyncStateTableCompanion(
+            serverId: const Value(_serverId),
+            lastCheckedAt: Value(checked),
+            lastCatalogSyncedAt: Value(checked),
+          ),
+        );
+        final executor = executorReturning(waiting);
+        int snapshots() =>
+            _catalogKinds(executor)
+                .where((k) => k == LibrarySyncPlanKind.catalogSnapshot)
+                .length;
+        final sync = coordinatorFor(executor);
+
+        final result = await sync.requestSync(manual);
+
+        expect(result.status, LibrarySyncStatus.deferred);
+        expect(result.updatesAvailable, isFalse);
+        final row = (await work(_snapshot))!;
+        expect(row.status, 'queued');
+        expect(
+          row.notBefore!.difference(clock),
+          const Duration(minutes: 15),
+          reason: 'the first backoff step',
+        );
+        final state = await database.librarySyncDao.getOrCreateState(_serverId);
+        expect(state.lastCheckedAt!.isAtSameMomentAs(checked), isTrue);
+        expect(state.lastCatalogSyncedAt!.isAtSameMomentAs(checked), isTrue);
+        final history = await database.librarySyncDao.getRecentSyncRunHistory(
+          _serverId,
+        );
+        final catalogRun = history.firstWhere(
+          (run) => run.targetKind == LibrarySyncTargetKind.catalog,
+        );
+        expect(catalogRun.outcome, SyncRunOutcomeKind.deferred);
+        expect(catalogRun.reason, SyncSafeReason.scanChanged);
+
+        // Inside the backoff nothing re-collects; after it the next eligible
+        // pass does, without waiting 24 h.
+        clock = clock.add(const Duration(minutes: 5));
+        await sync.requestSync(automatic);
+        expect(snapshots(), 1);
+        clock = clock.add(const Duration(minutes: 11));
+        await sync.requestSync(automatic);
+        expect(snapshots(), 2);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('a manual check retries inside the backoff', () async {
+      final executor = executorReturning(waiting);
+      final sync = coordinatorFor(executor);
+      await sync.requestSync(manual);
+      clock = clock.add(const Duration(minutes: 1));
+      await sync.requestSync(manual);
+      expect(
+        _catalogKinds(executor)
+            .where((k) => k == LibrarySyncPlanKind.catalogSnapshot),
+        hasLength(2),
+      );
+    }, skip: !sqliteAvailable);
+  });
+
+  group('the attempt clock', () {
+    test(
+      'a snapshot stamped in the future (clock moved back) is due',
+      () async {
+        await seedWork(
+          _snapshot,
+          status: 'completed',
+          age: const Duration(hours: -2),
+        );
+        final executor = executorObserving();
+        await coordinatorFor(executor).requestSync(automatic);
+        expect(_catalogKinds(executor), [LibrarySyncPlanKind.catalogSnapshot]);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'a failed row with the same scan evidence is released by a manual check',
+      () async {
+        await seedWork(
+          _snapshot,
+          status: 'failed',
+          age: const Duration(hours: 1),
+          notBefore: _clock.add(const Duration(hours: 3)),
+          checkpointJson: evidence,
+        );
+        final executor = executorObserving();
+        await coordinatorFor(executor).requestSync(manual);
+        expect(_catalogKinds(executor), [LibrarySyncPlanKind.catalogSnapshot]);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('a completed snapshot for the same scan is reactivated, automatic after 30 h and manual after a minute', () async {
+      await seedWork(
+        _snapshot,
+        status: 'completed',
+        age: const Duration(hours: 30),
+        checkpointJson: evidence,
+      );
+      final auto = executorObserving();
+      await coordinatorFor(auto).requestSync(automatic);
+      expect(_catalogKinds(auto), [LibrarySyncPlanKind.catalogSnapshot]);
+
+      await database.librarySyncDao.recordScanObservation(
+        serverId: _serverId,
+        scanInProgress: false,
+        supported: true,
+        providerScanToken: 'T2',
+      );
+      await (database.update(database.librarySyncWorkTable)).write(
+        LibrarySyncWorkTableCompanion(
+          status: const Value('completed'),
+          updatedAt: Value(clock.subtract(const Duration(minutes: 1))),
+        ),
+      );
+      final explicit = executorObserving();
+      await coordinatorFor(explicit).requestSync(manual);
+      expect(_catalogKinds(explicit), [LibrarySyncPlanKind.catalogSnapshot]);
     }, skip: !sqliteAvailable);
   });
 }

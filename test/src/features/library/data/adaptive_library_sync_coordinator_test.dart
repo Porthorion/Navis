@@ -45,7 +45,7 @@ class _ProbeLibrarySyncEngine implements SyncPlanExecutor {
   }
 
   @override
-  Future<void> observeServerScan() async {}
+  Future<void> observeServerScan(int serverId) async {}
 
   @override
   Future<LibrarySyncState> executeSyncPlan(

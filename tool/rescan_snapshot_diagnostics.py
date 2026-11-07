@@ -277,17 +277,24 @@ def main():
         auto = [r for r in snapshot_runs(run.runs()) if r["intent"] == "automaticCatalogCheck"]
         check(len(auto) >= 1, "the automatic snapshot is recorded as automatic")
 
+        def snapshot_row():
+            return run.sql("SELECT status, updated_at, not_before FROM library_sync_work WHERE kind='catalogSnapshot'")
+
         print("== Awaiting deletion confirmation: no new snapshot", flush=True)
         run.exec("UPDATE library_scan_observation SET pending_reconciliation=1, reconciled_token='stale-token'")
         run.exec("UPDATE library_sync_state SET candidate_status='awaitingDeletionConfirmation', candidate_generation=99, last_checked_at=?", (stale,))
         run.exec("UPDATE library_sync_work SET updated_at=? WHERE kind='catalogSnapshot'", (int(time.time()) - 48 * 3600,))
+        held_row = snapshot_row()
+        held_runs = len(snapshot_runs(run.runs()))
         mark = run.request_mark()
         run.post("/v1/sync/check")
         run.idle()
         rows = run.requests_since(mark)
         print("held manual requests:", [r["endpoint"] for r in rows], flush=True)
+        check(snapshot_row() == held_row, "the held phase leaves the snapshot work row untouched")
+        check(len(snapshot_runs(run.runs())) == held_runs, "the held phase adds no snapshot run")
         check(not bulk_song_requests(rows), "a held large-deletion candidate is not re-collected")
-        check(not rows or rows[0]["endpoint"] != "getScanStatus", "no scan pre-observation while held")
+        check(not any(r["endpoint"] == "getScanStatus" for r in rows), "no scan pre-observation while held")
 
         print("== Metered with unmetered-only off: no scan request, no bulk request", flush=True)
         run.exec("UPDATE library_sync_state SET candidate_status=NULL, candidate_generation=NULL")
@@ -297,6 +304,7 @@ def main():
             "networkType": "cellular", "nativeMetered": True,
             "backgroundSyncUnmeteredOnly": False, "requestReporting": True,
         })
+        metered_row = snapshot_row()
         mark = run.request_mark()
         run.post("/v1/sync/check")
         run.idle()
@@ -304,6 +312,29 @@ def main():
         print("metered requests:", [r["endpoint"] for r in rows], flush=True)
         check(not any(r["endpoint"] == "getScanStatus" for r in rows), "metered check made no getScanStatus request")
         check(not bulk_song_requests(rows), "metered check made no bulk song request")
+        check(snapshot_row() == metered_row, "the metered phase leaves the snapshot work row untouched")
+
+        print("== A queued scan snapshot never resumes on metered data without the grant", flush=True)
+        # What an interrupted Wi-Fi pass leaves behind: a queued row that
+        # carries the scan token. Interrupting a real pass is timing-dependent,
+        # so seed that exact state.
+        run.exec("UPDATE library_sync_work SET status='queued', not_before=NULL, updated_at=?, "
+                 "checkpoint_json='{\"intent\":null,\"evidenceVersion\":\"2026-11-07T18:00:00.000Z\"}' "
+                 "WHERE kind='catalogSnapshot'", (int(time.time()) - 600,))
+        run.exec("UPDATE library_scan_observation SET pending_reconciliation=1, reconciled_token='stale-token'")
+        for label, route in (("manual", "/v1/sync/check"), ("automatic", "/v1/sync/automatic")):
+            run.exec("UPDATE library_sync_state SET last_checked_at=?, next_automatic_check_at=NULL", (stale,))
+            mark = run.request_mark()
+            run.post(route)
+            run.idle()
+            rows = run.requests_since(mark)
+            check(not bulk_song_requests(rows), f"a queued scan snapshot on metered data makes no bulk request ({label})")
+            check(snapshot_row()[0][0] == "queued", f"the queued scan snapshot stays queued ({label})")
+        mark = run.request_mark()
+        run.post("/v1/sync/check", {"allowMeteredBroadOverride": True})
+        run.idle()
+        rows = run.requests_since(mark)
+        check(len(bulk_song_requests(rows)) >= 1, "with the one-time broad grant the queued snapshot runs on metered data")
         run.stop_app()
 
         text = (OUT / "auto-fresh-navis.log").read_text(errors="replace")

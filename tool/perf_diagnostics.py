@@ -26,6 +26,7 @@ import json
 import os
 import pathlib
 import random
+import re
 import shlex
 import shutil
 import sqlite3
@@ -817,6 +818,64 @@ class Runner:
     def idle(self, seconds: float):
         time.sleep(seconds)
 
+    def sync_during_playback(self):
+        """Check for updates (a scan-triggered catalog snapshot when the server
+        has rescanned) while a queue plays: records the sync outcome and
+        whether playback ever stalled, failed or lost its place meanwhile."""
+        self.play_queue(30, 90)
+        before = self.app.api('/v1/playback/status')
+        # The harness keeps automatic sync off; a manual check needs it on.
+        self.app.api('/v1/diagnostics/overrides',
+                     {'networkType': 'wifi', 'nativeMetered': False,
+                      'automaticSyncAllowed': True})
+        self.app.api('/v1/sync/check', {})
+        started = time.monotonic()
+        last = (before.get('songId'), before.get('positionMs'))
+        last_moved = started
+        longest_stall = 0.0
+        songs = {before.get('songId')}
+        loading_s = 0.0
+        failures = []
+        timeouts = 0
+        status = {}
+        while time.monotonic() - started < 900:
+            try:
+                status = self.app.api('/v1/sync/status', timeout=15)
+                playback = self.app.api('/v1/playback/status', timeout=15)
+            except Exception:
+                timeouts += 1
+                time.sleep(0.5)
+                continue
+            now = time.monotonic()
+            position = (playback.get('songId'), playback.get('positionMs'))
+            songs.add(playback.get('songId'))
+            if position != last:
+                last, last_moved = position, now
+            elif playback.get('playing'):
+                longest_stall = max(longest_stall, now - last_moved)
+            if playback.get('isLoading'):
+                loading_s += 0.5
+            if playback.get('failure'):
+                failures.append(playback['failure'])
+            if not status.get('requestActive') and now - started > 3:
+                break
+            time.sleep(0.5)
+        after = self.app.api('/v1/playback/status')
+        return {
+            'syncS': round(time.monotonic() - started, 1),
+            'syncStatus': status.get('status'),
+            'planKind': status.get('planKind'),
+            'planReason': status.get('planReason'),
+            'requests': status.get('requests'),
+            'bytes': status.get('bytes'),
+            'apiTimeouts': timeouts,
+            'songsPlayed': len(songs),
+            'longestPlaybackStallS': round(longest_stall, 1),
+            'loadingS': loading_s,
+            'playbackFailures': failures[:3],
+            'stillPlaying': after.get('playing'),
+        }
+
     def play_queue(self, count: int, fill_timeout: float, skips: int = 0):
         ids = self.song_ids(count, seed=count)
         started = time.monotonic()
@@ -1000,8 +1059,8 @@ def main() -> int:
     parser.add_argument('--scenarios', default='all',
                         help='comma list: idle,queue2k,library,search,queue10k,'
                              'artist,artist-remote,artist-crossfade,'
-                             'folder-import,cold (artist-crossfade runs only '
-                             'when named)')
+                             'folder-import,cold (artist-crossfade and '
+                             'sync-playback run only when named)')
     parser.add_argument('--unhydrate-artist', action='store_true',
                         help='forget the remote artist\'s album songs in the '
                              'clone (all but two albums), so playing it '
@@ -1032,6 +1091,18 @@ def main() -> int:
         print(f"[perf] built in {summary['buildS']}s", flush=True)
         return 0
     prepare_profile(credentials, args.fresh)
+    if 'sync-playback' in wanted:
+        # A profile exported from another build would schedule a startup full
+        # repair; make it model-current so only the scan-triggered snapshot
+        # can reconcile it.
+        model = re.search(
+            r"const currentLibrarySyncModelVersion = '([^']+)'",
+            (ROOT / 'lib/src/features/library/presentation/'
+             'library_sync_provider.dart').read_text()).group(1)
+        with sqlite3.connect(PROFILE / 'navis.sqlite') as clone:
+            clone.execute('UPDATE app_settings SET last_full_sync_app_build=?',
+                          (model,))
+            clone.commit()
     if args.crossfade is not None:
         with sqlite3.connect(PROFILE / 'navis.sqlite') as clone:
             clone.execute(
@@ -1128,6 +1199,9 @@ def main() -> int:
                 fade = args.crossfade if args.crossfade else 5
                 runner.measure('S7c_remote_artist_crossfade',
                                lambda: runner.remote_artist_crossfade(fade))
+        if 'sync-playback' in wanted:
+            runner.measure('S9_sync_during_playback',
+                           runner.sync_during_playback, heartbeat=True)
         if enabled('folder-import'):
             app.api('/v1/presentation/navigate', {'location': '/'})
             time.sleep(2)

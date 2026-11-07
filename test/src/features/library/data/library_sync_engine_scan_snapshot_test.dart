@@ -10,6 +10,7 @@ import 'package:navis/src/features/auth/data/server_config_repository.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/utils/connectivity.dart';
 
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/library_sync_plan.dart';
@@ -102,9 +103,13 @@ void main() {
   });
   tearDown(() => database.close());
 
-  Future<LibrarySyncState> snapshot() => engine.executeSyncPlan(
-    syncPlanForTest(LibrarySyncPlanKind.catalogSnapshot),
-  );
+  Future<LibrarySyncState> snapshot({bool scanTriggered = false}) =>
+      engine.executeSyncPlan(
+        syncPlanForTest(
+          LibrarySyncPlanKind.catalogSnapshot,
+          scanTriggered: scanTriggered,
+        ),
+      );
 
   test(
     'E1: a ReplayGain-only change lands and reconciles the new scan',
@@ -208,7 +213,7 @@ void main() {
       api.scanStatus = ScanStatus(scanning: false, count: 12, lastScan: scan2);
       api.calls.clear();
 
-      await engine.observeServerScan();
+      await engine.observeServerScan(serverId);
 
       expect(api.calls, ['getScanStatus']);
       final observation = await database.librarySyncDao.getScanObservation(
@@ -223,7 +228,7 @@ void main() {
 
   test('E3: a running scan records no token and nothing is thrown', () async {
     api.scanStatus = const ScanStatus(scanning: true, count: 12);
-    await engine.observeServerScan();
+    await engine.observeServerScan(serverId);
     final observation = await database.librarySyncDao.getScanObservation(
       serverId,
     );
@@ -232,11 +237,11 @@ void main() {
 
   test('E3: failures and unsupported servers are swallowed', () async {
     api.onGetScanStatus = () async => throw StateError('network down');
-    await engine.observeServerScan();
+    await engine.observeServerScan(serverId);
 
     api.onGetScanStatus = null;
     api.scanStatus = null;
-    await engine.observeServerScan();
+    await engine.observeServerScan(serverId);
     final observation = await database.librarySyncDao.getScanObservation(
       serverId,
     );
@@ -301,4 +306,277 @@ void main() {
     expect(observation!.reconciledToken, scan1.toIso8601String());
     expect(observation.pendingReconciliation, isTrue);
   }, skip: !sqliteAvailable);
+
+  List<Song> withGain(double gain) => [
+    for (final s in baseSongs())
+      s.id == 's1' ? s.copyWith(replayGain: ReplayGain(trackGain: gain)) : s,
+  ];
+
+  test('W1: a candidate collected under an older scan is not resumed', () async {
+    final scan3 = DateTime.utc(2026, 11, 7, 13);
+    // Run 1 collects under scan2; the server rescans (scan3) before promotion.
+    serve(withGain(-3.5), baseAlbums(), scan3);
+    api.scanStatusQueue.add(
+      ScanStatus(scanning: false, count: 12, lastScan: scan2),
+    );
+    await snapshot(scanTriggered: true);
+    var state = await database.librarySyncDao.getOrCreateState(serverId);
+    expect(state.candidateStatus, 'collecting');
+    expect((await songsById())['s1']!.replayGainTrackGain, -7.0);
+
+    // The retag finished during that scan and the server is quiet at scan3.
+    serve(withGain(-1.0), baseAlbums(), scan3);
+    api.calls.clear();
+    await snapshot(scanTriggered: true);
+
+    expect((await songsById())['s1']!.replayGainTrackGain, -1.0);
+    expect(
+      api.calls.where((call) => call.startsWith('searchSongsPage')),
+      isNotEmpty,
+      reason: 'the song pages are collected again',
+    );
+    final observation = await database.librarySyncDao.getScanObservation(
+      serverId,
+    );
+    expect(observation!.reconciledToken, scan3.toIso8601String());
+    expect(observation.pendingReconciliation, isFalse);
+  }, skip: !sqliteAvailable);
+
+  test('W1: a cap-release promotion never reconciles a newer scan', () async {
+    final scan3 = DateTime.utc(2026, 11, 7, 13);
+    final server = (await repository.getActiveServer())!;
+    final capabilities = jsonDecode(server.capabilitiesJson ?? '{}') as Map;
+    await repository.updateCapabilitiesJson(
+      jsonEncode({
+        ...capabilities,
+        'navis': {
+          ...(capabilities['navis'] as Map? ?? {}),
+          'libraryScanDeferralStreak': '2',
+        },
+      }),
+    );
+    serve(withGain(-3.5), baseAlbums(), scan3);
+    api.scanStatusQueue.add(
+      ScanStatus(scanning: false, count: 12, lastScan: scan2),
+    );
+
+    await snapshot(scanTriggered: true);
+
+    // The cap released a promotion of the data collected in this run...
+    expect((await songsById())['s1']!.replayGainTrackGain, -3.5);
+    // ...but only the scan it was collected under may be reconciled, and the
+    // newer scan stays pending for the next pass.
+    final observation = await database.librarySyncDao.getScanObservation(
+      serverId,
+    );
+    expect(observation!.reconciledToken, isNot(scan3.toIso8601String()));
+    expect(observation.pendingReconciliation, isTrue);
+  }, skip: !sqliteAvailable);
+
+  test(
+    'W4: a scan-triggered promotion that waits is reported as deferred',
+    () async {
+      final scan3 = DateTime.utc(2026, 11, 7, 13);
+      serve(withGain(-3.5), baseAlbums(), scan3);
+      api.scanStatusQueue.add(
+        ScanStatus(scanning: false, count: 12, lastScan: scan2),
+      );
+
+      final state = await snapshot(scanTriggered: true);
+
+      expect(state.status, LibrarySyncStatus.deferred);
+      expect(state.failureCategory, 'scanChanged');
+      expect(state.candidateStatus, 'collecting');
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('W4: a repair that waits keeps reporting success', () async {
+    final scan3 = DateTime.utc(2026, 11, 7, 13);
+    serve(withGain(-3.5), baseAlbums(), scan3);
+    api.scanStatusQueue.add(
+      ScanStatus(scanning: false, count: 12, lastScan: scan2),
+    );
+
+    final state = await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+
+    expect(state.status, LibrarySyncStatus.succeeded);
+  }, skip: !sqliteAvailable);
+
+  group('W5 cover art revisions', () {
+    Future<Map<String, int?>> revisions() async => {
+      for (final entry in (await songsById()).entries)
+        entry.key: entry.value.coverArtRevision,
+    };
+
+    test(
+      'a ReplayGain or play-count change leaves the revision alone',
+      () async {
+        final before = await revisions();
+        serve(
+          [
+            for (final s in baseSongs())
+              s.id == 's1'
+                  ? s.copyWith(
+                      replayGain: const ReplayGain(trackGain: -3.5),
+                      playCount: 42,
+                    )
+                  : s,
+          ],
+          baseAlbums(),
+          scan2,
+        );
+
+        await snapshot(scanTriggered: true);
+
+        expect((await songsById())['s1']!.replayGainTrackGain, -3.5);
+        expect(await revisions(), before);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('a changed coverArt id bumps only that song', () async {
+      final before = await revisions();
+      serve(
+        [
+          for (final s in baseSongs())
+            s.id == 's2' ? s.copyWith(coverArt: 'cover-new') : s,
+        ],
+        baseAlbums(),
+        scan2,
+      );
+
+      await snapshot(scanTriggered: true);
+
+      final after = await revisions();
+      expect(after['s2'], (before['s2'] ?? 0) + 1);
+      expect(after['s1'], before['s1']);
+    }, skip: !sqliteAvailable);
+
+    test('Repair Library still bumps every changed song', () async {
+      final before = await revisions();
+      serve(withGain(-3.5), baseAlbums(), scan2);
+
+      await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+
+      expect((await revisions())['s1'], (before['s1'] ?? 0) + 1);
+    }, skip: !sqliteAvailable);
+  });
+
+  test(
+    'observeServerScan on an idle engine clears an earlier cancel',
+    () async {
+      engine.cancelSync();
+      api.scanStatus = ScanStatus(scanning: false, count: 12, lastScan: scan2);
+      await engine.observeServerScan(serverId);
+      expect(api.activeRequestsCancelled, isFalse);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'W2: the engine stops a scan-triggered snapshot on metered data',
+    () async {
+      // "Unmetered only" is off, so plain admission allows the pass; the
+      // scan-triggered snapshot still needs the one-time broad grant.
+      final metered = DriftLibrarySyncEngine(
+        api: api,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.cellular,
+        readSyncNetworkPolicy: () => const SyncNetworkPolicy(
+          networkType: NetworkType.cellular,
+          isMetered: true,
+          allowsBackgroundSync: true,
+          allowsHardProbe: true,
+          allowsInteractiveHydration: true,
+        ),
+        fallbackArtistConcurrency: 1,
+        writeChunkSize: 4,
+      );
+      serve(withGain(-3.5), baseAlbums(), scan2);
+      api.calls.clear();
+
+      final stopped = await metered.executeSyncPlan(
+        syncPlanForTest(
+          LibrarySyncPlanKind.catalogSnapshot,
+          scanTriggered: true,
+          networkType: NetworkType.cellular,
+        ),
+      );
+
+      expect(stopped.status, LibrarySyncStatus.deferred);
+      expect(
+        api.calls.where((call) => call.startsWith('searchSongsPage')),
+        isEmpty,
+      );
+      expect((await songsById())['s1']!.replayGainTrackGain, -7.0);
+
+      final granted = await metered.executeSyncPlan(
+        syncPlanForTest(
+          LibrarySyncPlanKind.catalogSnapshot,
+          scanTriggered: true,
+          grant: SyncNetworkGrant.broadMeteredOnce,
+          networkType: NetworkType.cellular,
+        ),
+      );
+      expect(granted.status, isNot(LibrarySyncStatus.deferred));
+      expect((await songsById())['s1']!.replayGainTrackGain, -3.5);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  /// A run collects under [collected], then the server reports [now]: a
+  /// different scan defers the promotion and leaves the candidate behind.
+  Future<void> deferredSnapshot(
+    List<Song> songs, {
+    required DateTime collected,
+    required DateTime now,
+  }) async {
+    serve(songs, baseAlbums(), now);
+    api.scanStatusQueue.add(
+      ScanStatus(scanning: false, count: 12, lastScan: collected),
+    );
+    await snapshot(scanTriggered: true);
+  }
+
+  test(
+    'W1: a deferred candidate resumes only while the scan is unchanged',
+    () async {
+      final scan3 = DateTime.utc(2026, 11, 7, 13);
+      await deferredSnapshot(withGain(-3.5), collected: scan2, now: scan3);
+      final waiting = await database.librarySyncDao.getOrCreateState(serverId);
+      expect(waiting.candidateStatus, 'collecting');
+
+      // The server is back at the scan the candidate was collected under:
+      // its completed newest-feed work is kept, not fetched again.
+      serve(withGain(-3.5), baseAlbums(), scan2);
+      api.calls.clear();
+      await snapshot(scanTriggered: true);
+      expect(
+        api.calls.where((call) => call.startsWith('getAlbumListPage:0:100')),
+        isEmpty,
+        reason: 'resumed',
+      );
+      expect((await songsById())['s1']!.replayGainTrackGain, -3.5);
+
+      // Another deferral, then a different scan: everything is collected again.
+      final scan4 = DateTime.utc(2026, 11, 7, 14);
+      await deferredSnapshot(withGain(-3.0), collected: scan3, now: scan4);
+      serve(withGain(-2.0), baseAlbums(), DateTime.utc(2026, 11, 7, 15));
+      api.calls.clear();
+      await snapshot(scanTriggered: true);
+      expect(
+        api.calls.where((call) => call.startsWith('getAlbumListPage:0:100')),
+        isNotEmpty,
+        reason: 'collected again',
+      );
+      expect((await songsById())['s1']!.replayGainTrackGain, -2.0);
+    },
+    skip: !sqliteAvailable,
+  );
 }

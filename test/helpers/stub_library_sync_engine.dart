@@ -68,7 +68,7 @@ class StubSyncPlanExecutor implements SyncPlanExecutor {
   void cancelSync() => cancelCalls++;
 
   @override
-  Future<void> observeServerScan() async {
+  Future<void> observeServerScan(int serverId) async {
     observeScanCalls++;
     await onObserveScan?.call();
   }

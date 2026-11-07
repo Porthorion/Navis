@@ -17,19 +17,23 @@ LibraryScanObservationTableData _observation({
   pendingReconciliation: pending,
 );
 
-LibrarySyncWorkTableData _work(String status, Duration age) =>
-    LibrarySyncWorkTableData(
-      id: 1,
-      serverId: 1,
-      kind: 'catalogSnapshot',
-      entityId: '',
-      priority: 60,
-      workClass: 'background',
-      status: status,
-      attemptCount: 0,
-      createdAt: _now.subtract(const Duration(days: 30)),
-      updatedAt: _now.subtract(age),
-    );
+LibrarySyncWorkTableData _work(
+  String status,
+  Duration age, {
+  Duration? retryIn,
+}) => LibrarySyncWorkTableData(
+  id: 1,
+  serverId: 1,
+  kind: 'catalogSnapshot',
+  entityId: '',
+  priority: 60,
+  workClass: 'background',
+  status: status,
+  attemptCount: 0,
+  notBefore: retryIn == null ? null : _now.add(retryIn),
+  createdAt: _now.subtract(const Duration(days: 30)),
+  updatedAt: _now.subtract(age),
+);
 
 bool _due(
   LibraryScanObservationTableData? observation,
@@ -94,5 +98,43 @@ void main() {
       final awaiting = _work('awaitingConfirmation', const Duration(hours: 2));
       expect(_due(_observation(), awaiting), isFalse);
     });
+
+    test('the 24 h interval is inclusive', () {
+      expect(
+        _due(_observation(), _work('completed', const Duration(hours: 24))),
+        isTrue,
+      );
+      expect(
+        _due(
+          _observation(),
+          _work('completed', const Duration(hours: 24, seconds: -1)),
+        ),
+        isFalse,
+      );
+    });
+
+    test('an attempt stamped in the future (clock moved back) is due', () {
+      final future = _work('completed', const Duration(hours: -3));
+      expect(_due(_observation(), future), isTrue);
+    });
+
+    test(
+      'a queued snapshot still in its backoff is due for a manual check only',
+      () {
+        final waiting = _work(
+          'queued',
+          const Duration(minutes: 5),
+          retryIn: const Duration(minutes: 10),
+        );
+        expect(_due(_observation(), waiting), isFalse);
+        expect(_due(_observation(), waiting, manual: true), isTrue);
+        final runnable = _work(
+          'queued',
+          const Duration(minutes: 5),
+          retryIn: const Duration(minutes: -1),
+        );
+        expect(_due(_observation(), runnable, manual: true), isFalse);
+      },
+    );
   });
 }

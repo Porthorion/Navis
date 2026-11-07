@@ -10,6 +10,7 @@ SyncExecutionPlan syncPlanForTest(
   LibrarySyncTarget target = const LibrarySyncTarget.catalog(),
   SyncNetworkGrant grant = SyncNetworkGrant.none,
   NetworkType networkType = NetworkType.other,
+  bool scanTriggered = false,
 }) {
   final request = LibrarySyncRequest(
     origin: switch (kind) {
@@ -41,6 +42,7 @@ SyncExecutionPlan syncPlanForTest(
     request: request,
     kind: kind,
     reason: SyncSafeReason.none,
+    scanTriggered: scanTriggered,
     budget: AdaptiveLibrarySyncCoordinator.executionBudgetFor(
       request: request,
       kind: kind,

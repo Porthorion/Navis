@@ -6821,32 +6821,50 @@ contract.
   `scanning`/`count` fields are supported and `lastScan` supplies the scan
   token. A completed token that no promoted snapshot has covered opens a
   pending reconciliation (`library_scan_observation`). The coordinator turns it
-  into one durable `catalogSnapshot` work row (priority 60, above a queued
+  into one durable `catalogSnapshot` work row (priority 70, above a queued
   delta) before selecting resumed work, so the ordinary resume path runs the
   existing bulk `search3` snapshot, diff analyzer, deletion guard and
-  promotion, and promotion marks the token reconciled. The coordinator makes
+  promotion, and promotion marks reconciled only the scan the candidate was
+  collected under. The coordinator makes
   one unscoped `getScanStatus` request (`SyncPlanExecutor.observeServerScan`,
   outside the run budget) only on a catalog pass that could run a snapshot: a
   manual Check for updates, or an automatic pass that is due, with a baseline,
-  on a network and visibility state that admit a snapshot, and never on a
-  metered connection without the one-time broad mobile-data grant. A manual
-  check runs the snapshot whenever the server has scanned since the last
-  reconciled one; an automatic pass at most once per 24 hours from the previous
-  snapshot attempt (the work row's last transition), and a failed snapshot keeps
-  its retry backoff for automatic passes. While a large-deletion candidate waits
-  for confirmation no new snapshot is queued, so the retag in that candidate
-  waits with the deletions. Installing the update therefore runs one snapshot
-  at the first eligible pass if the server scanned since the last reconciled
-  token. Servers without `lastScan` are recorded once as unsupported and keep
-  the album verification rotation (16 albums per pass, 7 days). Collection
-  re-observes the token before promotion: if a scan landed mid-collection, the
-  candidate's completeness evidence is withheld, the ledger records
-  `scanChangedDuringCollection` (with a per-server deferral streak in
-  `libraryScanDeferralStreak`), and the resumable planner recollects. After
-  three consecutive deferrals the engine waits a bounded window for a running
-  scan to finish and releases the promotion once the server is quiet
-  (`scanChurnCapRelease` ledger entry) so a continuously rescanning server
-  cannot defer full-sync promotion forever.
+  on a network and visibility state that admit a snapshot. A work row the
+  trigger wrote (its checkpoint carries the scan token as `evidenceVersion`)
+  never runs on a metered connection without the one-time broad mobile-data
+  grant, at enqueue, at selection and at execution, so a snapshot an
+  interruption left queued, or a Wi-Fi pass that flipped to cellular, stops
+  there too; the first-setup snapshot is unchanged. A manual check runs the
+  snapshot whenever the server has scanned since the last reconciled one. An
+  automatic pass runs it at most once per 24 hours from the previous attempt
+  (the work row's last transition; a clock that moved back counts as due), and
+  a failed snapshot retries automatically at most once per 24 hours too, while
+  a manual check retries it at once. A failed or incomplete rescan snapshot is
+  not a successful check and leaves the failure circuit alone. While a
+  large-deletion candidate waits for confirmation no new snapshot is queued, so
+  the retag in that candidate waits with the deletions. Installing the update
+  runs one snapshot at the first eligible pass if the server scanned since the
+  last reconciled token. A server that answers `getScanStatus` without a
+  `lastScan` records no token, and one without the endpoint is recorded once as
+  unsupported; both keep the album verification rotation (16 albums per pass,
+  7 days), and the one-request observation still runs before each eligible
+  manual or due automatic pass. Collection reads the token before it starts
+  and promotion re-observes it: if a scan landed mid-collection the promotion
+  waits, the ledger records `scanChangedDuringCollection` (with a per-server
+  deferral streak in `libraryScanDeferralStreak`), and the candidate, stored
+  with its collection token (`libraryCandidateScanToken`), resumes only while
+  the server is still at that token; otherwise its pages are discarded and
+  collected again. A scan-triggered snapshot whose promotion waits is reported
+  as deferred (`scanChanged`), not as a success: its work row stays queued with
+  the existing 15-minute-and-up backoff, a manual check retries it at once, and
+  neither `lastCheckedAt`, `lastCatalogSyncedAt` nor the 24 hour attempt clock
+  advances. After three consecutive deferrals the engine waits a bounded window
+  for a running scan to finish and releases the promotion of the data it just
+  collected once the server is quiet (`scanChurnCapRelease` ledger entry), which
+  leaves the newer scan pending, so a continuously rescanning server cannot defer
+  promotion forever. A scan-triggered snapshot is not a repair: it bumps
+  `cover_art_revision` only for songs whose cover id changed, never for a
+  ReplayGain or play-count change, so artwork is not downloaded again.
 - **Catalog availability.** Songs, albums, and artists carry a typed
   `catalog_availability` (`present`/`suspectedMissing`/`confirmedMissing`).
   Transport, authentication, rate-limit, and decoding failures never advance

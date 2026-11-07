@@ -657,6 +657,13 @@ NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
   `POST /v1/presentation/artist-action`, and opens the Queue every five
   seconds while releases hydrate, timing the first frame that shows it
   (`"settle": false` on `POST /v1/presentation/player-overlay`).
+- `sync-playback` (runs only when named) queues 30 songs, presses Check for
+  updates through `POST /v1/sync/check` while they play, and reports the sync
+  outcome, request and byte counts, the longest playback stall, loading time,
+  playback failures and the heartbeat figures. Against a server that has
+  rescanned since the clone's last reconciled scan it measures the scan-triggered
+  catalog snapshot during playback; it stamps the clone model-current first so
+  no startup repair runs.
 - `folder-import` builds `--folder-files` (default 400) small files named
   `<artist>/<title>.<suffix>` from the catalogue (FLAC files get a minimal
   header) and adopts them through `POST /v1/downloads/folder/adopt`, which

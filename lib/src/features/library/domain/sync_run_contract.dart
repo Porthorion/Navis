@@ -59,6 +59,8 @@ enum SyncSafeReason {
   unknownFailure,
   // Appended: rows persist the enum index.
   databaseBusy,
+  // A promotion waited because the server scanned during collection.
+  scanChanged,
 }
 
 /// Immutable network and endpoint limits resolved once by the scheduler.
@@ -90,12 +92,19 @@ class SyncExecutionPlan {
     required this.kind,
     required this.budget,
     required this.reason,
+    this.scanTriggered = false,
   });
 
   final LibrarySyncRequest request;
   final LibrarySyncPlanKind kind;
   final SyncExecutionBudget budget;
   final SyncSafeReason reason;
+
+  /// The plan resumes a catalog snapshot that a new server scan queued (as
+  /// opposed to the first-setup or repair snapshot). It needs unmetered data
+  /// or the one-time broad grant, and a promotion that waits for a quiet
+  /// server is reported as deferred.
+  final bool scanTriggered;
 }
 
 class SyncRunOutcome {
@@ -126,8 +135,18 @@ bool librarySyncWorkAllowed({
   required bool isForeground,
   required bool hasActivePlayback,
   required bool isBackgroundExecutor,
+  bool scanTriggeredSnapshot = false,
 }) {
   if (policy.isOffline) return false;
+  // A snapshot queued by a new server scan parses a full song listing: on a
+  // metered network it needs the one-time broad grant, whatever the
+  // unmetered-only setting says.
+  if (scanTriggeredSnapshot &&
+      kind == LibrarySyncPlanKind.catalogSnapshot &&
+      policy.isMetered &&
+      request.grant != SyncNetworkGrant.broadMeteredOnce) {
+    return false;
+  }
   if (kind == LibrarySyncPlanKind.fullRepair &&
       request.intent != SyncRunIntent.repairLibrary) {
     return false;
@@ -175,15 +194,27 @@ bool scanSnapshotWorkDue({
   switch (work?.status) {
     case null:
       return true;
-    case 'queued' || 'running':
+    case 'running':
       return false;
+    case 'queued':
+      // Runnable work is picked up by selection; one still waiting out a
+      // backoff is released by a manual check.
+      final retryAt = work!.notBefore;
+      return manual && retryAt != null && retryAt.isAfter(now);
     case 'failed':
       return manual;
     default:
-      return manual ||
-          now.difference(work!.updatedAt) >=
-              librarySyncAutomaticSnapshotInterval;
+      return manual || scanSnapshotAttemptStale(work!, now);
   }
+}
+
+/// Whether [work]'s last attempt is at least
+/// [librarySyncAutomaticSnapshotInterval] old. A negative age means the clock
+/// moved back, which counts as stale. Selection also uses this to let a failed
+/// snapshot retry automatically at most once per interval.
+bool scanSnapshotAttemptStale(LibrarySyncWorkTableData work, DateTime now) {
+  final age = now.difference(work.updatedAt);
+  return age.isNegative || age >= librarySyncAutomaticSnapshotInterval;
 }
 
 /// Whether a completed server scan has not yet been reconciled by a promoted
