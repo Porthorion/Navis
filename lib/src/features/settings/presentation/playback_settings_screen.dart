@@ -719,8 +719,11 @@ class _PlaybackSettingsScreenState
         enabled: !automatic,
         onStep: () {
           if (_isSaving) return false;
-          final target = (_untaggedPreview ?? level) + (up ? 1 : -1);
-          if (target < replayGainMinUntaggedDb || target > 0) return false;
+          // A whole dB from wherever the ruler sits, like the pitch stepper's
+          // semitone; the ruler itself does the fine moves.
+          final current = _untaggedPreview ?? level;
+          final target = _normalizeUntaggedDb(current + (up ? 1 : -1))!;
+          if (target == current) return false;
           setState(() => _untaggedPreview = target);
           return true;
         },
@@ -780,19 +783,22 @@ class _PlaybackSettingsScreenState
             Expanded(
               child: AdjustmentRuler(
                 key: const ValueKey<String>('replayGainUntagged-ruler'),
-                value: level,
+                // The pitch and speed ruler, counting in tens of dB: its
+                // hundredth lines are 0.1 dB with a click each and its
+                // labelled tenths are whole dB with a stronger tick. The value
+                // is rounded to hundredths so it equals what the ruler asked
+                // for: a mismatch would read as an outside change mid-drag.
+                value: roundAdjustment(level / 10),
                 label: l10n.playbackSettingsReplayGainUntaggedLabel,
                 valueLabel: text(level),
                 onChanged: (value) =>
-                    setState(() => _untaggedPreview = value.roundToDouble()),
+                    setState(() => _untaggedPreview = _tenthsDb(value)),
                 onChangeEnd: commit,
                 range: const AdjustmentRange(
-                  minimum: replayGainMinUntaggedDb,
+                  minimum: replayGainMinUntaggedDb / 10,
                   maximum: 0,
                 ),
-                snapStep: 1,
-                pixelsPerUnit: 64,
-                labelBuilder: (value) => text(value.roundToDouble()),
+                labelBuilder: (value) => text(_tenthsDb(value)),
                 enabled: !automatic && !_isSaving,
                 readOnly: automatic,
               ),
@@ -1039,11 +1045,15 @@ class _PlaybackSettingsScreenState
     return trimmed.toLowerCase();
   }
 
-  /// A stored level outside the ruler (or not a whole dB) snaps to the
-  /// nearest whole dB on it; null stays Automatic.
+  /// A stored level outside the ruler (or finer than 0.1 dB) snaps to the
+  /// nearest tenth of a dB on it; null stays Automatic.
   double? _normalizeUntaggedDb(double? value) => value == null
       ? null
-      : value.clamp(replayGainMinUntaggedDb, 0.0).roundToDouble();
+      : (value.clamp(replayGainMinUntaggedDb, 0.0) * 10).round() / 10;
+
+  /// dB for a ruler value in tens of dB, rounded so float noise never shows
+  /// or reaches storage.
+  double _tenthsDb(double tens) => (tens * 100).round() / 10;
 
   String _dbText(double db) =>
       db.toStringAsFixed(db == db.roundToDouble() ? 0 : 1);

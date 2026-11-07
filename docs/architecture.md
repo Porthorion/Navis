@@ -4934,7 +4934,9 @@ Desktop volume follows a parallel local-settings path:
    garbage and counts as untagged, and a known peak limits the result. The dB is
    added to the clamped pre-amp and capped at 0 dB. A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
-   (`replayGainUntaggedDb`, -15..0 dB) or Automatic, the median track gain of
+   (`replayGainUntaggedDb`, -15..0 dB in 0.1 dB steps, set on the pitch/speed
+   `AdjustmentRuler` counting in tens of dB so a click is 0.1 dB and a labelled
+   tick a whole dB; the steppers move 1 dB) or Automatic, the median track gain of
    the library from `LibraryDao.trackGainMedian` (-8 dB while fewer than 20
    songs are tagged), cached in `replayGainAutoUntaggedDbProvider` and
    recomputed when a sync publishes or finishes. `_replayGainVolumeFor`
