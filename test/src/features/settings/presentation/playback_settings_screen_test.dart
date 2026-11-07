@@ -9,6 +9,7 @@ import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_entry.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
+import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
 import 'package:navis/src/features/settings/data/settings_repository.dart';
@@ -136,8 +137,14 @@ void main() {
         WidgetTester tester, {
         String mode = 'track',
         double? untaggedDb,
+        Size viewport = const Size(1280, 1400),
+        double textScale = 1,
+        Future<double> Function()? auto,
+        AppSettingsModel? afterReset,
       }) async {
-        setAdaptiveTestViewport(tester, const Size(1280, 1400));
+        setAdaptiveTestViewport(tester, viewport);
+        when(() => repository.getSettings())
+            .thenAnswer((_) async => afterReset ?? initialSettings);
         saved = null;
         when(() => repository.saveSettings(any()))
             .thenAnswer((invocation) async {
@@ -156,48 +163,233 @@ void main() {
                 ),
               ),
               replayGainAutoUntaggedDbProvider.overrideWith(
-                (ref) async => -9.1,
+                (ref) => auto == null ? Future.value(-9.1) : auto(),
               ),
+              playbackAdjustmentsProvider.overrideWith(_FakeAdjustments.new),
+              equalizerProvider.overrideWith(_FakeEq.new),
             ],
-            child: _buildTestApp(desktopMode: true),
+            child: _buildTestApp(
+              desktopMode: viewport.width > 600,
+              textScale: textScale,
+            ),
           ),
         );
         await tester.pumpAndSettle();
       }
 
-      testWidgets('Automatic shows the library level', (tester) async {
-        await pump(tester);
-        expect(find.text('Untagged songs'), findsOneWidget);
-        expect(find.text('Automatic (-9.1 dB)'), findsOneWidget);
-      });
+      final switchFinder = find.byKey(
+        const ValueKey('replayGainUntagged-automatic'),
+      );
+      final rulerFinder = find.byKey(
+        const ValueKey('replayGainUntagged-ruler'),
+      );
+
+      AdjustmentRuler ruler(WidgetTester tester) =>
+          tester.widget<AdjustmentRuler>(rulerFinder);
+
+      Future<void> toggleAutomatic(WidgetTester tester) async {
+        await tester.ensureVisible(switchFinder);
+        await tester.tap(switchFinder);
+        await tester.pumpAndSettle(const Duration(milliseconds: 600));
+      }
+
+      testWidgets(
+        'Automatic is on with a read-only ruler at the library level',
+        (tester) async {
+          await pump(tester);
+          expect(find.text('Untagged songs'), findsOneWidget);
+          expect(find.text('Automatic (-9.1 dB)'), findsOneWidget);
+          expect(tester.widget<SwitchListTile>(switchFinder).value, isTrue);
+          expect(ruler(tester).value, -9.1);
+          expect(ruler(tester).readOnly, isTrue);
+          expect(ruler(tester).enabled, isFalse);
+        },
+      );
 
       testWidgets('is hidden while ReplayGain is off', (tester) async {
         await pump(tester, mode: 'off');
         expect(find.text('Untagged songs'), findsNothing);
       });
 
-      testWidgets('a stored fixed level is shown', (tester) async {
-        await pump(tester, untaggedDb: -12);
-        expect(find.text('-12 dB'), findsOneWidget);
-        expect(find.text('Automatic (-9.1 dB)'), findsNothing);
-      });
+      testWidgets(
+        'a stored fixed level shows the switch off and the ruler there',
+        (tester) async {
+          await pump(tester, untaggedDb: -12);
+          expect(find.text('-12 dB'), findsOneWidget);
+          expect(tester.widget<SwitchListTile>(switchFinder).value, isFalse);
+          expect(ruler(tester).value, -12);
+          expect(ruler(tester).readOnly, isFalse);
+          expect(ruler(tester).enabled, isTrue);
+        },
+      );
 
-      testWidgets('picking a fixed level persists it, Automatic clears it', (
+      testWidgets('turning Automatic off starts at the automatic level', (
         tester,
       ) async {
         await pump(tester);
-        await tester.ensureVisible(find.text('Automatic (-9.1 dB)'));
-        await tester.tap(find.text('Automatic (-9.1 dB)'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('-6 dB').last);
-        await tester.pumpAndSettle(const Duration(milliseconds: 600));
-        expect(saved?.replayGainUntaggedDb, -6);
+        await toggleAutomatic(tester);
+        expect(saved?.replayGainUntaggedDb, -9);
+        expect(ruler(tester).value, -9);
+        expect(ruler(tester).enabled, isTrue);
+      });
 
-        await tester.tap(find.text('-6 dB'));
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Automatic (-9.1 dB)').last);
-        await tester.pumpAndSettle(const Duration(milliseconds: 600));
+      testWidgets('turning Automatic back on clears the stored level', (
+        tester,
+      ) async {
+        await pump(tester, untaggedDb: -6);
+        await toggleAutomatic(tester);
         expect(saved?.replayGainUntaggedDb, isNull);
+        expect(ruler(tester).readOnly, isTrue);
+      });
+
+      testWidgets('a ruler drag saves only when it ends', (tester) async {
+        await pump(tester, untaggedDb: -10);
+        await tester.ensureVisible(rulerFinder);
+        await tester.pumpAndSettle();
+        // 64 px a dB, and dragging right lowers the value.
+        final gesture = await tester.startGesture(
+          tester.getCenter(rulerFinder),
+        );
+        // The first move only starts the drag.
+        await gesture.moveBy(const Offset(100, 0));
+        await gesture.moveBy(const Offset(128, 0));
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(saved, isNull);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(saved?.replayGainUntaggedDb, -12);
+      });
+
+      testWidgets('holding a stepper to the limit stops there and saves', (
+        tester,
+      ) async {
+        await pump(tester, untaggedDb: -3);
+        await tester.ensureVisible(rulerFinder);
+        await tester.pumpAndSettle();
+        final gesture = await tester.startGesture(
+          tester.getCenter(
+            find.byKey(const ValueKey('replayGainUntagged-plus')),
+          ),
+        );
+        // Long press at 500 ms, then repeats every 120 ms: -3 reaches 0 well
+        // inside the hold.
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+        await gesture.up();
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(tester.takeException(), isNull);
+        expect(saved?.replayGainUntaggedDb, 0);
+      });
+
+      testWidgets('an interrupted drag leaves no stale level after a reset', (
+        tester,
+      ) async {
+        await pump(
+          tester,
+          untaggedDb: -10,
+          afterReset: initialSettings.copyWith(replayGainMode: 'track'),
+        );
+        await tester.ensureVisible(rulerFinder);
+        await tester.pumpAndSettle();
+        final gesture = await tester.startGesture(
+          tester.getCenter(rulerFinder),
+        );
+        await gesture.moveBy(const Offset(100, 0));
+        await gesture.moveBy(const Offset(128, 0));
+        await tester.pump();
+        expect(ruler(tester).value, -12);
+
+        final resetDefaults = find.text('Reset Defaults');
+        await tester.ensureVisible(resetDefaults);
+        await tester.pumpAndSettle();
+        await tester.tap(resetDefaults);
+        await tester.pumpAndSettle();
+
+        expect(tester.widget<SwitchListTile>(switchFinder).value, isTrue);
+        expect(ruler(tester).value, -9.1);
+        expect(ruler(tester).readOnly, isTrue);
+        await gesture.up();
+        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 600));
+        expect(tester.widget<SwitchListTile>(switchFinder).value, isTrue);
+        expect(ruler(tester).value, -9.1);
+      });
+
+      testWidgets('Automatic stays on until the library level is known', (
+        tester,
+      ) async {
+        final auto = Completer<double>();
+        await tester.runAsync(() async {});
+        await pump(tester, auto: () => auto.future);
+        // pumpAndSettle in pump() returns with the future still pending.
+        expect(tester.widget<SwitchListTile>(switchFinder).onChanged, isNull);
+        auto.complete(-9.1);
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<SwitchListTile>(switchFinder).onChanged,
+          isNotNull,
+        );
+      });
+
+      for (final scale in [2.0, 3.0]) {
+        testWidgets('the level rows fit 320 dp at ${scale}x text', (
+          tester,
+        ) async {
+          final errors = <FlutterErrorDetails>[];
+          final previous = FlutterError.onError;
+          FlutterError.onError = errors.add;
+          addTearDown(() => FlutterError.onError = previous);
+          await pump(
+            tester,
+            untaggedDb: -12,
+            viewport: const Size(320, 1400),
+            textScale: scale,
+          );
+          await tester.ensureVisible(rulerFinder);
+          await tester.pumpAndSettle();
+          FlutterError.onError = previous;
+
+          // Other rows may overflow at this size; the new ones may not.
+          final label = tester.getRect(find.text('Untagged songs'));
+          final readout = tester.getRect(find.text('-12 dB'));
+          final row = tester.getRect(rulerFinder);
+          expect(readout.right, lessThanOrEqualTo(320));
+          expect(label.right, lessThanOrEqualTo(readout.left + 0.5));
+          expect(row.left, greaterThanOrEqualTo(0));
+          expect(row.right, lessThanOrEqualTo(320));
+          for (final e in errors) {
+            expect(
+              e.toString(),
+              isNot(contains('replayGainUntagged')),
+              reason: 'new rows must not raise layout errors',
+            );
+          }
+        });
+      }
+
+      testWidgets('the steppers move the level a dB and stop at the limits', (
+        tester,
+      ) async {
+        await pump(tester, untaggedDb: -1);
+        await tester.ensureVisible(rulerFinder);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('replayGainUntagged-plus')));
+        await tester.pumpAndSettle(const Duration(milliseconds: 600));
+        expect(saved?.replayGainUntaggedDb, 0);
+        // A tap at the limit changes nothing.
+        saved = null;
+        await tester.tap(find.byKey(const ValueKey('replayGainUntagged-plus')));
+        await tester.pumpAndSettle(const Duration(milliseconds: 600));
+        expect(saved, isNull);
+        expect(ruler(tester).value, 0);
+        await tester.tap(
+          find.byKey(const ValueKey('replayGainUntagged-minus')),
+        );
+        await tester.pumpAndSettle(const Duration(milliseconds: 600));
+        expect(saved?.replayGainUntaggedDb, -1);
       });
     });
 
@@ -881,8 +1073,13 @@ void main() {
   });
 }
 
-Widget _buildTestApp({bool desktopMode = false}) {
+Widget _buildTestApp({bool desktopMode = false, double textScale = 1}) {
   return MaterialApp(
+    builder: (context, child) => MediaQuery(
+      data: MediaQuery.of(context)
+          .copyWith(textScaler: TextScaler.linear(textScale)),
+      child: child!,
+    ),
     theme: testTheme(),
     localizationsDelegates: navisLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
