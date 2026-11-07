@@ -493,7 +493,7 @@
   "playbackSettingsReplayGainPreampLabel": "Pre-Amp (dB)",
   "playbackSettingsReplayGainIntro": "ReplayGain turns loud songs down so they all play at a similar volume. It never turns songs up, so overall volume may sound lower: turn the volume up to compensate.",
   "playbackSettingsReplayGainPreampSubtitleDown": "Turns every song down further. It can't push a song above its original level.",
-  "playbackSettingsReplayGainPreampSubtitleZero": "Shifts every song by up to 6 dB. It can't push a song above its original level.",
+  "playbackSettingsReplayGainPreampSubtitleZero": "Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB. It can't push a song above its original level.",
   "playbackSettingsReplayGainPreampSubtitleUp": "Gives back some of the turn-down, but never pushes a song above its original level.",
   "playbackSettingsReplayGainCoverage": "{percent}% of your {total, plural, =1{song has} other{songs have}} ReplayGain data ({withData} of {total}).",
   "@playbackSettingsReplayGainCoverage": {"placeholders": {"percent": {"type": "int"}, "total": {"type": "int"}, "withData": {"type": "int"}}},

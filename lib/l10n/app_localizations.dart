@@ -1785,7 +1785,7 @@ abstract class AppLocalizations {
   /// No description provided for @playbackSettingsReplayGainPreampSubtitleZero.
   ///
   /// In en, this message translates to:
-  /// **'Shifts every song by up to 6 dB. It can\'t push a song above its original level.'**
+  /// **'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB. It can\'t push a song above its original level.'**
   String get playbackSettingsReplayGainPreampSubtitleZero;
 
   /// No description provided for @playbackSettingsReplayGainPreampSubtitleUp.

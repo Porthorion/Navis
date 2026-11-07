@@ -205,6 +205,24 @@ void main() {
     expect(find.textContaining(' dB '), findsNothing);
   }, skip: !sqliteAvailable);
 
+  testWidgets(
+    'the shown page stays put when the ReplayGain page comes or goes',
+    (tester) async {
+      await pumpPhone(tester, decision: _tagged(-5));
+      await tapInfo(tester);
+      await tapInfo(tester);
+      final shown = tester.widget<Text>(infoText).data;
+      expect(shown, isNot(quality));
+      container.read(_decisionProvider.notifier).set(null);
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(infoText).data, shown);
+      container.read(_decisionProvider.notifier).set(_tagged(-5));
+      await tester.pumpAndSettle();
+      expect(tester.widget<Text>(infoText).data, shown);
+    },
+    skip: !sqliteAvailable,
+  );
+
   testWidgets('holding the page opens Playback settings', (tester) async {
     await pumpPhone(tester, decision: _tagged(-6.2));
     await tapInfo(tester);

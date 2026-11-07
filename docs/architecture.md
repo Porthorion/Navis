@@ -4968,7 +4968,7 @@ Desktop volume follows a parallel local-settings path:
    `NavisPlaybackHandler.currentReplayGainDecision` (a `freeze: false` read, so
    the UI never changes playback) when the song, queue size, loading state or
    the ReplayGain settings change, never on a position tick, and is null for
-   radio, no song or Off. It reads like "-6.2 dB · album (Smart)" or "-8.0 dB ·
+   radio, no song or Off. It reads like "−6.2 dB · album (Smart)" or "−8.0 dB ·
    untagged (Automatic)" (real minus sign, one decimal, never "-0.0"); holding
    it opens Playback settings. During a cross-fade the page may briefly show
    the outgoing song's gain.

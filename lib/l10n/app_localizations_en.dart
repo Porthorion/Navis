@@ -1199,7 +1199,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playbackSettingsReplayGainPreampSubtitleZero =>
-      'Shifts every song by up to 6 dB. It can\'t push a song above its original level.';
+      'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB. It can\'t push a song above its original level.';
 
   @override
   String get playbackSettingsReplayGainPreampSubtitleUp =>

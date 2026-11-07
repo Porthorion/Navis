@@ -323,6 +323,9 @@ class _NowPlayingInfoPanel extends ConsumerStatefulWidget {
 
 class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
   int _pageIndex = 0;
+  // The page shown, by label: the ReplayGain page can come or go mid-song,
+  // and a raw index would then land on a neighbour.
+  String? _pageLabel;
   bool _showInlineRatingEditor = false;
 
   @override
@@ -339,7 +342,10 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
       replayGain: ref.watch(nowPlayingReplayGainProvider),
       untaggedAutomatic: ref.watch(_untaggedAutomaticProvider),
     );
-    final activeIndex = _pageIndex % pages.length;
+    final labelIndex = pages.indexWhere((p) => p.semanticLabel == _pageLabel);
+    final activeIndex = labelIndex >= 0
+        ? labelIndex
+        : _pageIndex % pages.length;
     final page = pages[activeIndex];
     final colors = Theme.of(context).colorScheme;
     final currentSongId = widget.song?.id;
@@ -367,7 +373,8 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
       child: InkWell(
         borderRadius: NavisShapeData.of(context).xlAll,
         onTap: () => setState(() {
-          _pageIndex = (_pageIndex + 1) % pages.length;
+          _pageIndex = (activeIndex + 1) % pages.length;
+          _pageLabel = pages[_pageIndex].semanticLabel;
           _showInlineRatingEditor = false;
         }),
         child: Padding(
