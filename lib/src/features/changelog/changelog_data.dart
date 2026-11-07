@@ -130,6 +130,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Large text sizes: Now Playing, the mini player and Settings stay '
+        'usable at the largest accessibility size, with bigger buttons and '
+        'dropdowns that no longer overflow; the Appearance blinking icon stops '
+        'with Reduce Motion',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Turning crossfade, gapless, ReplayGain, speed or pitch off or on in '
         'Settings now takes effect right away during playback',
         type: ChangelogEntryType.fix,

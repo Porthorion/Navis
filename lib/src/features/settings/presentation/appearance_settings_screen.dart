@@ -36,6 +36,7 @@ import 'package:navis/src/theme/navis_theme.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 
 class AppearanceSettingsScreen extends ConsumerStatefulWidget {
   const new({this.focusLibraryPages = false, super.key});
@@ -65,7 +66,7 @@ class _AppearanceSettingsScreenState
         Scrollable.ensureVisible(
           target,
           alignment: 0.02,
-          duration: const Duration(milliseconds: 260),
+          duration: MotionPolicy.of(context).surface,
           curve: Curves.easeOutCubic,
         );
         setState(() => _highlightGenres = true);
@@ -684,6 +685,7 @@ class _LanguageSelector extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: DropdownButtonFormField<String?>(
+        isExpanded: true,
         initialValue: appLocale,
         decoration: InputDecoration(
           helperText: enabled ? null : l10n.appearanceLanguageUnavailable,
@@ -740,7 +742,7 @@ class SettingsCollapsibleGroup extends StatefulWidget {
 }
 
 class SettingsCollapsibleGroupState extends State<SettingsCollapsibleGroup> {
-  static const Duration _duration = Duration(milliseconds: 220);
+  Duration get _duration => MotionPolicy.of(context).surface;
   bool _expanded = false;
   bool _childBuilt = true;
   bool _userToggled = false;
@@ -792,7 +794,7 @@ class SettingsCollapsibleGroupState extends State<SettingsCollapsibleGroup> {
                   Scrollable.ensureVisible(
                     context,
                     alignment: 0.02,
-                    duration: const Duration(milliseconds: 260),
+                    duration: MotionPolicy.of(context).surface,
                     curve: Curves.easeOutCubic,
                   );
                 });
@@ -844,7 +846,7 @@ class SettingsCollapsibleGroupState extends State<SettingsCollapsibleGroup> {
                 },
                 child: AnimatedOpacity(
                   opacity: _expanded ? 1 : 0,
-                  duration: const Duration(milliseconds: 170),
+                  duration: MotionPolicy.of(context).surface,
                   curve: Curves.easeOutCubic,
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -877,7 +879,18 @@ class _BlinkingEyeIconState extends State<_BlinkingEyeIcon>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2200),
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reduce Motion: a still eye instead of an endless blink.
+    if (MotionPolicy.of(context).reduceMotion) {
+      _controller.stop();
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
   }
 
   @override
@@ -1309,7 +1322,7 @@ class _ColorChip extends StatelessWidget {
           key: valueKey == null
               ? null
               : ValueKey<String>('colorChip-$valueKey'),
-          duration: const Duration(milliseconds: 200),
+          duration: MotionPolicy.of(context).surface,
           width: size,
           height: size,
           padding: const EdgeInsets.all(3),

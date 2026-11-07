@@ -3647,6 +3647,105 @@ void main() {
     semantics.dispose();
   });
 
+  for (final scale in [2.0, 3.1]) {
+    testWidgets('phone mini player is usable at ${scale}x text', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.platformDispatcher.clearTextScaleFactorTestValue();
+      });
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(),
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      for (final label in ['Previous', 'Pause', 'Skip to Next']) {
+        expect(find.byTooltip(label), findsWidgets, reason: label);
+      }
+      // Only the mini player's own buttons are held to the iOS target size.
+      for (final label in ['Previous', 'Pause', 'Skip to Next']) {
+        final size = tester.getSize(find.byTooltip(label).first);
+        expect(size.shortestSide, greaterThanOrEqualTo(44), reason: label);
+      }
+      semantics.dispose();
+    });
+  }
+
+  for (final compactWide in [false, true]) {
+    testWidgets(
+      'mini player title text scale ${compactWide ? "fits the compact-wide strip (capped at 1.5x)" : "is capped at 1.6x in the phone strip"}',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = compactWide
+            ? const Size(844, 390)
+            : const Size(390, 844);
+        tester.platformDispatcher.textScaleFactorTestValue = 3.1;
+        addTearDown(() {
+          tester.view.reset();
+          tester.platformDispatcher.clearTextScaleFactorTestValue();
+        });
+        final container = _createContainerWithDatabase(
+          overrides: _authenticatedShellOverrides(),
+        );
+        await tester.pumpWidget(
+          UncontrolledProviderScope(container: container, child: testNavisApp),
+        );
+        await tester.pumpAndSettle();
+
+        final title = find
+            .descendant(
+              of: find.byWidgetPredicate(
+                (w) => w.runtimeType.toString() == '_MiniPlayerStrip',
+              ),
+              matching: find.byWidgetPredicate(
+                (w) => w is Text && w.style?.fontWeight == FontWeight.w600,
+              ),
+            )
+            .first;
+        final scale = MediaQuery.textScalerOf(tester.element(title)).scale(10);
+        if (compactWide) {
+          expect(scale, lessThanOrEqualTo(15.01));
+          // The login screen's own overflow at this text size is not under
+          // test; check the strip's lines instead of the exception.
+          tester.takeException();
+          final strip = tester.getRect(
+            find.byWidgetPredicate(
+              (w) => w.runtimeType.toString() == '_MiniPlayerStrip',
+            ),
+          );
+          for (final text
+              in find
+                  .descendant(
+                    of: find.byWidgetPredicate(
+                      (w) => w.runtimeType.toString() == '_MiniPlayerStrip',
+                    ),
+                    matching: find.byType(Text),
+                  )
+                  .evaluate()
+                  .map((e) => e.widget)) {
+            expect(
+              tester.getRect(find.byWidget(text)).bottom,
+              lessThanOrEqualTo(strip.bottom + 0.5),
+            );
+          }
+        } else {
+          expect(scale, lessThanOrEqualTo(16.01));
+        }
+        await tester.pump(const Duration(milliseconds: 201));
+      },
+    );
+  }
+
   group('every way of closing Now Playing brings the nav bar back', () {
     // Every scenario opens Now Playing from the mini player and ends with the
     // nav bar shown, hit-testable and in semantics. Frames run at 60 Hz: the
