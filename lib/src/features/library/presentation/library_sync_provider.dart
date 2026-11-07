@@ -23,6 +23,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/update_pull_check.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -120,6 +121,19 @@ class LibrarySyncForegroundController extends Notifier<bool> {
     state = value;
   }
 }
+
+/// Whether sync counts the app as foreground in [state] (null: not yet
+/// reported, so foreground). Foreground means the user can see the app: on
+/// desktop `inactive` is a visible but unfocused window, so only `hidden`,
+/// `paused` and `detached` background it. On mobile `inactive` is the app
+/// switcher or the notification shade and backgrounds it.
+bool librarySyncForegroundFor(
+  AppLifecycleState? state, {
+  required bool desktop,
+}) =>
+    state == null ||
+    state == AppLifecycleState.resumed ||
+    (desktop && state == AppLifecycleState.inactive);
 
 final librarySyncForegroundProvider =
     NotifierProvider<LibrarySyncForegroundController, bool>(
@@ -365,9 +379,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   @override
   LibrarySyncState build() {
-    final lifecycleState = WidgetsBinding.instance.lifecycleState;
-    _isForeground =
-        lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
+    _isForeground = librarySyncForegroundFor(
+      WidgetsBinding.instance.lifecycleState,
+      desktop: isDesktopRuntime,
+    );
     unawaited(
       Future<void>.microtask(() {
         if (ref.mounted) {
@@ -378,11 +393,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       }),
     );
     _lifecycleListener = AppLifecycleListener(
-      onResume: _onAppResumed,
-      onInactive: _onAppBackgrounded,
-      onPause: _onAppBackgrounded,
-      onHide: _onAppBackgrounded,
-      onDetach: _onAppBackgrounded,
+      onStateChange: (state) {
+        final foreground = librarySyncForegroundFor(
+          state,
+          desktop: isDesktopRuntime,
+        );
+        if (foreground == _isForeground) return;
+        foreground ? _onAppResumed() : _onAppBackgrounded();
+      },
     );
     ref.onDispose(() {
       _lifecycleListener.dispose();

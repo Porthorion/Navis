@@ -14,6 +14,8 @@ import 'package:navis/src/features/auth/presentation/session_route_provider.dart
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart'
+    show debugDesktopRuntimeOverride;
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart';
@@ -74,6 +76,89 @@ void main() {
       serverReachable: true,
     ));
   });
+
+  test(
+    'desktop focus changes do not run resume reconciliation (#349)',
+    () async {
+      debugDesktopRuntimeOverride = true;
+      final database = createTestDatabase();
+      await database.serverDao.saveServer(
+        ServerConfigTableCompanion.insert(
+          url: 'https://fixture.invalid',
+          username: 'fixture',
+          apiVersion: '1.16.1',
+        ),
+      );
+      var now = DateTime(2026, 1, 1);
+      var checks = 0;
+      const config = ServerConfigModel(
+        id: 1,
+        url: 'https://fixture.invalid',
+        username: 'fixture',
+        password: 'synthetic',
+        apiVersion: '1.16.1',
+      );
+      final container = ProviderContainer(
+        overrides: withTestDatabase(
+          database,
+          overrides: [
+            nowProvider.overrideWithValue(() => now),
+            serverConfigStateProvider.overrideWithValue(
+              const AsyncData(config),
+            ),
+            networkTypeProvider.overrideWithValue(NetworkType.wifi),
+            audioHandlerProvider.overrideWithValue(null),
+            librarySyncEngineProvider.overrideWithValue(null),
+            syncIntervalMinutesProvider.overrideWithValue(0),
+            initialSyncRequiredProvider.overrideWith((_) async => false),
+            connectivityProvider.overrideWith((_) {
+              checks++;
+              return Stream.value([ConnectivityResult.wifi]);
+            }),
+            nativeNetworkMeteredProvider.overrideWith((_) async => false),
+            pingServerProvider.overrideWithValue(() async => 'fixture'),
+          ],
+        ),
+      );
+      addTearDown(() async {
+        debugDesktopRuntimeOverride = null;
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        container.dispose();
+        await database.close();
+      });
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.detached);
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      container.listen(librarySyncControllerProvider, (_, _) {});
+      await container
+          .read(connectivityProvider.future)
+          .timeout(const Duration(seconds: 2));
+      await pumpEventQueue();
+      final initialChecks = checks;
+
+      // Focus lost and regained while the window stays visible.
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await pumpEventQueue();
+      now = now.add(const Duration(seconds: 31));
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await pumpEventQueue(times: 80);
+      expect(checks, initialChecks, reason: 'a focus flip is not a resume');
+      expect(container.read(librarySyncForegroundProvider), isTrue);
+
+      // Minimised, then restored without focus: exactly one resume.
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await pumpEventQueue();
+      expect(container.read(librarySyncForegroundProvider), isFalse);
+      now = now.add(const Duration(seconds: 31));
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await pumpEventQueue(times: 80);
+      expect(container.read(librarySyncForegroundProvider), isTrue);
+      expect(checks, initialChecks + 1);
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await pumpEventQueue(times: 80);
+      expect(checks, initialChecks + 1, reason: 'focus after restore is free');
+    },
+  );
 
   test('long resume coalesces connectivity refresh and server probe', () async {
     final database = createTestDatabase();

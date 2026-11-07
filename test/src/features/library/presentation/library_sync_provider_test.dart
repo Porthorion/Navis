@@ -20,6 +20,8 @@ import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
+import 'package:navis/src/routing/desktop_layout.dart'
+    show debugDesktopRuntimeOverride;
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
@@ -3722,6 +3724,9 @@ void main() {
 
     test('sync does not auto-retry on resume after failure', () async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      // Mobile: `inactive` (app switcher, shade) backgrounds the app.
+      debugDesktopRuntimeOverride = false;
+      addTearDown(() => debugDesktopRuntimeOverride = null);
       binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
 
       var attempt = 0;
@@ -3771,8 +3776,92 @@ void main() {
       expect(finalState.status, LibrarySyncStatus.failed);
     });
 
+    group('foreground follows window visibility on desktop (#349)', () {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+
+      setUp(
+        () => addTearDown(() {
+          debugDesktopRuntimeOverride = null;
+          binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        }),
+      );
+
+      test('foreground truth table', () {
+        for (final state in <AppLifecycleState?>[
+          null,
+          ...AppLifecycleState.values,
+        ]) {
+          expect(
+            librarySyncForegroundFor(state, desktop: false),
+            state == null || state == AppLifecycleState.resumed,
+            reason: 'mobile $state',
+          );
+          expect(
+            librarySyncForegroundFor(state, desktop: true),
+            state == null ||
+                state == AppLifecycleState.resumed ||
+                state == AppLifecycleState.inactive,
+            reason: 'desktop $state',
+          );
+        }
+      });
+
+      Future<List<bool>> trace(
+        bool desktop,
+        List<AppLifecycleState> steps,
+      ) async {
+        debugDesktopRuntimeOverride = desktop;
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        final container = _container(
+          StubLibrarySyncEngine.returning(_succeeded),
+          reachability: ServerReachabilityStatus.checking,
+        );
+        addTearDown(container.dispose);
+        container.read(librarySyncControllerProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        final seen = <bool>[container.read(librarySyncForegroundProvider)];
+        container.listen(
+          librarySyncForegroundProvider,
+          (_, next) => seen.add(next),
+        );
+        for (final step in steps) {
+          binding.handleAppLifecycleStateChanged(step);
+          await Future<void>.delayed(Duration.zero);
+        }
+        return seen;
+      }
+
+      test(
+        'desktop: losing focus stays foreground, hiding backgrounds',
+        () async {
+          expect(
+            await trace(true, [
+              AppLifecycleState.inactive,
+              AppLifecycleState.hidden,
+              AppLifecycleState.inactive,
+            ]),
+            // Initial, hidden, shown again unfocused: one change each way.
+            [true, false, true],
+          );
+        },
+      );
+
+      test('mobile: inactive still backgrounds', () async {
+        expect(
+          await trace(false, [
+            AppLifecycleState.inactive,
+            AppLifecycleState.resumed,
+          ]),
+          [true, false, true],
+        );
+      });
+    });
+
     test('periodic sync pauses while backgrounded', () async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      // Mobile: `inactive` (app switcher, shade) backgrounds the app.
+      debugDesktopRuntimeOverride = false;
+      addTearDown(() => debugDesktopRuntimeOverride = null);
       binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
 
       final engine = StubLibrarySyncEngine((request, {onProgress}) async {

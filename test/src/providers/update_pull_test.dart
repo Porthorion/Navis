@@ -320,8 +320,9 @@ void main() {
     await container.read(updateProvider.future);
     expect(store.forces, [false]);
 
-    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     clock = clock.add(const Duration(seconds: 31));
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await container.read(updateProvider.future);
     expect(store.forces, [false, false]);
@@ -348,8 +349,9 @@ void main() {
       await container.read(updateProvider.future);
       expect(store.forces, isEmpty);
 
-      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
       clock = clock.add(const Duration(seconds: 31));
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
       binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
       await Future<void>.delayed(Duration.zero);
       expect(store.forces, isEmpty);
@@ -373,8 +375,9 @@ void main() {
     await container.read(updateProvider.future);
     expect(store.forces, [false]);
 
-    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
     clock = clock.add(const Duration(seconds: 29));
+    binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
     binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await Future<void>.delayed(Duration.zero);
     expect(store.forces, [false]);
