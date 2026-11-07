@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 /// Query parameters that authenticate a Subsonic or OpenSubsonic request.
 ///
@@ -86,8 +87,11 @@ R runWithCredentialRedactedPrint<R>(R Function() body) => runZoned(
 /// `HttpException` or `DioException` that quotes a stream or API URL would
 /// reach the terminal and system log with the account token.
 bool reportUncaughtErrorRedacted(Object error, StackTrace stackTrace) {
-  print(
-    redactCredentialQueryParameters('Unhandled Exception: $error\n$stackTrace'),
+  // iOS cuts a single `print` off at about 1 KB, which can drop the tail of a
+  // stack trace, so emit one line per call. Redact before splitting.
+  final text = redactCredentialQueryParameters(
+    'Unhandled Exception: $error\n$stackTrace',
   );
+  const LineSplitter().convert(text).forEach(print);
   return true;
 }

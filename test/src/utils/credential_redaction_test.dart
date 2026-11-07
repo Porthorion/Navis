@@ -195,4 +195,27 @@ void main() {
     expect(lines.single, startsWith('Unhandled Exception: '));
     expect(lines.single, isNot(contains('abc')));
   });
+
+  test('a multi-line stack is printed one line per call, redacted', () {
+    final lines = <String>[];
+    runZoned(
+      () => reportUncaughtErrorRedacted(
+        Exception('boom https://h.test/rest/stream.view?u=me&t=abc'),
+        StackTrace.fromString(
+          '#0 Handler (https://h.test/rest/stream.view?u=me&t=abc&id=7)\n'
+          '#1 main',
+        ),
+      ),
+      zoneSpecification: ZoneSpecification(
+        print: (self, parent, zone, line) => lines.add(line),
+      ),
+    );
+
+    const redactedUrl = 'https://h.test/rest/stream.view?u=REDACTED&t=REDACTED';
+    expect(lines, [
+      'Unhandled Exception: Exception: boom $redactedUrl',
+      '#0 Handler ($redactedUrl&id=7)',
+      '#1 main',
+    ]);
+  });
 }
