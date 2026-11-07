@@ -843,7 +843,12 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
             (table) =>
                 table.serverId.equals(serverId) &
                 table.kind.equals('fullRepair') &
-                table.status.equals('awaitingConfirmation'),
+                // Also the requeued or failed row a deferred confirmation left.
+                table.status.isIn(const <String>[
+                  'awaitingConfirmation',
+                  'queued',
+                  'failed',
+                ]),
           ))
           .go();
       await (update(

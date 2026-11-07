@@ -671,9 +671,12 @@ NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
   never PASS. A stall is any span of at least 2 s over which the position
   advances less than half of the wall time, measured between samples.
   Diagnostics-API calls slower than 2 s are logged with their route and sync
-  stage; the scenario reports the measured wait, not its cause. Against a server that has
-  rescanned since the clone's last reconciled scan it measures the scan-triggered
-  catalog snapshot during playback; it stamps the clone model-current first so
+  stage; the scenario reports the measured wait, not its cause. The stall
+  verdict has blind spots: a freeze hidden inside one long status call (it is
+  seen only when more than half of that gap is frozen), a freeze at a track
+  change (its first sample is lost) and syncs shorter than about 3 s. Against a
+  server that has rescanned since the clone's last reconciled scan it measures
+  the scan-triggered catalog snapshot during playback; it stamps the clone model-current first so
   no startup repair runs.
 - `folder-import` builds `--folder-files` (default 400) small files named
   `<artist>/<title>.<suffix>` from the catalogue (FLAC files get a minimal

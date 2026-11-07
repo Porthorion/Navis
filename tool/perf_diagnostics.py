@@ -888,7 +888,10 @@ class Runner:
                              playback.get('isLoading')))
             # A stall is a span of at least 2 s over which the position
             # advanced by less than half of the wall time, measured between
-            # samples so a freeze inside a long call is seen too.
+            # samples. Limits: a freeze inside one long status call is seen
+            # only when over half of that gap is frozen, a freeze that starts
+            # at a track change loses its first sample, and a sync under about
+            # 3 s evaluates at most one span.
             sample_started, sample_song, sample_position = last_sample
             wall = now - sample_started
             if playback.get('songId') != sample_song:

@@ -6856,10 +6856,19 @@ contract.
   the server is still at that token; otherwise its pages are discarded and
   collected again. A candidate written by an older build carries no token and
   is discarded and collected again once. A held large-deletion candidate is
-  exempt: it always collects fresh pages, and confirming it must not depend on
-  whether a scan landed since the hold. If a scan lands during the confirming
-  run itself, the hold is kept and the run is reported as deferred, so the
-  repair row is not completed and the retry confirms it. When the status read
+  exempt from the token rule and from the 24 hour resume window: it always
+  collects fresh pages, its generation and start time pin the confirmation
+  fingerprint, and a retry hours or days later still applies the confirmed
+  removal unless the removed set changed (then it holds again). If a scan lands
+  during the confirming run itself, the hold is kept (and visible from the
+  start of a confirming run, so a failed or cancelled press keeps it too) and
+  the run is reported as deferred, so the repair row is not completed. Nothing
+  retries a deferred confirmation by itself: automatic runs refuse a full
+  repair, so only the user's next Repair Library press confirms it, and that
+  press releases the row at once (its short backoff never delays it). Discard
+  removes the held candidate together with that queued or failed repair row. If
+  the removal no longer applies when a scan lands mid-run, no hold or prompt is
+  restored. When the status read
   fails (or the server has no status), the current scan is unknown: the
   candidate is kept and only the scan its pages were collected under is
   reconciled. A scan still running is a known, different scan, so a stale

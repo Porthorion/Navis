@@ -103,37 +103,44 @@ void main() {
     expect(await timeline.copyDetails(), contains('restart'));
   });
 
-  test('every outcome the native worker may record survives the Dart reader', () async {
-    // The Kotlin allowlist is the source of truth for what the worker writes;
-    // the Dart reader must retain each one (a missing entry silently drops
-    // the outcome from the copied details).
+  test('the Dart worker reader and the Kotlin worker allowlist hold the same outcomes', () async {
     final kotlin = File(
       'android/app/src/main/kotlin/com/navis/app/navis/StartupWorkerTimeline.kt',
     ).readAsStringSync();
     final block = RegExp(r'private val outcomes = setOf\(([^)]*)\)')
         .firstMatch(kotlin)!
         .group(1)!;
-    final outcomes = RegExp(r'"(\w+)"')
+    final kotlinOutcomes = RegExp(r'"(\w+)"')
         .allMatches(block)
         .map((m) => m.group(1)!)
-        .toList();
-    expect(outcomes, contains('deferredScanChanged'));
+        .toSet();
+    expect(kotlinOutcomes, contains('deferredScanChanged'));
+
+    // Offer the reader every outcome name it knows; the ones it keeps for the
+    // worker's file are its own allowlist.
     final directory = await Directory.systemTemp.createTemp('navis-worker-');
     addTearDown(() => directory.delete(recursive: true));
     final timeline = StartupTimeline(readDirectory: () async => directory);
+    final offered = StartupOutcome.values.map((o) => o.name).toList();
     await File(p.join(directory.path, 'startup-worker.jsonl')).writeAsString(
-      '${outcomes.map((o) => jsonEncode({'at': DateTime.now().toUtc().toIso8601String(), 'event': 'workerExit', 'outcome': o})).join('\n')}\n',
+      '${offered.map((o) => jsonEncode({'at': DateTime.now().toUtc().toIso8601String(), 'event': 'workerExit', 'outcome': o})).join('\n')}\n',
     );
-    final details = await timeline.copyDetails();
-    final kept = [
-      for (final line in details.split('\n'))
-        (jsonDecode(line) as Map)['outcome'],
-    ];
-    expect(kept, outcomes);
-    for (final outcome in StartupOutcome.values.where(
-      (o) => outcomes.contains(o.name),
-    )) {
-      expect(kept, contains(outcome.name));
-    }
+    final lines = (await timeline.copyDetails()).split('\n');
+    final dartOutcomes = {
+      for (final line in lines)
+        if ((jsonDecode(line) as Map)['outcome'] case final String outcome)
+          outcome,
+    };
+
+    expect(
+      dartOutcomes.difference(kotlinOutcomes),
+      isEmpty,
+      reason: 'Dart only',
+    );
+    expect(
+      kotlinOutcomes.difference(dartOutcomes),
+      isEmpty,
+      reason: 'Kotlin only',
+    );
   });
 }

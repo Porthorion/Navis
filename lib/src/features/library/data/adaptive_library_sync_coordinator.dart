@@ -1038,7 +1038,12 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                   activeWork.id,
                   now: _now(),
                   notBefore: scanDeferred
-                      ? await _scanDeferralRetryAt(serverId)
+                      ? await _scanDeferralRetryAt(
+                          serverId,
+                          repair:
+                              activeWork.kind ==
+                              LibrarySyncPlanKind.fullRepair.name,
+                        )
                       : null,
                 );
               } else if (failed) {
@@ -2030,10 +2035,18 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   /// [librarySyncAutomaticSnapshotInterval] so a server that never stops
   /// scanning costs at most one automatic full pass a day. A manual check
   /// releases the row at any time.
-  Future<DateTime> _scanDeferralRetryAt(int serverId) async {
+  Future<DateTime> _scanDeferralRetryAt(
+    int serverId, {
+    bool repair = false,
+  }) async {
     final streak = await _scanDeferralStreak(serverId);
-    final backoff = _cooldownUntil(streak);
-    if (streak <= librarySyncScanDeferralCap) return backoff;
+    final backoff = _cooldownUntil(
+      repair ? min(streak, librarySyncScanDeferralCap) : streak,
+    );
+    // A deferred confirming repair is only ever retried by the user's next
+    // Repair Library press (automatic runs refuse fullRepair), which releases
+    // the row at once, so it never gets the daily wait.
+    if (repair || streak <= librarySyncScanDeferralCap) return backoff;
     final daily = _now().add(librarySyncAutomaticSnapshotInterval);
     return daily.isAfter(backoff) ? daily : backoff;
   }

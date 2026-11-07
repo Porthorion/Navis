@@ -2642,6 +2642,12 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       serverId: serverId,
       metrics: metrics,
     );
+    // A held large-deletion candidate always collects fresh pages below, and
+    // its confirmation needs the same generation and start time (they pin the
+    // fingerprint), so neither the scan-token rule nor the 24 hour resume
+    // window applies to it; a changed removal set still holds again.
+    final held =
+        persistentState.candidateStatus == 'awaitingDeletionConfirmation';
     var resumableGeneration =
         const <String>{
               'collecting',
@@ -2650,14 +2656,11 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
               'applying',
             }.contains(persistentState.candidateStatus) &&
             persistentState.candidateStartedAt != null &&
-            DateTime.now().difference(persistentState.candidateStartedAt!) <
-                const Duration(hours: 24)
+            (held ||
+                DateTime.now().difference(persistentState.candidateStartedAt!) <
+                    const Duration(hours: 24))
         ? persistentState.candidateGeneration
         : null;
-    // A held large-deletion candidate always collects fresh pages below, and
-    // its confirmation needs the same generation, so no token rule applies.
-    final held =
-        persistentState.candidateStatus == 'awaitingDeletionConfirmation';
     final storedCandidateToken = _readNavisStringCapability(
       serverConfig.capabilitiesJson,
       _libraryCandidateScanTokenCapabilityKey,
@@ -2710,7 +2713,11 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       LibrarySyncStateTableCompanion(
         serverId: Value(serverId),
         candidateGeneration: Value(catalogGeneration),
-        candidateStatus: const Value('collecting'),
+        // A confirming run keeps the hold visible from its start, so a press
+        // that fails or is cancelled can be retried even after a new scan.
+        candidateStatus: Value(
+          held ? 'awaitingDeletionConfirmation' : 'collecting',
+        ),
         candidateStartedAt: Value(candidateStartedAt),
         candidateCarriedForwardCount: const Value(0),
       ),
@@ -3015,11 +3022,22 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       metrics,
     );
     onProgress?.call(current);
+    // The hold only stays when this run's removal set still needs it.
+    final holdStillNeeded =
+        held &&
+        _deletionNeedsConfirmation(
+          staleArtistCount: staleArtistIds.length,
+          staleAlbumCount: staleAlbumIds.length,
+          staleSongCount: staleSongIds.length,
+          artistCount: existingArtists.length,
+          albumCount: existingAlbums.length,
+        );
     final promoted = await _promoteFullSyncCandidate(
       serverId: serverId,
       generation: catalogGeneration,
       scanTokenAtCollection: scanTokenAtCollection,
-      startedHeld: held,
+      startedHeld: holdStillNeeded,
+      droppedHold: held && !holdStillNeeded,
       // With the current scan unknown, a resumed candidate still reconciles
       // only the scan its pages were collected under.
       reconcileToken:
@@ -3053,13 +3071,17 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       current = _withMetrics(
         current.copyWith(
           stage: LibrarySyncStage.collectingCandidate,
-          candidateStatus: held ? 'awaitingDeletionConfirmation' : 'collecting',
+          candidateStatus: holdStillNeeded
+              ? 'awaitingDeletionConfirmation'
+              : 'collecting',
           freshness: scanTriggered
               ? LibrarySyncFreshness.verificationPending
               : LibrarySyncFreshness.repairRecommended,
           // A confirming press that waited has not applied the deletion: it
           // is reported as deferred, never as a success.
-          failureCategory: scanTriggered || held ? _scanChangedCategory : null,
+          failureCategory: scanTriggered || holdStillNeeded
+              ? _scanChangedCategory
+              : null,
         ),
         metrics,
       );
@@ -3294,6 +3316,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     required int generation,
     required (String?, bool) scanTokenAtCollection,
     required bool startedHeld,
+    required bool droppedHold,
     required String? reconcileToken,
     required bool explicitRepair,
     required List<String> staleArtistIds,
@@ -3343,6 +3366,13 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             candidateStatus: Value(
               startedHeld ? 'awaitingDeletionConfirmation' : 'collecting',
             ),
+            // A hold whose removal no longer applies leaves no stale prompt.
+            deletionCandidateCount: droppedHold
+                ? const Value(0)
+                : const Value.absent(),
+            deletionCandidateFingerprint: droppedHold
+                ? const Value(null)
+                : const Value.absent(),
           ),
         );
         await _database.librarySyncDao.recordOperationLedgerEntry(
@@ -3833,6 +3863,19 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     return true;
   }
 
+  /// A removal of over 10% of the artists or albums, or over 500 songs, waits
+  /// for the user's confirmation.
+  bool _deletionNeedsConfirmation({
+    required int staleArtistCount,
+    required int staleAlbumCount,
+    required int staleSongCount,
+    required int artistCount,
+    required int albumCount,
+  }) =>
+      staleArtistCount * 10 > artistCount ||
+      staleAlbumCount * 10 > albumCount ||
+      staleSongCount > 500;
+
   Future<bool> _confirmSnapshotDeletion({
     required int? serverId,
     required LibrarySyncStateTableData? persistentState,
@@ -3851,10 +3894,13 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         staleSongCount == 0) {
       return true;
     }
-    final removesManyArtists = staleArtistIds.length * 10 > artistCount;
-    final removesManyAlbums = staleAlbumIds.length * 10 > albumCount;
-    final requiresConfirmation =
-        removesManyArtists || removesManyAlbums || staleSongCount > 500;
+    final requiresConfirmation = _deletionNeedsConfirmation(
+      staleArtistCount: staleArtistIds.length,
+      staleAlbumCount: staleAlbumIds.length,
+      staleSongCount: staleSongCount,
+      artistCount: artistCount,
+      albumCount: albumCount,
+    );
     if (!requiresConfirmation || serverId == null || persistentState == null) {
       return true;
     }

@@ -174,10 +174,11 @@ bool librarySyncWorkAllowed({
   return policy.allowsBackgroundSync;
 }
 
-/// Consecutive scan-churn deferrals after which a promotion that still cannot
-/// settle waits at least [librarySyncAutomaticSnapshotInterval] for an
-/// automatic retry. Shared by the engine, which releases a settled server at
-/// this streak, and the coordinator, which paces the retries.
+/// Scan-churn deferrals that get the short backoff (15, 30 and 60 minutes).
+/// Beyond this streak a promotion that still cannot settle waits at least
+/// [librarySyncAutomaticSnapshotInterval] for an automatic retry. The engine
+/// also releases a settled server at this streak, and the coordinator paces
+/// the retries by it.
 const librarySyncScanDeferralCap = 3;
 
 /// Longest automatic interval between scan-triggered catalog snapshots,

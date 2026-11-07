@@ -886,6 +886,12 @@ void main() {
           hasLength(4),
           reason: 'attempts at 0, 15, 45 and 105 minutes, then the daily wait',
         );
+        expect(attempts.take(4).map((t) => t.difference(first).inMinutes), [
+          0,
+          15,
+          45,
+          105,
+        ]);
         for (var i = 4; i < attempts.length; i++) {
           expect(
             attempts[i].difference(attempts[i - 1]),
@@ -953,7 +959,124 @@ void main() {
         );
         expect(result.status, LibrarySyncStatus.deferred);
         expect(result.scanDeferred, isTrue);
-        expect((await work('fullRepair'))?.status, isNot('completed'));
+        expect((await work('fullRepair'))?.status, 'queued');
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test('a deferred confirming repair gets the plain backoff, never the daily wait', () async {
+      await database
+          .update(database.serverConfigTable)
+          .write(
+            ServerConfigTableCompanion(
+              capabilities: Value(
+                jsonEncode({
+                  'navis': {'libraryScanDeferralStreak': '4'},
+                }),
+              ),
+            ),
+          );
+      final executor = executorReturning(
+        (plan) => plan.kind == LibrarySyncPlanKind.fullRepair
+            ? LibrarySyncState(
+                status: LibrarySyncStatus.deferred,
+                stage: LibrarySyncStage.collectingCandidate,
+                candidateGeneration: 2,
+                candidateStatus: 'awaitingDeletionConfirmation',
+                failureCategory: 'scanChanged',
+                completedAt: clock,
+              )
+            : LibrarySyncState(
+                status: LibrarySyncStatus.succeeded,
+                stage: LibrarySyncStage.completed,
+                metadataReady: true,
+                completedAt: clock,
+              ),
+      );
+      await coordinatorFor(executor).requestSync(
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
+      );
+      final row = (await work('fullRepair'))!;
+      expect(row.status, 'queued');
+      expect(
+        row.notBefore!.difference(clock),
+        lessThanOrEqualTo(const Duration(hours: 1)),
+      );
+    }, skip: !sqliteAvailable);
+
+    test(
+      'discarding a held candidate removes the deferred repair row',
+      () async {
+        final executor = executorReturning(
+          (plan) => plan.kind == LibrarySyncPlanKind.fullRepair
+              ? LibrarySyncState(
+                  status: LibrarySyncStatus.deferred,
+                  stage: LibrarySyncStage.collectingCandidate,
+                  candidateGeneration: 2,
+                  candidateStatus: 'awaitingDeletionConfirmation',
+                  failureCategory: 'scanChanged',
+                  completedAt: clock,
+                )
+              : LibrarySyncState(
+                  status: LibrarySyncStatus.succeeded,
+                  stage: LibrarySyncStage.completed,
+                  metadataReady: true,
+                  completedAt: clock,
+                ),
+        );
+        await coordinatorFor(executor).requestSync(
+          const LibrarySyncRequest(
+            origin: SyncRunOrigin.settingsRepair,
+            intent: SyncRunIntent.repairLibrary,
+          ),
+        );
+        expect((await work('fullRepair'))?.status, 'queued');
+        await database.librarySyncDao.writeState(
+          const LibrarySyncStateTableCompanion(
+            serverId: Value(_serverId),
+            candidateGeneration: Value(2),
+            candidateStatus: Value('awaitingDeletionConfirmation'),
+          ),
+        );
+
+        final discarded = await database.librarySyncDao
+            .discardAwaitingRepairCandidate(serverId: _serverId, generation: 2);
+
+        expect(discarded, isTrue);
+        expect(await work('fullRepair'), isNull);
+        expect(await database.librarySyncDao.countPendingWork(_serverId), 0);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'discarding a held candidate also removes a failed repair row',
+      () async {
+        await seedWork(
+          'fullRepair',
+          status: 'failed',
+          age: const Duration(minutes: 5),
+          priority: 80,
+          notBefore: _clock.add(const Duration(hours: 1)),
+        );
+        await database.librarySyncDao.writeState(
+          const LibrarySyncStateTableCompanion(
+            serverId: Value(_serverId),
+            candidateGeneration: Value(2),
+            candidateStatus: Value('awaitingDeletionConfirmation'),
+          ),
+        );
+        expect(
+          await database.librarySyncDao.discardAwaitingRepairCandidate(
+            serverId: _serverId,
+            generation: 2,
+          ),
+          isTrue,
+        );
+        expect(await work('fullRepair'), isNull);
       },
       skip: !sqliteAvailable,
     );

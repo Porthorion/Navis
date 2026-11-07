@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -928,6 +929,165 @@ void main() {
         capabilities['libraryCandidateScanToken'],
         scan3.toIso8601String(),
       );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  Future<LibrarySyncState> confirmingPressThatWaits() async {
+    final scan3 = DateTime.utc(2026, 11, 7, 13);
+    final scan4 = DateTime.utc(2026, 11, 7, 14);
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+    serve(removalSongs(), removalAlbums(), scan4);
+    api.scanStatusQueue.add(
+      ScanStatus(scanning: false, count: 12, lastScan: scan3),
+    );
+    final press = await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+    expect(press.status, LibrarySyncStatus.deferred);
+    return press;
+  }
+
+  /// Makes the hold look [age] old: its start moves back and the stored
+  /// fingerprint (which pins generation, start second and the removed ids) is
+  /// recomputed for that start, as if the hold had been written then.
+  Future<void> ageHold(Duration age) async {
+    final state = await database.librarySyncDao.getOrCreateState(serverId);
+    final start = DateTime.now().subtract(age);
+    final fingerprint = sha256
+        .convert(
+          utf8.encode(
+            jsonEncode([
+              state.candidateGeneration,
+              start.millisecondsSinceEpoch ~/ 1000,
+              <String>[],
+              ['a7', 'a8'],
+              ['s7', 's8'],
+            ]),
+          ),
+        )
+        .toString();
+    await database.librarySyncDao.writeState(
+      LibrarySyncStateTableCompanion(
+        serverId: Value(serverId),
+        candidateStartedAt: Value(start),
+        deletionCandidateFingerprint: Value(fingerprint),
+      ),
+    );
+  }
+
+  test(
+    'Y1: a deferred confirmation applies even when the retry comes after 24 h',
+    () async {
+      await confirmingPressThatWaits();
+      await ageHold(const Duration(hours: 25));
+
+      final scan4 = DateTime.utc(2026, 11, 7, 14);
+      serve(removalSongs(), removalAlbums(), scan4);
+      await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+
+      expect(
+        (await database.librarySyncDao.getOrCreateState(serverId))
+            .candidateStatus,
+        isNull,
+      );
+      expect((await songsById()).containsKey('s7'), isFalse);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'Y1: a retry after 24 h whose removal set changed still holds',
+    () async {
+      await confirmingPressThatWaits();
+      await ageHold(const Duration(hours: 25));
+
+      final scan4 = DateTime.utc(2026, 11, 7, 14);
+      serve(
+        [
+          for (final s in removalSongs())
+            if (s.albumId != 'a9') s,
+        ],
+        [
+          for (final a in removalAlbums())
+            if (a.id != 'a9') a,
+        ],
+        scan4,
+      );
+      await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+
+      expect(
+        (await database.librarySyncDao.getOrCreateState(serverId))
+            .candidateStatus,
+        'awaitingDeletionConfirmation',
+      );
+      final rows = await songsById();
+      expect(rows.containsKey('s7'), isTrue);
+      expect(rows.containsKey('s9'), isTrue);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('Y3: a confirming run that failed keeps the confirmation through a new scan', () async {
+    final scan3 = DateTime.utc(2026, 11, 7, 13);
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+
+    api.throwOnFastPath = const SubsonicConnectionException('connection drop');
+    await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+    api.throwOnFastPath = null;
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      'awaitingDeletionConfirmation',
+      reason: 'the failed press leaves the hold visible',
+    );
+
+    serve(removalSongs(), removalAlbums(), scan3);
+    await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      isNull,
+    );
+    expect((await songsById()).containsKey('s7'), isFalse);
+  }, skip: !sqliteAvailable);
+
+  test(
+    'Y4: a deletion that no longer applies is not restored as a hold',
+    () async {
+      final scan3 = DateTime.utc(2026, 11, 7, 13);
+      final scan4 = DateTime.utc(2026, 11, 7, 14);
+      serve(removalSongs(), removalAlbums(), scan2);
+      await snapshot(scanTriggered: true);
+      expect(
+        (await database.librarySyncDao.getOrCreateState(serverId))
+            .deletionCandidateCount,
+        greaterThan(0),
+      );
+
+      // The removed albums came back; a scan lands during the press.
+      serve(withGain(-3.5), baseAlbums(), scan4);
+      api.scanStatusQueue.add(
+        ScanStatus(scanning: false, count: 12, lastScan: scan3),
+      );
+      await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+
+      final state = await database.librarySyncDao.getOrCreateState(serverId);
+      expect(state.candidateStatus, isNot('awaitingDeletionConfirmation'));
+      expect(state.deletionCandidateCount, 0);
+      expect(state.deletionCandidateFingerprint, isNull);
     },
     skip: !sqliteAvailable,
   );
