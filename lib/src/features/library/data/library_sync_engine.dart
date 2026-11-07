@@ -2663,11 +2663,12 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       _libraryCandidateScanTokenCapabilityKey,
     );
     // Pages collected under another scan are stale. Compared first, so a
-    // candidate that cannot resume costs no page requests; an unknown current
-    // token (a failed status read) keeps the candidate.
+    // candidate that cannot resume costs no page requests. Only an unreadable
+    // status (failed or unsupported) leaves the current scan unknown and keeps
+    // the candidate; a scan still running is a known, different scan.
     if (resumableGeneration != null &&
         !held &&
-        scanTokenAtCollection.$1 != null &&
+        scanTokenAtCollection.$2 &&
         storedCandidateToken != scanTokenAtCollection.$1) {
       resumableGeneration = null;
     }
@@ -3018,6 +3019,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       serverId: serverId,
       generation: catalogGeneration,
       scanTokenAtCollection: scanTokenAtCollection,
+      startedHeld: held,
       // With the current scan unknown, a resumed candidate still reconciles
       // only the scan its pages were collected under.
       reconcileToken:
@@ -3051,11 +3053,13 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       current = _withMetrics(
         current.copyWith(
           stage: LibrarySyncStage.collectingCandidate,
-          candidateStatus: 'collecting',
+          candidateStatus: held ? 'awaitingDeletionConfirmation' : 'collecting',
           freshness: scanTriggered
               ? LibrarySyncFreshness.verificationPending
               : LibrarySyncFreshness.repairRecommended,
-          failureCategory: scanTriggered ? _scanChangedCategory : null,
+          // A confirming press that waited has not applied the deletion: it
+          // is reported as deferred, never as a success.
+          failureCategory: scanTriggered || held ? _scanChangedCategory : null,
         ),
         metrics,
       );
@@ -3289,6 +3293,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     required int serverId,
     required int generation,
     required (String?, bool) scanTokenAtCollection,
+    required bool startedHeld,
     required String? reconcileToken,
     required bool explicitRepair,
     required List<String> staleArtistIds,
@@ -3334,7 +3339,10 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         await _database.librarySyncDao.writeState(
           LibrarySyncStateTableCompanion(
             serverId: Value(serverId),
-            candidateStatus: const Value('collecting'),
+            // A confirming run keeps the hold, so the retry confirms it.
+            candidateStatus: Value(
+              startedHeld ? 'awaitingDeletionConfirmation' : 'collecting',
+            ),
           ),
         );
         await _database.librarySyncDao.recordOperationLedgerEntry(

@@ -292,7 +292,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       try {
         await _requestSync(
           LibrarySyncRequest(
-            origin: isExplicit ? sourceRequest.origin : SyncRunOrigin.timer,
+            origin: sourceRequest.origin,
             intent: isExplicit
                 ? SyncRunIntent.manualCatalogCheck
                 : SyncRunIntent.automaticCatalogCheck,
@@ -2025,15 +2025,15 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   }
 
   /// The earliest retry of a scan-triggered snapshot whose promotion waited:
-  /// the existing backoff (15, 30, 60 minutes) up to the deferral cap, then, if
-  /// the server still has not settled, a full
+  /// the existing backoff (15, 30, 60 minutes) while the streak is at most the
+  /// deferral cap, then, if the server still has not settled, a full
   /// [librarySyncAutomaticSnapshotInterval] so a server that never stops
   /// scanning costs at most one automatic full pass a day. A manual check
   /// releases the row at any time.
   Future<DateTime> _scanDeferralRetryAt(int serverId) async {
     final streak = await _scanDeferralStreak(serverId);
     final backoff = _cooldownUntil(streak);
-    if (streak < librarySyncScanDeferralCap) return backoff;
+    if (streak <= librarySyncScanDeferralCap) return backoff;
     final daily = _now().add(librarySyncAutomaticSnapshotInterval);
     return daily.isAfter(backoff) ? daily : backoff;
   }

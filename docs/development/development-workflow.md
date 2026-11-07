@@ -665,11 +665,13 @@ NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
   outcome, request and byte counts, the longest playback stall, loading time,
   playback failures, the heartbeat figures and a PASS/FAIL verdict for the
   sync (`syncVerdict`), playback (`playbackVerdict`) and stall
-  (`stallVerdict`). A control first checks that the position advances on its
-  own; when it does not (a headless emulator without an audio clock) the stall
-  verdict is `INVALID`, never PASS. Diagnostics-API calls slower than 2 s are
-  logged with their route and sync stage (`/v1/sync/status` waits behind the
-  validating stage's database work for about 14 s on the real library). Against a server that has
+  (`stallVerdict`). A control first checks that the position advances at
+  least half as fast as the wall clock without a sync; when it does not (a
+  headless emulator without an audio clock) the stall verdict is `INVALID`,
+  never PASS. A stall is any span of at least 2 s over which the position
+  advances less than half of the wall time, measured between samples.
+  Diagnostics-API calls slower than 2 s are logged with their route and sync
+  stage; the scenario reports the measured wait, not its cause. Against a server that has
   rescanned since the clone's last reconciled scan it measures the scan-triggered
   catalog snapshot during playback; it stamps the clone model-current first so
   no startup repair runs.

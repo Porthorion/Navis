@@ -102,4 +102,38 @@ void main() {
     await timeline.record(StartupEvent.restart);
     expect(await timeline.copyDetails(), contains('restart'));
   });
+
+  test('every outcome the native worker may record survives the Dart reader', () async {
+    // The Kotlin allowlist is the source of truth for what the worker writes;
+    // the Dart reader must retain each one (a missing entry silently drops
+    // the outcome from the copied details).
+    final kotlin = File(
+      'android/app/src/main/kotlin/com/navis/app/navis/StartupWorkerTimeline.kt',
+    ).readAsStringSync();
+    final block = RegExp(r'private val outcomes = setOf\(([^)]*)\)')
+        .firstMatch(kotlin)!
+        .group(1)!;
+    final outcomes = RegExp(r'"(\w+)"')
+        .allMatches(block)
+        .map((m) => m.group(1)!)
+        .toList();
+    expect(outcomes, contains('deferredScanChanged'));
+    final directory = await Directory.systemTemp.createTemp('navis-worker-');
+    addTearDown(() => directory.delete(recursive: true));
+    final timeline = StartupTimeline(readDirectory: () async => directory);
+    await File(p.join(directory.path, 'startup-worker.jsonl')).writeAsString(
+      '${outcomes.map((o) => jsonEncode({'at': DateTime.now().toUtc().toIso8601String(), 'event': 'workerExit', 'outcome': o})).join('\n')}\n',
+    );
+    final details = await timeline.copyDetails();
+    final kept = [
+      for (final line in details.split('\n'))
+        (jsonDecode(line) as Map)['outcome'],
+    ];
+    expect(kept, outcomes);
+    for (final outcome in StartupOutcome.values.where(
+      (o) => outcomes.contains(o.name),
+    )) {
+      expect(kept, contains(outcome.name));
+    }
+  });
 }

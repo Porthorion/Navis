@@ -809,6 +809,26 @@ void main() {
     }, skip: !sqliteAvailable);
   });
 
+  test(
+    'R3: every run request of a worker pass records the worker origin',
+    () async {
+      final executor = executorObserving();
+      await coordinatorFor(executor).requestSync(
+        const LibrarySyncRequest.automatic(origin: SyncRunOrigin.androidWorker),
+      );
+      final rows = await database
+          .select(database.librarySyncRunRequestTable)
+          .get();
+      final byTarget = {for (final r in rows) r.targetKind: r.origin};
+      expect(
+        rows.map((r) => r.origin),
+        everyElement(SyncRunOrigin.androidWorker.index),
+        reason: 'by target: $byTarget',
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
   group('a server that keeps rescanning (X2)', () {
     test(
       'costs at most four automatic passes in a day, then one a day',
@@ -863,8 +883,8 @@ void main() {
           attempts.where(
             (t) => t.difference(first) < const Duration(hours: 24),
           ),
-          hasLength(3),
-          reason: 'attempts at 0, 15 and 45 minutes, then the daily wait',
+          hasLength(4),
+          reason: 'attempts at 0, 15, 45 and 105 minutes, then the daily wait',
         );
         for (var i = 4; i < attempts.length; i++) {
           expect(
@@ -902,6 +922,38 @@ void main() {
         final result = await coordinatorFor(executor).requestSync(manual);
         expect(result.failureCategory, isNull);
         expect(result.scanDeferred, isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'a confirming repair that waits for a quiet server is not a success',
+      () async {
+        final executor = executorReturning(
+          (plan) => plan.kind == LibrarySyncPlanKind.fullRepair
+              ? LibrarySyncState(
+                  status: LibrarySyncStatus.deferred,
+                  stage: LibrarySyncStage.collectingCandidate,
+                  candidateStatus: 'awaitingDeletionConfirmation',
+                  failureCategory: 'scanChanged',
+                  completedAt: clock,
+                )
+              : LibrarySyncState(
+                  status: LibrarySyncStatus.succeeded,
+                  stage: LibrarySyncStage.completed,
+                  metadataReady: true,
+                  completedAt: clock,
+                ),
+        );
+        final result = await coordinatorFor(executor).requestSync(
+          const LibrarySyncRequest(
+            origin: SyncRunOrigin.settingsRepair,
+            intent: SyncRunIntent.repairLibrary,
+          ),
+        );
+        expect(result.status, LibrarySyncStatus.deferred);
+        expect(result.scanDeferred, isTrue);
+        expect((await work('fullRepair'))?.status, isNot('completed'));
       },
       skip: !sqliteAvailable,
     );

@@ -330,13 +330,33 @@ def main():
         state = run.sql("SELECT candidate_status FROM library_sync_state")[0][0]
         check(state == "awaitingDeletionConfirmation", f"sixteen vanished albums wait for confirmation ({state})")
         check(run.sql("SELECT COUNT(*) FROM songs WHERE id LIKE 'rs-s20' OR id LIKE 'rs-s30'")[0][0] == 2, "the held removal has not been applied")
-        run.set_phase("G")  # a quiet scan completes before the user presses Repair Library
+        # A scan completed since the hold (G); the user presses Repair Library,
+        # and another scan (H) lands while that confirming run is collecting.
+        run.set_phase("G")
+        flipped_repair = threading.Event()
+        mark = run.request_mark()
+
+        def flip_during_confirm():
+            while not flipped_repair.is_set():
+                if bulk_song_requests(run.requests_since(mark)):
+                    run.set_phase("H")
+                    flipped_repair.set()
+                time.sleep(0.05)
+
+        threading.Thread(target=flip_during_confirm, daemon=True).start()
         run.post("/v1/sync/repair")
         run.idle()
-        check(run.sql("SELECT candidate_status FROM library_sync_state")[0][0] is None, "the first Repair Library press after the new scan applies the removal")
+        flipped_repair.set()
+        check(run.sql("SELECT candidate_status FROM library_sync_state")[0][0] == "awaitingDeletionConfirmation", "a scan landing during the confirming press keeps the hold")
+        check(run.sql("SELECT COUNT(*) FROM songs WHERE id LIKE 'rs-s20' OR id LIKE 'rs-s30'")[0][0] == 2, "the unconfirmed removal has not been applied")
+        repairs = [r for r in run.runs() if r["intent"] == "repairLibrary"]
+        check(repairs and repairs[0]["outcome"] == "deferred" and repairs[0]["reason"] == "scanChanged", f"the confirming press that waited is reported as deferred {repairs[:1]}")
+        run.post("/v1/sync/repair")  # the server is quiet at H: the retry confirms
+        run.idle()
+        check(run.sql("SELECT candidate_status FROM library_sync_state")[0][0] is None, "the retry after the scan applies the removal without a second hold")
         check(run.sql("SELECT COUNT(*) FROM songs WHERE id LIKE 'rs-s20' OR id LIKE 'rs-s30'")[0][0] == 0, "the removed albums' songs are gone")
         obs = run.sql("SELECT observed_token, reconciled_token FROM library_scan_observation")[0]
-        check(obs[0] == obs[1], f"the confirming pass reconciles the new scan {obs}")
+        check(obs[0] == obs[1] and obs[0].startswith("2026-11-08T06:00:00"), f"the confirming pass reconciles the new scan {obs}")
         # Back to a quiet, reconciled state for the phases below.
         run.set_phase("B")
 

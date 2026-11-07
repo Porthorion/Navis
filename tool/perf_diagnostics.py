@@ -828,8 +828,10 @@ class Runner:
         first = self.app.api('/v1/playback/status')
         (self.app.output / 'sync-playback-first-status.json').write_text(
             json.dumps(first))
+        control_started = time.monotonic()
         time.sleep(10)
         before = self.app.api('/v1/playback/status')
+        control_wall_ms = (time.monotonic() - control_started) * 1000
         advanced_ms = ((before.get('positionMs') or 0) - (first.get('positionMs') or 0)
                        if before.get('songId') == first.get('songId') else None)
         # The harness keeps automatic sync off; a manual check needs it on.
@@ -838,8 +840,9 @@ class Runner:
                       'automaticSyncAllowed': True})
         self.app.api('/v1/sync/check', {})
         started = time.monotonic()
-        last = (before.get('songId'), before.get('positionMs'))
-        last_moved = started
+        last_sample = (started, before.get('songId'),
+                       before.get('positionMs') or 0)
+        stall_run = 0.0
         longest_stall = 0.0
         songs = {before.get('songId')}
         loading_s = 0.0
@@ -883,10 +886,23 @@ class Runner:
                              position[1], playback.get('playing'),
                              stage, playback.get('processingState'),
                              playback.get('isLoading')))
-            if position != last:
-                last, last_moved = position, now
-            elif playback.get('playing'):
-                longest_stall = max(longest_stall, now - last_moved)
+            # A stall is a span of at least 2 s over which the position
+            # advanced by less than half of the wall time, measured between
+            # samples so a freeze inside a long call is seen too.
+            sample_started, sample_song, sample_position = last_sample
+            wall = now - sample_started
+            if playback.get('songId') != sample_song:
+                stall_run = 0.0
+            elif playback.get('playing') and wall >= 2:
+                advance_s = ((position[1] or 0) - sample_position) / 1000
+                if advance_s < 0.5 * wall:
+                    stall_run += wall
+                    longest_stall = max(longest_stall, stall_run)
+                else:
+                    stall_run = 0.0
+            if wall >= 2 or playback.get('songId') != sample_song:
+                last_sample = (now, playback.get('songId'),
+                               position[1] or 0)
             if playback.get('isLoading'):
                 loading_s += 0.5
             if playback.get('failure'):
@@ -901,7 +917,8 @@ class Runner:
             json.dumps(timeout_log))
         # Verdicts. The stall figure only means something when the position
         # advances on its own before the sync starts.
-        position_advances = advanced_ms is not None and advanced_ms >= 2000
+        position_advances = (advanced_ms is not None and
+                             advanced_ms >= 0.5 * control_wall_ms)
         stall_s = round(longest_stall, 1)
         if not position_advances:
             stall_verdict = 'INVALID (position does not advance without a sync)'
@@ -914,6 +931,7 @@ class Runner:
                      status.get('status') == 'succeeded')
         return {
             'baselineAdvancedMsIn10s': advanced_ms,
+            'baselineWallMs': round(control_wall_ms),
             'syncS': round(time.monotonic() - started, 1),
             'syncStatus': status.get('status'),
             'planKind': status.get('planKind'),

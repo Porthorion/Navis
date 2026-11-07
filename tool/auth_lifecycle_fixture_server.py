@@ -288,6 +288,7 @@ RESCAN_SCANS = {
     "E": "2026-11-08T03:00:00Z",
     "F": "2026-11-08T04:00:00Z",
     "G": "2026-11-08T05:00:00Z",
+    "H": "2026-11-08T06:00:00Z",
 }
 RESCAN_INDEXES = {
     phase: 1780000000000 + 600000 * index
@@ -313,10 +314,10 @@ def _rescan_library(phase):
     album (a7) removed, s2 moved a2 to a3, s8 renamed and re-artisted, and a
     genre on s9. One album of a hundred disappears, under the deletion guard."""
     b = phase != "A"
-    # D, E: the retag moves on with each scan. F, G: sixteen albums vanish,
+    # D, E: the retag moves on with each scan. F, G, H: sixteen albums vanish,
     # a large removal that waits for confirmation.
-    track_gain = {"B": -3.5, "C": -3.5, "D": -2.0, "E": -1.0, "F": -1.0, "G": -1.0}
-    removed = set(range(20, 36)) if phase in ("F", "G") else set()
+    track_gain = {"B": -3.5, "C": -3.5, "D": -2.0, "E": -1.0, "F": -1.0, "G": -1.0, "H": -1.0}
+    removed = set(range(20, 36)) if phase in ("F", "G", "H") else set()
     artists = {
         "rs-artist-1": {"id": "rs-artist-1", "name": "Rescan Artist 1", "coverArt": "fixture-cover"},
         "rs-artist-2": {"id": "rs-artist-2", "name": "Rescan Artist 2", "coverArt": "fixture-cover"},
@@ -662,7 +663,7 @@ def main():
     parser.add_argument("--annotation-log")
     parser.add_argument(
         "--phase-file",
-        help="Rescan mode: file read per request holding the library phase: A, B, C, D, E, F or G (see _rescan_library).",
+        help="Rescan mode: file read per request holding the library phase: A to H (see _rescan_library).",
     )
     parser.add_argument(
         "--rescan-albums",

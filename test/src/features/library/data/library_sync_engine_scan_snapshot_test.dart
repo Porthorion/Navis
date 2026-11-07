@@ -620,6 +620,96 @@ void main() {
     expect(observation!.reconciledToken, scan3.toIso8601String());
   }, skip: !sqliteAvailable);
 
+  test('R3: a held deletion is confirmed after a scan that changed the newest albums', () async {
+    final scan3 = DateTime.utc(2026, 11, 7, 13);
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      'awaitingDeletionConfirmation',
+    );
+    // The new scan also added an album at the top of the feed.
+    serve(
+      [...removalSongs(), song('s99', 'a99')],
+      [albumRow('a99', '1', 1), ...removalAlbums()],
+      scan3,
+    );
+    await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      isNull,
+    );
+    expect((await songsById()).containsKey('s7'), isFalse);
+  }, skip: !sqliteAvailable);
+
+  test('V4: a scan that is still running is a known, different scan', () async {
+    final scan3 = DateTime.utc(2026, 11, 7, 13);
+    await deferredSnapshot(withGain(-3.5), collected: scan2, now: scan3);
+    serve(withGain(-2.0), baseAlbums(), scan3);
+    api.onGetScanStatus = () async => ScanStatus(scanning: true, count: 12);
+    api.calls.clear();
+    await snapshot(scanTriggered: true);
+    api.onGetScanStatus = null;
+    // The deferral proved scan3 landed after the scan2 pages: they are not
+    // reused, and the newest data is what gets promoted.
+    expect(
+      api.calls.where((c) => c.startsWith('getAlbumListPage:0:100')),
+      isNotEmpty,
+      reason: 'collected again',
+    );
+    expect((await songsById())['s1']!.replayGainTrackGain, -2.0);
+    final observation = await database.librarySyncDao.getScanObservation(
+      serverId,
+    );
+    expect(observation!.pendingReconciliation, isTrue);
+  }, skip: !sqliteAvailable);
+
+  test('V1: a scan that lands during the confirming run keeps the confirmation', () async {
+    final scan3 = DateTime.utc(2026, 11, 7, 13);
+    final scan4 = DateTime.utc(2026, 11, 7, 14);
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      'awaitingDeletionConfirmation',
+    );
+
+    // The confirming press collects under scan3; scan4 lands before promotion.
+    serve(removalSongs(), removalAlbums(), scan4);
+    api.scanStatusQueue.add(
+      ScanStatus(scanning: false, count: 12, lastScan: scan3),
+    );
+    final press = await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+    expect(press.status, LibrarySyncStatus.deferred, reason: 'not a success');
+    expect(press.candidateStatus, 'awaitingDeletionConfirmation');
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      'awaitingDeletionConfirmation',
+    );
+    expect((await songsById()).containsKey('s7'), isTrue);
+
+    // The server is quiet again: the retry confirms without a second hold.
+    serve(removalSongs(), removalAlbums(), scan4);
+    final retry = await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+    expect(retry.status, LibrarySyncStatus.succeeded);
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      isNull,
+    );
+    expect((await songsById()).containsKey('s7'), isFalse);
+  }, skip: !sqliteAvailable);
+
   test('X6: a failed status read keeps a resumable candidate', () async {
     final scan3 = DateTime.utc(2026, 11, 7, 13);
     await deferredSnapshot(withGain(-3.5), collected: scan2, now: scan3);
@@ -643,6 +733,66 @@ void main() {
     expect(observation!.reconciledToken, isNot(scan3.toIso8601String()));
     expect(observation.pendingReconciliation, isTrue);
   }, skip: !sqliteAvailable);
+
+  test(
+    'R3: a failed status read still reconciles the collection scan',
+    () async {
+      final scan3 = DateTime.utc(2026, 11, 7, 13);
+      await deferredSnapshot(withGain(-3.5), collected: scan2, now: scan3);
+      // The server is observed at scan2 again (e.g. an interrupted pass), then
+      // the status read fails on the resume.
+      await database.librarySyncDao.recordScanObservation(
+        serverId: serverId,
+        scanInProgress: false,
+        supported: true,
+        providerScanToken: scan2.toIso8601String(),
+      );
+      api.onGetScanStatus = () async =>
+          throw const SubsonicConnectionException('status unavailable');
+      await snapshot(scanTriggered: true);
+      api.onGetScanStatus = null;
+      expect((await songsById())['s1']!.replayGainTrackGain, -3.5);
+      final observation = await database.librarySyncDao.getScanObservation(
+        serverId,
+      );
+      expect(observation!.reconciledToken, scan2.toIso8601String());
+      expect(observation.pendingReconciliation, isFalse);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test(
+    'R3: an expired candidate with an unknown scan reconciles nothing',
+    () async {
+      final scan3 = DateTime.utc(2026, 11, 7, 13);
+      await deferredSnapshot(withGain(-3.5), collected: scan2, now: scan3);
+      await database.librarySyncDao.recordScanObservation(
+        serverId: serverId,
+        scanInProgress: false,
+        supported: true,
+        providerScanToken: scan2.toIso8601String(),
+      );
+      // The candidate is older than the 24 h resume window: it collects afresh.
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          candidateStartedAt: Value(
+            DateTime.now().subtract(const Duration(hours: 30)),
+          ),
+        ),
+      );
+      api.onGetScanStatus = () async =>
+          throw const SubsonicConnectionException('status unavailable');
+      await snapshot(scanTriggered: true);
+      api.onGetScanStatus = null;
+      final observation = await database.librarySyncDao.getScanObservation(
+        serverId,
+      );
+      expect(observation!.reconciledToken, isNot(scan2.toIso8601String()));
+      expect(observation.pendingReconciliation, isTrue);
+    },
+    skip: !sqliteAvailable,
+  );
 
   test(
     'X8: a candidate that cannot resume costs no boundary requests',
