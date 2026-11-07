@@ -357,7 +357,10 @@ the authenticated API, the clone database and the fixture request log that
 Check for updates runs one catalog snapshot that lands the retag, removals,
 move, rename and genre change and reconciles the scan token; that a restart and
 a second check run no snapshot; that an automatic pass respects the 24 h
-throttle and a held large-deletion candidate; and that a metered network makes
+throttle and a held large-deletion candidate; that a rescan during collection
+(phases D to E) defers the promotion with a backoff and the retry promotes fresh
+data; that a held large removal (phases F, G) is confirmed by the first Repair
+Library press even after a new scan; and that a metered network makes
 no `getScanStatus` or bulk song request. Run it alone: it builds the profile
 Linux app.
 
@@ -660,7 +663,13 @@ NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
 - `sync-playback` (runs only when named) queues 30 songs, presses Check for
   updates through `POST /v1/sync/check` while they play, and reports the sync
   outcome, request and byte counts, the longest playback stall, loading time,
-  playback failures and the heartbeat figures. Against a server that has
+  playback failures, the heartbeat figures and a PASS/FAIL verdict for the
+  sync (`syncVerdict`), playback (`playbackVerdict`) and stall
+  (`stallVerdict`). A control first checks that the position advances on its
+  own; when it does not (a headless emulator without an audio clock) the stall
+  verdict is `INVALID`, never PASS. Diagnostics-API calls slower than 2 s are
+  logged with their route and sync stage (`/v1/sync/status` waits behind the
+  validating stage's database work for about 14 s on the real library). Against a server that has
   rescanned since the clone's last reconciled scan it measures the scan-triggered
   catalog snapshot during playback; it stamps the clone model-current first so
   no startup repair runs.

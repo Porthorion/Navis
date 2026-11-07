@@ -6854,15 +6854,25 @@ contract.
   deferral streak in `libraryScanDeferralStreak`), and the candidate, stored
   with its collection token (`libraryCandidateScanToken`), resumes only while
   the server is still at that token; otherwise its pages are discarded and
-  collected again. A scan-triggered snapshot whose promotion waits is reported
-  as deferred (`scanChanged`), not as a success: its work row stays queued with
-  the existing 15-minute-and-up backoff, a manual check retries it at once, and
-  neither `lastCheckedAt`, `lastCatalogSyncedAt` nor the 24 hour attempt clock
-  advances. After three consecutive deferrals the engine waits a bounded window
-  for a running scan to finish and releases the promotion of the data it just
-  collected once the server is quiet (`scanChurnCapRelease` ledger entry), which
-  leaves the newer scan pending, so a continuously rescanning server cannot defer
-  promotion forever. A scan-triggered snapshot is not a repair: it bumps
+  collected again. A held large-deletion candidate is exempt: it always
+  collects fresh pages, and confirming it must not depend on whether a scan
+  landed since the hold. When the current scan token cannot be read, the
+  candidate is kept and only the scan its pages were collected under is
+  reconciled. The token is compared before the album-page boundary check, so a
+  candidate that cannot resume costs no page requests. A scan-triggered snapshot
+  whose promotion waits is reported as deferred (`scanChanged`, and
+  `LibrarySyncState.scanDeferred`), not as a success: it shows neither an
+  update notice nor a mobile-data action, the Android worker records it as
+  `deferredScanChanged`, and neither `lastCheckedAt` nor `lastCatalogSyncedAt`
+  advances. Its work row stays queued (a queued row ignores the 24 hour
+  attempt clock, which the requeue still stamps) with the existing 15, 30 and
+  60 minute backoff, and a manual check retries it at once. After three
+  consecutive deferrals the engine waits a bounded window for a running scan to
+  finish and releases the promotion of the data it just collected once the
+  server is quiet (`scanChurnCapRelease` ledger entry), which leaves the newer
+  scan pending. If the server has still not settled, the next automatic retry
+  waits at least 24 hours, so a server that never stops scanning costs at most
+  four automatic full passes in the first day and one a day afterwards. A scan-triggered snapshot is not a repair: it bumps
   `cover_art_revision` only for songs whose cover id changed, never for a
   ReplayGain or play-count change, so artwork is not downloaded again.
 - **Catalog availability.** Songs, albums, and artists carry a typed

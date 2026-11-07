@@ -735,6 +735,41 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets(
+    'a scan-triggered promotion that waits shows no update notice or mobile-data action',
+    (tester) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+
+      await _pumpSyncSettings(
+        tester,
+        database,
+        controller: () => _FakeLibrarySyncController(
+          stateValue: LibrarySyncState(
+            status: LibrarySyncStatus.deferred,
+            stage: LibrarySyncStage.completed,
+            planKind: LibrarySyncPlanKind.catalogSnapshot,
+            candidateStatus: 'collecting',
+            scanDeferred: true,
+          ),
+          onSyncNow: ({required allowMeteredBroadOverride}) {},
+        ),
+        policy: _meteredPolicy,
+      );
+
+      expect(
+        find.textContaining('Library updates are available'),
+        findsNothing,
+      );
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
+      expect(find.text('Sync Using Mobile Data'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
+
   testWidgets('repair on metered network requires confirmation', (
     tester,
   ) async {

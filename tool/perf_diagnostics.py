@@ -823,7 +823,15 @@ class Runner:
         has rescanned) while a queue plays: records the sync outcome and
         whether playback ever stalled, failed or lost its place meanwhile."""
         self.play_queue(30, 90)
+        # Control: the position must advance on its own before the sync starts,
+        # or the stall figure below measures the device, not the sync.
+        first = self.app.api('/v1/playback/status')
+        (self.app.output / 'sync-playback-first-status.json').write_text(
+            json.dumps(first))
+        time.sleep(10)
         before = self.app.api('/v1/playback/status')
+        advanced_ms = ((before.get('positionMs') or 0) - (first.get('positionMs') or 0)
+                       if before.get('songId') == first.get('songId') else None)
         # The harness keeps automatic sync off; a manual check needs it on.
         self.app.api('/v1/diagnostics/overrides',
                      {'networkType': 'wifi', 'nativeMetered': False,
@@ -836,19 +844,45 @@ class Runner:
         songs = {before.get('songId')}
         loading_s = 0.0
         failures = []
-        timeouts = 0
+        timeout_log = []
+        slow_log = []
+        slowest_call_ms = 0
         status = {}
-        while time.monotonic() - started < 900:
+        stage = None
+        timeline = []
+
+        def call(route):
+            nonlocal slowest_call_ms
+            began = time.monotonic()
             try:
-                status = self.app.api('/v1/sync/status', timeout=15)
-                playback = self.app.api('/v1/playback/status', timeout=15)
-            except Exception:
-                timeouts += 1
+                value = self.app.api(route, timeout=15)
+            except Exception as error:
+                timeout_log.append({
+                    'tS': round(began - started, 1), 'route': route,
+                    'stage': stage, 'error': type(error).__name__})
+                return None
+            elapsed_ms = round((time.monotonic() - began) * 1000)
+            slowest_call_ms = max(slowest_call_ms, elapsed_ms)
+            if elapsed_ms > 2000:
+                slow_log.append({'tS': round(began - started, 1),
+                                 'route': route, 'ms': elapsed_ms,
+                                 'stage': stage})
+            return value
+
+        while time.monotonic() - started < 900:
+            status = call('/v1/sync/status') or status
+            stage = status.get('stage')
+            playback = call('/v1/playback/status')
+            if playback is None:
                 time.sleep(0.5)
                 continue
             now = time.monotonic()
             position = (playback.get('songId'), playback.get('positionMs'))
             songs.add(playback.get('songId'))
+            timeline.append((round(now - started, 1), position[0],
+                             position[1], playback.get('playing'),
+                             stage, playback.get('processingState'),
+                             playback.get('isLoading')))
             if position != last:
                 last, last_moved = position, now
             elif playback.get('playing'):
@@ -861,19 +895,45 @@ class Runner:
                 break
             time.sleep(0.5)
         after = self.app.api('/v1/playback/status')
+        (self.app.output / 'sync-playback-timeline.json').write_text(
+            json.dumps(timeline))
+        (self.app.output / 'sync-playback-api-timeouts.json').write_text(
+            json.dumps(timeout_log))
+        # Verdicts. The stall figure only means something when the position
+        # advances on its own before the sync starts.
+        position_advances = advanced_ms is not None and advanced_ms >= 2000
+        stall_s = round(longest_stall, 1)
+        if not position_advances:
+            stall_verdict = 'INVALID (position does not advance without a sync)'
+        else:
+            stall_verdict = 'PASS' if stall_s < 3 else 'FAIL'
+        playing_before = bool(before.get('playing'))
+        playback_verdict = ('PASS' if playing_before and after.get('playing')
+                            and not failures else 'FAIL')
+        triggered = (status.get('planKind') == 'catalogSnapshot' and
+                     status.get('status') == 'succeeded')
         return {
+            'baselineAdvancedMsIn10s': advanced_ms,
             'syncS': round(time.monotonic() - started, 1),
             'syncStatus': status.get('status'),
             'planKind': status.get('planKind'),
             'planReason': status.get('planReason'),
             'requests': status.get('requests'),
             'bytes': status.get('bytes'),
-            'apiTimeouts': timeouts,
+            'apiTimeouts': len(timeout_log),
+            'apiTimeoutLog': timeout_log[:8],
+            'slowestApiCallMs': slowest_call_ms,
+            'slowApiCalls': slow_log[:8],
             'songsPlayed': len(songs),
-            'longestPlaybackStallS': round(longest_stall, 1),
+            'longestPlaybackStallS': stall_s,
             'loadingS': loading_s,
             'playbackFailures': failures[:3],
+            'playingBefore': playing_before,
             'stillPlaying': after.get('playing'),
+            'syncVerdict': ('PASS' if triggered else
+                            'NOT TRIGGERED (no catalog snapshot ran)'),
+            'stallVerdict': stall_verdict,
+            'playbackVerdict': playback_verdict,
         }
 
     def play_queue(self, count: int, fill_timeout: float, skips: int = 0):

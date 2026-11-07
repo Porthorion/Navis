@@ -280,6 +280,66 @@ def main():
         def snapshot_row():
             return run.sql("SELECT status, updated_at, not_before FROM library_sync_work WHERE kind='catalogSnapshot'")
 
+        print("== A rescan during collection defers the promotion; the retry after the backoff promotes fresh data", flush=True)
+
+        def snapshot_row_full():
+            return run.sql("SELECT status, not_before FROM library_sync_work WHERE kind='catalogSnapshot'")
+
+        reconciled_c = run.sql("SELECT reconciled_token FROM library_scan_observation")[0][0]
+        checked_before = run.sql("SELECT last_checked_at, last_catalog_synced_at FROM library_sync_state")[0]
+        run.set_phase("D")
+        import threading
+        flipped = threading.Event()
+        mark = run.request_mark()
+
+        def flip_on_first_bulk_request():
+            # The server rescans while the snapshot is collecting its songs.
+            while not flipped.is_set():
+                if bulk_song_requests(run.requests_since(mark)):
+                    run.set_phase("E")
+                    flipped.set()
+                time.sleep(0.05)
+
+        watcher = threading.Thread(target=flip_on_first_bulk_request, daemon=True)
+        watcher.start()
+        run.post("/v1/sync/check")
+        run.idle()
+        flipped.set()
+        check(run.sql("SELECT replay_gain_track_gain FROM songs WHERE id='rs-s1'")[0][0] == -3.5, "the waiting promotion keeps the previous song data")
+        row = snapshot_row_full()[0]
+        check(row[0] == "queued" and row[1] is not None and row[1] > time.time(), f"the snapshot stays queued with a backoff {row}")
+        check(run.sql("SELECT last_checked_at, last_catalog_synced_at FROM library_sync_state")[0] == checked_before, "a waiting promotion leaves the last-checked clocks alone")
+        deferred = [r for r in run.runs() if "napshot" in str(r.get("planKind")) and r["outcome"] == "deferred"]
+        check(deferred and deferred[0]["reason"] == "scanChanged", "run history reports the waiting promotion as deferred (scanChanged)")
+        check(run.sql("SELECT reconciled_token FROM library_scan_observation")[0][0] == reconciled_c, "no scan was reconciled by the waiting promotion")
+        # The backoff passes: the automatic entry point retries and collects again.
+        run.exec("UPDATE library_sync_work SET not_before=? WHERE kind='catalogSnapshot'", (int(time.time()) - 60,))
+        run.exec("UPDATE library_sync_state SET last_checked_at=?, next_automatic_check_at=NULL", (int(time.time()) - 7200,))
+        mark = run.request_mark()
+        run.post("/v1/sync/automatic")
+        run.idle()
+        check(len(bulk_song_requests(run.requests_since(mark))) >= 1, "the retry after the backoff collects the songs again")
+        check(run.sql("SELECT replay_gain_track_gain FROM songs WHERE id='rs-s1'")[0][0] == -1.0, "the retry promotes fresh data (the retag that landed during the rescan)")
+        obs = run.sql("SELECT observed_token, reconciled_token, pending_reconciliation FROM library_scan_observation")[0]
+        check(obs[0] == obs[1] and obs[2] == 0 and obs[0].startswith("2026-11-08T03:00:00"), f"the scan the data was collected under is reconciled {obs}")
+
+        print("== A held large deletion is confirmed even after a new scan", flush=True)
+        run.set_phase("F")
+        run.post("/v1/sync/check")
+        run.idle()
+        state = run.sql("SELECT candidate_status FROM library_sync_state")[0][0]
+        check(state == "awaitingDeletionConfirmation", f"sixteen vanished albums wait for confirmation ({state})")
+        check(run.sql("SELECT COUNT(*) FROM songs WHERE id LIKE 'rs-s20' OR id LIKE 'rs-s30'")[0][0] == 2, "the held removal has not been applied")
+        run.set_phase("G")  # a quiet scan completes before the user presses Repair Library
+        run.post("/v1/sync/repair")
+        run.idle()
+        check(run.sql("SELECT candidate_status FROM library_sync_state")[0][0] is None, "the first Repair Library press after the new scan applies the removal")
+        check(run.sql("SELECT COUNT(*) FROM songs WHERE id LIKE 'rs-s20' OR id LIKE 'rs-s30'")[0][0] == 0, "the removed albums' songs are gone")
+        obs = run.sql("SELECT observed_token, reconciled_token FROM library_scan_observation")[0]
+        check(obs[0] == obs[1], f"the confirming pass reconciles the new scan {obs}")
+        # Back to a quiet, reconciled state for the phases below.
+        run.set_phase("B")
+
         print("== Awaiting deletion confirmation: no new snapshot", flush=True)
         run.exec("UPDATE library_scan_observation SET pending_reconciliation=1, reconciled_token='stale-token'")
         run.exec("UPDATE library_sync_state SET candidate_status='awaitingDeletionConfirmation', candidate_generation=99, last_checked_at=?", (stale,))

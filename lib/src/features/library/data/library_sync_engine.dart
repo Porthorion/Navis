@@ -373,7 +373,7 @@ const _scanChangedCategory = 'scanChanged';
 /// the withheld promotion. Without a cap, a server that rescans constantly
 /// (for example on a ~30-minute churn cycle) can defer full-sync promotion
 /// indefinitely.
-const _maxScanDeferralStreak = 3;
+const _maxScanDeferralStreak = librarySyncScanDeferralCap;
 
 const _indexesCapabilityRetryAfter = Duration(days: 1);
 const _normalArtistVerificationLimit = 48;
@@ -2654,21 +2654,30 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
                 const Duration(hours: 24)
         ? persistentState.candidateGeneration
         : null;
+    // A held large-deletion candidate always collects fresh pages below, and
+    // its confirmation needs the same generation, so no token rule applies.
+    final held =
+        persistentState.candidateStatus == 'awaitingDeletionConfirmation';
+    final storedCandidateToken = _readNavisStringCapability(
+      serverConfig.capabilitiesJson,
+      _libraryCandidateScanTokenCapabilityKey,
+    );
+    // Pages collected under another scan are stale. Compared first, so a
+    // candidate that cannot resume costs no page requests; an unknown current
+    // token (a failed status read) keeps the candidate.
     if (resumableGeneration != null &&
-        persistentState.candidateStatus != 'awaitingDeletionConfirmation' &&
+        !held &&
+        scanTokenAtCollection.$1 != null &&
+        storedCandidateToken != scanTokenAtCollection.$1) {
+      resumableGeneration = null;
+    }
+    if (resumableGeneration != null &&
+        !held &&
         !await _catalogResumeBoundariesMatch(
           serverId,
           resumableGeneration,
           metrics,
         )) {
-      resumableGeneration = null;
-    }
-    if (resumableGeneration != null &&
-        _readNavisStringCapability(
-              serverConfig.capabilitiesJson,
-              _libraryCandidateScanTokenCapabilityKey,
-            ) !=
-            scanTokenAtCollection.$1) {
       resumableGeneration = null;
     }
     final catalogGeneration =
@@ -2681,8 +2690,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         : DateTime.now();
     // A second deletion observation must come from a new server snapshot,
     // not from replaying the first observation's cached pages and tracks.
-    if (resumableGeneration != catalogGeneration ||
-        persistentState.candidateStatus == 'awaitingDeletionConfirmation') {
+    if (resumableGeneration != catalogGeneration || held) {
       await _database.librarySyncCandidateDao.clearGeneration(
         serverId: serverId,
         generation: catalogGeneration,
@@ -2707,7 +2715,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       ),
     );
     metrics.metadataChanged = true;
-    if (resumableGeneration != catalogGeneration) {
+    if (resumableGeneration != catalogGeneration || held) {
       await _updateVerificationCapabilities(<String, Object?>{
         _libraryCandidateScanTokenCapabilityKey: scanTokenAtCollection.$1,
       }, metrics);
@@ -3010,6 +3018,13 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       serverId: serverId,
       generation: catalogGeneration,
       scanTokenAtCollection: scanTokenAtCollection,
+      // With the current scan unknown, a resumed candidate still reconciles
+      // only the scan its pages were collected under.
+      reconcileToken:
+          scanTokenAtCollection.$1 ??
+          (resumableGeneration == catalogGeneration
+              ? storedCandidateToken
+              : null),
       explicitRepair:
           _activeExecutionPlan?.kind == LibrarySyncPlanKind.fullRepair,
       staleArtistIds: staleArtistIds,
@@ -3274,6 +3289,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     required int serverId,
     required int generation,
     required (String?, bool) scanTokenAtCollection,
+    required String? reconcileToken,
     required bool explicitRepair,
     required List<String> staleArtistIds,
     required List<String> staleAlbumIds,
@@ -3784,12 +3800,12 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
       serverId: serverId,
       generation: generation,
     );
-    if (scanTokenAtCollection.$1 != null) {
+    if (reconcileToken != null) {
       // The promoted data was collected under this scan only. A newer scan
       // (a cap-released promotion) stays pending for the next snapshot.
       await _database.librarySyncDao.markScanReconciled(
         serverId: serverId,
-        token: scanTokenAtCollection.$1!,
+        token: reconcileToken,
       );
     }
     await _updateVerificationCapabilities(<String, Object?>{

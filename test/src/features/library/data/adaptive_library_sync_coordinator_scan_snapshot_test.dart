@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
@@ -806,5 +807,138 @@ void main() {
       await coordinatorFor(explicit).requestSync(manual);
       expect(_catalogKinds(explicit), [LibrarySyncPlanKind.catalogSnapshot]);
     }, skip: !sqliteAvailable);
+  });
+
+  group('a server that keeps rescanning (X2)', () {
+    test(
+      'costs at most four automatic passes in a day, then one a day',
+      () async {
+        var streak = 0;
+        final attempts = <DateTime>[];
+        final executor = executorReturning((plan) {
+          if (plan.kind != LibrarySyncPlanKind.catalogSnapshot) {
+            return LibrarySyncState(
+              status: LibrarySyncStatus.succeeded,
+              stage: LibrarySyncStage.completed,
+              metadataReady: true,
+              completedAt: clock,
+            );
+          }
+          attempts.add(clock);
+          streak++;
+          // The engine records the streak next to its other capabilities.
+          unawaited(
+            database
+                .update(database.serverConfigTable)
+                .write(
+                  ServerConfigTableCompanion(
+                    capabilities: Value(
+                      jsonEncode({
+                        'navis': {'libraryScanDeferralStreak': '$streak'},
+                      }),
+                    ),
+                  ),
+                ),
+          );
+          return LibrarySyncState(
+            status: LibrarySyncStatus.deferred,
+            stage: LibrarySyncStage.collectingCandidate,
+            metadataReady: true,
+            candidateGeneration: 2,
+            candidateStatus: 'collecting',
+            failureCategory: 'scanChanged',
+            completedAt: clock,
+          );
+        });
+        final sync = coordinatorFor(executor);
+
+        for (var step = 0; step < 192; step++) {
+          await sync.requestSync(automatic);
+          await Future<void>.delayed(Duration.zero);
+          clock = clock.add(const Duration(minutes: 15));
+        }
+
+        final first = attempts.first;
+        expect(
+          attempts.where(
+            (t) => t.difference(first) < const Duration(hours: 24),
+          ),
+          hasLength(3),
+          reason: 'attempts at 0, 15 and 45 minutes, then the daily wait',
+        );
+        for (var i = 4; i < attempts.length; i++) {
+          expect(
+            attempts[i].difference(attempts[i - 1]),
+            greaterThanOrEqualTo(const Duration(hours: 24)),
+            reason: 'attempt $i of ${attempts.length}',
+          );
+        }
+        expect(attempts.length, lessThanOrEqualTo(5));
+      },
+      skip: !sqliteAvailable,
+    );
+  });
+
+  group('deferral and confirmation details (X3)', () {
+    test(
+      'a scan deferral carries no failure category and is flagged',
+      () async {
+        final executor = executorReturning(
+          (plan) => plan.kind == LibrarySyncPlanKind.catalogSnapshot
+              ? LibrarySyncState(
+                  status: LibrarySyncStatus.deferred,
+                  stage: LibrarySyncStage.collectingCandidate,
+                  candidateStatus: 'collecting',
+                  failureCategory: 'scanChanged',
+                  completedAt: clock,
+                )
+              : LibrarySyncState(
+                  status: LibrarySyncStatus.succeeded,
+                  stage: LibrarySyncStage.completed,
+                  metadataReady: true,
+                  completedAt: clock,
+                ),
+        );
+        final result = await coordinatorFor(executor).requestSync(manual);
+        expect(result.failureCategory, isNull);
+        expect(result.scanDeferred, isTrue);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'a snapshot awaiting confirmation still counts as a completed check',
+      () async {
+        await database.librarySyncDao.writeState(
+          const LibrarySyncStateTableCompanion(
+            serverId: Value(_serverId),
+            failureStreak: Value(2),
+          ),
+        );
+        final executor = executorReturning(
+          (plan) => plan.kind == LibrarySyncPlanKind.catalogSnapshot
+              ? LibrarySyncState(
+                  status: LibrarySyncStatus.partial,
+                  stage: LibrarySyncStage.completed,
+                  metadataReady: true,
+                  candidateGeneration: 2,
+                  candidateStatus: 'awaitingDeletionConfirmation',
+                  completedAt: clock,
+                )
+              : LibrarySyncState(
+                  status: LibrarySyncStatus.succeeded,
+                  stage: LibrarySyncStage.completed,
+                  metadataReady: true,
+                  completedAt: clock,
+                ),
+        );
+        await coordinatorFor(executor).requestSync(manual);
+        final state = await database.librarySyncDao.getOrCreateState(_serverId);
+        expect(state.failureStreak, 0);
+        expect(state.lastCheckedAt, isNotNull);
+        expect((await work(_snapshot))!.status, 'awaitingConfirmation');
+      },
+      skip: !sqliteAvailable,
+    );
   });
 }

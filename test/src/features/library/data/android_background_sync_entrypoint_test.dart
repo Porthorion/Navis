@@ -237,7 +237,27 @@ void main() {
       )..where((work) => work.status.equals('running'))).get(),
       isEmpty,
     );
+    // The worker's own request is recorded with the worker origin.
+    final origins = await (database.select(
+      database.librarySyncRunRequestTable,
+    )..where((row) => row.targetKind.equals(0))).map((row) => row.origin).get();
+    expect(origins, isNotEmpty);
+    expect(origins, everyElement(SyncRunOrigin.androidWorker.index));
   }, skip: !sqliteAvailable);
+
+  group('worker result category for a scan deferral', () {
+    test('a scanChanged deferral is reported as such', () {
+      final state = LibrarySyncState(
+        status: LibrarySyncStatus.deferred,
+        stage: LibrarySyncStage.completed,
+        scanDeferred: true,
+      );
+      expect(
+        backgroundSyncCategoryFor(state, hasActivePlayback: false),
+        'deferredScanChanged',
+      );
+    });
+  });
 
   test('entrypoint supplies the cached native playback reader to sync', () {
     final source = File(

@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/api/sync_request_scope.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
@@ -576,6 +577,207 @@ void main() {
         reason: 'collected again',
       );
       expect((await songsById())['s1']!.replayGainTrackGain, -2.0);
+    },
+    skip: !sqliteAvailable,
+  );
+
+  List<Song> removalSongs() => [
+    for (final s in withGain(-3.5))
+      if (s.albumId != 'a7' && s.albumId != 'a8') s,
+  ];
+  List<Album> removalAlbums() => [
+    for (final a in baseAlbums())
+      if (a.id != 'a7' && a.id != 'a8') a,
+  ];
+
+  test('X1: a held deletion is confirmed even after a new scan', () async {
+    final scan3 = DateTime.utc(2026, 11, 7, 13);
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      'awaitingDeletionConfirmation',
+    );
+
+    // A quiet watcher scan completes before the user presses Repair Library.
+    serve(removalSongs(), removalAlbums(), scan3);
+    await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      isNull,
+    );
+    final rows = await songsById();
+    expect(rows.containsKey('s7'), isFalse);
+    expect(rows['s1']!.replayGainTrackGain, -3.5);
+    final observation = await database.librarySyncDao.getScanObservation(
+      serverId,
+    );
+    expect(observation!.reconciledToken, scan3.toIso8601String());
+  }, skip: !sqliteAvailable);
+
+  test('X6: a failed status read keeps a resumable candidate', () async {
+    final scan3 = DateTime.utc(2026, 11, 7, 13);
+    await deferredSnapshot(withGain(-3.5), collected: scan2, now: scan3);
+
+    api.onGetScanStatus = () async =>
+        throw const SubsonicConnectionException('status unavailable');
+    api.calls.clear();
+    await snapshot(scanTriggered: true);
+    api.onGetScanStatus = null;
+
+    expect(
+      api.calls.where((call) => call.startsWith('getAlbumListPage:0:100')),
+      isEmpty,
+      reason: 'the candidate resumed',
+    );
+    expect((await songsById())['s1']!.replayGainTrackGain, -3.5);
+    // Only the scan the pages were collected under may be reconciled.
+    final observation = await database.librarySyncDao.getScanObservation(
+      serverId,
+    );
+    expect(observation!.reconciledToken, isNot(scan3.toIso8601String()));
+    expect(observation.pendingReconciliation, isTrue);
+  }, skip: !sqliteAvailable);
+
+  test(
+    'X8: a candidate that cannot resume costs no boundary requests',
+    () async {
+      final scan3 = DateTime.utc(2026, 11, 7, 13);
+      await deferredSnapshot(withGain(-3.5), collected: scan2, now: scan3);
+
+      serve(withGain(-2.0), baseAlbums(), scan3);
+      api.calls.clear();
+      await snapshot(scanTriggered: true);
+
+      // One page fetch to collect again; a boundary check would add a second.
+      expect(
+        api.calls.where((call) => call.startsWith('getAlbumListPage:0:500')),
+        hasLength(1),
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('X3: a waiting scan-triggered promotion is not a repair hint', () async {
+    final scan3 = DateTime.utc(2026, 11, 7, 13);
+    serve(withGain(-3.5), baseAlbums(), scan3);
+    api.scanStatusQueue.add(
+      ScanStatus(scanning: false, count: 12, lastScan: scan2),
+    );
+    final state = await snapshot(scanTriggered: true);
+    expect(state.freshness, LibrarySyncFreshness.verificationPending);
+
+    serve(withGain(-3.5), baseAlbums(), scan3);
+    api.scanStatusQueue.add(
+      ScanStatus(scanning: false, count: 12, lastScan: scan2),
+    );
+    final repair = await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+    expect(repair.freshness, LibrarySyncFreshness.repairRecommended);
+  }, skip: !sqliteAvailable);
+
+  test('X3: a snapshot leaves album and artist covers alone and a new song unbumped', () async {
+    Future<Map<String, int?>> albumRevisions() async => {
+      for (final row in await database.select(database.albumsTable).get())
+        row.id: row.coverArtRevision,
+    };
+    Future<Map<String, int?>> artistRevisions() async => {
+      for (final row in await database.select(database.artistsTable).get())
+        row.id: row.coverArtRevision,
+    };
+    final albumsBefore = await albumRevisions();
+    final artistsBefore = await artistRevisions();
+    final renamed = [
+      for (final a in baseAlbums())
+        a.id == 'a1' ? a.copyWith(name: 'Album a1 renamed') : a,
+      albumRow('a13', '1', 1),
+    ];
+    api.artists
+      ..clear()
+      ..add(const Artist(id: 'artist-1', name: 'Artist 1 renamed'))
+      ..add(const Artist(id: 'artist-2', name: 'Artist 2'));
+    serve(
+      [...withGain(-3.5), song('s13', 'a13').copyWith(coverArt: 'cover-13')],
+      renamed,
+      scan2,
+    );
+
+    await snapshot(scanTriggered: true);
+
+    expect((await albumRevisions())['a1'], albumsBefore['a1']);
+    expect((await artistRevisions())['artist-1'], artistsBefore['artist-1']);
+    expect((await songsById())['s13']!.coverArtRevision, isNull);
+    expect(
+      (await database.select(database.albumsTable).get())
+          .firstWhere((a) => a.id == 'a1')
+          .name,
+      'Album a1 renamed',
+    );
+
+    // Repair Library keeps refetching changed albums and artists.
+    api.artists
+      ..clear()
+      ..add(const Artist(id: 'artist-1', name: 'Artist 1 again'))
+      ..add(const Artist(id: 'artist-2', name: 'Artist 2'));
+    serve(
+      [...withGain(-3.5), song('s13', 'a13')],
+      [
+        for (final a in renamed)
+          a.id == 'a1' ? a.copyWith(name: 'Album a1 again') : a,
+      ],
+      scan2,
+    );
+    await engine.executeSyncPlan(
+      syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+    );
+    expect((await albumRevisions())['a1'], (albumsBefore['a1'] ?? 0) + 1);
+    expect(
+      (await artistRevisions())['artist-1'],
+      (artistsBefore['artist-1'] ?? 0) + 1,
+    );
+  }, skip: !sqliteAvailable);
+
+  test(
+    'X1: a re-held candidate remembers the scan it was collected under',
+    () async {
+      final scan3 = DateTime.utc(2026, 11, 7, 13);
+      serve(removalSongs(), removalAlbums(), scan2);
+      await snapshot(scanTriggered: true);
+
+      // A different removal after a new scan is a new observation: it is held
+      // again, and its pages belong to the new scan.
+      serve(
+        [
+          for (final s in withGain(-3.5))
+            if (s.albumId != 'a6' && s.albumId != 'a9') s,
+        ],
+        [
+          for (final a in baseAlbums())
+            if (a.id != 'a6' && a.id != 'a9') a,
+        ],
+        scan3,
+      );
+      await engine.executeSyncPlan(
+        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+      );
+
+      final state = await database.librarySyncDao.getOrCreateState(serverId);
+      expect(state.candidateStatus, 'awaitingDeletionConfirmation');
+      final capabilities =
+          jsonDecode(
+                (await repository.getActiveServer())!.capabilitiesJson!,
+              )['navis']
+              as Map;
+      expect(
+        capabilities['libraryCandidateScanToken'],
+        scan3.toIso8601String(),
+      );
     },
     skip: !sqliteAvailable,
   );

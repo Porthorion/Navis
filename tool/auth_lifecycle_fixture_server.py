@@ -284,8 +284,15 @@ RESCAN_SCANS = {
     "A": "2026-11-07T04:00:00Z",
     "B": "2026-11-07T12:00:00Z",
     "C": "2026-11-07T18:00:00Z",
+    "D": "2026-11-08T02:00:00Z",
+    "E": "2026-11-08T03:00:00Z",
+    "F": "2026-11-08T04:00:00Z",
+    "G": "2026-11-08T05:00:00Z",
 }
-RESCAN_INDEXES = {"A": 1780000000000, "B": 1780000600000, "C": 1780001200000}
+RESCAN_INDEXES = {
+    phase: 1780000000000 + 600000 * index
+    for index, phase in enumerate(sorted(RESCAN_SCANS))
+}
 RESCAN_ALBUM_COUNT = 100  # the bulk song path needs at least 96 pending albums
 
 
@@ -299,12 +306,17 @@ def _rescan_phase():
 
 
 def _rescan_library(phase):
-    """Return (artists, albums, songs) for a phase; C is B after another scan.
+    """Return (artists, albums, songs) for a phase. C is B after another scan,
+    D and E move the retag on, F and G also remove sixteen albums.
     Phase B holds a ReplayGain
     retag (s1 changed, s4 cleared), s5 removed from a two-song album, a whole
     album (a7) removed, s2 moved a2 to a3, s8 renamed and re-artisted, and a
     genre on s9. One album of a hundred disappears, under the deletion guard."""
-    b = phase in ("B", "C")
+    b = phase != "A"
+    # D, E: the retag moves on with each scan. F, G: sixteen albums vanish,
+    # a large removal that waits for confirmation.
+    track_gain = {"B": -3.5, "C": -3.5, "D": -2.0, "E": -1.0, "F": -1.0, "G": -1.0}
+    removed = set(range(20, 36)) if phase in ("F", "G") else set()
     artists = {
         "rs-artist-1": {"id": "rs-artist-1", "name": "Rescan Artist 1", "coverArt": "fixture-cover"},
         "rs-artist-2": {"id": "rs-artist-2", "name": "Rescan Artist 2", "coverArt": "fixture-cover"},
@@ -330,11 +342,11 @@ def _rescan_library(phase):
         songs[song_id] = row
 
     for n in range(1, RESCAN_ALBUM_COUNT + 1):
-        if b and n == 7:
+        if b and (n == 7 or n in removed):
             continue
         gain = -6.0 - n
         if b and n == 1:
-            gain = -3.5
+            gain = track_gain[phase]
         if b and n == 4:
             gain = None
         title = "Renamed" if b and n == 8 else None
@@ -650,7 +662,13 @@ def main():
     parser.add_argument("--annotation-log")
     parser.add_argument(
         "--phase-file",
-        help="Rescan mode: file read per request holding the library phase: A, B or C.",
+        help="Rescan mode: file read per request holding the library phase: A, B, C, D, E, F or G (see _rescan_library).",
+    )
+    parser.add_argument(
+        "--rescan-albums",
+        type=int,
+        default=100,
+        help="Rescan mode: albums in the library (the bulk song path needs 96).",
     )
     parser.add_argument(
         "--request-log",
@@ -663,6 +681,7 @@ def main():
     )
     args = parser.parse_args()
     global ANNOTATION_LOG, RESCAN_ENABLED, PHASE_FILE, REQUEST_LOG
+    global RESCAN_ALBUM_COUNT
     ANNOTATION_LOG = args.annotation_log
     REQUEST_LOG = os.path.realpath(args.request_log) if args.request_log else ""
     FAILURE_FLAG = os.path.realpath(args.failure_flag)
@@ -690,6 +709,7 @@ def main():
             parser.error("--phase-file is required for rescan")
         RESCAN_ENABLED = True
         PHASE_FILE = os.path.realpath(args.phase_file)
+        RESCAN_ALBUM_COUNT = max(20, args.rescan_albums)
     if args.scenario == "partial-album":
         if not PARTIAL_ALBUM_FLAG:
             parser.error("--partial-album-flag is required for partial-album")

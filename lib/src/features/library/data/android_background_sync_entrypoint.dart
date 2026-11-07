@@ -103,6 +103,7 @@ String backgroundSyncCategoryFor(
     LibrarySyncStatus.succeeded ||
     LibrarySyncStatus.partial ||
     LibrarySyncStatus.skipped => 'succeeded',
+    LibrarySyncStatus.deferred when state.scanDeferred => 'deferredScanChanged',
     LibrarySyncStatus.deferred =>
       hasActivePlayback ? 'deferredPlayback' : 'deferredPolicy',
     LibrarySyncStatus.failed => 'permanentFailure',
@@ -289,7 +290,7 @@ class _HeadlessBackgroundSyncRunner {
       );
       _coordinator = coordinator;
       final state = await coordinator.requestSync(
-        const LibrarySyncRequest.automatic(),
+        const LibrarySyncRequest.automatic(origin: SyncRunOrigin.androidWorker),
       );
       return await finish(
         backgroundSyncCategoryFor(

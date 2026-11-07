@@ -672,11 +672,12 @@ class SyncSettingsScreen extends ConsumerWidget {
   }
 
   static bool _showUpdatesMessaging(LibrarySyncState state) {
+    if (state.scanDeferred) return false;
     return state.updatesAvailable || _hasDeferredBroadWork(state);
   }
 
   static bool _hasDeferredBroadWork(LibrarySyncState state) {
-    if (state.status != LibrarySyncStatus.deferred) {
+    if (state.status != LibrarySyncStatus.deferred || state.scanDeferred) {
       return false;
     }
     final planKind = state.planKind;

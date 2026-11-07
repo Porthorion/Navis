@@ -1038,7 +1038,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                   activeWork.id,
                   now: _now(),
                   notBefore: scanDeferred
-                      ? _cooldownUntil(await _scanDeferralStreak(serverId))
+                      ? await _scanDeferralRetryAt(serverId)
                       : null,
                 );
               } else if (failed) {
@@ -1215,6 +1215,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               lastApplyDurationMs: _didCommitCatalogCandidate(plan, result)
                   ? persisted.lastApplyDurationMs
                   : result.lastApplyDurationMs,
+              scanDeferred: scanDeferred,
               updatesAvailable:
                   result.updatesAvailable ||
                   (deferred && !scanDeferred) ||
@@ -2011,14 +2012,30 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   /// next to its other verification evidence; it paces the retry backoff.
   Future<int> _scanDeferralStreak(int serverId) async {
     try {
-      final config = await _serverConfigRepository.getActiveServer();
-      final root = jsonDecode(config?.capabilitiesJson ?? '');
+      final config = await (_database.select(
+        _database.serverConfigTable,
+      )..where((row) => row.id.equals(serverId))).getSingleOrNull();
+      final root = jsonDecode(config?.capabilities ?? '');
       final navis = root is Map ? root['navis'] : null;
       final value = navis is Map ? navis['libraryScanDeferralStreak'] : null;
       return int.tryParse('${value ?? ''}') ?? 1;
     } on FormatException {
       return 1;
     }
+  }
+
+  /// The earliest retry of a scan-triggered snapshot whose promotion waited:
+  /// the existing backoff (15, 30, 60 minutes) up to the deferral cap, then, if
+  /// the server still has not settled, a full
+  /// [librarySyncAutomaticSnapshotInterval] so a server that never stops
+  /// scanning costs at most one automatic full pass a day. A manual check
+  /// releases the row at any time.
+  Future<DateTime> _scanDeferralRetryAt(int serverId) async {
+    final streak = await _scanDeferralStreak(serverId);
+    final backoff = _cooldownUntil(streak);
+    if (streak < librarySyncScanDeferralCap) return backoff;
+    final daily = _now().add(librarySyncAutomaticSnapshotInterval);
+    return daily.isAfter(backoff) ? daily : backoff;
   }
 
   /// Whether [work] is a catalog snapshot that a new server scan queued, as

@@ -11,7 +11,7 @@ internal object StartupWorkerTimeline {
     private val outcomes = setOf(
         "success", "failure", "timeout", "deferredPlayback", "noWorkDue",
         "deferredPolicy", "credentialUnavailable", "deferredSetup", "deferredUpgrade", "leaseHeld",
-        "permanentFailure", "transientFailure", "stoppedBySystem",
+        "permanentFailure", "transientFailure", "stoppedBySystem", "deferredScanChanged",
     )
 
     fun record(context: Context, event: String, outcome: String? = null, elapsedMs: Long? = null) {

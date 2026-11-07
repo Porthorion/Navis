@@ -134,7 +134,8 @@ const List<ChangelogVersion> changelogs = [
         'its library, without Repair Library: ReplayGain, titles, genres and '
         'removed songs. Check for updates picks them up whenever the server '
         'has scanned since the last time, and automatic sync does it at most '
-        'once a day on Wi-Fi. If your server has scanned since Navis last '
+        'once a day on Wi-Fi (a rescan during the check gets up to three '
+        'quicker retries first). If your server has scanned since Navis last '
         'checked, Navis runs one full song check at its next Wi-Fi sync after '
         'this update. It never runs on mobile data without your one-time '
         'permission',
