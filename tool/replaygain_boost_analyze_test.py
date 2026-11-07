@@ -56,7 +56,14 @@ def main():
     assert unexpected(rows(25500, guarded_from=99999, phase='joins')), 'a lossless clamp must fail'
     assert unexpected(rows(25500, song='rgh-1', guarded_from=99999)), 'a clamp on H must fail'
     assert clamps.unexpected_clamps(rows(25500, guarded_from=99999))[0], 'the clamp is still listed'
-    print('ReplayGain analyzer self-test: 17 clamp rules passed.')
+    # The count is reported as it was: one rise of 10 samples on L in its phase, nothing else.
+    assert unexpected(rows(29900)) == {('lossy-opus', 'rgl-1'): 10}, 'the failing count is the rise, per phase and song'
+    assert clamps.unexpected_clamps(rows(25500, guarded_from=99999))[0] == {('lossy-opus', 'rgl-1'): 10}, 'the listed count'
+    # A clamp row with no position is not exempt and must not crash the analyzer.
+    stream = rows(25500, guarded_from=99999)
+    stream[[r['positionMs'] for r in stream].index(25500)]['positionMs'] = None
+    assert unexpected(stream) == {('lossy-opus', 'rgl-1'): 10}, 'a clamp without a position fails cleanly'
+    print('ReplayGain analyzer self-test: 20 clamp rules passed.')
 
 
 if __name__ == '__main__':

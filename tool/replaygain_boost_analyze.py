@@ -250,7 +250,7 @@ def a1(root):
     # exceed the playing song's own boost, whichever command moved the index.
     a2 = [r for r in rows if r['phase'].startswith('a2-')]
     check('A2 samples recorded for skip, jump, remove, edit-above, Play and insert phases', len(a2) > 300 and
-          len({r['phase'] for r in a2}) >= 13, f'rows={len(a2)} phases={sorted({r["phase"] for r in a2})}')
+          len({r['phase'] for r in a2}) >= 18, f'rows={len(a2)} phases={sorted({r["phase"] for r in a2})}')
     a2_rises = unexpected_clamps(a2)[1]  # the counter is cumulative: count its rises, not its value
     check('A2 no clamped sample in any A2 phase', not a2_rises, f'rises={a2_rises}')
     play = phase('a2-play-completed')
@@ -272,13 +272,13 @@ def a1(root):
     else:
         check('A2 Play on the completed queue restarted at song 0 or replayed Q', False,
               f'Q end rows={len(done)} H restart rows={len(restarted)} Q again rows={len(again)}')
-    for action in ('remove-above', 'loop', 'shuffle'):
+    # Each run asserts on its own: a pooled maximum would hide one bad run among five good ones.
+    for action in [f'remove-above-{n}' for n in range(1, 6)] + ['insert-above', 'loop', 'shuffle']:
         rs = [r for r in phase(f'a2-latch-{action}') if r['songId'] == 'rgq-1' and r.get('playing')
               and r['positionMs'] is not None and 25200 <= r['positionMs'] <= 26800
               and r['boost']['sentDb'] is not None]
-        runs = 5 if action == 'remove-above' else 1
-        check(f'A2 {action} after a 2x to 1x drop with 5 s left ({runs} run{"s" if runs > 1 else ""}): Q stays guarded to 0 until the window',
-              len(rs) > 3 * runs and max(r['boost']['sentDb'] for r in rs) == 0,
+        check(f'A2 {action} after a 2x to 1x drop with 5 s left: Q stays guarded to 0 until the window',
+              len(rs) > 3 and max(r['boost']['sentDb'] for r in rs) == 0,
               f'n={len(rs)} max sentDb={max([r["boost"]["sentDb"] for r in rs] or [None])}')
     # A new play of the same song: a duplicate entry (index 1 of [Q, Q, H]) and the repeat pass of repeat-one.
     second = [r for r in phase('a2-duplicate') if r['songId'] == 'rgq-1' and r.get('index') == 1 and r.get('playing')
@@ -296,7 +296,7 @@ def a1(root):
     orders = [json.loads(line) for line in open(order_path)] if os.path.exists(order_path) else []
     for o in orders:
         print(f'INFO A2 remove-above ordering: reply at {o["replyMs"]} ms, new index seen at {o["indexSeenMs"]} ms: {o["order"]}')
-    print('INFO A2 remove-above ordering summary: ' + ', '.join(
+    print('INFO A2 remove-above status-index timing (Dart status over HTTP, not native ordering): ' + ', '.join(
         f'{k}={sum(1 for o in orders if o["order"] == k)}' for k in ('before-reply', 'after-reply', 'not-seen')))
     resumed = [r for r in phase('a2-insert-resume') if r['songId'] == 'rgh-2' and r.get('playing')]
     check('A2 an insert into the completed queue resumed at the inserted song (H2)', len(resumed) > 3,
@@ -304,6 +304,11 @@ def a1(root):
     # A row that is not playing can name the song of a queue being replaced while the processor still
     # holds the old song's value (nothing is audible): only playing rows are held to the rule.
     heard = [r for r in a2 if r.get('playing')]
+    silent = [r for r in a2 if not r.get('playing')
+              and r['boost']['appliedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3]
+    print(f'INFO A2 rows not playing whose applied boost exceeds the named song\'s own: {len(silent)} '
+          f'of {len(a2) - len(heard)} (the filter below ignores them: nothing is audible)'
+          + (f'; first {silent[0]["phase"]} {silent[0]["songId"]} {silent[0]["boost"]}' if silent else ''))
     over = [r for r in heard if r['boost']['appliedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3]
     check("A2 the applied boost never exceeds the playing song's own", not over,
           f'violations={len(over)} first={over[0]["songId"] + " " + str(over[0]["boost"]) if over else None}')

@@ -434,6 +434,14 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     @Override
     public void onPositionDiscontinuity(PositionInfo oldPosition, PositionInfo newPosition, int reason) {
         cancelRepeatIfItemChanged();
+        // A new play of the song ends the latch. A REMOVE or INTERNAL discontinuity around the
+        // same item (a queue edit) keeps it; a different item does not.
+        if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION
+                || reason == Player.DISCONTINUITY_REASON_SEEK
+                || (oldPosition != null && newPosition != null
+                        && !java.util.Objects.equals(oldPosition.windowUid, newPosition.windowUid))) {
+            boostLatched = false;
+        }
         updatePosition();
         switch (reason) {
         case Player.DISCONTINUITY_REASON_AUTO_TRANSITION:
@@ -633,7 +641,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                             && boostIndex != player.getCurrentMediaItemIndex()) {
                         result.success(new HashMap<String, Object>());
                     } else {
-                        navisEqualizer.setBoost(boostDb, Boolean.TRUE.equals(call.<Boolean>argument("guarded")));
+                        applyBoost(boostDb, Boolean.TRUE.equals(call.<Boolean>argument("guarded")));
                         result.success(new HashMap<String, Object>());
                     }
                 }
@@ -990,6 +998,29 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
      * [onlyWhenGuarded] limits it to edits that can change the next song while the
      * boost is the lowered end-of-song value.
      */
+    /**
+     * Native end-of-song latch: once a guarded value is applied, every later boost for the
+     * same playing item is clamped to it, whatever guarded flag Dart sends, so a Dart-side
+     * latch that was lost cannot over-boost. 0 is always applied.
+     */
+    private boolean boostLatched;
+    private double boostLatchDb;
+
+    private void applyBoost(double boostDb, boolean guarded) {
+        double applied = boostDb;
+        if (boostDb > 0 && boostLatched) {
+            applied = Math.min(boostDb, boostLatchDb);
+            guarded = true;
+        }
+        // Only a playing deck latches: a crossfade deck is prepared paused with its song's
+        // timing unknown, so Dart guards it, and its start raises no discontinuity.
+        if (guarded && player.getPlayWhenReady()) {
+            boostLatchDb = boostLatched ? Math.min(boostLatchDb, applied) : applied;
+            boostLatched = true;
+        }
+        navisEqualizer.setBoost(applied, guarded);
+    }
+
     private void lowerBoost(boolean onlyWhenGuarded) {
         if (navisEqualizer != null && (!onlyWhenGuarded || navisEqualizer.boostGuarded())) {
             navisEqualizer.lowerBoost();
@@ -998,6 +1029,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
 
     private void load(final List<MediaSource> mediaSources, ShuffleOrder shuffleOrder, final long initialPosition, final Integer initialIndex, final Result result) {
         lowerBoost(false);
+        boostLatched = false;
         repeatPauseUid = null;
         repeatAtEndUid = null;
         cancelPendingRepeat();

@@ -5015,12 +5015,23 @@ Desktop volume follows a parallel local-settings path:
    not for a song id or an index, so a duplicate entry of the same song is a new
    play while a removal above the playing song, a loop or shuffle change, a
    settings pass or a speed change keep the latch and can only lower it. A wrap
-   of one source onto itself (repeat-one, or loop-all over one entry: an
-   auto-advance whose previous and current source are the same object) and a
-   seek or a queue load reset it. A change of item caused by a queue edit always
-   names two different sources, so it never resets through the wrap branch, and
-   no song start is decided while an edit is in flight (the published song can
-   flip to its neighbour and back during one). The tick re-resolves the playing
+   of one source onto itself (repeat-one, or loop-all over one entry) and a
+   seek or a queue load reset it. The wrap rule (`_isBoostLoopBack`) needs an
+   auto-advance whose previous and current source are the same object, that
+   object to be the latched playing source, and no queue edit in flight:
+   just_audio maps each pairwise auto-advance event against the sequence at its
+   delivery, so around an edit a stale index can name one neighbour twice, and
+   that must not reset the latch. For the same reason no song start is decided
+   while an edit is in flight (the published song can flip to its neighbour and
+   back during one). Native keeps its own latch (`AudioPlayer.applyBoost`):
+   once a guarded value is applied to a playing deck, later boosts for that item
+   are clamped to the lowest guarded value and applied as guarded whatever flag
+   Dart sends; a 0 is always applied. A paused deck does not latch (a crossfade
+   deck is prepared paused with its song's timing unknown, so Dart guards it, and
+   its start raises no discontinuity). It is cleared by `load`, an auto-transition or seek
+   discontinuity, or a change of media-item uid, and kept by a queue edit around
+   the same item (REMOVE or INTERNAL with the same uid), so a lost Dart latch
+   cannot over-boost. The tick re-resolves the playing
    source once the edit is done and resets only when the same new source shows
    on two ticks in a row, because a natural advance or a removal of the playing
    song seen only during an edit leaves no event behind and the gap between an

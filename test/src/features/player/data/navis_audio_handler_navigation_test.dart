@@ -17228,6 +17228,195 @@ void main() {
           expect(player.boostMessages.last.guarded, isTrue);
         });
 
+        Future<(NavisAudioHandler, _ControllableAudioPlayer)>
+        latchedAfterDrop() async {
+          final (handler, player) = await android([0, 9, 3]);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+            'song-2',
+          ], expandMatchFlows: false);
+          player.moveTo(1);
+          await pumpEventQueue();
+          player.simulatedPosition =
+              Duration(minutes: 3) - const Duration(seconds: 6);
+          await handler.setPlaybackAdjustments(
+            const PlaybackAdjustments(speed: 2),
+          );
+          await pumpEventQueue();
+          await handler.setPlaybackAdjustments(
+            const PlaybackAdjustments(speed: 1),
+          );
+          await pumpEventQueue();
+          expect(player.boostMessages.last.currentDb, 3);
+          return (handler, player);
+        }
+
+        void expectLatchHeld(_ControllableAudioPlayer player, int since) {
+          expect(
+            player.boostMessages.skip(since).map((m) => m.currentDb),
+            everyElement(lessThanOrEqualTo(3)),
+          );
+        }
+
+        test('N1: a stale same-index auto-advance after the reply is not a loop-back', () async {
+          final (handler, player) = await latchedAfterDrop();
+          final since = player.boostMessages.length;
+          await handler.removeQueueItemAt(0);
+          await settleQueue(handler);
+          // just_audio maps each event against the sequence at delivery: old index 1
+          // is the song after the playing one once the list is trimmed.
+          player.emitAutoAdvance(from: 1, to: 1);
+          await pumpEventQueue();
+          player.moveTo(0);
+          await pumpEventQueue();
+          for (var i = 0; i < 3; i++) {
+            handler.debugTickReplayGainBoost();
+            await pumpEventQueue();
+          }
+          expectLatchHeld(player, since);
+        });
+
+        for (final stale in [false, true]) {
+          test(
+            'N1: remove-above in flight, stale-index events=$stale: the latch is kept',
+            () async {
+              final (handler, player) = await latchedAfterDrop();
+              final since = player.boostMessages.length;
+              player.editInFlight = true;
+              await handler.removeQueueItemAt(0);
+              await settleQueue(handler);
+              if (stale) {
+                player.emitAutoAdvance(from: 1, to: 1);
+                await pumpEventQueue();
+                player.emitAutoAdvance(from: 1, to: 0);
+                await pumpEventQueue();
+              }
+              player.editInFlight = false;
+              player.emitIndexAgain();
+              await pumpEventQueue();
+              for (var i = 0; i < 3; i++) {
+                handler.debugTickReplayGainBoost();
+                await pumpEventQueue();
+              }
+              expectLatchHeld(player, since);
+            },
+          );
+        }
+
+        test('N1: an event naming the playing source twice during an edit is not a loop-back', () async {
+          // Only the in-flight gate protects here: both ends are the latched source.
+          final (handler, player) = await latchedAfterDrop();
+          final since = player.boostMessages.length;
+          player.editInFlight = true;
+          await handler.removeQueueItemAt(0);
+          await settleQueue(handler);
+          player.emitAutoAdvance(from: 0, to: 0);
+          await pumpEventQueue();
+          player.editInFlight = false;
+          player.emitIndexAgain();
+          await pumpEventQueue();
+          for (var i = 0; i < 3; i++) {
+            handler.debugTickReplayGainBoost();
+            await pumpEventQueue();
+          }
+          expectLatchHeld(player, since);
+        });
+
+        test(
+          'R5-G: a genuine song change clears a stale pending neighbour',
+          () async {
+            final (handler, player) = await latchedAfterDrop();
+            // One stale tick shows song-2: it becomes pending.
+            player.index = 2;
+            handler.debugTickReplayGainBoost();
+            await pumpEventQueue();
+            // A genuine move away and back is a real new play of song-1.
+            player.moveTo(0);
+            await pumpEventQueue();
+            player.moveTo(1);
+            await pumpEventQueue();
+            player.simulatedPosition =
+                const Duration(minutes: 3) - const Duration(seconds: 6);
+            await handler.setPlaybackAdjustments(
+              const PlaybackAdjustments(speed: 2),
+            );
+            await pumpEventQueue();
+            await handler.setPlaybackAdjustments(
+              const PlaybackAdjustments(speed: 1),
+            );
+            await pumpEventQueue();
+            expect(player.boostMessages.last.currentDb, lessThanOrEqualTo(3));
+            final since = player.boostMessages.length;
+            // The stale neighbour shows once more: one tick is not a confirm.
+            player.index = 2;
+            handler.debugTickReplayGainBoost();
+            player.index = 1;
+            await pumpEventQueue();
+            handler.debugTickReplayGainBoost();
+            await pumpEventQueue();
+            expectLatchHeld(player, since);
+          },
+        );
+
+        test(
+          'N1: a loop-back whose source is not the latched one is not a reset',
+          () async {
+            // repeat-one wrap of song-0 while song-1 is the latched playing source.
+            final (handler, player) = await latchedAfterDrop();
+            final since = player.boostMessages.length;
+            player.emitAutoAdvance(from: 0, to: 0);
+            await pumpEventQueue();
+            for (var i = 0; i < 3; i++) {
+              handler.debugTickReplayGainBoost();
+              await pumpEventQueue();
+            }
+            expectLatchHeld(player, since);
+          },
+        );
+
+        test('R5-E: a stale tick during the edit does not count toward the two-tick confirm', () async {
+          final (handler, player) = await latchedAfterDrop();
+          player.editInFlight = true;
+          await handler.removeQueueItemAt(0);
+          await settleQueue(handler);
+          final since = player.boostMessages.length;
+          player.index = 1;
+          handler.debugTickReplayGainBoost();
+          player.editInFlight = false;
+          handler.debugTickReplayGainBoost();
+          await pumpEventQueue();
+          player.index = 0;
+          player.emitIndexAgain();
+          await pumpEventQueue();
+          handler.debugTickReplayGainBoost();
+          await pumpEventQueue();
+          expectLatchHeld(player, since);
+        });
+
+        test(
+          'R5-F: stale, right, stale again is not two stale ticks in a row',
+          () async {
+            final (handler, player) = await latchedAfterDrop();
+            await handler.removeQueueItemAt(0);
+            await settleQueue(handler);
+            final since = player.boostMessages.length;
+            player.index = 1;
+            handler.debugTickReplayGainBoost();
+            player.index = 0;
+            handler.debugTickReplayGainBoost();
+            player.index = 1;
+            handler.debugTickReplayGainBoost();
+            await pumpEventQueue();
+            player.index = 0;
+            player.emitIndexAgain();
+            await pumpEventQueue();
+            handler.debugTickReplayGainBoost();
+            await pumpEventQueue();
+            expectLatchHeld(player, since);
+          },
+        );
+
         test('P1: a natural advance seen only during an edit is picked up after the edit', () async {
           final (handler, player) = await android([
             3,

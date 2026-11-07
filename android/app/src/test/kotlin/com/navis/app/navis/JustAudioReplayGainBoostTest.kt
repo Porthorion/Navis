@@ -202,6 +202,8 @@ class JustAudioReplayGainBoostTest {
             return timeline
         }
 
+        var playWhenReady = true
+
         /** Every media3 call logs the boost the processor was asking for at that moment. */
         val exo: Any = Proxy.newProxyInstance(exoClass.classLoader, arrayOf(exoClass)) { _, method, args ->
             when (method.name) {
@@ -209,7 +211,7 @@ class JustAudioReplayGainBoostTest {
                 "getMediaItemAt" -> unsafe.allocateInstance(itemClass)
                 "getCurrentMediaItemIndex" -> index
                 "getCurrentTimeline" -> timeline()
-                "getPlayWhenReady" -> true
+                "getPlayWhenReady" -> playWhenReady
                 "getPlaybackState" -> 3
                 "getPauseAtEndOfMediaItems" -> false
                 "getCurrentPosition", "getBufferedPosition", "getDuration" -> 10_000L
@@ -258,6 +260,16 @@ class JustAudioReplayGainBoostTest {
             mapOf("currentDb" to db, "guarded" to guarded, "byUri" to emptyMap<String, Double>(), "index" to forIndex),
         )
 
+        /** A discontinuity from the item with window uid [from] to the one with [to]. */
+        fun discontinuity(reason: Int, from: Any = "a", to: Any = "a") {
+            val infoClass = Class.forName("androidx.media3.common.Player\$PositionInfo")
+            fun info(uid: Any) = unsafe.allocateInstance(infoClass).also { put(it, "windowUid", uid) }
+            unwrap {
+                bridgeClass.getMethod("onPositionDiscontinuity", infoClass, infoClass, Int::class.javaPrimitiveType)
+                    .invoke(bridge, info(from), info(to), reason)
+            }
+        }
+
         fun load() {
             unwrap {
                 bridgeClass.getDeclaredMethod(
@@ -284,7 +296,7 @@ class JustAudioReplayGainBoostTest {
         assertTrue(f.processor!!.guarded())
         f.boost(3.0, false)
         assertEquals(3.0, f.requested(), 0.0)
-        assertFalse(f.processor.guarded())
+        assertTrue("the latch keeps the stage guarded", f.processor.guarded())
         assertTrue(f.errors.isEmpty())
     }
 
@@ -300,6 +312,7 @@ class JustAudioReplayGainBoostTest {
         f.boost(0.0, true, forIndex = 0)
         assertEquals("a 0 is always applied", 0.0, f.requested(), 0.0)
         assertTrue("and its guard flag with it", f.processor!!.guarded())
+        f.discontinuity(seek) // a new play of the song ends the latch
         f.boost(5.0, false, forIndex = 1)
         assertEquals(5.0, f.requested(), 0.0)
         f.boost(6.0, false)
@@ -317,6 +330,79 @@ class JustAudioReplayGainBoostTest {
         assertEquals("the old song's 8 dB stays out", 0.0, f.requested(), 0.0)
         f.boost(4.0, false, forIndex = 2) // the index event's value for song 2
         assertEquals(4.0, f.requested(), 0.0)
+    }
+
+    // ---- the native latch: once a guarded value is applied, nothing above it until the song changes
+
+    private val autoTransition = 0
+    private val seek = 1
+    private val remove = 4
+    private val internal = 5
+
+    @Test fun aGuardedValueLatchesAndALaterUnguardedHigherOneIsClamped() {
+        val f = Fixture()
+        f.boost(3.0, true, forIndex = 0)
+        assertEquals(3.0, f.requested(), 0.0)
+        f.boost(9.0, false, forIndex = 0) // Dart forgot the guard
+        assertEquals("clamped to the latch", 3.0, f.requested(), 0.0)
+        assertTrue("and native knows it is guarded", f.processor!!.guarded())
+        f.boost(2.0, true, forIndex = 0)
+        assertEquals(2.0, f.requested(), 0.0)
+        f.boost(8.0, true, forIndex = 0)
+        assertEquals("the latch only ever goes down", 2.0, f.requested(), 0.0)
+    }
+
+    @Test fun aGuardedValueAppliedWhilePausedDoesNotLatch() {
+        // A crossfade deck is prepared paused: its song's timing is unknown, so Dart guards it
+        // (0). When the song then starts, Dart's own latch is fresh, and native must not hold
+        // the prepared deck's 0 against it: no discontinuity marks that start.
+        val f = Fixture()
+        f.playWhenReady = false
+        f.boost(0.0, true, forIndex = 0)
+        f.playWhenReady = true
+        f.boost(9.0, false, forIndex = 0)
+        assertEquals(9.0, f.requested(), 0.0)
+        f.boost(3.0, true, forIndex = 0)
+        f.boost(9.0, false, forIndex = 0)
+        assertEquals("a guarded value applied while playing still latches", 3.0, f.requested(), 0.0)
+    }
+
+    @Test fun aZeroIsAlwaysAppliedWhateverTheLatch() {
+        val f = Fixture()
+        f.boost(3.0, true, forIndex = 0)
+        f.boost(0.0, false, forIndex = 0)
+        assertEquals(0.0, f.requested(), 0.0)
+        f.boost(9.0, false, forIndex = 0)
+        assertEquals("the latch survives a 0", 3.0, f.requested(), 0.0)
+    }
+
+    @Test fun aNewPlayClearsTheLatch() {
+        val clears = listOf<Pair<String, (Fixture) -> Unit>>(
+            "auto transition" to { f -> f.discontinuity(autoTransition) },
+            "seek" to { f -> f.discontinuity(seek) },
+            "another item" to { f -> f.discontinuity(remove, from = "a", to = "b") },
+            "internal, another item" to { f -> f.discontinuity(internal, from = "a", to = "b") },
+            "load" to { f -> f.load() },
+        )
+        for ((name, clear) in clears) {
+            val f = Fixture()
+            f.boost(3.0, true, forIndex = 0)
+            f.boost(9.0, false, forIndex = 0)
+            assertEquals("$name: clamped before", 3.0, f.requested(), 0.0)
+            clear(f)
+            f.boost(9.0, false, forIndex = 0)
+            assertEquals("$name clears the latch", 9.0, f.requested(), 0.0)
+        }
+    }
+
+    @Test fun anEditAroundTheSameItemKeepsTheLatch() {
+        for (reason in listOf(remove, internal)) {
+            val f = Fixture()
+            f.boost(3.0, true, forIndex = 0)
+            f.discontinuity(reason, from = "a", to = "a")
+            f.boost(9.0, false, forIndex = 0)
+            assertEquals("reason $reason with the same uid", 3.0, f.requested(), 0.0)
+        }
     }
 
     @Test fun withoutAProcessorTheMessageIsAnError() {

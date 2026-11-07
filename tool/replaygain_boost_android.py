@@ -285,7 +285,8 @@ class Run:
 
     def remove_above_with_ordering(self):
         """Removes the song above the playing one while a fast poller watches the status's index, and
-        logs whether the new index was seen before or after the edit's reply."""
+        logs when the status's index changed relative to the edit's reply. That is the Dart status index
+        seen over HTTP, not evidence of the native event order."""
         started, replied, seen = time.time(), [None], [None]
         stop = threading.Event()
 
@@ -392,7 +393,8 @@ class Run:
         # value above 0 sent before the song changes is the old song's own boost on H's samples.
         # The remove-above case is repeated 5 times, each with an ordering probe: does the native
         # index event (the status's currentIndex) land before or after the edit's reply?
-        for action in ['remove-above'] * 5 + ['loop', 'shuffle']:
+        actions = [f'remove-above-{n}' for n in range(1, 6)] + ['insert-above', 'loop', 'shuffle']
+        for action in actions:
             self.phase = f'a2-latch-{action}'
             self.post('/v1/playback/adjustments', {'speed': 2})
             self.queue([H2, Q1, H1])
@@ -401,8 +403,12 @@ class Run:
             time.sleep(.5)
             self.post('/v1/playback/adjustments', {'speed': 1})
             time.sleep(.3)
-            if action == 'remove-above':
+            if action.startswith('remove-above'):
                 self.remove_above_with_ordering()
+            elif action == 'insert-above':
+                # Insert above the playing Q: an append, then a move of the new entry to the top.
+                self.post('/v1/playback/queue-edit', {'op': 'add', 'songIds': [H2]})
+                self.post('/v1/playback/queue-edit', {'op': 'move', 'from': 3, 'to': 0})
             elif action == 'loop':
                 self.post('/v1/playback/repeat', {'mode': 'all'})
             else:

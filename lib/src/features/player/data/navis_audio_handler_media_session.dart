@@ -888,16 +888,24 @@ extension _NavisMediaSession on NavisAudioHandler {
         : sequence[index];
   }
 
-  /// Whether [discontinuity] is a wrap of one source onto itself (repeat-one,
-  /// or loop-all over a single entry). A change of item caused by a queue edit
-  /// always names two different sources, so it can never be one.
+  /// Whether [discontinuity] is the latched source wrapping onto itself
+  /// (repeat-one, or loop-all over a single entry): an auto-advance whose
+  /// previous and current event name the same source, and that source is the
+  /// one the latch was made for. Both events are resolved against the queue as
+  /// it is now, while just_audio maps each against the queue at its delivery, so
+  /// an event carrying a stale index around a queue edit can name one neighbour
+  /// twice. That never counts: not while an edit is in flight, and not for any
+  /// source but the latched one.
   bool _isBoostLoopBack(PositionDiscontinuity discontinuity) {
-    if (discontinuity.reason != PositionDiscontinuityReason.autoAdvance) {
+    if (discontinuity.reason != PositionDiscontinuityReason.autoAdvance ||
+        _player.sequenceEditInFlight) {
       return false;
     }
     final before = _boostSourceAt(discontinuity.previousEvent.currentIndex);
     final after = _boostSourceAt(discontinuity.event.currentIndex);
-    return before != null && identical(before, after);
+    return before != null &&
+        identical(before, after) &&
+        identical(before, _boostSourceSeen);
   }
 
   /// The latch lives for one playing source, not for a song id or an index:
