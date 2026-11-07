@@ -1843,10 +1843,52 @@ Small in-memory caches with a fixed capacity use `BoundedLruMap`
 values) instead of hand-rolling `remove(keys.first)` eviction.
 
 - **Actions**
+  - `navis_haptics.dart`, `navis_switch.dart`, `navis_refresh_indicator.dart` -
+    the haptics vocabulary, switches that use it, and the shared pull-to-refresh
+    (see "Haptics vocabulary")
   - `star_button.dart` - Star/unstar action
   - `context_menu.dart` - Bottom sheet context menu
   - `preset_picker.dart` - `PresetPicker` (dropdown plus save, update, rename
     and delete menu over any named presets) and `TextEntryDialog`
+
+### Haptics vocabulary
+
+Every kind of action has one named haptic in `NavisHaptics`
+(`common_widgets/navis_haptics.dart`); new code calls it and never
+`HapticFeedback` directly. Android plays the richest constant the device has
+through `View.performHapticFeedback` (`HapticKinds.kt`, channel
+`com.navis.app/haptics`, which honours the system touch-feedback setting); a
+device without the constant, or a missing channel (cached after one failed
+call), gets the Flutter primitive in the last column. iOS always uses the
+primitive. Desktop is silent, so shared widgets call the helper without
+platform checks, and mouse-only controls get no haptics.
+`AdjustmentRuler` and `RulerStepButton` keep their own tuned primitives, the
+reference feel for `tick` and `firm`.
+
+| Action | Helper | Android constant (API) | Fallback | Where |
+|---|---|---|---|---|
+| Switch on / off | `toggle(on)` | TOGGLE_ON / TOGGLE_OFF (34) | light / selection | `NavisSwitchListTile`, `NavisSwitch`; shuffle toggle |
+| Play / Pause | `press` / `release` | VIRTUAL_KEY / VIRTUAL_KEY_RELEASE (27) | light / selection | `togglePlayPause`, Now Playing art tap |
+| Skip | `firm` | KEYBOARD_TAP | medium | transport, mini player, art swipe |
+| Repeat step, rating star, seek landing, EQ gain per dB | `tick` | CLOCK_TICK | selection | transport, `RatingWidget`, seek bar, EQ graph |
+| 0 dB crossing on the EQ graph | `firm` | KEYBOARD_TAP | medium | `EqGraphEditor` |
+| Pick an EQ band | `contextClick` | CONTEXT_CLICK (23) | selection | `EqGraphEditor` |
+| Like / unlike | `confirm` / `tick` | CONFIRM (30) / CLOCK_TICK | light / selection | `StarButton`, Now Playing, mini player |
+| Any tap that shows the "Not available for remote tracks" notice (hearts, menus, rows); swipe-remove commit | `reject` | REJECT (30) | heavy | `showRemoteSourceActionUnavailable`, queue row |
+| Download started, copy, refresh finished | `confirm` | CONFIRM (30) | light | download icon, album title copy, `NavisRefreshIndicator` |
+| Pull to refresh | `frequentTick` at each quarter, `thresholdOn` / `thresholdOff` at the trigger | SEGMENT_FREQUENT_TICK, GESTURE_THRESHOLD_ACTIVATE / DEACTIVATE (34) | selection / medium / selection | `NavisRefreshIndicator` (every `RefreshIndicator`) |
+| Swipe-to-remove dismiss point | `thresholdOn` / `thresholdOff` | as above | medium / selection | `QueueTrackRow` |
+| Reorder pick-up / drop; sheet settle | `dragStart` / `dragEnd` | DRAG_START (34) / GESTURE_END (30) | medium / light | every reorderable list, `ExpandablePlayerSheet`, mini player expand |
+| Long-press menu | `longPress` | LONG_PRESS | heavy | album, artist and track rows |
+
+Silent by design: scrolling, navigation taps, continuous volume and seek
+drags, text fields, notices and background events.
+`NavisRefreshIndicator` measures the pull exactly as `RefreshIndicator` does
+(a quarter of the viewport arms it), ticks at 25, 50 and 75 percent, clicks at
+the trigger as long as letting go would refresh (it clicks off the moment the
+pull drops below it), and re-clicks only after backing off 6 percent of it.
+It tracks finger drags only, so a spring-back is silent, and stays quiet while
+the indicator finishes after a refresh.
 
 ### Hero Animation Pattern
 

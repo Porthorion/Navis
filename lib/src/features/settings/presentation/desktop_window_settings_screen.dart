@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/l10n/app_localizations.dart';
@@ -84,7 +85,7 @@ class DesktopWindowSettingsScreen extends ConsumerWidget {
                 ),
               ),
               const Divider(),
-              SwitchListTile(
+              NavisSwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 secondary: const Icon(Icons.push_pin_outlined),
                 title: Text(l10n.desktopMiniPlayerKeepOnTop),

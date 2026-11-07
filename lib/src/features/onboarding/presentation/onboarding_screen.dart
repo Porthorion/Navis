@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
@@ -1093,7 +1094,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
           ),
         ),
-        SwitchListTile(
+        NavisSwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.onboardingPreferLocalTitle),
           subtitle: Text(l10n.onboardingPreferLocalSubtitle),
@@ -1102,7 +1103,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             () => _draft = draft.copyWith(cachedPlaybackFirst: value),
           ),
         ),
-        SwitchListTile(
+        NavisSwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.onboardingScrobbleTitle),
           subtitle: Text(l10n.onboardingScrobbleSubtitle),
@@ -1110,7 +1111,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           onChanged: (value) =>
               setState(() => _draft = draft.copyWith(scrobbleEnabled: value)),
         ),
-        SwitchListTile(
+        NavisSwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.onboardingGaplessTitle),
           subtitle: Text(l10n.onboardingGaplessSubtitle),
@@ -1123,7 +1124,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
         ),
         if (draft.gaplessEnabled) ...[
-          SwitchListTile(
+          NavisSwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(l10n.onboardingCrossfadeTitle),
             subtitle: Text(l10n.onboardingCrossfadeSubtitle),
@@ -1245,7 +1246,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ),
         const SizedBox(height: 8),
         Text(l10n.onboardingQueueDescription),
-        SwitchListTile(
+        NavisSwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.onboardingAlbumQueueTitle),
           subtitle: Text(l10n.onboardingAlbumQueueSubtitle),
@@ -1257,7 +1258,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
           ),
         ),
-        SwitchListTile(
+        NavisSwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.onboardingLikedQueueTitle),
           subtitle: Text(
@@ -1272,7 +1273,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 )
               : null,
         ),
-        SwitchListTile(
+        NavisSwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.onboardingWifiOnlyDownloadsTitle),
           subtitle: Text(l10n.onboardingWifiOnlyDownloadsSubtitle),
@@ -1354,7 +1355,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         const SizedBox(height: NavisSpace.xs),
         Text(l10n.onboardingIntegrationsDescription),
         const SizedBox(height: NavisSpace.xs),
-        SwitchListTile(
+        NavisSwitchListTile(
           key: const ValueKey<String>('onboarding-integrations-master'),
           contentPadding: EdgeInsets.zero,
           title: Text(l10n.integrationsMasterTitle),
@@ -1410,7 +1411,7 @@ class OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ? (policy.masterEnabled ? null : IntegrationLockReason.masterOff)
         : policy.serviceLockReason(service);
     final on = policy.isServiceSwitchOn(service);
-    return SwitchListTile(
+    return NavisSwitchListTile(
       key: ValueKey<String>('onboarding-integrations-service-${service.key}'),
       contentPadding: EdgeInsets.zero,
       title: Text(name),

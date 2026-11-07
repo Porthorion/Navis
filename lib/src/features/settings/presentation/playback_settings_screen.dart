@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:navis/src/common_widgets/navis_slider.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 
 import 'dart:async';
@@ -226,7 +227,7 @@ class _PlaybackSettingsScreenState
                         : (value) => setState(() => _cellularFormat = value),
                   ),
                   const SizedBox(height: 12),
-                  SwitchListTile(
+                  NavisSwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _cachedPlaybackFirst,
                     onChanged: _isSaving
@@ -237,7 +238,7 @@ class _PlaybackSettingsScreenState
                     subtitle: Text(l10n.playbackSettingsCachedFirstSubtitle),
                   ),
                   const SizedBox(height: 24),
-                  SwitchListTile(
+                  NavisSwitchListTile(
                     key: const ValueKey('playbackSettingsScrobbleToggle'),
                     contentPadding: EdgeInsets.zero,
                     value: _scrobbleEnabled,
@@ -247,7 +248,7 @@ class _PlaybackSettingsScreenState
                     title: Text(l10n.playbackSettingsScrobbleTitle),
                     subtitle: Text(l10n.playbackSettingsScrobbleSubtitle),
                   ),
-                  SwitchListTile(
+                  NavisSwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _albumQueueEnabled,
                     onChanged: _isSaving
@@ -259,7 +260,7 @@ class _PlaybackSettingsScreenState
                   if (_albumQueueEnabled)
                     Padding(
                       padding: const EdgeInsets.only(left: 16),
-                      child: SwitchListTile(
+                      child: NavisSwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         value: _likedQueueEnabled,
                         onChanged: _isSaving
@@ -273,7 +274,7 @@ class _PlaybackSettingsScreenState
                   if (!kIsWeb &&
                       (defaultTargetPlatform == TargetPlatform.linux ||
                           defaultTargetPlatform == TargetPlatform.windows))
-                    SwitchListTile(
+                    NavisSwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       value: _fastSeekingEnabled,
                       onChanged: _isSaving
@@ -283,14 +284,14 @@ class _PlaybackSettingsScreenState
                       title: Text(l10n.playbackSettingsFastSeekingTitle),
                       subtitle: Text(l10n.playbackSettingsFastSeekingSubtitle),
                     ),
-                  SwitchListTile(
+                  NavisSwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _prefetchNextOnMobileData,
                     onChanged: _isSaving ? null : _setPrefetchNextOnMobileData,
                     title: Text(l10n.playbackSettingsPrefetchNextTitle),
                     subtitle: Text(l10n.playbackSettingsPrefetchNextSubtitle),
                   ),
-                  SwitchListTile(
+                  NavisSwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _gaplessEnabled,
                     onChanged: _isSaving ? null : _setGaplessEnabled,
@@ -303,7 +304,7 @@ class _PlaybackSettingsScreenState
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SwitchListTile(
+                          NavisSwitchListTile(
                             contentPadding: EdgeInsets.zero,
                             value: _crossfadeEnabled,
                             onChanged: _isSaving ? null : _setCrossfadeEnabled,
@@ -380,7 +381,7 @@ class _PlaybackSettingsScreenState
                       ),
                     ),
                   ],
-                  SwitchListTile(
+                  NavisSwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     value: _fullscreenModeLyrics,
                     onChanged: _isSaving
@@ -604,7 +605,7 @@ class _PlaybackSettingsScreenState
     AppLocalizations l10n,
   ) {
     return <Widget>[
-      SwitchListTile(
+      NavisSwitchListTile(
         contentPadding: EdgeInsets.zero,
         value: _matchFlowEnabled,
         onChanged: _isSaving
@@ -671,7 +672,7 @@ class _PlaybackSettingsScreenState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: <Widget>[
-        SwitchListTile(
+        NavisSwitchListTile(
           key: const ValueKey<String>('replayGainUntagged-automatic'),
           contentPadding: EdgeInsets.zero,
           value: automatic,

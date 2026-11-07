@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/common_widgets/navis_tooltip.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
@@ -670,7 +671,7 @@ class _BandSwitch extends StatelessWidget {
         children: [
           Flexible(child: Text(l10n.eqBandEnabled, maxLines: 2)),
           const SizedBox(width: 8),
-          Switch.adaptive(
+          NavisSwitch.adaptive(
             key: const ValueKey('eq-band-enabled'),
             value: value,
             onChanged: onChanged,

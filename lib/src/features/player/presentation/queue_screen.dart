@@ -2,6 +2,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/features/player/presentation/queue_current_row_centering.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/queue_track_row.dart';
@@ -53,6 +54,8 @@ class QueueScreen extends ConsumerWidget {
                 footer: const QueueUnavailableTracks(),
                 padding: const EdgeInsets.only(bottom: 80),
                 itemCount: queueIds.length,
+                onReorderStart: (_) => NavisHaptics.dragStart(),
+                onReorderEnd: (_) => NavisHaptics.dragEnd(),
                 onReorderItem: (oldIndex, newIndex) async {
                   if (actionsDisabled) return;
                   await reorderQueueItem(ref, oldIndex, newIndex);

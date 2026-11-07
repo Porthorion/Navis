@@ -130,6 +130,7 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
                   setState(() => _draggingValue = value);
                 },
                 onChangeEnd: (value) {
+                  NavisHaptics.tick();
                   _seekDrag.finish();
                   setState(() => _draggingValue = null);
                   final handler = ref.read(audioHandlerProvider);

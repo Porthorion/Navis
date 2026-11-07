@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/preset_picker.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
@@ -182,7 +183,7 @@ class _PlaybackAdjustmentPanelState
             ),
             if (pitchSupported) ...[
               const SizedBox(height: 8),
-              SwitchListTile.adaptive(
+              NavisSwitchListTile.adaptive(
                 key: const ValueKey('playback-pitch-lock'),
                 contentPadding: EdgeInsets.zero,
                 title: Text(l10n.playbackPitchLock),

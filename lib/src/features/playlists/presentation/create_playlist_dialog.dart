@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/features/playlists/data/playlist_actions.dart';
 import 'package:navis/src/features/playlists/presentation/playlist_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
@@ -100,7 +101,7 @@ class _CreatePlaylistDialogState extends ConsumerState<_CreatePlaylistDialog> {
             ),
             onSubmitted: (_) => _submit(),
           ),
-          SwitchListTile(
+          NavisSwitchListTile(
             contentPadding: EdgeInsets.zero,
             title: Text(l10n.playlistsSaveToServerLabel),
             subtitle: Text(
