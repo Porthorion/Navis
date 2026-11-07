@@ -356,22 +356,26 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
     final showInlineEditor =
         isRatingPage && _showInlineRatingEditor && currentSongId != null;
     final reduceMotion = MotionPolicy.of(context).reduceMotion;
-    final openTrackInfo =
-        page.isQualityPage &&
-            currentSongId != null &&
-            !widget.playback.isRadioMode
-        ? () => showMediaInfo(context)
-        : null;
-    // Holding the ReplayGain line opens the settings that explain it.
-    final openReplayGainSettings = page.isReplayGainPage
-        ? () async =>
-              NavService.openSettingsPage(context, ref, SettingsPage.playback)
+    final open = _infoPageOpen(
+      context,
+      ref,
+      page,
+      canOpenTrackInfo: currentSongId != null && !widget.playback.isRadioMode,
+    );
+    // The hold is the whole chip's, like the tap: a hold anywhere on it never
+    // pages.
+    final onHold = open != null
+        ? () => unawaited(open())
+        : isRatingPage && currentSongId != null
+        ? () => setState(() => _showInlineRatingEditor = true)
         : null;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: NavisShapeData.of(context).xlAll,
+        // A no-op while the editor is open, so a hold there never pages.
+        onLongPress: showInlineEditor ? () {} : onHold,
         onTap: () => setState(() {
           _pageIndex = (activeIndex + 1) % pages.length;
           _pageLabel = pages[_pageIndex].semanticLabel;
@@ -436,38 +440,22 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                                 },
                               )
                             : _withHoldHint(
-                                openTrackInfo != null
+                                page.isQualityPage
                                     ? l10n.nowPlayingHoldForTrackInfo
                                     : l10n.nowPlayingHoldForReplayGainSettings,
-                                openTrackInfo != null
+                                page.isQualityPage
                                     ? l10n.mediaInfoTrackInfoAction
                                     : l10n.nowPlayingReplayGainSettingsAction,
-                                openTrackInfo ?? openReplayGainSettings,
-                                GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onLongPress: openTrackInfo != null
-                                      ? () => unawaited(openTrackInfo())
-                                      : openReplayGainSettings != null
-                                      ? () =>
-                                            unawaited(openReplayGainSettings())
-                                      : isRatingPage && currentSongId != null
-                                      ? () {
-                                          setState(
-                                            () =>
-                                                _showInlineRatingEditor = true,
-                                          );
-                                        }
-                                      : null,
-                                  child: _NowPlayingInfoValue(
-                                    page: page,
-                                    maxLines: 1,
-                                    textAlign: TextAlign.center,
-                                    style: Theme.of(context).textTheme.bodySmall
-                                        ?.copyWith(
-                                          color: colors.onSurfaceVariant
-                                              .withValues(alpha: 0.82),
-                                        ),
-                                  ),
+                                open,
+                                _NowPlayingInfoValue(
+                                  page: page,
+                                  maxLines: 1,
+                                  textAlign: TextAlign.center,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: colors.onSurfaceVariant
+                                            .withValues(alpha: 0.82),
+                                      ),
                                 ),
                               ),
                       ),
@@ -508,6 +496,23 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
       ),
     );
   }
+}
+
+/// What the Quality line (track info) and the ReplayGain line (its settings
+/// section) open; null for the other pages.
+Future<void> Function()? _infoPageOpen(
+  BuildContext context,
+  WidgetRef ref,
+  _NowPlayingInfoPage page, {
+  required bool canOpenTrackInfo,
+}) {
+  if (page.isQualityPage) {
+    return canOpenTrackInfo ? () => showMediaInfo(context) : null;
+  }
+  if (page.isReplayGainPage) {
+    return () async => NavService.openPlaybackReplayGainSettings(context, ref);
+  }
+  return null;
 }
 
 /// Gives a line that opens something on long press a screen-reader hint and
@@ -669,6 +674,19 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
     final currentRating = currentSongId == null
         ? null
         : ref.watch(songRatingProvider(currentSongId)).asData?.value;
+    // A cell has nothing to cycle, so clicking or holding it opens what the
+    // phone chip opens on hold.
+    Widget cell(_NowPlayingInfoPage page) => _NowPlayingInfoGridCell(
+      page: page,
+      labelStyle: labelStyle,
+      valueStyle: valueStyle,
+      open: _infoPageOpen(
+        context,
+        ref,
+        page,
+        canOpenTrackInfo: currentSongId != null && !playback.isRadioMode,
+      ),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -677,21 +695,11 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Expanded(
-                child: _NowPlayingInfoGridCell(
-                  page: infoPages[i],
-                  labelStyle: labelStyle,
-                  valueStyle: valueStyle,
-                ),
-              ),
+              Expanded(child: cell(infoPages[i])),
               const SizedBox(width: 12),
               Expanded(
                 child: i + 1 < infoPages.length
-                    ? _NowPlayingInfoGridCell(
-                        page: infoPages[i + 1],
-                        labelStyle: labelStyle,
-                        valueStyle: valueStyle,
-                      )
+                    ? cell(infoPages[i + 1])
                     : const SizedBox.shrink(),
               ),
             ],
@@ -751,16 +759,21 @@ class _NowPlayingInfoGridCell extends StatelessWidget {
     required this.page,
     required this.labelStyle,
     required this.valueStyle,
+    required this.open,
   });
 
   final _NowPlayingInfoPage page;
   final TextStyle? labelStyle;
   final TextStyle? valueStyle;
 
+  /// Clicking or holding the cell; null for the cells that open nothing.
+  final Future<void> Function()? open;
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final colors = Theme.of(context).colorScheme;
-    return Row(
+    final cell = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         Icon(
@@ -785,6 +798,23 @@ class _NowPlayingInfoGridCell extends StatelessWidget {
           ),
         ),
       ],
+    );
+    final open = this.open;
+    if (open == null) return cell;
+    return _withHoldHint(
+      page.isQualityPage
+          ? l10n.nowPlayingHoldForTrackInfo
+          : l10n.nowPlayingHoldForReplayGainSettings,
+      page.isQualityPage
+          ? l10n.mediaInfoTrackInfoAction
+          : l10n.nowPlayingReplayGainSettingsAction,
+      open,
+      InkWell(
+        borderRadius: NavisShapeData.of(context).smAll,
+        onTap: () => unawaited(open()),
+        onLongPress: () => unawaited(open()),
+        child: cell,
+      ),
     );
   }
 }

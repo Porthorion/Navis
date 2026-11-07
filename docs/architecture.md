@@ -4985,7 +4985,12 @@ Desktop volume follows a parallel local-settings path:
    the ReplayGain settings change, never on a position tick, and is null for
    radio, no song or Off. It reads like "−6.2 dB · album (Smart)" or "−8.0 dB ·
    untagged (Automatic)" (real minus sign, one decimal, never "-0.0"); holding
-   it opens Playback settings. During a cross-fade the page may briefly show
+   it, anywhere on the chip (the `InkWell`'s `onLongPress`, so a hold never
+   also pages), opens Playback settings scrolled to the ReplayGain section
+   (`AppRoutes.playbackReplayGain`, read by `PlaybackSettingsScreen(
+   focusReplayGain:)` after the form first builds). On the desktop grid the
+   Quality and ReplayGain cells open track info and that section on click or
+   hold. During a cross-fade the page may briefly show
    the outgoing song's gain.
    Schema 111 (`from110To111`) adds the nullable `replay_gain_untagged_db`
    column (null = Automatic) and leaves the stored mode and pre-amp as they are.

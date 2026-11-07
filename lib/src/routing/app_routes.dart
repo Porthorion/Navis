@@ -129,6 +129,18 @@ abstract final class AppRoutes {
     <String, String>{appearanceFocusParam: appearanceFocusLibraryPages},
   );
 
+  /// Query parameter naming the Playback section to scroll to.
+  static const playbackFocusParam = 'focus';
+
+  /// [playbackFocusParam] value for the ReplayGain section.
+  static const playbackFocusReplayGain = 'replayGain';
+
+  /// Playback settings scrolled to the ReplayGain section.
+  static String get playbackReplayGain => _withQuery(
+    SettingsPage.playback.location,
+    <String, String>{playbackFocusParam: playbackFocusReplayGain},
+  );
+
   static String playlist(String id) => '$library/playlists/${_encode(id)}';
   static String listenBrainzWeekly(String sourcePatch) =>
       '$library/listenbrainz/${_encode(sourcePatch)}';

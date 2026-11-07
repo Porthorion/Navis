@@ -285,6 +285,12 @@ abstract final class NavService {
     _drillIn(context, ref, page.location);
   }
 
+  /// Open Playback settings scrolled to the ReplayGain section.
+  static void openPlaybackReplayGainSettings(
+    BuildContext context,
+    WidgetRef ref,
+  ) => _drillIn(context, ref, AppRoutes.playbackReplayGain);
+
   /// Open the unavailable-items review screen.
   static void openUnavailableItems(BuildContext context, WidgetRef ref) {
     openSettingsPage(context, ref, SettingsPage.unavailableItems);
