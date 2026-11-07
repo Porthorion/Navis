@@ -255,6 +255,101 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('111 to 112 haptics', () {
+    // Rebuilds app_settings the way a real 111 profile has it: neither
+    // haptics column, and non-default values elsewhere.
+    void makeSchema111(Database raw) {
+      final create =
+          raw
+                  .select(
+                    "SELECT sql FROM sqlite_master "
+                    "WHERE type = 'table' AND name = 'app_settings'",
+                  )
+                  .single['sql']
+              as String;
+      final legacy = create
+          .replaceFirst('app_settings', 'app_settings_111')
+          .replaceFirst(
+            RegExp(
+              r',\s*"haptics_enabled"\s+INTEGER NOT NULL DEFAULT 1 '
+              r'CHECK \("haptics_enabled" IN \(0, 1\)\)',
+            ),
+            '',
+          )
+          .replaceFirst(
+            RegExp(r',\s*"haptics_disabled"\s+INTEGER NOT NULL DEFAULT 0'),
+            '',
+          );
+      expect(legacy, isNot(create));
+      expect(legacy, isNot(contains('haptics_')));
+      final columns = raw
+          .select('PRAGMA table_info(app_settings)')
+          .map((row) => row['name'] as String)
+          .where((name) => !name.startsWith('haptics_'))
+          .join(', ');
+      raw.execute(legacy);
+      raw.execute(
+        'INSERT INTO app_settings_111 ($columns) '
+        'SELECT $columns FROM app_settings',
+      );
+      raw.execute('DROP TABLE app_settings');
+      raw.execute('ALTER TABLE app_settings_111 RENAME TO app_settings');
+      raw.execute("UPDATE app_settings SET theme_mode = 'dark'");
+      raw.execute('PRAGMA user_version = 111');
+    }
+
+    Future<NavisDatabase> upgraded111() async {
+      final directory = await Directory.systemTemp.createTemp('navis_v112_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.appSettingsDao.getSettings();
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        makeSchema111(raw);
+        expect(
+          raw
+              .select('PRAGMA table_info(app_settings)')
+              .where((row) => (row['name'] as String).startsWith('haptics_')),
+          isEmpty,
+        );
+      } finally {
+        raw.close();
+      }
+      final db = createTestDatabase(file: file);
+      addTearDown(db.close);
+      return db;
+    }
+
+    test('the schema version is 112', () {
+      expect(NavisDatabase.currentSchemaVersion, 112);
+    });
+
+    test(
+      'adds both columns with everything on and keeps other values',
+      () async {
+        final db = await upgraded111();
+        final settings = (await db.appSettingsDao.getSettings())!;
+        expect(settings.hapticsEnabled, isTrue);
+        expect(settings.hapticsDisabled, 0);
+        expect(settings.themeMode, 'dark');
+        expect(
+          (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+            'user_version',
+          ),
+          NavisDatabase.currentSchemaVersion,
+        );
+        // Idempotent: running the step again changes nothing.
+        await db.appSettingsDao.setHapticsEnabled(enabled: false);
+        await db.from111To112(Migrator(db));
+        final again = (await db.appSettingsDao.getSettings())!;
+        expect(again.hapticsEnabled, isFalse);
+        expect(again.themeMode, 'dark');
+      },
+    );
+  }, skip: !sqliteAvailable);
+
   group('110 to 111 ReplayGain untagged level', () {
     // Rebuilds app_settings the way a real 110 profile has it: no untagged
     // column, and the SQL default for the mode still 'off' (an upgraded
@@ -323,8 +418,8 @@ void main() {
       return db;
     }
 
-    test('the schema version is 111', () {
-      expect(NavisDatabase.currentSchemaVersion, 111);
+    test('the schema version is at least 111', () {
+      expect(NavisDatabase.currentSchemaVersion, greaterThanOrEqualTo(111));
     });
 
     for (final mode in ['off', 'track', 'album', 'smart']) {

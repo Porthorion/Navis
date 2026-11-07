@@ -5,6 +5,7 @@ import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/app_settings_table.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
@@ -1162,6 +1163,38 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         disabledJson: encodeDisabledIntegrationKeys(disabled),
       );
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Haptics
+  //
+  // Both columns are deliberately absent from [saveSettings], like the
+  // integration policy: only these writers change them.
+  // ---------------------------------------------------------------------------
+
+  /// Writes the Haptics master switch; the category mask is kept.
+  Future<void> setHapticsEnabled({required bool enabled}) => _writeSettings(
+    AppSettingsTableCompanion(hapticsEnabled: Value(enabled)),
+  );
+
+  /// Switches one haptic category on or off with a single atomic bit write,
+  /// so concurrent flips cannot lose each other. A Drift write, so
+  /// [watchSettings] streams are notified.
+  Future<void> setHapticCategoryEnabled(
+    HapticCategory category, {
+    required bool enabled,
+  }) {
+    final column = appSettingsTable.hapticsDisabled;
+    return (update(
+      appSettingsTable,
+    )..where((t) => t.id.equals(primarySettingsId))).write(
+      AppSettingsTableCompanion.custom(
+        hapticsDisabled: enabled
+            ? column.bitwiseAnd(Variable<int>(~category.bit))
+            : column.bitwiseOr(Variable<int>(category.bit)),
+        updatedAt: Variable<DateTime>(DateTime.now()),
+      ),
+    );
   }
 
   Future<void> _writeSettings(AppSettingsTableCompanion values) {

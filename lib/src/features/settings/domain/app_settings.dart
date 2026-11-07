@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
@@ -58,6 +59,7 @@ class AppSettingsModel {
     this.nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
     this.flatSurfaces = false,
     this.flatAreas = const FlatAreas(),
+    this.hapticsPrefs = const HapticsPrefs(),
     this.colorVividness = 0,
     this.surfaceDepthDark = 0,
     this.appearanceLooks = const [],
@@ -155,6 +157,7 @@ class AppSettingsModel {
       nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
       flatSurfaces = false,
       flatAreas = const FlatAreas(),
+      hapticsPrefs = const HapticsPrefs(),
       colorVividness = 0,
       surfaceDepthDark = 0,
       appearanceLooks = const [],
@@ -252,6 +255,9 @@ class AppSettingsModel {
   final int nightScheduleEndMinutes;
   final bool flatSurfaces;
   final FlatAreas flatAreas;
+
+  /// The Haptics master switch and category choices.
+  final HapticsPrefs hapticsPrefs;
   final int colorVividness;
   final int surfaceDepthDark;
   final List<AppearanceLook> appearanceLooks;
@@ -443,6 +449,7 @@ class AppSettingsModel {
     int? nightScheduleEndMinutes,
     bool? flatSurfaces,
     FlatAreas? flatAreas,
+    HapticsPrefs? hapticsPrefs,
     int? colorVividness,
     int? surfaceDepthDark,
     List<AppearanceLook>? appearanceLooks,
@@ -572,6 +579,7 @@ class AppSettingsModel {
           nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
       flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       flatAreas: flatAreas ?? this.flatAreas,
+      hapticsPrefs: hapticsPrefs ?? this.hapticsPrefs,
       colorVividness: colorVividness ?? this.colorVividness,
       surfaceDepthDark: surfaceDepthDark ?? this.surfaceDepthDark,
       appearanceLooks: appearanceLooks ?? this.appearanceLooks,

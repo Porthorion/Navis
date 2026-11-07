@@ -5,6 +5,7 @@ import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/downloads/domain/download_preferences.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 import '../../../helpers/test_database.dart';
 
@@ -18,6 +19,99 @@ void main() {
 
     tearDown(() async {
       await database.close();
+    });
+
+    group('haptics', () {
+      test('a fresh database has every haptic on', () async {
+        final row = (await database.appSettingsDao.getSettings())!;
+        expect(row.hapticsEnabled, isTrue);
+        expect(row.hapticsDisabled, 0);
+      }, skip: !sqliteAvailable);
+
+      test('a category flip changes only its own bit and notifies', () async {
+        final dao = database.appSettingsDao;
+        await dao.getSettings();
+        final emissions = <int>[];
+        final sub = dao.watchSettings().listen(
+          (row) => emissions.add(row!.hapticsDisabled),
+        );
+        addTearDown(sub.cancel);
+        await Future<void>.delayed(Duration.zero);
+        await dao.setHapticCategoryEnabled(
+          HapticCategory.playbackButtons,
+          enabled: false,
+        );
+        await dao.setHapticCategoryEnabled(
+          HapticCategory.likesAndAlerts,
+          enabled: false,
+        );
+        await dao.setHapticCategoryEnabled(
+          HapticCategory.playbackButtons,
+          enabled: true,
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        expect((await dao.getSettings())!.hapticsDisabled, 32);
+        expect(emissions, containsAllInOrder([2, 32]));
+      }, skip: !sqliteAvailable);
+
+      test('concurrent flips both land', () async {
+        final dao = database.appSettingsDao;
+        await Future.wait([
+          for (final c in HapticCategory.values)
+            dao.setHapticCategoryEnabled(c, enabled: false),
+        ]);
+        expect((await dao.getSettings())!.hapticsDisabled, 63);
+      }, skip: !sqliteAvailable);
+
+      test('the master keeps the category mask', () async {
+        final dao = database.appSettingsDao;
+        await dao.setHapticCategoryEnabled(
+          HapticCategory.slidersAndRulers,
+          enabled: false,
+        );
+        await dao.setHapticsEnabled(enabled: false);
+        var row = (await dao.getSettings())!;
+        expect(row.hapticsEnabled, isFalse);
+        expect(row.hapticsDisabled, 4);
+        await dao.setHapticsEnabled(enabled: true);
+        row = (await dao.getSettings())!;
+        expect(row.hapticsEnabled, isTrue);
+        expect(row.hapticsDisabled, 4);
+      }, skip: !sqliteAvailable);
+
+      test('a stale full-row save leaves both columns alone', () async {
+        final dao = database.appSettingsDao;
+        await dao.getSettings();
+        await dao.setHapticsEnabled(enabled: false);
+        await dao.setHapticCategoryEnabled(
+          HapticCategory.listsAndMenus,
+          enabled: false,
+        );
+        await dao.saveSettings(
+          cachedPlaybackFirst: true,
+          scrobbleEnabled: false,
+          gaplessEnabled: false,
+          skipSilenceEnabled: true,
+          showAlbumsPage: true,
+          showRadioPage: true,
+          showPlaylistsPage: true,
+          showArtistsPage: true,
+          showLikedPage: true,
+          wifiOnlyDownloads: false,
+          autoDownloadStarredOnWifi: false,
+          customDownloadFolderEnabled: false,
+          crossfadeEnabled: false,
+          crossfadeDurationSeconds: 5,
+          crossfadeType: 'normal',
+          updateChannel: 'stable',
+          syncIntervalMinutes: 60,
+          replayGainMode: 'off',
+          replayGainPreamp: 0,
+        );
+        final row = (await dao.getSettings())!;
+        expect(row.hapticsEnabled, isFalse);
+        expect(row.hapticsDisabled, 16);
+      }, skip: !sqliteAvailable);
     });
 
     test('playlist destination writer preserves other settings', () async {
