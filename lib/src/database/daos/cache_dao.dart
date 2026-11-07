@@ -27,8 +27,10 @@ const _containerMarker = '/Containers/Data/Application/';
 final _containerRoot = RegExp(
   r'^.*/Containers/Data/Application/[0-9A-Fa-f-]{36}$',
 );
+// Non-greedy: the first container segment is the app's; a folder with that
+// shape nested deeper inside it is user content.
 final _containerPrefix = RegExp(
-  r'^.*/Containers/Data/Application/[0-9A-Fa-f-]{36}(?=/|$)',
+  r'^.*?/Containers/Data/Application/[0-9A-Fa-f-]{36}(?=/|$)',
 );
 
 /// [path] moved to the container root [home], or null when [path] is not in an
@@ -253,9 +255,15 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
     if (!_containerRoot.hasMatch(home)) return 0;
     return transaction(() async {
       var rewritten = 0;
-      final rows = await (select(
-        cachedTracksTable,
-      )..where((t) => t.filePath.like('%$_containerMarker%'))).get();
+      // Rows already under [home] are the normal case: leave them to SQLite.
+      final own = '${_escapeLike(home)}/%';
+      final rows =
+          await (select(cachedTracksTable)..where(
+                (t) =>
+                    t.filePath.like('%$_containerMarker%') &
+                    t.filePath.like(own, escapeChar: r'\').not(),
+              ))
+              .get();
       for (final row in rows) {
         final path = rebaseContainerPath(row.filePath, home);
         if (path == null) continue;
@@ -278,6 +286,11 @@ class CacheDao extends DatabaseAccessor<NavisDatabase>
       return rewritten;
     });
   }
+
+  static String _escapeLike(String value) => value
+      .replaceAll(r'\', r'\\')
+      .replaceAll('%', r'\%')
+      .replaceAll('_', r'\_');
 
   static String? _rebaseJournal(String journal, String home) {
     try {

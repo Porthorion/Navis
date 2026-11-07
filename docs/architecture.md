@@ -2905,7 +2905,10 @@ fails opening rather than choosing an incomplete database. An existing support
 database wins and leaves legacy files untouched, except that when the legacy
 main file is gone, any legacy `-wal`, `-shm` or `-journal` file whose
 destination is missing is moved too (a crash between the renames would
-otherwise strand the WAL and lose its commits); this applies to desktop and iOS. No schema changes are involved.
+otherwise strand the WAL and lose its commits); this applies to desktop and iOS.
+Adoption is a rename only, and a copy-fallback move deletes the legacy sidecars
+before the legacy main file, so a stale WAL is never left beside a newer
+database. No schema changes are involved.
 
 ## External integration policy
 
@@ -7339,7 +7342,7 @@ and of the `path`, `partPath` and `publicationLocator` fields of
 Documents) in one transaction. Drift completes `beforeOpen` before any other
 query, so the audio handler's cache pruning and the download service's startup
 recovery only see paths in the current container. It is a no-op off iOS, when
-the home is not an app container (diagnostics clones) and when nothing differs.
+the home is not an app container (diagnostics clones) and when nothing differs. The container segment is matched non-greedily (the first one is the app's), and rows already under the current home are skipped in SQL. If the rebase fails, `NavisDatabase.containerRebaseFailed` is set and, for that launch, the rolling/permanent cache prunes, the orphan sweeps and the download service's missing-file reconcile are skipped, so no record or file is dropped over a stale path.
 No other table or index stores an absolute container path: the artwork index and
 the download folder index are rebuilt from directory listings and relative
 paths, and the cover-art caches store paths relative to their base directory.

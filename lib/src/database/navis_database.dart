@@ -318,6 +318,11 @@ class NavisDatabase extends _$NavisDatabase {
   @visibleForTesting
   static Future<String?> Function() containerHomeReader = iosContainerHome;
 
+  /// True when this launch could not move stored iOS container paths. The
+  /// stored paths may then be stale, so the startup passes that delete records
+  /// or files because a path looks missing must not run.
+  bool containerRebaseFailed = false;
+
   /// Runs inside beforeOpen, which Drift completes before any other query:
   /// the audio handler's cache pruning and the download service's startup
   /// recovery can only read paths already moved to the current iOS container.
@@ -332,8 +337,12 @@ class NavisDatabase extends _$NavisDatabase {
         );
       }
     } on Object catch (error) {
-      // A failed move only costs a re-download, never the database.
-      AppLogger.warning('Container path rebase failed: ${error.runtimeType}');
+      // The database still opens; the destructive startup passes stay off.
+      containerRebaseFailed = true;
+      AppLogger.warning(
+        'Container path rebase failed, startup cleanup skipped: '
+        '${error.runtimeType}',
+      );
     }
   }
 

@@ -1822,6 +1822,38 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  test('startup recovery deletes and requeues nothing when the iOS container '
+      'path rebase failed', () async {
+    final previous = NavisDatabase.containerHomeReader;
+    addTearDown(() => NavisDatabase.containerHomeReader = previous);
+    await database.close();
+    NavisDatabase.containerHomeReader = () async => throw StateError('boom');
+    database = createTestDatabase();
+    await database.cacheDao.getPermanentEntries();
+    expect(database.containerRebaseFailed, isTrue);
+    await database.appSettingsDao.updateDownloadsPaused(paused: true);
+    await addSongs(1);
+    final root = Directory(p.join(supportDir.path, 'audio', 'permanent'));
+    final orphan = File(p.join(root.path, 'orphan.mp3'));
+    await orphan.parent.create(recursive: true);
+    await orphan.writeAsBytes([1]);
+    await database.cacheDao.upsertCachedTrack(
+      CachedTracksTableCompanion.insert(
+        songId: 'song-0',
+        filePath: p.join(root.path, 'stale-path.mp3'),
+        fileSize: 1,
+        format: 'mp3',
+        cacheType: CacheType.permanent,
+        downloadStatus: DownloadStatus.complete,
+        lastAccessedAt: DateTime(2026),
+      ),
+    );
+    await buildService().start();
+    expect(await database.cacheDao.getCachedTrack('song-0'), isNotNull);
+    expect(await queue(), isEmpty);
+    expect(orphan.existsSync(), isTrue);
+  }, skip: !sqliteAvailable);
+
   test(
     'custom cleanup preserves foreign suffix files without ownership',
     () async {

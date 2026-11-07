@@ -33,6 +33,7 @@ Future<File> resolveDatabaseFile({
   Future<Directory> Function()? readApplicationDocumentsDirectory,
   Future<File> Function(File source, String destination)? renameFile,
   Future<File> Function(File source, String destination)? copyFile,
+  Future<void> Function(File file)? deleteFile,
 }) async {
   final inSupport =
       useSupportDirectory ??
@@ -57,12 +58,7 @@ Future<File> resolveDatabaseFile({
       // A crash between the renames moves the main file first and strands its
       // sidecars: adopt them, or their commits are lost and they stay behind.
       if (!await _exists(legacy)) {
-        await _adoptStrandedSidecars(
-          legacy,
-          target,
-          renameFile ?? _rename,
-          copyFile ?? _copy,
-        );
+        await _adoptStrandedSidecars(legacy, target, renameFile ?? _rename);
       }
       return target;
     }
@@ -94,8 +90,11 @@ Future<File> resolveDatabaseFile({
         copied.add(entry);
       }
     }
-    for (final entry in copied) {
-      await entry.source.delete();
+    // Sidecars first, the main file last: a crash in between must never leave
+    // a legacy WAL without its main file, where a later launch could adopt it
+    // beside a newer database and roll it back.
+    for (final entry in copied.reversed) {
+      await (deleteFile ?? _delete)(entry.source);
     }
     return target;
   } on Object catch (error) {
@@ -121,27 +120,20 @@ Future<File> resolveDatabaseFile({
   }
 }
 
+/// Only a rename: sidecars are stranded only after the main file was renamed,
+/// so they are on the same volume. A copy could pair a stale WAL with a newer
+/// database.
 Future<void> _adoptStrandedSidecars(
   File legacy,
   File target,
   Future<File> Function(File source, String destination) rename,
-  Future<File> Function(File source, String destination) copy,
 ) async {
   for (final suffix in ['-wal', '-shm', '-journal']) {
     final source = File('${legacy.path}$suffix');
     final destination = '${target.path}$suffix';
     try {
       if (!await _exists(source) || await _exists(File(destination))) continue;
-      try {
-        await rename(source, destination);
-      } on FileSystemException {
-        await copy(source, destination);
-        if (await source.length() != await File(destination).length()) {
-          await File(destination).delete();
-          continue;
-        }
-        await source.delete();
-      }
+      await rename(source, destination);
     } on FileSystemException catch (error) {
       AppLogger.warning(
         'Stranded database sidecar not moved: ${error.runtimeType}',
@@ -149,6 +141,8 @@ Future<void> _adoptStrandedSidecars(
     }
   }
 }
+
+Future<void> _delete(File file) => file.delete();
 
 Future<bool> _exists(File file) async =>
     // Keep filesystem probing asynchronous during startup migration.

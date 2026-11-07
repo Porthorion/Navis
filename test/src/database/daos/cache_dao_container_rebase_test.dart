@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/database/daos/cache_dao.dart';
 import 'package:navis/src/database/database_location.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
@@ -198,4 +199,103 @@ void main() {
       isNull,
     );
   });
+
+  test(
+    'a nested Containers folder inside the current container is untouched',
+    () {
+      const nestedUuid = 'CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC';
+      const nested =
+          'Documents/Downloads/Containers/Data/Application/$nestedUuid/x.mp3';
+      expect(rebaseContainerPath(p.join(newHome, nested), newHome), isNull);
+      expect(
+        rebaseContainerPath(p.join(oldHome, nested), newHome),
+        p.join(newHome, nested),
+      );
+    },
+  );
+
+  test('a home with LIKE wildcards only excludes its own paths', () async {
+    final home = p.join(
+      root.path,
+      'a_b',
+      'Containers',
+      'Data',
+      'Application',
+      _newUuid,
+    );
+    final lookalike = p.join(
+      root.path,
+      'aXb',
+      'Containers',
+      'Data',
+      'Application',
+      _newUuid,
+      'Documents/x.mp3',
+    );
+    await seed('look', lookalike, CacheType.permanent);
+    await seed('own', p.join(home, 'Documents/y.mp3'), CacheType.permanent);
+    expect(await database.cacheDao.rebaseContainerPaths(home), 1);
+    expect(await pathOf('look'), p.join(home, 'Documents/x.mp3'));
+    expect(await pathOf('own'), p.join(home, 'Documents/y.mp3'));
+  });
+
+  group('a failed rebase', () {
+    late void Function() restore;
+    setUp(() {
+      final previous = NavisDatabase.containerHomeReader;
+      restore = () => NavisDatabase.containerHomeReader = previous;
+    });
+    tearDown(() => restore());
+
+    test(
+      'flags the database and keeps the destructive startup passes off',
+      () async {
+        final file = File(p.join(root.path, 'navis.sqlite'));
+        final first = createTestDatabase(file: file);
+        await seed0(
+          first,
+          'perm',
+          p.join(oldHome, 'Documents/Downloads/gone.mp3'),
+        );
+        await first.close();
+
+        NavisDatabase.containerHomeReader = () async =>
+            throw StateError('boom');
+        final failed = createTestDatabase(file: file);
+        addTearDown(failed.close);
+        await failed.cacheDao.getPermanentEntries();
+        expect(failed.containerRebaseFailed, isTrue);
+
+        final manager = RollingCacheManager(cacheDao: failed.cacheDao);
+        await manager.pruneMissingFiles();
+        await manager.pruneMissingPermanentFiles();
+        await manager.cleanupOrphanedRollingFiles();
+        expect(await failed.cacheDao.getCachedTrack('perm'), isNotNull);
+
+        // A launch whose rebase worked prunes as before.
+        NavisDatabase.containerHomeReader = () async => newHome;
+        await failed.close();
+        final healthy = createTestDatabase(file: file);
+        addTearDown(healthy.close);
+        await healthy.cacheDao.getPermanentEntries();
+        expect(healthy.containerRebaseFailed, isFalse);
+        await RollingCacheManager(cacheDao: healthy.cacheDao)
+            .pruneMissingPermanentFiles();
+        expect(await healthy.cacheDao.getCachedTrack('perm'), isNull);
+      },
+    );
+  });
 }
+
+Future<void> seed0(NavisDatabase db, String songId, String path) =>
+    db.cacheDao.upsertCachedTrack(
+      CachedTracksTableCompanion.insert(
+        songId: songId,
+        filePath: path,
+        fileSize: 128,
+        format: 'mp3',
+        cacheType: CacheType.permanent,
+        downloadStatus: DownloadStatus.complete,
+        lastAccessedAt: DateTime(2026),
+      ),
+    );

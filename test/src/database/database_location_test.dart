@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -16,12 +17,14 @@ void main() {
     bool useSupportDirectory = true,
     Future<File> Function(File, String)? rename,
     Future<File> Function(File, String)? copy,
+    Future<void> Function(File)? delete,
   }) => resolveDatabaseFile(
     useSupportDirectory: useSupportDirectory,
     readApplicationDocumentsDirectory: () async => documents,
     readApplicationSupportDirectory: () async => support,
     renameFile: rename,
     copyFile: copy,
+    deleteFile: delete,
   );
   setUp(() async {
     root = await Directory.systemTemp.createTemp('navis-db-location-');
@@ -83,27 +86,64 @@ void main() {
     expect((await resolve()).path, newFile('').path);
     expect(await oldFile('').readAsString(), 'legacy');
   });
-  for (final copyFallback in [false, true]) {
-    test('sidecars left behind by a crash after the main file moved are '
-        'adopted copyFallback=$copyFallback', () async {
+  test(
+    'sidecars stranded by a crash after the main file moved are adopted',
+    () async {
       await support.create();
       await newFile('').writeAsString('moved main');
       await oldFile('-wal').writeAsString('stranded wal');
       await oldFile('-shm').writeAsString('stranded shm');
       await newFile('-shm').writeAsString('current shm');
-      final selected = await resolve(
-        rename: copyFallback
-            ? (_, _) async => throw const FileSystemException('cross-device')
-            : null,
-      );
+      final selected = await resolve();
       expect(selected.path, newFile('').path);
       expect(await newFile('-wal').readAsString(), 'stranded wal');
       expect(oldFile('-wal').existsSync(), isFalse);
       // A sidecar whose destination exists is never overwritten.
       expect(await newFile('-shm').readAsString(), 'current shm');
       expect(await oldFile('-shm').readAsString(), 'stranded shm');
-    });
-  }
+    },
+  );
+  test('stranded sidecars are only renamed, never copied', () async {
+    await support.create();
+    await newFile('').writeAsString('moved main');
+    await oldFile('-wal').writeAsString('stranded wal');
+    await resolve(
+      rename: (_, _) async => throw const FileSystemException('cross-device'),
+      copy: (_, _) async => fail('a stranded sidecar must not be copied'),
+    );
+    expect(newFile('-wal').existsSync(), isFalse);
+    expect(await oldFile('-wal').readAsString(), 'stranded wal');
+  });
+  test('a copy-fallback move that dies mid-cleanup never lets a stale wal roll '
+      'the database back', () async {
+    await oldFile('').writeAsString('v1 main');
+    await oldFile('-wal').writeAsString('v1 wal');
+    // Launch 1: every rename fails (cross-volume), so the family is copied;
+    // the process then dies (the future never completes) while deleting the
+    // originals, after the first delete.
+    var deletes = 0;
+    unawaited(
+      resolve(
+        rename: (_, _) async => throw const FileSystemException('cross-device'),
+        delete: (file) {
+          if (deletes++ > 0) return Completer<void>().future;
+          return file.delete();
+        },
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    expect(newFile('').existsSync(), isTrue);
+    expect(newFile('-wal').existsSync(), isTrue);
+    // Launch 2: the target exists; the app runs, writes and closes cleanly,
+    // which checkpoints the WAL and deletes it.
+    await resolve();
+    await newFile('').writeAsString('v2 main');
+    await newFile('-wal').delete();
+    // Launch 3 must not adopt a stale legacy wal beside the newer main.
+    await resolve();
+    expect(newFile('-wal').existsSync(), isFalse);
+    expect(await newFile('').readAsString(), 'v2 main');
+  });
   test(
     'legacy sidecars stay when the legacy main file is still there',
     () async {
