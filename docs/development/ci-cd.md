@@ -104,8 +104,9 @@ Checks performed (in order, fail-fast):
 1. `/tmp` disk-space preflight
 2. Flutter test-log guard fixtures (`tool/check_test_log_test.sh`) and Linux
    desktop-entry installer (`tool/linux_desktop_entry_test.sh`)
-3. Native equalizer response/PCM and progressive HTTP retry/repeat fixtures
-   (`tool/equalizer_native_test.sh`), Android repeat runner contract
+3. Native equalizer response/PCM (Android JVM and the Darwin C DSP, which needs
+   a C compiler and is skipped with a message without one) and progressive HTTP
+   retry/repeat fixtures (`tool/equalizer_native_test.sh`), Android repeat runner contract
    (`tool/android_repeat_runner_test.sh`) and bridge JVM suites
    (`tool/android_repeat_native_test.sh`), and the Last.fm key masking / artifact secret scan shell tests
    (`tool/lastfm_key_defines_test.sh`, `tool/scan_artifact_secret_test.sh`;

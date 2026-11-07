@@ -7,6 +7,7 @@
 #import "./include/just_audio/ConcatenatingAudioSource.h"
 #import "./include/just_audio/LoopingAudioSource.h"
 #import "./include/just_audio/ClippingAudioSource.h"
+#import "NavisEqualizer.h"
 #import <AVFoundation/AVFoundation.h>
 #import <stdlib.h>
 #include <TargetConditionals.h>
@@ -53,9 +54,13 @@
     NSDictionary<NSString *, NSObject *> *_icyMetadata;
     NSNumber *_errorCode;
     NSString *_errorMessage;
+#if TARGET_OS_IOS
+    // Navis: nil unless the app sent an equalizerConfiguration (iOS only).
+    NavisEqualizer *_equalizer;
+#endif
 }
 
-- (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar playerId:(NSString*)idParam loadConfiguration:(NSDictionary *)loadConfiguration useLazyPreparation:(BOOL)useLazyPreparation {
+- (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar playerId:(NSString*)idParam loadConfiguration:(NSDictionary *)loadConfiguration useLazyPreparation:(BOOL)useLazyPreparation equalizerConfiguration:(NSDictionary *)equalizerConfiguration {
     self = [super init];
     NSAssert(self, @"super init cannot be nil");
     _registrar = registrar;
@@ -108,6 +113,15 @@
         _loadControl.canUseNetworkResourcesForLiveStreamingWhilePaused = NO;
         _loadControl.preferredPeakBitRate = (NSNumber *)[NSNull null];
     }
+#if TARGET_OS_IOS
+    if (equalizerConfiguration) {
+        NSString *equalizerError = nil;
+        _equalizer = [[NavisEqualizer alloc] initWithConfiguration:equalizerConfiguration error:&equalizerError];
+        if (!_equalizer) NSLog(@"just_audio: equalizer unavailable: %@", equalizerError);
+        __weak __typeof__(self) weakSelf = self;
+        _equalizer.currentItemProvider = ^AVPlayerItem *{ return weakSelf.player.currentItem; };
+    }
+#endif
     _speed = 1.0f;
     _volume = 1.0f;
     _justAdvanced = NO;
@@ -178,6 +192,10 @@
         } else if ([@"concatenatingMove" isEqualToString:call.method]) {
             [self concatenatingMove:(NSString *)request[@"id"] currentIndex:[request[@"currentIndex"] intValue] newIndex:[request[@"newIndex"] intValue] shuffleOrder:(NSArray<NSNumber *> *)request[@"shuffleOrder"]];
             result(@{});
+        } else if ([@"setEqualizer" isEqualToString:call.method]) {
+            [self setEqualizer:request result:result];
+        } else if ([@"getEqualizerState" isEqualToString:call.method]) {
+            [self getEqualizerState:result];
         } else if ([@"setAndroidAudioAttributes" isEqualToString:call.method]) {
             result(@{});
         } else {
@@ -188,6 +206,40 @@
         FlutterError *flutterError = [FlutterError errorWithCode:@"error" message:@"Error in handleMethodCall" details:nil];
         result(flutterError);
     }
+}
+
+// Navis: equalizer (iOS). Unsupported where no tap was installed, as on Android.
+- (void)setEqualizer:(NSDictionary *)request result:(FlutterResult)result {
+#if TARGET_OS_IOS
+    if (_equalizer) {
+        NSString *error = nil;
+        NSDictionary *state = [_equalizer setConfiguration:request error:&error];
+        result(state ?: [FlutterError errorWithCode:@"eq_invalid" message:error details:nil]);
+        return;
+    }
+#endif
+    result([FlutterError errorWithCode:@"eq_unavailable" message:@"No EQ processor was installed for this player" details:nil]);
+}
+
+- (void)getEqualizerState:(FlutterResult)result {
+#if TARGET_OS_IOS
+    if (_equalizer) {
+        result([_equalizer state]);
+        return;
+    }
+#endif
+    result([FlutterError errorWithCode:@"eq_unavailable" message:@"No EQ processor was installed for this player" details:nil]);
+}
+
+// Only the head of the queue gets a tap: attaching loads the asset's tracks,
+// which must not hit the network for every queued song.
+- (void)attachEqualizerToQueueHead {
+#if TARGET_OS_IOS
+    NSArray<AVPlayerItem *> *items = _player.items;
+    for (NSUInteger i = 0; _equalizer && i < items.count && i < TREADMILL_SIZE; i++) {
+        [_equalizer attachToItem:items[i]];
+    }
+#endif
 }
 
 - (AVQueuePlayer *)player {
@@ -584,6 +636,7 @@
 
     /* NSLog(@"after reorder: _player.items.count: ", _player.items.count); */
     /* [self dumpQueue]; */
+    [self attachEqualizerToQueueHead];
 
     if (_processingState != psLoading && oldItem != newItem) {
         // || !_player.currentItem.playbackLikelyToKeepUp;
@@ -906,6 +959,8 @@
         }
     } else if ([keyPath isEqualToString:@"currentItem"] && _player.currentItem) {
         //NSLog(@"currentItem -> [%d]", [self indexForItem:_player.currentItem]);
+        // Navis: the queue advanced; the new head and its successor need a tap.
+        [self attachEqualizerToQueueHead];
         IndexedPlayerItem *playerItem = (IndexedPlayerItem *)change[NSKeyValueChangeNewKey];
         //IndexedPlayerItem *oldPlayerItem = (IndexedPlayerItem *)change[NSKeyValueChangeOldKey];
         if (playerItem.status == AVPlayerItemStatusFailed) {
@@ -1383,6 +1438,10 @@
         _player = nil;
     }
     // Untested:
+#if TARGET_OS_IOS
+    [_equalizer dispose];
+    _equalizer = nil;
+#endif
     [_eventChannel dispose];
     [_dataEventChannel dispose];
     [_methodChannel setMethodCallHandler:nil];

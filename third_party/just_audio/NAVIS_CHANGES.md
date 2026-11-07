@@ -266,3 +266,21 @@ that retire a source clear `onDownloadStart` so it cannot re-register afterwards
 or headers were set, so a Navis `content://` (Android SAF) download reached
 `HttpClient.getUrl` ("Unsupported scheme 'content'") and ExoPlayer failed with
 "unexpected end of stream". `content://`, `file://` and `asset` sources load directly.
+
+## iOS equalizer
+
+The Darwin player accepts the same `equalizerConfiguration`, `setEqualizer` and
+`getEqualizerState` as Android. `NavisEqualizerDsp.c/.h` is a C port of
+`EqualizerDsp.java` plus the bank swap and 20 ms crossfade of
+`NavisEqualizerProcessor.java`. `NavisEqualizer.m/.h` (one per `AudioPlayer`)
+installs an `MTAudioProcessingTap` (pre-effects) through an
+`AVMutableAudioMix` on the first two items of the queue once the asset's audio
+track has loaded, and reports Android's state keys plus `processedFrames` and
+`levelDeltaDb`. Only the current and next queue item get a tap (attaching
+loads the asset's tracks, which must not hit the network for a whole queue);
+the tap's stream is freed in unprepare, the filter history resets on a jump in
+the source time range, and the state's `reason` says why the current item is
+not processed. The class is compiled for iOS only (`TARGET_OS_IOS`); the C DSP
+is inert on macOS, which never sends a configuration. `MediaToolbox` is linked
+for iOS in the podspec and `Package.swift`. Host-side C fixtures live in
+`darwin/test/navis_equalizer_dsp_test.c`.

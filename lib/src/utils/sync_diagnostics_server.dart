@@ -4264,15 +4264,7 @@ class SyncDiagnosticsServer {
       'legacyResetNotice': state.legacyResetNotice,
       'persistedConfiguration': persisted.configuration.toJson(),
       'persistedPresetId': persisted.selectedPresetId,
-      'application': {
-        'configuration': applied.applied.toJson(),
-        'enabled': applied.applied.enabled,
-        'sampleRate': applied.sampleRate,
-        'responseSampleRate': applied.responseSampleRate,
-        'headroomDb': applied.headroomDb,
-        'reason': applied.reason,
-        'pending': applied.pending,
-      },
+      'application': applied.toDiagnosticsJson(),
     };
   }
 

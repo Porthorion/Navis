@@ -823,6 +823,9 @@ extension _NavisMediaSession on NavisAudioHandler {
         headroomDb: native.headroomDb,
         reason: native.reason,
         pending: native.pending,
+        processedFrames: native.processedFrames,
+        levelDeltaDb: native.levelDeltaDb,
+        resetCount: native.resetCount,
       ),
     );
   }

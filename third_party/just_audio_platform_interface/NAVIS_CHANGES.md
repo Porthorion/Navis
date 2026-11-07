@@ -12,3 +12,6 @@ calculations are also used by the Linux mpv chain compiler.
 `ProgressiveAudioSourceOptionsMessage.androidUseDefaultLoadErrorHandling`
 serializes the radio opt-out from Navis's Android unknown-length VOD retry
 policy. It defaults to false; other platform adapters ignore the option.
+
+`EqualizerStateMessage` also carries the optional Darwin-only `processedFrames`
+and `levelDeltaDb` diagnostics.
