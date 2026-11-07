@@ -35,6 +35,24 @@ const macOsLoginKeychain = MacOsOptions(
   accountName: 'com.navis.app.navis',
 );
 
+/// iOS keychain for the credential `FlutterSecureStorage`s. The plugin's
+/// default accessibility (`unlocked`) makes background playback on a locked
+/// phone fail to read the session and scrobble keys; `first_unlock` does not.
+/// The service name is Navis's own, as on macOS. `iOptions` only affects iOS.
+/// No migration: Navis has never shipped on iOS, so no items exist under the
+/// old attributes.
+const iosKeychain = IOSOptions(
+  accessibility: KeychainAccessibility.first_unlock,
+  accountName: 'com.navis.app.navis',
+);
+
+/// Whether durable credential persistence is required on the given platform.
+@visibleForTesting
+bool mustPersistDurableCredentialsOn({
+  required bool isAndroid,
+  required bool isIOS,
+}) => isAndroid || isIOS;
+
 /// Tail of the native secure-storage queue. Top-level so every credential
 /// store in this engine shares it: overlapping native calls race
 /// secure-storage initialization and migration.
@@ -201,6 +219,7 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
   new({
     this._storage = const FlutterSecureStorage(
       aOptions: AndroidOptions(resetOnError: false),
+      iOptions: iosKeychain,
       mOptions: macOsLoginKeychain,
     ),
     this.requiresDurableCredentials,
@@ -221,8 +240,8 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
 
   /// Whether a save that cannot reach durable storage must fail instead of
   /// keeping the credential only in engine-local memory. Null defers to the
-  /// platform: Android requires durable persistence before a login may be
-  /// declared, while desktop keeps the local-dev session fallback if the
+  /// platform: Android and iOS require durable persistence before a login may
+  /// be declared, while desktop keeps the local-dev session fallback if the
   /// keychain is unavailable.
   final bool? requiresDurableCredentials;
 
@@ -231,7 +250,11 @@ class FlutterSecureCredentialStore implements ServerUrlCredentialStore {
   final Duration storageDeadline;
 
   bool get _mustPersistDurableCredentials =>
-      requiresDurableCredentials ?? Platform.isAndroid;
+      requiresDurableCredentials ??
+      mustPersistDurableCredentialsOn(
+        isAndroid: Platform.isAndroid,
+        isIOS: Platform.isIOS,
+      );
 
   Future<String?> _readEntry(String key) =>
       readSecureEntry(_storage, key, storageDeadline);

@@ -193,6 +193,8 @@ bool get _isApplePlatform => defaultTargetPlatform == TargetPlatform.macOS;
 const String _desktopShortcutStorageKey = 'navis.desktop.shortcut_bindings.v1';
 const FlutterSecureStorage _desktopShortcutStorage = FlutterSecureStorage(
   mOptions: macOsLoginKeychain,
+  // The shell hydrates bindings on every platform, iOS included.
+  iOptions: iosKeychain,
 );
 String? _desktopShortcutSessionFallback;
 bool _didLogShortcutReadFallbackWarning = false;
