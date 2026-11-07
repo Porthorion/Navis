@@ -1527,6 +1527,7 @@ void main() {
     String replayGainMode = 'off',
     String Function()? readReplayGainMode,
     double replayGainUntaggedDb = replayGainFallbackUntaggedDb,
+    double Function()? readReplayGainUntaggedDb,
     PlaybackAdjustmentCapabilities adjustmentCapabilities =
         PlaybackAdjustmentCapabilities.android,
     _ControllableAudioPlayer? initialPlayer,
@@ -1664,7 +1665,8 @@ void main() {
         crossfadeType: readCrossfadeType?.call() ?? crossfadeType,
         replayGainMode: readReplayGainMode?.call() ?? replayGainMode,
         replayGainPreamp: 0,
-        replayGainUntaggedDb: replayGainUntaggedDb,
+        replayGainUntaggedDb:
+            readReplayGainUntaggedDb?.call() ?? replayGainUntaggedDb,
         playbackSpeed: 1,
         albumQueueEnabled: false,
         matchFlowEnabled: matchFlow,
@@ -15950,6 +15952,7 @@ void main() {
       List<String?> albums, {
       String mode = 'smart',
       String Function()? readMode,
+      double Function()? readUntagged,
       bool crossfade = false,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-rgs-');
@@ -15959,6 +15962,7 @@ void main() {
         crossfade: crossfade,
         replayGainMode: mode,
         readReplayGainMode: readMode,
+        readReplayGainUntaggedDb: readUntagged,
         adjustmentCapabilities: exo,
         seed: (database) async {
           await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
@@ -16051,15 +16055,102 @@ void main() {
       },
     );
 
-    test('a settings pass re-resolves a frozen decision', () async {
-      final (handler, player) = await smart(['a', 'b', 'a']);
+    test('an unrelated settings pass keeps a frozen decision', () async {
+      var untagged = -8.0;
+      final (handler, player) = await smart([
+        'a',
+        'b',
+        'a',
+      ], readUntagged: () => untagged);
       await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
       await handler.playNext(['song-2'], expandMatchFlows: false);
       await settleQueue(handler);
       expect(player.volume, closeTo(trackVolume, 0.00001));
       await handler.applyRuntimeSettings();
       await pumpEventQueue();
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+      untagged = -12;
+      await handler.applyRuntimeSettings();
+      await pumpEventQueue();
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+    });
+
+    test('a mode change re-resolves a frozen decision', () async {
+      var mode = 'smart';
+      final (handler, player) = await smart([
+        'a',
+        'b',
+        'a',
+      ], readMode: () => mode);
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      await handler.playNext(['song-2'], expandMatchFlows: false);
+      await settleQueue(handler);
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+      mode = 'track';
+      await handler.applyRuntimeSettings();
+      await pumpEventQueue();
+      mode = 'smart';
+      await handler.applyRuntimeSettings();
+      await pumpEventQueue();
       expect(player.volume, closeTo(albumVolume, 0.00001));
+    });
+
+    test('a jump to another copy of the playing song re-resolves', () async {
+      final (handler, player) = await smart(['a', 'a', 'b']);
+      await handler.replaceQueue([
+        'song-0',
+        'song-1',
+        'song-2',
+        'song-0',
+      ], expandMatchFlows: false);
+      // First copy: next is the same album.
+      expect(player.volume, closeTo(albumVolume, 0.00001));
+      await handler.skipToQueueItem(3);
+      await settleQueue(handler);
+      expect(handler.snapshot.currentIndex, 3);
+      // Last copy: preceded by another album, nothing after it.
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+    });
+
+    test('repeat all wraps the neighbours', () async {
+      final (handler, player) = await smart(['a', 'b', 'a']);
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      await handler.replaceQueue(
+        ids(3),
+        startIndex: 2,
+        expandMatchFlows: false,
+      );
+      // The last song is followed by the first, which is its album.
+      expect(player.volume, closeTo(albumVolume, 0.00001));
+    });
+
+    test('repeat all does not make a lone song its own neighbour', () async {
+      final (handler, player) = await smart(['a']);
+      await handler.setRepeatMode(AudioServiceRepeatMode.all);
+      await handler.replaceQueue(ids(1), expandMatchFlows: false);
+      expect(player.volume, closeTo(trackVolume, 0.00001));
+    });
+
+    test('reading the decision for diagnostics freezes nothing', () async {
+      var mode = 'track';
+      final (handler, player) = await smart([
+        'a',
+        'b',
+        'a',
+      ], readMode: () => mode);
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      await handler.playNext(['song-2'], expandMatchFlows: false);
+      await settleQueue(handler);
+      mode = 'smart';
+      // Next is song-2, the same album: reported as album, not stored.
+      expect(
+        (handler.collectPlaybackDiagnostics()['replayGain']
+            as Map<String, Object?>)['resolvedMode'],
+        'album',
+      );
+      await handler.removeAt(1);
+      await settleQueue(handler);
+      expect(player.volume, closeTo(trackVolume, 0.00001));
     });
 
     test('a replaced queue resolves the same song again', () async {
@@ -16136,8 +16227,11 @@ void main() {
         ) {
           await Future<void>.delayed(const Duration(milliseconds: 10));
         }
+        // Mid-fade the next song is removed, which would flip song-1 to
+        // track gain if its decision were taken again.
+        await handler.removeAt(2);
         await handler.debugCompleteCrossfade();
-        // song-1 is followed by song-2 of its own album: album gain.
+        // song-1 was followed by song-2 of its own album: album gain.
         expect(incoming.volume, closeTo(0.8 * albumVolume, 0.00001));
       },
     );

@@ -126,6 +126,11 @@ void main() {
       expect(smart(), 'track');
     });
 
+    test('an empty album id counts as null', () {
+      expect(smart(album: '', prev: '', next: ''), 'track');
+      expect(smart(album: 'a', prev: '', next: ''), 'track');
+    });
+
     test('the other modes pass through unchanged', () {
       for (final mode in ['off', 'track', 'album']) {
         expect(

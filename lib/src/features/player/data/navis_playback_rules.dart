@@ -87,9 +87,9 @@ double? replayGainDb({
 /// The mode a song plays with: 'off', 'track' or 'album'.
 ///
 /// 'smart' plays album gain when the song before or after it in play order is
-/// from the same album ([albumId] non-null and equal), and track gain
-/// otherwise. A null album id (remote songs, untagged songs) never matches,
-/// not even another null. Any other [mode] passes through.
+/// from the same album ([albumId] non-empty and equal), and track gain
+/// otherwise. A null or empty album id (remote songs, untagged songs) never
+/// matches, not even another one. Any other [mode] passes through.
 String resolveReplayGainMode(
   String mode, {
   String? albumId,
@@ -98,7 +98,9 @@ String resolveReplayGainMode(
 }) {
   if (mode != 'smart') return mode;
   final inAlbumRun =
-      albumId != null && (albumId == prevAlbumId || albumId == nextAlbumId);
+      albumId != null &&
+      albumId.isNotEmpty &&
+      (albumId == prevAlbumId || albumId == nextAlbumId);
   return inAlbumRun ? 'album' : 'track';
 }
 

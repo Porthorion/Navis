@@ -384,6 +384,10 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, ({String? prev, String? next})> _smartNeighbours =
       <String, ({String? prev, String? next})>{};
 
+  /// The ReplayGain mode of the last settings pass, so only a change of it
+  /// drops the frozen Smart decisions.
+  String? _appliedReplayGainMode;
+
   /// Songs queued after [_queueItems] that the native player does not hold
   /// yet; released in pages as playback approaches them.
   final _RevisionedList<_DeferredQueueEntry> _deferredTail =
@@ -2493,9 +2497,14 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     await _setPlaybackAdjustments(desired);
 
-    // Apply ReplayGain volume normalization for current track. A settings
-    // pass (mode included) takes Smart decisions again.
-    _smartNeighbours.clear();
+    // Apply ReplayGain volume normalization for current track. Only a mode
+    // change takes Smart decisions again: the pre-amp and untagged level do
+    // not change the album/track choice, and the volume is recomputed from
+    // the frozen choice anyway.
+    if (_appliedReplayGainMode != runtime.replayGainMode) {
+      _appliedReplayGainMode = runtime.replayGainMode;
+      _smartNeighbours.clear();
+    }
     _applyReplayGainVolume();
 
     if (equalizerCapabilities.supported) {

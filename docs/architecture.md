@@ -4894,14 +4894,18 @@ Desktop volume follows a parallel local-settings path:
    and track gain otherwise (the usual track/album fallbacks and the untagged
    level still apply). Navis owns shuffle, so the materialised queue
    `_queueItems` is the play order and the neighbours are its adjacent items
-   (no loop-all wrap; the released window always keeps them materialised). The
+   (with repeat-all and nothing deferred the order wraps, last to first; the
+   released window always keeps the neighbours materialised). The
    neighbour album ids are frozen per song in `_smartNeighbours` the first
    time `_replayGainVolumeFor` sees the song, so ducking, cross-fade ramps,
    shuffle toggles and queue edits never change the level mid-song. An entry
-   is dropped when another song starts (`_applyReplayGainVolume`), when the
-   queue is replaced or cleared (`_clearDeferredTail`) and on every settings
-   pass (`applyRuntimeSettings`, so a mode change applies at once); nothing is
-   frozen while a queue load settles. The cross-fade incoming song resolves
+   is dropped when another song starts (`_applyReplayGainVolume`), on every
+   navigation including a jump to another copy of the playing song
+   (`_applyNavigationDecision`), when the queue is replaced or cleared
+   (`_clearDeferredTail`) and when the ReplayGain mode changes
+   (`applyRuntimeSettings`; pre-amp and untagged-level changes keep it);
+   nothing is frozen while a queue load settles, and the diagnostics read
+   never freezes. An empty album id counts as none. The cross-fade incoming song resolves
    with its own neighbours. `NavisAudioHandler.currentReplayGainDecision`
    (mode, resolved mode, source track/album/untagged, dB) is reported as
    `replayGain` by `GET /v1/playback/status`.

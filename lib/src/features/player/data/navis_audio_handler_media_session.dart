@@ -695,17 +695,24 @@ extension _NavisMediaSession on NavisAudioHandler {
 
   /// What ReplayGain does to the current song, or null for radio. Read by diagnostics (`replayGain`) and, later, the Now
   /// Playing page.
-  ReplayGainDecision? get currentReplayGainDecision =>
-      _replayGainDecisionFor(_resolveCurrentQueueMetadata().mediaItem);
+  ReplayGainDecision? get currentReplayGainDecision => _replayGainDecisionFor(
+    _resolveCurrentQueueMetadata().mediaItem,
+    freeze: false,
+  );
 
   /// The ReplayGain decision for [item], with Smart resolved from its
   /// neighbours in play order; null for radio. No item counts as untagged.
-  ReplayGainDecision? _replayGainDecisionFor(MediaItem? item) {
+  /// A read that is not a song's own volume (diagnostics) passes `freeze:
+  /// false`, so it never stores a decision the song start would not have.
+  ReplayGainDecision? _replayGainDecisionFor(
+    MediaItem? item, {
+    bool freeze = true,
+  }) {
     if (_radioStation != null) return null;
     final runtime = _readRuntimeSettings();
     final extras = item?.extras;
     final neighbours = runtime.replayGainMode == 'smart' && item != null
-        ? _smartNeighbourAlbums(item)
+        ? _smartNeighbourAlbums(item, freeze: freeze)
         : null;
     return replayGainDecision(
       mode: runtime.replayGainMode,
@@ -728,25 +735,44 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// enables native shuffle), so the neighbours are its adjacent items. The
   /// released queue window keeps well more than one song on both sides of
   /// the current song materialised, so a deferred entry is never a neighbour
-  /// of a song that is playing or fading in. Loop-all does not wrap.
+  /// of a song that is playing or fading in. With repeat-all and nothing
+  /// deferred, play order wraps, so the last song's next is the first and the
+  /// first's previous is the last (a lone song is not its own neighbour).
   ///
   /// The pair is frozen per song in [_smartNeighbours], so it is read once
   /// per song start, not on every volume write. An entry is dropped when
   /// another song starts (pruned in [_applyReplayGainVolume]), when the queue
-  /// is replaced or cleared ([_clearDeferredTail]) and on every settings pass
-  /// ([applyRuntimeSettings], which covers a mode change). It is kept across
+  /// is replaced or cleared ([_clearDeferredTail]) and when the ReplayGain
+  /// mode changes ([applyRuntimeSettings]). It is kept across
   /// ducking, cross-fade ramps, volume changes, shuffle toggles and queue
-  /// edits, so the level never jumps mid-song. While a queue load settles the
-  /// neighbours may be incomplete, so nothing is frozen then.
-  ({String? prev, String? next}) _smartNeighbourAlbums(MediaItem item) {
+  /// edits, so the level never jumps mid-song. Every navigation, including a
+  /// jump to another copy of the playing song, drops them
+  /// ([_applyNavigationDecision]). While a queue load settles the neighbours
+  /// may be incomplete, so nothing is frozen then.
+  ({String? prev, String? next}) _smartNeighbourAlbums(
+    MediaItem item, {
+    required bool freeze,
+  }) {
     final frozen = _smartNeighbours[item.id];
     if (frozen != null) return frozen;
     final index = _queueIndexOfSong(item);
     String? albumAt(int i) => i < 0
         ? null
         : _queueItems.elementAtOrNull(i)?.extras?['albumId'] as String?;
-    final neighbours = (prev: albumAt(index - 1), next: albumAt(index + 1));
-    if (!_isLoading && _pendingLogicalQueueSongIds == null && index >= 0) {
+    final wraps =
+        _desiredLoopMode == LoopMode.all &&
+        _queueItems.length > 1 &&
+        _deferredHead.isEmpty &&
+        _deferredTail.isEmpty;
+    final last = _queueItems.length - 1;
+    final neighbours = (
+      prev: albumAt(wraps && index == 0 ? last : index - 1),
+      next: albumAt(wraps && index == last ? 0 : index + 1),
+    );
+    if (freeze &&
+        !_isLoading &&
+        _pendingLogicalQueueSongIds == null &&
+        index >= 0) {
       _smartNeighbours[item.id] = neighbours;
     }
     return neighbours;
