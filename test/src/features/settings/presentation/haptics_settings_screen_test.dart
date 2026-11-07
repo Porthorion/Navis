@@ -9,7 +9,6 @@ import 'package:navis/src/database/daos/app_settings_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/features/settings/presentation/haptics_settings_screen.dart';
-import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/haptics_spy.dart';
 import '../../../../helpers/test_database.dart';
