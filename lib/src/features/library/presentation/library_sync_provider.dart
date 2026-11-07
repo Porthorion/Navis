@@ -400,8 +400,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         final desktop = isDesktopRuntime;
         final foreground = librarySyncForegroundFor(state, desktop: desktop);
         if (foreground != _isForeground) {
-          _unfocusedAt = null;
-          foreground ? _onAppResumed() : _onAppBackgrounded();
+          if (foreground) {
+            _onAppResumed();
+            // Restored without focus: a later focus measures from now.
+            _unfocusedAt = desktop && state == AppLifecycleState.inactive
+                ? ref.read(nowProvider)()
+                : null;
+          } else {
+            _onAppBackgrounded();
+          }
         } else if (desktop && foreground) {
           _onWindowFocusChanged(state);
         }
@@ -1859,13 +1866,15 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
 
   void _onAppBackgrounded() {
     if (_isForeground) {
-      _backgroundedAt = ref.read(nowProvider)();
+      // Desktop: time away counts from losing focus, not from hiding.
+      _backgroundedAt = _unfocusedAt ?? ref.read(nowProvider)();
       _pausedDataVersion =
           ref.read(serverConfigStateProvider).asData?.value == null
           ? null
           : _readResumeDataVersion();
     }
     _isForeground = false;
+    _unfocusedAt = null;
     _cancelWorkerReconciliation();
     ref.read(librarySyncForegroundProvider.notifier).setForeground(false);
     _cancelPeriodicSync();

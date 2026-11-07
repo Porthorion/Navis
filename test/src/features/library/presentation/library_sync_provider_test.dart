@@ -1304,6 +1304,36 @@ void main() {
       expect(engine.automaticRequests.length, greaterThan(before));
     });
 
+    test('desktop focus regain re-arms the periodic timer from the stored '
+        'deadline (#349)', () async {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      debugDesktopRuntimeOverride = true;
+      addTearDown(() {
+        debugDesktopRuntimeOverride = null;
+        binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      });
+      final (engine, _, database, _) = await busyForcedRun();
+      // The timer is armed for the 5 h deadline; a lock or sleep left it
+      // stale, so the stored deadline is now close.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await database.librarySyncDao.setNextAutomaticCheckAt(
+        serverId: 1,
+        nextAutomaticCheckAt: DateTime.now().add(
+          const Duration(milliseconds: 300),
+        ),
+      );
+      expect(engine.automaticRequests, isEmpty);
+
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await _until(
+        () => engine.automaticRequests.isNotEmpty,
+        timeout: const Duration(seconds: 5),
+      );
+
+      expect(engine.automaticRequests, isNotEmpty);
+    });
+
     test('a failing retry write still publishes the final state', () async {
       final (engine, controller, database, _) = await busyForcedRun();
       await database.customStatement(failNextCheck);
