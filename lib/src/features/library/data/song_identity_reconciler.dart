@@ -11,19 +11,9 @@ final _identityPunctuation = RegExp(
 final _identityWhitespace = RegExp(r'\s+');
 
 /// Shorter tracks (intros, interludes) share titles and lengths too often for
-/// the title-and-artist tier to tell them apart.
-const _minWeakTierSeconds = 90;
-const _versionWordSet = <String>{
-  'live',
-  'remix',
-  'acoustic',
-  'instrumental',
-  'karaoke',
-  'demo',
-  'remaster',
-  'remastered',
-  'edit',
-};
+/// the single-copy tier to tell them apart.
+const _minSingleCopySeconds = 90;
+final _singleSuffix = RegExp(r' (?:single|ep)$');
 
 /// Normalizes optional MusicBrainz identifiers across songs, albums and artists.
 String? normalizeMusicBrainzId(String? value) {
@@ -36,10 +26,10 @@ enum SongIdentityMatchReason {
   recordingMbid,
   exactMetadata,
 
-  /// Last resort when no album-keyed match exists: a remote single's copy of
-  /// an album track. Title and artist agree, the durations are within 3 s and
-  /// exactly one provisional row fits.
-  titleArtistDuration,
+  /// Last resort when no album-keyed match exists: a remote single or EP
+  /// named after the song (its copy of an album track). Title and artist
+  /// agree, the durations are within 3 s and exactly one library song fits.
+  singleCopy,
 }
 
 sealed class SongIdentityMatchResult {
@@ -117,7 +107,12 @@ class SongIdentityReconciler {
   SongIdentityMatchResult matchCanonicalSong({
     required SongsTableData canonicalSong,
     required List<SongsTableData> provisionalSongs,
-  }) => _ProvisionalIdentityIndex(this, provisionalSongs).match(canonicalSong);
+    bool allowSingleCopy = false,
+  }) => _ProvisionalIdentityIndex(
+    this,
+    provisionalSongs,
+    allowSingleCopy: allowSingleCopy,
+  ).match(canonicalSong);
 
   /// Relinks external provisional rows in [songIds] (a remote catalog copy
   /// written after the library already holds the same track) to their unique
@@ -144,25 +139,49 @@ class SongIdentityReconciler {
     final candidates = await _identityDao.getLibrarySongsByMatchTitle(
       copies.map((song) => song.title),
     );
-    // The weak tier needs every rival visible: candidates come from the async
-    // search index, so it only runs while that index is current (checked after
-    // the read, so a row inserted meanwhile also counts as stale). Otherwise a
-    // later relink heals it; the play path never waits for a refresh.
-    final session = await startSession(
-      provisionalSongs: copies,
-      allowTitleArtistDuration: await _identityDao.isLibraryMatchIndexCurrent(),
-    );
+    final session = await startSession(provisionalSongs: copies);
     await session.reconcile(candidates);
     await session.finalize();
+    final aliases = <SongIdentityAlias>[...session.summary.aliases];
+    // The single-copy tier needs every rival visible. Candidates come from the
+    // async search index, so it runs only for copies the exact tiers left
+    // alone, and only while that index is current (checked after the read, so
+    // a row inserted meanwhile also counts as stale). Otherwise a later
+    // relink heals it; the play path never waits for a refresh.
+    final remaining = [
+      for (final copy in copies)
+        if (_isSingleCopy(copy) && !aliases.any((a) => a.oldSongId == copy.id))
+          copy,
+    ];
+    if (remaining.isNotEmpty &&
+        await _identityDao.isLibraryMatchIndexCurrent()) {
+      final single = await startSession(
+        provisionalSongs: remaining,
+        allowSingleCopy: true,
+      );
+      await single.reconcile(candidates);
+      await single.finalize();
+      aliases.addAll(single.summary.aliases);
+    }
     return <String, String>{
-      for (final alias in session.summary.aliases)
-        alias.oldSongId: alias.canonicalSongId,
+      for (final alias in aliases) alias.oldSongId: alias.canonicalSongId,
     };
+  }
+
+  /// A remote single or EP named after its song and long enough to be told
+  /// apart from intros and interludes.
+  bool _isSingleCopy(SongsTableData song) {
+    final title = _normalizeIdentityMetadata(song.title);
+    final album = _normalizeIdentityMetadata(song.albumName ?? '')
+        .replaceFirst(_singleSuffix, '');
+    return title.isNotEmpty &&
+        title == album &&
+        (song.duration ?? 0) >= _minSingleCopySeconds;
   }
 
   Future<SongIdentityReconciliationSession> startSession({
     List<SongsTableData>? provisionalSongs,
-    bool allowTitleArtistDuration = true,
+    bool allowSingleCopy = false,
   }) async {
     final provisional =
         provisionalSongs ?? await _identityDao.getProvisionalSongs();
@@ -171,7 +190,7 @@ class SongIdentityReconciler {
       _ProvisionalIdentityIndex(
         this,
         provisional,
-        allowTitleArtistDuration: allowTitleArtistDuration,
+        allowSingleCopy: allowSingleCopy,
       ),
     );
   }
@@ -284,10 +303,7 @@ class SongIdentityReconciliationSession {
       // A title-and-artist claim never contests a stronger one: another
       // library song (a compilation) must not block an exact album match.
       final strong = claims
-          .where(
-            (claim) =>
-                claim.reason != SongIdentityMatchReason.titleArtistDuration,
-          )
+          .where((claim) => claim.reason != SongIdentityMatchReason.singleCopy)
           .toList(growable: false);
       if (strong.isNotEmpty) {
         claims = strong;
@@ -371,7 +387,7 @@ class _ProvisionalIdentityIndex {
   new(
     this._reconciler,
     Iterable<SongsTableData> songs, {
-    this.allowTitleArtistDuration = true,
+    this.allowSingleCopy = false,
   }) {
     for (final song in songs) {
       _remaining[song.id] = song;
@@ -391,7 +407,7 @@ class _ProvisionalIdentityIndex {
   }
 
   final SongIdentityReconciler _reconciler;
-  final bool allowTitleArtistDuration;
+  final bool allowSingleCopy;
   final Map<String, SongsTableData> _remaining = <String, SongsTableData>{};
   final Map<String, List<SongsTableData>> _byMbid =
       <String, List<SongsTableData>>{};
@@ -431,7 +447,7 @@ class _ProvisionalIdentityIndex {
     }
     final key = _metadataKey(canonicalSong);
     if (key == null) {
-      return _matchTitleArtistDuration(canonicalSong);
+      return _matchSingleCopy(canonicalSong);
     }
     final matches = _active(_byMetadata[key])
         .where(
@@ -466,7 +482,7 @@ class _ProvisionalIdentityIndex {
         candidateIds: matches.map((song) => song.id).toList(growable: false),
       );
     }
-    return _matchTitleArtistDuration(canonicalSong);
+    return _matchSingleCopy(canonicalSong);
   }
 
   /// The last tier, tried only when the exact metadata tier found nothing:
@@ -474,28 +490,18 @@ class _ProvisionalIdentityIndex {
   /// album track), durations both present within 3 s, no MBID conflict and
   /// exactly one candidate (several are left unmatched, not reviewed: this tier
   /// is a guess, so it adds no review entries).
-  SongIdentityMatchResult _matchTitleArtistDuration(
-    SongsTableData canonicalSong,
-  ) {
+  SongIdentityMatchResult _matchSingleCopy(SongsTableData canonicalSong) {
     final key = _metadataKey(canonicalSong, withAlbum: false);
-    if (!allowTitleArtistDuration ||
+    if (!allowSingleCopy ||
         key == null ||
-        canonicalSong.duration! < _minWeakTierSeconds) {
+        canonicalSong.duration! < _minSingleCopySeconds) {
       return const SongIdentityUnmatched();
     }
     final matches = _active(_byTitleArtist[key])
         .where(
           (candidate) =>
-              candidate.duration != null &&
-              candidate.duration! >= _minWeakTierSeconds &&
+              _reconciler._isSingleCopy(candidate) &&
               (candidate.duration! - canonicalSong.duration!).abs() <= 3 &&
-              !_sameAlbum(canonicalSong, candidate) &&
-              _versionWords(canonicalSong)
-                  .difference(_versionWords(candidate))
-                  .isEmpty &&
-              _versionWords(candidate)
-                  .difference(_versionWords(canonicalSong))
-                  .isEmpty &&
               !_reconciler._mbidsConflict(
                 canonicalSong.recordingMbid,
                 candidate.recordingMbid,
@@ -505,27 +511,10 @@ class _ProvisionalIdentityIndex {
     if (matches.length == 1) {
       return SongIdentityMatched(
         provisionalSong: matches.single,
-        reason: SongIdentityMatchReason.titleArtistDuration,
+        reason: SongIdentityMatchReason.singleCopy,
       );
     }
     return const SongIdentityUnmatched();
-  }
-
-  /// Same non-empty album: the exact tier already rejected this pair over its
-  /// track or disc, so the weak tier must not overrule it.
-  bool _sameAlbum(SongsTableData a, SongsTableData b) {
-    final album = _reconciler._normalizeIdentityMetadata(a.albumName ?? '');
-    return album.isNotEmpty &&
-        album == _reconciler._normalizeIdentityMetadata(b.albumName ?? '');
-  }
-
-  /// Version markers in a song's title or album: a studio and a live or
-  /// remixed recording are different tracks of equal length.
-  Set<String> _versionWords(SongsTableData song) {
-    final text = _reconciler._normalizeIdentityMetadata(
-      '${song.title} ${song.albumName ?? ''}',
-    );
-    return text.split(' ').where(_versionWordSet.contains).toSet();
   }
 
   void remove(SongsTableData song) {

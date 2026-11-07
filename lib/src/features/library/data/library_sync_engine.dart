@@ -3297,7 +3297,12 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
             onBeforeRemap: onBeforeSongIdentityRemap,
             readActiveSongId: readActiveSongId,
             deferredFileDeletions: deferredCacheFiles,
-          ).startSession(provisionalSongs: provisionalSongs);
+          ).startSession(
+            provisionalSongs: provisionalSongs,
+            // Whole-library pass: finalize sees every claimant, so a single
+            // copy two library songs fit stays unmatched.
+            allowSingleCopy: true,
+          );
     final analysis = await LibraryCatalogDiffAnalyzer(
       _database,
       readActivePlayback: () =>
@@ -3577,12 +3582,16 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
                 .where((song) => !knownProvisionalIds.contains(song.id))
                 .toList(growable: false);
         if (lateProvisionalSongs.isNotEmpty) {
-          lateIdentitySession = await SongIdentityReconciler(
-            _database.songIdentityDao,
-            onBeforeRemap: onBeforeSongIdentityRemap,
-            readActiveSongId: readActiveSongId,
-            deferredFileDeletions: deferredCacheFiles,
-          ).startSession(provisionalSongs: lateProvisionalSongs);
+          lateIdentitySession =
+              await SongIdentityReconciler(
+                _database.songIdentityDao,
+                onBeforeRemap: onBeforeSongIdentityRemap,
+                readActiveSongId: readActiveSongId,
+                deferredFileDeletions: deferredCacheFiles,
+              ).startSession(
+                provisionalSongs: lateProvisionalSongs,
+                allowSingleCopy: true,
+              );
           await _reconcileSongIdentitySession(
             lateIdentitySession,
             serverId: serverId,

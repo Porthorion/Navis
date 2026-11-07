@@ -6680,20 +6680,25 @@ contract.
 - **Identity recovery.** `SongIdentityReconciler` matches on same ID, unique
   recording MBID, then exact normalized title/artist/album with the existing
   three-second duration tolerance, then (only when that tier found nothing)
-  `titleArtistDuration`: title and artist without album, track or disc, both
-  durations present, at least 90 s and within three seconds, exactly one
-  candidate (a remote single's copy of an album track). It never applies when
-  both sides have the same album (the exact tier rejected them over track or
-  disc), when a version word (live, remix, acoustic, instrumental, karaoke,
-  demo, remaster, edit) is in one side's title or album only, or on the
-  relink path while the search index lacks a library song, since the
-  candidates come from that index and a missing rival must not make the match
-  look unique. Several candidates, or a candidate contested by several library
-  songs, stay unmatched and add no review entry. A single's copy whose album
-  copy is promoted in the same batch is left behind and relinks on a later
-  pass. The identity key folds typographic quotes and dashes (`’ “ ” –` and
-  friends) like the ASCII ones. A `titleArtistDuration` claim never contests a
-  stronger claim on the same candidate. Two hard rules: contradictory
+  `singleCopy`: a remote single or EP named after its song (its album, minus a
+  trailing "single" or "ep", equals the title) whose title and artist match
+  exactly one library song, both durations at least 90 s and within three
+  seconds, no MBID conflict. Albums such as "Fearless (Taylor's Version)",
+  "The Remixes" or "MTV Unplugged" are never singles, so re-recordings, remix
+  and live albums stay apart without a word list. The tier is opt-in
+  (`startSession(allowSingleCopy: true)`): only the play-time relink
+  (`relinkExternalCopies`) and the full-promotion sessions use it, never
+  per-batch hydration, whose sessions see one album at a time and cannot tell
+  whether another library song fits. The relink runs it last, only for single
+  copies the exact tiers left alone, and only while the search index covers
+  every library song (`LibraryDao.isSongSearchIndexCurrent`, checked lazily,
+  since its candidates come from that index and a missing rival must not make
+  the match look unique). A candidate several library songs contest stays
+  unmatched and adds no review entry. A single's copy whose album copy is
+  promoted in the same batch is left behind and relinks on a later pass. The
+  identity key folds typographic quotes and dashes (`’ “ ” –` and friends)
+  like the ASCII ones. A `singleCopy` claim never contests a stronger claim on
+  the same candidate. Two hard rules: contradictory
   non-empty MBIDs prohibit metadata-only matching, and ambiguity never merges
   regardless of page order. Matched claims buffer during canonical paging and
   apply at `finalize()` only after the complete replacement set is observed:
