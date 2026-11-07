@@ -6,7 +6,8 @@ import 'dart:ui' show SemanticsAction;
 import 'package:audio_service/audio_service.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/foundation.dart' show debugPrint, describeIdentity;
+import 'package:flutter/foundation.dart'
+    show debugDefaultTargetPlatformOverride, debugPrint, describeIdentity;
 import 'package:flutter/rendering.dart' show debugPrintLayouts;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -777,6 +778,37 @@ void main() {
       NavigationDestinationLabelBehavior.onlyShowSelected,
     );
   });
+
+  for (final (platform, expected) in [
+    (TargetPlatform.iOS, 64.0),
+    (TargetPlatform.android, 80.0),
+  ]) {
+    testWidgets('phone bottom navigation is $expected tall on $platform', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = platform;
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(599, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final container = _createContainerWithDatabase(
+        overrides: _authenticatedShellOverrides(),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      final height = tester.getSize(find.byType(NavigationBar)).height;
+      // The binding checks foundation overrides before tearDown runs.
+      debugDefaultTargetPlatformOverride = null;
+      expect(height, expected);
+    });
+  }
 
   testWidgets('offline status uses a neutral retrying surface on desktop', (
     tester,
