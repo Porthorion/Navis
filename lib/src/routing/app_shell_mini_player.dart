@@ -134,16 +134,23 @@ Future<void> _miniStopRadio(WidgetRef ref) async {
   await ref.read(audioHandlerProvider)?.stopRadio();
 }
 
-/// A remote catalog copy (`ext-`) cannot be liked: its heart is dimmed and a
-/// tap explains why.
-bool _isRemoteSong(String? songId) =>
-    songId != null && !isServerAddressableSongId(songId);
+/// A remote catalog copy (`ext-`, or flagged external) cannot be liked: its
+/// heart is dimmed and a tap explains why.
+bool _isRemoteSong(String? songId, bool isExternal) =>
+    songId != null && isRemoteSong(id: songId, isExternal: isExternal);
 
-Widget _remoteLikeSemantics(String? songId, Widget button) =>
-    _isRemoteSong(songId) ? RemoteLikeSemantics(child: button) : button;
+Widget _remoteLikeSemantics(String? songId, bool isExternal, Widget button) =>
+    _isRemoteSong(songId, isExternal)
+    ? RemoteLikeSemantics(child: button)
+    : button;
 
-void _miniToggleLike(BuildContext context, WidgetRef ref, String? songId) {
-  if (_isRemoteSong(songId)) {
+void _miniToggleLike(
+  BuildContext context,
+  WidgetRef ref,
+  String? songId,
+  bool isExternal,
+) {
+  if (_isRemoteSong(songId, isExternal)) {
     showAppNotice(
       context,
       message: AppLocalizations.of(context)!.remoteSourceActionUnavailable,
@@ -512,10 +519,12 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                   if (!ultraCompact)
                                     _remoteLikeSemantics(
                                       playback.currentSongId,
+                                      widget.isExternalSource,
                                       IconButton(
                                         tooltip:
                                             _isRemoteSong(
                                               playback.currentSongId,
+                                              widget.isExternalSource,
                                             )
                                             ? l10n.actionLikeUnavailableRemote
                                             : playback.isCurrentSongLiked
@@ -531,6 +540,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                                 context,
                                                 ref,
                                                 playback.currentSongId,
+                                                widget.isExternalSource,
                                               ),
                                         icon: Icon(
                                           playback.isCurrentSongLiked
@@ -539,6 +549,7 @@ class _RailMiniPlayerState extends ConsumerState<_RailMiniPlayer> {
                                           color:
                                               _isRemoteSong(
                                                 playback.currentSongId,
+                                                widget.isExternalSource,
                                               )
                                               ? cs.onSurface.withValues(
                                                   alpha: 0.38,
@@ -916,8 +927,13 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                         if (!isRadio)
                           _remoteLikeSemantics(
                             playback.currentSongId,
+                            widget.isExternalSource,
                             IconButton(
-                              tooltip: _isRemoteSong(playback.currentSongId)
+                              tooltip:
+                                  _isRemoteSong(
+                                    playback.currentSongId,
+                                    widget.isExternalSource,
+                                  )
                                   ? l10n.actionLikeUnavailableRemote
                                   : playback.isCurrentSongLiked
                                   ? l10n.actionLiked
@@ -926,13 +942,18 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                 context,
                                 ref,
                                 playback.currentSongId,
+                                widget.isExternalSource,
                               ),
                               icon: Icon(
                                 playback.isCurrentSongLiked
                                     ? Icons.favorite
                                     : Icons.favorite_border,
                                 size: 26,
-                                color: _isRemoteSong(playback.currentSongId)
+                                color:
+                                    _isRemoteSong(
+                                      playback.currentSongId,
+                                      widget.isExternalSource,
+                                    )
                                     ? cs.onSurface.withValues(alpha: 0.38)
                                     : playback.isCurrentSongLiked
                                     ? cs.primary
@@ -1038,8 +1059,13 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             if (!isRadio)
                               _remoteLikeSemantics(
                                 playback.currentSongId,
+                                widget.isExternalSource,
                                 IconButton(
-                                  tooltip: _isRemoteSong(playback.currentSongId)
+                                  tooltip:
+                                      _isRemoteSong(
+                                        playback.currentSongId,
+                                        widget.isExternalSource,
+                                      )
                                       ? l10n.actionLikeUnavailableRemote
                                       : playback.isCurrentSongLiked
                                       ? l10n.actionLiked
@@ -1053,13 +1079,18 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                                     context,
                                     ref,
                                     playback.currentSongId,
+                                    widget.isExternalSource,
                                   ),
                                   icon: Icon(
                                     playback.isCurrentSongLiked
                                         ? Icons.favorite
                                         : Icons.favorite_border,
                                     size: 19,
-                                    color: _isRemoteSong(playback.currentSongId)
+                                    color:
+                                        _isRemoteSong(
+                                          playback.currentSongId,
+                                          widget.isExternalSource,
+                                        )
                                         ? cs.onSurface.withValues(alpha: 0.38)
                                         : playback.isCurrentSongLiked
                                         ? cs.primary

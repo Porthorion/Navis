@@ -59,7 +59,7 @@ Future<void> showSongContextMenu(
               .asData
               ?.value;
           final isServerActionUnavailable =
-              !isServerAddressableSongId(song.id) ||
+              isRemoteSong(id: song.id, isExternal: song.isExternal) ||
               song.serverDeletedAt != null;
           final disabledColor = Theme.of(context).colorScheme.onSurface
               .withValues(alpha: 0.38);
@@ -391,7 +391,8 @@ Future<void> _showDesktopSongContextMenu(
       ref.read(songStarredProvider(song.id)).asData?.value ??
       song.starred != null;
   final isServerActionUnavailable =
-      !isServerAddressableSongId(song.id) || song.serverDeletedAt != null;
+      isRemoteSong(id: song.id, isExternal: song.isExternal) ||
+      song.serverDeletedAt != null;
 
   final action = await showDesktopContextMenu<_SongContextAction>(
     context: context,
