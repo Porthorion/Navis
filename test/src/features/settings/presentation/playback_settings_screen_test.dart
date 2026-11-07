@@ -499,7 +499,10 @@ void main() {
       const cap = "It can't push a song above its original level.";
       for (final (preamp, text) in [
         (-3.0, 'Turns every song down further. $cap'),
-        (0.0, 'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB. $cap'),
+        (
+          0.0,
+          'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB. $cap',
+        ),
         (
           4.0,
           'Gives back some of the turn-down, but never pushes a song above '
