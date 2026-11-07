@@ -8,17 +8,23 @@ with `--ios-upload`, uploads it to App Store Connect, where it appears in
 TestFlight after processing.
 
 Team ID `BFBNSCVKXH` (a public identifier) is set as `DEVELOPMENT_TEAM` on the
-Runner target, with automatic signing. The bundle ID is `com.navis.app.navis`,
+Runner target. Debug and Profile sign automatically; the Runner Release
+configuration signs manually with the `Apple Distribution` certificate and the
+App Store provisioning profile `Navis App Store`, because automatic signing
+archives with a development profile, which needs a registered device. The bundle ID is `com.navis.app.navis`,
 the same as Android and macOS.
 
 ## One-time setup
 
-1. Sign Xcode in to the Apple ID of the paid Apple Developer Program
-   (Xcode › Settings › Accounts). Flutter passes `-allowProvisioningUpdates` to
-   the archive and export steps, so automatic signing can create the Apple
-   Distribution certificate and the App Store profile on the first release
-   build; no certificate is stored in the repository. If it cannot, create the
-   certificate under Manage Certificates in that Accounts pane first.
+1. Create an Apple Distribution certificate (Xcode › Settings › Accounts ›
+   Manage Certificates, or the developer portal) so its identity is in the
+   login keychain. Then, in Certificates, Identifiers & Profiles › Profiles,
+   create a Distribution › App Store Connect profile for `com.navis.app.navis`
+   with that certificate, named exactly `Navis App Store`, and copy it to
+   `~/Library/Developer/Xcode/UserData/Provisioning Profiles/<UUID>.mobileprovision`
+   (double-clicking does not always install it). No certificate or profile is
+   stored in the repository. Both expire after a year: renew the certificate,
+   regenerate the profile under the same name and install it again.
 2. Register the app ID `com.navis.app.navis` (Certificates, Identifiers &
    Profiles) and create the App Store Connect record named "Navis" with that
    bundle ID.
@@ -53,7 +59,9 @@ the same as Android and macOS.
   `--publish-from`.
 - The build is `flutter build ipa --release
   --export-options-plist=ios/ExportOptions.plist`: method `app-store-connect`,
-  automatic signing, symbols uploaded. `build/ios/ipa` is deleted first so a
+  manual signing with the `Navis App Store` profile, symbols uploaded. It
+  runs with `/usr/bin` first on `PATH` because the export fails ("Copy
+  failed") with a MacPorts or Homebrew `rsync` 3.x. `build/ios/ipa` is deleted first so a
   stale IPA is never uploaded. The IPA is scanned for the plaintext Last.fm key
   like every other artifact.
 - The upload is `xcrun altool --upload-app -t ios -f <ipa> --api-key ...
