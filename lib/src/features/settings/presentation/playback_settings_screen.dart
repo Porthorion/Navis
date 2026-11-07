@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
+import 'package:navis/src/features/player/presentation/adjustment_ruler.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_controller.dart';
 import 'package:navis/src/features/player/presentation/playback_adjustment_panel.dart';
 import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
@@ -35,9 +36,6 @@ class _PlaybackSettingsScreenState
     extends ConsumerState<PlaybackSettingsScreen> {
   static const double _minReplayGainPreamp = -6;
   static const double _maxReplayGainPreamp = 6;
-  static final List<double> _untaggedLevels = <double>[
-    for (var db = 0; db >= replayGainMinUntaggedDb; db--) db.toDouble(),
-  ];
   static const List<int?> _qualityOptions = <int?>[
     null,
     320,
@@ -76,6 +74,10 @@ class _PlaybackSettingsScreenState
   String _replayGainMode = 'off';
   double _replayGainPreamp = 0;
   double? _replayGainUntaggedDb;
+
+  /// The level under the ruler or stepper while it moves; it joins the form
+  /// (and so the autosave) only when the input ends.
+  double? _untaggedPreview;
   bool _didHydrateForm = false;
   bool _isSaving = false;
   bool _isAutoSaving = false;
@@ -465,41 +467,7 @@ class _PlaybackSettingsScreenState
                       ),
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<double?>(
-                      initialValue: _replayGainUntaggedDb,
-                      decoration: InputDecoration(
-                        labelText: l10n.playbackSettingsReplayGainUntaggedLabel,
-                      ),
-                      items: [
-                        DropdownMenuItem<double?>(
-                          child: Text(
-                            l10n.playbackSettingsReplayGainUntaggedAutomatic(
-                              _dbText(
-                                effectiveReplayGainUntaggedDb(
-                                  fixed: null,
-                                  auto: ref.watch(
-                                    replayGainAutoUntaggedDbProvider,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        for (final level in _untaggedLevels)
-                          DropdownMenuItem<double?>(
-                            value: level,
-                            child: Text(
-                              l10n.playbackSettingsReplayGainUntaggedFixed(
-                                _dbText(level),
-                              ),
-                            ),
-                          ),
-                      ],
-                      onChanged: _isSaving
-                          ? null
-                          : (value) =>
-                                setState(() => _replayGainUntaggedDb = value),
-                    ),
+                    _buildUntaggedLevel(context, l10n),
                     const SizedBox(height: 4),
                     Text(
                       l10n.playbackSettingsReplayGainUntaggedSubtitle,
@@ -651,6 +619,113 @@ class _PlaybackSettingsScreenState
           onTap: () => NavService.openMatchFlow(context, ref),
         ),
     ];
+  }
+
+  Widget _buildUntaggedLevel(BuildContext context, AppLocalizations l10n) {
+    final theme = Theme.of(context);
+    final auto = effectiveReplayGainUntaggedDb(
+      fixed: null,
+      auto: ref.watch(replayGainAutoUntaggedDbProvider),
+    );
+    final automatic = _replayGainUntaggedDb == null;
+    final level = _untaggedPreview ?? _replayGainUntaggedDb ?? auto;
+    String text(double db) =>
+        l10n.playbackSettingsReplayGainUntaggedFixed(_dbText(db));
+
+    void commit() => setState(() {
+      _replayGainUntaggedDb = _untaggedPreview ?? _replayGainUntaggedDb;
+      _untaggedPreview = null;
+    });
+
+    Widget stepper({required bool up}) {
+      final next = level + (up ? 1 : -1);
+      final inRange = next >= replayGainMinUntaggedDb && next <= 0;
+      return RulerStepButton(
+        key: ValueKey<String>('replayGainUntagged-${up ? 'plus' : 'minus'}'),
+        icon: up ? Icons.add : Icons.remove,
+        tooltip: up
+            ? l10n.playbackAdjustmentIncreaseBy(text(1))
+            : l10n.playbackAdjustmentDecreaseBy(text(1)),
+        enabled: !automatic && !_isSaving && inRange,
+        onStep: () {
+          final target = (_untaggedPreview ?? level) + (up ? 1 : -1);
+          if (target < replayGainMinUntaggedDb || target > 0) return false;
+          setState(() => _untaggedPreview = target);
+          return true;
+        },
+        onEnd: commit,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        SwitchListTile(
+          key: const ValueKey<String>('replayGainUntagged-automatic'),
+          contentPadding: EdgeInsets.zero,
+          value: automatic,
+          onChanged: _isSaving
+              ? null
+              : (value) => setState(() {
+                  _untaggedPreview = null;
+                  _replayGainUntaggedDb = value
+                      ? null
+                      : _normalizeUntaggedDb(auto);
+                }),
+          title: Text(
+            l10n.playbackSettingsReplayGainUntaggedAutomatic(_dbText(auto)),
+          ),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: <Widget>[
+            Expanded(
+              child: Text(
+                l10n.playbackSettingsReplayGainUntaggedLabel,
+                style: theme.textTheme.titleSmall,
+              ),
+            ),
+            Text(
+              text(level),
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+        // The painter puts lower values on the left in every locale, so the
+        // row stays LTR like the other rulers.
+        Row(
+          textDirection: TextDirection.ltr,
+          children: <Widget>[
+            stepper(up: false),
+            Expanded(
+              child: AdjustmentRuler(
+                key: const ValueKey<String>('replayGainUntagged-ruler'),
+                value: level,
+                label: l10n.playbackSettingsReplayGainUntaggedLabel,
+                valueLabel: text(level),
+                onChanged: (value) =>
+                    setState(() => _untaggedPreview = value.roundToDouble()),
+                onChangeEnd: commit,
+                range: const AdjustmentRange(
+                  minimum: replayGainMinUntaggedDb,
+                  maximum: 0,
+                ),
+                snapStep: 1,
+                pixelsPerUnit: 64,
+                labelBuilder: (value) => text(value.roundToDouble()),
+                enabled: !automatic && !_isSaving,
+                readOnly: automatic,
+              ),
+            ),
+            stepper(up: true),
+          ],
+        ),
+      ],
+    );
   }
 
   void _hydrate(AppSettingsModel settings) {
@@ -887,8 +962,8 @@ class _PlaybackSettingsScreenState
     return trimmed.toLowerCase();
   }
 
-  /// A stored level outside the picker (or not a whole dB) snaps to the
-  /// nearest offered one; null stays Automatic.
+  /// A stored level outside the ruler (or not a whole dB) snaps to the
+  /// nearest whole dB on it; null stays Automatic.
   double? _normalizeUntaggedDb(double? value) => value == null
       ? null
       : value.clamp(replayGainMinUntaggedDb, 0.0).roundToDouble();
