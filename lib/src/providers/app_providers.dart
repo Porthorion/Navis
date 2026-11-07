@@ -1317,7 +1317,14 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     }),
     (previous, next) {
       if (next == null) return;
-      unawaited(ref.read(audioHandlerProvider)?.applyRuntimeSettings());
+      final apply = ref.read(audioHandlerProvider)?.applyRuntimeSettings();
+      unawaited(
+        apply?.catchError((Object error, StackTrace stackTrace) {
+          AppLogger.warning(
+            'Applying playback settings failed. $error\n$stackTrace',
+          );
+        }),
+      );
     },
   );
   ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
