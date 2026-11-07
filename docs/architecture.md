@@ -4286,8 +4286,11 @@ app switcher or notification shade). On desktop `inactive` is a visible but
 unfocused window, so `resumed` and `inactive` are foreground and only `hidden`,
 `paused` and `detached` background it; otherwise `librarySyncWorkAllowed`
 would defer an opened album's hydration while the window is unfocused (#349).
-Resume and background run once per foreground change, so a desktop focus flip
-neither reconciles nor cancels timers. The listener also captures the writer
+Resume and background run once per foreground change. A desktop focus flip
+keeps foreground true and runs no database or worker reconciliation; when focus
+returns after at least 30 seconds it only refreshes the update check and
+network state and re-arms the periodic sync timer (a lock or sleep can leave
+that one-shot timer late). The listener also captures the writer
 connection's `PRAGMA main.data_version` before backgrounding. Resume compares it
 on that same connection using a short exclusive Drift scope, not a pooled
 reader. An external commit announces all mapped tables once (SQLite supplies no

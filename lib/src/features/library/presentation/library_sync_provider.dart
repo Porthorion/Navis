@@ -349,6 +349,9 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   ServerReachabilityStatus? _lastReachabilityStatus;
   bool _isForeground = true;
   DateTime? _backgroundedAt;
+
+  /// Desktop: when the still-visible window lost focus; null while focused.
+  DateTime? _unfocusedAt;
   Future<int?>? _pausedDataVersion;
   Future<void>? _resumeReconciliation;
   Timer? _workerReconciliationTimer;
@@ -394,12 +397,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     );
     _lifecycleListener = AppLifecycleListener(
       onStateChange: (state) {
-        final foreground = librarySyncForegroundFor(
-          state,
-          desktop: isDesktopRuntime,
-        );
-        if (foreground == _isForeground) return;
-        foreground ? _onAppResumed() : _onAppBackgrounded();
+        final desktop = isDesktopRuntime;
+        final foreground = librarySyncForegroundFor(state, desktop: desktop);
+        if (foreground != _isForeground) {
+          _unfocusedAt = null;
+          foreground ? _onAppResumed() : _onAppBackgrounded();
+        } else if (desktop && foreground) {
+          _onWindowFocusChanged(state);
+        }
       },
     );
     ref.onDispose(() {
@@ -1891,6 +1896,24 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     unawaited(
       _reconcileDatabaseOnResume(pausedVersion, _workerReconciliationEpoch),
     );
+    _startResumeReconciliation();
+  }
+
+  /// Desktop focus flip of a visible window: foreground stays true, so only
+  /// the time-based refresh (update check, network) and the one-shot periodic
+  /// timer, which can fire late after a lock or sleep, are redone. Its 30 s
+  /// threshold measures from the focus loss.
+  void _onWindowFocusChanged(AppLifecycleState state) {
+    if (state == AppLifecycleState.inactive) {
+      _unfocusedAt ??= ref.read(nowProvider)();
+    } else if (state == AppLifecycleState.resumed && _unfocusedAt != null) {
+      _backgroundedAt = _unfocusedAt;
+      _unfocusedAt = null;
+      _startResumeReconciliation();
+    }
+  }
+
+  void _startResumeReconciliation() {
     _resumeReconciliation ??= _reconcileOnResume().whenComplete(() {
       _resumeReconciliation = null;
       if (ref.mounted && _isForeground) {

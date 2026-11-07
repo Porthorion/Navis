@@ -3807,9 +3807,9 @@ void main() {
       });
 
       Future<List<bool>> trace(
-        bool desktop,
-        List<AppLifecycleState> steps,
-      ) async {
+        List<AppLifecycleState> steps, {
+        required bool desktop,
+      }) async {
         debugDesktopRuntimeOverride = desktop;
         binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
         final container = _container(
@@ -3835,7 +3835,7 @@ void main() {
         'desktop: losing focus stays foreground, hiding backgrounds',
         () async {
           expect(
-            await trace(true, [
+            await trace(desktop: true, [
               AppLifecycleState.inactive,
               AppLifecycleState.hidden,
               AppLifecycleState.inactive,
@@ -3848,7 +3848,7 @@ void main() {
 
       test('mobile: inactive still backgrounds', () async {
         expect(
-          await trace(false, [
+          await trace(desktop: false, [
             AppLifecycleState.inactive,
             AppLifecycleState.resumed,
           ]),
