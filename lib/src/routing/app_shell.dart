@@ -2151,6 +2151,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                           progress: _playerSheetProgress,
                           enabled: showPlayer,
                           child: NavigationBar(
+                            // A native iPhone tab bar is 49 pt; the Material
+                            // 80 pt default looks oversized there. The widget
+                            // still adds the home-indicator inset itself.
+                            height:
+                                Theme.of(context).platform == TargetPlatform.iOS
+                                ? 64
+                                : null,
                             selectedIndex: selectedIndex,
                             labelBehavior: NavigationDestinationLabelBehavior
                                 .onlyShowSelected,
