@@ -179,12 +179,15 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'macOS: the equalizer and fast seeking now work, and stream '
-            "connections use the system's trusted certificates",
+        "connections use the system's trusted certificates",
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Now Playing can show how much volume normalization (ReplayGain) is '
-            'turning the current song down; hold it to open Playback settings. '
-            'Those settings now explain each mode and the pre-amp, say that '
-            'normalization only turns songs down, and show how many of your '
-            'songs have ReplayGain data',
+        'turning the current song down; hold it to open Playback settings. '
+        'Those settings now explain each mode and the pre-amp, say that '
+        'normalization only turns songs down, and show how many of your '
+        'songs have ReplayGain data',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
