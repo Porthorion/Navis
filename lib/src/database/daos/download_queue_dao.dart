@@ -80,13 +80,17 @@ class DownloadQueueDao extends DatabaseAccessor<NavisDatabase>
   /// Call on startup to recover from a previous app kill.
   /// Returns how many downloads were interrupted.
   ///
-  /// With [keepJournaled], rows that carry a finish journal stay as they are,
-  /// for a launch whose journal paths cannot be trusted.
+  /// With [keepJournaled], rows that carry a finish journal past the transfer
+  /// stay as they are, for a launch whose journal paths cannot be trusted; an
+  /// interrupted transfer holds nothing and is requeued as usual.
   Future<int> requeueStuckDownloads({bool keepJournaled = false}) {
     return (update(downloadQueueTable)..where(
           (t) =>
               t.status.equalsValue(DownloadStatus.downloading) &
-              (keepJournaled ? t.finishJournal.isNull() : const Constant(true)),
+              (keepJournaled
+                  ? t.finishJournal.isNull() |
+                        t.finishJournal.like('%"phase":"transferring"%')
+                  : const Constant(true)),
         ))
         .write(
           const DownloadQueueTableCompanion(

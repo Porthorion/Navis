@@ -1573,6 +1573,31 @@ void main() {
     }, skip: !sqliteAvailable);
   }
 
+  test(
+    'unpaused startup requeues an interrupted transfer when rebase failed',
+    () async {
+      await addSongs(1);
+      final id = await database.downloadQueueDao.enqueue(
+        DownloadQueueTableCompanion.insert(
+          songId: const Value('song-0'),
+          status: DownloadStatus.downloading,
+          addedAt: DateTime(2026),
+        ),
+      );
+      await database.downloadQueueDao.writeFinishJournal(
+        id,
+        jsonEncode({'phase': 'transferring', 'partPath': 'stale.navis-part'}),
+      );
+      database.containerRebaseFailed = true;
+      server.releaseAll();
+      final service = buildService();
+      await service.start();
+      await service.processQueuedDownloads();
+      await waitUntil(() => server.requests.isNotEmpty);
+    },
+    skip: !sqliteAvailable,
+  );
+
   for (final phase in ['verified', 'published']) {
     for (final saf in [false, true]) {
       test(
