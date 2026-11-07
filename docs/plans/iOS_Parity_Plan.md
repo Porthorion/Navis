@@ -63,26 +63,33 @@ simulator or device yet; every runtime claim is *unverified*.
 | I9 | Equalizer on iOS (owner 2026-11-07: iOS does not ship without EQ). AVFoundation exposes no PCM to just_audio; candidate: an `MTAudioProcessingTap` on each `AVPlayerItem` in the vendored `third_party/just_audio` Darwin code running Navis's EQ bands as biquads (one tap per player, so crossfade keeps working), fed by the existing EQ settings; the alternative, an `AVAudioEngine` player with `AVAudioUnitEQ`, is a far larger rewrite. Opus feasibility done 2026-11-07: tap approach chosen (AVAudioEngine would replace the whole Darwin player and risk the download → cache → stream order); build plan in [macOS_iOS_Handoff_2026-11-07b.md](macOS_iOS_Handoff_2026-11-07b.md) | risky (playback, native, realtime) | merged 2026-11-07 (`413dabc7`) after three Sonnet/Opus review rounds; simulator proof via `/v1/equalizer` (levelDeltaDb −12.000 at flat −12 dB, 0 off; local, proxied, download, gapless, crossfade, 1.5×; resetCount flat in steady play at 44.1/48/96 kHz, +1 per seek/resume). Device checks (audible A/B, AirPlay, lock screen, CPU on hi-res, interruptions) go to I5. Deviation from the plan: taps attach to the current and next queue item, not at every item insertion, to avoid loading the tracks of a whole queue over the network | #335 |
 | I10 | iOS layout polish (owner: one shared design plus iOS conventions, no Cupertino overhaul). Known: the Material `NavigationBar` is 80 pt plus the 34 pt home-indicator inset on iPhone (native tab bar 49 + 34), so shorten it on iOS; the transport row's left slot is an invisible EQ placeholder on iOS (fills once I9 lands). More from I11 | low (UI) | nav bar (64 pt on iOS) merged; transport slot waits on I9 and I11 | #330 |
 | I11 | Research: must-have features of popular iPhone music players, cross-referenced with Navis (DeepSeek Flash survey 2026-11-07; web fetch was unavailable, so claims rest on Apple's documented APIs and the code; gaps spot-checked by the coordinator). Result: items I12–I20 and the pending owner questions below | – | done; questions pending | – |
-| I12 | AirPlay route picker: `AVRoutePickerView` in a `UiKitView`, iOS only; placement is an owner question (now-playing action row, or the transport row's left slot until I9 fills it). Verify playback survives route changes | low | proposed | – |
-| I13 | Sleep timer (none exists in `lib/`): timer in the handler with an optional "end of track", in the now-playing settings sheet, cleared on manual stop; shared code, so every platform gets it | low | proposed | – |
-| I14 | Downloads in the Files app: `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace`, permanent downloads exposed read-only, caches stay private; interacts with I4 (backup exclusion) | low | proposed | – |
-| I15 | Share sheet and `navis://` links: `UIActivityViewController` for song/album/playlist; `CFBundleURLTypes` is empty today; route through the existing router | low–medium | proposed | – |
-| I16 | Siri / Shortcuts via App Intents: play, pause, skip, like, "play <query>" into the existing handler | medium | proposed | – |
-| I17 | Live Activity / Dynamic Island and widgets (WidgetKit extension, app group) | medium | proposed | – |
-| I18 | Accessibility pass on iOS: Dynamic Type at accessibility sizes on now playing, transport and settings; VoiceOver labels; Reduce Motion | low | proposed | – |
-| I19 | Background library sync and notifications on iOS (`BGTaskScheduler`, `UNUserNotificationCenter`) behind the existing Android-only seams | medium–high | proposed | – |
-| I20 | CarPlay (the CarPlay note below); needs the paid programme and Apple's entitlement | high | owner decision | – |
+| I12 | AirPlay route picker: `AVRoutePickerView` in a `UiKitView`, iOS only; placement is an owner question (now-playing action row, or the transport row's left slot until I9 fills it). Verify playback survives route changes | low | **1.6**, as a cross-platform "Output device" button (iOS AirPlay picker, Android system output switcher, desktop audio-device list) | – |
+| I13 | Sleep timer (none exists in `lib/`): timer in the handler with an optional "end of track", in the now-playing settings sheet, cleared on manual stop; shared code, so every platform gets it | low | **1.6** (all platforms) | – |
+| I14 | Downloads in the Files app: `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace`, permanent downloads exposed read-only, caches stay private; interacts with I4 (backup exclusion) | low | **1.5.2**, built together with I4 (downloads root in the Files-visible container from the start, so no later path migration) | – |
+| I15 | Share sheet and `navis://` links: `UIActivityViewController` for song/album/playlist; `CFBundleURLTypes` is empty today; route through the existing router | low–medium | **1.6** (all platforms; the deferred Phase 28 share system) | – |
+| I16 | Siri / Shortcuts via App Intents: play, pause, skip, like, "play <query>" into the existing handler | medium | **1.6** (iOS catching up with Android's voice search) | – |
+| I17 | Live Activity / Dynamic Island and widgets (WidgetKit extension, app group) | medium | **1.6**, together with the Android home-screen widget (Phase 27) | – |
+| I18 | Accessibility pass on iOS: Dynamic Type at accessibility sizes on now playing, transport and settings; VoiceOver labels; Reduce Motion | low | **1.5.2** (shared widgets, so Android benefits too) | – |
+| I19 | Background library sync and notifications on iOS (`BGTaskScheduler`, `UNUserNotificationCenter`) behind the existing Android-only seams | medium–high | **1.6** (iOS catching up with Android) | – |
+| I20 | CarPlay (the CarPlay note below); needs the paid programme and Apple's entitlement | high | **1.6** (parity with Android Auto); request the entitlement as soon as the paid programme exists (approval takes weeks) | – |
 
-### Owner questions from I11 (prepared 2026-11-07; owner asked to hold them until they are back)
+### Scope decision from I11 (owner, 2026-11-07)
 
-1. AirPlay placement: (a) now-playing action row beside settings, recommended (the transport left slot is EQ's once I9 lands); (b) transport left slot until I9, then move; (c) no in-app button (Control Center only).
-2. Sleep timer: (a) in the settings sheet with "end of track", recommended; (b) plus a chip in the action row; (c) not for 1.5.2.
-3. Downloads in Files: (a) expose read-only, recommended (Doppler/VLC parity; wider App Review surface); (b) keep container-only; (c) expose and allow importing from Files.
-4. Links and sharing: (a) `navis://` scheme plus share sheet, recommended; (b) universal links on a Navis domain (needs hosting); (c) share sheet only.
-5. Siri / Shortcuts: (a) after 1.5.2, recommended; (b) playback intents in 1.5.2; (c) playback plus library browse.
-6. Live Activity / widgets: (a) neither in 1.5.2, recommended (the system Now Playing already covers the Lock Screen); (b) Live Activity and Dynamic Island; (c) both.
-7. CarPlay: (a) request the entitlement after 1.5.2 ships, recommended; (b) request now; (c) drop.
-8. Which of I12–I19 are in the iOS 1.5.2 release (coordinator suggestion: I12, I13, I14, I18; with I9 still required).
+The owner asked for a split that avoids features on one platform but not the
+others. Rule: **1.5.2 brings iOS up to what Android already has; new
+features land in 1.6 on every platform at once.**
+
+- **1.5.2 (iOS):** I9 (merged), I18, I4 with I14, plus the release items I2,
+  I5, I6, I7, I8.
+- **1.6, all platforms:** I13 sleep timer; I12 as an "Output device" button
+  (AirPlay on iOS, the system output switcher on Android, the audio-device
+  list on desktop); I15 share sheet and `navis://` links; I17 widgets on
+  Android and iOS together, with Live Activity.
+- **1.6, iOS catching up with Android:** I20 CarPlay (Android Auto), I16 Siri
+  / App Intents (voice search), I19 background sync.
+- Keychain (I3 follow-up): `first_unlock_this_device`, matching Android's
+  `allowBackup="false"` with backup and device transfer excluded (owner
+  delegated the choice; best practice).
 
 Owner decisions (2026-11-07): distribution is TestFlight and the App Store.
 Testing is simulator-first; the iPhone is borrowed, so a device pass is
