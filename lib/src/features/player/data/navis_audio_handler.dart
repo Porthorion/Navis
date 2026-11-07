@@ -384,6 +384,23 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, ({String? prev, String? next})> _smartNeighbours =
       <String, ({String? prev, String? next})>{};
 
+  /// Android's ReplayGain boost guard: the lowest boost each deck was given
+  /// since its song's last-seconds window opened (see [guardedBoostDb]). A
+  /// fresh Expando forgets it; that happens at a song start, a seek, a queue
+  /// load and a settings or speed change.
+  Expando<double> _boostLatch = Expando<double>();
+
+  /// The last boost message each deck was sent, so the position tick only
+  /// sends a change.
+  final Expando<({double db, bool guarded})> _sentBoost =
+      Expando<({double db, bool guarded})>();
+
+  /// Whether the active deck's last boost message was a guarded one.
+  bool _boostGuardedNow = false;
+
+  /// When the native boost state was last read for the status report.
+  DateTime? _boostStateReadAt;
+
   /// The ReplayGain mode of the last settings pass, so only a change of it
   /// drops the frozen Smart decisions.
   String? _appliedReplayGainMode;
@@ -785,6 +802,7 @@ class NavisAudioHandler extends BaseAudioHandler
   bool get replayGainBoostSupported => navisReplayGainBoostSupported(
     usesMpv: _usesMpv,
     isMacOS: !kIsWeb && Platform.isMacOS,
+    androidProcessor: _usesAndroidNative && _equalizerPipelineEnabled,
   );
 
   @override
@@ -2515,6 +2533,7 @@ class NavisAudioHandler extends BaseAudioHandler
       _appliedReplayGainMode = runtime.replayGainMode;
       _smartNeighbours.clear();
     }
+    _resetBoostGuard();
     _applyReplayGainVolume();
 
     if (equalizerCapabilities.supported) {
@@ -2783,6 +2802,7 @@ class NavisAudioHandler extends BaseAudioHandler
       },
       'shuffleEnabled': _shuffleEnabled,
       'replayGain': currentReplayGainDecision?.toJson(),
+      'replayGainBoost': _replayGainBoostStatus,
       // Native order as the player holds it, for parity checks against the
       // logical queue (limited so large queues stay cheap to report).
       'native': <String, Object?>{
@@ -3204,6 +3224,11 @@ class NavisAudioHandler extends BaseAudioHandler
   /// The cross-fade deck, when cross-fade is on.
   @visibleForTesting
   AudioPlayer? get debugInactiveDeck => _crossfadePlayer;
+
+  /// Reads the Android boost guard for [deck] as the handler would send it.
+  @visibleForTesting
+  Future<void> debugRebuildPlayerWithoutEqualizer() =>
+      _rebuildPlayerWithoutEqualizer();
 
   /// Sends [deck] its ReplayGain boost as the handler does.
   @visibleForTesting

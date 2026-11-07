@@ -1327,9 +1327,12 @@ class AudioPlayer {
     final request = SetReplayGainBoostRequest(
         currentDb: currentDb, guarded: guarded, byUri: byUri);
     final platform = await _platform;
-    // The caller re-sends on every index event; an unchanged message to the
-    // same native player says nothing new.
-    if (identical(platform, _replayGainBoostPlatform) &&
+    // The caller re-sends on every index event; an unchanged per-file map to
+    // the same native player says nothing new. A message without a map
+    // (Android) is never skipped: the native bridge lowers its boost before
+    // song-switching commands, so an equal value must still go out again.
+    if (byUri.isNotEmpty &&
+        identical(platform, _replayGainBoostPlatform) &&
         request == _replayGainBoostRequest) {
       return;
     }

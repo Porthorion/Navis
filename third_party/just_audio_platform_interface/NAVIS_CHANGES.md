@@ -17,3 +17,6 @@ policy. It defaults to false; other platform adapters ignore the option.
 (positive gain): the playing song's boost and a per-URI map for backends that
 switch gain per file. The default throws `UnimplementedError`, which the app
 reads as "no boost stage here".
+
+`EqualizerStateMessage` adds `boostRequestedDb`, `boostAppliedDb` and
+`boostClipSamples` (all default 0), read from the Android processor's state.

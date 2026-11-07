@@ -103,17 +103,25 @@ def d4(root):
 
 
 def d5(root):
-    # qa (+2 dB) may rise to 0.0316 * 10^(5/20) = 0.0562 with the pre-amp; qb ends at 0.089. The join
-    # itself shows one 10 ms window about 8 % off (also in the no-boost control), hence 0.062.
+    """The pre-amp rises 3 dB in the last second of qa (+2 dB) with qb (+6 dB) next. qa may then
+    reach 0.0316 * 10^(5/20) = 0.0562 at most; qb would be 0.0891, which qa's tail must never see
+    (the join itself shows one 10 ms window ~8 % off, also in the no-boost control, hence 15 %).
+    qb has to stay held for 0.5 s of its own playback, then rise. The join is 1.0 s after the first
+    audible sample: the runner seeks to 29 s of a 30 s song."""
+    qa_own, margin = 0.0316 * 10 ** (5 / 20), 1.15
     for delay in ('0.55', '0.70', '0.80', '0.88', '0.95'):
         t = peaks(load(root, f'd5-{delay}'))
+        audible = np.where(t > 0.01)[0]
         full = np.where(t >= 0.075)[0]
-        if not len(full):
+        if not len(audible) or not len(full):
             check(f'D5 delay {delay}: pre-amp reached qb', False, f'max={np.max(t) if len(t) else None}')
             continue
-        before = t[:full[0]]
-        check(f'D5 delay {delay}: nothing above qa\'s level before qb is raised', np.max(before) <= 0.062,
-              f'max before qb full={np.max(before):.4f} (qb full at {full[0] * 0.01:.2f}s)')
+        join_s = audible[0] * 0.01 + 1.0
+        before = t[:int(round(join_s * 100))]
+        check(f"D5 delay {delay}: qa's tail stays within its own level", np.max(before) <= qa_own * margin,
+              f'max before the join={np.max(before):.4f} limit={qa_own * margin:.4f}')
+        check(f'D5 delay {delay}: qb is raised only after the 0.5 s hold', full[0] * 0.01 >= join_s + 0.4,
+              f'join at {join_s:.2f}s, qb full at {full[0] * 0.01:.2f}s')
 
 
 if __name__ == '__main__':

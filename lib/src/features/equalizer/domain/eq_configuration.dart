@@ -374,6 +374,9 @@ class EqApplicationState {
     this.headroomDb = 0,
     this.reason,
     this.pending = false,
+    this.boostRequestedDb = 0,
+    this.boostAppliedDb = 0,
+    this.boostClipSamples = 0,
   });
 
   final EqConfiguration desired;
@@ -383,4 +386,10 @@ class EqApplicationState {
   final double headroomDb;
   final String? reason;
   final bool pending;
+
+  /// The native ReplayGain boost stage (Android): what it was asked for, what
+  /// it applies, and the samples it had to clamp.
+  final double boostRequestedDb;
+  final double boostAppliedDb;
+  final int boostClipSamples;
 }

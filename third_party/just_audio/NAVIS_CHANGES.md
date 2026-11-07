@@ -271,3 +271,18 @@ or headers were set, so a Navis `content://` (Android SAF) download reached
 gain) to the platform, translating the boost of each queued source to the URI
 the platform loads it from. A backend without a boost stage throws
 `UnimplementedError`.
+
+Android `NavisEqualizerProcessor` carries the ReplayGain boost: a per-frame
+gain (`EqualizerDsp.BoostRamp`, 20 ms linear ramps, capped at 12 dB) applied
+after the EQ bank, outside its auto-headroom, and before the 16-bit clamp. The
+`setReplayGainBoost {currentDb, guarded}` channel method sets it (error
+`eq_unavailable` without a processor); `getEqualizerState` adds
+`boostRequestedDb`, `boostAppliedDb`, `boostGuarded` and `boostClipSamples`
+(samples that hit the clamp while boosting, cumulative for the processor's
+life). `AudioPlayer.java` lowers the requested boost to 0 on the main thread
+before `load`, a `seek` to another song and removing the playing song, and,
+while the last message was guarded, before any `concatenating*` edit,
+`setLoopMode`, `setShuffleMode` and `setShuffleOrder`. A flush snaps the applied
+boost to the requested one without clearing it. Dart's `setReplayGainBoost` no
+longer skips an unchanged message that has no per-URI map, because native
+lowering makes an equal value new again.

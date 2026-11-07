@@ -620,6 +620,15 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                     result.success(navisEqualizer.state());
                 }
                 break;
+            case "setReplayGainBoost":
+                if (navisEqualizer == null) {
+                    result.error("eq_unavailable", "No EQ processor was installed for this player", null);
+                } else {
+                    navisEqualizer.setBoost(call.<Number>argument("currentDb").doubleValue(),
+                            Boolean.TRUE.equals(call.<Boolean>argument("guarded")));
+                    result.success(new HashMap<String, Object>());
+                }
+                break;
             case "load":
                 Long initialPosition = getLong(call.argument("initialPosition"));
                 Integer initialIndex = call.argument("initialIndex");
@@ -654,14 +663,17 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 result.success(new HashMap<String, Object>());
                 break;
             case "setLoopMode":
+                lowerBoost(true);
                 setLoopMode((Integer) call.argument("loopMode"));
                 result.success(new HashMap<String, Object>());
                 break;
             case "setShuffleMode":
+                lowerBoost(true);
                 setShuffleModeEnabled((Integer) call.argument("shuffleMode") == 1);
                 result.success(new HashMap<String, Object>());
                 break;
             case "setShuffleOrder":
+                lowerBoost(true);
                 setShuffleOrder(call.argument("audioSource"));
                 result.success(new HashMap<String, Object>());
                 break;
@@ -680,6 +692,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 seek(position == null ? C.TIME_UNSET : position / 1000, index, result);
                 break;
             case "concatenatingInsertAll":
+                lowerBoost(true);
                 if (((String)call.argument("id")).length() == 0) {
                     player.addMediaSources(call.argument("index"), getAudioSources(call.argument("children"))); 
                     player.setShuffleOrder(decodeShuffleOrder(call.argument("shuffleOrder")));
@@ -692,6 +705,14 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 }
                 break;
             case "concatenatingRemoveRange":
+                {
+                    // Removing the playing song switches songs; any other edit only
+                    // matters while the boost is lowered for the song that follows.
+                    boolean coversCurrent = ((String) call.argument("id")).length() != 0
+                            || (player.getCurrentMediaItemIndex() >= (Integer) call.argument("startIndex")
+                                    && player.getCurrentMediaItemIndex() < (Integer) call.argument("endIndex"));
+                    lowerBoost(!coversCurrent);
+                }
                 if (((String)call.argument("id")).length() == 0) {
                     player.removeMediaItems(call.argument("startIndex"), call.argument("endIndex"));
                     player.setShuffleOrder(decodeShuffleOrder(call.argument("shuffleOrder")));
@@ -704,6 +725,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 }
                 break;
             case "concatenatingMove":
+                lowerBoost(true);
                 if (((String)call.argument("id")).length() == 0) {
                     player.moveMediaItem(call.argument("currentIndex"), call.argument("newIndex"));
                     player.setShuffleOrder(decodeShuffleOrder(call.argument("shuffleOrder")));
@@ -952,7 +974,21 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         return new DefaultDataSource.Factory(context, httpDataSourceFactory);
     }
 
+    /**
+     * Drops the ReplayGain boost to 0 on this thread, before the ExoPlayer call that follows.
+     * A boost is only right for the song it was computed for. Dart re-raises it after the
+     * index or queue event, and the main thread keeps that raise behind this lowering.
+     * [onlyWhenGuarded] limits it to edits that can change the next song while the
+     * boost is the lowered end-of-song value.
+     */
+    private void lowerBoost(boolean onlyWhenGuarded) {
+        if (navisEqualizer != null && (!onlyWhenGuarded || navisEqualizer.boostGuarded())) {
+            navisEqualizer.lowerBoost();
+        }
+    }
+
     private void load(final List<MediaSource> mediaSources, ShuffleOrder shuffleOrder, final long initialPosition, final Integer initialIndex, final Result result) {
+        lowerBoost(false);
         repeatPauseUid = null;
         repeatAtEndUid = null;
         cancelPendingRepeat();
@@ -1283,6 +1319,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         seekResult = result;
         try {
             int windowIndex = index != null ? index : player.getCurrentMediaItemIndex();
+            if (windowIndex != player.getCurrentMediaItemIndex()) lowerBoost(false);
             player.seekTo(windowIndex, position);
             if (resumeBoundary && playRequested) player.setPlayWhenReady(true);
             updateLoopPolicy();
