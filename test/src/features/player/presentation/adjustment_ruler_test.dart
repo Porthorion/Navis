@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:flutter/gestures.dart' show kLongPressTimeout;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
@@ -647,6 +648,117 @@ void main() {
       await tester.pumpAndSettle();
       expect(value, 0);
       handle.dispose();
+    });
+  });
+  group('RulerStepButton haptics', () {
+    late List<Object?> haptics;
+
+    Future<void> pumpButton(WidgetTester tester, bool Function() onStep) async {
+      haptics = <Object?>[];
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'HapticFeedback.vibrate') {
+            haptics.add(call.arguments);
+          }
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: RulerStepButton(
+              icon: Icons.add,
+              tooltip: 'More',
+              enabled: true,
+              onStep: onStep,
+              onEnd: () {},
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('a tap that steps clicks once', (tester) async {
+      await pumpButton(tester, () => true);
+      await tester.tap(find.byType(IconButton));
+      await tester.pump();
+      expect(haptics, ['HapticFeedbackType.selectionClick']);
+    });
+
+    testWidgets('a tap at a limit stays silent', (tester) async {
+      await pumpButton(tester, () => false);
+      await tester.tap(find.byType(IconButton));
+      await tester.pump();
+      expect(haptics, isEmpty);
+    });
+
+    testWidgets('reaching a limit that disables the button ends the hold '
+        'after the build, never during it', (tester) async {
+      var value = 0;
+      var ends = 0;
+      var endedDuringBuild = false;
+      haptics = <Object?>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => RulerStepButton(
+                icon: Icons.add,
+                tooltip: 'More',
+                // Disabled once the limit is reached, like Speed and colour.
+                enabled: value < 3,
+                onStep: () {
+                  if (value >= 3) return false;
+                  setState(() => value++);
+                  return true;
+                },
+                onEnd: () {
+                  ends++;
+                  endedDuringBuild |=
+                      WidgetsBinding.instance.buildOwner!.debugBuilding;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(IconButton)),
+      );
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 10));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 130));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(value, 3);
+      expect(ends, 1);
+      expect(endedDuringBuild, isFalse);
+    });
+
+    testWidgets('holding clicks on every repeated step until the limit', (
+      tester,
+    ) async {
+      var steps = 0;
+      await pumpButton(tester, () => ++steps <= 4);
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.byType(IconButton)),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 120));
+      }
+      await gesture.up();
+      await tester.pump();
+      // Four steps took effect; the fifth hit the limit and stayed silent.
+      expect(haptics, hasLength(4));
     });
   });
 }

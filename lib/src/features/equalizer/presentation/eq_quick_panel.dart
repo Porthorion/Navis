@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/domain/eq_workspace.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
@@ -53,7 +54,7 @@ class EqEnableSwitch extends ConsumerWidget {
     final value = ref.watch(equalizerProvider).asData?.value;
     return Semantics(
       label: l10n.eqEnable,
-      child: Switch.adaptive(
+      child: NavisSwitch.adaptive(
         key: const ValueKey<String>('eq-quick-enable'),
         value: value?.configuration.enabled ?? false,
         onChanged: value == null || value.pending

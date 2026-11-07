@@ -1,7 +1,6 @@
-import 'dart:async';
-
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 
 class RatingWidget extends StatelessWidget {
   const new({
@@ -28,7 +27,7 @@ class RatingWidget extends StatelessWidget {
       stars.add(
         InkResponse(
           onTap: () {
-            unawaited(HapticFeedback.selectionClick());
+            NavisHaptics.tick();
             onChanged(i == effectiveRating ? 0 : i);
           },
           radius: compact ? 16 : 20,

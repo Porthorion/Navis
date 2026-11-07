@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_refresh_indicator.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_density_scope.dart';
 import 'package:flutter/services.dart';
@@ -1039,7 +1041,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           },
         ),
         Expanded(
-          child: RefreshIndicator(
+          child: NavisRefreshIndicator(
             onRefresh: _refreshLibrary,
             child: artists.when(
               data: (items) {
@@ -1264,7 +1266,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     if (items == null) {
       // First load — no cached data yet.
-      return RefreshIndicator(
+      return NavisRefreshIndicator(
         onRefresh: _refreshLibrary,
         child: albumsAsync.when(
           data: (_) => const SizedBox.shrink(), // handled above
@@ -1290,7 +1292,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       );
     }
 
-    return RefreshIndicator(
+    return NavisRefreshIndicator(
       onRefresh: _refreshLibrary,
       child: Builder(
         builder: (context) {
@@ -1546,7 +1548,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           onDownloadedOnlyChanged: _updateDownloadedOnly,
         ),
         Expanded(
-          child: RefreshIndicator(
+          child: NavisRefreshIndicator(
             onRefresh: _refreshLibrary,
             child: _yearListItems.isEmpty && sectionsAsync.asData == null
                 ? ListView(
@@ -1774,7 +1776,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         likedSongsAsync.error;
 
     if (error != null && albums.isEmpty && artists.isEmpty && songs.isEmpty) {
-      return RefreshIndicator(
+      return NavisRefreshIndicator(
         onRefresh: _refreshLibrary,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -1790,7 +1792,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
 
     if (isLoading && albums.isEmpty && artists.isEmpty && songs.isEmpty) {
-      return RefreshIndicator(
+      return NavisRefreshIndicator(
         onRefresh: _refreshLibrary,
         child: ListView(
           controller: _likedScrollController,
@@ -1804,7 +1806,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       );
     }
 
-    return RefreshIndicator(
+    return NavisRefreshIndicator(
       onRefresh: _refreshLibrary,
       child: LayoutBuilder(
         builder: (context, constraints) {

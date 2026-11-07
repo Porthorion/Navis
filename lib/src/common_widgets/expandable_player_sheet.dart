@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/theme/motion_policy.dart';
 
 /// A Symfonium-style bottom-sheet player transition.
@@ -204,6 +205,9 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
   }
 
   void _handleDragEnd(DragEndDetails details) {
+    // A release between the edges settles the sheet, which feels like the end
+    // of a gesture; one that never left an edge has nothing to settle.
+    if (_controller.value > 0 && _controller.value < 1) NavisHaptics.dragEnd();
     final velocity = details.primaryVelocity ?? 0;
     final absVelocity = velocity.abs();
 

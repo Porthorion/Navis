@@ -57,31 +57,54 @@ class DesktopSongActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rowMode = TrackRowModeScope.maybeOf(context);
-    if (isExternal) {
-      return includeDuration
-          ? Text(
-              formatSeconds(duration),
-              style: Theme.of(context).textTheme.bodySmall,
-            )
-          : SizedBox(
-              width: rowMode == null
-                  ? 0
-                  : rowMode == TrackRowMode.wide
-                  ? 144
-                  : 48,
-            );
-    }
-
     final l10n = AppLocalizations.of(context)!;
     final showDirectActions = rowMode != null
         ? rowMode == TrackRowMode.wide
         : MediaQuery.sizeOf(context).width >= directActionMinWidth;
+    final rowEmphasized = TrackRowEmphasisScope.maybeOf(context) ?? true;
+    if (isExternal) {
+      // A remote song has no download or More here, but keeps the dimmed
+      // heart where a library song shows its Like. Compact rows keep it in
+      // the row menu, as for a library song.
+      final duration = includeDuration
+          ? Text(
+              formatSeconds(this.duration),
+              style: Theme.of(context).textTheme.bodySmall,
+            )
+          : null;
+      if (!showDirectActions) {
+        return duration ?? SizedBox(width: rowMode == null ? 0 : 48);
+      }
+      return _QuietUntilEmphasized(
+        rowEmphasized: rowEmphasized,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            if (duration != null) ...<Widget>[
+              duration,
+              const SizedBox(width: 6),
+            ],
+            _ActionEmphasis(
+              keep: false,
+              child: SongHeartButton(
+                songId: songId,
+                keyPrefix: keyPrefix,
+                isRemote: true,
+              ),
+            ),
+            // The width of Download and More, so Time and Artist stay aligned
+            // with library rows.
+            if (rowMode != null) const SizedBox(width: 96),
+          ],
+        ),
+      );
+    }
+
     final isLiked =
         ref.watch(songStarredProvider(songId)).asData?.value ?? false;
     final hasDownloadState =
         ref.watch(songDownloadStateProvider(songId)).status !=
         SongDownloadStatus.none;
-    final rowEmphasized = TrackRowEmphasisScope.maybeOf(context) ?? true;
 
     return _QuietUntilEmphasized(
       rowEmphasized: rowEmphasized,
@@ -224,11 +247,16 @@ class SongHeartButton extends ConsumerWidget {
     super.key,
     this.keyPrefix = 'desktop-song',
     this.outlined = false,
+    this.isRemote = false,
   });
 
   final String songId;
   final String keyPrefix;
   final bool outlined;
+
+  /// Marks a song the catalogue flags as remote although its id looks
+  /// server-addressable (`pl-deezer-*` is also caught by id).
+  final bool isRemote;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -236,14 +264,10 @@ class SongHeartButton extends ConsumerWidget {
     final isLiked =
         ref.watch(songStarredProvider(songId)).asData?.value ?? false;
     // A remote copy cannot be liked: shown disabled, the tap explains why.
-    final isRemote = !isServerAddressableSongId(songId);
+    final remote = isRemote || isRemoteSong(id: songId);
     void toggle() {
-      if (isRemote) {
-        showAppNotice(
-          context,
-          message: l10n.remoteSourceActionUnavailable,
-          level: AppNoticeLevel.error,
-        );
+      if (remote) {
+        showRemoteSourceActionUnavailable(context);
         return;
       }
       unawaited(
@@ -261,27 +285,28 @@ class SongHeartButton extends ConsumerWidget {
     }
 
     final key = ValueKey<String>('$keyPrefix-heart-$songId');
-    final tooltip = isRemote
+    final tooltip = remote
         ? l10n.actionLikeUnavailableRemote
         : isLiked
         ? l10n.actionLiked
         : l10n.actionLike;
     final disabledColor = Theme.of(context).disabledColor;
     final icon = Icon(
-      isLiked ? Icons.favorite : Icons.favorite_border,
-      color: isRemote ? disabledColor : null,
+      // A remote copy is never liked, even with a stale star.
+      isLiked && !remote ? Icons.favorite : Icons.favorite_border,
+      color: remote ? disabledColor : null,
     );
     final button = outlined
         ? IconButton.outlined(
             key: key,
             tooltip: tooltip,
             icon: icon,
-            style: isRemote
+            style: remote
                 ? IconButton.styleFrom(side: BorderSide(color: disabledColor))
                 : null,
             onPressed: toggle,
           )
         : IconButton(key: key, tooltip: tooltip, icon: icon, onPressed: toggle);
-    return isRemote ? RemoteLikeSemantics(child: button) : button;
+    return remote ? RemoteLikeSemantics(child: button) : button;
   }
 }

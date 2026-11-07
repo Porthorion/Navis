@@ -28,6 +28,7 @@ import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
+import '../../../../helpers/haptics_spy.dart';
 import '../../../../helpers/test_database.dart';
 
 const _remoteArtistId = 'ext-deezer-artist-4321';
@@ -930,6 +931,30 @@ void main() {
       expect(find.text('SearchScreen'), findsOneWidget);
       expect(container.read(searchQueryProvider), 'The Side Effects Coldrain');
       expect(container.read(searchFilterProvider), SearchResultType.albums);
+      await dispose(tester);
+    });
+
+    testWidgets('refreshing an album is silent to start and confirms when it '
+        'succeeds, not when it fails', (tester) async {
+      final spy = HapticsSpy.install(tester);
+      await storeRemoteAlbum(withSongs: true);
+      await open(tester, AppRoutes.album(_remoteAlbumId));
+      script.answer(null);
+      await settle(tester);
+      expect(await spy.take(tester), isEmpty);
+
+      await tester.tap(find.byTooltip('Refresh').first);
+      await settle(tester);
+      expect(await spy.take(tester), isEmpty);
+      script.answer(const LibrarySyncState.idle());
+      await settle(tester);
+      expect(await spy.take(tester), ['confirm']);
+
+      await tester.tap(find.byTooltip('Refresh').first);
+      await settle(tester);
+      script.answer(_failed);
+      await settle(tester);
+      expect(await spy.take(tester), isEmpty);
       await dispose(tester);
     });
 

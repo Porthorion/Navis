@@ -66,7 +66,8 @@ class _ActionRowState extends ConsumerState<_ActionRow>
     final colorScheme = Theme.of(context).colorScheme;
 
     final isRemote =
-        widget.songId != null && !isServerAddressableSongId(widget.songId!);
+        widget.songId != null &&
+        isRemoteSong(id: widget.songId!, isExternal: widget.song?.isExternal);
 
     final actionButtons = <Widget>[
       _NowPlayingActionButton(
@@ -110,13 +111,15 @@ class _ActionRowState extends ConsumerState<_ActionRow>
         onTap: widget.songId == null
             ? null
             : isRemote
-            ? () => showAppNotice(
-                context,
-                message: l10n.remoteSourceActionUnavailable,
-                level: AppNoticeLevel.error,
-              )
+            ? () {
+                showRemoteSourceActionUnavailable(context);
+              }
             : () {
-                unawaited(HapticFeedback.lightImpact());
+                if (widget.isLiked) {
+                  NavisHaptics.tick();
+                } else {
+                  NavisHaptics.confirm();
+                }
                 final handler = ref.read(audioHandlerProvider);
                 unawaited(handler?.toggleLike());
               },

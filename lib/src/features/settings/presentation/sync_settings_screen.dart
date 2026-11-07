@@ -5,6 +5,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
+import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
@@ -428,7 +429,7 @@ class SyncSettingsScreen extends ConsumerWidget {
 
                 // ---- Mobile sync guardrails ----
                 Card(
-                  child: SwitchListTile(
+                  child: NavisSwitchListTile(
                     value: backgroundUnmeteredOnly,
                     onChanged: (enabled) async {
                       final dao = ref

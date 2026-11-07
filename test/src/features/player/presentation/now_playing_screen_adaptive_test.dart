@@ -29,6 +29,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 
 import '../../../../helpers/adaptive_test_harness.dart';
 import '../../../../helpers/fake_eq_controller.dart';
+import '../../../../helpers/haptics_spy.dart';
 import '../../../../helpers/library_copy_api.dart';
 import '../../../../helpers/now_playing_harness.dart';
 import '../../../../helpers/test_database.dart';
@@ -228,6 +229,29 @@ void main() {
     expect(tester.takeException(), isNull);
   }, skip: !sqliteAvailable);
 
+  testWidgets('the real play button presses and the pause button releases', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    final container = _createContainer();
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback;
+    await _pumpNowPlaying(tester, container);
+    await tester.pumpAndSettle();
+    final spy = HapticsSpy.install(tester);
+
+    await tester.tap(find.byTooltip('Pause'));
+    await tester.pump();
+    expect(await spy.take(tester), ['release']);
+
+    container.read(nowPlayingTestPlaybackProvider.notifier).state =
+        _songPlayback.copyWith(playing: false);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pump();
+    expect(await spy.take(tester), ['press']);
+  }, skip: !sqliteAvailable);
+
   testWidgets('the Like button of a remote song is disabled for semantics', (
     tester,
   ) async {
@@ -251,9 +275,11 @@ void main() {
       tester.getSemantics(like).flagsCollection.isEnabled,
       isNot(Tristate.isTrue),
     );
+    final spy = HapticsSpy.install(tester);
     await tester.tap(like);
     await tester.pump();
     expect(notices.notice?.message, 'Not available for remote tracks.');
+    expect(await spy.take(tester), ['reject']);
     handle.dispose();
   }, skip: !sqliteAvailable);
 

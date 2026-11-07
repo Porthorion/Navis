@@ -10,6 +10,7 @@ import 'package:navis/src/api/models/song.dart';
 import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
@@ -420,12 +421,21 @@ class _TopTrackTile extends ConsumerWidget {
         song: dbSong,
         keyPrefix: 'artist-top-track',
       );
+    } else if (desktopRuntime && isRemote) {
+      // A remote row shows the dimmed heart a library row shows, and reserves
+      // the same action column so Artist and Time stay aligned.
+      trailing = DesktopSongActions.forSongId(
+        songId: resolvedSong.id,
+        isExternal: true,
+        onMore: null,
+        keyPrefix: 'artist-top-track',
+      );
     } else if (desktopRuntime) {
-      // Remote, unresolved and still-loading rows have no library row to act
-      // on. An empty action still makes the row reserve the same action
-      // column as rows with actions, so Artist and Time stay aligned; the
-      // phone-style download/More pair is wider than that column and would
-      // push this row's columns left.
+      // Unresolved and still-loading rows have no library row to act on. An
+      // empty action still makes the row reserve the same action column as
+      // rows with actions, so Artist and Time stay aligned; the phone-style
+      // download/More pair is wider than that column and would push this
+      // row's columns left.
       trailing = const SizedBox.shrink();
     } else if (resolvedId != null) {
       trailing = Row(
@@ -498,7 +508,7 @@ class _TopTrackTile extends ConsumerWidget {
       onTap: enabled ? onTap : null,
       onLongPress: enabled && dbSong != null
           ? () {
-              unawaited(HapticFeedback.mediumImpact());
+              NavisHaptics.longPress();
               unawaited(showSongContextMenu(context, ref, dbSong));
             }
           : null,

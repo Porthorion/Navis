@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/cover_art_image.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/song_playback_indicator.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
@@ -98,7 +99,21 @@ class QueueTrackRow extends ConsumerStatefulWidget {
 class _QueueTrackRowState extends ConsumerState<QueueTrackRow> {
   bool _isSwiping = false;
 
+  bool _committed = false;
+
   void _onDismissUpdate(DismissUpdateDetails details) {
+    // The click sits exactly where letting go removes the track. After the
+    // commit the row springs back (the queue removes it), which is not a pull
+    // back, so it stays quiet until the row is at rest.
+    if (_committed) {
+      if (details.progress == 0) _committed = false;
+    } else if (details.reached != details.previousReached) {
+      if (details.reached) {
+        NavisHaptics.thresholdOn();
+      } else {
+        NavisHaptics.thresholdOff();
+      }
+    }
     final swiping = details.progress > 0.0;
     if (swiping == _isSwiping) return;
     _isSwiping = swiping;
@@ -193,6 +208,8 @@ class _QueueTrackRowState extends ConsumerState<QueueTrackRow> {
             ),
           ),
           confirmDismiss: (_) async {
+            _committed = true;
+            NavisHaptics.reject();
             widget.onRemove();
             return false;
           },

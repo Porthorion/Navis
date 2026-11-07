@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:material_ui/material_ui.dart';
+import 'package:navis/src/common_widgets/navis_refresh_indicator.dart';
 import 'package:navis/src/routing/content_layout.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
 import 'package:navis/src/common_widgets/external_album_card.dart';
@@ -393,7 +394,8 @@ class _ArtistDetailScreenState extends ConsumerState<ArtistDetailScreen> {
           if (fanCount > 0) l10n.artistDetailFanCount(fanCount),
         ].join(' • ');
 
-        return RefreshIndicator.noSpinner(
+        return NavisRefreshIndicator(
+          noSpinner: true,
           onRefresh: _refresh,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),

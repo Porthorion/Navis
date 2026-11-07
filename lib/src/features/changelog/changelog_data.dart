@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Songs from Deezer now show the greyed-out heart in Search and in '
+        'Artist top tracks on desktop, the same as everywhere else',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Songs from Deezer can no longer be liked (their heart is greyed '
         'out); likes of them that were never sent to your server move to '
         'your library copy when there is one. Liked songs now download from '
@@ -163,6 +168,15 @@ const List<ChangelogVersion> changelogs = [
         'Recently Added on Home now shows the play button on hover, like '
         'the other album shelves',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Taps and gestures now feel like what they do on Android: switches '
+        'click on and off, Play and Pause differ, pull to refresh ticks as you '
+        'pull, firms at the trigger point and confirms when it finishes, and '
+        'liking, skipping, reordering, swiping a queue row away, dragging an '
+        'equalizer band and long presses each have their own feel. Your '
+        'phone\'s touch feedback setting still applies',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Albums and downloads can be added to a playlist from their menu',

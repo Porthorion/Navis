@@ -4,6 +4,7 @@ library;
 export 'now_playing_artwork_background.dart'
     show nowPlayingShowsArtworkLayer, nowPlayingSurfaceDecoration;
 
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/features/player/presentation/audio_quality_format.dart';
 import 'package:navis/src/features/player/presentation/media_info.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
@@ -1186,6 +1187,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
   }
 
   void _togglePlayPause() {
+    if (widget.playback.playing) {
+      NavisHaptics.release();
+    } else {
+      NavisHaptics.press();
+    }
     final handler = ref.read(audioHandlerProvider);
     if (handler == null) return;
     if (widget.playback.playing) {
@@ -1261,7 +1267,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     if (handler == null) return;
     // Playback starts immediately. The handler publishes the resulting visual
     // intent (skip, restart, or boundary resistance) for every control source.
-    unawaited(HapticFeedback.selectionClick());
+    NavisHaptics.firm();
     unawaited(
       _animateArtSwipeTo(0, duration: const Duration(milliseconds: 120)),
     );

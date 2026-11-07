@@ -16,6 +16,7 @@ import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/desktop_song_actions.dart';
 import 'package:navis/src/common_widgets/genre_chips.dart';
 import 'package:navis/src/common_widgets/hero_cover_art.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/rating_widget.dart';
 import 'package:navis/src/common_widgets/remote_source_indicator.dart';
 import 'package:navis/src/common_widgets/empty_state.dart';
@@ -1451,7 +1452,6 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
     if (_isRefreshingAlbum) {
       return;
     }
-    await HapticFeedback.lightImpact();
     // An album stream that failed is read again.
     final albumStream = albumProvider(widget.albumId);
     if (ref.read(albumStream).hasError) ref.invalidate(albumStream);
@@ -1471,6 +1471,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
       if (!mounted || generation != _hydrationGeneration) {
         return;
       }
+      if (!requestFailed) NavisHaptics.confirm();
       ref.invalidate(albumInfoProvider(widget.albumId));
       // A page without the album shows the failure itself.
       if (!requestFailed ||
@@ -1636,7 +1637,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                           song.starred != null;
                       // A remote copy cannot be liked: shown disabled, the
                       // tap explains why.
-                      final isRemote = !isServerAddressableSongId(song.id);
+                      final isRemote = isRemoteSong(
+                        id: song.id,
+                        isExternal: song.isExternal,
+                      );
                       final disabledColor = Theme.of(context)
                           .colorScheme
                           .onSurface
@@ -1652,11 +1656,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                         ),
                         onTap: () {
                           if (isRemote) {
-                            showAppNotice(
-                              context,
-                              message: l10n.remoteSourceActionUnavailable,
-                              level: AppNoticeLevel.error,
-                            );
+                            showRemoteSourceActionUnavailable(context);
                             return;
                           }
                           unawaited(
@@ -1805,7 +1805,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
           value: _AlbumSongContextAction.toggleLike,
           // Dimmed but clickable: a click explains why (a disabled popup
           // item swallows it).
-          textStyle: isServerAddressableSongId(song.id)
+          textStyle: !isRemoteSong(id: song.id, isExternal: song.isExternal)
               ? null
               : TextStyle(
                   color: Theme.of(context).colorScheme.onSurface
@@ -1862,12 +1862,8 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
         _playNext(song);
         return;
       case _AlbumSongContextAction.toggleLike:
-        if (!isServerAddressableSongId(song.id)) {
-          showAppNotice(
-            context,
-            message: l10n.remoteSourceActionUnavailable,
-            level: AppNoticeLevel.error,
-          );
+        if (isRemoteSong(id: song.id, isExternal: song.isExternal)) {
+          showRemoteSourceActionUnavailable(context);
           return;
         }
         try {
@@ -2239,7 +2235,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
 
   Future<void> _copyTitle(BuildContext context, String text) async {
     final l10n = AppLocalizations.of(context)!;
-    unawaited(HapticFeedback.selectionClick());
+    NavisHaptics.confirm();
     await Clipboard.setData(ClipboardData(text: text));
     if (!context.mounted) return;
     showAppNotice(

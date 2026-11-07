@@ -21,7 +21,6 @@ enum RulerTick { none, minor, major, neutral }
 /// A whole-step ruler ([AdjustmentRuler.snapStep]) passes its own [perUnit]
 /// line density and a null [majorEvery], so every line is a minor tick. A null
 /// [resetValue] has no neutral line.
-@visibleForTesting
 RulerTick rulerTickFeedback(
   double from,
   double to,
@@ -823,11 +822,19 @@ class _RulerStepButtonState extends State<RulerStepButton> {
   static const _repeatInterval = Duration(milliseconds: 120);
   Timer? _repeat;
 
+  /// One step with the click a drag over a ruler line gives; a step stopped
+  /// by a limit stays silent.
+  bool _step() {
+    final stepped = widget.onStep();
+    if (stepped) unawaited(HapticFeedback.selectionClick());
+    return stepped;
+  }
+
   void _startRepeat() {
-    if (!widget.onStep()) return;
+    if (!_step()) return;
     _repeat?.cancel();
     _repeat = Timer.periodic(_repeatInterval, (_) {
-      if (!mounted || !widget.onStep()) _stopRepeat();
+      if (!mounted || !_step()) _stopRepeat();
     });
   }
 
@@ -841,7 +848,14 @@ class _RulerStepButtonState extends State<RulerStepButton> {
   @override
   void didUpdateWidget(RulerStepButton oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!widget.enabled) _stopRepeat();
+    // A caller disables the button once the hold reaches a limit. Reporting
+    // the end of the hold from here would run the caller's save during build
+    // (a provider write throws), so it waits for the frame to finish.
+    if (!widget.enabled && _repeat != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !widget.enabled) _stopRepeat();
+      });
+    }
   }
 
   @override
@@ -858,7 +872,7 @@ class _RulerStepButtonState extends State<RulerStepButton> {
         child: IconButton(
           onPressed: widget.enabled
               ? () {
-                  if (widget.onStep()) widget.onEnd();
+                  if (_step()) widget.onEnd();
                 }
               : null,
           icon: Icon(widget.icon),

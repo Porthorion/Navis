@@ -62,6 +62,11 @@ Last updated: 2026-11-06
   `toggle_song_star_test`, `desktop_song_actions_test`,
   `download_service_queue_test`, `downloads_screen_test`,
   `library_sync_engine_test`, `app_shell_navigation_test`.
+- [x] Item M (1.5.2), dimmed heart everywhere — 2026-11-07
+  (branch `fix/i152m-dimmed-heart-everywhere`). Desktop Search rows and
+  desktop Artist top tracks showed no heart for remote songs;
+  `DesktopSongActions` now shows the dimmed `SongHeartButton` (wide rows).
+  Tests in `desktop_song_actions_test`, `artist_top_tracks_section_test`.
 - [x] Issue #212 B4+B5 (1.5.2), kept upload and ownership — 2026-11-02
   (branch `fix/playlist-edits`). The kept-device-copy re-upload now uses
   `replacePlaylistSongs` plus a name-only `updatePlaylist` (empty list cleared
