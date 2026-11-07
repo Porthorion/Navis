@@ -3876,6 +3876,23 @@ void main() {
         },
       );
 
+      for (final (desktop, expected) in [(true, true), (false, false)]) {
+        test('starting unfocused (inactive) with desktop=$desktop gives '
+            'foreground=$expected', () async {
+          debugDesktopRuntimeOverride = desktop;
+          binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+          final container = _container(
+            StubLibrarySyncEngine.returning(_succeeded),
+            reachability: ServerReachabilityStatus.checking,
+          );
+          addTearDown(container.dispose);
+          container.read(librarySyncControllerProvider);
+          await Future<void>.delayed(const Duration(milliseconds: 10));
+
+          expect(container.read(librarySyncForegroundProvider), expected);
+        });
+      }
+
       test('mobile: inactive still backgrounds', () async {
         expect(
           await trace(desktop: false, [
