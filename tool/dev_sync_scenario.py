@@ -364,7 +364,7 @@ def launch(argv: list[str]) -> int:
                 fixture_args, cwd=PROJECT_ROOT, stdout=fixture_log, stderr=subprocess.STDOUT
             )
             fixture = _wait_for_json(root / "fixture-handshake.json", fixture_process, 20)
-            fixture_url = f"http://127.0.0.1:{fixture['port']}"
+            fixture_url = f"http://{fixture.get('host', '127.0.0.1')}:{fixture['port']}"
             credential = root / "fixture-credential"
             credential.write_text("navis-sync-scenario-fixture\n", encoding="utf-8")
             os.chmod(credential, 0o600)
