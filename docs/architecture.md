@@ -6681,11 +6681,19 @@ contract.
   recording MBID, then exact normalized title/artist/album with the existing
   three-second duration tolerance, then (only when that tier found nothing)
   `titleArtistDuration`: title and artist without album, track or disc, both
-  durations present within three seconds and exactly one candidate (a remote
-  single's copy of an album track; several candidates stay unmatched and add
-  no review entry). The identity key folds typographic quotes and dashes
-  (`’ “ ” –` and friends) like the ASCII ones. A `titleArtistDuration` claim
-  never contests a stronger claim on the same candidate. Two hard rules: contradictory
+  durations present, at least 90 s and within three seconds, exactly one
+  candidate (a remote single's copy of an album track). It never applies when
+  both sides have the same album (the exact tier rejected them over track or
+  disc), when a version word (live, remix, acoustic, instrumental, karaoke,
+  demo, remaster, edit) is in one side's title or album only, or on the
+  relink path while the search index lacks a library song, since the
+  candidates come from that index and a missing rival must not make the match
+  look unique. Several candidates, or a candidate contested by several library
+  songs, stay unmatched and add no review entry. A single's copy whose album
+  copy is promoted in the same batch is left behind and relinks on a later
+  pass. The identity key folds typographic quotes and dashes (`’ “ ” –` and
+  friends) like the ASCII ones. A `titleArtistDuration` claim never contests a
+  stronger claim on the same candidate. Two hard rules: contradictory
   non-empty MBIDs prohibit metadata-only matching, and ambiguity never merges
   regardless of page order. Matched claims buffer during canonical paging and
   apply at `finalize()` only after the complete replacement set is observed:

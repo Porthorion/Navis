@@ -10,6 +10,21 @@ final _identityPunctuation = RegExp(
 );
 final _identityWhitespace = RegExp(r'\s+');
 
+/// Shorter tracks (intros, interludes) share titles and lengths too often for
+/// the title-and-artist tier to tell them apart.
+const _minWeakTierSeconds = 90;
+const _versionWordSet = <String>{
+  'live',
+  'remix',
+  'acoustic',
+  'instrumental',
+  'karaoke',
+  'demo',
+  'remaster',
+  'remastered',
+  'edit',
+};
+
 /// Normalizes optional MusicBrainz identifiers across songs, albums and artists.
 String? normalizeMusicBrainzId(String? value) {
   final normalized = value?.trim().toLowerCase();
@@ -129,7 +144,14 @@ class SongIdentityReconciler {
     final candidates = await _identityDao.getLibrarySongsByMatchTitle(
       copies.map((song) => song.title),
     );
-    final session = await startSession(provisionalSongs: copies);
+    // The weak tier needs every rival visible: candidates come from the async
+    // search index, so it only runs while that index is current (checked after
+    // the read, so a row inserted meanwhile also counts as stale). Otherwise a
+    // later relink heals it; the play path never waits for a refresh.
+    final session = await startSession(
+      provisionalSongs: copies,
+      allowTitleArtistDuration: await _identityDao.isLibraryMatchIndexCurrent(),
+    );
     await session.reconcile(candidates);
     await session.finalize();
     return <String, String>{
@@ -140,12 +162,17 @@ class SongIdentityReconciler {
 
   Future<SongIdentityReconciliationSession> startSession({
     List<SongsTableData>? provisionalSongs,
+    bool allowTitleArtistDuration = true,
   }) async {
     final provisional =
         provisionalSongs ?? await _identityDao.getProvisionalSongs();
     return SongIdentityReconciliationSession._(
       this,
-      _ProvisionalIdentityIndex(this, provisional),
+      _ProvisionalIdentityIndex(
+        this,
+        provisional,
+        allowTitleArtistDuration: allowTitleArtistDuration,
+      ),
     );
   }
 
@@ -264,6 +291,9 @@ class SongIdentityReconciliationSession {
           .toList(growable: false);
       if (strong.isNotEmpty) {
         claims = strong;
+      } else if (claims.length > 1) {
+        // Contested weak claims are a guess: dropped, never a review entry.
+        continue;
       }
       if (claims.length == 1) {
         await _applyDecision(claims.single);
@@ -338,7 +368,11 @@ class _ClaimDecision {
 }
 
 class _ProvisionalIdentityIndex {
-  new(this._reconciler, Iterable<SongsTableData> songs) {
+  new(
+    this._reconciler,
+    Iterable<SongsTableData> songs, {
+    this.allowTitleArtistDuration = true,
+  }) {
     for (final song in songs) {
       _remaining[song.id] = song;
       final mbid = normalizeMusicBrainzId(song.recordingMbid);
@@ -357,6 +391,7 @@ class _ProvisionalIdentityIndex {
   }
 
   final SongIdentityReconciler _reconciler;
+  final bool allowTitleArtistDuration;
   final Map<String, SongsTableData> _remaining = <String, SongsTableData>{};
   final Map<String, List<SongsTableData>> _byMbid =
       <String, List<SongsTableData>>{};
@@ -443,14 +478,24 @@ class _ProvisionalIdentityIndex {
     SongsTableData canonicalSong,
   ) {
     final key = _metadataKey(canonicalSong, withAlbum: false);
-    if (key == null) {
+    if (!allowTitleArtistDuration ||
+        key == null ||
+        canonicalSong.duration! < _minWeakTierSeconds) {
       return const SongIdentityUnmatched();
     }
     final matches = _active(_byTitleArtist[key])
         .where(
           (candidate) =>
               candidate.duration != null &&
+              candidate.duration! >= _minWeakTierSeconds &&
               (candidate.duration! - canonicalSong.duration!).abs() <= 3 &&
+              !_sameAlbum(canonicalSong, candidate) &&
+              _versionWords(canonicalSong)
+                  .difference(_versionWords(candidate))
+                  .isEmpty &&
+              _versionWords(candidate)
+                  .difference(_versionWords(canonicalSong))
+                  .isEmpty &&
               !_reconciler._mbidsConflict(
                 canonicalSong.recordingMbid,
                 candidate.recordingMbid,
@@ -464,6 +509,23 @@ class _ProvisionalIdentityIndex {
       );
     }
     return const SongIdentityUnmatched();
+  }
+
+  /// Same non-empty album: the exact tier already rejected this pair over its
+  /// track or disc, so the weak tier must not overrule it.
+  bool _sameAlbum(SongsTableData a, SongsTableData b) {
+    final album = _reconciler._normalizeIdentityMetadata(a.albumName ?? '');
+    return album.isNotEmpty &&
+        album == _reconciler._normalizeIdentityMetadata(b.albumName ?? '');
+  }
+
+  /// Version markers in a song's title or album: a studio and a live or
+  /// remixed recording are different tracks of equal length.
+  Set<String> _versionWords(SongsTableData song) {
+    final text = _reconciler._normalizeIdentityMetadata(
+      '${song.title} ${song.albumName ?? ''}',
+    );
+    return text.split(' ').where(_versionWordSet.contains).toSet();
   }
 
   void remove(SongsTableData song) {

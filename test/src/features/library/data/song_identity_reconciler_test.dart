@@ -542,6 +542,113 @@ void main() {
       );
     }, skip: !sqliteAvailable);
 
+    SongsTableData interlude({
+      String id = 'lib',
+      String album = 'Album X',
+      int duration = 200,
+      int track = 3,
+      String title = 'Interlude',
+      bool provisional = false,
+    }) => _song(
+      id: id,
+      provisional: provisional,
+      title: title,
+      artist: 'Artist',
+      album: album,
+      duration: duration,
+      track: track,
+    );
+
+    test('the same album with another track number is not matched', () {
+      expect(
+        reconciler.matchCanonicalSong(
+          canonicalSong: interlude(track: 9),
+          provisionalSongs: <SongsTableData>[
+            interlude(id: 'ext-deezer-song-1', provisional: true),
+          ],
+        ),
+        isA<SongIdentityUnmatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    test('tracks under 90 s are not matched by title and artist', () {
+      expect(
+        reconciler.matchCanonicalSong(
+          canonicalSong: interlude(duration: 45, album: 'Album X'),
+          provisionalSongs: <SongsTableData>[
+            interlude(
+              id: 'ext-deezer-song-1',
+              provisional: true,
+              album: 'Intro - Single',
+              duration: 47,
+            ),
+          ],
+        ),
+        isA<SongIdentityUnmatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    for (final (name, canonicalAlbum, provisionalAlbum, provisionalTitle)
+        in <(String, String, String, String)>[
+          ('live album', 'Album X', 'Album X (Live)', 'Interlude'),
+          ('live title', 'Album X', 'Interlude - Single', 'Interlude - Live'),
+          ('remix title', 'Album X', 'Interlude - Single', 'Interlude (Remix)'),
+          ('demo album', 'Album X (Demo)', 'Interlude - Single', 'Interlude'),
+        ]) {
+      test('a version word on one side only blocks it ($name)', () {
+        expect(
+          reconciler.matchCanonicalSong(
+            canonicalSong: interlude(album: canonicalAlbum),
+            provisionalSongs: <SongsTableData>[
+              interlude(
+                id: 'ext-deezer-song-1',
+                provisional: true,
+                album: provisionalAlbum,
+                title: provisionalTitle,
+                duration: 201,
+              ),
+            ],
+          ),
+          isA<SongIdentityUnmatched>(),
+        );
+      }, skip: !sqliteAvailable);
+    }
+
+    test('a version word on both sides still matches', () {
+      expect(
+        reconciler.matchCanonicalSong(
+          canonicalSong: interlude(album: 'Album X (Live)'),
+          provisionalSongs: <SongsTableData>[
+            interlude(
+              id: 'ext-deezer-song-1',
+              provisional: true,
+              album: 'Interlude - Single (Live)',
+              duration: 201,
+            ),
+          ],
+        ),
+        isA<SongIdentityMatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    test('a weak claim contested across pages is dropped silently', () async {
+      final session = await reconciler.startSession(
+        provisionalSongs: <SongsTableData>[single()],
+      );
+      await session.reconcile(<SongsTableData>[library()]);
+      await session.reconcile(<SongsTableData>[
+        library(id: 'lib-2', album: 'Now 80'),
+      ]);
+      await session.finalize();
+
+      final summary = session.summary;
+      expect(summary.aliases, isEmpty);
+      expect(summary.canonicalizedSongCount, 0);
+      expect(summary.ambiguousMatchCount, 0);
+      expect(summary.ambiguousCases, isEmpty);
+      expect(summary.retainedProvisionalCount, 1);
+    }, skip: !sqliteAvailable);
+
     test('a straight apostrophe matches a curly one', () {
       final result = reconciler.matchCanonicalSong(
         canonicalSong: _song(
@@ -840,6 +947,62 @@ void main() {
       expect(await refreshAndRelink(<String>['ext-deezer-song-8086130']), {
         'ext-deezer-song-8086130': 'lib',
       });
+    }, skip: !sqliteAvailable);
+
+    test('a stale search index never lets the weak tier merge', () async {
+      Future<void> insertAlbumTrack(String id, String album, int duration) =>
+          insert(
+            _song(
+              id: id,
+              provisional: false,
+              title: 'Interlude',
+              artist: 'Artist',
+              album: album,
+              duration: duration,
+              track: 3,
+            ),
+          );
+      await insertAlbumTrack('lib-1', 'Album A', 200);
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+      // Inserted after the refresh, so the match index has not seen it yet.
+      await insertAlbumTrack('lib-2', 'Album B', 201);
+      await insert(
+        _song(
+          id: 'ext-deezer-song-1',
+          provisional: true,
+          external: true,
+          title: 'Interlude',
+          artist: 'Artist',
+          album: 'Interlude - Single',
+          duration: 200,
+          track: 1,
+        ),
+      );
+
+      expect(
+        await reconciler.relinkExternalCopies(<String>['ext-deezer-song-1']),
+        isEmpty,
+      );
+      // Once the index is current both candidates are visible: still ambiguous.
+      expect(await refreshAndRelink(<String>['ext-deezer-song-1']), isEmpty);
+      expect(
+        await database.libraryDao.getSongById('ext-deezer-song-1'),
+        isNotNull,
+      );
+    }, skip: !sqliteAvailable);
+
+    test('a stale index still lets the exact tier relink', () async {
+      await insert(library());
+      await database.libraryDao.scheduleSongSearchIndexRefresh();
+      await insert(library(id: 'unrelated').copyWith(title: 'Other Song'));
+      await insert(remote());
+
+      expect(
+        await reconciler.relinkExternalCopies(<String>[
+          'ext-deezer-song-8086130',
+        ]),
+        {'ext-deezer-song-8086130': 'lib'},
+      );
     }, skip: !sqliteAvailable);
 
     test('a live version 10 s longer is left alone', () async {
