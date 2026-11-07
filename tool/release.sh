@@ -220,7 +220,7 @@ if [[ "${PUBLISH_FROM_SET}" == false && "${BUILD_ANDROID}" == "false" && "${BUIL
 fi
 
 if [[ "${IOS_UPLOAD}" == "true" && "${BUILD_IOS}" != "true" ]]; then
-  echo "Error: --ios-upload requires ios in --targets." >&2
+  echo "Error: --ios-upload needs ios among the --targets (for example --targets=ios)." >&2
   exit 1
 fi
 
@@ -281,11 +281,12 @@ if [[ "${IOS_UPLOAD}" == "true" ]]; then
   [[ -n "${ASC_KEY_ID:-}" ]] || { echo "Error: --ios-upload requires ASC_KEY_ID (tool/release.env or the environment)." >&2; exit 1; }
   [[ -n "${ASC_ISSUER_ID:-}" ]] || { echo "Error: --ios-upload requires ASC_ISSUER_ID (tool/release.env or the environment)." >&2; exit 1; }
   if [[ -n "${ASC_KEY_PATH:-}" ]]; then
-    IOS_KEY_FILE="${ASC_KEY_PATH}"
-    [[ -f "${IOS_KEY_FILE}" ]] || { echo "Error: ASC_KEY_PATH does not point to a readable file." >&2; exit 1; }
+    [[ -f "${ASC_KEY_PATH}" && -r "${ASC_KEY_PATH}" ]] || { echo "Error: ASC_KEY_PATH does not point to a readable file." >&2; exit 1; }
+    # The script changes to the repo root before altool runs, so make it absolute now.
+    IOS_KEY_FILE="$(cd "$(dirname "${ASC_KEY_PATH}")" && pwd)/$(basename "${ASC_KEY_PATH}")"
   else
     IOS_KEY_FILE="${HOME}/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
-    [[ -f "${IOS_KEY_FILE}" ]] || { echo 'Error: API key file ~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8 not found (or set ASC_KEY_PATH).' >&2; exit 1; }
+    [[ -f "${IOS_KEY_FILE}" && -r "${IOS_KEY_FILE}" ]] || { echo 'Error: API key file ~/.appstoreconnect/private_keys/AuthKey_<ASC_KEY_ID>.p8 not found (or set ASC_KEY_PATH).' >&2; exit 1; }
   fi
 fi
 

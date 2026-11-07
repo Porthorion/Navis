@@ -17,7 +17,10 @@ cp "${SCRIPT_DIR}/release.sh" "${SCRIPT_DIR}/release_tag_guard.sh" "${SCRIPT_DIR
 cp "${SCRIPT_DIR}/lib/"{release_dist,lastfm_key_defines,r2_tags,github_release,scan_artifact_secret}.sh "${repo}/tool/lib/"
 cp "${SCRIPT_DIR}/../ios/ExportOptions.plist" "${repo}/ios/"
 printf 'version: 1.5.0+10500\n' > "${repo}/pubspec.yaml"
-printf 'build/\ndist/\ntool/release.env\n' > "${repo}/.gitignore"
+printf 'build/\ndist/\ntool/release.env\n*.zip\n' > "${repo}/.gitignore"
+# A fake Windows builder: proves the upload waits for every target.
+printf '#!/bin/bash\necho "windows:$*" >> "$LOG"\necho zip > "$PWD/navis-v1.5.0-windows.zip"\n' > "${repo}/tool/remote_build_windows.sh"
+chmod +x "${repo}/tool/remote_build_windows.sh"
 (
   cd "${repo}"
   git init -q
@@ -36,7 +39,10 @@ stub dart 'exit 0'
 stub flutter 'echo "flutter:$*" >> "$LOG"
 dir="$PWD/build/ios/ipa"
 [[ -z "$(ls -A "$dir" 2>/dev/null)" ]] || { echo "stale IPA present" >> "$LOG"; exit 1; }
-mkdir -p "$dir" && echo ipa > "$dir/Navis.ipa"'
+mkdir -p "$dir"
+python3 -I -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1], \"w\").writestr(\"Payload/App\", \"ipa \" + sys.argv[2])" "$dir/Navis.ipa" "${LEAK_INTO_IPA:-}"'
+stub ssh 'exit 0'
+stub scp 'exit 0'
 stub xcrun 'echo "xcrun:$*" >> "$LOG"; [[ "${XCRUN_FAIL:-}" != 1 ]]'
 export PATH="${tmp}/bin:${PATH}" HOME="${home}"
 
@@ -57,7 +63,7 @@ asc() { ASC_KEY_ID="${key_id}" ASC_ISSUER_ID="${issuer}" "$@"; }
 
 # --ios-upload needs ios in the targets.
 run_bad --targets=linux --ios-upload
-expect_in 'ios' "${out}"; expect_in '--ios-upload' "${out}"
+expect_in 'Error: --ios-upload needs ios among the --targets' "${out}"
 [[ ! -s "${LOG}" ]] || fail "tools ran before the target check"
 
 # Missing credentials fail before any build, naming the variable, never a value.
@@ -126,6 +132,30 @@ stub uname 'echo Linux'
 run_bad --targets=ios
 expect_in 'macOS host' "${out}"
 stub uname 'echo Darwin'
+
+# Relative ASC_KEY_PATH from another cwd: altool gets an absolute path.
+mkdir -p "${tmp}/elsewhere"
+cp "${key_file}" "${tmp}/elsewhere/rel key.p8"
+: > "${LOG}"
+(cd "${tmp}/elsewhere" && ASC_KEY_ID="${key_id}" ASC_ISSUER_ID="${issuer}" ASC_KEY_PATH="rel key.p8" \
+  "${repo}/tool/release.sh" v1.5.0 --build-only --skip-checks --targets=ios --ios-upload) > "${tmp}/out" 2>&1 \
+  || { cat "${tmp}/out" >&2; fail "relative ASC_KEY_PATH run failed"; }
+expect_in "--p8-file-path ${tmp}/elsewhere/rel key.p8" "$(cat "${LOG}")"
+
+# The IPA secret scan runs, and a leaked Last.fm key fails the release before any upload.
+NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_ok --targets=ios --ios-upload
+expect_in 'Scanning Navis.ipa' "${out}"
+LEAK_INTO_IPA=fixture-lastfm-key NAVIS_LASTFM_API_KEY=fixture-lastfm-key asc run_bad --targets=ios --ios-upload
+expect_in 'plaintext Last.fm API key' "${out}"
+expect_not_in 'xcrun' "$(cat "${LOG}")"
+
+# iOS beside another target: the upload follows every build, and no IPA is staged.
+asc run_ok --targets=ios,windows --windows-ssh=fixture@builder --ios-upload
+calls="$(cat "${LOG}")"
+[[ "${calls}" == flutter:*$'\n'windows:*$'\n'xcrun:* ]] || fail "upload must follow all builds: ${calls}"
+[[ -f "${repo}/dist/v1.5.0/navis-v1.5.0-windows.zip" ]] || fail "windows asset not staged"
+[[ -z "$(find "${repo}/dist" -name '*.ipa')" ]] || fail "IPA staged into the bundle"
+rm -rf "${repo}/dist"
 
 # A failed upload fails the release.
 XCRUN_FAIL=1 asc run_bad --targets=ios --ios-upload

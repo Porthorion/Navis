@@ -65,6 +65,13 @@ the same as Android and macOS.
   release asset. The upload runs after every target has built, before any tag
   or publication, so a later build failure never leaves a rerun re-uploading a
   build number App Store Connect already holds.
+- Trade-off: in a multi-target release a publish failure after the upload
+  leaves a TestFlight build with no matching release. Re-running builds again
+  and uploads with a new build number, which the allocator assigns
+  automatically, so nothing needs fixing by hand.
+- Staged bundles made before this change that contain an `.ipa` are rejected by
+  `--publish-from` (`release_dist.sh` no longer accepts the name). Restage them
+  with `--build-only` first.
 - Without `--ios-upload` the IPA is only built; the path is printed.
 
 ## Build numbers
@@ -102,17 +109,22 @@ only logs locally), and `ios/Runner/PrivacyInfo.xcprivacy` declares
 `NSPrivacyTracking` false, no tracking domains and no collected data, plus the
 required-reason APIs disk space (`E174.1`) and file timestamps (`C617.1`).
 
-Network destinations (all user-controlled in Settings › Integrations, all on by
-default, with a master "Online services" switch):
+Network destinations (user-controlled in Settings › Integrations, with a
+master "Online services" switch). Deezer, Last.fm, LRCLIB and the artwork hosts
+are on by default; ListenBrainz does nothing until the user enters and
+validates a token, and AutoEQ is contacted only when the user asks for a
+headphone profile:
 
 | Destination | What is sent | iOS |
 |---|---|---|
 | The user's own Subsonic/OpenSubsonic server | credentials, library requests, scrobbles | always |
 | `api.deezer.com` | artist and album names, Search text for ranking | yes |
-| `ws.audioscrobbler.com` (Last.fm) | artist and track names for similar tracks and top songs; no scrobbling, no account | yes |
+| Deezer image servers (`dzcdn.net`, `deezer.com`) | the image request | yes |
+| `ws.audioscrobbler.com` (Last.fm) | artist and track names for similar tracks, similar artists and top songs, plus a chart top-artists call; no scrobbling, no account | yes |
 | `api.listenbrainz.org` | listens and likes, only after the user enters their own token | yes |
 | `lrclib.net` | track, artist, album and duration for lyrics | yes |
 | `raw.githubusercontent.com`, `api.github.com` | AutoEQ catalogue request | yes |
+| `coverartarchive.org` | the cover image request | yes |
 | Radio streams and artwork hosts the server links to | the request itself | yes |
 | `downloads.porthorion.com` (update check) | none beyond the request | hidden on iOS |
 
