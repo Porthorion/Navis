@@ -2311,8 +2311,26 @@ With no display it starts a private headless `kwin_wayland` and passes
 Impeller's GLES backend cannot get a framebuffer there. `POST
 /v1/playback/replay-gain` sets the mode and pre-amp for d5. The same Q/H songs
 exist for the streaming fixture server as `TranscodeLibrary(...,
-replay_gain_levels=True)` in `tool/seek_reliability_diagnostics.py`. Evidence
-lives under `build/replaygain-boost-diagnostics/`.
+replay_gain_levels=True)` in `tool/seek_reliability_diagnostics.py`, plus L, a
+-8 dBFS sine tagged +10 dB (boost 7 dB, 1 dB under full scale). Evidence lives
+under `build/replaygain-boost-diagnostics/`.
+
+`./tool/replaygain_boost_diagnostics.sh --scenarios a1 --android-serial SERIAL`
+is the Android gate (the processor stage, the guard and the native lowering in
+`NavisEqualizerProcessor` / `AudioPlayer.java`). It needs a running emulator you
+started (see "Temporary Android emulators"; a headless one needs
+`-gpu swiftshader_indirect -no-window`) and no display or null sink.
+`tool/replaygain_boost_android.py` builds a muted profile sidecar under
+`com.navis.app.navis.rgboost`, serves the fixture library over `adb reverse`,
+and samples `/v1/playback/status` (`replayGainBoost`: `appliedDb`, `requestedDb`,
+`sentDb`, `guarded`, `clipSamples`, read back from the processor at most once a
+second) through 10 gapless Q/H joins, an EQ, repeat-one switched off and shuffle
+toggled in the last 3 s, a cross-fade (the script edits the sidecar's own
+database and restarts it) and Opus and MP3 streams of L. `replaygain_boost_analyze.py a1`
+asserts: Q boosted ~10 dB and H unboosted (EQ off, EQ on, cross-fade), Q guarded
+to 0 in its last 3 s before H, Q raised again within 3 s of an H to Q join, L ~7
+dB, and no clamped sample anywhere. The `_rebuildPlayerWithoutEqualizer` path
+cannot be provoked through the API; a handler test covers it.
 
 ### Equalizer diagnostics
 

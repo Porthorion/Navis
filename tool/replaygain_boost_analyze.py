@@ -2,7 +2,9 @@
 """Assertions over the PCM captures of tool/replaygain_boost_diagnostics.sh.
 
 Captures are mono float32 at 44.1 kHz. A window's peak tells the level: Q plays
-at 0.1 (-20 dBFS), H at 0.63 (-4 dBFS). Exits 1 on any FAIL.
+at 0.1 (-20 dBFS), H at 0.63 (-4 dBFS). The Android scenario (a1) reads the status samples of
+tool/replaygain_boost_android.py instead: the processor's own applied boost, guard and
+clamped-sample counter. Exits 1 on any FAIL.
 """
 import os
 import sys
@@ -124,9 +126,72 @@ def d5(root):
               f'join at {join_s:.2f}s, qb full at {full[0] * 0.01:.2f}s')
 
 
+def a1(root):
+    import json
+    path = os.path.join(root, 'a1', 'a1-samples.jsonl')
+    rows = [json.loads(line) for line in open(path)] if os.path.exists(path) else []
+    rows = [r for r in rows if r.get('boost') and r.get('songId')]
+    check('A1 samples recorded', len(rows) > 500, f'rows={len(rows)}')
+    if not rows:
+        return
+    is_q = lambda r: r['songId'] in ('rgq-1', 'rgq-2')
+    is_h = lambda r: r['songId'] in ('rgh-1', 'rgh-2')
+
+    def phase(*names):
+        return [r for r in rows if r['phase'] in names]
+
+    def mid(rs, lo=3000, hi=20000):
+        return [r for r in rs if r['positionMs'] is not None and lo <= r['positionMs'] <= hi]
+
+    clips = [r['boost']['clipSamples'] for r in rows]
+    check('A1 clipSamples stays 0 for the whole run (joins, EQ, repeat-one, shuffle, cross-fade)', max(clips) == 0,
+          f'max={max(clips)} over {len(rows)} samples')
+    for name in ('joins', 'crossfade'):
+        values = [r['boost']['clipSamples'] for r in phase(name)]
+        check(f'A1 {name}: processor reported and clipped nothing', len(values) > 100 and max(values) == 0,
+              f'samples={len(values)} max={max(values) if values else None}')
+    songs = [r['songId'] for r in phase('joins')]
+    changes = sum(1 for i in range(1, len(songs)) if songs[i] != songs[i - 1])
+    check('A1 at least 10 gapless joins', changes >= 10, f'joins={changes}')
+    for name, label in (('plateau', 'EQ off'), ('eq-on', 'EQ on'), ('crossfade', 'cross-fade')):
+        q = [r['boost']['appliedDb'] for r in mid(phase(name)) if is_q(r)]
+        check(f'A1 {name}: Q is boosted ~10 dB ({label})', len(q) > 10 and 9.5 <= float(np.median(q)) <= 10.5,
+              f'median={float(np.median(q)) if q else None} n={len(q)}')
+        h = [r['boost']['appliedDb'] for r in mid(phase(name)) if is_h(r)]
+        check(f'A1 {name}: H gets no boost', len(h) > 10 and max(h) <= 0.3, f'max={max(h) if h else None} n={len(h)}')
+    # The guard: in Q's last 3 s with H next, the processor is told 0 (the lower of the two).
+    tail = [r for r in phase('joins') if is_q(r) and r['positionMs'] is not None and r['positionMs'] >= 27500]
+    check('A1 guard: Q is guarded to 0 in its last 3 s before H',
+          len(tail) > 5 and sum(1 for r in tail if r['boost']['guarded'] and r['boost']['sentDb'] == 0) >= len(tail) * 0.8,
+          f'guarded={sum(1 for r in tail if r["boost"]["guarded"] and r["boost"]["sentDb"] == 0)}/{len(tail)}')
+    # After H -> Q the head is held down, then the boost comes back: the processor read-back is at
+    # most 1 s old, plus the 20 ms ramp.
+    delays = []
+    seq = phase('joins')
+    for i in range(1, len(seq)):
+        if is_h(seq[i - 1]) and is_q(seq[i]):
+            back = next((r for r in seq[i:] if r['songId'] == seq[i]['songId'] and r['boost']['appliedDb'] >= 9.5), None)
+            if back:
+                delays.append(back['t'] - seq[i]['t'])
+    check('A1 Q is boosted again within 3 s of every H->Q join', len(delays) >= 4 and max(delays) <= 3.0,
+          f'delays={[round(d, 2) for d in delays]}')
+    lowered = [r for r in phase('repeat-one-off') if r['songId'] == 'rgq-1' and r['boost']['guarded']
+               and r['boost']['sentDb'] == 0]
+    check('A1 repeat-one switched off in the last 3 s: guarded to H\'s 0', len(lowered) >= 2, f'samples={len(lowered)}')
+    shuffled = phase('shuffle-toggle')
+    check('A1 shuffle toggled in the last 3 s: nothing clipped', len(shuffled) > 50
+          and max(r['boost']['clipSamples'] for r in shuffled) == 0, f'samples={len(shuffled)}')
+    lossy = [r for r in mid(phase('lossy'), 4000, 25000) if r['songId'] == 'rgl-1']
+    check('A1 lossy streams: L is boosted ~7 dB and nothing clips', len(lossy) > 20
+          and 6.5 <= float(np.median([r['boost']['appliedDb'] for r in lossy])) <= 7.5
+          and max(r['boost']['clipSamples'] for r in phase('lossy')) == 0,
+          f'n={len(lossy)} median={float(np.median([r["boost"]["appliedDb"] for r in lossy])) if lossy else None} '
+          f'clip={max([r["boost"]["clipSamples"] for r in phase("lossy")] or [None])}')
+
+
 if __name__ == '__main__':
     root, scenarios = sys.argv[1], sys.argv[2].split(',')
-    for name, fn in (('d1', d1), ('d3', d3), ('d2', d2), ('d4', d4), ('d5', d5)):
+    for name, fn in (('d1', d1), ('d3', d3), ('d2', d2), ('d4', d4), ('d5', d5), ('a1', a1)):
         if name in scenarios or (name == 'd3' and 'd1' in scenarios):
             fn(root)
     sys.exit(0 if ok else 1)

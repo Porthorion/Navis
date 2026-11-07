@@ -738,11 +738,11 @@ extension _NavisMediaSession on NavisAudioHandler {
     final bySource = <IndexedAudioSource, double>{};
     final sequence = player.sequence;
     for (var i = 0; i < sequence.length; i++) {
-      final tag = sequence[i].tag;
-      if (tag is! MediaItem) continue;
+      final item = _mediaItemOfSource(sequence[i]);
+      if (item == null) continue;
       bySource[sequence[i]] =
           _replayGainDecisionFor(
-            tag,
+            item,
             freeze: identical(player, _player) && i == current,
           )?.boostDb ??
           0;
@@ -751,6 +751,16 @@ extension _NavisMediaSession on NavisAudioHandler {
       currentDb: bySource[current == null ? null : sequence[current]] ?? 0,
       bySource: bySource,
     );
+  }
+
+  /// The queue entry [source] plays. Rolling-cache sources on Android carry no
+  /// tag, so they are found by the song id in their stream URL.
+  MediaItem? _mediaItemOfSource(IndexedAudioSource source) {
+    final tag = source.tag;
+    if (tag is MediaItem) return tag;
+    final songId = navisNativeSourceSongId(source);
+    if (songId == null) return null;
+    return _queueItems.where((item) => item.id == songId).firstOrNull;
   }
 
   /// Tells [deck]'s processor the boost for its playing song, guarded as
@@ -782,10 +792,10 @@ extension _NavisMediaSession on NavisAudioHandler {
     }
     final heard = identical(deck, _player);
     double boostAt(int index) {
-      final tag = sequence[index].tag;
-      if (tag is! MediaItem) return 0;
+      final item = _mediaItemOfSource(sequence[index]);
+      if (item == null) return 0;
       return _replayGainDecisionFor(
-            tag,
+            item,
             freeze: heard && index == current,
           )?.boostDb ??
           0;
@@ -796,7 +806,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     final next = _nextEffectiveIndexOf(deck);
     final source = sequence[current];
     final offset = source.positionOffset;
-    final tagDuration = (source.tag as MediaItem).duration;
+    final tagDuration = _mediaItemOfSource(source)?.duration;
     final deckDuration = deck.duration;
     // The smaller remaining time wins: an early guard only under-boosts.
     // [deck.position] is relative to the stream, which a transcode may have
@@ -877,6 +887,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           'requestedDb': equalizerState.boostRequestedDb,
           'appliedDb': equalizerState.boostAppliedDb,
           'guarded': _boostGuardedNow,
+          'sentDb': _sentBoost[_player]?.db,
           'clipSamples': equalizerState.boostClipSamples,
         }
       : null;

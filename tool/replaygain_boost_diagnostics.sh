@@ -3,6 +3,7 @@
 # profile, audio captured from a disposable null sink with parec.
 #
 #   tool/replaygain_boost_diagnostics.sh [--scenarios d1,d2,d4,d5] [--output DIR]
+#   tool/replaygain_boost_diagnostics.sh --scenarios a1 --android-serial SERIAL [--output DIR]
 #
 # d1  Q (quiet, boosted) and H (hot, cut) join gaplessly, both ways, plus a
 #     control where Q has no peak and so no boost
@@ -10,6 +11,9 @@
 # d2  skip, queue jump, seek, removing the playing song, repeat-one
 # d4  the same joins with cross-fade on: no over-boost, no level step
 # d5  a pre-amp change in the last second of a song must not raise its tail
+# a1  Android emulator (tool/replaygain_boost_android.py): the processor's applied boost, guard
+#     and clamped-sample counter over gapless joins, an EQ, repeat-one switched off and shuffle
+#     toggled in the last 3 s, a cross-fade and lossy streams; no display or null sink needed
 #
 # Synthetic songs only: Q is a -30 dBFS sine tagged +10 dB with its peak, H a
 # -1 dBFS sine tagged -3 dB. With no display, a private headless kwin_wayland
@@ -20,9 +24,11 @@ PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 SCENARIOS="d1,d2,d4,d5"
 OUTPUT_ROOT=""
+ANDROID_SERIAL=""
 while (($#)); do
   case "$1" in
     --scenarios) SCENARIOS="$2"; shift 2 ;;
+    --android-serial) ANDROID_SERIAL="$2"; shift 2 ;;
     --output) OUTPUT_ROOT="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 64 ;;
   esac
@@ -45,7 +51,12 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-if [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+# Only the Linux scenarios need a compositor and a capture sink.
+NEEDS_LINUX=0
+for scenario in d1 d2 d4 d5; do
+  if [[ ",$SCENARIOS," == *,$scenario,* ]]; then NEEDS_LINUX=1; fi
+done
+if (( NEEDS_LINUX )) && [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
   kwin_wayland --virtual --no-lockscreen --socket "navis-boost-$$" --width 1280 --height 900 \
     >"$OUTPUT_ROOT/kwin.log" 2>&1 &
   KWIN_PID=$!
@@ -54,7 +65,9 @@ if [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
 fi
 # A virtual compositor cannot give Impeller's GLES backend a framebuffer.
 export NAVIS_DIAGNOSTICS_RUN_ARGS="${NAVIS_DIAGNOSTICS_RUN_ARGS:---no-enable-impeller}"
-AUDIO_MODULE="$(pactl load-module module-null-sink "sink_name=$AUDIO_SINK" sink_properties=device.description=NavisBoostDiagnostics)"
+if (( NEEDS_LINUX )); then
+  AUDIO_MODULE="$(pactl load-module module-null-sink "sink_name=$AUDIO_SINK" sink_properties=device.description=NavisBoostDiagnostics)"
+fi
 
 # Clone the profile once per cross-fade setting: songs, files, tags.
 make_clone() { # make_clone <db> <crossfade 0|1>
@@ -180,5 +193,11 @@ if [[ ",$SCENARIOS," == *,d4,* ]]; then
   join cf-qh '["rgboost-q1","rgboost-h1"]' 12 24000
   join cf-hq '["rgboost-h1","rgboost-q1"]' 12 24000
   stop_app
+fi
+if [[ ",$SCENARIOS," == *,a1,* ]]; then
+  [[ -n "$ANDROID_SERIAL" ]] || { echo "a1 needs --android-serial" >&2; exit 64; }
+  # shellcheck disable=SC2086
+  python3 "$PROJECT_DIR/tool/replaygain_boost_android.py" --serial "$ANDROID_SERIAL" \
+    --output "$OUTPUT_ROOT/a1" ${NAVIS_A1_ARGS:-}
 fi
 python3 "$PROJECT_DIR/tool/replaygain_boost_analyze.py" "$OUTPUT_ROOT" "$SCENARIOS" | tee "$OUTPUT_ROOT/analysis.txt"

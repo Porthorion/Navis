@@ -101,6 +101,9 @@ class TranscodeLibrary:
     REPLAY_GAIN_LEVELS = {
         'rgq-1': ('q', 10.0, 0.0316), 'rgh-1': ('h', -3.0, 0.891),
         'rgq-2': ('q', 10.0, 0.0316), 'rgh-2': ('h', -3.0, 0.891),
+        # L is a -8 dBFS sine tagged +10 dB with its peak: boost 7 dB, which lands 1 dB under full
+        # scale, so a lossy decode that overshoots the tagged peak shows as clipped samples.
+        'rgl-1': ('l', 10.0, 0.398),
     }
 
     def _add_replay_gain_levels(self, seconds: int = 30):
