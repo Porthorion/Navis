@@ -182,7 +182,9 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
      `navis_pitch_stage_request` (or store into `c->pitchCents` while the tap
      is not prepared), the same pattern as `setConfiguration:` (:238).
    - **`state` (:316):** adds `pitchCents`, `pitchActive`,
-     `pitchLatencyFrames`, `pitchInputHz` and `pitchOutputHz`. The last two are
+     `pitchLatencyFrames`, `pitchResetCount` (the stage's own resets; the EQ
+     `resetCount` also counts every resume), `pitchInputHz` and
+     `pitchOutputHz`. The last two are
      zero-crossing estimates over a rolling window, computed on the audio
      thread with integer counters only and read under the existing lock. They
      come from the current item's context.
@@ -286,8 +288,8 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
      Android, macOS, Linux and Windows are unchanged.
    - `setPitch` gets `lockToSpeed` from `lockPitchToSpeed`.
    - `pitch_unavailable` downgrades the capabilities and does not loop.
-   - `EqualizerStateMessage.fromMap` reads the new pitch fields, with null when
-     they are absent.
+   - `EqualizerStateMessage.fromMap` reads the new pitch fields (including
+     `pitchResetCount`), with null when they are absent.
    - Diagnostics `/v1/equalizer` includes them.
    - Panel test: the pitch UI shows on iOS.
 
@@ -302,7 +304,7 @@ the `navis` account, as in the I9 loop. Fixtures:
 - the same sine at 44.1, 48 and 96 kHz.
 
 Read `/v1/equalizer` (`pitchCents`, `pitchActive`, `pitchLatencyFrames`,
-`pitchInputHz`, `pitchOutputHz`) and the existing EQ fields. Pass criteria:
+`pitchResetCount`, `pitchInputHz`, `pitchOutputHz`) and the existing EQ fields. Pass criteria:
 
 | Case | Expect |
 |---|---|
@@ -310,12 +312,12 @@ Read `/v1/equalizer` (`pitchCents`, `pitchActive`, `pitchLatencyFrames`,
 | +12 st / −12 st / +7 st | output/input Hz = 2 / 0.5 / 1.498, within 1%; latency 4096 (44.1/48 kHz) or 8192 (96 kHz) |
 | local file, proxied stream, permanent download | same as above, `sourceKind` noted |
 | crossfade on | both decks report the pitch; no stuck `pitchActive` on the idle deck |
-| two-tone gapless at pitch 0 and at +5 st | the item change happens; the measured gap is no worse than at pitch 0 (the I9 gap is the baseline) |
+| two-tone gapless at pitch 0 and at +5 st | the item change happens; the `currentTime` gap equals the pitch-0 baseline (the I9 gap); `pitchLatencyFrames` matches the rate. `currentTime` cannot see the AU's silent start, so the heard gap (baseline + one latency) and the tail are I5 device checks |
 | speed 1.5 × pitch +5 st | output Hz ratio 1.335 in the tap; `currentTime` advances 1.5× |
 | lock to speed 1.25 | algorithm Varispeed, `pitchActive` false, `currentTime` advances 1.25× |
 | speed changed at runtime while pitch is set | pitch unchanged, no reset counted |
 | EQ toggled while pitch is set | pitch unchanged; EQ `levelDeltaDb` follows the toggle |
-| seek at pitch +5 st | `resetCount`/pitch resets +1 per seek; 0 per pause/resume |
+| seek and pause/resume at pitch +5 st | `pitchResetCount` +1 per seek, +0 per pause/resume |
 
 Device-only checks go to I5 (borrowed iPhone, with notice):
 
