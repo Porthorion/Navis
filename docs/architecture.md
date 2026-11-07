@@ -3268,14 +3268,14 @@ and Subsonic delivery continues independently.
   the Integrations feature never imports Home. A saved Last.fm key is written
   with `updateLastFmApiKey`. A locked service switch's semantics label carries
   its lock reason. The Updates section is hidden where About hides
-  update controls (iOS, web). Playback and About hold no copies of these
+  update controls (web, and iOS except the sideload build). Playback and About hold no copies of these
   switches; About keeps "Check now", disabled while the master or `updates`
   service switch is off. Its service names, the line about what each service
   sends and the lock reasons come from `integration_copy.dart`, shared with
   onboarding.
 - **Onboarding Integrations step** (step 4 of `OnboardingScreen`). The master
   switch, then one switch per service (Deezer, Last.fm, ListenBrainz, LRCLIB,
-  and Updates except on iOS and web) with the same one-line description, and
+  and Updates, except on web and on iOS outside the sideload build) with the same one-line description, and
   "Fine-tune per feature in Settings › Integrations". The choices live in the
   onboarding draft (`externalIntegrationsEnabled`, `disabledIntegrations`) and
   are written only when changed on Finish, through

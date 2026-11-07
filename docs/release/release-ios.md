@@ -1,11 +1,43 @@
 # iOS release: TestFlight and the App Store
 
-iOS ships through App Store Connect only. An ad-hoc IPA installs only on
-devices registered with the Apple Developer account, and iOS has no in-app
-updater, so `tool/release.sh` no longer attaches an IPA to R2 or GitHub
-releases. It builds a signed App Store IPA, leaves it in `build/ios/ipa/` and,
-with `--ios-upload`, uploads it to App Store Connect, where it appears in
-TestFlight after processing.
+iOS has two artifacts, and `tool/release.sh` builds both when `ios` is in the
+targets:
+
+| Artifact | Built with | Goes to | Update check |
+|---|---|---|---|
+| Signed App Store IPA (`build/ios/ipa/Navis.ipa`) | `flutter build ipa`, manual signing | App Store Connect with `--ios-upload`; never a release asset | none: the update UI is hidden |
+| Unsigned sideload IPA (`navis-<tag>-ios-sideload.ipa`) | `flutter build ios --release --no-codesign --dart-define=NAVIS_IOS_SIDELOAD=true` | R2 and GitHub releases, for AltStore/SideStore users, who sign it with their own Apple ID | yes: shows a notice that links to the GitHub release page |
+
+An ad-hoc IPA installs only on devices registered with the Apple Developer
+account, so the App Store IPA is never attached to a release. iOS cannot update
+an app by itself, so the sideload build only links to the release page; the
+user installs the new IPA through AltStore/SideStore.
+
+## Sideload IPA
+
+- `NAVIS_IOS_SIDELOAD` (`AppConstants.iosSideload`, default `false`) is the only
+  thing that turns the update check on for iOS. Only the sideload build gets it
+  (`NAVIS_SELF_UPDATE` is not reused: it defaults to true, and dev and simulator
+  builds must stay updater-free). The App Store build, which takes
+  `DART_DEFINE_ARGS` without it, is checked by `tool/ios_release_test.sh`.
+- The sideload app is built first and zipped out of `build/ios/iphoneos` into
+  `Payload/Runner.app` (symlinks kept) before the App Store build runs, after
+  `build/ios/iphoneos` is cleared, so neither build can pick up the other's
+  output. Its `Info.plist` must carry the release version and the pubspec build
+  number or the release fails. It is scanned for the plaintext Last.fm key like
+  every artifact.
+- Stable runs only. A dev tag builds the App Store flavour alone: its update
+  notice links to a GitHub release, and GitHub publication is stable-only.
+- An iOS-only `--ios-upload` run is a TestFlight iteration, not a release: it
+  skips the sideload build and stages nothing, so it can repeat for the same
+  version (each run gets a higher build number). Without `--ios-upload`, a
+  stable iOS build stages `dist/<tag>`, and a second run needs that bundle moved
+  first like any other `--build-only` run.
+- The manifest key is `iosSideload`; the app verifies it like any asset and
+  then opens `https://github.com/Porthorion/Navis/releases/tag/<tag>`
+  ([release-r2.md](release-r2.md)).
+
+## App Store and TestFlight
 
 Team ID `BFBNSCVKXH` (a public identifier) is set as `DEVELOPMENT_TEAM` on the
 Runner target. Debug and Profile sign automatically; the Runner Release
@@ -69,19 +101,19 @@ a phone directly, so use Profile or Debug on a device. The bundle ID is
 - The upload is `xcrun altool --upload-app -t ios -f <ipa> --api-key ...
   --api-issuer ... --p8-file-path <key file>`; the Xcode 27 `altool` accepts a
   direct key path, so `ASC_KEY_PATH` works.
-- An iOS-only run publishes nothing, so it needs `--build-only` (an upload is not
-  a publication). Combined with other targets in a normal release, the IPA is
-  built while the other assets are published as before; it never becomes a
-  release asset. The upload runs after every target has built, before any tag
-  or publication, so a later build failure never leaves a rerun re-uploading a
-  build number App Store Connect already holds.
+- A stable iOS-only run publishes the sideload IPA; an iOS-only dev run publishes
+  nothing, so it needs `--build-only` (an upload is not a publication). The App
+  Store IPA never becomes a release asset. The upload runs after every target
+  has built, before any tag or publication, so a later build failure never
+  leaves a rerun re-uploading a build number App Store Connect already holds.
 - Trade-off: in a multi-target release a publish failure after the upload
   leaves a TestFlight build with no matching release. Re-running builds again
   and uploads with a new build number, which the allocator assigns
   automatically, so nothing needs fixing by hand.
-- Staged bundles made before this change that contain an `.ipa` are rejected by
-  `--publish-from` (`release_dist.sh` no longer accepts the name). Restage them
-  with `--build-only` first.
+- `--publish-from` accepts only the exact sideload name
+  (`<prefix>-<tag>-ios-sideload.ipa`). Staged bundles made earlier have no IPA
+  and publish as before; one that holds any other `.ipa` is rejected, so restage
+  it with `--build-only`.
 - Without `--ios-upload` the IPA is only built; the path is printed.
 
 ## Build numbers
@@ -136,7 +168,7 @@ headphone profile:
 | `raw.githubusercontent.com`, `api.github.com` | AutoEQ catalogue request | yes |
 | `coverartarchive.org` | the cover image request | yes |
 | Radio streams and artwork hosts the server links to | the request itself | yes |
-| `downloads.porthorion.com` (update check) | none beyond the request | hidden on iOS |
+| `downloads.porthorion.com` (update check) | none beyond the request | sideload build only; hidden in App Store and TestFlight builds |
 
 Recommended answers:
 

@@ -422,5 +422,29 @@ void main() {
         debugDefaultTargetPlatformOverride = null;
       }
     });
+
+    testWidgets('shows a Download action for release-page updates', (
+      tester,
+    ) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        await pumpAbout(
+          tester,
+          updateInfo: const UpdateInfo(
+            sha256: null,
+            size: null,
+            tagName: 'v2.0.0',
+            htmlUrl: 'https://example.com/release',
+            delivery: UpdateDelivery.releasePage,
+          ),
+        );
+
+        final l10n = lookupAppLocalizations(const Locale('en'));
+        expect(find.text(l10n.updateDownload), findsOneWidget);
+        expect(find.text(l10n.updateInstall), findsNothing);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
   });
 }

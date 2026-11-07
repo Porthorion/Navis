@@ -185,6 +185,7 @@ asset_key_for() {
     *-windows-installer.exe) echo "windowsInstaller" ;;
     *-windows.zip) echo "windowsPortable" ;;
     *-macos.zip) echo "macosBundle" ;;
+    *-ios-sideload.ipa) echo "iosSideload" ;;
     *-linux-amd64.deb) echo "linuxDeb-amd64" ;;
     *-linux-arm64.deb) echo "linuxDeb-arm64" ;;
     *-linux-x86_64.rpm) echo "linuxRpm-x86_64" ;;

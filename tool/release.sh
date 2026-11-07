@@ -13,8 +13,8 @@
 #   --build-only              Stage validated assets locally; never tag or publish
 #   --publish-from=<dist/tag>  Publish a verified staged bundle without building
 #   --skip-checks              Skip ./tool/check.sh
-#   --ipa                      Shortcut for --targets=android,ios (the IPA is built for
-#                              TestFlight; it is never a release asset)
+#   --ipa                      Shortcut for --targets=android,ios (a stable run also
+#                              attaches the unsigned sideload IPA as a release asset)
 #   --targets=<csv>            Build targets: android,ios,macos,linux,windows
 #   --all-platforms            Same as --targets=android,ios,macos,linux,windows
 #   --linux-package=<mode>     Linux output: bundle (default), deb, rpm or all
@@ -50,9 +50,11 @@
 #   - Release assets are channel-prefixed:
 #       stable: navis-<tag>.*
 #       dev:    navis-dev-<tag>.*
-#   - iOS is TestFlight/App Store only: the IPA stays in build/ios/ipa and is never
-#     published to R2 or GitHub. Its CFBundleVersion comes from tool/dev_build_number.py
-#     (monotonic per host), so each upload of one version is accepted.
+#   - iOS builds two IPAs. The signed App Store IPA stays in build/ios/ipa and is never
+#     published; its CFBundleVersion comes from tool/dev_build_number.py (monotonic per
+#     host), so each upload of one version is accepted. A stable run also builds an
+#     unsigned sideload IPA (<prefix>-<tag>-ios-sideload.ipa, built with
+#     NAVIS_IOS_SIDELOAD=true) for AltStore/SideStore, and that one is a release asset.
 
 set -euo pipefail
 
@@ -230,9 +232,11 @@ if [[ "${IOS_UPLOAD}" == "true" && "${UPDATE_CHANNEL}" != "stable" ]]; then
   exit 1
 fi
 
-# An iOS-only run has no release assets, so only a local build can run it.
-if [[ "${BUILD_IOS}" == "true" && "${BUILD_ANDROID}" == "false" && "${BUILD_MACOS}" == "false" && "${BUILD_LINUX}" == "false" && "${BUILD_WINDOWS}" == "false" && "${BUILD_ONLY}" == "false" && "${PUBLISH_FROM_SET}" == "false" ]]; then
-  echo "Error: iOS builds are not published; use --build-only (optionally --ios-upload) or add another target." >&2
+# An iOS-only dev run has no release assets (the sideload IPA is stable-only), and
+# an iOS-only upload is a TestFlight iteration that builds none, so only a local
+# build can run either.
+if [[ "${BUILD_IOS}" == "true" && ( "${UPDATE_CHANNEL}" != "stable" || "${IOS_UPLOAD}" == "true" ) && "${BUILD_ANDROID}" == "false" && "${BUILD_MACOS}" == "false" && "${BUILD_LINUX}" == "false" && "${BUILD_WINDOWS}" == "false" && "${BUILD_ONLY}" == "false" && "${PUBLISH_FROM_SET}" == "false" ]]; then
+  echo "Error: this iOS-only run has nothing to publish (dev builds and --ios-upload runs are not published); use --build-only or add another target." >&2
   exit 1
 fi
 
@@ -294,7 +298,7 @@ fi
 REQUIRED_TOOLS=(jq git sha256sum)
 if [[ "${PUBLISH_FROM_SET}" == false ]]; then REQUIRED_TOOLS+=(flutter openssl); fi
 if [[ "${BUILD_ONLY}" == false ]]; then REQUIRED_TOOLS+=(curl openssl); fi
-if [[ "${BUILD_IOS}" == "true" ]]; then REQUIRED_TOOLS+=(python3); fi
+if [[ "${BUILD_IOS}" == "true" ]]; then REQUIRED_TOOLS+=(python3 zip); fi
 if [[ "${IOS_UPLOAD}" == "true" ]]; then REQUIRED_TOOLS+=(xcrun); fi
 
 for tool in "${REQUIRED_TOOLS[@]}"; do
@@ -740,10 +744,62 @@ if [[ "${BUILD_ANDROID}" == "true" ]]; then
   done
 fi
 
+# Unsigned IPA for AltStore/SideStore users, who sign it themselves. Built first
+# and zipped out of build/ios/iphoneos at once, so the App Store build below can
+# never pick up (or be mistaken for) its output. Only this build carries
+# NAVIS_IOS_SIDELOAD, which turns on its update notice; Flutter keeps a separate
+# build cache per set of dart-defines. Stable only: its update notice links to a
+# GitHub release, and GitHub publication is stable-only. Skipped for an iOS-only
+# upload, which is a TestFlight iteration: staging its IPA would make every
+# repeat run stop at the existing dist/<tag> guard.
+IOS_TESTFLIGHT_ONLY=false
+if [[ "${IOS_UPLOAD}" == "true" && "${BUILD_ANDROID}" == "false" && "${BUILD_MACOS}" == "false" && "${BUILD_LINUX}" == "false" && "${BUILD_WINDOWS}" == "false" ]]; then
+  IOS_TESTFLIGHT_ONLY=true
+fi
+if [[ "${BUILD_IOS}" == "true" && "${UPDATE_CHANNEL}" == "stable" && "${IOS_TESTFLIGHT_ONLY}" == "false" ]]; then
+  echo "==> Building the unsigned iOS sideload IPA..."
+  set_symbol_args ios-sideload
+  SIDELOAD_APP="$(pwd)/build/ios/iphoneos/Runner.app"
+  # A stale app from an earlier build must never be packaged.
+  rm -rf "$(pwd)/build/ios/iphoneos"
+  PATH="/usr/bin:${PATH}" flutter build ios --release --no-codesign \
+    "${SYMBOL_ARGS[@]}" "${DART_DEFINE_ARGS[@]}" --dart-define=NAVIS_IOS_SIDELOAD=true
+  if [[ ! -d "${SIDELOAD_APP}" ]]; then
+    echo "Error: Runner.app not found at ${SIDELOAD_APP}"
+    exit 1
+  fi
+  # No signature, but Info.plist must still carry the release version and build.
+  python3 -I -c 'import plistlib, sys
+info = plistlib.load(open(sys.argv[1], "rb"))
+sys.exit(0 if info.get("CFBundleShortVersionString") == sys.argv[2] and str(info.get("CFBundleVersion")) == sys.argv[3] else 1)' \
+    "${SIDELOAD_APP}/Info.plist" "${SEMVER}" "${BUILD_NUMBER}" || {
+    echo "Error: the sideload app's Info.plist does not carry ${SEMVER} (${BUILD_NUMBER})."
+    exit 1
+  }
+  SIDELOAD_ASSET_NAME="${ASSET_PREFIX}-${VERSION}-ios-sideload.ipa"
+  SIDELOAD_ASSET="${SCRIPT_DIR}/../${SIDELOAD_ASSET_NAME}"
+  remove_release_asset "${SIDELOAD_ASSET}"
+  SIDELOAD_STAGE="$(mktemp -d "$(pwd)/build/ios/sideload.XXXXXX")"
+  mkdir "${SIDELOAD_STAGE}/Payload"
+  cp -R "${SIDELOAD_APP}" "${SIDELOAD_STAGE}/Payload/Runner.app"
+  if ! (cd "${SIDELOAD_STAGE}" && zip -qry "${SIDELOAD_ASSET}" Payload); then
+    rm -rf "${SIDELOAD_STAGE}"
+    remove_release_asset "${SIDELOAD_ASSET}"
+    echo "Error: could not zip the sideload IPA."
+    exit 1
+  fi
+  rm -rf "${SIDELOAD_STAGE}"
+  scan_release_artifact "${SIDELOAD_ASSET}"
+  ASSET_FILES+=("${SIDELOAD_ASSET}")
+  ASSET_NAMES+=("${SIDELOAD_ASSET_NAME}")
+  echo "    iOS sideload -> ${SIDELOAD_ASSET_NAME}"
+fi
+
 if [[ "${BUILD_IOS}" == "true" ]]; then
   echo "==> Building iOS IPA (App Store Connect export)..."
   # TestFlight/App Store only: ad-hoc IPAs install on registered devices only.
-  # The IPA stays in build/ios/ipa; it is not a release asset.
+  # The IPA stays in build/ios/ipa; it is not a release asset. It never gets the
+  # sideload define: DART_DEFINE_ARGS does not hold it.
   set_symbol_args ios
 
   IPA_DIR="$(pwd)/build/ios/ipa"
@@ -958,7 +1014,7 @@ if [[ "${BUILD_ONLY}" == true ]]; then
     exit 1
   fi
   if (( ${#ASSET_FILES[@]} == 0 )); then
-    echo "==> No release assets (iOS builds are not staged); nothing to stage."
+    echo "==> No release assets (the App Store IPA is not staged); nothing to stage."
     exit 0
   fi
   generate_release_notes

@@ -81,7 +81,7 @@ load_release_dist() {
       "${prefix}-${VERSION}-android-x86_64.apk"|"${prefix}-${VERSION}-linux.tar.gz"|\
       "${prefix}-${VERSION}-linux-amd64.deb"|"${prefix}-${VERSION}-linux-x86_64.rpm"|\
       "${prefix}-${VERSION}-windows.zip"|"${prefix}-${VERSION}-windows-installer.exe"|\
-      "${prefix}-${VERSION}-macos.zip") ;;
+      "${prefix}-${VERSION}-macos.zip"|"${prefix}-${VERSION}-ios-sideload.ipa") ;;
       *) echo "Error: Invalid staged asset name: ${name}"; exit 1 ;;
     esac
     [[ -s "${PUBLISH_FROM}/${name}" && ! -L "${PUBLISH_FROM}/${name}" ]] || {
