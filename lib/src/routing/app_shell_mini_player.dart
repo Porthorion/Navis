@@ -76,44 +76,39 @@ Widget _miniPlayerTrackText(
   final l10n = AppLocalizations.of(context)!;
   final textTheme = Theme.of(context).textTheme;
   final cs = Theme.of(context).colorScheme;
-  // ponytail: the strip is two fixed lines; at 3x text one ellipsis-only word
-  // is all that fits, so cap at 1.6x. Now Playing shows the full title.
-  return MediaQuery.withClampedTextScaling(
-    maxScaleFactor: 1.6,
-    child: Column(
-      mainAxisAlignment: large
-          ? MainAxisAlignment.center
-          : MainAxisAlignment.start,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: large ? MainAxisSize.max : MainAxisSize.min,
-      children: <Widget>[
-        Text(
-          (title == null || title.trim().isEmpty)
-              ? l10n.miniPlayerUnknownTrack
-              : title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: (large ? textTheme.bodyLarge : textTheme.bodyMedium)?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+  return Column(
+    mainAxisAlignment: large
+        ? MainAxisAlignment.center
+        : MainAxisAlignment.start,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: large ? MainAxisSize.max : MainAxisSize.min,
+    children: <Widget>[
+      Text(
+        (title == null || title.trim().isEmpty)
+            ? l10n.miniPlayerUnknownTrack
+            : title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: (large ? textTheme.bodyLarge : textTheme.bodyMedium)?.copyWith(
+          fontWeight: FontWeight.w600,
         ),
-        if (isExternalSource)
-          const RemoteSourceIndicator(
-            variant: RemoteSourceIndicatorVariant.inline,
-          ),
-        SizedBox(height: large ? 3 : 2),
-        Text(
-          (artist == null || artist.trim().isEmpty)
-              ? l10n.miniPlayerUnknownArtist
-              : artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: (large ? textTheme.bodyMedium : textTheme.bodySmall)?.copyWith(
-            color: cs.onSurface.withValues(alpha: large ? 0.58 : 0.6),
-          ),
+      ),
+      if (isExternalSource)
+        const RemoteSourceIndicator(
+          variant: RemoteSourceIndicatorVariant.inline,
         ),
-      ],
-    ),
+      SizedBox(height: large ? 3 : 2),
+      Text(
+        (artist == null || artist.trim().isEmpty)
+            ? l10n.miniPlayerUnknownArtist
+            : artist,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: (large ? textTheme.bodyMedium : textTheme.bodySmall)?.copyWith(
+          color: cs.onSurface.withValues(alpha: large ? 0.58 : 0.6),
+        ),
+      ),
+    ],
   );
 }
 
@@ -881,12 +876,17 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                         ),
                         const SizedBox(width: 14),
                         Expanded(
-                          child: _miniPlayerTrackText(
-                            context,
-                            title: songTitle,
-                            artist: songArtist,
-                            isExternalSource: widget.isExternalSource,
-                            large: true,
+                          // ponytail: the 90 dp strip holds two lines up to
+                          // about 1.5x text; above that they overflow.
+                          child: MediaQuery.withClampedTextScaling(
+                            maxScaleFactor: 1.5,
+                            child: _miniPlayerTrackText(
+                              context,
+                              title: songTitle,
+                              artist: songArtist,
+                              isExternalSource: widget.isExternalSource,
+                              large: true,
+                            ),
                           ),
                         ),
                         if (!isRadio)
@@ -995,12 +995,18 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: _miniPlayerTrackText(
-                                context,
-                                title: songTitle,
-                                artist: songArtist,
-                                isExternalSource: widget.isExternalSource,
-                                large: false,
+                              // ponytail: this strip is two fixed lines; at 3x text one
+                              // ellipsis-only word fits, so cap at 1.6x. Wider
+                              // layouts and Now Playing keep full scaling.
+                              child: MediaQuery.withClampedTextScaling(
+                                maxScaleFactor: 1.6,
+                                child: _miniPlayerTrackText(
+                                  context,
+                                  title: songTitle,
+                                  artist: songArtist,
+                                  isExternalSource: widget.isExternalSource,
+                                  large: false,
+                                ),
                               ),
                             ),
                             if (!isRadio)

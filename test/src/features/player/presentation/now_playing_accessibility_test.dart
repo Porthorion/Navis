@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -33,12 +34,13 @@ const _item = MediaItem(
 
 Future<void> _pump(
   WidgetTester tester, {
+  Size size = const Size(390, 844),
   double textScale = 1,
   PlaybackSnapshot playback = _song,
   bool disableAnimations = false,
   TargetPlatform platform = TargetPlatform.iOS,
 }) async {
-  setAdaptiveTestViewport(tester, const Size(390, 844));
+  setAdaptiveTestViewport(tester, size);
   final container = createNowPlayingContainer(
     overrides: [
       currentMediaItemProvider.overrideWithValue(const AsyncData(_item)),
@@ -106,5 +108,40 @@ void main() {
     expect(node.value, isNotEmpty);
     expect(node.flagsCollection.isSlider, isTrue);
     handle.dispose();
+  });
+
+  for (final size in const [
+    Size(390, 844),
+    Size(800, 360),
+    Size(880, 1200),
+    Size(1280, 800),
+  ]) {
+    testWidgets('Reduce Motion zeroes every switcher at ${size.width.toInt()}x'
+        '${size.height.toInt()}', (tester) async {
+      await _pump(tester, size: size, disableAnimations: true);
+      final switchers = tester.widgetList<AnimatedSwitcher>(
+        find.byType(AnimatedSwitcher),
+      );
+      expect(switchers, isNotEmpty);
+      for (final s in switchers) {
+        expect(s.duration, Duration.zero);
+        expect(s.reverseDuration ?? Duration.zero, Duration.zero);
+      }
+    });
+  }
+
+  testWidgets('art swipe still works and settles under Reduce Motion', (
+    tester,
+  ) async {
+    await _pump(tester, disableAnimations: true);
+    final art = find.byType(CoverArtImage).first;
+    final gesture = await tester.startGesture(tester.getCenter(art));
+    await gesture.moveBy(const Offset(-20, 0));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+    // One frame later the snap-back is done, not mid-animation.
+    expect(tester.hasRunningAnimations, isFalse);
+    expect(tester.takeException(), isNull);
   });
 }
