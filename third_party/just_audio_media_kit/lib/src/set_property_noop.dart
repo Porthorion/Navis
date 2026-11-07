@@ -24,4 +24,10 @@ bool configureReplayGainBoost(
         Player player, double Function(int index, String path) gainFor) =>
     false;
 
+bool writeFileLocalVolumeGain(Player player, double db) => false;
+
+double? nativeVolumeGain(Player player) => null;
+
+int? nativePlaylistPosition(Player player) => null;
+
 Future<Duration?> nativePosition(Player player) async => null;

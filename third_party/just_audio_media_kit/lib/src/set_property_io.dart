@@ -127,6 +127,37 @@ bool configureReplayGainBoost(
   return true;
 }
 
+/// Sets the loaded file's `volume-gain` (dB) with the same synchronous call
+/// the `on_load` hook uses, so a write cannot land on a later file the way an
+/// awaited property set can. Returns whether mpv accepted it (it refuses
+/// file-local options while nothing is playing).
+bool writeFileLocalVolumeGain(Player player, double db) {
+  final native = player.platform;
+  if (native is! NativePlayer) return false;
+  final name = 'file-local-options/volume-gain'.toNativeUtf8();
+  final value = db.toStringAsFixed(3).toNativeUtf8();
+  final result =
+      native.mpv.mpv_set_property_string(native.ctx, name.cast(), value.cast());
+  calloc.free(name);
+  calloc.free(value);
+  return result >= 0;
+}
+
+/// mpv's own `volume-gain` (dB) right now, or null when unreadable.
+double? nativeVolumeGain(Player player) {
+  final native = player.platform;
+  if (native is! NativePlayer) return null;
+  return double.tryParse(_readString(native, 'volume-gain') ?? '');
+}
+
+/// mpv's own playlist position, which (unlike media_kit's state) is never
+/// behind the file it is loading; null while nothing is loaded.
+int? nativePlaylistPosition(Player player) {
+  final native = player.platform;
+  if (native is! NativePlayer) return null;
+  return int.tryParse(_readString(native, 'playlist-pos') ?? '');
+}
+
 /// mpv's current playback position, or null while no file is initialized.
 Future<Duration?> nativePosition(Player player) async {
   final native = player.platform;

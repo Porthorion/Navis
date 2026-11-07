@@ -244,7 +244,10 @@ launch_audio_app() {
       "--dart-define=NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=$NAVIS_DIAGNOSTICS_CREDENTIAL_PATH"
     )
   fi
-  PULSE_SINK="$AUDIO_SINK" flutter run -d linux --profile \
+  # NAVIS_DIAGNOSTICS_RUN_ARGS: extra `flutter run` flags (for example
+  # --no-enable-impeller under a virtual compositor), split on spaces.
+  # shellcheck disable=SC2086
+  PULSE_SINK="$AUDIO_SINK" flutter run -d linux --profile ${NAVIS_DIAGNOSTICS_RUN_ARGS:-} \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define="NAVIS_APP_NAME=$1" \

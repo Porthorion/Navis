@@ -426,6 +426,26 @@ void main() {
     });
   });
 
+  group('replayGainBoostPlatformSupported', () {
+    test(
+      'mpv boosts except on macOS, whose libmpv 0.36 has no volume-gain',
+      () {
+        expect(
+          navisReplayGainBoostSupported(usesMpv: true, isMacOS: false),
+          isTrue,
+        );
+        expect(
+          navisReplayGainBoostSupported(usesMpv: true, isMacOS: true),
+          isFalse,
+        );
+        expect(
+          navisReplayGainBoostSupported(usesMpv: false, isMacOS: false),
+          isFalse,
+        );
+      },
+    );
+  });
+
   group('automaticUntaggedGainDb', () {
     test('uses the median once 20 songs are tagged', () {
       expect(automaticUntaggedGainDb(taggedCount: 20, median: -9.1), -9.1);

@@ -25,27 +25,50 @@ double hookBoost({
 }) =>
     explicit ? target : math.min(lastApplied, target);
 
+/// How long a switch command may take to reach its `on_load` hook before the
+/// expectation is dropped: a command that loads nothing must not make a much
+/// later natural join look explicit.
+const replayGainBoostSwitchLifetime = Duration(seconds: 5);
+
 /// The ReplayGain boost of one mpv instance: what each queued URI gets and
-/// what the playing file has now. Pure bookkeeping; the player writes the
+/// what the loaded file has now. Pure bookkeeping; the player writes the
 /// returned values to mpv's `file-local-options/volume-gain`.
+///
+/// The rule behind every method: mpv applies `volume-gain` to the queued end
+/// of the previous file, so after a natural join the loaded file may only go
+/// down until it has been heard ([held]); a raise waits for
+/// [replayGainBoostRaiseAfter] of its own playback.
 class ReplayGainBoostState {
+  ReplayGainBoostState({DateTime Function()? clock})
+      : _clock = clock ?? DateTime.now;
+
+  final DateTime Function() _clock;
   Map<String, double> _byKey = const <String, double>{};
 
-  /// The gain, in dB, written for the file that is playing.
+  /// The gain, in dB, written for the loaded file.
   double applied = 0;
 
-  /// A natural join that started below its target and is raised at
-  /// [replayGainBoostRaiseAfter] into that file.
-  ({int index, double target})? armed;
+  /// After a natural join: the loaded file's own boost, not yet allowed on
+  /// the queued end of the previous file. Null once it has been heard, and
+  /// after an explicit switch (mpv cleared its audio buffer).
+  double? held;
 
-  /// Set before a command that replaces the playing file; the next `on_load`
-  /// consumes it. The first load is explicit.
-  bool explicitSwitch = true;
+  /// The playlist position a switch command (load, jump, removing the playing
+  /// entry) will load next. Only the hook for that position is explicit.
+  ({int position, DateTime at})? _expected;
 
   /// The key of the file the `on_load` hook last gave a gain: the file mpv is
   /// decoding, which is not the player's current entry while the end of the
   /// previous file is still queued.
   String? _loadedKey;
+
+  /// A command that will replace the playing file with the entry at
+  /// [position] has been sent.
+  void expectSwitch(int position) =>
+      _expected = (position: position, at: _clock());
+
+  /// The command turned out to load nothing.
+  void cancelSwitch() => _expected = null;
 
   /// Replaces the map. Returns the gain to write now for the loaded file, or
   /// null when nothing changes.
@@ -55,53 +78,44 @@ class ReplayGainBoostState {
         replayGainBoostKey(entry.key): entry.value,
     };
     final loaded = _loadedKey;
-    final target = loaded == null ? 0.0 : (_byKey[loaded] ?? 0);
-    final pending = armed;
-    if (pending != null) {
+    if (loaded == null) return null;
+    final target = _byKey[loaded] ?? 0;
+    if (held != null) {
       // Lowering is always safe; a raise waits for its time.
-      if (target < applied) {
-        armed = null;
-        return applied = target;
-      }
-      armed = (index: pending.index, target: target);
-      return null;
+      held = target;
+      return target < applied ? applied = target : null;
     }
-    if (target == applied) return null;
-    return applied = target;
+    return target == applied ? null : applied = target;
   }
 
-  /// The `on_load` hook: the gain for the file at [index] loaded from [path].
-  double onLoad({required int index, required String path}) {
+  /// The `on_load` hook: the gain for the file at [position] loaded from
+  /// [path].
+  double onLoad({required int position, required String path}) {
     _loadedKey = replayGainBoostKey(path);
     final target = _byKey[_loadedKey] ?? 0;
+    final expected = _expected;
+    final fresh = expected != null &&
+        _clock().difference(expected.at) < replayGainBoostSwitchLifetime;
+    if (expected != null && !fresh) _expected = null;
+    final explicit = expected != null && fresh && expected.position == position;
+    if (explicit) _expected = null;
     final value = hookBoost(
-      explicit: explicitSwitch,
+      explicit: explicit,
       lastApplied: applied,
       target: target,
     );
-    explicitSwitch = false;
     applied = value;
-    armed = value < target ? (index: index, target: target) : null;
+    held = explicit ? null : target;
     return value;
   }
 
-  /// The gain to write once file [index] has played for [position], or null.
-  double? raiseDue(int index, Duration position) {
-    final pending = armed;
-    if (pending == null ||
-        pending.index != index ||
-        position < replayGainBoostRaiseAfter) {
-      return null;
-    }
-    return raiseNow();
-  }
-
-  /// Ends a held-down join at once (after a seek in the same file, whose
-  /// audio buffer is empty), returning the gain to write or null.
-  double? raiseNow() {
-    final pending = armed;
-    if (pending == null) return null;
-    armed = null;
-    return applied = pending.target;
+  /// The gain to write once the loaded file has played to [position], or
+  /// null. A seek that landed shows as a position past the gate; one mpv
+  /// rejected leaves the early positions and keeps the hold.
+  double? raiseDue(Duration position) {
+    final target = held;
+    if (target == null || position < replayGainBoostRaiseAfter) return null;
+    held = null;
+    return target == applied ? null : applied = target;
   }
 }

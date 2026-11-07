@@ -892,7 +892,14 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   /// Every ReplayGain boost message this deck received, oldest first.
   final boostMessages =
-      <({double currentDb, bool guarded, Map<String?, double> bySongId})>[];
+      <
+        ({
+          double currentDb,
+          bool guarded,
+          bool playing,
+          Map<String?, double> bySongId,
+        })
+      >[];
 
   @override
   Future<void> setReplayGainBoost({
@@ -903,6 +910,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     boostMessages.add((
       currentDb: currentDb,
       guarded: guarded,
+      playing: isPlaying,
       bySongId: {
         for (final entry in bySource.entries)
           navisNativeSourceSongId(entry.key): entry.value,
@@ -16442,6 +16450,7 @@ void main() {
       bool transcodeOffset = false,
       NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
+      Future<void> Function(NavisDatabase database)? seed,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-fade-');
       final created = await createHandler(
@@ -16466,6 +16475,7 @@ void main() {
         replayGainMode: replayGainMode,
         replayGainUntaggedDb: replayGainUntaggedDb,
         adjustmentCapabilities: adjustmentCapabilities,
+        seed: seed,
       );
       addTearDown(() async {
         await created.$1.disposeHandler();
@@ -16481,6 +16491,72 @@ void main() {
       }
       expect(condition(), isTrue, reason: 'crossfade did not settle');
     }
+
+    group('ReplayGain boost', () {
+      const mpv = PlaybackAdjustmentCapabilities.mediaKit;
+
+      // song-0 +6 dB (peak 0.1), song-1 +3 dB (peak 0.1), song-2 -4 dB.
+      Future<void> seedGains(NavisDatabase database) async {
+        for (final (i, gain, peak) in [
+          (0, 6.0, 0.1),
+          (1, 3.0, 0.1),
+          (2, -4.0, 0.1),
+        ]) {
+          await (database.update(
+            database.songsTable,
+          )..where((song) => song.id.equals('song-$i'))).write(
+            SongsTableCompanion(
+              replayGainTrackGain: Value(gain),
+              replayGainTrackPeak: Value(peak),
+            ),
+          );
+        }
+      }
+
+      test('F3: the incoming deck has its own boost before it plays', () async {
+        final (handler, _, _) = await crossfading(
+          3,
+          adjustmentCapabilities: mpv,
+          replayGainMode: 'track',
+          seed: seedGains,
+        );
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        await handler.debugStartCrossfade();
+        final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+        await waitForFade(() => incoming.playing);
+        final beforePlay = incoming.boostMessages.where((m) => !m.playing);
+        expect(beforePlay, isNotEmpty);
+        expect(
+          beforePlay.last.currentDb,
+          3,
+          reason: "song-1's own boost, sent before play",
+        );
+        expect(beforePlay.last.bySongId['song-1'], 3);
+        await handler.debugCompleteCrossfade();
+        // Nothing steps at the handover: the last message still says the same.
+        expect(incoming.boostMessages.last.currentDb, 3);
+      });
+
+      test(
+        'F6: a boost send never freezes Smart for the inactive deck',
+        () async {
+          final (handler, _, _) = await crossfading(
+            3,
+            adjustmentCapabilities: mpv,
+            replayGainMode: 'smart',
+            seed: seedGains,
+          );
+          await handler.replaceQueue(ids(3), expandMatchFlows: false);
+          await handler.debugStartCrossfade();
+          await handler.debugCompleteCrossfade();
+          // The old deck is idle and still points at song-0.
+          final idle = handler.debugInactiveDeck!;
+          expect(idle.currentIndex, 0);
+          await handler.debugSendReplayGainBoostTo(idle);
+          expect(handler.debugSmartFrozenSongIds, isNot(contains('song-0')));
+        },
+      );
+    });
 
     group('after a swap off an offset stream', () {
       // Song 0 plays as a transcode opened at 90 s, then crossfades into

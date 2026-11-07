@@ -818,6 +818,14 @@ extension _NavisCrossfade on NavisAudioHandler {
       Duration.zero,
       index: _crossfadeLocalOnlyDeck ? 0 : nextIndex,
     );
+    // The deck was inactive, so every earlier boost message missed it. Give it
+    // the incoming song's own boost before play(), or the fade runs unboosted
+    // and steps up at the hand-over.
+    if (replayGainBoostSupported) {
+      await _sendReplayGainBoostTo(player).catchError((Object error) {
+        AppLogger.debug('Cross-fade deck boost could not be sent: $error');
+      });
+    }
   }
 
   /// Loads the materialised queue onto the inactive deck unless it already

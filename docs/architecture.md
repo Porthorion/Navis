@@ -4983,9 +4983,15 @@ Desktop volume follows a parallel local-settings path:
    and the media_kit adapter sets mpv's file-local `volume-gain` from an
    `on_load` hook (`ReplayGainBoostState`). mpv applies `volume-gain` to audio
    it has already queued, so at a natural join the new file starts at
-   `min(previous, own)` and is raised once it has played 0.5 s; an explicit
-   switch (load, skip, removing the playing song) starts at its own value.
-   Android and iOS report boost unsupported and keep today's behaviour.
+   `min(previous, own)` and is held, whatever the map says, until it has played
+   0.5 s (a position past the gate also covers a seek that landed); while held
+   an update may only lower the gain. An explicit switch (load, a jump, removing
+   the playing song) is tied to the playlist position it will load, so a join
+   that arrives first is still a join; it starts at its own value. Gain writes
+   are the same synchronous `mpv_set_property_string` the hook uses. The
+   crossfade deck gets its map after it loads and before `play()`. Android, iOS
+   and macOS (libmpv 0.36 has no `volume-gain`) report boost unsupported and
+   keep today's behaviour.
    A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
    (`replayGainUntaggedDb`, -15..0 dB in 0.1 dB steps, set on the pitch/speed
@@ -5022,8 +5028,9 @@ Desktop volume follows a parallel local-settings path:
    with its own neighbours. `NavisAudioHandler.currentReplayGainDecision`
    (mode, resolved mode, source track/album/untagged, signed `db`, `cutDb`,
    `boostDb`) is reported as `replayGain` by `GET /v1/playback/status`; on
-   desktop `native.mediaKitTransport[*].replayGainBoostDb` is the gain the
-   adapter last wrote to mpv.
+   desktop `native.mediaKitTransport[*].replayGainBoostDb` is mpv's own
+   `volume-gain` read back (`replayGainBoostIntendedDb` is what the adapter
+   meant to write, `replayGainBoostHeldDb` the target of a held join).
 
    Guidance. Playback settings explain what ReplayGain does (with a boost
    stage: it turns quiet songs up only as far as their peak allows; without

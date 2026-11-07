@@ -706,23 +706,32 @@ extension _NavisMediaSession on NavisAudioHandler {
   void _applyReplayGainBoost() {
     if (!replayGainBoostSupported) return;
     unawaited(
-      _applyToStableDecks((player) async {
-        final current = player.currentIndex;
-        final bySource = <IndexedAudioSource, double>{};
-        final sequence = player.sequence;
-        for (var i = 0; i < sequence.length; i++) {
-          final tag = sequence[i].tag;
-          if (tag is! MediaItem) continue;
-          bySource[sequence[i]] =
-              _replayGainDecisionFor(tag, freeze: i == current)?.boostDb ?? 0;
-        }
-        await player.setReplayGainBoost(
-          currentDb: bySource[current == null ? null : sequence[current]] ?? 0,
-          bySource: bySource,
-        );
-      }).catchError((Object error) {
+      _applyToStableDecks(_sendReplayGainBoostTo).catchError((Object error) {
         AppLogger.debug('ReplayGain boost could not be applied: $error');
       }),
+    );
+  }
+
+  /// Sends one deck the boost of every song it holds. Only the deck that is
+  /// heard freezes a Smart decision: the idle deck's current song may be
+  /// stale, and a freeze there would outlive the prune at the next song start.
+  Future<void> _sendReplayGainBoostTo(AudioPlayer player) async {
+    final current = player.currentIndex;
+    final bySource = <IndexedAudioSource, double>{};
+    final sequence = player.sequence;
+    for (var i = 0; i < sequence.length; i++) {
+      final tag = sequence[i].tag;
+      if (tag is! MediaItem) continue;
+      bySource[sequence[i]] =
+          _replayGainDecisionFor(
+            tag,
+            freeze: identical(player, _player) && i == current,
+          )?.boostDb ??
+          0;
+    }
+    await player.setReplayGainBoost(
+      currentDb: bySource[current == null ? null : sequence[current]] ?? 0,
+      bySource: bySource,
     );
   }
 

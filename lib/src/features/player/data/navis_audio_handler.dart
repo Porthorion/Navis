@@ -782,7 +782,10 @@ class NavisAudioHandler extends BaseAudioHandler
       _currentReplayGainDecision;
 
   @override
-  bool get replayGainBoostSupported => _usesMpv;
+  bool get replayGainBoostSupported => navisReplayGainBoostSupported(
+    usesMpv: _usesMpv,
+    isMacOS: !kIsWeb && Platform.isMacOS,
+  );
 
   @override
   Stream<MediaItem?> get mediaItemStream => mediaItem;
@@ -3201,6 +3204,15 @@ class NavisAudioHandler extends BaseAudioHandler
   /// The cross-fade deck, when cross-fade is on.
   @visibleForTesting
   AudioPlayer? get debugInactiveDeck => _crossfadePlayer;
+
+  /// Sends [deck] its ReplayGain boost as the handler does.
+  @visibleForTesting
+  Future<void> debugSendReplayGainBoostTo(AudioPlayer deck) =>
+      _sendReplayGainBoostTo(deck);
+
+  /// The songs whose Smart ReplayGain neighbours are frozen.
+  @visibleForTesting
+  Set<String> get debugSmartFrozenSongIds => _smartNeighbours.keys.toSet();
 
   /// Prepares the cross-fade deck for the next song and starts it, as the
   /// position trigger would; [debugCompleteCrossfade] then hands over.

@@ -61,6 +61,14 @@ const replayGainMaxBoostDb = 12.0;
 /// can overshoot the tagged peak.
 const replayGainBoostMarginDb = 1.0;
 
+/// Whether the player can turn songs up. Only mpv has the `volume-gain`
+/// stage, and the libmpv macOS bundles (mpv 0.36) predate it.
+@visibleForTesting
+bool navisReplayGainBoostSupported({
+  required bool usesMpv,
+  required bool isMacOS,
+}) => usesMpv && !isMacOS;
+
 /// How much ReplayGain turns one song down ([cutDb], 0 or less) or up
 /// ([boostDb], 0 or more).
 typedef ReplayGainLevels = ({double cutDb, double boostDb});
