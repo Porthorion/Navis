@@ -130,18 +130,22 @@ void main() {
     });
   }
 
-  testWidgets('art swipe still works and settles under Reduce Motion', (
-    tester,
-  ) async {
-    await _pump(tester, disableAnimations: true);
-    final art = find.byType(CoverArtImage).first;
-    final gesture = await tester.startGesture(tester.getCenter(art));
-    await gesture.moveBy(const Offset(-20, 0));
-    await tester.pump();
-    await gesture.up();
-    await tester.pump();
-    // One frame later the snap-back is done, not mid-animation.
-    expect(tester.hasRunningAnimations, isFalse);
-    expect(tester.takeException(), isNull);
-  });
+  for (final reduce in [true, false]) {
+    testWidgets('art swipe snap-back ${reduce ? "is instant" : "animates"} '
+        'with Reduce Motion=$reduce', (tester) async {
+      await _pump(tester, disableAnimations: reduce);
+      final art = find.byType(CoverArtImage).first;
+      final gesture = await tester.startGesture(tester.getCenter(art));
+      // Past touch slop, short of committing a track change.
+      for (var i = 0; i < 6; i++) {
+        await gesture.moveBy(const Offset(-20, 0));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await gesture.up();
+      await tester.pump();
+      expect(tester.hasRunningAnimations, !reduce);
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+  }
 }
