@@ -21,6 +21,7 @@ product contracts.
 | Quality gates, releases, signing, CI-equivalent workflow | [development/ci-cd.md](development/ci-cd.md), [release/release-secrets.md](release/release-secrets.md) and [release/release-r2.md](release/release-r2.md) (update channel) |
 | Side-by-side/dev builds | [development/dev-testing-builds.md](development/dev-testing-builds.md) |
 | Production symptom recovery | [development/troubleshooting.md](development/troubleshooting.md) |
+| iOS TestFlight and App Store releases | [release/release-ios.md](release/release-ios.md) |
 | Linux, macOS, Windows, or multi-host releases | [release/release-from-linux.md](release/release-from-linux.md), [release/release-linux.md](release/release-linux.md), [release/release-macos.md](release/release-macos.md), [release/release-windows.md](release/release-windows.md), [release/multi-os-build-from-mac.md](release/multi-os-build-from-mac.md) |
 | Android Auto | [platforms/android-auto-testing.md](platforms/android-auto-testing.md) and [platforms/android-auto-real-car-testing.md](platforms/android-auto-real-car-testing.md) |
 | Platform certification and readiness | [platforms/android-certification-checklist.md](platforms/android-certification-checklist.md), [platforms/flathub-readiness.md](platforms/flathub-readiness.md), [platforms/google-play-readiness.md](platforms/google-play-readiness.md), [platforms/macos-testing-playbook.md](platforms/macos-testing-playbook.md) and [platforms/ios-testing-playbook.md](platforms/ios-testing-playbook.md) |
