@@ -2658,6 +2658,70 @@ void main() {
     );
 
     test(
+      'catalog promotion never relinks a single copy by title and artist',
+      () async {
+        await saveSession();
+        await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+          ArtistsTableCompanion.insert(id: 'artist-1', name: 'Artist'),
+        ]);
+        await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+          AlbumsTableCompanion.insert(
+            id: 'album-1',
+            name: 'Album',
+            artistId: const Value('artist-1'),
+            songsHydrated: const Value(true),
+          ),
+        ]);
+        await database.libraryDao.upsertProvisionalSongs(<SongsTableCompanion>[
+          SongsTableCompanion.insert(
+            id: 'ext-deezer-song-1',
+            title: 'Track',
+            artistName: const Value('Artist'),
+            albumName: const Value('Track - Single'),
+            duration: const Value(200),
+            isExternal: const Value(true),
+          ),
+        ]);
+        api.artists.add(const Artist(id: 'artist-1', name: 'Artist'));
+        api.fastPathPages[0] = const <Album>[
+          Album(
+            id: 'album-1',
+            name: 'Album',
+            artistId: 'artist-1',
+            songCount: 1,
+          ),
+        ];
+        api.albumDetails['album-1'] = const Album(
+          id: 'album-1',
+          name: 'Album',
+          artistId: 'artist-1',
+          songCount: 1,
+          songs: <Song>[
+            Song(
+              id: 'server-song',
+              title: 'Track',
+              artist: 'Artist',
+              album: 'Album',
+              albumId: 'album-1',
+              artistId: 'artist-1',
+              duration: 201,
+              track: 2,
+            ),
+          ],
+        );
+
+        final result = await engine.executeSyncPlan(
+          syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        );
+
+        expect(result.status, LibrarySyncStatus.succeeded);
+        expect(await database.songIdentityDao.getAliases(), isEmpty);
+        expect(await database.libraryDao.getSongById('server-song'), isNotNull);
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
       'catalog promotion auto-merges cached identities before cleanup',
       () async {
         await saveSession();

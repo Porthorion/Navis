@@ -559,6 +559,7 @@ void main() {
     }) => _song(
       id: id,
       provisional: provisional,
+      external: provisional,
       title: title,
       artist: 'Artist',
       album: album,
@@ -592,6 +593,7 @@ void main() {
     }) => _song(
       id: id,
       provisional: provisional,
+      external: provisional,
       title: 'Love Story',
       artist: 'Taylor Swift',
       album: album,
@@ -642,6 +644,7 @@ void main() {
             _song(
               id: 'ext-deezer-song-1',
               provisional: true,
+              external: true,
               title: 'Hello',
               artist: 'Adele',
               album: album,
@@ -669,6 +672,46 @@ void main() {
         isA<SongIdentityMatched>(),
       );
     }, skip: !sqliteAvailable);
+
+    test('a row that is not an external copy never matches', () {
+      // Full-promotion sessions hand over server-deleted and retained library
+      // rows, which are provisional but not remote catalog copies.
+      expect(
+        reconciler.matchCanonicalSong(
+          allowSingleCopy: true,
+          canonicalSong: library(),
+          provisionalSongs: <SongsTableData>[
+            single().copyWith(isExternal: false),
+          ],
+        ),
+        isA<SongIdentityUnmatched>(),
+      );
+    }, skip: !sqliteAvailable);
+
+    test(
+      'typographic prime, minus, ellipsis and modifier apostrophes fold',
+      () {
+        for (final (a, b) in <(String, String)>[
+          ('Don\u02BCt Stop', "Don't Stop"),
+          ('Don\u00B4t Stop', "Don't Stop"),
+          ('5\u2032 Heels', "5' Heels"),
+          ('Re\u2212Entry', 'Re-Entry'),
+          ('Wait\u2026', 'Wait...'),
+        ]) {
+          expect(
+            reconciler.matchCanonicalSong(
+              canonicalSong: _song(id: 'lib', provisional: false, title: a),
+              provisionalSongs: <SongsTableData>[
+                _song(id: 'ext-1', provisional: true, title: b),
+              ],
+            ),
+            isA<SongIdentityMatched>(),
+            reason: '$a / $b',
+          );
+        }
+      },
+      skip: !sqliteAvailable,
+    );
 
     test('the tier is off unless a caller opts in', () {
       expect(
@@ -1118,7 +1161,38 @@ void main() {
           await spied.relinkExternalCopies(<String>['ext-deezer-song-8086130']),
           hasLength(1),
         );
-        expect(spy.indexChecks, 1);
+        expect(spy.indexChecks, 2); // before and after the candidate read
+      });
+
+      test('a flip between the two checks blocks the single tier', () async {
+        await insert(albumTrack());
+        await insert(
+          remote(album: 'Set Fire to the Rain - Single')
+              .copyWith(duration: const Value(242), track: const Value(1)),
+        );
+        await database.libraryDao.scheduleSongSearchIndexRefresh();
+        spy.results = [true, false];
+
+        expect(
+          await spied.relinkExternalCopies(<String>['ext-deezer-song-8086130']),
+          isEmpty,
+        );
+        expect(spy.indexChecks, 2);
+      });
+
+      test('a stale first check skips the read and the tier', () async {
+        await insert(albumTrack());
+        await insert(
+          remote(album: 'Set Fire to the Rain - Single')
+              .copyWith(duration: const Value(242), track: const Value(1)),
+        );
+        await database.libraryDao.scheduleSongSearchIndexRefresh();
+        spy.results = [false, true];
+
+        expect(
+          await spied.relinkExternalCopies(<String>['ext-deezer-song-8086130']),
+          isEmpty,
+        );
       });
     }, skip: !sqliteAvailable);
 
@@ -1197,9 +1271,16 @@ class _SpyIdentityDao extends SongIdentityDao {
 
   var indexChecks = 0;
 
+  /// Scripted answers, one per call; the real check once exhausted.
+  List<bool>? results;
+
   @override
   Future<bool> isLibraryMatchIndexCurrent() {
     indexChecks++;
+    final scripted = results;
+    if (scripted != null && scripted.isNotEmpty) {
+      return Future.value(scripted.removeAt(0));
+    }
     return super.isLibraryMatchIndexCurrent();
   }
 }

@@ -6,7 +6,7 @@ import 'package:navis/src/database/navis_database.dart';
 // ASCII punctuation plus the typographic quotes and dashes a remote catalog
 // writes where the library has the straight form (or the reverse).
 final _identityPunctuation = RegExp(
-  r'''[!"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~‘’‚‛“”„‐‑‒–—]''',
+  r'''[!"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~‘’‚‛“”„‐‑‒–—ʼ´′−…]''',
 );
 final _identityWhitespace = RegExp(r'\s+');
 
@@ -144,10 +144,11 @@ class SongIdentityReconciler {
     await session.finalize();
     final aliases = <SongIdentityAlias>[...session.summary.aliases];
     // The single-copy tier needs every rival visible. Candidates come from the
-    // async search index, so it runs only for copies the exact tiers left
-    // alone, and only while that index is current (checked after the read, so
-    // a row inserted meanwhile also counts as stale). Otherwise a later
-    // relink heals it; the play path never waits for a refresh.
+    // async search index, so it runs only for external copies the exact tiers
+    // left alone, and only when the index was current both before and after
+    // the candidates for this pass were read (a row inserted meanwhile makes
+    // the second check fail). Otherwise a later relink heals it; the play path
+    // never waits for a refresh.
     final remaining = [
       for (final copy in copies)
         if (_isSingleCopy(copy) && !aliases.any((a) => a.oldSongId == copy.id))
@@ -155,26 +156,33 @@ class SongIdentityReconciler {
     ];
     if (remaining.isNotEmpty &&
         await _identityDao.isLibraryMatchIndexCurrent()) {
-      final single = await startSession(
-        provisionalSongs: remaining,
-        allowSingleCopy: true,
+      final singleCandidates = await _identityDao.getLibrarySongsByMatchTitle(
+        remaining.map((song) => song.title),
       );
-      await single.reconcile(candidates);
-      await single.finalize();
-      aliases.addAll(single.summary.aliases);
+      if (await _identityDao.isLibraryMatchIndexCurrent()) {
+        final single = await startSession(
+          provisionalSongs: remaining,
+          allowSingleCopy: true,
+        );
+        await single.reconcile(singleCandidates);
+        await single.finalize();
+        aliases.addAll(single.summary.aliases);
+      }
     }
     return <String, String>{
       for (final alias in aliases) alias.oldSongId: alias.canonicalSongId,
     };
   }
 
-  /// A remote single or EP named after its song and long enough to be told
-  /// apart from intros and interludes.
+  /// A remote catalog single or EP named after its song and long enough to be
+  /// told apart from intros and interludes. Never a library row: promotion
+  /// sessions also hand over server-deleted and retained library songs.
   bool _isSingleCopy(SongsTableData song) {
     final title = _normalizeIdentityMetadata(song.title);
     final album = _normalizeIdentityMetadata(song.albumName ?? '')
         .replaceFirst(_singleSuffix, '');
-    return title.isNotEmpty &&
+    return song.isExternal &&
+        title.isNotEmpty &&
         title == album &&
         (song.duration ?? 0) >= _minSingleCopySeconds;
   }
