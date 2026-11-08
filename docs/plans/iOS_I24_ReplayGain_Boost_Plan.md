@@ -112,9 +112,17 @@ here.
 - Guard: the C port of `replayGainBoostGuarded` / `guardedBoostDb`, with the
   same window (`replayGainBoostGuardWindowMs`, 3000).
   - Remaining wall-clock time is `(duration - position) / _speed`, from the
-    `IndexedAudioSource` of `_index`, so clipping is respected.
-  - An unknown duration, or a song shorter than window + 1 s, is guarded from
-    its start.
+    `IndexedAudioSource` of `_index`, so clipping is respected. The duration is
+    the smaller of the player's and the song tag's (Dart sends the tag's
+    `durationMsByUri` with the map, as Android takes the smaller remaining time):
+    AVPlayer's alone is wrong for a VBR MP3 without a Xing header or an
+    overestimated stream. The position is the pending seek's target while a seek
+    is in flight, and the source's clock only while its `playerItem` is the item
+    being heard (not before a loop-all wrap flips it).
+  - A song shorter than window + 1 s is guarded from its start. An unknown
+    timing (no duration, or no trusted position) is guarded but **not latched**:
+    it lasts only until the item is ready, and a latch taken then held the first
+    song at min(own, next) for its whole length (found on the simulator).
   - Once guarded, the song stays latched until the next `currentItem` change
     or a seek within the item. Inside the window the target only ever goes
     down.
@@ -372,14 +380,36 @@ crosses 1.0 and shows in `boostClipSamples`.
 - **Paused inside the window.** It stays latched. A resume does not
   re-raise.
 - **A map update that raises the playing song** (a sync refresh of its tag).
-  The rise waits for the hold.
+  It applies at once (a 20 ms ramp): it is not a song event, and the guard and
+  the latch already bound a song near its end to min(own, next), so the rise
+  only lifts the playing song's own samples.
 - **Speed change inside the window.** It stays latched. A speed rise outside
   the window can enter it at the next tick, which comes within 250 ms.
 - **Radio, or an empty map.** The target is 0, and no observer is installed.
 - **Dispose.** Remove the observer. Bumping the generation cancels any
   pending rise. Setting `_equalizer` to nil makes `refresh` a no-op.
-- **Stream items with no duration yet.** Guarded, as covered by the rule
-  above.
+- **Stream items with no duration yet.** Guarded without a latch (the tag's
+  duration times it when there is one), as covered by the rule above.
+- **A queue edit that removes the playing item**, or any change of the playing
+  item that is neither a natural advance nor a seek. `enqueueFrom:` sees the
+  playing item change with no flush from a command, stores the destination's
+  boost and bumps the flush generation before the queue is rebuilt, so the next
+  song's first block does not ramp down from the removed song's gain.
+- **A seek inside the playing song** decides from the remaining time at the seek
+  target (known timing) and never latches: a seek that lands outside the window
+  keeps the song's own boost and does not dip.
+
+## Known limits
+
+- AVQueuePlayer silently skips a failed next item: the `currentItem` observer
+  then sees a jump with no flush, and the head of the song after it plays at
+  min(A, B) of the song it skipped past (an under-boost only).
+- Output latency beyond the tap (Bluetooth, AirPlay) is measured against the 3 s
+  window only on a device: an I5 check.
+- The `AudioPlayer.m` event wiring (observer, hold timer, seek and edit hooks)
+  has no host test; the decision (`navis_boost_decide`) and the tap are tested on
+  the host, the wiring on the simulator only (`ios_gapless_diagnostics.sh`,
+  phase `boost`).
 
 ## Open questions
 

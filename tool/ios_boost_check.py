@@ -45,8 +45,22 @@ def expect_level(song, wanted, high=8500):
     return statistics.median(r["boostAppliedDb"] for r in samples)
 
 
+def increase(key, stop=None):
+    """How much a cumulative per-tap counter grew during this run (up to row `stop`). The first row
+    is the baseline, and a counter that restarts (a new native player) counts from its new value."""
+    total, previous = 0, None
+    for r in rows:
+        value = r.get(key) or 0
+        if previous is not None:
+            total += value - previous if value >= previous else value
+        previous = value
+        if r is stop:
+            break
+    return total
+
+
 def max_clip():
-    return max((r["boostClipSamples"] or 0) for r in rows) if rows else 0
+    return increase("boostClipSamples")
 
 
 def table():
@@ -113,15 +127,8 @@ elif kind == "skip":
     if max_clip() != 0:
         fail("boostClipSamples reached %d" % max_clip())
 elif kind == "seek":
-    q = of("fixture-song-16")
-    after = [r for r in q if r["positionMs"] >= 7000]
-    before = [r for r in q if 1000 <= r["positionMs"] <= 3500]
-    if not before or abs(statistics.median(r["boostAppliedDb"] for r in before) - 10) > 0.1:
-        fail("Q is not at 10 dB before the seek")
-    # The seek went to 7000 ms; a sample at least 1.5 s later is back at 10 (until the guard at 9000 ms).
-    settled = [r for r in q if 8500 <= r["positionMs"] <= 8900]
-    if settled and abs(statistics.median(r["boostAppliedDb"] for r in settled) - 10) > 0.1:
-        fail("Q is at %.2f dB 1.5 s after the seek" % statistics.median(r["boostAppliedDb"] for r in settled))
+    # Seeking inside Q from 4 s to 7 s (outside the guard window) keeps Q's own boost: no dip at all.
+    expect_level("fixture-song-16", 10)
     if max_clip() != 0:
         fail("boostClipSamples reached %d" % max_clip())
 elif kind == "insert":
@@ -133,6 +140,31 @@ elif kind == "insert":
     expect_level("fixture-song-18", 10)
     if max_clip() != 0:
         fail("boostClipSamples reached %d" % max_clip())
+elif kind == "remove":
+    # The playing Q is removed from the queue while H is next: H, tagged -3 dB at 0.98 FS, must not
+    # inherit Q's +10 dB, not even for its first samples.
+    expect_level("fixture-song-16", 10, high=3600)
+    h = of("fixture-song-17")
+    if len(h) < 4:
+        fail("H never played after the removal")
+    elif max(r["boostAppliedDb"] for r in h) > 0.1:
+        fail("H boosted by up to %.2f dB after the removal" % max(r["boostAppliedDb"] for r in h))
+    if max_clip() != 0:
+        fail("boostClipSamples reached %d" % max_clip())
+elif kind == "rising":
+    # H (44.1 kHz, 0.98 FS) then Q48: the boost rises across a format change while the old pipeline
+    # still holds H's tail. Nothing of H may be boosted.
+    h = of("fixture-song-20")
+    if len(h) < 20:
+        fail("H played %d samples" % len(h))
+    elif max(r["boostAppliedDb"] for r in h) > 0.1:
+        fail("H boosted by up to %.2f dB" % max(r["boostAppliedDb"] for r in h))
+    expect_level("fixture-song-19", 10)
+    if max_clip() != 0:
+        fail("boostClipSamples reached %d (H's tail was boosted)" % max_clip())
+    gaps = rows[-1].get("transitionGapsMs") or []
+    if gaps and gaps[-1] > 1500:
+        fail("the format change took %.0f ms" % gaps[-1])
 elif kind == "preamp":
     # Pre-amp +6 raises Q's boost from 10 to 12 (the cap) without a song change.
     q = [r for r in of("fixture-song-16") if r["positionMs"] >= 6000 and r["positionMs"] <= 8500]
@@ -183,8 +215,9 @@ elif kind == "clip":
     if after is None or not after.get("processedFrames"):
         fail("the song after the control never played")
     else:
-        share = after["boostClipSamples"] / after["processedFrames"]
-        print("  clip share %.3f (%d of %d frames), expected about 0.54" % (share, after["boostClipSamples"], after["processedFrames"]))
+        clips, frames = increase("boostClipSamples", after), increase("processedFrames", after)
+        share = clips / max(frames, 1)
+        print("  clip share %.3f (%d of %d frames), expected about 0.54" % (share, clips, frames))
         if not 0.45 <= share <= 0.60:
             fail("clip share %.3f outside 0.45..0.60" % share)
 elif kind == "level":

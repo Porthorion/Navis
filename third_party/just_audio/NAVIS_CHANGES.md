@@ -325,7 +325,10 @@ until the next song event. A drop applies at once; a rise waits `kBoostRaiseAfte
 `enqueueFrom:` that changed the playing item. A 250 ms time observer (installed only
 while the map has a positive value, removed in `dispose:`), `setSpeed:`,
 `enqueueFrom:` and `setReplayGainBoost` refresh it. `seek:index:` and `load:` store the
-destination's value before `noteEqualizerFlush`. `NavisEqualizer setBoostDb:guarded:`
+destination's value before `noteEqualizerFlush` (a seek decides from the remaining time at its
+target position), and `enqueueFrom:` does the same when a queue edit changes the playing item
+without a command having flushed. The map's `durationMsByUri` (the song tags' durations) times the
+guard along with the player's duration: the smaller remaining time wins. `NavisEqualizer setBoostDb:guarded:`
 hands the target to the tap as one atomic linear gain (`navis_tap_formats_set_boost`),
 and `tapProcess` reads the flush generation with acquire so the first block after a
 flush sees it. Each `NavisTapFormats` slot owns a `NavisBoostRamp` applied after pitch

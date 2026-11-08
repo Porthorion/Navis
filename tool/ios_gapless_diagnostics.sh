@@ -24,7 +24,7 @@
 #                    relaunches the app with crossfade on, so it stays last)
 #   GAP_TOLERANCE_MS largest accepted gap at a gapless transition (default 20)
 #   BOOST_ON_RUNS    runs of the boost-on queue in phase `boost` (default 1); BOOST_STEPS its steps
-#                    (default "on off level skip seek insert wrap jump seekback preamp clip")
+#                    (default "on off level skip seek insert remove rising wrap jump seekback clip preamp")
 #   GAPLESS_REPEATS  runs of each main case (default 1); GAPLESS_KEEP_GOING=1
 #                    reports failures and carries on instead of stopping
 set -euo pipefail
@@ -37,7 +37,7 @@ DIAGNOSTICS_FAILURE_PREFIX='ios-gapless'
 DIAGNOSTICS_POLL_INTERVAL=0.5
 PHASES="${GAPLESS_PHASES:-main rates formats seek insert loop pitch boost crossfade}"
 BOOST_ON_RUNS="${BOOST_ON_RUNS:-1}"
-BOOST_STEPS="${BOOST_STEPS:-on off level skip seek insert wrap jump seekback preamp clip}"
+BOOST_STEPS="${BOOST_STEPS:-on off level skip seek insert remove rising wrap jump seekback clip preamp}"
 GAP_TOLERANCE_MS="${GAP_TOLERANCE_MS:-20}"
 REPEATS="${GAPLESS_REPEATS:-1}"
 OUTPUT_ROOT="${GAPLESS_OUTPUT:-$PROJECT_DIR/build/ios-gapless-diagnostics/$(date -u +%Y%m%dT%H%M%SZ)}"
@@ -777,6 +777,11 @@ run_boost() {
   step seek && boost_run seek seek off '["fixture-song-16","fixture-song-17"]' 13 "fixture-song-16@4000:POST:/v1/playback/seek:{\"positionMs\":7000}"
   step insert && boost_run insert insert off '["fixture-song-16","fixture-song-18"]' 38 \
     'fixture-song-16@10000:POST:/v1/playback/queue-edit:{"op":"playNext","songIds":["fixture-song-17"]}'
+  # Removing the playing Q while H is next (a queue edit, neither a natural advance nor a seek), and a
+  # rising boost across a format change with H's 0.98 FS tail in the old pipeline.
+  step remove && boost_run remove remove off '["fixture-song-16","fixture-song-17","fixture-song-18"]' 14 \
+    'fixture-song-16@4000:POST:/v1/playback/queue-edit:{"op":"remove","index":0}'
+  step rising && boost_run rising rising off '["fixture-song-20","fixture-song-19"]' 30
   # Q again after a loop-all wrap, a jump back to it and a seek back out of its guard window: the
   # song's clock must not leave it latched.
   if step wrap; then
