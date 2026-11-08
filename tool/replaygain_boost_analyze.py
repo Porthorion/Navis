@@ -3,15 +3,15 @@
 
 Captures are mono float32 at 44.1 kHz. A window's peak tells the level: Q plays
 at 0.1 (-20 dBFS), H at 0.63 (-4 dBFS). The Android scenario (a1) reads the status samples of
-tool/replaygain_boost_android.py instead: the processor's own applied boost, guard and
-clamped-sample counter. Exits 1 on any FAIL.
+tool/replaygain_boost_android.py instead: the processor's own `replayGainBoost` (current key,
+applied dB and clamped-sample counter). Exits 1 on any FAIL.
 """
 import os
 import sys
 
 import numpy as np
 
-from replaygain_boost_clamps import latch_phase_results, speed_changed_mid_fade, unexpected_clamps
+from replaygain_boost_clamps import latch_phase_results, over_own_gain, speed_changed_mid_fade, unexpected_clamps
 
 RATE = 44100
 WIN = RATE // 100  # 10 ms
@@ -201,16 +201,15 @@ def a1(root):
         values = [r['boost']['clipSamples'] for r in phase(name)]
         check(f'A1 {name}: processor reported and clipped nothing', len(values) > 100 and max(values) == 0,
               f'samples={len(values)} max={max(values) if values else None}')
-    # A speed change in the middle of the fade to Q2: the incoming deck must not carry the old song's guard
-    # into Q2 (a stale latch there would hold Q2 below its own boost for the whole song).
+    # A speed change in the middle of the fade to Q2: Q2 must still get its own boost all song.
     fast = [r for r in mid(phase('crossfade-speed'), 3000, 20000) if r['songId'] == 'rgq-2']
     check('A1 crossfade-speed: the speed change landed in the fade to Q2 (H1 from 27 s at another speed, then Q2)',
           speed_changed_mid_fade(rows), 'rows=%d' % len(phase('crossfade-speed')))
     check('A1 crossfade with a speed change mid-fade: Q is boosted ~10 dB all song',
           len(fast) > 10 and 9.5 <= float(np.median([r['boost']['appliedDb'] for r in fast])) <= 10.5
-          and min(r['boost']['requestedDb'] for r in fast) >= 9.5,
+          and min(r['boost']['appliedDb'] for r in fast) >= 9.5,
           f'n={len(fast)} median={float(np.median([r["boost"]["appliedDb"] for r in fast])) if fast else None} '
-          f'min requested={min([r["boost"]["requestedDb"] for r in fast] or [None])}')
+          f'min applied={min([r["boost"]["appliedDb"] for r in fast] or [None])}')
     songs = [r['songId'] for r in phase('joins')]
     changes = sum(1 for i in range(1, len(songs)) if songs[i] != songs[i - 1])
     check('A1 at least 10 gapless joins', changes >= 10, f'joins={changes}')
@@ -220,13 +219,15 @@ def a1(root):
               f'median={float(np.median(q)) if q else None} n={len(q)}')
         h = [r['boost']['appliedDb'] for r in mid(phase(name)) if is_h(r)]
         check(f'A1 {name}: H gets no boost', len(h) > 10 and max(h) <= 0.3, f'max={max(h) if h else None} n={len(h)}')
-    # The guard: in Q's last 3 s with H next, the processor is told 0 (the lower of the two).
-    tail = [r for r in phase('joins') if is_q(r) and r['positionMs'] is not None and r['positionMs'] >= 27500]
-    check('A1 guard: Q is guarded to 0 in its last 3 s before H',
-          len(tail) > 5 and sum(1 for r in tail if r['boost']['guarded'] and r['boost']['sentDb'] == 0) >= len(tail) * 0.8,
-          f'guarded={sum(1 for r in tail if r["boost"]["guarded"] and r["boost"]["sentDb"] == 0)}/{len(tail)}')
-    # After H -> Q the head is held down, then the boost comes back: the processor read-back is at
-    # most 1 s old, plus the 20 ms ramp.
+    # No guard: the processor changes gain only at the boundary, so Q keeps its full boost to its end
+    # (the processor runs up to ~0.75 s ahead of the speaker: stop 1.2 s before the end).
+    tail = [r for r in phase('joins') if is_q(r) and r['positionMs'] is not None
+            and 27500 <= r['positionMs'] <= (r.get('durationMs') or 30000) - 1200]
+    check('A1 Q keeps its full boost in its last 3 s before H (no guard)',
+          len(tail) > 5 and min(r['boost']['appliedDb'] for r in tail) >= 9.5,
+          f'n={len(tail)} min applied={min([r["boost"]["appliedDb"] for r in tail] or [None])}')
+    # After H -> Q the boost is there from the first sample: the status reads the processor, so the first
+    # row naming Q may be at most 1 s behind it.
     delays = []
     seq = phase('joins')
     for i in range(1, len(seq)):
@@ -234,11 +235,12 @@ def a1(root):
             back = next((r for r in seq[i:] if r['songId'] == seq[i]['songId'] and r['boost']['appliedDb'] >= 9.5), None)
             if back:
                 delays.append(back['t'] - seq[i]['t'])
-    check('A1 Q is boosted again within 3 s of every H->Q join', len(delays) >= 4 and max(delays) <= 3.0,
+    check('A1 Q is boosted within 1 s of every H->Q join (no hold)', len(delays) >= 4 and max(delays) <= 1.0,
           f'delays={[round(d, 2) for d in delays]}')
-    lowered = [r for r in phase('repeat-one-off') if r['songId'] == 'rgq-1' and r['boost']['guarded']
-               and r['boost']['sentDb'] == 0]
-    check('A1 repeat-one switched off in the last 3 s: guarded to H\'s 0', len(lowered) >= 2, f'samples={len(lowered)}')
+    kept = [r for r in phase('repeat-one-off') if r['songId'] == 'rgq-1' and r['positionMs'] is not None
+            and 27000 <= r['positionMs'] <= (r.get('durationMs') or 30000) - 1200]
+    check('A1 repeat-one switched off in the last 3 s: Q keeps its boost',
+          len(kept) >= 2 and min(r['boost']['appliedDb'] for r in kept) >= 9.5, f'samples={len(kept)}')
     shuffled = phase('shuffle-toggle')
     check('A1 shuffle toggled in the last 3 s: nothing clipped', len(shuffled) > 50
           and max(r['boost']['clipSamples'] for r in shuffled) == 0, f'samples={len(shuffled)}')
@@ -259,8 +261,8 @@ def a1(root):
               f'n={len(lossy)} median={float(np.median([r["boost"]["appliedDb"] for r in lossy])) if lossy else None}')
 
 
-    # A2: switches and queue edits around a boosted Q. The processor's applied boost may never
-    # exceed the playing song's own boost, whichever command moved the index.
+    # A2: switches and queue edits around a boosted Q. The processor's applied gain may not exceed the
+    # playing song's own (decision.db), whichever command moved the index.
     a2 = [r for r in rows if r['phase'].startswith('a2-')]
     check('A2 samples recorded for skip, jump, remove, edit-above, Play and insert phases', len(a2) > 300 and
           len({r['phase'] for r in a2}) >= 18, f'rows={len(a2)} phases={sorted({r["phase"] for r in a2})}')
@@ -290,14 +292,14 @@ def a1(root):
     # A new play of the same song: a duplicate entry (index 1 of [Q, Q, H]) and the repeat pass of repeat-one.
     second = [r for r in phase('a2-duplicate') if r['songId'] == 'rgq-1' and r.get('index') == 1 and r.get('playing')
               and r['positionMs'] is not None and 1500 <= r['positionMs'] <= 6000]
-    check('A2 a duplicate entry of Q is a new play: unguarded and boosted from its start',
-          len(second) > 10 and all(not r['boost']['guarded'] and r['boost']['sentDb'] == 10 for r in second),
-          f'n={len(second)} guarded rows={sum(1 for r in second if r["boost"]["guarded"])}')
+    check('A2 a duplicate entry of Q is a new play: boosted from its start',
+          len(second) > 10 and all(r['boost']['appliedDb'] >= 9.5 for r in second),
+          f'n={len(second)} unboosted rows={sum(1 for r in second if r["boost"]["appliedDb"] < 9.5)}')
     wrap = [r for r in phase('a2-repeat-one-wrap') if r['songId'] == 'rgq-1' and r.get('playing')
             and r['positionMs'] is not None and 2500 <= r['positionMs'] <= 8000]
-    check('A2 repeat-one wrap, then repeat off in the second pass: Q is unguarded and boosted',
-          len(wrap) > 10 and all(not r['boost']['guarded'] and r['boost']['sentDb'] == 10 for r in wrap),
-          f'n={len(wrap)} guarded rows={sum(1 for r in wrap if r["boost"]["guarded"])}')
+    check('A2 repeat-one wrap, then repeat off in the second pass: Q is boosted',
+          len(wrap) > 10 and all(r['boost']['appliedDb'] >= 9.5 for r in wrap),
+          f'n={len(wrap)} unboosted rows={sum(1 for r in wrap if r["boost"]["appliedDb"] < 9.5)}')
     import json
     order_path = os.path.join(root, 'a1', 'a1-ordering.jsonl')
     orders = [json.loads(line) for line in open(order_path)] if os.path.exists(order_path) else []
@@ -312,23 +314,17 @@ def a1(root):
     check('A2 an insert into the completed queue resumed at the inserted song (H2)', len(resumed) > 3,
           f'H2 rows={len(resumed)}')
     # A row that is not playing can name the song of a queue being replaced while the processor still
-    # holds the old song's value (nothing is audible): only playing rows are held to the rule.
+    # holds the old song's value (nothing is audible), and the processor runs up to ~0.75 s ahead of the
+    # speaker: only playing rows more than 1 s from either end of the named song are held to the rule.
     heard = [r for r in a2 if r.get('playing')]
-    silent = [r for r in a2 if not r.get('playing')
-              and r['boost']['appliedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3]
-    print(f'INFO A2 rows not playing whose applied boost exceeds the named song\'s own: {len(silent)} '
-          f'of {len(a2) - len(heard)} (the filter below ignores them: nothing is audible)'
-          + (f'; first {silent[0]["phase"]} {silent[0]["songId"]} {silent[0]["boost"]}' if silent else ''))
-    over = [r for r in heard if r['boost']['appliedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3]
-    check("A2 the applied boost never exceeds the playing song's own", not over,
+    over = [r for r in heard if over_own_gain(r)]
+    check("A2 the applied gain never exceeds the playing song's own mid-song", not over,
           f'violations={len(over)} first={over[0]["songId"] + " " + str(over[0]["boost"]) if over else None}')
-    mis = [r for r in heard if r['boost']['requestedDb'] > (r.get('decision') or {}).get('boostDb', 0) + 0.3]
-    check("A2 the boost the processor was asked for never exceeds the playing song's own, from its first sample", not mis,
-          f'violations={len(mis)} first={mis[0]["songId"] + " @" + str(mis[0]["positionMs"]) + " " + str(mis[0]["boost"]) if mis else None}')
     late = [r for r in phase('a2-speed') if r['songId'] == 'rgq-1' and r['positionMs'] is not None
-            and r['positionMs'] >= 25800 and r['boost']['sentDb'] is not None]
-    check('A2 a 2x to 1x change inside the window keeps Q guarded to 0', len(late) > 3
-          and max(r['boost']['sentDb'] for r in late) == 0, f'n={len(late)} max={max([r["boost"]["sentDb"] for r in late] or [None])}')
+            and 25800 <= r['positionMs'] <= (r.get('durationMs') or 30000) - 1200]
+    check('A2 a 2x to 1x change in the last 5 s keeps Q boosted', len(late) > 3
+          and min(r['boost']['appliedDb'] for r in late) >= 9.5,
+          f'n={len(late)} min={min([r["boost"]["appliedDb"] for r in late] or [None])}')
 
 
 if __name__ == '__main__':

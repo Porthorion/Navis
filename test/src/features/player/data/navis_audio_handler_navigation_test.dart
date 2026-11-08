@@ -17201,6 +17201,31 @@ void main() {
         expect(gains(), [-4, -4, -10, -10]);
       });
 
+      test(
+        'a push skips entries the queue does not name the same way',
+        () async {
+          final (handler, player) = await smart(['a', 'b'], pipeline: true);
+          await handler.replaceQueue(ids(2), expandMatchFlows: false);
+          await pumpEventQueue();
+          // The deck holds the two songs in the other order for a moment.
+          await player.setAudioSources(<AudioSource>[
+            _RangeCacheSource(
+              'song-1',
+              File('${Directory.systemTemp.path}/rg'),
+            ),
+            _RangeCacheSource(
+              'song-0',
+              File('${Directory.systemTemp.path}/rg'),
+            ),
+          ]);
+          player.levelMessages.clear();
+          await handler.setRepeatMode(AudioServiceRepeatMode.all);
+          player.emitLoopMode(LoopMode.all);
+          await pumpEventQueue();
+          expect(player.levelMessages.last.bySongId, isEmpty);
+        },
+      );
+
       test('a tag-less rolling-cache source still gets its update push', () async {
         final (handler, player) = await smart(['a', 'b'], pipeline: true);
         await handler.replaceQueue(ids(2), expandMatchFlows: false);

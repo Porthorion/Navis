@@ -451,6 +451,27 @@ void main() {
       );
     });
 
+    test('the Android processor turns the stage on without mpv', () {
+      expect(
+        navisReplayGainInPipeline(
+          usesMpv: false,
+          isMacOS: false,
+          androidProcessor: true,
+        ),
+        isTrue,
+      );
+      expect(
+        navisReplayGainInPipeline(
+          usesMpv: false,
+          isMacOS: false,
+          androidProcessor: false,
+        ),
+        isFalse,
+      );
+      // iOS and a rebuilt Android player (no processor) keep the Dart cut.
+      expect(navisReplayGainInPipeline(usesMpv: false, isMacOS: true), isFalse);
+    });
+
     test('Android boosts while its EQ processor pipeline is installed', () {
       expect(
         navisReplayGainBoostSupported(
