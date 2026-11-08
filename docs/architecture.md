@@ -6204,7 +6204,12 @@ transition into `completed` (when it is not continuing into unloaded songs)
 and publishes playback as paused until Play, a seek or any other processing
 state. The UI, headset button and system controls then show Play, and one
 press restarts the queue. Only the transition counts, because the desktop
-backend can keep reporting `completed` while a restarted song plays.
+backend can keep reporting `completed` while a restarted song plays. ExoPlayer
+reports a seek out of `completed` first as `completed` at the new index and
+position 0; `_seekPlayerToIndex` notes that seek's target so
+`_continueIntoDeferredTail` does not read the echo as that song ending and
+skip it (#374). Another state, a second of progress or a newer transport
+command retires the note.
 
 The tracked desktop `just_audio_media_kit` adapter retires an old load waiter
 when a new source replaces it. Its queue insertion moves the actual appended
