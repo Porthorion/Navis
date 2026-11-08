@@ -81,6 +81,7 @@ class LibrarySyncState {
     this.candidateGeneration,
     this.candidateStatus,
     this.deletionCandidateCount = 0,
+    this.deletionCandidateFingerprint,
     this.carriedForwardEntityCount = 0,
     this.lastApplyDurationMs,
     this.probeIndexChanged,
@@ -88,6 +89,7 @@ class LibrarySyncState {
     this.probeIndexesUnsupported = false,
     this.probeDiscoveryDebtStreak,
     this.updatesAvailable = false,
+    this.scanDeferred = false,
   });
 
   const new idle({
@@ -169,7 +171,32 @@ class LibrarySyncState {
 
   /// Number of server-missing entities awaiting an explicit repair retry.
   final int deletionCandidateCount;
+
+  /// Fingerprint of the removal set behind [deletionCandidateCount].
+  final String? deletionCandidateFingerprint;
   final int carriedForwardEntityCount;
+
+  /// The confirmation of the large deletion this state shows as held, as the
+  /// Apply Library Repair dialog builds it for [serverId]; null when nothing
+  /// is held (or the hold cannot be identified), so the press only re-holds.
+  HeldDeletionConfirmation? heldDeletionConfirmation(int? serverId) {
+    final generation = candidateGeneration;
+    final fingerprint = deletionCandidateFingerprint;
+    if (serverId == null ||
+        generation == null ||
+        fingerprint == null ||
+        candidateStatus != 'awaitingDeletionConfirmation' ||
+        deletionCandidateCount <= 0) {
+      return null;
+    }
+    return HeldDeletionConfirmation(
+      serverId: serverId,
+      generation: generation,
+      count: deletionCandidateCount,
+      fingerprint: fingerprint,
+    );
+  }
+
   final int? lastApplyDurationMs;
   final bool? probeIndexChanged;
   final String? probeEvidenceVersion;
@@ -180,6 +207,10 @@ class LibrarySyncState {
   /// threshold, tells the coordinator to enqueue broad reconciliation.
   final int? probeDiscoveryDebtStreak;
   final bool updatesAvailable;
+
+  /// A scan-triggered snapshot whose promotion waits for a quiet server. It
+  /// heals by itself: it is neither an update notice nor a degradation.
+  final bool scanDeferred;
 
   bool get isRunning => status == LibrarySyncStatus.running;
 
@@ -255,6 +286,8 @@ class LibrarySyncState {
     String? candidateStatus,
     bool clearCandidateStatus = false,
     int? deletionCandidateCount,
+    String? deletionCandidateFingerprint,
+    bool clearDeletionCandidateFingerprint = false,
     int? carriedForwardEntityCount,
     int? lastApplyDurationMs,
     bool? probeIndexChanged,
@@ -262,6 +295,7 @@ class LibrarySyncState {
     bool? probeIndexesUnsupported,
     int? probeDiscoveryDebtStreak,
     bool? updatesAvailable,
+    bool? scanDeferred,
   }) {
     return LibrarySyncState(
       status: status ?? this.status,
@@ -336,6 +370,9 @@ class LibrarySyncState {
           : candidateStatus ?? this.candidateStatus,
       deletionCandidateCount:
           deletionCandidateCount ?? this.deletionCandidateCount,
+      deletionCandidateFingerprint: clearDeletionCandidateFingerprint
+          ? null
+          : deletionCandidateFingerprint ?? this.deletionCandidateFingerprint,
       carriedForwardEntityCount:
           carriedForwardEntityCount ?? this.carriedForwardEntityCount,
       lastApplyDurationMs: lastApplyDurationMs ?? this.lastApplyDurationMs,
@@ -346,6 +383,7 @@ class LibrarySyncState {
       probeDiscoveryDebtStreak:
           probeDiscoveryDebtStreak ?? this.probeDiscoveryDebtStreak,
       updatesAvailable: updatesAvailable ?? this.updatesAvailable,
+      scanDeferred: scanDeferred ?? this.scanDeferred,
     );
   }
 }

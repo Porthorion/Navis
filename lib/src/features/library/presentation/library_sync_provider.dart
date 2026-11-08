@@ -560,8 +560,14 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
   /// The mobile-data consent lives in a controller-owned session for the whole
   /// run, so automatic retries and reconnects keep the grant, and the grant is
   /// always cleared on completion, failure, or cancellation.
+  ///
+  /// [confirmation] is the explicit, one-shot confirmation of a held large
+  /// deletion, built by the Apply library repair dialog from what it showed.
+  /// No other caller sets it (Force rescan and the cache reset never do), so
+  /// nothing else can apply a held deletion.
   Future<LibrarySyncState> repairLibrary({
     bool allowMeteredBroadOverride = false,
+    HeldDeletionConfirmation? confirmation,
   }) async {
     final engine = ref.read(librarySyncEngineProvider);
     final serverId = ref.read(serverConfigStateProvider).asData?.value?.id;
@@ -581,6 +587,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         forceFull: true,
         allowMeteredBroadOverride: allowMeteredBroadOverride,
         repairOrigin: SyncRunOrigin.settingsRepair,
+        confirmation: confirmation,
       );
     } finally {
       coordinator?.endRepairSession(serverId: serverId);
@@ -606,8 +613,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     final config = ref.read(serverConfigStateProvider).asData?.value;
     final serverId = config?.id;
     final generation = state.candidateGeneration;
+    // A run in flight owns the hold; Discard is refused until it ends.
     if (serverId == null ||
         generation == null ||
+        state.isRunning ||
         state.candidateStatus != 'awaitingDeletionConfirmation') {
       return false;
     }
@@ -623,6 +632,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         clearCandidateGeneration: true,
         clearCandidateStatus: true,
         deletionCandidateCount: 0,
+        clearDeletionCandidateFingerprint: true,
         carriedForwardEntityCount: 0,
       );
     }
@@ -1087,6 +1097,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       candidateGeneration: persisted.candidateGeneration,
       candidateStatus: persisted.candidateStatus,
       deletionCandidateCount: persisted.deletionCandidateCount,
+      deletionCandidateFingerprint: persisted.deletionCandidateFingerprint,
     );
     if (schedule) _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
   }
@@ -1429,6 +1440,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     bool forceFull = false,
     bool allowMeteredBroadOverride = false,
     SyncRunOrigin repairOrigin = SyncRunOrigin.settingsRepair,
+    HeldDeletionConfirmation? confirmation,
   }) async {
     return await _joinOrQueueCatalogSync(
       priority: forceFull
@@ -1442,6 +1454,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         forceFull: forceFull,
         allowMeteredBroadOverride: allowMeteredBroadOverride,
         repairOrigin: repairOrigin,
+        confirmation: confirmation,
       ),
     );
   }
@@ -1552,6 +1565,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool forceFull,
     required bool allowMeteredBroadOverride,
     required SyncRunOrigin repairOrigin,
+    HeldDeletionConfirmation? confirmation,
   }) async {
     final engine = ref.read(librarySyncEngineProvider);
     final notifier = ref.read(librarySyncNotifierProvider);
@@ -1632,6 +1646,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       forceFull: forceFull,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
       repairOrigin: repairOrigin,
+      confirmation: confirmation,
       generation: generation,
       onProgressExternal: (progress) {
         if (progress.status == LibrarySyncStatus.running) {
@@ -1787,6 +1802,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool forceFull,
     required bool allowMeteredBroadOverride,
     required SyncRunOrigin repairOrigin,
+    required HeldDeletionConfirmation? confirmation,
     required int generation,
     required void Function(LibrarySyncState progress) onProgressExternal,
   }) {
@@ -1830,6 +1846,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       forceFull: forceFull,
       allowMeteredBroadOverride: allowMeteredBroadOverride,
       repairOrigin: repairOrigin,
+      confirmation: confirmation,
       updateProgress: updateProgress,
     ).whenComplete(throttle.close);
   }
@@ -1840,6 +1857,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
     required bool forceFull,
     required bool allowMeteredBroadOverride,
     required SyncRunOrigin repairOrigin,
+    required HeldDeletionConfirmation? confirmation,
     required void Function(LibrarySyncState progress) updateProgress,
   }) {
     final request = forceFull
@@ -1849,6 +1867,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
             grant: allowMeteredBroadOverride
                 ? SyncNetworkGrant.broadMeteredOnce
                 : SyncNetworkGrant.none,
+            confirmsHeldDeletion: confirmation,
           )
         : force
         ? LibrarySyncRequest.checkForUpdates(

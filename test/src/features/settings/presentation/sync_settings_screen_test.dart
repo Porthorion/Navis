@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/api/models/models.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_config.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
@@ -33,6 +34,7 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   final void Function({required bool allowMeteredBroadOverride})? onSyncNow;
   final Future<bool> Function()? onDiscardRepairCandidate;
   int repairCalls = 0;
+  HeldDeletionConfirmation? lastRepairConfirmation;
   bool? lastRepairMeteredOverride;
 
   @override
@@ -67,8 +69,10 @@ class _FakeLibrarySyncController extends LibrarySyncController {
   @override
   Future<LibrarySyncState> repairLibrary({
     bool allowMeteredBroadOverride = false,
+    HeldDeletionConfirmation? confirmation,
   }) async {
     repairCalls++;
+    lastRepairConfirmation = confirmation;
     lastRepairMeteredOverride = allowMeteredBroadOverride;
     return stateValue;
   }
@@ -111,6 +115,7 @@ Future<void> _pumpSyncSettings(
   SyncNetworkPolicy policy = _wifiPolicy,
   List<Override> extraOverrides = const <Override>[],
   GoRouter? router,
+  AppNoticeController? notices,
 }) async {
   assert(
     (state == null) != (controller == null),
@@ -133,6 +138,17 @@ Future<void> _pumpSyncSettings(
               theme: testTheme(),
               localizationsDelegates: navisLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
+              builder: notices == null
+                  ? null
+                  : (context, child) => AppNoticeScope(
+                      notifier: notices,
+                      child: Stack(
+                        children: <Widget>[
+                          child!,
+                          AppNoticeHost(controller: notices),
+                        ],
+                      ),
+                    ),
               home: const SyncSettingsScreen(),
             )
           : MaterialApp.router(
@@ -569,6 +585,7 @@ void main() {
             ).read(librarySyncControllerProvider.notifier)
             as _FakeLibrarySyncController;
     expect(controller.repairCalls, 1);
+    expect(controller.lastRepairConfirmation, isNull);
     expect(controller.lastRepairMeteredOverride, isFalse);
 
     await tester.pumpWidget(const SizedBox.shrink());
@@ -735,6 +752,41 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets(
+    'a scan-triggered promotion that waits shows no update notice or mobile-data action',
+    (tester) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+
+      await _pumpSyncSettings(
+        tester,
+        database,
+        controller: () => _FakeLibrarySyncController(
+          stateValue: LibrarySyncState(
+            status: LibrarySyncStatus.deferred,
+            stage: LibrarySyncStage.completed,
+            planKind: LibrarySyncPlanKind.catalogSnapshot,
+            candidateStatus: 'collecting',
+            scanDeferred: true,
+          ),
+          onSyncNow: ({required allowMeteredBroadOverride}) {},
+        ),
+        policy: _meteredPolicy,
+      );
+
+      expect(
+        find.textContaining('Library updates are available'),
+        findsNothing,
+      );
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
+      expect(find.text('Sync Using Mobile Data'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
+
   testWidgets('repair on metered network requires confirmation', (
     tester,
   ) async {
@@ -790,6 +842,86 @@ void main() {
     await tester.pump(const Duration(milliseconds: 1));
   });
 
+  testWidgets(
+    'F4: a refused Discard says so instead of silently doing nothing',
+    (tester) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final notices = AppNoticeController();
+      addTearDown(notices.dispose);
+      await _pumpSyncSettings(
+        tester,
+        database,
+        controller: () => _FakeLibrarySyncController(
+          stateValue: LibrarySyncState(
+            status: LibrarySyncStatus.partial,
+            stage: LibrarySyncStage.validatingCandidate,
+            candidateGeneration: 12,
+            candidateStatus: 'awaitingDeletionConfirmation',
+            deletionCandidateCount: 531,
+            deletionCandidateFingerprint: 'fp-531',
+          ),
+          onDiscardRepairCandidate: () async => false,
+        ),
+        notices: notices,
+      );
+
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard Repair Candidate'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard Repair Candidate').last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(
+        find.text(
+          'The repair candidate could not be discarded. It may have changed or '
+          'a sync may be running.',
+        ),
+        findsOneWidget,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 3));
+    },
+  );
+
+  testWidgets('G3: a hold that cannot be confirmed opens no deletion dialog', (
+    tester,
+  ) async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    await _pumpSyncSettings(
+      tester,
+      database,
+      controller: () => _FakeLibrarySyncController(
+        // Awaiting with a count, but no fingerprint: nothing to confirm.
+        stateValue: LibrarySyncState(
+          status: LibrarySyncStatus.partial,
+          stage: LibrarySyncStage.validatingCandidate,
+          candidateGeneration: 12,
+          candidateStatus: 'awaitingDeletionConfirmation',
+          deletionCandidateCount: 531,
+        ),
+      ),
+      server: _defaultServer.copyWith(id: 7),
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Repair Library'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm Library Repair'), findsNothing);
+    final controller =
+        ProviderScope.containerOf(
+              tester.element(find.byType(SyncSettingsScreen)),
+            ).read(librarySyncControllerProvider.notifier)
+            as _FakeLibrarySyncController;
+    expect(controller.repairCalls, 1);
+    expect(controller.lastRepairConfirmation, isNull);
+  });
+
   testWidgets('repair requires confirmation before applying server deletions', (
     tester,
   ) async {
@@ -821,12 +953,14 @@ void main() {
           candidateGeneration: 12,
           candidateStatus: 'awaitingDeletionConfirmation',
           deletionCandidateCount: 531,
+          deletionCandidateFingerprint: 'fp-531',
         ),
         onDiscardRepairCandidate: () async {
           candidateDiscarded = true;
           return true;
         },
       ),
+      server: _defaultServer.copyWith(id: 7),
       router: router,
     );
 
@@ -870,6 +1004,11 @@ void main() {
             ).read(librarySyncControllerProvider.notifier)
             as _FakeLibrarySyncController;
     expect(controller.repairCalls, 1);
+    // The dialog's confirmation carries exactly what it showed.
+    expect(controller.lastRepairConfirmation?.serverId, 7);
+    expect(controller.lastRepairConfirmation?.generation, 12);
+    expect(controller.lastRepairConfirmation?.count, 531);
+    expect(controller.lastRepairConfirmation?.fingerprint, 'fp-531');
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 1));

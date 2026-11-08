@@ -1078,6 +1078,146 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  Future<void> holdDeletion({int serverId = 1}) =>
+      database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(serverId),
+          candidateGeneration: const Value(8),
+          candidateStatus: const Value('awaitingDeletionConfirmation'),
+          deletionCandidateFingerprint: const Value('fingerprint'),
+          deletionCandidateCount: const Value(1),
+        ),
+      );
+
+  test(
+    'Z3: Discard is refused while a run holds the execution lease',
+    () async {
+      await holdDeletion();
+      final now = DateTime.now();
+      expect(
+        await database.librarySyncDao.acquireExecutionLease(
+          serverId: 1,
+          ownerToken: 'run',
+          ownerKind: 'foreground',
+          now: now,
+          ttl: const Duration(minutes: 10),
+        ),
+        isTrue,
+      );
+
+      expect(
+        await database.librarySyncDao.discardAwaitingRepairCandidate(
+          serverId: 1,
+          generation: 8,
+        ),
+        isFalse,
+      );
+      expect(
+        (await database.librarySyncDao.getOrCreateState(1)).candidateStatus,
+        'awaitingDeletionConfirmation',
+      );
+
+      await database.librarySyncDao.releaseExecutionLease(
+        serverId: 1,
+        ownerToken: 'run',
+      );
+      expect(
+        await database.librarySyncDao.discardAwaitingRepairCandidate(
+          serverId: 1,
+          generation: 8,
+        ),
+        isTrue,
+      );
+    },
+    skip: !sqliteAvailable,
+  );
+
+  test('Z3: an expired lease does not block Discard', () async {
+    await holdDeletion();
+    final past = DateTime.now().subtract(const Duration(hours: 2));
+    await database.librarySyncDao.acquireExecutionLease(
+      serverId: 1,
+      ownerToken: 'crashed',
+      ownerKind: 'foreground',
+      now: past,
+      ttl: const Duration(minutes: 10),
+    );
+    expect(
+      await database.librarySyncDao.discardAwaitingRepairCandidate(
+        serverId: 1,
+        generation: 8,
+      ),
+      isTrue,
+    );
+  }, skip: !sqliteAvailable);
+
+  test('Z4: Discard removes only this server\'s repair rows', () async {
+    await holdDeletion();
+    await database
+        .into(database.serverConfigTable)
+        .insert(
+          ServerConfigTableCompanion.insert(
+            url: 'https://other.example.test',
+            username: 'listener',
+            apiVersion: '1.16.1',
+          ),
+        );
+    for (final (server, kind, status) in [
+      (1, 'fullRepair', 'failed'),
+      (2, 'fullRepair', 'queued'),
+      (1, 'catalogSnapshot', 'queued'),
+      (1, 'targetedHydration', 'queued'),
+    ]) {
+      await database.librarySyncDao.enqueueWork(
+        serverId: server,
+        kind: kind,
+        priority: 50,
+      );
+      if (status == 'failed') {
+        final row = await database.librarySyncDao.getWork(
+          serverId: server,
+          kind: kind,
+        );
+        await database.librarySyncDao.markFailed(
+          row!.id,
+          errorType: 'test',
+          notBefore: DateTime.now(),
+        );
+      }
+    }
+
+    expect(
+      await database.librarySyncDao.discardAwaitingRepairCandidate(
+        serverId: 1,
+        generation: 8,
+      ),
+      isTrue,
+    );
+
+    expect(
+      await database.librarySyncDao.getWork(serverId: 1, kind: 'fullRepair'),
+      isNull,
+    );
+    expect(
+      await database.librarySyncDao.getWork(serverId: 2, kind: 'fullRepair'),
+      isNotNull,
+    );
+    expect(
+      await database.librarySyncDao.getWork(
+        serverId: 1,
+        kind: 'catalogSnapshot',
+      ),
+      isNotNull,
+    );
+    expect(
+      await database.librarySyncDao.getWork(
+        serverId: 1,
+        kind: 'targetedHydration',
+      ),
+      isNotNull,
+    );
+  }, skip: !sqliteAvailable);
+
   test(
     'cancelled work stays terminal until an explicit action reactivates it',
     () async {

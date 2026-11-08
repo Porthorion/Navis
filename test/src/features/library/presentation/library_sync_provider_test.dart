@@ -410,6 +410,113 @@ void main() {
       },
     );
 
+    test('Z1: only repairLibrary(confirmation) carries a held-deletion '
+        'confirmation', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final engine = StubLibrarySyncEngine.returning(_succeeded);
+      final container = _container(
+        engine,
+        database: database,
+        reachability: ServerReachabilityStatus.checking,
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(librarySyncControllerProvider.notifier);
+
+      await controller.repairLibrary();
+      await controller.repairLibrary(
+        confirmation: const HeldDeletionConfirmation(
+          serverId: 1,
+          generation: 4,
+          count: 17,
+          fingerprint: 'fp',
+        ),
+      );
+      await controller.resetCachesAndRebuildLibrary();
+
+      expect(engine.requests.map((r) => r.confirmsHeldDeletion?.generation), [
+        null,
+        4,
+        null,
+      ]);
+      expect(engine.requests[1].confirmsHeldDeletion!.count, 17);
+    });
+
+    test('G1: the persisted hold, with its fingerprint, is what the dialog '
+        'confirms after a restart', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(
+        database,
+        // First setup owns the first catalog: no startup sync replaces the
+        // hydrated state.
+        setupPending: true,
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(config.id!),
+          candidateGeneration: const Value(5),
+          candidateStatus: const Value('awaitingDeletionConfirmation'),
+          deletionCandidateCount: const Value(9),
+          deletionCandidateFingerprint: const Value('fp-9'),
+        ),
+      );
+      final engine = StubLibrarySyncEngine.returning(_succeeded);
+      final container = _container(engine, database: database, server: config);
+      addTearDown(container.dispose);
+      container.listen(librarySyncControllerProvider, (_, _) {});
+      container.read(librarySyncControllerProvider.notifier);
+      await pumpEventQueue();
+
+      final confirmation = container
+          .read(librarySyncControllerProvider)
+          .heldDeletionConfirmation(config.id);
+      expect(confirmation, isNotNull);
+      expect(confirmation!.generation, 5);
+      expect(confirmation.count, 9);
+      expect(confirmation.fingerprint, 'fp-9');
+    });
+
+    test('Z3: Discard is refused while a sync is running', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(config.id!),
+          candidateGeneration: const Value(5),
+          candidateStatus: const Value('awaitingDeletionConfirmation'),
+        ),
+      );
+      final engine = StubLibrarySyncEngine.returning(_succeeded);
+      final container = _container(engine, database: database, server: config);
+      addTearDown(container.dispose);
+      container.listen(librarySyncControllerProvider, (_, _) {});
+      final controller = container.read(librarySyncControllerProvider.notifier);
+      controller.state = const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.collectingCandidate,
+        candidateGeneration: 5,
+        candidateStatus: 'awaitingDeletionConfirmation',
+      );
+
+      expect(await controller.discardAwaitingRepairCandidate(), isFalse);
+      expect(
+        (await database.librarySyncDao.getOrCreateState(config.id!))
+            .candidateStatus,
+        'awaitingDeletionConfirmation',
+      );
+
+      controller.state = const LibrarySyncState(
+        status: LibrarySyncStatus.partial,
+        stage: LibrarySyncStage.validatingCandidate,
+        candidateGeneration: 5,
+        candidateStatus: 'awaitingDeletionConfirmation',
+      );
+      expect(await controller.discardAwaitingRepairCandidate(), isTrue);
+      await pumpEventQueue();
+    });
+
     test(
       'setup defers startup and automatic schedules until readiness',
       () async {
