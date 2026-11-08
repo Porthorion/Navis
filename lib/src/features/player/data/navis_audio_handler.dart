@@ -3312,11 +3312,30 @@ class NavisAudioHandler extends BaseAudioHandler
     await _persistTail;
   }
 
+  /// At most one refresh waits at a time (the Android worker hook can fire
+  /// every second): a call made while one is queued shares it, and one made
+  /// after it started queues another, so newer rows are never missed.
+  Future<void>? _queuedReplayGainRefresh;
+
   @override
-  Future<void> refreshQueuedSongReplayGain() => _enqueueQueueEdit(
-    (_) => _refreshQueuedSongReplayGain(),
-    prepareSources: false,
-  );
+  Future<void> refreshQueuedSongReplayGain() {
+    final waiting = _queuedReplayGainRefresh;
+    if (waiting != null) return waiting;
+    final job = _enqueueQueueEdit((_) {
+      _queuedReplayGainRefresh = null;
+      return _refreshQueuedSongReplayGain();
+    }, prepareSources: false);
+    _queuedReplayGainRefresh = job;
+    // A job cancelled before it started never clears the flag itself.
+    unawaited(
+      job.catchError((Object _) {}).whenComplete(() {
+        if (identical(_queuedReplayGainRefresh, job)) {
+          _queuedReplayGainRefresh = null;
+        }
+      }),
+    );
+    return job;
+  }
 
   @override
   Future<void> applySongIdentityAliases(Map<String, String> aliases) {

@@ -17989,11 +17989,13 @@ void main() {
       List<double?> gains, {
       List<double?>? peaks,
       PlaybackAdjustmentCapabilities caps = exo,
+      bool crossfade = false,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-rgq-');
       final (handler, player, database) = await createHandler(
         directory,
         gains.length,
+        crossfade: crossfade,
         replayGainMode: 'track',
         adjustmentCapabilities: caps,
         seed: (database) async {
@@ -18068,6 +18070,66 @@ void main() {
       await settleQueue(handler);
 
       expect(player.boostMessages.last.currentDb, 5);
+    });
+
+    test('the next song\'s mpv boost holds its new gain before any skip '
+        '(a natural join reads it)', () async {
+      final (handler, player, database) = await queued(
+        [6, 3],
+        peaks: [0.1, 0.1],
+        caps: mpv,
+      );
+      await retag(database, 'song-1', 5);
+
+      await handler.refreshQueuedSongReplayGain();
+
+      final sent = player.boostMessages.last;
+      expect(sent.bySongId['song-1'], 5);
+      expect(sent.currentDb, 6, reason: 'the playing song keeps its boost');
+    });
+
+    test('the cross-fade incoming song keeps its gain', () async {
+      final (handler, player, database) = await queued([
+        -6,
+        -6,
+        -6,
+      ], crossfade: true);
+      await handler.debugStartCrossfade();
+      final incoming = handler.debugInactiveDeck! as _ControllableAudioPlayer;
+      for (var i = 0; i < 800 && !incoming.playing; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      for (final id in ['song-0', 'song-1', 'song-2']) {
+        await retag(database, id, -12);
+      }
+      final writes = player.appliedVolumes.length;
+      final incomingWrites = incoming.appliedVolumes.length;
+
+      await handler.refreshQueuedSongReplayGain();
+
+      final items = handler.queue.value;
+      expect(gainOf(items[0]), -6);
+      expect(gainOf(items[1]), -6, reason: 'it is audible while fading in');
+      expect(gainOf(items[2]), -12);
+      expect(player.appliedVolumes, hasLength(writes));
+      expect(incoming.appliedVolumes, hasLength(incomingWrites));
+    });
+
+    test('rapid refreshes queue one job at a time', () async {
+      final (handler, _, database) = await queued([-6, -6]);
+      final edits = handler.debugQueueEditCount;
+
+      final first = handler.refreshQueuedSongReplayGain();
+      final second = handler.refreshQueuedSongReplayGain();
+      final third = handler.refreshQueuedSongReplayGain();
+      expect(handler.debugQueueEditCount, edits + 1);
+      await Future.wait([first, second, third]);
+
+      // Once it has run, the next call is a new job and sees newer rows.
+      await retag(database, 'song-1', -12);
+      await handler.refreshQueuedSongReplayGain();
+      expect(handler.debugQueueEditCount, edits + 2);
+      expect(gainOf(handler.queue.value[1]), -12);
     });
 
     test('unchanged rows publish nothing', () async {

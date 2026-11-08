@@ -420,13 +420,22 @@ void main() {
       expect(await refreshedAfter(_succeeded), isFalse);
     });
 
-    test('a failed run does not', () async {
+    test('a failed run that wrote rows refreshes it', () async {
       expect(
         await refreshedAfter(
           _succeeded.copyWith(
             status: LibrarySyncStatus.failed,
             catalogPublishedThisRun: true,
           ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('a failed run that wrote nothing does not', () async {
+      expect(
+        await refreshedAfter(
+          _succeeded.copyWith(status: LibrarySyncStatus.failed),
         ),
         isFalse,
       );

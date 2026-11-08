@@ -765,6 +765,10 @@ extension _NavisQueueEditing on NavisAudioHandler {
     if (!changed) return;
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
     _emitSnapshot();
+    // Boost only, no volume: mpv switches the gain per file from this map, so
+    // a natural join reads the next song's new value. The playing song's
+    // extras are untouched, so its own boost is unchanged.
+    _applyReplayGainBoost();
   }
 
   String _canonicalSongId(String songId) {

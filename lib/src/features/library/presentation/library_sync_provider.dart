@@ -1687,11 +1687,10 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       }
     }
 
-    // A run that rewrote songs (a promoted snapshot or hydrated albums) may
-    // carry new ReplayGain; queued songs take it from the next song on.
-    if ((result.status == LibrarySyncStatus.succeeded ||
-            result.status == LibrarySyncStatus.partial) &&
-        (result.catalogPublishedThisRun || (result.hydratedAlbums ?? 0) > 0)) {
+    // A run that wrote songs (a promoted snapshot or hydrated albums), even
+    // one that then failed, may carry new ReplayGain; queued songs take it
+    // from the next song on.
+    if (result.catalogPublishedThisRun || (result.hydratedAlbums ?? 0) > 0) {
       _refreshQueuedReplayGain();
     }
 
