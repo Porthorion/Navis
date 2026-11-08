@@ -236,6 +236,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   Future<void> applySongIdentityAliases(Map<String, String> aliases) async {}
 
   @override
+  Future<void> refreshQueuedSongReplayGain() async {}
+
+  @override
   Future<void> toggleLike() async {}
 
   @override

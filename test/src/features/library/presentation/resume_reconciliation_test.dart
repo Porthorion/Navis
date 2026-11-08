@@ -507,6 +507,7 @@ void main() {
     expect(counts.last, 2);
     expect(container.read(librarySyncControllerProvider).lastRunBytes, 1234);
     expect(handler.aliases.last, {'before': 'after'});
+    expect(handler.replayGainRefreshes, greaterThan(0));
   });
   for (final (leased, retry, rapid, stop) in [
     (false, false, false, 'complete'),

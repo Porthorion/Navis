@@ -1687,6 +1687,13 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       }
     }
 
+    // A run that wrote songs (a promoted snapshot or hydrated albums), even
+    // one that then failed, may carry new ReplayGain; queued songs take it
+    // from the next song on.
+    if (result.catalogPublishedThisRun || (result.hydratedAlbums ?? 0) > 0) {
+      _refreshQueuedReplayGain();
+    }
+
     // A no-op automatic pass must never erase a failure the user still needs
     // to see and retry.  This commonly happened when startup/periodic work
     // joined after a transient failure and returned `skipped`.
@@ -1978,6 +1985,20 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         now.difference(started) < const Duration(minutes: 9);
   }
 
+  /// Not awaited, like the alias remap: it runs as a queue edit, and nothing
+  /// here depends on it.
+  void _refreshQueuedReplayGain() {
+    unawaited(
+      ref
+          .read(audioHandlerProvider)
+          ?.refreshQueuedSongReplayGain()
+          .catchError(
+            (Object error) =>
+                AppLogger.debug('Queued ReplayGain refresh skipped: $error'),
+          ),
+    );
+  }
+
   Future<int?> _reconcileExternalDatabaseChanges(int? before) async {
     final fingerprint = _sessionFingerprint;
     final after = await _readResumeDataVersion();
@@ -2001,6 +2022,8 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       await ref.read(audioHandlerProvider)?.applySongIdentityAliases({
         for (final alias in aliases) alias.oldSongId: alias.canonicalSongId,
       });
+      // The background worker may have synced new ReplayGain.
+      _refreshQueuedReplayGain();
       final config = ref.read(serverConfigStateProvider).asData?.value;
       if (config != null) {
         await _loadPersistedSyncState(

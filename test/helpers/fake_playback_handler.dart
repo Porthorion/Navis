@@ -74,6 +74,11 @@ class InertPlaybackHandler implements NavisPlaybackHandler {
   @override
   Future<void> applySongIdentityAliases(Map<String, String> aliases) async {}
 
+  int replayGainRefreshes = 0;
+
+  @override
+  Future<void> refreshQueuedSongReplayGain() async => replayGainRefreshes++;
+
   @override
   Future<void> replaceQueue(
     List<String> songIds, {

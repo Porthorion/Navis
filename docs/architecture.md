@@ -5140,6 +5140,31 @@ Desktop volume follows a parallel local-settings path:
    `volume-gain` read back (`replayGainBoostIntendedDb` is what the adapter
    meant to write, `replayGainBoostHeldDb` the target of a held join).
 
+   Queued songs carry their ReplayGain in `MediaItem.extras`, copied from the
+   song row when the queue is built, and a deck source's tag keeps the value
+   it was created with. After a sync run that wrote songs (a promoted
+   snapshot or hydrated albums, whatever its final status), and on every
+   external database change `LibrarySyncController` sees (the Android worker
+   writes while the app is open; on resume it reconciles once, then polls
+   about once a second for up to nine minutes while a worker may commit),
+   it calls `refreshQueuedSongReplayGain()` without awaiting it. It is a queue
+   edit (`_refreshQueuedSongReplayGain`, `prepareSources: false`, no network),
+   and at most one waits at a time: a call made while one is queued shares it.
+   It reads the queued ids from the library with one chunked `getSongsByIds`
+   and patches the `replayGain*` extras where they differ, then publishes the
+   queue once and refreshes the boost map (no volume); nothing changed,
+   nothing published. It never applies a volume and skips the audible songs
+   (the current one, and the incoming one during a cross-fade), because every
+   later volume write re-reads a song's extras: the playing song's level never
+   jumps. On Android a refresh inside the last-3 s clip guard can still lower
+   (never raise) the playing song's boost to the next song's refreshed value.
+   The next song plays at the new gain (cut and boost;
+   `_mediaItemOfSource` prefers the queue's copy over the source tag, and the
+   refreshed boost map is what mpv reads at a natural join). The audible
+   song's other queue copies keep the old gain too, so it plays at the old
+   gain if it comes round again from the same queue (previous, repeat) until
+   the queue is reloaded.
+
    Guidance. Playback settings explain what ReplayGain does (with a boost
    stage: it turns quiet songs up only as far as their peak allows; without
    one: it only turns songs down; either way raise the volume), each mode, and
