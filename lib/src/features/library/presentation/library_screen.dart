@@ -123,6 +123,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   final ItemScrollController _yearItemScrollController = ItemScrollController();
   final ItemPositionsListener _yearItemPositionsListener =
       ItemPositionsListener.create();
+  // First visible index of the two positioned lists. They live here, in the
+  // State that survives a layout class change, so a rebuilt list starts at the
+  // same item (a PageStorageKey would restore a pixel offset relative to the
+  // last jumped-to item and land on a different one).
+  int _artistsFirstIndex = 0;
+  int _yearFirstIndex = 0;
   List<ArtistsTableData>? _cachedArtists;
   List<_ArtistListItem> _artistListItems = const <_ArtistListItem>[];
   Map<String, int> _artistLetterStartIndex = const <String, int>{};
@@ -1140,6 +1146,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   children: <Widget>[
                     ScrollablePositionedList.builder(
                       itemCount: _artistListItems.length,
+                      initialScrollIndex: _artistsFirstIndex.clamp(
+                        0,
+                        _artistListItems.length - 1,
+                      ),
                       itemScrollController: _artistsItemScrollController,
                       itemPositionsListener: _artistsItemPositionsListener,
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -1332,6 +1342,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 thumbVisibility: false,
                 interactive: true,
                 child: CustomScrollView(
+                  // The page storage key restores the offset when a layout
+                  // class change (fold, rotation) rebuilds this subtree.
+                  key: const PageStorageKey<String>('library-albums'),
                   controller: _albumsScrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: <Widget>[
@@ -1582,6 +1595,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     children: <Widget>[
                       ScrollablePositionedList.builder(
                         itemCount: _yearListItems.length,
+                        initialScrollIndex: _yearFirstIndex.clamp(
+                          0,
+                          _yearListItems.length - 1,
+                        ),
                         itemScrollController: _yearItemScrollController,
                         itemPositionsListener: _yearItemPositionsListener,
                         physics: const AlwaysScrollableScrollPhysics(),
@@ -1839,6 +1856,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               .take(ContentLayout.shelfLimit(width, albumExtent))
               .toList(growable: false);
           return CustomScrollView(
+            key: const PageStorageKey<String>('library-liked'),
             controller: _likedScrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
@@ -2315,13 +2333,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       builder: (context, constraints) {
         final inset = ContentLayout.padding(constraints.maxWidth);
         return CustomScrollView(
+          key: const PageStorageKey<String>('library-artists-grid'),
           controller: _artistsGridScrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: <Widget>[
             for (final letter in letters) ...<Widget>[
               SliverToBoxAdapter(
-                key: _artistGridSectionKeys[letter],
+                // The key sits on the box child: a sliver's render object is
+                // not a RenderBox, so the scroll tracking could not measure it.
                 child: Padding(
+                  key: _artistGridSectionKeys[letter],
                   padding: EdgeInsets.fromLTRB(inset, 10, inset, 6),
                   child: Text(
                     letter,
@@ -2411,7 +2432,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   void _onArtistsViewportChanged() {
-    if (_artistListItems.isEmpty || _isArtistRailScrubbing) {
+    if (_artistListItems.isEmpty) {
       return;
     }
     final positions = _artistsItemPositionsListener.itemPositions.value;
@@ -2442,8 +2463,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       0,
       _artistListItems.length - 1,
     );
+    // Tracked while scrubbing too: a rail jump must survive a fold.
+    _artistsFirstIndex = topIndex;
     final topLetter = _artistListItems[topIndex].letter;
-    if (topLetter == _activeArtistLetter || !mounted) {
+    if (_isArtistRailScrubbing ||
+        topLetter == _activeArtistLetter ||
+        !mounted) {
       return;
     }
     setState(() => _activeArtistLetter = topLetter);
@@ -2489,7 +2514,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   void _onYearViewportChanged() {
-    if (_yearListItems.isEmpty || _isYearRailScrubbing) {
+    if (_yearListItems.isEmpty) {
       return;
     }
     final positions = _yearItemPositionsListener.itemPositions.value;
@@ -2517,6 +2542,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       return a.index.compareTo(b.index);
     });
     final topIndex = targetSet.first.index.clamp(0, _yearListItems.length - 1);
+    _yearFirstIndex = topIndex;
+    if (_isYearRailScrubbing) {
+      return;
+    }
     // Walk back through the flat list to find the nearest section header.
     String? label;
     for (var i = topIndex; i >= 0; i--) {

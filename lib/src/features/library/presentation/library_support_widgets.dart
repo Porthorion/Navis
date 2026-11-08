@@ -324,7 +324,7 @@ class _SectionRail extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return SizedBox(
+    final rail = SizedBox(
       key: railKey,
       width: width,
       child: LayoutBuilder(
@@ -383,6 +383,12 @@ class _SectionRail extends StatelessWidget {
           );
         },
       ),
+    );
+    // The rail floats at the right edge: stay clear of a system strip there
+    // (the iPhone Duo cover screen); the page behind still runs edge to edge.
+    return Padding(
+      padding: EdgeInsets.only(right: rightSystemInsetFor(context)),
+      child: rail,
     );
   }
 }

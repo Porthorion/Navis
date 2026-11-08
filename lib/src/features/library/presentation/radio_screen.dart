@@ -212,7 +212,8 @@ class _RadioTabContentState extends ConsumerState<RadioTabContent> {
         ),
         Positioned(
           bottom: 16,
-          right: 16,
+          // Clear of a right system strip (iPhone Duo cover screen).
+          right: 16 + rightSystemInsetFor(context),
           child: FloatingActionButton(
             key: const ValueKey<String>('radioAddFab'),
             heroTag: 'library_radio_fab',

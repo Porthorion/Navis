@@ -130,6 +130,16 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Foldables and tablets: the artist letter bar follows your scroll in '
+        'the grid, Library keeps your place when the screen folds, unfolds or '
+        'rotates, and Now Playing next to the rail fits its controls on '
+        'shorter screens. Album covers on tablets leave room for the songs, '
+        'and on the folded iPhone Duo the letter bar, the mini player buttons '
+        'and the new playlist button stay clear of the system strip on the '
+        'right',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Songs already in your queue pick up changed ReplayGain after a sync, '
         'from the next song on. The song that is playing keeps its level',
         type: ChangelogEntryType.improvement,
