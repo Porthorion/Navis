@@ -278,7 +278,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'On Android, Windows and Linux, volume normalization (ReplayGain) now '
+        'On Android, iOS, Windows and Linux, volume normalization (ReplayGain) now '
         'turns quiet songs up when their tags show room, stopping 1 dB '
         'below the song\'s peak so nothing distorts. Songs without '
         'ReplayGain data are only ever turned down',

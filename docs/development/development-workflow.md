@@ -2619,7 +2619,7 @@ It never installs over or edits the primary profile.
 
 `./tool/ios_gapless_diagnostics.sh` (iOS simulator, one heavy job) plays four
 phase-continuous 440 Hz songs through `POST /v1/playback/queue` from the
-loopback fixture server (`--song-count 15`, songs 5 and 6 at 48 and 96 kHz through
+loopback fixture server (`--song-count 21`, songs 5 and 6 at 48 and 96 kHz through
 `--song-rate`, songs 14 and 15 as a stereo 16-bit and a mono float WAV through
 `--song-wav`), proxied and as permanent downloads, with the equalizer off and
 on at a flat -12 dB. It reads the iOS-only `transitionGapsMs` (silence between
@@ -2634,7 +2634,16 @@ tap more than once, when the history resets during steady playback, or when
 16-bit), `seek` (one flush per seek and per skip, and
 seeking to 0 after the queue ended stays under 2 s), `insert` (a mid-song "play
 next"; its known 0.8 s stall is reported), `loop` (repeat one) and `crossfade`
-(relaunches the profile with crossfade on). The transport trace in
+(relaunches the profile with crossfade on) and `boost` (I24, the ReplayGain boost: fixture
+songs 16 to 20 are 12 s sines, Q at -30 dBFS tagged +10 dB with its peak and H at 0.98 of full
+scale tagged -3 dB, made with `--song-tone ...:AMPLITUDE` and `--song-gain ID=GAIN:PEAK`; the
+queue Q H Q Q48 H is sampled every 250 ms with the EQ off, so any boost leaking onto H crosses
+full scale and shows in `boostClipSamples`; also ReplayGain off, per-song level with the EQ at
+-12 dB, skip, seek, play next 2 s before the end, a loop-all wrap, a jump back to a finished song and
+a seek back out of the guard window (Q must return to 10 dB), a pre-amp change, and a positive
+control for the counter (song 21, a 0.5 full-scale sine wrongly tagged like Q, must count about
+54 % of its samples); `BOOST_ON_RUNS` repeats the
+boost-on queue; assertions in `tool/ios_boost_check.py`). The transport trace in
 `GET /v1/playback/status` (`songCurrent` event times) is an independent check of
 the song-change timing; the first song change includes the player start
 latency (about 0.8 s on the simulator), so compare the later ones with the song

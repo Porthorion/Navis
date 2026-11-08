@@ -74,6 +74,27 @@ void main() {
     expect(json['configuration'], state.applied.toJson());
   });
 
+  test('the boost stage is reported with its guard and clip counter', () {
+    final json = EqApplicationState(
+      desired: EqConfiguration.flat(),
+      applied: EqConfiguration.flat(),
+      boostRequestedDb: 10,
+      boostAppliedDb: 9.5,
+      boostGuarded: true,
+      boostClipSamples: 3,
+    ).toDiagnosticsJson();
+    expect(json['boostRequestedDb'], 10);
+    expect(json['boostAppliedDb'], 9.5);
+    expect(json['boostGuarded'], isTrue);
+    expect(json['boostClipSamples'], 3);
+    final none = EqApplicationState(
+      desired: EqConfiguration.flat(),
+      applied: EqConfiguration.flat(),
+    ).toDiagnosticsJson();
+    expect(none['boostAppliedDb'], 0);
+    expect(none['boostGuarded'], isFalse);
+  });
+
   test('counters are null when the backend reports none', () {
     final json = EqApplicationState(
       desired: EqConfiguration.flat(),

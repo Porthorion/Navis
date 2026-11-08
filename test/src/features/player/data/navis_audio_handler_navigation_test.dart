@@ -1021,6 +1021,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
           bool playing,
           int? index,
           Map<String?, double> bySongId,
+          Map<String?, int> durationMsBySongId,
         })
       >[];
 
@@ -1037,6 +1038,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     bool guarded = false,
     int? index,
     Map<IndexedAudioSource, double> bySource = const {},
+    Map<IndexedAudioSource, int> durationMsBySource = const {},
   }) async {
     boostMessages.add((
       currentDb: currentDb,
@@ -1045,6 +1047,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       index: index,
       bySongId: {
         for (final entry in bySource.entries)
+          navisNativeSourceSongId(entry.key): entry.value,
+      },
+      durationMsBySongId: {
+        for (final entry in durationMsBySource.entries)
           navisNativeSourceSongId(entry.key): entry.value,
       },
     ));
@@ -16585,6 +16591,151 @@ void main() {
         expect(json['cutDb'], 0);
         expect(json['boostDb'], 6);
         expect(json['db'], 6);
+      });
+
+      group('on iOS (I24)', () {
+        const ios = PlaybackAdjustmentCapabilities.ios;
+
+        test(
+          'the tap boosts and sends the per-file map, nothing else',
+          () async {
+            final (handler, player) = await gained(
+              [6, -10.5],
+              peaks: [0.1, 0.5],
+              caps: ios,
+              eq: EqCapabilities.available,
+              durationSeconds: 200,
+            );
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            expect(handler.replayGainBoostSupported, isTrue);
+            expect(handler.currentReplayGainDecision?.boostDb, 6);
+            expect(
+              player.volume,
+              1,
+              reason: 'the boost never touches the volume',
+            );
+            final sent = player.boostMessages.last;
+            expect(sent.currentDb, 6);
+            expect(sent.bySongId, {'song-0': 6.0, 'song-1': 0.0});
+            expect(sent.index, isNull, reason: 'native knows the playing item');
+            expect(sent.guarded, isFalse, reason: 'native owns the guard');
+            expect(
+              sent.durationMsBySongId,
+              {'song-0': 200000, 'song-1': 200000},
+              reason:
+                  'the tag durations time the guard when the player is wrong',
+            );
+          },
+        );
+
+        test('a skip sends the next song\'s own boost, unguarded', () async {
+          final (handler, player) = await gained(
+            [6, 3],
+            peaks: [0.1, 0.1],
+            caps: ios,
+            eq: EqCapabilities.available,
+          );
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          await handler.skipToNext();
+          await settleQueue(handler);
+          final sent = player.boostMessages.last;
+          expect(sent.currentDb, 3);
+          expect(sent.guarded, isFalse);
+          expect(sent.index, isNull);
+          expect(
+            player.boostMessages.where(
+              (message) =>
+                  message.bySongId.isNotEmpty && message.currentDb == 0,
+            ),
+            isEmpty,
+            reason: 'no lower-to-0 before a command on iOS',
+          );
+        });
+
+        test('a cut song keeps its volume cut and gets no boost', () async {
+          final (handler, player) = await gained(
+            [-3, 6],
+            peaks: [0.98, 0.1],
+            caps: ios,
+            eq: EqCapabilities.available,
+          );
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          expect(player.volume, closeTo(linearFactor(-3), 0.00001));
+          expect(player.boostMessages.last.currentDb, 0);
+          expect(player.boostMessages.last.bySongId, {
+            'song-0': 0.0,
+            'song-1': 6.0,
+          });
+        });
+
+        test('a settings change re-sends the map', () async {
+          var mode = 'track';
+          final (handler, player) = await gained(
+            [6],
+            peaks: [0.1],
+            caps: ios,
+            eq: EqCapabilities.available,
+            readMode: () => mode,
+          );
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          expect(player.boostMessages.last.bySongId, {'song-0': 6.0});
+          mode = 'off';
+          await handler.applyRuntimeSettings();
+          await pumpEventQueue();
+          expect(player.boostMessages.last.currentDb, 0);
+          expect(player.boostMessages.last.bySongId, {'song-0': 0.0});
+        });
+
+        test('status reports what the tap applied and its guard', () async {
+          final (handler, player) = await gained(
+            [6],
+            peaks: [0.1],
+            caps: ios,
+            eq: EqCapabilities.available,
+          );
+          player.nativeEqualizerState = const EqualizerStateMessage(
+            enabled: true,
+            boostRequestedDb: 6,
+            boostAppliedDb: 6,
+            boostGuarded: true,
+            boostClipSamples: 2,
+          );
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          await handler.refreshEqualizerState();
+          final boost =
+              handler.collectPlaybackDiagnostics()['replayGainBoost']
+                  as Map<String, Object?>;
+          expect(boost['requestedDb'], 6);
+          expect(boost['appliedDb'], 6);
+          expect(boost['guarded'], isTrue);
+          expect(boost['clipSamples'], 2);
+        });
+
+        test('without the EQ pipeline (a rebuild) nothing is sent', () async {
+          final (handler, player) = await gained(
+            [6],
+            peaks: [0.1],
+            caps: ios,
+            eq: EqCapabilities.unavailable,
+          );
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          expect(handler.replayGainBoostSupported, isFalse);
+          expect(player.boostMessages, isEmpty);
+          expect(handler.currentReplayGainDecision?.boostDb, 0);
+          expect(
+            handler.collectPlaybackDiagnostics()['replayGainBoost'],
+            isNull,
+          );
+        });
       });
 
       group('on Android', () {

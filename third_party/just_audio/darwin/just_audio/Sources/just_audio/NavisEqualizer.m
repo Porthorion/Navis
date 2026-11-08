@@ -2,6 +2,7 @@
 
 #if TARGET_OS_IOS
 
+#import "NavisBoost.h"
 #import "NavisEqualizerDsp.h"
 #import "NavisPitchAU.h"
 #import "NavisPitchStage.h"
@@ -36,10 +37,11 @@ static void pitchAuDestroy(void *au) { navis_pitch_au_free(au); }
 
 static uint64_t pitchAuMismatches(const void *au) { return navis_pitch_au_pull_mismatches(au); }
 
-static NavisTapContext *contextNew(const NavisEqConfig *config, int32_t pitchCents) {
+static NavisTapContext *contextNew(const NavisEqConfig *config, int32_t pitchCents, float boostGain) {
     NavisTapContext *c = calloc(1, sizeof(NavisTapContext));
     NavisPitchFactory factory = {pitchAuCreate, pitchAuDestroy, pitchAuMismatches};
     c->formats = navis_tap_formats_new(config, pitchCents, factory);
+    navis_tap_formats_set_boost(c->formats, boostGain);
     atomic_init(&c->flushGeneration, 0);
     atomic_init(&c->refs, 1);
     return c;
@@ -129,7 +131,9 @@ static void tapProcess(MTAudioProcessingTapRef tap, CMItemCount numberFrames,
         timescale = sourceRange.duration.timescale;
     }
     navis_tap_formats_process(c->formats, (*flagsOut & kMTAudioProcessingTapFlag_StartOfStream) != 0,
-                              atomic_load_explicit(&c->flushGeneration, memory_order_relaxed),
+                              // Acquire: the host stores the boost before it bumps the generation, and
+                              // the first block that sees the bump must see that boost.
+                              atomic_load_explicit(&c->flushGeneration, memory_order_acquire),
                               value, timescale, channels, (int)count, (int)*numberFramesOut);
 }
 
@@ -206,6 +210,8 @@ typedef NS_ENUM(NSInteger, NavisEqItemStatus) {
 @implementation NavisEqualizer {
     NavisEqConfig _config;
     int32_t _pitchCents;            // requested pitch; seeds the tap, which is created on first use
+    double _boostRequestedDb;       // requested ReplayGain boost; seeds the tap too
+    BOOL _boostGuarded;             // reported only
     NavisTapContext *_context;      // created with the tap; this object holds one reference
     MTAudioProcessingTapRef _tap;
     NSMapTable<AVPlayerItem *, NavisEqItemRecord *> *_records;
@@ -274,6 +280,14 @@ static void warmUpPitchAudioUnit(void) {
     if (_context) navis_tap_formats_set_cents(_context->formats, clamped);
 }
 
+- (void)setBoostDb:(double)db guarded:(BOOL)guarded {
+    if (_disposed) return;
+    _boostRequestedDb = db > 0 ? fmin(db, NAVIS_BOOST_MAX_DB) : 0; // NaN is 0
+    _boostGuarded = guarded;
+    // The pow happens here; the render thread only loads the gain.
+    if (_context) navis_tap_formats_set_boost(_context->formats, navis_boost_linear(_boostRequestedDb));
+}
+
 static NSDictionary *stateDictionary(NSString *reason, BOOL enabled, id sampleRate, double headroom,
                                      BOOL pending, uint64_t total, id level, id resets) {
     return @{
@@ -322,6 +336,10 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
     result[@"unprepareCalls"] = @((long long)fs.unprepareCalls);
     result[@"clampedUnprepares"] = @((long long)fs.clampedUnprepares);
     result[@"flushCount"] = @(flushes);
+    result[@"boostRequestedDb"] = @(_boostRequestedDb);
+    result[@"boostAppliedDb"] = @(live && fs.boostAppliedGain > 1.0f ? 20 * log10((double)fs.boostAppliedGain) : 0.0);
+    result[@"boostGuarded"] = @(_boostGuarded);
+    result[@"boostClipSamples"] = @((long long)fs.boostClipSamples);
     result[@"transitionGapsMs"] = [_gapsMs copy];
     // One entry per audio format of the queue (slots outlive their pipelines), and
     // the audio no format took; both stay 0 / complete in a healthy run.
@@ -394,7 +412,7 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
 /// Creates the player's one tap on first use. NO when MTAudioProcessingTapCreate fails.
 - (BOOL)ensureTap {
     if (_context) return YES;
-    NavisTapContext *context = contextNew(&_config, _pitchCents);
+    NavisTapContext *context = contextNew(&_config, _pitchCents, navis_boost_linear(_boostRequestedDb));
     MTAudioProcessingTapCallbacks callbacks = {
         .version = kMTAudioProcessingTapCallbacksVersion_0,
         .clientInfo = context,

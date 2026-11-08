@@ -31,6 +31,13 @@
 /// and pitchInputHz/pitchOutputHz (diagnostics), and pitchReason when the tap
 /// cannot pitch its audio.
 - (void)setPitchCents:(float)cents;
+/// ReplayGain boost (I24) in dB for the player's one tap, clamped to 0..12; 0 is a
+/// bit-exact bypass. Main thread; the tap ramps every format to it over 20 ms, and
+/// snaps at the first block after a flush or a new pipeline (so store a drop before
+/// `noteFlush`). `guarded` is only reported. Safe before the tap exists (it is seeded).
+/// The state adds boostRequestedDb, boostAppliedDb (the gain the last block ended on),
+/// boostGuarded and boostClipSamples (samples beyond full scale after the boost gain).
+- (void)setBoostDb:(double)db guarded:(BOOL)guarded;
 /// Gives the item its audio mix (the shared tap, track 1) synchronously.
 /// Idempotent. Call it for every item in the same run-loop turn as the insert
 /// into the queue, never later: changing the mix of a queued item stalls playback.

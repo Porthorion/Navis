@@ -127,11 +127,28 @@ reads a few tens of milliseconds early (a negative gap) when the main thread is
 busy; that is a clock reading, not an overlap in the audio (the transport trace
 intervals stay at the song length). `tool/ios_gapless_diagnostics.sh` plays the
 fixture queues and checks these values.
+The ReplayGain boost (I24) is the last step of each format slot, after pitch and EQ
+(`NavisBoost.c`): a gain with a 20 ms linear ramp, independent of `enabled`, so quiet
+songs are turned up with the EQ off or on. The cut stays on `AVPlayer.volume` and one
+song never gets both. Dart sends the per-URI boost map (`setReplayGainBoost`) and
+`AudioPlayer.m` decides the target on the main thread (`navis_boost_decide`): the
+song's own boost, or in the last 3 s of wall-clock time (and for songs shorter than 4 s
+or of unknown length) the lower of its and the next song's, latched until the next
+song event. A drop applies at once, a rise waits 500 ms after a song event, so a song
+head can be under-boosted for about 0.5 s but its tail is never over-boosted. The
+target reaches the tap as one atomic gain; a slot snaps to it on its first block and
+on a reset (StartOfStream or a flush), else it ramps. Blocks that pass unchanged (no
+slot, another render thread in the slot) get no boost. The tap has no limiter: the
+1 dB margin under the tagged peak is Dart's, and samples beyond full scale after the
+gain are only counted. State adds `boostRequestedDb`, `boostAppliedDb` (the gain the
+last block ended on), `boostGuarded` and `boostClipSamples` (0 in a healthy run).
+Without the tap (after the EQ pipeline was rebuilt away) the capability is false and
+nothing is sent. macOS has no boost stage.
 The DSP is covered by `third_party/just_audio/darwin/test/navis_equalizer_dsp_test.c`,
 run from `tool/equalizer_native_test.sh` (it needs only a C compiler), as are
-`navis_pitch_stage_test.c` and `navis_tap_formats_test.c` (the format slots with a
-fake pitch unit, including concurrent pipelines; under ThreadSanitizer too on
-macOS).
+`navis_pitch_stage_test.c`, `navis_boost_test.c` (the boost decision table and
+ramp) and `navis_tap_formats_test.c` (the format slots with a fake pitch unit,
+including concurrent pipelines and the boost; under ThreadSanitizer too on macOS).
 
 The Android processor currently receives 16-bit PCM. Coefficients and filter
 history use doubles internally; this is not a bit-perfect high-resolution path.
@@ -315,7 +332,7 @@ limiter and does not promise protection against every transient.
 ReplayGain, volume, mute, ducking, and crossfade deck gains remain separate.
 The Android processor also carries the ReplayGain boost (positive gain), after
 the EQ bank and outside its preamp and automatic headroom, so quiet songs are
-turned up with the EQ off or on.
+turned up with the EQ off or on. The iOS tap does the same ([iOS](#ios)).
 Android puts the app-owned processor after Media3's Sonic processing, delegates
 its duration accounting, prevents encoded passthrough/offload, and crossfades
 configuration banks over 20 ms at audio-block boundaries. Each channel owns its

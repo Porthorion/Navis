@@ -707,6 +707,13 @@ extension _NavisMediaSession on NavisAudioHandler {
       ? _adjustmentCapabilities == PlaybackAdjustmentCapabilities.android
       : _isAndroidRuntime;
 
+  /// Whether the player is iOS's AVQueuePlayer with the equalizer's tap (same
+  /// injection rule). Its boost is a gain stage in that tap, which gets the
+  /// per-file map and owns the timing natively.
+  bool get _usesIos => _adjustmentCapabilities != null
+      ? _adjustmentCapabilities == PlaybackAdjustmentCapabilities.ios
+      : _isIosRuntime;
+
   /// Whether the boost stage is Android's EQ processor, which is told one
   /// value for the playing song instead of a per-file map.
   bool get _usesAndroidBoost =>
@@ -836,6 +843,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     if (_usesAndroidBoost) return _sendAndroidBoostTo(player);
     final current = player.currentIndex;
     final bySource = <IndexedAudioSource, double>{};
+    final durationMsBySource = <IndexedAudioSource, int>{};
     final sequence = player.sequence;
     for (var i = 0; i < sequence.length; i++) {
       final item = _mediaItemOfSource(sequence[i]);
@@ -846,10 +854,14 @@ extension _NavisMediaSession on NavisAudioHandler {
             freeze: identical(player, _player) && i == current,
           )?.boostDb ??
           0;
+      // The tag's duration times the iOS guard along with the player's own.
+      final tagMs = item.duration?.inMilliseconds;
+      if (tagMs != null && tagMs > 0) durationMsBySource[sequence[i]] = tagMs;
     }
     await player.setReplayGainBoost(
       currentDb: bySource[current == null ? null : sequence[current]] ?? 0,
       bySource: bySource,
+      durationMsBySource: durationMsBySource,
     );
   }
 
@@ -1123,6 +1135,14 @@ extension _NavisMediaSession on NavisAudioHandler {
           'sentDb': _sentBoost[_player]?.db,
           'clipSamples': equalizerState.boostClipSamples,
         }
+      : _usesIos && replayGainBoostSupported
+      // The iOS tap owns the guard, so what it reports is all there is.
+      ? <String, Object?>{
+          'requestedDb': equalizerState.boostRequestedDb,
+          'appliedDb': equalizerState.boostAppliedDb,
+          'guarded': equalizerState.boostGuarded,
+          'clipSamples': equalizerState.boostClipSamples,
+        }
       : null;
 
   /// What ReplayGain does to the current song, or null for radio. Read by
@@ -1284,6 +1304,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         boostRequestedDb: native.boostRequestedDb,
         boostAppliedDb: native.boostAppliedDb,
         boostClipSamples: native.boostClipSamples,
+        boostGuarded: native.boostGuarded,
         processedFrames: native.processedFrames,
         levelDeltaDb: native.levelDeltaDb,
         resetCount: native.resetCount,
