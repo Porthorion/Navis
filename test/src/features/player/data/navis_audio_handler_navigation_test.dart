@@ -24179,6 +24179,8 @@ void main() {
       bool desktop = false,
       NavisQueueWindow queueWindow = const NavisQueueWindow(),
       bool shuffle = false,
+      // Songs queued out of the [count] in the library.
+      int? queued,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-i374-');
       final (handler, player, database) = await createHandler(
@@ -24192,10 +24194,11 @@ void main() {
         await database.close();
         await directory.delete(recursive: true);
       });
-      final ids = [for (var i = 0; i < count; i++) 'song-$i'];
+      final length = queued ?? count;
+      final ids = [for (var i = 0; i < length; i++) 'song-$i'];
       await handler.replaceQueue(
         ids,
-        startIndex: shuffle ? 0 : count - 1,
+        startIndex: shuffle ? 0 : length - 1,
         expandMatchFlows: false,
       );
       await settleQueue(handler);
@@ -24212,7 +24215,7 @@ void main() {
           const NavisQueueWindow().deferThreshold) {
         for (
           var i = 0;
-          i < count && player.state != ProcessingState.completed;
+          i < length && player.state != ProcessingState.completed;
           i++
         ) {
           player.finishCurrentTrack();
@@ -24235,16 +24238,20 @@ void main() {
       await pumpEventQueue();
     }
 
-    test('restarts at song 0 when the seek is reported as ready', () async {
-      final (handler, player) = await finished();
-      final seeksBefore = player.seekCalls;
-      await handler.play();
-      await settle();
+    // Control: the ready order never showed the bug; it pins the behaviour.
+    test(
+      'restarts at song 0 when the seek is reported as ready (control)',
+      () async {
+        final (handler, player) = await finished();
+        final seeksBefore = player.seekCalls;
+        await handler.play();
+        await settle();
 
-      expect(handler.snapshot.currentSongId, 'song-0');
-      expect(player.index, 0);
-      expect(player.seekCalls - seeksBefore, 1);
-    });
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(player.index, 0);
+        expect(player.seekCalls - seeksBefore, 1);
+      },
+    );
 
     // a: the stale `completed` arrives while the seek is in flight; b: after
     // the seek future has resolved.
@@ -24276,6 +24283,9 @@ void main() {
         final (handler, player) = await finished(count: 3, desktop: desktop);
         player
           ..exoEndedSeekLate = !desktop
+          // Conservative model: real media_kit goes buffering -> ready on a
+          // different-index restart (Linux runtime check, #374), so it never
+          // stays `completed` there.
           ..completedStaysOnSeek = desktop;
         await handler.play();
         await settle();
@@ -24330,7 +24340,9 @@ void main() {
       expect(player.index, 0);
     });
 
-    test('a queue with a deferred head restarts at song 0', () async {
+    // Control: the deferred-head restart reloads the window through
+    // playFromIndex(0), not `_seekPlayerToIndex`, so no echo reaches it.
+    test('a queue with a deferred head restarts at song 0 (control)', () async {
       const window = NavisQueueWindow(
         deferThreshold: 16,
         ahead: 8,
@@ -24356,7 +24368,7 @@ void main() {
     // f: the other seeks out of a finished queue.
     for (final late in [false, true]) {
       test('Play from index 0 on a finished queue stays on song 0 '
-          '(${late ? 'late' : 'in-seek'} echo)', () async {
+          '(${late ? 'late echo' : 'in-seek echo, behaviour pin'})', () async {
         final (handler, player) = await finished(count: 3);
         player
           ..exoEndedSeek = !late
@@ -24369,7 +24381,7 @@ void main() {
       });
 
       test('Previous on a finished queue lands on the previous song '
-          '(${late ? 'late' : 'in-seek'} echo)', () async {
+          '(${late ? 'late echo' : 'in-seek echo, behaviour pin'})', () async {
         final (handler, player) = await finished(count: 3);
         // Within the first seconds Previous goes to the earlier song.
         player
@@ -24383,5 +24395,37 @@ void main() {
         expect(player.index, 1);
       });
     }
+
+    // A song added to a finished queue resumes at the new song
+    // (_resumeInsertedItemIfCompleted); more songs follow it, so a stale
+    // `completed` there reads as that song ending early.
+    for (final late in [false, true]) {
+      test('Play Next on a finished queue resumes at the inserted song '
+          '(${late ? 'late' : 'in-seek'} echo)', () async {
+        final (handler, player) = await finished(count: 4, queued: 2);
+        player
+          ..exoEndedSeek = !late
+          ..exoEndedSeekLate = late;
+        await handler.playNext(['song-2', 'song-3'], expandMatchFlows: false);
+        await settle();
+
+        expect(handler.snapshot.currentSongId, 'song-2');
+        expect(player.index, 2);
+      });
+    }
+
+    test('Play on a finished one-song queue restarts it (late echo)', () async {
+      final (handler, player) = await finished(count: 1);
+      player.exoEndedSeekLate = true;
+      final seeksBefore = player.seekCalls;
+      await handler.play();
+      await settle();
+
+      expect(handler.snapshot.currentSongId, 'song-0');
+      expect(player.index, 0);
+      expect(player.seekCalls - seeksBefore, 1);
+      expect(player.state, ProcessingState.ready);
+      expect(handler.snapshot.playing, isTrue);
+    });
   });
 }
