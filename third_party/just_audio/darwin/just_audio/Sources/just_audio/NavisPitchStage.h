@@ -57,7 +57,7 @@ void navis_pitch_stage_free(NavisPitchStage *stage);
 /// next block.
 void navis_pitch_stage_request(NavisPitchStage *stage, float cents);
 /// Audio thread, right after navis_eq_stream_begin_block with its return value
-/// (and before any layout early-return). Latched until the next block of audio.
+/// (see navis_pitch_stage_begin_block). Latched until the next block of audio.
 void navis_pitch_stage_note_reset(NavisPitchStage *stage);
 /// Audio thread, in place, non-interleaved float, blocks with audio only. A
 /// channel count that differs from the stage's passes through; blocks longer
@@ -66,8 +66,9 @@ void navis_pitch_stage_process(NavisPitchStage *stage, float *const *channels, i
 /// Any thread.
 void navis_pitch_stage_state(NavisPitchStage *stage, NavisPitchState *out);
 
-/// The tap's reset glue, called once per block before its layout early-returns:
-/// the equalizer stream decides (StartOfStream latched, or a new flush
+/// The tap's reset glue, called once per block the format slot processes (the tap's
+/// layout checks run before it, in tapProcess; a block that fails them reaches no
+/// stream and consumes no event): the equalizer stream decides (StartOfStream latched, or a new flush
 /// generation) and the pitch stage, when there is one, is told exactly that
 /// decision. Returns it.
 static inline bool navis_pitch_stage_begin_block(NavisPitchStage *pitch, NavisEqStream *eq, bool startOfStream,

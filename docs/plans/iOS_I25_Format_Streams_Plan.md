@@ -121,10 +121,21 @@ mutex, as in I21 (AU creation is slow; `state()` locks on the main thread).
    interval `frames*ts/(value+1) .. frames*ts/(value-1)`, so a short block on a coarse
    timescale (600) still finds its slot. The probe always saw timescale =
    source rate.
-3. `blockRate == 0` with several slots, or no match: pass dry, add the frames to
-   `unmatchedFrames`.
+   When the rounding interval admits **several** slots, prefer `lastSlot`, then
+   the slot of the latest prepare (`preparedSlot`), if either is among them, else
+   the nearest (a song that plays stays on its slot).
+3. **Fix round (coordinator, after review):** a block with `frames > 0` but no
+   usable rate (invalid range, `value <= 0`) and several slots goes to
+   `preparedSlot`, the slot of the most recent prepare, when the channel count
+   matches: every pipeline's first block has an invalid range and comes after the
+   previous pipeline's unprepare, and a StartOfStream on it applies to that slot.
+   If the channel count does not match, or the latest prepare gave no slot, it
+   passes dry and its frames count as `unmatchedFrames`. No match for a block
+   with a rate: pass dry, count the frames.
 4. Match: `atomic_flag_test_and_set(&slot->busy)`; if it was already set, pass
-   dry and count `overlapBlocks`. Otherwise run
+   dry and count `overlapBlocks`; a StartOfStream on that dropped block is kept in
+   a per-slot atomic flag that the next block processed on the slot consumes.
+   Otherwise run
    `navis_pitch_stage_begin_block(pitch, eq, startOfStream, flushGeneration,
    frames)`, then pitch, then EQ as now; store `lastSlot`; clear `busy`.
 
@@ -252,7 +263,17 @@ shows as a level change.
   to its own `maxFrames`, which its AU was built with.
 - Unsupported (not planar float) format: `live++`, no slot, format reason set;
   its blocks fail the planar-float layout checks in `tapProcess` and pass dry
-  before any slot is picked, so the single-slot fallback cannot catch them.
+  before any slot is picked, so the single-slot fallback cannot catch them. On
+  iOS the tap's processing format is always float32 (planar), so this path is
+  theoretical: integer taps were never seen, and integer-format support is out of
+  scope. A block that fails the checks marks the state dry
+  (`navis_tap_formats_note_dry`, one atomic store) so the state does not show the
+  previous slot as processing. Reasons stay until a block is processed by a slot.
+- A reused slot whose pitch stage or AU could not be built is built again by the
+  next prepare of that format, outside the lock, and published to the slot.
+- The balance of prepare and unprepare is exported (`livePipelines`,
+  `prepareCalls`, `unprepareCalls`, `clampedUnprepares`): starting over at the cap
+  is only safe while they balance.
 - Two prepares of one key on two threads: the locked re-check keeps one build
   and frees the other outside the lock.
 - Crossfade decks keep their own tap; loop `playerItem2` shares its original's

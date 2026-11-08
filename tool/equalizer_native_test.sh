@@ -48,6 +48,9 @@ if navis_cc="$(command -v cc || command -v gcc || command -v clang)"; then
       "${navis_darwin_source}/test/navis_tap_formats_test.c" "${navis_tap_sources[@]}" \
       -lm -o "${navis_c_out}/navis_tap_formats_tsan_test"
     "${navis_c_out}/navis_tap_formats_tsan_test" --concurrency
+  elif [[ "$(uname -s)" == Darwin && -n "${CI:-}" ]]; then
+    echo 'ERROR: CI on macOS needs a compiler with working ThreadSanitizer for the tap formats test.' >&2
+    exit 1
   else
     echo 'SKIPPED: the ThreadSanitizer run of the tap formats test needs macOS with a working -fsanitize=thread.'
   fi

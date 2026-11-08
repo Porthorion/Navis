@@ -88,6 +88,10 @@ folder, tolerance, summary, label = sys.argv[1], float(sys.argv[2]), sys.argv[3]
 s = {os.path.basename(f)[:-5]: json.load(open(f))["application"] for f in glob.glob(folder + "/*.json")}
 problems = []
 def fail(message): problems.append(message)
+# Every phase: the tap's prepares and unprepares balance (starting over at the format cap
+# relies on it), so no unprepare ever found nothing to match.
+for name, a in sorted(s.items()):
+    if a.get("clampedUnprepares") != 0: fail("%s: clampedUnprepares %s" % (name, a.get("clampedUnprepares")))
 $body
 line = "%-34s %s" % (label, "FAIL: " + "; ".join(problems) if problems else "ok")
 open(summary, "a").write(line + "\n")
@@ -119,6 +123,9 @@ for g in gaps[-3:]:
     # A negative gap is the next song clock starting early, not silence. It shows up
     # now and then when the main thread is busy; report it, do not fail on it.
     if g < -tolerance: print("  note: transition clock %.1f ms early (overlap, not silence)" % -g)
+for name in ("at3", "at14", "at19"):
+    if round(s[name].get("sampleRate") or 0) != 22050: fail("%s: the EQ runs at %s Hz for a 22050 Hz song" % (name, s[name].get("sampleRate")))
+if s["at19"]["unmatchedFrames"] != 0: fail("%s frames matched no format" % s["at19"]["unmatchedFrames"])
 frames = s["at19"]["processedFrames"]
 if frames < 0.95 * 4 * %FRAMES%: fail("the tap processed %d frames, expected about %d" % (frames, 4 * %FRAMES%))
 if s["at19"]["resetCount"] != s["at3"]["resetCount"]: fail("resetCount moved %s -> %s during playback" % (s["at3"]["resetCount"], s["at19"]["resetCount"]))
@@ -202,6 +209,16 @@ for name in ("song1-4", "song2-14", "song3-15", "song4-3"):
     if round(a.get("sampleRate") or 0) != 22050: fail("%s: the EQ runs at %s Hz" % (name, a.get("sampleRate")))
     level = a.get("levelDeltaDb")
     if level is None or abs(level + 12) > 0.6: fail("%s: levelDeltaDb %s" % (name, level))
+# The slot that processed each song is the one whose frames grew since the previous snapshot:
+# its channel count is that of the song (mono 16-bit, stereo 16-bit, mono float, mono 16-bit).
+def frames_by_format(a): return {(round(f["sampleRate"]), f["channels"]): f["processedFrames"] for f in a.get("formatStreams") or []}
+previous = {}
+for name, channels in (("song1-4", 1), ("song2-14", 2), ("song3-15", 1), ("song4-3", 1)):
+    now = frames_by_format(s[name])
+    grown = {k: v - previous.get(k, 0) for k, v in now.items()}
+    busiest = max(grown, key=grown.get)
+    if busiest != (22050, channels): fail("%s was processed by the %s slot, expected %s" % (name, busiest, (22050, channels)))
+    previous = now
 end = s["zend"]
 streams = {(round(f["sampleRate"]), f["channels"]): f for f in end.get("formatStreams") or []}
 if sorted(streams) != [(22050, 1), (22050, 2)]: fail("formatStreams hold %s, expected mono and stereo at 22050" % sorted(streams))
@@ -458,6 +475,7 @@ if a['pitchCents'] != round(100 * $st): fail('pitchCents %s for $st semitones' %
 if a['pitchActive'] != ($st != 0): fail('pitchActive %s at $st semitones' % a['pitchActive'])
 if a['pitchLatencyFrames'] != $latency: fail('latency %s frames, expected $latency' % a['pitchLatencyFrames'])
 if round(a.get('sampleRate') or 0) != $rate: fail('the tap runs at %s Hz, expected $rate' % a.get('sampleRate'))
+if a['unmatchedFrames'] != 0: fail('%s frames matched no format' % a['unmatchedFrames'])
 if $st == 0 and abs(a['levelDeltaDb'] or 0) > 0.6: fail('levelDeltaDb %s at pitch 0' % a['levelDeltaDb'])
 print('  %s st: out/in %.4f cents %d latency %d resets %d' % ($st, a['pitchOutputHz'] / a['pitchInputHz'], a['pitchCents'], a['pitchLatencyFrames'], a['pitchResetCount']))
 "
@@ -483,6 +501,9 @@ $PITCH_RATIO_CHECK
 r = 2 ** ($st / 12.0)
 ratio('first', r, 440)
 ratio('second', r, 660)
+for k in ('first', 'second'):
+    if round(s[k].get('sampleRate') or 0) != 44100: fail('%s: the tap runs at %s Hz, expected 44100' % (k, s[k].get('sampleRate')))
+    if s[k]['unmatchedFrames'] != 0: fail('%s: %s frames matched no format' % (k, s[k]['unmatchedFrames']))
 gaps = s['second'].get('transitionGapsMs') or []
 if not gaps: fail('no transition gap measured')
 if gaps[-1] > tolerance: fail('silence of %.1f ms at the song change' % gaps[-1])
@@ -520,13 +541,15 @@ prep = [p[i + 1] - p[i] for i in range(4)]
 # AVFoundation re-prepares the tap for a pause (+1 on dev too), a seek and a skip. Format slots
 # live until the tap does (I25), so the pipeline that starts afterwards reuses its slot and its
 # StartOfStream resets that stage once when its first audio arrives (a new stage had nothing to
-# reset and counted nothing): a resume moves pitchResetCount by at most 1 and prepares nothing,
-# a pause moves it by 0, and a seek or skip by one flush reset plus at most one per pipeline
-# started, with a re-prepare or a reset at least.
-if got[0] != 0 or got[1] > 1 or prep[1] != 0: fail('pause or resume moved pitchResetCount %s or resume moved tapPrepareCount %s (counts %s, prepares %s)' % (got[:2], prep[1], n, p))
+# reset and counted nothing): a pause moves pitchResetCount by 0, the resume after it by at most
+# the number of pipelines the pause re-prepared (and prepares nothing), and a seek or skip by at
+# most 2 (its flush, then the StartOfStream of the re-prepared pipeline), with a re-prepare or a
+# reset at least.
+if got[0] != 0 or got[1] > prep[0] or prep[1] != 0: fail('pause or resume moved pitchResetCount %s or resume moved tapPrepareCount %s (counts %s, prepares %s)' % (got[:2], prep[1], n, p))
 for name, i in (('seek', 2), ('skip', 3)):
-    if got[i] > 1 + prep[i] or got[i] + prep[i] < 1: fail('a %s moved pitchResetCount by %d and tapPrepareCount by %d' % (name, got[i], prep[i]))
+    if got[i] > 2 or got[i] + prep[i] < 1: fail('a %s moved pitchResetCount by %d and tapPrepareCount by %d' % (name, got[i], prep[i]))
 ratio('e-skipped', 2 ** (5 / 12.0), 440)
+if round(s['e-skipped'].get('sampleRate') or 0) != 44100 or s['e-skipped']['unmatchedFrames'] != 0: fail('e-skipped: rate %s Hz, %s frames matched no format' % (s['e-skipped'].get('sampleRate'), s['e-skipped']['unmatchedFrames']))
 print('  pitchResetCount %s tapPrepareCount %s (steps: pause, resume, seek, skip)' % (n, p))
 "
   # 4. Speed 1.5 x pitch +5: the tap pitches the source, AVPlayer plays it 1.5x faster.
