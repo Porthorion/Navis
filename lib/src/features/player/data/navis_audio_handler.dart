@@ -3102,6 +3102,9 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   PlaybackAdjustments _appliedAdjustments = const PlaybackAdjustments();
+  // A native player without a tap answered `pitch_unavailable`: no pitch for
+  // the rest of the session, so no adjustment is rolled back forever.
+  bool _pitchUnavailable = false;
   EqConfiguration _desiredEqualizer = EqConfiguration.flat();
   Future<void> _equalizerLane = Future<void>.value();
   final _equalizerController = BehaviorSubject<EqApplicationState>.seeded(
@@ -3159,6 +3162,10 @@ class NavisAudioHandler extends BaseAudioHandler
       return PlaybackAdjustmentCapabilities.mediaKit;
     }
     if (_isAndroidRuntime) return PlaybackAdjustmentCapabilities.android;
+    // iOS pitch lives in the equalizer's tap, so it exists with the pipeline.
+    if (_isIosRuntime && _equalizerPipelineEnabled && !_pitchUnavailable) {
+      return PlaybackAdjustmentCapabilities.ios;
+    }
     return const PlaybackAdjustmentCapabilities();
   }
 

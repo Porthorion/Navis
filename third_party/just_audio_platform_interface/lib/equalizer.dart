@@ -69,6 +69,14 @@ class EqualizerStateMessage {
     this.tapPrepareCount,
     this.flushCount,
     this.transitionGapsMs,
+    this.pitchCents,
+    this.pitchActive,
+    this.pitchLatencyFrames,
+    this.pitchResetCount,
+    this.pitchInputHz,
+    this.pitchOutputHz,
+    this.pitchPullMismatches,
+    this.pitchReason,
   });
 
   final bool enabled;
@@ -109,6 +117,21 @@ class EqualizerStateMessage {
   /// clock (Darwin only, diagnostics): about 0 when playback is gapless.
   final List<double>? transitionGapsMs;
 
+  /// The native pitch stage (Darwin only, diagnostics): requested cents,
+  /// whether it processes, its latency in frames, its resets and the
+  /// zero-crossing frequency of its input and output.
+  final int? pitchCents;
+  final bool? pitchActive;
+  final int? pitchLatencyFrames;
+  final int? pitchResetCount;
+  final double? pitchInputHz;
+  final double? pitchOutputHz;
+
+  /// Input pulls of the pitch unit whose size differed from the block (zero
+  /// filled; expected 0) and why the tap cannot pitch its audio, if it cannot.
+  final int? pitchPullMismatches;
+  final String? pitchReason;
+
   static EqualizerStateMessage fromMap(Map<dynamic, dynamic> map) =>
       EqualizerStateMessage(
         enabled: map['enabled'] as bool,
@@ -128,6 +151,14 @@ class EqualizerStateMessage {
         transitionGapsMs: (map['transitionGapsMs'] as List<dynamic>?)
             ?.map((gap) => (gap as num).toDouble())
             .toList(growable: false),
+        pitchCents: (map['pitchCents'] as num?)?.toInt(),
+        pitchActive: map['pitchActive'] as bool?,
+        pitchLatencyFrames: (map['pitchLatencyFrames'] as num?)?.toInt(),
+        pitchResetCount: (map['pitchResetCount'] as num?)?.toInt(),
+        pitchInputHz: (map['pitchInputHz'] as num?)?.toDouble(),
+        pitchOutputHz: (map['pitchOutputHz'] as num?)?.toDouble(),
+        pitchPullMismatches: (map['pitchPullMismatches'] as num?)?.toInt(),
+        pitchReason: map['pitchReason'] as String?,
       );
 }
 

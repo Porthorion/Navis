@@ -383,6 +383,14 @@ class EqApplicationState {
     this.tapPrepareCount,
     this.flushCount,
     this.transitionGapsMs,
+    this.pitchCents,
+    this.pitchActive,
+    this.pitchLatencyFrames,
+    this.pitchResetCount,
+    this.pitchInputHz,
+    this.pitchOutputHz,
+    this.pitchPullMismatches,
+    this.pitchReason,
   });
 
   final EqConfiguration desired;
@@ -419,6 +427,23 @@ class EqApplicationState {
   /// for diagnostics; about 0 when playback is gapless.
   final List<double>? transitionGapsMs;
 
+  /// The native pitch stage (iOS only), for diagnostics: the requested cents,
+  /// whether it is processing, its latency in frames, its resets (a seek or skip
+  /// the playing stream saw; none on a natural song change, pause or resume)
+  /// and the zero-crossing frequency of its input and output over the last
+  /// second.
+  final int? pitchCents;
+  final bool? pitchActive;
+  final int? pitchLatencyFrames;
+  final int? pitchResetCount;
+  final double? pitchInputHz;
+  final double? pitchOutputHz;
+
+  /// Pitch-unit input pulls that did not match the block (expected 0) and why
+  /// the tap cannot pitch its audio (iOS only).
+  final int? pitchPullMismatches;
+  final String? pitchReason;
+
   /// The `application` object of the diagnostics API's `/v1/equalizer`.
   Map<String, Object?> toDiagnosticsJson() => {
     'configuration': applied.toJson(),
@@ -434,5 +459,13 @@ class EqApplicationState {
     'tapPrepareCount': tapPrepareCount,
     'flushCount': flushCount,
     'transitionGapsMs': transitionGapsMs,
+    'pitchCents': pitchCents,
+    'pitchActive': pitchActive,
+    'pitchLatencyFrames': pitchLatencyFrames,
+    'pitchResetCount': pitchResetCount,
+    'pitchInputHz': pitchInputHz,
+    'pitchOutputHz': pitchOutputHz,
+    'pitchPullMismatches': pitchPullMismatches,
+    'pitchReason': pitchReason,
   };
 }

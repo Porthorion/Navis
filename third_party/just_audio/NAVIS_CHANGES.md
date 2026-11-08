@@ -353,3 +353,40 @@ configuration. `MediaToolbox` is linked for iOS in the podspec and
 `darwin/test/navis_equalizer_dsp_test.c`. Known limitation: putting another
 song in front of the prefetched next one ("play next" in the middle of a song)
 rebuilds the shared pipeline and stalls the playing song for about 0.8 s.
+
+## Darwin independent pitch (I21)
+
+`setPitch` is implemented for iOS (`AudioPlayer.m`): the factor (0.25 to 4,
+else `pitch_invalid`) becomes `1200*log2(factor)` cents, sent to the player's
+`NavisEqualizer` (`setPitchCents:`), which hands it to an `AUNewTimePitch` inside
+the one shared `MTAudioProcessingTap` (rate 1, before the EQ, so the order is
+as on Android). Without a tap only pitch 1 succeeds; anything else returns the
+error code `pitch_unavailable`, which the app reads as "no pitch here" (macOS
+never sends it). Items keep their time-domain algorithm and are never re-mixed,
+so speed and pitch stay independent and lock-to-speed is just the app sending
+`pitchFactor = speed`.
+
+`NavisPitchStage.c/.h` (plain C11, host-tested with a fake renderer) holds the
+state machine: bit-exact bypass at 0 cents; wet from the first frame (one AU
+latency of silence, 4096 frames at 44.1/48 kHz, 8192 at 96 kHz) after a reset
+and for a stage created at non-zero cents; dry while the AU fills, then a 20 ms
+ramp, for a user switch from 0 mid-play; a 20 ms ramp, then bypass, for a
+switch to 0. It resets exactly when `navis_eq_stream_begin_block` returns true
+(StartOfStream or a new flush generation), latched before the layout checks in
+`tapProcess`, and its `resetCount` counts exactly those. Like the equalizer's,
+it moves by 0 or 1 for a seek or skip: AVFoundation usually re-prepares the tap
+first, and a new stage has an empty buffer (and, at non-zero cents, starts wet),
+so there is nothing to reset. A natural song change in the shared tap is not a
+reset: the AU carries over. Pause and resume reset nothing, with or without a
+re-prepare.
+`NavisPitchAU.c/.h` binds the unit (one `AudioUnitRender` and one input pull per
+block, a monotonic sample time, AudioToolbox linked for iOS in the podspec and
+`Package.swift`); it is built for iOS and for the host test only. The AU and the
+stage are created in `tapPrepare` and freed in `tapUnprepare` and nowhere else.
+The state adds `pitchCents`, `pitchActive`, `pitchLatencyFrames`,
+`pitchResetCount`, `pitchInputHz` and `pitchOutputHz` (zero-crossing estimates
+over a tumbling one-second window, computed on the audio thread) and
+`pitchReason`, `pitchPullMismatches` (AU input pulls that did not match the block, zero-filled). Host fixtures: `darwin/test/navis_pitch_stage_test.c` (ASan/UBSan,
+portable) and `darwin/test/navis_pitch_au_test.c` (the real unit, macOS only).
+Known limits: the heard audio lags `currentTime` by one AU latency while pitch
+is on; the AU runs while lock-to-speed is on at a speed other than 1x.

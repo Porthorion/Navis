@@ -20,15 +20,36 @@ if navis_cc="$(command -v cc || command -v gcc || command -v clang)"; then
   else
     echo 'NOTE: this compiler lacks working ASan/UBSan; running the Darwin DSP test unsanitized.' >&2
   fi
-  "${navis_cc}" -std=c11 -O1 -g ${navis_c_sanitize[@]+"${navis_c_sanitize[@]}"} -Wall -Wextra -Werror -pthread -D_POSIX_C_SOURCE=200809L \
+  navis_c_flags=(-std=c11 -O1 -g ${navis_c_sanitize[@]+"${navis_c_sanitize[@]}"} -Wall -Wextra -Werror -pthread -D_POSIX_C_SOURCE=200809L)
+  navis_c_sources="${navis_darwin_source}/just_audio/Sources/just_audio"
+  "${navis_cc}" "${navis_c_flags[@]}" \
     "${navis_darwin_source}/test/navis_equalizer_dsp_test.c" \
-    "${navis_darwin_source}/just_audio/Sources/just_audio/NavisEqualizerDsp.c" \
+    "${navis_c_sources}/NavisEqualizerDsp.c" \
     -lm -o "${navis_c_out}/navis_equalizer_dsp_test"
   "${navis_c_out}/navis_equalizer_dsp_test"
+  # Independent pitch (I21): the stage state machine with a fake renderer, portable.
+  "${navis_cc}" "${navis_c_flags[@]}" \
+    "${navis_darwin_source}/test/navis_pitch_stage_test.c" \
+    "${navis_c_sources}/NavisPitchStage.c" \
+    "${navis_c_sources}/NavisEqualizerDsp.c" \
+    -lm -o "${navis_c_out}/navis_pitch_stage_test"
+  "${navis_c_out}/navis_pitch_stage_test"
+  # The real AUNewTimePitch behind the renderer: Darwin only (AudioToolbox).
+  if [[ "$(uname -s)" == Darwin ]]; then
+    "${navis_cc}" "${navis_c_flags[@]}" -DNAVIS_PITCH_AU_HOST_TEST \
+      "${navis_darwin_source}/test/navis_pitch_au_test.c" \
+      "${navis_c_sources}/NavisPitchAU.c" \
+      -lm -framework AudioToolbox -framework CoreFoundation -o "${navis_c_out}/navis_pitch_au_test"
+    "${navis_c_out}/navis_pitch_au_test"
+  else
+    echo 'SKIPPED: the pitch AU test needs AudioToolbox (macOS).'
+  fi
   rm -rf "${navis_c_out}"
 else
   echo 'SKIPPED: Darwin equalizer DSP test needs a C compiler (cc, gcc or clang).' >&2
 fi
+# The macOS CI job runs only the C tests (no JDK there).
+[[ -z "${NAVIS_NATIVE_C_ONLY:-}" ]] || exit 0
 navis_jdk="${ANDROID_STUDIO_JDK:-${JAVA_HOME:-${navis_studio_jdk}}}"
 # Probe that javac runs: macOS ships a /usr/bin/javac stub that fails without a JDK.
 if javac -version >/dev/null 2>&1; then

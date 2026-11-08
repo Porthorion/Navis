@@ -130,6 +130,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'iOS: you can now change the pitch without changing the speed, or '
+        'lock the pitch to the speed, in the speed and pitch controls. Pitch '
+        'works with the equalizer on or off and does not break gapless '
+        'playback',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'iOS: gapless playback works again with the equalizer; songs no '
         'longer pause for almost a second between each other',
         type: ChangelogEntryType.fix,

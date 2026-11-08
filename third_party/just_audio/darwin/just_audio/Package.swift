@@ -22,7 +22,9 @@ let package = Package(
             ],
             linkerSettings: [
                 // Navis: the iOS equalizer uses an MTAudioProcessingTap (compiled out on macOS).
-                .linkedFramework("MediaToolbox", .when(platforms: [.iOS]))
+                .linkedFramework("MediaToolbox", .when(platforms: [.iOS])),
+                // Navis: the pitch stage runs an AUNewTimePitch inside that tap.
+                .linkedFramework("AudioToolbox", .when(platforms: [.iOS]))
             ]
         )
     ]

@@ -157,6 +157,8 @@
         } else if ([@"setSpeed" isEqualToString:call.method]) {
             [self setSpeed:(float)[request[@"speed"] doubleValue]];
             result(@{});
+        } else if ([@"setPitch" isEqualToString:call.method]) {
+            [self setPitch:[request[@"pitch"] doubleValue] result:result];
         } else if ([@"setLoopMode" isEqualToString:call.method]) {
             [self setLoopMode:[request[@"loopMode"] intValue]];
             result(@{});
@@ -206,6 +208,28 @@
         FlutterError *flutterError = [FlutterError errorWithCode:@"error" message:@"Error in handleMethodCall" details:nil];
         result(flutterError);
     }
+}
+
+// Navis: independent pitch (iOS). The factor becomes 1200*log2(factor) cents in an
+// AUNewTimePitch inside the equalizer's tap; items keep their time-domain
+// algorithm, so speed and pitch stay independent. Without a tap only 1 succeeds.
+- (void)setPitch:(double)pitch result:(FlutterResult)result {
+    if (!isfinite(pitch) || pitch < 0.25 || pitch > 4) {
+        result([FlutterError errorWithCode:@"pitch_invalid" message:@"Pitch factor must be between 0.25 and 4" details:nil]);
+        return;
+    }
+#if TARGET_OS_IOS
+    if (_equalizer) {
+        [_equalizer setPitchCents:(float)(1200.0 * log2(pitch))];
+        result(@{});
+        return;
+    }
+#endif
+    if (pitch == 1.0) {
+        result(@{});
+        return;
+    }
+    result([FlutterError errorWithCode:@"pitch_unavailable" message:@"No audio tap was installed for this player" details:nil]);
 }
 
 // Navis: equalizer (iOS). Unsupported where no tap was installed, as on Android.

@@ -27,3 +27,8 @@ index.
 
 `EqualizerStateMessage` also carries the optional Darwin-only `processedFrames`
 and `levelDeltaDb` diagnostics.
+
+`EqualizerStateMessage` also carries the optional Darwin-only pitch stage
+diagnostics `pitchCents`, `pitchActive`, `pitchLatencyFrames`,
+`pitchResetCount`, `pitchInputHz`, `pitchOutputHz`, `pitchPullMismatches` and `pitchReason` (I21). `setPitch` itself
+is unchanged.
