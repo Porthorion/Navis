@@ -992,6 +992,9 @@ class AudioPlayer {
   List<AudioSource> get audioSources => _playlist.children;
 
   Future<void> _broadcastSequence({bool sequenceChanged = true}) async {
+    // A load, insert or removal sends sources with their own stamped levels,
+    // which can differ from the last pushed map: the same map is news again.
+    if (sequenceChanged) _replayGainLevelsRequest = null;
     _sequenceStateSubject.add(sequenceState.copyWith(
       sequence: sequenceChanged ? _playlist.sequence : sequenceState.sequence,
       shuffleIndices: _playlist.shuffleIndices,
@@ -3571,11 +3574,12 @@ class ClippingAudioSource extends IndexedAudioSource {
     await child._onLoad();
   }
 
-  /// The clip's own gain wins; else the child's travels in its message.
+  /// The clip's own gain (the one the app stamped on this source) wins over
+  /// the child's, which nobody stamps; else the child's travels as it is.
   UriAudioSourceMessage _childMessageWithGain() {
     final message = child._toMessage() as UriAudioSourceMessage;
     final gain = replayGainDb;
-    if (gain == null || message.replayGainDb != null) return message;
+    if (gain == null) return message;
     return switch (message) {
       ProgressiveAudioSourceMessage() => ProgressiveAudioSourceMessage(
           id: message.id,

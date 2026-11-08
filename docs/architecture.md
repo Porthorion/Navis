@@ -5167,9 +5167,17 @@ Desktop volume follows a parallel local-settings path:
    `applyRuntimeSettings`: native freezes the playing entry's value at its
    boundary and a tag refresh or index event never changes it. The player
    volume is then user volume x ducking x cross-fade ramp
-   (`_baseVolumeFor`), never ReplayGain. A push records the Smart pair it
-   used (`_pushedSmartNeighbours`) and the song's start freezes that pair
-   instead of re-reading the queue, so the display equals what native holds.
+   (`_baseVolumeFor`), never ReplayGain. A push, and a source stamped for a
+   list that is not `_queueItems` yet (a replace's start song, an insert, a
+   released tail, which pass their incoming play order to `_withReplayGain`),
+   records the Smart pair it used (`_pushedSmartNeighbours`). A non-live push
+   leaves the heard entry's record alone, since native froze it. The song's
+   start freezes the recorded pair instead of re-reading the queue, so the
+   display equals what native holds. A stamp without a play order (a queue
+   fill still in progress) is corrected by the push that follows the fill. Any
+   load, insert or removal makes the next identical map push news again
+   (`AudioPlayer._broadcastSequence`), because stamped sources change what
+   native holds.
 
    Queued songs carry their ReplayGain in `MediaItem.extras`, copied from the
    song row when the queue is built, and a deck source's tag keeps the value

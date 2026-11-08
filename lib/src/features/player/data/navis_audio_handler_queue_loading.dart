@@ -1083,6 +1083,19 @@ extension _NavisQueueLoading on NavisAudioHandler {
       }
     }
 
+    // The start song loads alone, before _queueItems holds the new queue, so
+    // its level reads the neighbours from the incoming list.
+    void stampStart() {
+      if (replayGainInPipeline) {
+        _stampReplayGainFor(
+          [startItem],
+          [for (final song in songs) song.albumId],
+          at: clampedIndex,
+        );
+      }
+    }
+
+    stampStart();
     // Pause independently of stop so a hung native stop cannot stay audible.
     _checkQueueWorkCurrent(token, generation);
     if (isStillWanted != null && !isStillWanted()) {
@@ -1206,6 +1219,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         transcodeOffset: transcodeOffset,
         fastSeekBridge: fastSeekBridge,
       );
+      stampStart();
       _checkQueueWorkCurrent(token, generation);
       _queueItems
         ..clear()

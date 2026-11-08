@@ -1132,6 +1132,14 @@ class NavisAudioHandler extends BaseAudioHandler
       final deckInSync =
           inactiveDeck != null &&
           inactiveDeck.sequence.length == _queueItems.length;
+      if (replayGainInPipeline) {
+        _stampReplayGainFor(prepared, [
+          for (final queued in _queueItems)
+            queued.extras?['albumId'] as String?,
+          for (final item in prepared)
+            item.mediaItem.extras?['albumId'] as String?,
+        ], at: _queueItems.length);
+      }
       await _runTimedPlayerOperation(
         generation: _activeLoadGeneration,
         operation: 'release deferred queue',

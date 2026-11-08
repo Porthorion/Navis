@@ -18302,6 +18302,7 @@ void main() {
       double? peak,
       bool? pipeline,
       List<_ControllableAudioPlayer>? decks,
+      void Function(NavisDatabase database)? onDatabase,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-rgs-');
       final (handler, player, database) = await createHandler(
@@ -18341,6 +18342,7 @@ void main() {
         await database.close();
         await directory.delete(recursive: true);
       });
+      onDatabase?.call(database);
       return (handler, player);
     }
 
@@ -18785,10 +18787,12 @@ void main() {
 
       test('only a settings change pushes live', () async {
         var mode = 'track';
+        late NavisDatabase database;
         final (handler, player) = await smart(
           ['a', 'b'],
           readMode: () => mode,
           pipeline: true,
+          onDatabase: (db) => database = db,
         );
         await handler.replaceQueue(ids(2), expandMatchFlows: false);
         await pumpEventQueue();
@@ -18798,7 +18802,16 @@ void main() {
           'song-0': -10.0,
           'song-1': -10.0,
         });
+        // A real tag correction of the queued song pushes, and not live.
+        final pushes = player.levelMessages.length;
+        await (database.update(database.songsTable)
+              ..where((song) => song.id.equals('song-1')))
+            .write(const SongsTableCompanion(replayGainTrackGain: Value(-7)));
         await handler.refreshQueuedSongReplayGain();
+        await pumpEventQueue();
+        expect(player.levelMessages.length, greaterThan(pushes));
+        expect(player.levelMessages.last.bySongId['song-1'], -7);
+        expect(player.levelMessages.last.live, isFalse);
         await handler.skipToNext();
         await pumpEventQueue();
         expect(player.levelMessages.any((m) => m.live), isFalse);
@@ -18842,6 +18855,102 @@ void main() {
         expect(handler.snapshot.currentSongId, 'song-1');
         expect(handler.currentReplayGainDecision?.db, pushed);
         expect(handler.currentReplayGainDecision?.resolvedMode, 'album');
+      });
+
+      group('Smart neighbours come from the list that will play', () {
+        test('the first song of a replace reads the incoming list', () async {
+          final (handler, player) = await smart([
+            'a',
+            'a',
+            'a',
+          ], pipeline: true);
+          await handler.replaceQueue(ids(3), expandMatchFlows: false);
+          await pumpEventQueue();
+          // Its next neighbour is the same album: album gain, not the -10 an
+          // empty queue's neighbours would give.
+          expect(player.sourceGains.first.db, -4);
+        });
+
+        test('a replace over another queue ignores the old one', () async {
+          final (handler, player) = await smart([
+            'a',
+            'b',
+            'b',
+            'b',
+          ], pipeline: true);
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          await pumpEventQueue();
+          player.sourceGains.clear();
+          await handler.replaceQueue([
+            'song-2',
+            'song-3',
+          ], expandMatchFlows: false);
+          await pumpEventQueue();
+          final load = player.sourceGains.firstWhere((g) => g.op == 'load');
+          expect(load.songId, 'song-2');
+          expect(load.db, -4);
+          // What native holds is what the start freezes and shows.
+          expect(handler.currentReplayGainDecision?.db, -4);
+        });
+
+        test(
+          'an insert between same-album neighbours carries album gain',
+          () async {
+            final (handler, player) = await smart([
+              'a',
+              'b',
+              'b',
+            ], pipeline: true);
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            await pumpEventQueue();
+            player.sourceGains.clear();
+            // song-2 (b) goes between song-0 (a) and song-1 (b).
+            await handler.playNext(['song-2'], expandMatchFlows: false);
+            await pumpEventQueue();
+            final inserted = player.sourceGains.firstWhere(
+              (g) => g.songId == 'song-2',
+            );
+            expect(inserted.db, -4);
+          },
+        );
+
+        test('a Smart freeze equals the last pushed pair when an edit lands '
+            'before the next push', () async {
+          // song-1 sits between x and a, so it is pushed at album gain.
+          final (handler, player) = await smart([
+            'x',
+            'a',
+            'a',
+          ], pipeline: true);
+          await handler.replaceQueue(ids(3), expandMatchFlows: false);
+          await pumpEventQueue();
+          expect(player.levelMessages.last.bySongId['song-1'], -4);
+          // The native step to song-1 arrives while song-2 is being removed:
+          // the queue then no longer matches what was pushed to native.
+          final gate = Completer<void>();
+          player
+            ..removeGate = gate
+            ..removeEntered = Completer<void>();
+          final removing = handler.removeQueueItemAt(2);
+          await player.removeEntered!.future;
+          player
+            ..index = 1
+            ..emitIndexAgain();
+          await pumpEventQueue();
+          gate.complete();
+          await removing;
+          await settleQueue(handler);
+          expect(handler.snapshot.currentSongId, 'song-1');
+          // Native applied album gain; read from the edited queue it would be
+          // track gain (no neighbour of its album is left).
+          expect(handler.currentReplayGainDecision?.db, -4);
+        });
       });
 
       test('repeat-all wrap neighbours reach the update push', () async {

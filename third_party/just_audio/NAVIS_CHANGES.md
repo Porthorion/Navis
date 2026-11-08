@@ -316,4 +316,5 @@ the progressive, DASH, HLS and stream source messages (and a clipping source's
 child), so a backend that applies ReplayGain in its audio path has each song's
 first level with its `load`/`insert` message. `AudioPlayer.setReplayGainLevels`
 sends later updates (`byId`, `byUri`, `live`) and skips an identical non-live
-request.
+request, until a load, insert or removal (stamped sources change what native
+holds). A clipping source's own level wins over its child's.
