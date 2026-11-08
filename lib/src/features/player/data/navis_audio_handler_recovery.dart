@@ -1093,7 +1093,10 @@ extension _NavisRecovery on NavisAudioHandler {
           song: song,
           source: source,
           mediaItem: mediaItem,
-          audioSource: source.asAudioSource(tag: mediaItem),
+          audioSource: _withReplayGain(
+            source.asAudioSource(tag: mediaItem),
+            mediaItem,
+          ),
         ),
       );
     } on OperationCancelledException {

@@ -32,6 +32,9 @@ class InertPlaybackHandler implements NavisPlaybackHandler {
 
   @override
   bool get replayGainBoostSupported => false;
+
+  @override
+  bool get replayGainInPipeline => false;
   @override
   Stream<MediaItem?> get mediaItemStream => const Stream.empty();
   @override

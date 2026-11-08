@@ -530,7 +530,10 @@ extension _NavisCrossfade on NavisAudioHandler {
           if (!stillWanted()) return;
           final sources = [
             for (final item in prepared)
-              item.source.asClonedAudioSource(tag: item.mediaItem),
+              _withReplayGain(
+                item.source.asClonedAudioSource(tag: item.mediaItem),
+                item.mediaItem,
+              ),
           ];
           if (handoffTargetIndex > 0) {
             await cfPlayer
@@ -798,10 +801,9 @@ extension _NavisCrossfade on NavisAudioHandler {
         song,
         allowStreaming: false,
       );
+      final incoming = _mediaItemForSong(song, source: source);
       await player.setAudioSources([
-        source.asClonedAudioSource(
-          tag: _mediaItemForSong(song, source: source),
-        ),
+        _withReplayGain(source.asClonedAudioSource(tag: incoming), incoming),
       ], initialIndex: 0);
     } else {
       await _syncInactiveDeckQueueFromActive(player, initialIndex: nextIndex);
@@ -826,8 +828,8 @@ extension _NavisCrossfade on NavisAudioHandler {
     // The deck was inactive, so every earlier boost message missed it. Give it
     // the incoming song's own boost before play(), or the fade runs unboosted
     // and steps up at the hand-over.
-    if (replayGainBoostSupported) {
-      await _sendReplayGainBoostTo(player).catchError((Object error) {
+    if (replayGainBoostSupported || replayGainInPipeline) {
+      await _sendReplayGainLevelsTo(player).catchError((Object error) {
         AppLogger.debug('Cross-fade deck boost could not be sent: $error');
       });
     }
@@ -882,7 +884,12 @@ extension _NavisCrossfade on NavisAudioHandler {
         .clamp(0, math.max(0, prepared.length - 1))
         .toInt();
     final inactiveSources = prepared
-        .map((entry) => entry.source.asClonedAudioSource(tag: entry.mediaItem))
+        .map(
+          (entry) => _withReplayGain(
+            entry.source.asClonedAudioSource(tag: entry.mediaItem),
+            entry.mediaItem,
+          ),
+        )
         .toList(growable: false);
     try {
       await player.setAudioSources(
@@ -905,7 +912,10 @@ extension _NavisCrossfade on NavisAudioHandler {
       );
       final directSources = directPrepared
           .map(
-            (entry) => entry.source.asClonedAudioSource(tag: entry.mediaItem),
+            (entry) => _withReplayGain(
+              entry.source.asClonedAudioSource(tag: entry.mediaItem),
+              entry.mediaItem,
+            ),
           )
           .toList(growable: false);
       await player.setAudioSources(

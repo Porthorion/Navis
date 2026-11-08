@@ -72,6 +72,11 @@ bool navisReplayGainBoostSupported({
   bool androidProcessor = false,
 }) => (usesMpv && !isMacOS) || androidProcessor;
 
+/// Whether the backend applies ReplayGain inside its audio path, on each
+/// song's own samples (see the handler's `replayGainInPipeline`). False on
+/// every platform until the mpv, Android and iOS backends implement it.
+bool navisReplayGainInPipeline() => false;
+
 /// The last stretch of a song, in wall-clock ms, in which the audio pipeline
 /// may already hold its successor's samples (Android's processor runs ahead of
 /// the AudioTrack by up to ~0.75 s plus the Dart tick).
