@@ -12,7 +12,7 @@
 // Threading contract (from MTAudioProcessingTap.h): process runs only between
 // prepare returning and unprepare being called, for the pipeline that prepared.
 // - process: render threads. Takes no locks, allocates nothing and does no
-//   log/pow/Objective-C. Several render threads may overlap (two pipelines at
+//   log/pow/Objective-C. The boost gain stage (NavisBoost.c) is the last step. Several render threads may overlap (two pipelines at
 //   a format change); a slot used by two at once passes the later block dry.
 // - prepare, unprepare, configure, set_cents, state: any non-render thread.
 // - free: the tap's finalize, nothing else running.
@@ -64,6 +64,10 @@ typedef struct {
     uint64_t overlapBlocks;
     /// Sums over the live slots plus what freed slots had reached.
     uint64_t processedFrames, resetCount, pitchResetCount, pitchPullMismatches;
+    /// The boost (I24): the gain the slot of the last block ended it on (1 = none), and
+    /// the samples beyond full scale that a gain above 1 produced (tap-wide, counted only).
+    float boostAppliedGain;
+    uint64_t boostClipSamples;
     /// The slot that processed the last audio block (before any: the latest
     /// prepared one). Valid when `hasStream` / `hasPitch`.
     bool hasStream, hasPitch;
@@ -106,6 +110,10 @@ void navis_tap_formats_process(NavisTapFormats *t, bool startOfStream, uint32_t 
 void navis_tap_formats_configure(NavisTapFormats *t, const NavisEqConfig *config);
 /// Cents already clamped to +-NAVIS_PITCH_MAX_CENTS by the caller.
 void navis_tap_formats_set_cents(NavisTapFormats *t, int32_t cents);
+/// ReplayGain boost as a linear gain (1 = none; clamped to 1..12 dB in the stage), an atomic
+/// store from any thread. Every slot ramps to it over 20 ms after pitch and EQ, and snaps to it
+/// on a reset (StartOfStream or a new flush generation) and on a slot's first block.
+void navis_tap_formats_set_boost(NavisTapFormats *t, float linear);
 void navis_tap_formats_state(NavisTapFormats *t, NavisTapFormatsState *out);
 /// Realtime, a plain atomic store. The tap glue calls it for a block with `frames`
 /// frames that failed its layout checks and so passes unchanged without reaching

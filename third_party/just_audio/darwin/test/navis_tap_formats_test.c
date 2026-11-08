@@ -1065,9 +1065,10 @@ static void testBoostDryBlocksAreNotBoosted(void) {
     check(prepare(t, 44100, 2), "prepared");
     navis_tap_formats_set_boost(t, TEN_DB);
     runBlock(t, &b, 44100, 2, 1024, true, 0, 0);
+    uint64_t before = state(t).boostClipSamples;
     runBlockAt(t, &b, 44100, 44100, 3, 512, false, 0, 0, 0); // another channel count: no slot
     check(isDry(&b, 3, 512), "a block no slot takes is untouched");
-    check(state(t).boostClipSamples == 0, "and counts no clip");
+    check(state(t).boostClipSamples == before, "and counts no clip");
     navis_tap_formats_unprepare(t);
     freeSet(t);
 }

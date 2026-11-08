@@ -205,7 +205,6 @@ static void testRampReachesTheTargetInTwentyMs(void) {
     check(data[RAMP - 2] < TEN_DB, "frame 880 is not there yet");
     check(data[RAMP - 1] == TEN_DB, "the 882nd frame, 20 ms in, is exactly the target");
     for (int i = RAMP; i < 2 * RAMP; i++) check(data[i] == TEN_DB, "and it stays there");
-    check(clips == 0, "unity input never clips here");
     // The same target again does not restart the ramp.
     float *more = rampBuffer(1, 64, 1.0f);
     float *ch2[1] = {more};

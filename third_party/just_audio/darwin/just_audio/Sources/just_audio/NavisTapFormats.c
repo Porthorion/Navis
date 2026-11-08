@@ -1,5 +1,7 @@
 #include "NavisTapFormats.h"
 
+#include "NavisBoost.h"
+
 #include <math.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -18,6 +20,10 @@ typedef struct Slot {
     // A StartOfStream block dropped because the slot was busy; the next block
     // processed on the slot acts on it.
     _Atomic bool pendingStart;
+    // The ReplayGain boost (I24): the render thread owns the ramp, the busy flag
+    // serialises it; the gain it ended the last block on is published for the state.
+    NavisBoostRamp boost;
+    _Atomic float appliedGain;
 } Slot;
 
 // Why a prepare gave no slot; shown while a song plays unchanged.
@@ -28,6 +34,10 @@ struct NavisTapFormats {
     NavisEqConfig config;                 // guarded by lock
     NavisPitchFactory factory;
     _Atomic int32_t pitchCents;           // requested; seeds a new stage
+    // The boost as a linear gain (1 = none), written by the main thread, read by every slot's
+    // render thread once per block. Lock-free; the main thread does the pow.
+    _Atomic float boostTarget;
+    _Atomic uint64_t boostClipSamples;    // samples beyond full scale after the boost gain
     // Published with release stores (pointer, then count); the render thread
     // acquires both. Slots are only freed by free-all and the final free, and
     // free-all only runs when no pipeline is live, so no render thread reaches
@@ -56,6 +66,8 @@ NavisTapFormats *navis_tap_formats_new(const NavisEqConfig *config, int32_t cent
     t->config = *config;
     t->factory = factory;
     atomic_init(&t->pitchCents, cents);
+    atomic_init(&t->boostTarget, 1.0f);
+    atomic_init(&t->boostClipSamples, 0);
     for (int i = 0; i < NAVIS_TAP_MAX_FORMATS; i++) atomic_init(&t->slots[i], NULL);
     atomic_init(&t->slotCount, 0);
     atomic_init(&t->lastSlot, NULL);
@@ -110,6 +122,8 @@ static Slot *slotNew(NavisTapFormats *t, int key, double rate, int channels, int
     if (!s) return NULL;
     atomic_flag_clear(&s->busy);
     atomic_init(&s->pendingStart, false);
+    navis_boost_ramp_init(&s->boost, key);
+    atomic_init(&s->appliedGain, 1.0f);
     s->rate = key;
     s->channels = channels;
     s->eq = navis_eq_stream_new(config, key, channels);
@@ -372,9 +386,20 @@ void navis_tap_formats_process(NavisTapFormats *t, bool startOfStream, uint32_t 
     NavisPitchStage *pitch = atomic_load_explicit(&s->pitch, memory_order_acquire);
     // The stream decides a reset (StartOfStream, or a new flush generation) and the
     // pitch stage is told exactly that; then pitch first and the EQ (as on Android).
-    navis_pitch_stage_begin_block(pitch, s->eq, startOfStream, flushGeneration, audioFrames);
+    bool reset = navis_pitch_stage_begin_block(pitch, s->eq, startOfStream, flushGeneration, audioFrames);
     if (pitch && audioFrames > 0) navis_pitch_stage_process(pitch, channels, count, frames);
     navis_eq_stream_process(s->eq, channels, count, frames);
+    if (frames > 0) {
+        // The boost comes last, on the output of pitch and EQ. A flush or a new pipeline is
+        // already a discontinuity, so it starts at the target with no ramp; any other change of
+        // target ramps over 20 ms. A block that passes dry (no slot, busy) gets no boost.
+        float target = atomic_load_explicit(&t->boostTarget, memory_order_relaxed);
+        if (reset || startOfStream) navis_boost_ramp_snap(&s->boost, target);
+        uint64_t clipped = 0;
+        navis_boost_ramp_process(&s->boost, channels, count, frames, target, &clipped);
+        if (clipped) atomic_fetch_add_explicit(&t->boostClipSamples, clipped, memory_order_relaxed);
+        atomic_store_explicit(&s->appliedGain, s->boost.gain, memory_order_relaxed);
+    }
     if (audio) {
         atomic_store_explicit(&t->lastSlot, s, memory_order_release);
         atomic_store_explicit(&t->lastDry, false, memory_order_relaxed);
@@ -406,6 +431,10 @@ void navis_tap_formats_set_cents(NavisTapFormats *t, int32_t cents) {
     pthread_mutex_unlock(&t->lock);
 }
 
+void navis_tap_formats_set_boost(NavisTapFormats *t, float linear) {
+    atomic_store_explicit(&t->boostTarget, linear, memory_order_relaxed);
+}
+
 void navis_tap_formats_state(NavisTapFormats *t, NavisTapFormatsState *out) {
     memset(out, 0, sizeof *out);
     pthread_mutex_lock(&t->lock);
@@ -424,6 +453,8 @@ void navis_tap_formats_state(NavisTapFormats *t, NavisTapFormatsState *out) {
     out->resetCount = t->retiredResets;
     out->pitchResetCount = t->retiredPitchResets;
     out->pitchPullMismatches = t->retiredMismatches;
+    out->boostClipSamples = atomic_load_explicit(&t->boostClipSamples, memory_order_relaxed);
+    out->boostAppliedGain = report ? atomic_load_explicit(&report->appliedGain, memory_order_relaxed) : 1.0f;
     for (int i = 0; i < n; i++) {
         Slot *s = atomic_load_explicit(&t->slots[i], memory_order_relaxed);
         navis_eq_stream_sweep(s->eq);
