@@ -394,6 +394,10 @@ class EqApplicationState {
     this.formatStreams,
     this.unmatchedFrames,
     this.overlapBlocks,
+    this.livePipelines,
+    this.prepareCalls,
+    this.unprepareCalls,
+    this.clampedUnprepares,
   });
 
   final EqConfiguration desired;
@@ -457,6 +461,14 @@ class EqApplicationState {
   final int? unmatchedFrames;
   final int? overlapBlocks;
 
+  /// The balance of the native tap's audio pipelines (iOS only), for
+  /// diagnostics: live now, prepare and unprepare calls, and unprepares that
+  /// matched nothing (0 when healthy).
+  final int? livePipelines;
+  final int? prepareCalls;
+  final int? unprepareCalls;
+  final int? clampedUnprepares;
+
   /// The `application` object of the diagnostics API's `/v1/equalizer`.
   Map<String, Object?> toDiagnosticsJson() => {
     'configuration': applied.toJson(),
@@ -483,5 +495,9 @@ class EqApplicationState {
     'formatStreams': formatStreams,
     'unmatchedFrames': unmatchedFrames,
     'overlapBlocks': overlapBlocks,
+    'livePipelines': livePipelines,
+    'prepareCalls': prepareCalls,
+    'unprepareCalls': unprepareCalls,
+    'clampedUnprepares': clampedUnprepares,
   };
 }

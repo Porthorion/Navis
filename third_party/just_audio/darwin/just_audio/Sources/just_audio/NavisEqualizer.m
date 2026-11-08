@@ -97,12 +97,20 @@ static void tapProcess(MTAudioProcessingTapRef tap, CMItemCount numberFrames,
         return;
     }
     NavisTapContext *c = MTAudioProcessingTapGetStorage(tap);
+    // A layout the tap cannot process plays unchanged; tell the state, so it does
+    // not show the previous format as processing (an atomic store, no lock).
     UInt32 count = bufferList->mNumberBuffers;
-    if (count == 0 || count > NAVIS_EQ_MAX_CHANNELS) return;
+    if (count == 0 || count > NAVIS_EQ_MAX_CHANNELS) {
+        navis_tap_formats_note_dry(c->formats, (int)*numberFramesOut);
+        return;
+    }
     float *channels[NAVIS_EQ_MAX_CHANNELS];
     for (UInt32 i = 0; i < count; i++) {
         if (bufferList->mBuffers[i].mNumberChannels != 1
-            || bufferList->mBuffers[i].mDataByteSize < *numberFramesOut * sizeof(float)) return;
+            || bufferList->mBuffers[i].mDataByteSize < *numberFramesOut * sizeof(float)) {
+            navis_tap_formats_note_dry(c->formats, (int)*numberFramesOut);
+            return;
+        }
         channels[i] = bufferList->mBuffers[i].mData;
     }
     // The duration of the source range is the block's own clock: frames over it is
@@ -306,7 +314,13 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
     }
     NSMutableDictionary *result = [[self baseStateFrom:live ? &fs : NULL] mutableCopy];
     [self addPitchStateTo:result from:live ? &fs : NULL];
-    result[@"tapPrepareCount"] = @((long long)fs.prepareCount);
+    result[@"tapPrepareCount"] = @((long long)fs.prepareCalls);
+    // The balance of the pipelines the tap saw; starting over at the cap is safe only
+    // while these match (clampedUnprepares and, when idle, livePipelines stay 0).
+    result[@"livePipelines"] = @(fs.livePipelines);
+    result[@"prepareCalls"] = @((long long)fs.prepareCalls);
+    result[@"unprepareCalls"] = @((long long)fs.unprepareCalls);
+    result[@"clampedUnprepares"] = @((long long)fs.clampedUnprepares);
     result[@"flushCount"] = @(flushes);
     result[@"transitionGapsMs"] = [_gapsMs copy];
     // One entry per audio format of the queue (slots outlive their pipelines), and

@@ -407,6 +407,8 @@ static void testMatching(void) {
         for (int sz = 0; sz < 2; sz++)
             for (int r = 0; r < 2; r++) {
                 int slot = r;
+                // The song starts on its own clock (that is what a song that plays stays on).
+                runBlock(t, &b, hz[r], 2, 1024, false, 0, 0);
                 uint64_t before = state(t).formats[slot].processedFrames;
                 runBlockAt(t, &b, hz[r], scales[sc], 2, sizes[sz], sc == 0 && sz == 0, 0, 0, ticks(sizes[sz], hz[r], scales[sc]));
                 check(isScaled(&b, 2, sizes[sz], EQ12, 0), "processed on a coarse clock");
@@ -788,6 +790,8 @@ static void testCoarseClockKeepsTheSongOnItsSlot(void) {
                 }
     }
     check(state(t).unmatchedFrames == 0, "none unmatched");
+    for (int i = 0; i < 6; i++) navis_tap_formats_unprepare(t);
+    freeSet(t);
     // Nothing to prefer: the nearest of the admitted rates.
     NavisTapFormats *u = newSet(-12, 0);
     check(prepare(u, 44100, 2) && prepare(u, 48000, 2) && prepare(u, 96000, 2), "44100, 48000, 96000");
@@ -796,8 +800,6 @@ static void testCoarseClockKeepsTheSongOnItsSlot(void) {
     check(state(u).formats[0].processedFrames == 136, "with neither last nor prepared among them, the nearest wins");
     for (int i = 0; i < 3; i++) navis_tap_formats_unprepare(u);
     freeSet(u);
-    for (int i = 0; i < 6; i++) navis_tap_formats_unprepare(t);
-    freeSet(t);
 }
 
 // MARK: 12. a block dropped on a busy slot keeps its start

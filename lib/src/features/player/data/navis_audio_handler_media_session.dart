@@ -1163,6 +1163,10 @@ extension _NavisMediaSession on NavisAudioHandler {
             .toList(growable: false),
         unmatchedFrames: native.unmatchedFrames,
         overlapBlocks: native.overlapBlocks,
+        livePipelines: native.livePipelines,
+        prepareCalls: native.prepareCalls,
+        unprepareCalls: native.unprepareCalls,
+        clampedUnprepares: native.clampedUnprepares,
       ),
     );
   }

@@ -114,6 +114,10 @@ class EqualizerStateMessage {
     this.formatStreams,
     this.unmatchedFrames,
     this.overlapBlocks,
+    this.livePipelines,
+    this.prepareCalls,
+    this.unprepareCalls,
+    this.clampedUnprepares,
   });
 
   final bool enabled;
@@ -181,6 +185,15 @@ class EqualizerStateMessage {
   final int? unmatchedFrames;
   final int? overlapBlocks;
 
+  /// The balance of the audio pipelines that prepared and unprepared the tap
+  /// (Darwin only, diagnostics): those live now, every call, and the unprepares
+  /// that matched no live pipeline (0 when healthy). Starting over at the format
+  /// cap is only safe while the calls balance.
+  final int? livePipelines;
+  final int? prepareCalls;
+  final int? unprepareCalls;
+  final int? clampedUnprepares;
+
   static EqualizerStateMessage fromMap(Map<dynamic, dynamic> map) =>
       EqualizerStateMessage(
         enabled: map['enabled'] as bool,
@@ -217,6 +230,10 @@ class EqualizerStateMessage {
             .toList(growable: false),
         unmatchedFrames: (map['unmatchedFrames'] as num?)?.toInt(),
         overlapBlocks: (map['overlapBlocks'] as num?)?.toInt(),
+        livePipelines: (map['livePipelines'] as num?)?.toInt(),
+        prepareCalls: (map['prepareCalls'] as num?)?.toInt(),
+        unprepareCalls: (map['unprepareCalls'] as num?)?.toInt(),
+        clampedUnprepares: (map['clampedUnprepares'] as num?)?.toInt(),
       );
 }
 
