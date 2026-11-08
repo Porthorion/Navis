@@ -12,6 +12,7 @@ void main() {
         'switchesAndSteppers': 8,
         'listsAndMenus': 16,
         'likesAndAlerts': 32,
+        'notifications': 64,
       },
     );
   });
@@ -27,11 +28,11 @@ void main() {
   });
 
   test('fromColumns masks unknown bits instead of throwing', () {
-    final prefs = HapticsPrefs.fromColumns(true, 64 | 128 | 2);
+    final prefs = HapticsPrefs.fromColumns(true, 128 | 256 | 2);
     expect(prefs.disabledBits, 2);
     expect(prefs.isOn(HapticCategory.playbackButtons), isFalse);
     expect(prefs.isOn(HapticCategory.playerGestures), isTrue);
-    expect(HapticsPrefs.fromColumns(true, -1).disabledBits, 63);
+    expect(HapticsPrefs.fromColumns(true, -1).disabledBits, 127);
   });
 
   test('a category off is silent, the others still allow', () {
@@ -41,6 +42,20 @@ void main() {
     );
     expect(prefs.allows(HapticCategory.listsAndMenus), isFalse);
     expect(prefs.allows(HapticCategory.likesAndAlerts), isTrue);
+  });
+
+  test('the notifications category round-trips through the mask', () {
+    final off = HapticsPrefs.fromColumns(
+      true,
+      HapticCategory.notifications.bit,
+    );
+    expect(off.disabledBits, 64);
+    expect(off.allows(HapticCategory.notifications), isFalse);
+    expect(off.allows(HapticCategory.likesAndAlerts), isTrue);
+    expect(
+      HapticsPrefs.fromColumns(true, 0).isOn(HapticCategory.notifications),
+      isTrue,
+    );
   });
 
   test('master off allows nothing but keeps the stored choices', () {

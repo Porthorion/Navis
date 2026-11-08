@@ -664,6 +664,18 @@ abstract class AppLocalizations {
   /// **'Likes, ratings, downloads, copying and actions that aren\'t available.'**
   String get hapticsLikesAndAlertsSubtitle;
 
+  /// No description provided for @hapticsNotificationsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get hapticsNotificationsTitle;
+
+  /// No description provided for @hapticsNotificationsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Download finished or failed.'**
+  String get hapticsNotificationsSubtitle;
+
   /// No description provided for @hapticsLoadError.
   ///
   /// In en, this message translates to:
