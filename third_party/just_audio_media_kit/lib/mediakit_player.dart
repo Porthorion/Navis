@@ -20,7 +20,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   MediaKitPlayer(super.id,
       {EqualizerConfigurationMessage? equalizer,
       IcyPropertySource? icyPropertySource,
-      Player? player}) {
+      Player? player,
+      Future<Duration?> Function(Player)? positionReader})
+      : _positionReader = positionReader ?? nativePosition {
     _equalizer = equalizer;
     _player = player ??
         Player(
@@ -296,6 +298,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   /// The index that's currently playing
   int _currentIndex = 0;
+
+  /// Reads mpv's own playback position; injectable for tests.
+  final Future<Duration?> Function(Player) _positionReader;
 
   /// True while [seek] moves a finished queue; see [seek].
   bool _leavingCompleted = false;
@@ -683,15 +688,20 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // A seek within the file, as opposed to a jump, cannot resume mpv itself
     // when it leaves a finished queue (see below). mpv never reports the end
     // again after a seek to within 100 ms of it, so such a seek stays
-    // completed, as it always did.
+    // completed, as it always did. The end is mpv's own position at EOF; the
+    // adapter's duration (possibly overstated for transcodes) only stands in
+    // when that is unavailable, and an unknown duration then means no resume.
     final target = request.position ?? (sameEntry ? Duration.zero : null);
-    final entryDuration = _duration ?? _player.state.duration;
-    final leavingCompleted =
+    var leavingCompleted =
         _processingState == ProcessingStateMessage.completed &&
             (request.index == null || sameEntry) &&
-            target != null &&
-            (entryDuration <= Duration.zero ||
-                entryDuration - target > const Duration(milliseconds: 500));
+            target != null;
+    if (leavingCompleted) {
+      final end =
+          await _positionReader(_player) ?? _duration ?? _player.state.duration;
+      leavingCompleted = end > Duration.zero &&
+          end - target > const Duration(milliseconds: 500);
+    }
     if (request.index != null && !sameEntry) {
       final position = request.position;
       _playbackInitialized = false;

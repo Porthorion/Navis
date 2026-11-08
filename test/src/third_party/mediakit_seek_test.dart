@@ -40,8 +40,10 @@ void main() {
   late StreamController<bool> completed;
   late StreamController<bool> buffering;
   late PlayerState state;
+  Duration? nativeAt;
 
   setUp(() async {
+    nativeAt = null;
     player = _Player();
     final streams = _Streams();
     duration = StreamController<Duration>.broadcast();
@@ -91,6 +93,7 @@ void main() {
       'test',
       player: player,
       icyPropertySource: properties,
+      positionReader: (_) async => nativeAt,
     );
     await adapter.load(
       LoadRequest(
@@ -311,6 +314,61 @@ void main() {
       await adapter.seek(SeekRequest(index: null, position: Duration.zero));
       expect(adapter.debugTransportState['pendingPosition'], isTrue);
       verifyNever(() => player.play());
+    });
+
+    test('mpv\'s own end wins over an overstated duration', () async {
+      await finishQueue(playing: true);
+      // Transcode durations can exceed the real file; mpv stopped at 2 min.
+      state = state.copyWith(duration: const Duration(minutes: 3));
+      duration.add(state.duration);
+      await Future<void>.delayed(Duration.zero);
+      nativeAt = const Duration(minutes: 2);
+      clearInteractions(player);
+      await adapter.seek(
+        SeekRequest(
+          index: null,
+          position: const Duration(minutes: 2, seconds: 30),
+        ),
+      );
+      verifyNever(() => player.play());
+      expect(adapter.debugTransportState['processingState'], 'completed');
+      await adapter.seek(
+        SeekRequest(
+          index: null,
+          position: const Duration(minutes: 2, milliseconds: -300),
+        ),
+      );
+      verifyNever(() => player.play());
+      await adapter.seek(
+        SeekRequest(
+          index: null,
+          position: const Duration(minutes: 2, seconds: -1),
+        ),
+      );
+      verify(() => player.play()).called(1);
+    });
+
+    test(
+      'an unknown duration without a native position stays completed',
+      () async {
+        await finishQueue(playing: true);
+        state = state.copyWith(duration: Duration.zero);
+        duration.add(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+        clearInteractions(player);
+        await adapter.seek(SeekRequest(index: null, position: Duration.zero));
+        verifyNever(() => player.play());
+        expect(adapter.debugTransportState['processingState'], 'completed');
+      },
+    );
+
+    test('a seek-bar seek on a finished multi-song queue resumes', () async {
+      await finishQueue(playing: true, count: 2);
+      await adapter.seek(
+        SeekRequest(index: null, position: const Duration(seconds: 5)),
+      );
+      verifyNever(() => player.jump(any()));
+      verify(() => player.play()).called(1);
     });
 
     test('a buffering event during the seek still resumes mpv', () async {
