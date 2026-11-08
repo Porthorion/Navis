@@ -34,14 +34,14 @@ typedef struct {
 typedef struct {
     double targetDb;    // 0..12
     bool guarded;       // the target may be lowered for the next song
-    bool latched;       // store as the next input's `latched` until the next song event
+    bool latched;       // guarded with known timing: store as the next input's `latched` until the next song event
 } NavisBoostOutput;
 
 /// Main thread, no side effects. A port of Dart's guardedBoostDb: in the last
 /// `windowMs` of wall-clock time (media time over speed), for songs shorter than
 /// the window plus 1 s and when the timing is unknown, the target is the lower of
-/// the two songs' boosts; once guarded a song stays guarded and its target only
-/// goes down. While held the target is also min(previous, new): a drop applies at
+/// the two songs' boosts; once guarded by the clock a song stays guarded and its target only
+/// goes down (unknown timing guards without latching). While held the target is also min(previous, new): a drop applies at
 /// once, a rise waits.
 void navis_boost_decide(const NavisBoostInput *in, int windowMs, NavisBoostOutput *out);
 

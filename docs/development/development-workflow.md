@@ -2634,7 +2634,13 @@ tap more than once, when the history resets during steady playback, or when
 16-bit), `seek` (one flush per seek and per skip, and
 seeking to 0 after the queue ended stays under 2 s), `insert` (a mid-song "play
 next"; its known 0.8 s stall is reported), `loop` (repeat one) and `crossfade`
-(relaunches the profile with crossfade on). The transport trace in
+(relaunches the profile with crossfade on) and `boost` (I24, the ReplayGain boost: fixture
+songs 16 to 20 are 12 s sines, Q at -30 dBFS tagged +10 dB with its peak and H at 0.98 of full
+scale tagged -3 dB, made with `--song-tone ...:AMPLITUDE` and `--song-gain ID=GAIN:PEAK`; the
+queue Q H Q Q48 H is sampled every 250 ms with the EQ off, so any boost leaking onto H crosses
+full scale and shows in `boostClipSamples`; also ReplayGain off, per-song level with the EQ at
+-12 dB, skip, seek, play next 2 s before the end and a pre-amp change; `BOOST_ON_RUNS` repeats the
+boost-on queue; assertions in `tool/ios_boost_check.py`). The transport trace in
 `GET /v1/playback/status` (`songCurrent` event times) is an independent check of
 the song-change timing; the first song change includes the player start
 latency (about 0.8 s on the simulator), so compare the later ones with the song

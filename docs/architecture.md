@@ -5215,9 +5215,34 @@ Desktop volume follows a parallel local-settings path:
    the guarded re-send undoes it within a tick. An Android message without a
    per-URI map is never deduplicated. A Dart UI-isolate stall over ~1.75 s inside
    the window of a boosted song followed by a lower-boost song can clip the next
-   song's head by the difference; the clip counter measures it. iOS and macOS
-   (libmpv 0.36 has no `volume-gain`) report boost unsupported and keep today's
+   song's head by the difference; the clip counter measures it. macOS (libmpv
+   0.36 has no `volume-gain`) reports boost unsupported and keeps today's
    behaviour.
+   iOS is the third stage (`navisReplayGainBoostSupported(iosTap:)`, true while
+   `_equalizerPipelineEnabled`): `AVPlayer.volume` stops at 1.0, so the boost is a
+   gain step (`NavisBoost.c`, a 20 ms linear ramp per format slot) on the output of
+   pitch and EQ in the shared tap, working with the EQ off and on. The cut stays on
+   `AVPlayer.volume` and a song never gets both. Dart sends the same per-URI map as
+   on desktop (`SetReplayGainBoostRequest.byUri`, no index, no guard flag, no
+   lower-before-command) and the timing is native, on the main thread
+   (`AudioPlayer.m`, `navis_boost_decide`, a C port of `guardedBoostDb`): native
+   knows the real next item and changes the queue in the same run-loop turn, so the
+   Dart round trip race of Android does not exist. In the last 3 s of a song (the
+   same window, read from the item's position and duration, with the speed) the
+   target is the lower of the two songs' and a guarded song is latched until the next
+   song event; a 250 ms observer moves it in and out of the window, only while the
+   map has a positive value. A drop applies at once; a rise waits 500 ms after the
+   last song event (a `currentItem` change, a seek or skip, a load, a queue edit that
+   changes the playing item) and a newer event cancels the pending rise. A seek or
+   load stores the destination's value before the flush, and the first block after a
+   flush or a new pipeline snaps to the target (no ramp). The render thread reads one
+   lock-free atomic gain per block; it does no `pow`, locking or Objective-C. The tap
+   has no limiter: samples beyond full scale after the gain are only counted
+   (`boostClipSamples`, 0 for tagged songs because of the 1 dB margin). Status
+   (`replayGainBoost`, and `boostRequestedDb`, `boostAppliedDb`, `boostGuarded`,
+   `boostClipSamples` in `/v1/equalizer` `application`) is read back from the tap.
+   A song's head can be under-boosted for about 0.5 s after a join, skip or seek;
+   its tail is never over-boosted. Details: `docs/plans/iOS_I24_ReplayGain_Boost_Plan.md`.
    A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
    (`replayGainUntaggedDb`, -15..0 dB in 0.1 dB steps, set on the pitch/speed

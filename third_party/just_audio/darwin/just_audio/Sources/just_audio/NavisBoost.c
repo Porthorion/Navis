@@ -23,7 +23,9 @@ void navis_boost_decide(const NavisBoostInput *in, int windowMs, NavisBoostOutpu
     if (in->latched || in->held) db = lower(db, clampDb(in->previousDb));
     out->targetDb = db;
     out->guarded = guarded;
-    out->latched = guarded;
+    // Unknown timing guards but does not latch: it lasts only until the item is ready, and a latch
+    // taken then would hold the song at min(own, next) for the whole song.
+    out->latched = guarded && !unknown;
 }
 
 float navis_boost_linear(double db) {

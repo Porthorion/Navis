@@ -72,7 +72,7 @@ if kind == "on":
         fail("only %d of 5 songs played" % len(songs))
     for song in songs[:-1]:
         # The guard is on for the last 3 s of a song (and a tick), never earlier.
-        early = [r for r in of(song) if 500 <= r["positionMs"] < 8500 and r["boostGuarded"]]
+        early = [r for r in of(song) if 1000 <= r["positionMs"] < 8500 and r["boostGuarded"]]
         if early:
             fail("%s: guarded at %d ms" % (song, early[0]["positionMs"]))
         tail = [r for r in of(song) if r["positionMs"] >= 9500]

@@ -97,14 +97,17 @@ static void testDecideUnknownTiming(void) {
     NavisBoostInput in = input();
     in.remainingMs = NAN;
     near(decide(in).targetDb, 3, 0, "an unknown position is guarded");
+    check(decide(in).guarded && !decide(in).latched, "but not latched: the timing is only unknown until the item is ready");
     in = input();
     in.durationMs = NAN;
     in.remainingMs = 100000;
     near(decide(in).targetDb, 3, 0, "an unknown duration is guarded");
+    check(decide(in).guarded && !decide(in).latched, "and not latched either");
     in = input();
     in.durationMs = 3999;
     in.remainingMs = 3500;
     near(decide(in).targetDb, 3, 0, "a song shorter than window + 1 s is guarded from its start");
+    check(decide(in).latched, "a short song with a known length latches");
     in.durationMs = 4000;
     near(decide(in).targetDb, 8, 0, "4 s is long enough: 3.5 s left is outside the window");
     in.durationMs = INFINITY;

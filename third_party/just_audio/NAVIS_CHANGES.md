@@ -311,6 +311,28 @@ for a prepared crossfade deck. A reused deck can still receive one guarded
 message for its old position while it is prepared; native clears it on the
 prepare's seek or load. `JustAudioReplayGainBoostTest` covers each rule.
 
+## iOS ReplayGain boost (I24)
+
+The Darwin `AudioPlayer` answers `setReplayGainBoost` (iOS only; it returns
+`boost_unavailable` without a tap and `FlutterMethodNotImplemented` on macOS). It
+keeps the `byUri` map (clamped to 0..12 dB; the key is `UriAudioSource.uri`, or a
+`ClippingAudioSource`'s child) and decides the target on the main thread with
+`navis_boost_decide` (`NavisBoost.c`, a port of Dart's `guardedBoostDb`): the song's
+own boost, or in the last 3 s of wall-clock time (and for songs shorter than 4 s or of
+unknown length) the lower of its and the next item's (`_player.items[1]`), latched
+until the next song event. A drop applies at once; a rise waits `kBoostRaiseAfterMs`
+(500) after a song event: a `currentItem` change, a seek or skip, `load:` and an
+`enqueueFrom:` that changed the playing item. A 250 ms time observer (installed only
+while the map has a positive value, removed in `dispose:`), `setSpeed:`,
+`enqueueFrom:` and `setReplayGainBoost` refresh it. `seek:index:` and `load:` store the
+destination's value before `noteEqualizerFlush`. `NavisEqualizer setBoostDb:guarded:`
+hands the target to the tap as one atomic linear gain (`navis_tap_formats_set_boost`),
+and `tapProcess` reads the flush generation with acquire so the first block after a
+flush sees it. Each `NavisTapFormats` slot owns a `NavisBoostRamp` applied after pitch
+and EQ (20 ms linear, snapped on its first block and on a reset). The state adds
+`boostRequestedDb`, `boostAppliedDb`, `boostGuarded` and `boostClipSamples`. Tests:
+`darwin/test/navis_boost_test.c` and `navis_tap_formats_test.c`.
+
 ## iOS equalizer
 
 The Darwin player accepts the same `equalizerConfiguration`, `setEqualizer` and
