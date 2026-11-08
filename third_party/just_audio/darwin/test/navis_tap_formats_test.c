@@ -1044,6 +1044,21 @@ static void testBoostSnapsAtAStartWithoutARate(void) {
     freeSet(t);
 }
 
+// The first audio block can follow blocks without a range that already primed the slot at +10
+// dB. A lowered target and a flush before that first audio block must not ramp down from there.
+static void testBoostSnapsAtTheFirstAudio(void) {
+    static Block b;
+    NavisTapFormats *t = newSetEq(false, 0, 0);
+    check(prepare(t, 44100, 2), "prepared");
+    navis_tap_formats_set_boost(t, TEN_DB);
+    runBlockAt(t, &b, 44100, 44100, 2, 1024, true, 0, 0, 0); // invalid range, StartOfStream, snaps to +10
+    navis_tap_formats_set_boost(t, 1.0f);
+    runBlock(t, &b, 44100, 2, 4096, false, 1, 0); // the host flushed: generation 1
+    check(isDry(&b, 2, 4096), "the first audio block is entirely at the lowered target");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
 // Every slot reads the one target; a slot idle since an earlier pipeline snaps at its start.
 static void testBoostTwoSlots(void) {
     static Block b;
@@ -1149,6 +1164,7 @@ int main(int argc, char **argv) {
         {"boostClipCounter", testBoostClipCounter, false},
         {"boostSnapsOnFlush", testBoostSnapsOnFlush, false},
         {"boostSnapsAtAStartWithoutARate", testBoostSnapsAtAStartWithoutARate, false},
+        {"boostSnapsAtTheFirstAudio", testBoostSnapsAtTheFirstAudio, false},
         {"boostTwoSlots", testBoostTwoSlots, false},
         {"boostDryBlocksAreNotBoosted", testBoostDryBlocksAreNotBoosted, false},
         {"boostRaces", testBoostRaces, true},

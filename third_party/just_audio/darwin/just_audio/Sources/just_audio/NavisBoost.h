@@ -21,14 +21,15 @@ extern "C" {
 #define NAVIS_BOOST_GUARD_WINDOW_MS 3000
 
 typedef struct {
-    double ownDb;       // the playing song's boost; NaN or negative is 0
-    double nextDb;      // the next song's boost; NaN means there is none
-    double remainingMs; // media ms left in the song; NaN when unknown
-    double durationMs;  // the song's media duration in ms; NaN or infinite when unknown
-    double speed;       // playback rate; 0, negative or NaN count as 1
-    bool latched;       // the song was guarded before and stays guarded
-    bool held;          // a rise is held back (a song event happened < RAISE_AFTER_MS ago)
-    double previousDb;  // the target in force; the bound while latched or held
+    double ownDb;            // the playing song's boost; NaN or negative is 0
+    double nextDb;           // the next song's boost; NaN means there is none
+    double positionMs;       // media ms into the song; NaN when unknown
+    double playerDurationMs; // AVPlayer's duration; NaN, infinite or 0 when unknown
+    double tagDurationMs;    // the song tag's duration, sent with the boost map; NaN or 0 when unknown
+    double speed;            // playback rate; 0, negative or NaN count as 1
+    bool latched;            // the song was guarded before and stays guarded
+    bool held;               // a rise is held back (a song event happened < 500 ms ago)
+    double previousDb;       // the target in force; the bound while latched or held
 } NavisBoostInput;
 
 typedef struct {
@@ -37,7 +38,9 @@ typedef struct {
     bool latched;       // guarded with known timing: store as the next input's `latched` until the next song event
 } NavisBoostOutput;
 
-/// Main thread, no side effects. A port of Dart's guardedBoostDb: in the last
+/// Main thread, no side effects. A port of Dart's guardedBoostDb: the song's duration is the smaller
+/// of the player's and the tag's that are known (AVPlayer's can be wrong for a VBR MP3 without a
+/// Xing header or a stream; Android's rule), so the smaller remaining time wins. In the last
 /// `windowMs` of wall-clock time (media time over speed), for songs shorter than
 /// the window plus 1 s and when the timing is unknown, the target is the lower of
 /// the two songs' boosts; once guarded by the clock a song stays guarded and its target only

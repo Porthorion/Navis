@@ -15,9 +15,12 @@ void navis_boost_decide(const NavisBoostInput *in, int windowMs, NavisBoostOutpu
     double own = clampDb(in->ownDb);
     double next = isnan(in->nextDb) ? own : clampDb(in->nextDb);
     double speed = in->speed > 0 && isfinite(in->speed) ? in->speed : 1;
-    bool unknown = !isfinite(in->remainingMs) || !isfinite(in->durationMs);
-    bool guarded = in->latched || unknown || in->durationMs < windowMs + 1000
-                   || in->remainingMs / speed <= windowMs;
+    double duration = NAN; // the smaller known duration
+    if (isfinite(in->playerDurationMs) && in->playerDurationMs > 0) duration = in->playerDurationMs;
+    if (isfinite(in->tagDurationMs) && in->tagDurationMs > 0 && !(in->tagDurationMs >= duration)) duration = in->tagDurationMs;
+    bool unknown = !isfinite(duration) || !isfinite(in->positionMs);
+    bool guarded = in->latched || unknown || duration < windowMs + 1000
+                   || (duration - in->positionMs) / speed <= windowMs;
     double db = guarded ? lower(own, next) : own;
     // The latch and the hold both bound the value by the one in force.
     if (in->latched || in->held) db = lower(db, clampDb(in->previousDb));

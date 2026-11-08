@@ -23,6 +23,7 @@ typedef struct Slot {
     // The ReplayGain boost (I24): the render thread owns the ramp, the busy flag
     // serialises it; the gain it ended the last block on is published for the state.
     NavisBoostRamp boost;
+    bool boostAudioSeen;            // render thread: the boost saw a block of audio (not just empty ranges)
     _Atomic float appliedGain;
 } Slot;
 
@@ -394,7 +395,10 @@ void navis_tap_formats_process(NavisTapFormats *t, bool startOfStream, uint32_t 
         // already a discontinuity, so it starts at the target with no ramp; any other change of
         // target ramps over 20 ms. A block that passes dry (no slot, busy) gets no boost.
         float target = atomic_load_explicit(&t->boostTarget, memory_order_relaxed);
-        if (reset || startOfStream) navis_boost_ramp_snap(&s->boost, target);
+        // The first block of audio snaps too: blocks without a range can prime the slot before it,
+        // and the stream has no history to reset then, so no reset is decided for that block.
+        if (reset || startOfStream || (audioFrames > 0 && !s->boostAudioSeen)) navis_boost_ramp_snap(&s->boost, target);
+        if (audioFrames > 0) s->boostAudioSeen = true;
         uint64_t clipped = 0;
         navis_boost_ramp_process(&s->boost, channels, count, frames, target, &clipped);
         if (clipped) atomic_fetch_add_explicit(&t->boostClipSamples, clipped, memory_order_relaxed);

@@ -29,13 +29,17 @@ static void near(double actual, double expected, double tolerance, const char *c
 
 // MARK: decide
 
-// Defaults mirror guarded() in replay_gain_db_test.dart: own 8, next 3, 2 s left of 180 s at speed 1.
+// Defaults mirror guarded() in replay_gain_db_test.dart: own 8, next 3, 2 s left of 180 s at speed 1
+// (the player's duration; the tag's is unknown).
 static NavisBoostInput input(void) {
     return (NavisBoostInput){
-        .ownDb = 8, .nextDb = 3, .remainingMs = 2000, .durationMs = 180000, .speed = 1,
+        .ownDb = 8, .nextDb = 3, .positionMs = 178000, .playerDurationMs = 180000, .tagDurationMs = NAN, .speed = 1,
         .latched = false, .held = false, .previousDb = 0,
     };
 }
+
+// `remaining` ms left of the player's duration.
+static void setRemaining(NavisBoostInput *in, double remaining) { in->positionMs = in->playerDurationMs - remaining; }
 
 static NavisBoostOutput decide(NavisBoostInput in) {
     NavisBoostOutput out;
@@ -46,15 +50,15 @@ static NavisBoostOutput decide(NavisBoostInput in) {
 
 static void testDecideWindow(void) {
     NavisBoostInput in = input();
-    in.remainingMs = 3001;
+    setRemaining(&in, 3001);
     near(decide(in).targetDb, 8, 0, "outside the last 3 s a song keeps its own boost");
     check(!decide(in).guarded && !decide(in).latched, "and is not guarded");
-    in.remainingMs = 120000;
+    setRemaining(&in, 120000);
     near(decide(in).targetDb, 8, 0, "far from the end too");
     in = input();
     near(decide(in).targetDb, 3, 0, "inside the window the lower of the two applies");
     check(decide(in).guarded && decide(in).latched, "guarded, and the latch is set");
-    in.remainingMs = 3000;
+    setRemaining(&in, 3000);
     near(decide(in).targetDb, 3, 0, "exactly 3000 ms is inside");
     in = input();
     in.nextDb = 12;
@@ -80,7 +84,7 @@ static void testDecideLatch(void) {
     // A latched song stays guarded after the window closes (a speed drop moves the window).
     in = input();
     in.latched = true;
-    in.remainingMs = 10000;
+    setRemaining(&in, 10000);
     in.previousDb = 1;
     near(decide(in).targetDb, 1, 0, "latched far from the end, value 1");
     in.previousDb = 5;
@@ -88,36 +92,36 @@ static void testDecideLatch(void) {
     check(decide(in).guarded && decide(in).latched, "still guarded and latched");
     // Not latched: the previous value is not a bound.
     in = input();
-    in.remainingMs = 10000;
+    setRemaining(&in, 10000);
     in.previousDb = 1;
     near(decide(in).targetDb, 8, 0, "an unlatched song far from the end ignores the previous value");
 }
 
 static void testDecideUnknownTiming(void) {
     NavisBoostInput in = input();
-    in.remainingMs = NAN;
+    setRemaining(&in, NAN);
     near(decide(in).targetDb, 3, 0, "an unknown position is guarded");
     check(decide(in).guarded && !decide(in).latched, "but not latched: the timing is only unknown until the item is ready");
     in = input();
-    in.durationMs = NAN;
-    in.remainingMs = 100000;
+    in.playerDurationMs = NAN;
+    setRemaining(&in, 100000);
     near(decide(in).targetDb, 3, 0, "an unknown duration is guarded");
     check(decide(in).guarded && !decide(in).latched, "and not latched either");
     in = input();
-    in.durationMs = 3999;
-    in.remainingMs = 3500;
+    in.playerDurationMs = 3999;
+    setRemaining(&in, 3500);
     near(decide(in).targetDb, 3, 0, "a song shorter than window + 1 s is guarded from its start");
     check(decide(in).latched, "a short song with a known length latches");
-    in.durationMs = 4000;
+    in.playerDurationMs = 4000;
     near(decide(in).targetDb, 8, 0, "4 s is long enough: 3.5 s left is outside the window");
-    in.durationMs = INFINITY;
-    in.remainingMs = 100000;
+    in.playerDurationMs = INFINITY;
+    setRemaining(&in, 100000);
     near(decide(in).targetDb, 3, 0, "an infinite duration (a stream) is unknown");
 }
 
 static void testDecideSpeed(void) {
     NavisBoostInput in = input();
-    in.remainingMs = 5000;
+    setRemaining(&in, 5000);
     in.speed = 1;
     near(decide(in).targetDb, 8, 0, "5 s of media at speed 1 is outside");
     in.speed = 2;
@@ -132,7 +136,7 @@ static void testDecideSpeed(void) {
 
 static void testDecideHold(void) {
     NavisBoostInput in = input();
-    in.remainingMs = 100000;
+    setRemaining(&in, 100000);
     in.held = true;
     in.previousDb = 3;
     near(decide(in).targetDb, 3, 0, "while held a rise waits: min(previous, new)");
@@ -149,7 +153,7 @@ static void testDecideHold(void) {
 
 static void testDecideClamps(void) {
     NavisBoostInput in = input();
-    in.remainingMs = 100000;
+    setRemaining(&in, 100000);
     in.ownDb = NAN;
     near(decide(in).targetDb, 0, 0, "NaN own boost is 0");
     in.ownDb = -5;
@@ -172,12 +176,76 @@ static void testDecideClamps(void) {
         in.ownDb = (i % 7 == 0) ? NAN : (i - 300) * 0.1;
         in.nextDb = (i % 5 == 0) ? NAN : (i - 500) * 0.07;
         in.previousDb = (i % 11 == 0) ? NAN : (i - 200) * 0.1;
-        in.remainingMs = (i % 13 == 0) ? NAN : i * 100.0;
+        setRemaining(&in, (i % 13 == 0) ? NAN : i * 100.0);
         in.latched = i % 2;
         in.held = i % 3 == 0;
         NavisBoostOutput out = decide(in);
         check(out.targetDb >= 0 && out.targetDb <= 12, "the target always lies in 0..12");
     }
+}
+
+
+// Item 1 of the I24 fix round: AVPlayer's duration alone is wrong for a VBR MP3 without a Xing
+// header or an overestimated stream, so the tag's duration comes with the map and the smaller
+// remaining time wins (Android's rule).
+static void testDecideTagDuration(void) {
+    NavisBoostInput in = input();
+    in.playerDurationMs = NAN;
+    in.tagDurationMs = 180000;
+    in.positionMs = 178000;
+    near(decide(in).targetDb, 3, 0, "the tag alone times the guard when the player has no duration");
+    check(decide(in).guarded && decide(in).latched, "and a known timing latches");
+    in.positionMs = 100000;
+    near(decide(in).targetDb, 8, 0, "far from the tag's end it keeps its own boost");
+    // The player overestimates (180 s for a 120 s song): the tag's smaller remaining time wins.
+    in = input();
+    in.playerDurationMs = 180000;
+    in.tagDurationMs = 120000;
+    in.positionMs = 118000;
+    near(decide(in).targetDb, 3, 0, "an overestimating player does not hide the last 3 s");
+    // The player underestimates: it wins, an early guard only under-boosts.
+    in = input();
+    in.playerDurationMs = 100000;
+    in.tagDurationMs = 180000;
+    in.positionMs = 98000;
+    near(decide(in).targetDb, 3, 0, "the smaller of the two durations wins");
+    // A tag of 0 or less is no tag; no duration at all guards without latching.
+    in = input();
+    in.playerDurationMs = NAN;
+    in.tagDurationMs = 0;
+    near(decide(in).targetDb, 3, 0, "a zero tag is unknown");
+    check(decide(in).guarded && !decide(in).latched, "and, with the player unknown, does not latch");
+    in.tagDurationMs = NAN;
+    check(decide(in).guarded && !decide(in).latched, "neither duration known: guarded, not latched");
+    // A short song by the tag is guarded from its start even when the player says it is long.
+    in = input();
+    in.tagDurationMs = 3500;
+    in.positionMs = 100;
+    near(decide(in).targetDb, 3, 0, "a song the tag calls shorter than window + 1 s is guarded");
+    check(decide(in).latched, "and latched");
+}
+
+// Item 4: a seek inside the playing song decides from the remaining time at the target position,
+// so a seek that lands outside the window keeps the song's own boost.
+static void testDecideSeekKeepsTheBoost(void) {
+    NavisBoostInput in = input();
+    in.ownDb = 10;
+    in.nextDb = 0;
+    in.playerDurationMs = 12000;
+    in.tagDurationMs = 12000;
+    in.positionMs = 7000;
+    in.held = true;
+    in.previousDb = 10;
+    NavisBoostOutput out = decide(in);
+    near(out.targetDb, 10, 0, "a seek to 7 s of 12 s keeps 10 dB while the hold is on");
+    check(!out.guarded, "and is not guarded");
+    in.positionMs = 10000;
+    near(decide(in).targetDb, 0, 0, "a seek into the last 3 s takes the next song's boost");
+    in.positionMs = 1000;
+    in.previousDb = 0;
+    near(decide(in).targetDb, 0, 0, "a seek out of the window rises only after the hold");
+    in.held = false;
+    near(decide(in).targetDb, 10, 0, "and then rises");
 }
 
 // MARK: ramp
@@ -399,6 +467,8 @@ int main(void) {
         {"decideSpeed", testDecideSpeed},
         {"decideHold", testDecideHold},
         {"decideClamps", testDecideClamps},
+        {"decideTagDuration", testDecideTagDuration},
+        {"decideSeekKeepsTheBoost", testDecideSeekKeepsTheBoost},
         {"rampReachesTheTargetInTwentyMs", testRampReachesTheTargetInTwentyMs},
         {"rampDownIsClickFreeToo", testRampDownIsClickFreeToo},
         {"rampRetargetMidwayHasNoJump", testRampRetargetMidwayHasNoJump},
