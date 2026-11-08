@@ -1025,6 +1025,25 @@ static void testBoostSnapsOnFlush(void) {
     freeSet(t);
 }
 
+// The first block of a new pipeline has no usable range (so no reset is decided), but its
+// StartOfStream still starts the slot at the target: a reused slot must not ramp from its old gain.
+static void testBoostSnapsAtAStartWithoutARate(void) {
+    static Block b;
+    NavisTapFormats *t = newSetEq(false, 0, 0);
+    check(prepare(t, 44100, 2), "prepared");
+    navis_tap_formats_set_boost(t, TEN_DB);
+    long k = 0;
+    for (int i = 0; i < 4; i++, k += 4096) runBlock(t, &b, 44100, 2, 4096, i == 0, 0, k);
+    check(isScaledBetween(&b, 2, 0, 4096, TEN_DB), "playing at +10 dB");
+    check(navis_tap_formats_unprepare(t), "pipeline ended");
+    check(prepare(t, 44100, 2), "a new pipeline of the same format reuses the slot");
+    navis_tap_formats_set_boost(t, 1.0f);
+    runBlockAt(t, &b, 44100, 44100, 2, 1024, true, 0, k, 0); // invalid range: the first block of a pipeline
+    check(isDry(&b, 2, 1024), "the first block of the new pipeline starts at the new gain, no ramp");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
 // Every slot reads the one target; a slot idle since an earlier pipeline snaps at its start.
 static void testBoostTwoSlots(void) {
     static Block b;
@@ -1129,6 +1148,7 @@ int main(int argc, char **argv) {
         {"boostLevel", testBoostLevel, false},
         {"boostClipCounter", testBoostClipCounter, false},
         {"boostSnapsOnFlush", testBoostSnapsOnFlush, false},
+        {"boostSnapsAtAStartWithoutARate", testBoostSnapsAtAStartWithoutARate, false},
         {"boostTwoSlots", testBoostTwoSlots, false},
         {"boostDryBlocksAreNotBoosted", testBoostDryBlocksAreNotBoosted, false},
         {"boostRaces", testBoostRaces, true},
