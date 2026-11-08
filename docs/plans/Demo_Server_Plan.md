@@ -17,7 +17,9 @@ Review and TestFlight external testers can sign in.
   trusts `X-Forwarded-For` from the tunnel, so rate limits see real client IPs.
 - **Only `/demo/rest/` is public.** Navis uses only the Subsonic API (no
   Navidrome `/auth` or `/api`), so the web UI and native API stay unreachable.
-  (The admin can still authenticate through `/demo/rest/`; its random 192-bit password and the rate limit are its only protection.)
+  The public database has **no admin user at all**: bootstrap keeps a host-only
+  master seed (with the admin, never mounted) and derives the public seed from
+  it by deleting the admin, so nothing can sign in as admin.
 - **Komodo stack, files on server**, copied from `deploy/demo-server/`.
 - **Nightly reset = restart.** The container entrypoint copies a seed
   database (host only, read-only mount) over the live one on every start, so
@@ -36,7 +38,7 @@ Review and TestFlight external testers can sign in.
 Pinned image; bound to 127.0.0.1; non-root, `cap_drop: ALL`,
 `no-new-privileges`; library `:ro`; sharing, Last.fm, Spotify, ListenBrainz,
 insights, plugins and user editing off; admin with a random name and password
-kept only on the host; reviewer non-admin; proxy blocks user, password and
+only in the host-only master seed (deleted from the public seed); reviewer non-admin; proxy blocks user, password and
 share methods; proxy `limit_req`; `access_log off` for `/demo`; Navidrome log
 level `warn`; Docker log rotation; host unattended-upgrades (already on).
 
@@ -52,6 +54,7 @@ level `warn`; Docker log rotation; host unattended-upgrades (already on).
 | Proxy location | done (2026-11-08) | public checks pass; proxy host backup kept on host |
 | Reviews (Sonnet, Opus) | todo | |
 | Linux app run against `/demo` | todo | |
+| Admin removed from public DB | done (2026-11-08) | selftest and live: admin ping fails after restart |
 | Reset verified | manual run done; first scheduled run 04:00 next day to check | stars and playlists empty after RunProcedure |
 | iOS simulator and macOS runs | deferred | needs a linked Mac |
 | PR into dev | todo | |

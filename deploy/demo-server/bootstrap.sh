@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Host-side setup of the demo Navidrome seed database.
-#   ./bootstrap.sh                 first run: admin + reviewer + scan + export seed
-#   ./bootstrap.sh rotate-reviewer change the reviewer password in the current seed
+#   ./bootstrap.sh                 first run: admin + reviewer + scan + export seeds
+#   ./bootstrap.sh rotate-reviewer change the reviewer password in the master seed
+# Two seeds: the MASTER (with the admin) stays in DEMO_MASTER_DIR, which is never
+# mounted into the container; the PUBLIC seed (DEMO_SEED_DIR, mounted at /seed)
+# is derived from it with the admin user deleted, so the public server has no admin.
 # Reads .env next to this script. Secrets come from the env, are never echoed
 # and never appear in process arguments. Talks to 127.0.0.1 only.
 set -euo pipefail
@@ -15,10 +18,12 @@ done
 o_user="${DEMO_REVIEWER_USER:-}"; o_pass="${DEMO_REVIEWER_PASSWORD:-}"
 set -a; . ./.env; set +a
 DEMO_REVIEWER_USER="${o_user:-${DEMO_REVIEWER_USER:-}}"; DEMO_REVIEWER_PASSWORD="${o_pass:-${DEMO_REVIEWER_PASSWORD:-}}"
-: "${DEMO_DATA_DIR:?}" "${DEMO_SEED_DIR:?}" "${DEMO_REVIEWER_USER:?}" "${DEMO_REVIEWER_PASSWORD:?}"
+: "${DEMO_DATA_DIR:?}" "${DEMO_SEED_DIR:?}" "${DEMO_MASTER_DIR:?}" "${DEMO_REVIEWER_USER:?}" "${DEMO_REVIEWER_PASSWORD:?}"
 PORT="${DEMO_PORT:-4535}"
 BASE="http://127.0.0.1:${PORT}/demo"
 SEED="${DEMO_SEED_DIR}/navidrome.db"
+MASTER="${DEMO_MASTER_DIR}/navidrome.db"
+SQLITE_IMAGE="keinos/sqlite3:3.47.2@sha256:4e75252fb72327cdcb67ced362d76299acd1fbe829629f22ae2ab9d25b35ec54"
 cmd="${1:-bootstrap}"
 
 tmp="$(mktemp -d)"; chmod 700 "$tmp"
@@ -57,24 +62,57 @@ subsonic() { # user pass method [extra form fields...] -> body
   curl -fsS --data-binary @"$tmp/form" "$BASE/rest/$m"
 }
 
+sql() { docker run --rm -i --network none --user "$(id -u):$(id -g)" -v "$tmp:/w" "$SQLITE_IMAGE" sqlite3 "$@"; }
+
+# Public seed = master minus every admin user (and rows that reference them).
+# Deleted explicitly per table (all FKs also cascade) and VACUUMed so no admin
+# data stays in free pages. Aborts unless a non-admin user remains (an empty user
+# table would let the first visitor create an admin).
+derive_public() {
+  install -m 600 "$MASTER" "$tmp/pub.db"
+  sql /w/pub.db <<'SQL' >/dev/null
+PRAGMA journal_mode=DELETE;
+PRAGMA foreign_keys=ON;
+CREATE TEMP TABLE admins AS SELECT id FROM user WHERE is_admin=1;
+DELETE FROM bookmark WHERE user_id IN admins;
+DELETE FROM user_props WHERE user_id IN admins;
+DELETE FROM player WHERE user_id IN admins;
+DELETE FROM share WHERE user_id IN admins;
+DELETE FROM playqueue WHERE user_id IN admins;
+DELETE FROM annotation WHERE user_id IN admins;
+DELETE FROM user_library WHERE user_id IN admins;
+DELETE FROM playlist WHERE owner_id IN admins;
+DELETE FROM scrobble_buffer WHERE user_id IN admins;
+DELETE FROM scrobbles WHERE user_id IN admins;
+DELETE FROM user WHERE id IN admins;
+VACUUM;
+SQL
+  [[ "$(sql /w/pub.db 'SELECT count(*) FROM user WHERE is_admin=1')" == 0 ]] || { log "admin still present" >&2; exit 1; }
+  [[ "$(sql /w/pub.db 'SELECT count(*) FROM user')" -ge 1 ]] || { log "no user left in public seed" >&2; exit 1; }
+  [[ -z "$(sql /w/pub.db 'PRAGMA foreign_key_check')" ]] || { log "foreign key violations" >&2; exit 1; }
+  [[ "$(sql /w/pub.db 'PRAGMA integrity_check')" == ok ]] || { log "integrity check failed" >&2; exit 1; }
+  install -m 600 "$tmp/pub.db" "$SEED"
+  log "public seed derived (admin removed, $(stat -c %s "$SEED") bytes)"
+}
+
 export_seed() {
   dc stop
   [[ -s "$DEMO_DATA_DIR/navidrome.db" ]] || { log "no database to export" >&2; exit 1; }
   if [[ -s "$DEMO_DATA_DIR/navidrome.db-wal" ]]; then
     log "WAL not checkpointed after stop; refusing to export a partial seed" >&2; exit 1
   fi
-  install -m 600 "$DEMO_DATA_DIR/navidrome.db" "$SEED"
-  log "seed exported ($(stat -c %s "$SEED") bytes)"
+  install -m 600 "$DEMO_DATA_DIR/navidrome.db" "$MASTER"
+  derive_public
 }
 
 case "$cmd" in
 bootstrap)
   : "${DEMO_ADMIN_CREDS_FILE:?}"
-  if [[ -f "$SEED" && "${DEMO_FORCE:-0}" != 1 ]]; then
+  if [[ ( -f "$SEED" || -f "$MASTER" ) && "${DEMO_FORCE:-0}" != 1 ]]; then
     log "seed exists; use rotate-reviewer, or DEMO_FORCE=1 to rebuild from scratch" >&2; exit 1
   fi
   dc down 2>/dev/null || true
-  rm -f "$SEED" "$DEMO_DATA_DIR"/navidrome.db*
+  rm -f "$SEED" "$MASTER" "$DEMO_DATA_DIR"/navidrome.db*
   start_bootstrap
   admin_user="adm-$(openssl rand -hex 6)"
   admin_pass="$(openssl rand -hex 24)"
@@ -98,7 +136,10 @@ bootstrap)
   ;;
 rotate-reviewer)
   : "${DEMO_ADMIN_CREDS_FILE:?}"
-  [[ -f "$SEED" ]] || { log "no seed; run bootstrap first" >&2; exit 1; }
+  [[ -f "$MASTER" ]] || { log "no master seed; run bootstrap first" >&2; exit 1; }
+  dc down 2>/dev/null || true
+  rm -f "$DEMO_DATA_DIR"/navidrome.db*
+  install -m 600 "$MASTER" "$DEMO_DATA_DIR/navidrome.db"   # bootstrap mode starts from the master
   admin_user="$(sed -n 's/^user=//p' "$DEMO_ADMIN_CREDS_FILE")"
   admin_pass="$(sed -n 's/^password=//p' "$DEMO_ADMIN_CREDS_FILE")"
   start_bootstrap

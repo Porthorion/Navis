@@ -21,7 +21,7 @@ pass() { echo "PASS $1"; }
 fail() { echo "FAIL $1"; FAILS=$((FAILS + 1)); }
 check() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then pass "$name"; else fail "$name"; fi; }
 
-mkdir -p "$T"/{data,seed,music/Test\ Artist/Test\ Album}
+mkdir -p "$T"/{data,seed,master,music/Test\ Artist/Test\ Album}
 cp "$SRC"/{compose.yaml,entrypoint.sh,bootstrap.sh} "$T"/
 MUSIC="$T/music"; SONG=Sine
 if [[ -n "${DEMO_TEST_MUSIC:-}" ]]; then MUSIC="$(cd "$DEMO_TEST_MUSIC" && pwd)"; SONG=Daisy; fi
@@ -38,6 +38,7 @@ DEMO_GID=$(id -g)
 DEMO_PORT=$APP_PORT
 DEMO_DATA_DIR=$T/data
 DEMO_SEED_DIR=$T/seed
+DEMO_MASTER_DIR=$T/master
 DEMO_MUSIC_DIR=$MUSIC
 ND_PASSWORDENCRYPTIONKEY=$(openssl rand -hex 16)
 DEMO_ADMIN_CREDS_FILE=$T/admin-credentials
@@ -50,6 +51,10 @@ echo "== bootstrap"
 [[ -s "$T/seed/navidrome.db" ]] || { fail "seed exported"; exit 1; }
 check "seed is mode 600" test "$(stat -c %a "$T/seed/navidrome.db")" = 600
 check "admin creds file mode 600" test "$(stat -c %a "$T/admin-credentials")" = 600
+check "master seed is mode 600" test "$(stat -c %a "$T/master/navidrome.db")" = 600
+AU="$(sed -n 's/^user=//p' "$T/admin-credentials")"; AP="$(sed -n 's/^password=//p' "$T/admin-credentials")"
+check "master seed holds the admin (control)" grep -aq "$AU" "$T/master/navidrome.db"
+check "public seed holds no admin" bash -c "! grep -aq '$AU' '$T/seed/navidrome.db'"
 
 echo "== nginx"
 mkdir "$T/nginx"
@@ -116,8 +121,18 @@ rest star "id=$SID" >/dev/null
 check "starred before restart" test "$(rest getStarred2 | jq '."subsonic-response".starred2.song | length')" = 1
 ( cd "$T" && docker compose restart >/dev/null 2>&1 )
 for _ in $(seq 1 60); do [[ "$(rest ping | jq -r '."subsonic-response".status' 2>/dev/null)" == ok ]] && break; sleep 1; done
+admin_ping() { curl -s "$P/rest/ping?u=$AU&p=$AP&v=1.16.1&c=t&f=json" | jq -r '."subsonic-response".status'; }
+check "admin ping fails after restart" test "$(admin_ping)" = failed
+check "getUsers shows no admin" test "$(rest getUsers | jq '[(."subsonic-response".users.user // [])[] | select(.adminRole==true)] | length')" = 0
+check "getUser for the admin name finds nobody" test "$(rest getUser "username=$AU" | jq -r '."subsonic-response".status')" = failed
+check "POST /auth/createAdmin refused on the app port" test "$(code -X POST -H 'Content-Type: application/json' -d '{"username":"x","password":"yyyyyyyy"}' "http://127.0.0.1:$APP_PORT/demo/auth/createAdmin")" != 200
 check "reviewer signs in after restart" test "$(rest ping | jq -r '."subsonic-response".status')" = ok
 check "getStarred2 empty after restart" test "$(rest getStarred2 | jq '(."subsonic-response".starred2.song // []) | length')" = 0
+check "reviewer still stars after restart" test "$(rest star "id=$SID" | jq -r '."subsonic-response".status')" = ok
+check "reviewer still streams after restart (206)" test "$(code -H 'Range: bytes=0-99' "$P/rest/stream.view?$Q&id=$SID")" = 206
+if [[ -n "${DEMO_TEST_MUSIC:-}" ]]; then
+  check "reviewer still gets lyrics after restart" test "$(rest getLyricsBySongId "id=$SID" | jq '."subsonic-response".lyricsList.structuredLyrics | length')" -ge 1
+fi
 check "container healthy" bash -c "for _ in \$(seq 1 40); do [ \"\$(docker inspect -f '{{.State.Health.Status}}' \$(cd '$T' && docker compose ps -q navidrome))\" = healthy ] && exit 0; sleep 2; done; exit 1"
 
 echo "== rotate-reviewer"
@@ -126,6 +141,8 @@ NEW="$(openssl rand -hex 8)"
 Q="u=reviewer&p=$NEW&v=1.16.1&c=selftest&f=json"
 for _ in $(seq 1 60); do [[ "$(rest ping | jq -r '."subsonic-response".status' 2>/dev/null)" == ok ]] && break; sleep 1; done
 check "new password works after rotation" test "$(rest ping | jq -r '."subsonic-response".status')" = ok
+check "admin ping still fails after rotation" test "$(admin_ping)" = failed
+check "public seed still holds no admin after rotation" bash -c "! grep -aq '$AU' '$T/seed/navidrome.db'"
 check "old password rejected" test "$(curl -s "$P/rest/ping?u=reviewer&p=$RPASS&v=1.16.1&c=t&f=json" | jq -r '."subsonic-response".status')" = failed
 
 echo
