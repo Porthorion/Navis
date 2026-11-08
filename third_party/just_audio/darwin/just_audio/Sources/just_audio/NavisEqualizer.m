@@ -67,6 +67,8 @@ static void tapPrepare(MTAudioProcessingTapRef tap, CMItemCount maxFrames,
     pthread_mutex_lock(&c->lock);
     NavisEqStream *old = atomic_exchange(&c->stream, NULL);
     if (old) { // prepare without unprepare is not expected; do not lose the count
+        NSLog(@"just_audio: equalizer tap prepared again without an unprepare; keeping its %llu frames",
+              (unsigned long long)c->retiredFrames);
         NavisEqStreamState st;
         navis_eq_stream_state(old, &st);
         c->retiredFrames += st.processedFrames;
@@ -202,7 +204,8 @@ typedef NS_ENUM(NSInteger, NavisEqItemStatus) {
 
 @interface NavisEqItemRecord : NSObject
 @property (nonatomic) NavisEqItemStatus status;
-@property (nonatomic) BOOL reportedOtherTrack; // logged once that the audio track is not track 1
+@property (nonatomic) BOOL reportedOtherTrack; // logged once that the audio track is not the one mixed
+@property (nonatomic) CMPersistentTrackID trackID; // the audio track the mix names
 @end
 
 @implementation NavisEqItemRecord
@@ -223,6 +226,7 @@ typedef NS_ENUM(NSInteger, NavisEqItemStatus) {
     BOOL _disposed;
     // Transition gap meter (main thread).
     NSTimer *_meterTimer;
+    BOOL _meterEnabled;             // diagnostics builds only
     NSMutableArray<NSNumber *> *_gapsMs;
     __weak AVPlayerItem *_meterItem;
     double _meterDuration;
@@ -240,6 +244,8 @@ static const NSUInteger kMeterSamples = 5; // medians over this many samples abs
 - (instancetype)initWithConfiguration:(NSDictionary *)map error:(NSString **)error {
     self = [super init];
     if (!decodeConfiguration(map, &_config, error)) return nil;
+    // The app sets this only where the diagnostics API may run (diagnosticsBuildEnabled).
+    _meterEnabled = [map[@"diagnostics"] isKindOfClass:[NSNumber class]] && [map[@"diagnostics"] boolValue];
     _records = [NSMapTable weakToStrongObjectsMapTable];
     _gapsMs = [[NSMutableArray alloc] init];
     [self resetMeter];
@@ -363,12 +369,12 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
         // track has another ID plays unchanged. It is never re-mixed (that stalls
         // playback), so only say so.
         NSInteger trackID = firstAudioTrackID(current);
-        if (trackID > 1 || trackID < 0) {
+        if (trackID > 0 && trackID != record.trackID) {
             if (!record.reportedOtherTrack) {
                 record.reportedOtherTrack = YES;
-                NSLog(@"just_audio: equalizer cannot process this item: its audio track ID is %ld, not 1", (long)trackID);
+                NSLog(@"just_audio: equalizer cannot process this item: its audio track ID is %ld, the mix names %d", (long)trackID, (int)record.trackID);
             }
-            return stateDictionary([NSString stringWithFormat:@"This song's audio track has ID %ld; the equalizer only processes track 1, so it plays unchanged.", (long)trackID],
+            return stateDictionary([NSString stringWithFormat:@"This song's audio track has ID %ld but the equalizer mixed track %d, so it plays unchanged.", (long)trackID, (int)record.trackID],
                                    NO, nil, 0, NO, total, nil, nil);
         }
     }
@@ -422,7 +428,16 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
     }
     NSAssert(item.audioMix == nil, @"an item's audio mix must be set once, before it is queued");
     AVMutableAudioMixInputParameters *parameters = [AVMutableAudioMixInputParameters audioMixInputParameters];
-    parameters.trackID = 1;
+    // Track 1 unless the asset's tracks are already loaded (a non-blocking check):
+    // loading them here would hit the network and reach the next item late.
+    CMPersistentTrackID trackID = 1;
+    AVAsset *asset = item.asset;
+    if ([asset statusOfValueForKey:@"tracks" error:nil] == AVKeyValueStatusLoaded) {
+        AVAssetTrack *audio = [asset tracksWithMediaType:AVMediaTypeAudio].firstObject;
+        if (audio) trackID = audio.trackID;
+    }
+    record.trackID = trackID;
+    parameters.trackID = trackID;
     parameters.audioTapProcessor = _tap;
     AVMutableAudioMix *mix = [AVMutableAudioMix audioMix];
     mix.inputParameters = @[parameters];
@@ -462,7 +477,7 @@ static double medianOf(NSArray<NSNumber *> *values) {
 }
 
 - (void)setPlaying:(BOOL)playing {
-    if (playing && !_meterTimer && !_disposed) {
+    if (playing && _meterEnabled && !_meterTimer && !_disposed) {
         __weak __typeof__(self) weakSelf = self;
         _meterTimer = [NSTimer scheduledTimerWithTimeInterval:kMeterInterval repeats:YES block:^(NSTimer *timer) {
             [weakSelf sampleMeter];
@@ -477,8 +492,9 @@ static double medianOf(NSArray<NSNumber *> *values) {
     AVPlayerItem *item = self.currentItemProvider ? self.currentItemProvider() : nil;
     if (!item) return;
     double time = CMTimeGetSeconds(item.currentTime);
+    // item.duration only: the asset's own getter can block the main thread. A stream
+    // reports it late; the tick is skipped until it is finite.
     double duration = CMTimeGetSeconds(item.duration);
-    if (!isfinite(duration) || duration <= 0) duration = CMTimeGetSeconds(item.asset.duration); // streams report it late
     if (!isfinite(time) || !isfinite(duration) || duration <= 0) return;
     double offset = CACurrentMediaTime() - time;
     if (item != _meterItem) {

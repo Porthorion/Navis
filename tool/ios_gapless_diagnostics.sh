@@ -4,7 +4,7 @@
 # (`transitionGapsMs`) and equalizer counters from GET /v1/equalizer, for proxied
 # streams and permanent downloads, with the equalizer off and on (-12 dB). It
 # also checks one tap prepare per queue, that seek and skip each reset the
-# filter history exactly once, a mixed 22.05/48/96 kHz queue, a "play next"
+# filter history once or twice, a mixed 22.05/48/96 kHz queue, a "play next"
 # insert in the middle of a song (no gap; the stall it causes is reported),
 # repeat one, the speed of
 # seeking to 0 after the queue ended, and (phase `crossfade`) that crossfade
@@ -168,15 +168,21 @@ run_seek() {
   check seek '
 steady, seeked, skipped = (s[k]["resetCount"] for k in ("a-steady", "b-after-seek", "c-after-skip"))
 flushes = [s[k]["flushCount"] for k in ("a-steady", "b-after-seek", "c-after-skip")]
-# Each seek and each skip tells the tap once. AVFoundation then either feeds the
-# old stream another block, which resets its history, or re-prepares the tap,
-# whose new stream starts with an empty history; so one counted reset at most.
-if flushes[1] - flushes[0] != 1: fail("a seek noted %d flushes" % (flushes[1] - flushes[0]))
-if flushes[2] - flushes[1] != 1: fail("a skip noted %d flushes" % (flushes[2] - flushes[1]))
+# Each seek and each skip tells the tap twice: when it starts, and again when it
+# finished, because a block of pre-seek audio in flight can consume the first.
+# The history is dropped either by a counted reset (a stream that has audio sees
+# the new flush) or by AVFoundation re-preparing the tap, whose new stream starts
+# empty and counts nothing: so 0 to 2 counted resets, with a re-prepare when 0.
+prepares = [s[k]["tapPrepareCount"] for k in ("a-steady", "b-after-seek", "c-after-skip")]
+for name, i in (("seek", 1), ("skip", 2)):
+    flush_delta = flushes[i] - flushes[i - 1]
+    reset_delta = [steady, seeked, skipped][i] - [steady, seeked, skipped][i - 1]
+    prepare_delta = prepares[i] - prepares[i - 1]
+    if flush_delta != 2: fail("a %s noted %d flushes, expected 2" % (name, flush_delta))
+    if reset_delta > 2: fail("a %s reset the history %d times" % (name, reset_delta))
+    if reset_delta == 0 and prepare_delta == 0: fail("a %s dropped the history neither by a reset nor a re-prepare" % name)
 if steady != 0: fail("the history was reset %d times before any seek" % steady)
-if seeked - steady > 1: fail("a seek reset the history %d times" % (seeked - steady))
-if skipped - seeked > 1: fail("a skip reset the history %d times" % (skipped - seeked))
-print("  flushCount=%s resetCount steady=%s after seek=%s after skip=%s" % (flushes, steady, seeked, skipped))
+print("  flushCount=%s resetCount steady=%s after seek=%s after skip=%s tapPrepareCount=%s" % (flushes, steady, seeked, skipped, prepares))
 '
   # The queue ends; seeking to 0 afterwards must stay quick.
   api POST /v1/playback/queue "{\"songIds\":[\"fixture-song\",\"fixture-song-2\"]}" >/dev/null

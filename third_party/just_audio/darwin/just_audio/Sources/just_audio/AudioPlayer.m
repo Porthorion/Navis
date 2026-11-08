@@ -585,6 +585,7 @@
     // queue fill does) restarts its audio pipeline, which breaks the gapless
     // join to it. Only while the playing item stays first and not looping.
     NSMutableSet<AVPlayerItem *> *kept = [NSMutableSet set];
+#if TARGET_OS_IOS
     if (_loopMode == lmLoopOff && newItem && oldPlayerItems.count > 0 && oldPlayerItems[0] == newItem) {
         BOOL inOrder = NO;
         NSUInteger matched = 0;
@@ -598,6 +599,7 @@
             matched++;
         }
     }
+#endif
     // In the first pass, preserve the old and new items.
     for (int i = 0; i < oldPlayerItems.count; i++) {
         if (oldPlayerItems[i] == newItem) {
@@ -1306,6 +1308,16 @@
     }
     // A user seek or skip (also the first half of a jump to another item).
     [self noteEqualizerFlush];
+#if TARGET_OS_IOS
+    // A block of pre-seek audio still in flight can consume that bump, so note it
+    // again when the seek has finished.
+    void (^userCompletion)(BOOL) = completionHandler;
+    __weak __typeof__(self) weakSelf = self;
+    completionHandler = ^(BOOL finished) {
+        if (finished) [weakSelf noteEqualizerFlush];
+        if (userCompletion) userCompletion(finished);
+    };
+#endif
     int index = _index;
     if (newIndex != (id)[NSNull null]) {
         index = [newIndex intValue];

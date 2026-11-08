@@ -1113,6 +1113,7 @@ extension _NavisMediaSession on NavisAudioHandler {
 
   EqualizerConfigurationMessage _equalizerMessage(EqConfiguration values) =>
       EqualizerConfigurationMessage(
+        diagnostics: diagnosticsBuildEnabled,
         enabled: values.enabled,
         preampDb: values.preampDb,
         autoHeadroom: values.autoHeadroom,

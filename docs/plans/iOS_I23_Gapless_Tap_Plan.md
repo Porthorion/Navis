@@ -433,3 +433,11 @@ Built as planned, with these differences, each found while measuring:
   measured: a file whose audio track ID is not 1, HLS, hardware.
 - The start latency (about 0.8 s from play to the first sample on the simulator)
   is the same on dev and on the fix.
+- **Review round (PR #381):** the gap meter runs only when the app sets
+  `diagnostics` in the equalizer configuration (`diagnosticsBuildEnabled`) and
+  reads `item.duration` only; phase 1 lists the preloaded next song in
+  `_queueItems`, waits at most `nextSongPreload` (2 s) for it and falls back to
+  one source; the seek flush is bumped again in the seek completion (1 to 2
+  counted resets per seek); the mix names the asset's real first audio track
+  when its tracks are already loaded; the "kept" part of `enqueueFrom:` is iOS
+  only.

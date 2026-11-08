@@ -30,7 +30,12 @@ class EqualizerConfigurationMessage {
     required this.preampDb,
     required this.autoHeadroom,
     required List<EqualizerFilterMessage> filters,
+    this.diagnostics = false,
   }) : filters = List.unmodifiable(filters);
+
+  /// Lets the Darwin player run its transition gap meter (a main-thread timer
+  /// while playing). Set only in builds that can run the diagnostics API.
+  final bool diagnostics;
 
   final bool enabled;
   final double preampDb;
@@ -42,6 +47,7 @@ class EqualizerConfigurationMessage {
         'preampDb': preampDb,
         'autoHeadroom': autoHeadroom,
         'filters': filters.map((filter) => filter.toMap()).toList(),
+        if (diagnostics) 'diagnostics': true,
       };
 }
 

@@ -1173,7 +1173,14 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _checkQueueWorkCurrent(token, generation);
     await _clearDeferredTail();
     _checkQueueWorkCurrent(token, generation);
-    var nextItem = await nextFuture;
+    // A slow resolve of the next song must not delay this one: past the bound
+    // the queue starts with one source and phase 2 appends the next song.
+    var nextItem = nextFuture == null
+        ? null
+        : await nextFuture.timeout(
+            _timeouts.nextSongPreload,
+            onTimeout: () => null,
+          );
     if (nextItem != null) {
       _shareLockCacheSources(<_PreparedQueueItem>[
         startItem,
@@ -1184,9 +1191,12 @@ extension _NavisQueueLoading on NavisAudioHandler {
     // Native index 0 must resolve to the selected occurrence as soon as
     // setAudioSources starts emitting events, including single-song loads.
     _restoredQueueIndex = null;
+    // The queue lists every source the player is given, the preloaded next
+    // song included, so an advance to it before phase 2 finishes resolves.
     _queueItems
       ..clear()
-      ..add(startItem.mediaItem);
+      ..add(startItem.mediaItem)
+      ..addAll([?nextItem?.mediaItem]);
     _setQueueReplacementMetadataAnchor(
       expectedIndex: clampedIndex,
       mediaItem: startItem.mediaItem,

@@ -50,4 +50,20 @@ void main() {
     expect(state.processedFrames, 5000000000);
     expect(state.levelDeltaDb, 0.0);
   });
+
+  test(
+    'the configuration message carries the diagnostics flag only when set',
+    () {
+      EqualizerConfigurationMessage message({bool diagnostics = false}) =>
+          EqualizerConfigurationMessage(
+            enabled: true,
+            preampDb: 0,
+            autoHeadroom: false,
+            filters: const [],
+            diagnostics: diagnostics,
+          );
+      expect(message().toMap().containsKey('diagnostics'), isFalse);
+      expect(message(diagnostics: true).toMap()['diagnostics'], isTrue);
+    },
+  );
 }

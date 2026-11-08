@@ -39,16 +39,22 @@ matters for gapless playback: `AVQueuePlayer` runs an item that has its own tap
 through its own audio pipeline and starts the next item's only after the
 previous one drained (0.4 to 1.2 s of silence at every song change), while
 items sharing one tap share one pipeline and join sample-continuously (I23).
-Every item gets an audio mix naming the shared tap and track 1 (no track loading)
-in the same run-loop turn as its insert into the queue, never later: changing
+Every item gets an audio mix naming the shared tap and the first audio track
+(its real ID when the asset's tracks are already loaded, which is checked without
+blocking; otherwise track 1; no track loading) in the same run-loop turn as its
+insert into the queue, never later: changing
 the mix of an item that is already queued rebuilds the pipeline and stalls
 playback for about 0.5 s. The tap stays installed with EQ off and bypasses inside
 the DSP. Banks are built off the audio thread and swapped at a block boundary
 with the same 20 ms crossfade as Android; the render callback has no locks,
 allocation, Objective-C or `log`/`pow`. Only non-interleaved 32-bit float PCM of
 one to eight channels is processed; any other format plays unchanged and
-`reason` says so, as it does for a file whose audio track ID is not 1 (rare for
-mp3, flac, m4a and wav). The tap runs before the player's own effects (speed,
+`reason` says so, as it does for a file whose audio track ID is not the one the
+mix named. Limit: the tracks are almost never loaded when an item is queued, so
+the mix names track 1 and a file whose first audio track has another ID (rare
+for mp3, flac, m4a and wav; possible in multi-track mp4) plays unchanged with
+that reason; it is not re-mixed, because that stalls playback. This was not
+tested with a real file. The tap runs before the player's own effects (speed,
 volume), so gapless advance and 1.5× speed use the same path; each crossfade
 deck owns its own equalizer instance and tap (a tap is never shared between two
 players). When playback stops, or the format changes, the audio machinery calls
@@ -56,18 +62,21 @@ unprepare and the DSP stream is freed (the last state stays readable and edits
 apply on resume). The filter history is dropped on a seek or skip, which the
 player reports with a flush counter that the render thread compares at each
 block with audio (like Android's onFlush), and on the first block of a new
-stream. The source time range is not used: with a shared tap it re-bases
+stream. The counter is bumped when the seek starts and again when it finished,
+because a block of pre-seek audio still in flight can consume the first bump. The source time range is not used: with a shared tap it re-bases
 mid-song whenever an item is queued behind the playing one, without any jump in
 the audio. Pause and resume no longer reset the history (the 21 ms that
 AVFoundation re-reads on resume are not an audible discontinuity). While paused,
 seeking or right after prepare the tap is called with empty or invalid source
 ranges, which are not audio. `resetCount` in the diagnostics `application`
 counts the histories dropped: 0 over steady playback and gapless song changes,
-and at most 1 per seek or skip (AVFoundation re-prepares the tap on a seek and
-the new stream starts with an empty history, so that case counts nothing). The
+and 0 to 2 per seek or skip (one per bump that reaches a stream with audio).
+AVFoundation usually re-prepares the tap on a seek; the new stream starts with
+an empty history and counts nothing, so the history is dropped either by a
+counted reset or by that re-prepare, never kept. The
 reported `reason` names why the current item is not processed: still attaching,
 the tap could not be created, an unsupported format, or an audio track that is
-not track 1.
+not the one mixed.
 
 State adds iOS-only fields, surfaced in `/v1/equalizer` `application`:
 `processedFrames` (frames processed by this platform player, which grows while
@@ -80,7 +89,10 @@ disposes the native player and its equalizer, so they cover the current queue):
 `tapPrepareCount` (1 per queue unless the audio format changes or the user seeks
 or skips), `flushCount` (seeks and skips noted since the player was created) and
 `transitionGapsMs`, the last 8 silences between songs measured on the player's
-own clock (about 0 when gapless; a seek, skip or load clears them). The gap from
+own clock (about 0 when gapless; a seek, skip or load clears them; the meter
+runs only in builds that can run the diagnostics API, `diagnosticsBuildEnabled`,
+which the app tells the player at creation, so a release build has no timer and
+reports an empty list). The gap from
 song n to n+1 is `startOffset(n+1) - endOffset(n) - duration(n)` with
 `offset = wall time - item time`, as a median of five samples at 50 Hz from a
 main-thread timer that runs only while playing. A song change now and then
