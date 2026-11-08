@@ -395,6 +395,10 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, ({String? prev, String? next})> _pushedSmartNeighbours =
       <String, ({String? prev, String? next})>{};
 
+  /// A live ReplayGain settings change that a load or a cross-fade held back;
+  /// the next volume write that goes through sends it.
+  bool _replayGainLivePending = false;
+
   /// The ReplayGain mode of the last settings pass, so only a change of it
   /// drops the frozen Smart decisions.
   String? _appliedReplayGainMode;

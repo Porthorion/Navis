@@ -337,6 +337,41 @@ class JustAudioReplayGainBoostTest {
         assertGain("the wrap", p.constant(tone), -6.0)
     }
 
+    @Test fun aRepeatOneWrapPicksUpAChangedValue() {
+        // A tag correction (non-live) is frozen for the rest of the stream and applies at the wrap.
+        val p = playingA()
+        p.setLevels(mapOf("a" to -12.0))
+        assertGain("frozen", p.constant(tone, frames = 20), -6.0)
+        p.stream(bOffset, "a")
+        p.offset(bOffset)
+        assertGain("the tail", p.constant(tone, frames = 20), -6.0)
+        p.flush()
+        assertGain("the wrap", p.constant(tone), -12.0)
+    }
+
+    @Test fun theRendererNotesTheStreamBeforeSuperFiresTheOffsetEvent() {
+        // In Media3 1.4.1 super.onStreamChanged can fire onOutputStreamOffsetUsChanged at once (first
+        // song, skips). The key must already be recorded, or the skip keeps the outgoing gain. Here
+        // super fails on the bare instance, so only a note made BEFORE super survives.
+        val p = playingA()
+        val rendererClass = Class.forName("com.ryanheise.just_audio.NavisAudioRenderer")
+        val renderer = unsafe.allocateInstance(rendererClass)
+        put(renderer, "processor", p.raw)
+        val periodId = Class.forName("androidx.media3.exoplayer.source.MediaSource\$MediaPeriodId")
+            .getConstructor(Any::class.java).newInstance("period")
+        val onStreamChanged = rendererClass.declaredMethods.first { it.name == "onStreamChanged" }
+            .apply { isAccessible = true }
+        try {
+            val formats = java.lang.reflect.Array.newInstance(Class.forName("androidx.media3.common.Format"), 0)
+            onStreamChanged.invoke(renderer, formats, 0L, bOffset, periodId)
+        } catch (expected: InvocationTargetException) {
+            // super cannot run without a real renderer
+        }
+        p.offset(bOffset)
+        p.flush() // the unresolved entry is key null: 0 dB, not a's -6
+        assertGain("the new stream's key was noted first", p.constant(tone), 0.0)
+    }
+
     @Test fun theStageBeforeTheFirstConfigureHoldsTheKeyForTheFlush() {
         val p = Processor(configure = false)
         p.replaceLevels(mapOf("a" to -6.0))
@@ -373,7 +408,8 @@ class JustAudioReplayGainBoostTest {
 
     @Test fun anyThreadMayReplaceTheMapWhileTheStageRuns() {
         val p = playingA()
-        val writer = Thread { repeat(2000) { p.setLevels(mapOf("a" to -6.0, "n$it" to it.toDouble())) } }
+        // live = true too, so the playback side keeps re-reading the map while it is swapped.
+        val writer = Thread { repeat(2000) { p.setLevels(mapOf("a" to -6.0, "n$it" to it.toDouble()), live = true) } }
         writer.start()
         repeat(200) { assertGain("steady", p.constant(tone, frames = 10), -6.0) }
         writer.join()
@@ -385,6 +421,24 @@ class JustAudioReplayGainBoostTest {
         assertEquals("reset zeroes the applied gain", 0.0, p.appliedDb(), 0.0)
         p.configure()
         assertGain("the song is still a", p.constant(tone), -6.0)
+    }
+
+    @Test fun aKnownSourceIdSentAgainStillSeedsItsLevel() {
+        // getAudioSource returns a cached MediaSource for an id it decoded before and skips the decode.
+        val p = Processor()
+        val bridge = unsafe.allocateInstance(bridgeClass)
+        put(bridge, "navisEqualizer", p.raw)
+        val sourceClass = Class.forName("androidx.media3.exoplayer.source.MediaSource")
+        val cached = Proxy.newProxyInstance(sourceClass.classLoader, arrayOf(sourceClass)) { _, _, _ -> null }
+        put(bridge, "mediaSources", HashMap<String, Any>().apply { put("a", cached) })
+        val getAudioSource = bridgeClass.getDeclaredMethod("getAudioSource", Any::class.java).apply { isAccessible = true }
+        val commit = bridgeClass.getDeclaredMethod("commitReplayGainLevels", Boolean::class.javaPrimitiveType)
+            .apply { isAccessible = true }
+        unwrap { getAudioSource.invoke(bridge, mapOf("id" to "a", "type" to "progressive", "replayGainDb" to -6.0)) }
+        unwrap { commit.invoke(bridge, true) }
+        p.stream(aOffset, "a")
+        p.offset(aOffset)
+        assertGain("re-sent id", p.constant(tone), -6.0)
     }
 
     // ---- the method-channel case

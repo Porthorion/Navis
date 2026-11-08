@@ -8,6 +8,7 @@ import androidx.media3.exoplayer.ExoPlaybackException;
 import androidx.media3.exoplayer.audio.AudioRendererEventListener;
 import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.audio.MediaCodecAudioRenderer;
+import androidx.media3.exoplayer.mediacodec.MediaCodecAdapter;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.source.MediaSource;
 
@@ -23,10 +24,10 @@ import androidx.media3.exoplayer.source.MediaSource;
 final class NavisAudioRenderer extends MediaCodecAudioRenderer {
     private final NavisEqualizerProcessor processor;
 
-    NavisAudioRenderer(Context context, MediaCodecSelector selector, boolean enableDecoderFallback,
-            Handler handler, AudioRendererEventListener listener, AudioSink sink,
-            NavisEqualizerProcessor processor) {
-        super(context, selector, enableDecoderFallback, handler, listener, sink);
+    NavisAudioRenderer(Context context, MediaCodecAdapter.Factory codecAdapterFactory,
+            MediaCodecSelector selector, boolean enableDecoderFallback, Handler handler,
+            AudioRendererEventListener listener, AudioSink sink, NavisEqualizerProcessor processor) {
+        super(context, codecAdapterFactory, selector, enableDecoderFallback, handler, listener, sink);
         this.processor = processor;
     }
 

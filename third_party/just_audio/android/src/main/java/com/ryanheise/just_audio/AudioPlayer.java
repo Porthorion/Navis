@@ -805,6 +805,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private MediaSource getAudioSource(final Object json) {
         Map<?, ?> map = (Map<?, ?>)json;
         String id = (String)map.get("id");
+        noteReplayGainLevel(map); // every message seeds, also a cached id that skips the decode
         MediaSource mediaSource = mediaSources.get(id);
         if (mediaSource == null) {
             mediaSource = decodeAudioSource(map);
@@ -838,7 +839,6 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         String id = (String)map.get("id");
         switch ((String)map.get("type")) {
         case "progressive":
-            noteReplayGainLevel(map);
             Map<?, ?> options = mapGet(map, "options");
             boolean useDefaultRetry = options != null
                     && Boolean.TRUE.equals(options.get("androidUseDefaultLoadErrorHandling"));
@@ -864,7 +864,6 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                             .setTag(id)
                             .build());
         case "dash":
-            noteReplayGainLevel(map);
             return new DashMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
                     .createMediaSource(new MediaItem.Builder()
                             .setUri(Uri.parse((String)map.get("uri")))
@@ -1027,8 +1026,8 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                         // The processor needs to know which entry a stream belongs to (ReplayGain).
                         for (int i = 0; i < out.size(); i++) {
                             if (out.get(i).getClass() == androidx.media3.exoplayer.audio.MediaCodecAudioRenderer.class) {
-                                out.set(i, new NavisAudioRenderer(ctx, selector, enableDecoderFallback, handler,
-                                        listener, sink, navisEqualizer));
+                                out.set(i, new NavisAudioRenderer(ctx, getCodecAdapterFactory(), selector,
+                                        enableDecoderFallback, handler, listener, sink, navisEqualizer));
                                 break;
                             }
                         }

@@ -665,8 +665,13 @@ extension _NavisMediaSession on NavisAudioHandler {
     if (_isLoading ||
         _pendingLogicalQueueSongIds != null ||
         (_isCrossfading && !forceDuringCrossfade)) {
+      // A settings change held back by a load or a fade still has to reach
+      // the playing song, so the next write that goes through sends it live.
+      _replayGainLivePending |= live;
       return;
     }
+    live |= _replayGainLivePending;
+    _replayGainLivePending = false;
     final current = _resolveCurrentQueueMetadata().mediaItem;
     // A song start (or a hand-over) forgets the Smart decisions of every
     // song that is neither playing nor fading in.
@@ -841,13 +846,28 @@ extension _NavisMediaSession on NavisAudioHandler {
     final bySource = <IndexedAudioSource, double>{};
     final heard = player.currentIndex;
     final sequence = player.sequence;
+    // The main deck mirrors the queue, so each entry reads its own neighbours
+    // there (a song queued twice is two entries), as its seed did. The heard
+    // entry keeps its frozen pair.
+    final albumIds =
+        identical(player, _player) && sequence.length == _queueItems.length
+        ? [for (final item in _queueItems) item.extras?['albumId'] as String?]
+        : null;
     for (var i = 0; i < sequence.length; i++) {
       final source = sequence[i];
       final item = _mediaItemOfSource(source);
       // A non-live push does not reach the heard entry (native froze it), so
       // it must not replace the pair that entry's level was built from.
       final push = live || i != heard;
-      final db = item == null ? null : _replayGainLevelFor(item, push: push);
+      final db = item == null
+          ? null
+          : _replayGainLevelFor(
+              item,
+              push: push,
+              playOrder: albumIds == null || i == heard
+                  ? null
+                  : (albumIds: albumIds, index: i),
+            );
       if (db == null) continue;
       bySource[source] = db;
       // A reload re-sends these objects (navigation fallback), so the stamp

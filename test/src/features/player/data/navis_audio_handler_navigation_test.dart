@@ -975,7 +975,14 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   }
 
   /// Every in-pipeline ReplayGain update this deck received, oldest first.
-  final levelMessages = <({Map<String?, double> bySongId, bool live})>[];
+  final levelMessages =
+      <
+        ({
+          Map<String?, double> bySongId,
+          List<({String? songId, double db})> entries,
+          bool live,
+        })
+      >[];
 
   @override
   Future<void> setReplayGainLevels({
@@ -989,6 +996,11 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
         for (final entry in bySource.entries)
           navisNativeSourceSongId(entry.key): entry.value,
       },
+      // In sequence order, so a song queued twice shows both entries.
+      entries: [
+        for (final entry in bySource.entries)
+          (songId: navisNativeSourceSongId(entry.key), db: entry.value),
+      ],
       live: live,
     ));
   }
@@ -17167,6 +17179,94 @@ void main() {
         expect(player.levelMessages.last.bySongId['song-2'], -4);
         expect(player.levelMessages.last.bySongId['song-0'], -10);
         expect(player.levelMessages.last.bySongId['song-1'], -10);
+      });
+
+      test('a push gives each duplicate its own neighbours', () async {
+        // Entry 0 and 3 are the same song; entry 3 sits after another album.
+        final (handler, player) = await smart(['a', 'b', 'a'], pipeline: true);
+        await handler.replaceQueue([
+          'song-0',
+          'song-2',
+          'song-1',
+          'song-0',
+        ], expandMatchFlows: false);
+        await pumpEventQueue();
+        List<double> gains() => [
+          for (final e in player.levelMessages.last.entries) e.db,
+        ];
+        expect(gains(), [-4, -4, -10, -10]);
+        await handler.skipToNext();
+        await pumpEventQueue();
+        // The update push keeps the level each entry was loaded with.
+        expect(gains(), [-4, -4, -10, -10]);
+      });
+
+      test('a tag-less rolling-cache source still gets its update push', () async {
+        final (handler, player) = await smart(['a', 'b'], pipeline: true);
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        await pumpEventQueue();
+        // Android's lock-cached stream has no tag: only its URL names the song.
+        await player.setAudioSources(<AudioSource>[
+          _RangeCacheSource('song-1', File('${Directory.systemTemp.path}/rg')),
+        ]);
+        player.levelMessages.clear();
+        await handler.setRepeatMode(AudioServiceRepeatMode.all);
+        player.emitLoopMode(LoopMode.all);
+        await pumpEventQueue();
+        expect(player.levelMessages.last.bySongId, {'song-1': -10.0});
+      });
+
+      test(
+        'a settings change during a cross-fade pushes live afterwards',
+        () async {
+          var mode = 'track';
+          final decks = <_ControllableAudioPlayer>[];
+          final (handler, player) = await smart(
+            ['a', 'a'],
+            readMode: () => mode,
+            pipeline: true,
+            crossfade: true,
+            decks: decks,
+          );
+          await handler.replaceQueue(ids(2), expandMatchFlows: false);
+          await pumpEventQueue();
+          await handler.debugStartCrossfade();
+          await pumpEventQueue();
+          mode = 'album';
+          await handler.applyRuntimeSettings();
+          await pumpEventQueue();
+          List<Map<String?, double>> live() => [
+            for (final p in {player, ...decks})
+              for (final m in p.levelMessages)
+                if (m.live) m.bySongId,
+          ];
+          expect(live(), isEmpty, reason: 'the fade holds volume writes');
+          await handler.debugCompleteCrossfade();
+          await pumpEventQueue();
+          expect(live(), isNotEmpty, reason: 'the change is not lost');
+          expect(live().last, {'song-0': -4.0, 'song-1': -4.0});
+        },
+      );
+
+      test('a non-live push leaves the heard entry pair alone', () async {
+        // song-0 starts between nothing and a (album gain). An edit then
+        // makes its next neighbour another album; a restart of song-0 still
+        // freezes the pair its level was built from, which native holds.
+        final (handler, player) = await smart(['a', 'a', 'b'], pipeline: true);
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await pumpEventQueue();
+        expect(handler.currentReplayGainDecision?.db, -4);
+        await handler.removeQueueItemAt(1);
+        await handler.playNext(['song-2'], expandMatchFlows: false);
+        await settleQueue(handler);
+        expect(player.levelMessages.last.live, isFalse);
+        await handler.skipToQueueItem(0);
+        await pumpEventQueue();
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(handler.currentReplayGainDecision?.db, -4);
       });
     });
 

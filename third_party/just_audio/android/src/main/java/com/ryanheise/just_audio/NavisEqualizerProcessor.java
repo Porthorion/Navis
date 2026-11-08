@@ -127,6 +127,13 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
      * samples before the next flush still belong to the outgoing entry (at speed 1.5 Sonic's tail
      * arrives after this call), so the key waits for that flush. With none queued since the last
      * flush (first song, explicit skip) nothing outgoing is left: switch now.
+     *
+     * <p>ponytail: relies on the Media3 1.4.1 drain-before-flush at a join (D3), with these ceilings:
+     * (1) a second offset event before the first flush replaces {@code pendingKey}, so an entry
+     * shorter than the drain (about 60 ms same format, 480 ms on a format change) takes its
+     * successor's gain; (2) at speed != 1 a seek within Sonic's latency (about 20 ms) of an entry's
+     * end applies the next entry's gain to that tail, because this stage sits after Sonic and has
+     * seen no input yet. Upgrade: Media3 1.11 {@code flush(StreamMetadata)} carries the period.
      */
     void streamOffsetChanged(long offsetUs) {
         if (!streamKeys.containsKey(offsetUs)) return;
@@ -192,6 +199,9 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         fadeFrames = Math.max(1, sampleRate / 50);
         // A flush starts a song or a seek. A new stream's key becomes current here; with none
         // (a seek in the song, a speed change) the frozen gain stays, even if the map changed.
+        // ponytail: an HTTP progressive repeat-one is a seek (ProgressiveRepeat), so it keeps the
+        // frozen gain and only a file repeat-one wrap (a new stream) picks up a tag correction;
+        // both apply it from the next real start. Unify only if the owner asks (D7).
         if (hasPending) {
             hasPending = false;
             adopt(pendingKey);
