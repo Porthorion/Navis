@@ -62,18 +62,17 @@ unprepare and the DSP stream is freed (the last state stays readable and edits
 apply on resume). The filter history is dropped on a seek or skip, which the
 player reports with a flush counter that the render thread compares at each
 block with audio (like Android's onFlush), and on the first block of a new
-stream. The counter is bumped when the seek starts and again when it finished,
-because a block of pre-seek audio still in flight can consume the first bump. The source time range is not used: with a shared tap it re-bases
+stream. The source time range is not used: with a shared tap it re-bases
 mid-song whenever an item is queued behind the playing one, without any jump in
 the audio. Pause and resume no longer reset the history (the 21 ms that
 AVFoundation re-reads on resume are not an audible discontinuity). While paused,
 seeking or right after prepare the tap is called with empty or invalid source
 ranges, which are not audio. `resetCount` in the diagnostics `application`
 counts the histories dropped: 0 over steady playback and gapless song changes,
-and 0 to 2 per seek or skip (one per bump that reaches a stream with audio).
-AVFoundation usually re-prepares the tap on a seek; the new stream starts with
-an empty history and counts nothing, so the history is dropped either by a
-counted reset or by that re-prepare, never kept. The
+and 0 or 1 per seek or skip. AVFoundation re-prepares the tap on a seek or
+skip (measured on every one); the new stream starts with an empty history and
+counts nothing, so the history is dropped either by a counted reset (the old
+stream saw the flush first) or by that re-prepare, never kept. The
 reported `reason` names why the current item is not processed: still attaching,
 the tap could not be created, an unsupported format, or an audio track that is
 not the one mixed.

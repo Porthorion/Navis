@@ -1308,16 +1308,6 @@
     }
     // A user seek or skip (also the first half of a jump to another item).
     [self noteEqualizerFlush];
-#if TARGET_OS_IOS
-    // A block of pre-seek audio still in flight can consume that bump, so note it
-    // again when the seek has finished.
-    void (^userCompletion)(BOOL) = completionHandler;
-    __weak __typeof__(self) weakSelf = self;
-    completionHandler = ^(BOOL finished) {
-        if (finished) [weakSelf noteEqualizerFlush];
-        if (userCompletion) userCompletion(finished);
-    };
-#endif
     int index = _index;
     if (newIndex != (id)[NSNull null]) {
         index = [newIndex intValue];

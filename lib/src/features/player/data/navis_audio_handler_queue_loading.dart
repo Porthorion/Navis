@@ -1021,6 +1021,12 @@ extension _NavisQueueLoading on NavisAudioHandler {
       ? songs[startIndex + 1]
       : null;
 
+  /// Drops a prepared item that was never handed to the player.
+  void _disposeUnattached(_PreparedQueueItem? item) {
+    // ignore: experimental_member_use, reason: Drop an adopted response before native attachment.
+    if (item?.audioSource case final StreamAudioSource source) source.dispose();
+  }
+
   /// Phase 1 of two-phase queue replacement: resolve *only* the target song,
   /// set a single audio source on the player, and start playback immediately.
   /// Returns the list of all songs (for Phase 2) and the prepared start item.
@@ -1179,7 +1185,11 @@ extension _NavisQueueLoading on NavisAudioHandler {
         ? null
         : await nextFuture.timeout(
             _timeouts.nextSongPreload,
-            onTimeout: () => null,
+            onTimeout: () {
+              // It finishes later and nothing will attach it.
+              unawaited(nextFuture.then(_disposeUnattached));
+              return null;
+            },
           );
     if (nextItem != null) {
       _shareLockCacheSources(<_PreparedQueueItem>[
@@ -1220,8 +1230,13 @@ extension _NavisQueueLoading on NavisAudioHandler {
     } on OperationCancelledException {
       rethrow;
     } on Object catch (error, stackTrace) {
-      // The retired player disposes the next source with the start source.
+      // The retired player disposes the next source with the start source, and
+      // the queue lists only what is left to load: a rethrow below must not
+      // leave [start, next] behind while the player holds neither.
       nextItem = null;
+      _queueItems
+        ..clear()
+        ..add(startItem.mediaItem);
       _checkQueueWorkCurrent(token, generation);
       final seek = _pendingSeek;
       final retryColdSeek =

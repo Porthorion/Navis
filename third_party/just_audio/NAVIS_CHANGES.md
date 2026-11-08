@@ -338,8 +338,7 @@ main-thread gap meter that runs only while playing and only when the app set
 can run the diagnostics API; it reads `item.duration` and skips a tick while that
 is not finite). The filter history resets
 on StartOfStream and when `AudioPlayer` calls `noteFlush` (a seek or skip, at
-the top of `seek:index:completionHandler:` and again in its completion, and a
-new `load:`); the render
+the top of `seek:index:completionHandler:`, and a new `load:`); the render
 thread compares the flush counter at each block with audio
 (`navis_eq_stream_begin_block`), never the source time range, which re-bases
 mid-song when an item is queued behind the playing one. `enqueueFrom:` no longer

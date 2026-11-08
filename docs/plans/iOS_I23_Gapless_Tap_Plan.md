@@ -437,7 +437,10 @@ Built as planned, with these differences, each found while measuring:
   `diagnostics` in the equalizer configuration (`diagnosticsBuildEnabled`) and
   reads `item.duration` only; phase 1 lists the preloaded next song in
   `_queueItems`, waits at most `nextSongPreload` (2 s) for it and falls back to
-  one source; the seek flush is bumped again in the seek completion (1 to 2
-  counted resets per seek); the mix names the asset's real first audio track
+  one source; (a second seek flush in the completion was tried and
+  removed: every seek re-prepares the tap, which starts an empty stream); the mix names the asset's real first audio track
   when its tracks are already loaded; the "kept" part of `enqueueFrom:` is iOS
   only.
+- Known, not fixed: once phase 2 has made its first append, a native advance
+  onto the preloaded song shows in the UI only when phase 2 ends (the queue is
+  rebuilt then); the same was true for any appended song before this change.

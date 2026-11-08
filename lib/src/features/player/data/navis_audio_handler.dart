@@ -1588,9 +1588,10 @@ class NavisAudioHandler extends BaseAudioHandler
     // playbackEventStream fires position ticks on every event loop turn, and
     // any _emitSnapshot() call between _queueItems.insert() and the player
     // acknowledging the new currentIndex would produce a stale snapshot.
-    // Keeping _queueItems=[startSong] throughout Phase 2 lets the metadata
-    // anchor keep the display on the tapped song until _queueItems is rebuilt
-    // atomically from allPrepared at the very end.
+    // Keeping _queueItems as phase 1 left it (the start song, plus the next
+    // song on iOS) throughout Phase 2 lets the metadata anchor keep the display
+    // on the tapped song until _queueItems is rebuilt atomically from
+    // allPrepared at the very end.
     //
     // Songs after the start are appended first so the next track is queued
     // before the (possibly long) prefix is inserted behind the current item.

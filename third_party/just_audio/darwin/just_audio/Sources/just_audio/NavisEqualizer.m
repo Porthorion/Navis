@@ -67,10 +67,10 @@ static void tapPrepare(MTAudioProcessingTapRef tap, CMItemCount maxFrames,
     pthread_mutex_lock(&c->lock);
     NavisEqStream *old = atomic_exchange(&c->stream, NULL);
     if (old) { // prepare without unprepare is not expected; do not lose the count
-        NSLog(@"just_audio: equalizer tap prepared again without an unprepare; keeping its %llu frames",
-              (unsigned long long)c->retiredFrames);
         NavisEqStreamState st;
         navis_eq_stream_state(old, &st);
+        NSLog(@"just_audio: equalizer tap prepared again without an unprepare; keeping its %llu frames",
+              (unsigned long long)(c->retiredFrames + st.processedFrames));
         c->retiredFrames += st.processedFrames;
         c->retiredResets += st.resetCount;
         navis_eq_stream_free(old);
@@ -216,7 +216,7 @@ typedef NS_ENUM(NSInteger, NavisEqItemStatus) {
 // drained (0.4 to 1.2 s of silence at every transition); items sharing one tap
 // share one pipeline and join sample-continuously. Every item gets its mix
 // before it plays, in the same run-loop turn as its insert, without loading
-// tracks (trackID 1): changing the mix of an item AVQueuePlayer already
+// tracks (track 1 unless already loaded): changing the mix of an item AVQueuePlayer already
 // prerolls rebuilds the pipeline and stalls playback for about 0.5 s.
 @implementation NavisEqualizer {
     NavisEqConfig _config;

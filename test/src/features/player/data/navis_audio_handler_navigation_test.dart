@@ -9246,6 +9246,32 @@ void main() {
     );
 
     test(
+      'an apply that fails does not leave the preloaded song in the queue',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('navis-ios-');
+        final (handler, player, database) = await createHandler(
+          directory,
+          4,
+          iosRuntimeOverride: true,
+        );
+        addTearDown(() async {
+          await handler.disposeHandler();
+          await database.close();
+          await directory.delete(recursive: true);
+        });
+        final songs = await database.libraryDao.getSongsByIds(allSongs);
+        player.failLoadSongId = 'song-0';
+        await handler.replaceQueueWithData(songs).catchError((Object _) {});
+        await pumpEventQueue(times: 50);
+        // The player holds nothing; the queue must not list the next song it
+        // never received (a restore would take it for a loaded single song).
+        expect(player.sourceIds, isEmpty);
+        expect(handler.snapshot.queueSongIds, isNot(contains('song-1')));
+        expect(handler.snapshot.queueSongIds.length, lessThanOrEqualTo(1));
+      },
+    );
+
+    test(
       'an advance to the preloaded song before phase 2 lands is listed',
       () async {
         final directory = await Directory.systemTemp.createTemp('navis-ios-');
@@ -9268,7 +9294,7 @@ void main() {
         final replace = handler.replaceQueueWithData(songs);
         await entered.future.timeout(const Duration(seconds: 2));
         // Phase 2 is inside its first append: the player holds [song-0, song-1]
-        // and Dart lists [song-0]. The player advances to song-1 now.
+        // and Dart lists the same two. The player advances to song-1 now.
         expect(player.sourceIds, ['song-0', 'song-1']);
         player.moveTo(1);
         await pumpEventQueue(times: 50);
