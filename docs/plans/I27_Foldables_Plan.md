@@ -28,9 +28,21 @@ for other foldables (Galaxy Z Fold, Pixel Fold).
   | Unfolded landscape | `tabletExpanded` | rail |
 
   These are sensible and stay as they are.
-- **Android:** a Pixel 9 Pro Fold AVD (`Pixel_Fold_I27`, hinge sensor) is set up
-  for a real fold/unfold run (`adb emu fold`/`unfold`). Its results are added
-  here when the run ends.
+- **Android, Pixel 9 Pro Fold emulator** (`Pixel_Fold_I27`, real server,
+  before the fix):
+
+  | State | Size | Layout |
+  |---|---|---|
+  | Unfolded | 851.7x882.9 dp | `tabletExpanded`, rail |
+  | Folded | 443x994 dp | `phoneCompact` |
+
+  - Unfolded reports a `fold` feature (`postureFlat`), vertical at x=425.8 dp.
+  - A fold keeps the route and playback, but the artists scroll position reset
+    from 1200 to 0 (A2).
+  - The A1 exception appeared in the real app.
+  - The unfolded album page showed only the cover (B1).
+  - With a flat posture, grids run across the fold. That is acceptable, so
+    there is no hinge handling.
 
 ## Defects found
 
@@ -92,3 +104,19 @@ Owner decision, 2026-11-09: A1–A4 and B1 all ship in **1.5.2**.
 - **Risk:** low (UI). One Sonnet review, focused tests, then CI.
 - **Runtime check:** the Duo simulator in both states once fold control works,
   and the Pixel Fold emulator.
+
+## Outcome
+
+Merged to `release/1.5` on 2026-11-09 as #416 (`5ba4df7b`), after a fresh
+Sonnet review with one fix round:
+- Positioned lists restore by index, not pixels, so a rail jump survives a
+  fold. Genres resets to the top.
+- The embedded Now Playing keeps its label and metadata fallback. Only the
+  cover size comes from the height budget.
+- The Radio button stays out of the right system strip.
+
+Follow-ups, tracked on #410:
+- the non-embedded standard Now Playing (iPad portrait) cover still sizes as
+  `height x 0.54`;
+- phone landscape 844x390 has a 6 px overflow, which predates #416;
+- the unfolded check on the real Duo simulator.
