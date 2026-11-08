@@ -1150,6 +1150,12 @@ extension _NavisMediaSession on NavisAudioHandler {
         tapPrepareCount: native.tapPrepareCount,
         flushCount: native.flushCount,
         transitionGapsMs: native.transitionGapsMs,
+        pitchCents: native.pitchCents,
+        pitchActive: native.pitchActive,
+        pitchLatencyFrames: native.pitchLatencyFrames,
+        pitchResetCount: native.pitchResetCount,
+        pitchInputHz: native.pitchInputHz,
+        pitchOutputHz: native.pitchOutputHz,
       ),
     );
   }
@@ -1207,11 +1213,16 @@ extension _NavisMediaSession on NavisAudioHandler {
   ) async {
     // Issued together so the desktop backend can apply both with one audio
     // filter rebuild; every failure is still observed.
-    await Future.wait(<Future<void>>[
-      player.setSpeed(values.speed),
-      if (playbackAdjustmentCapabilities.pitchSupported)
-        player.setPitch(values.pitchFactor),
-    ]);
+    try {
+      await Future.wait(<Future<void>>[
+        player.setSpeed(values.speed),
+        if (playbackAdjustmentCapabilities.pitchSupported)
+          player.setPitch(values.pitchFactor),
+      ]);
+    } on PlatformException catch (error) {
+      if (error.code == 'pitch_unavailable') _pitchUnavailable = true;
+      rethrow;
+    }
   }
 
   Future<void> _setPlaybackAdjustments(
