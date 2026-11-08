@@ -364,6 +364,9 @@ abstract class _DelegatingNavisPlaybackHandler
       _delegate.currentReplayGainDecision;
 
   @override
+  bool get replayGainBoostSupported => _delegate.replayGainBoostSupported;
+
+  @override
   Stream<MediaItem?> get mediaItemStream => _delegate.mediaItemStream;
 
   @override
@@ -526,6 +529,10 @@ abstract class _DelegatingNavisPlaybackHandler
   @override
   Future<void> applySongIdentityAliases(Map<String, String> aliases) =>
       _delegate.applySongIdentityAliases(aliases);
+
+  @override
+  Future<void> refreshQueuedSongReplayGain() =>
+      _delegate.refreshQueuedSongReplayGain();
 
   @override
   Future<void> toggleLike() => _delegate.toggleLike();

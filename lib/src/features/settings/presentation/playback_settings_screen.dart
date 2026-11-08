@@ -131,6 +131,8 @@ class _PlaybackSettingsScreenState
   }
 
   Widget _buildForm(BuildContext context, AppLocalizations l10n) {
+    final boost =
+        ref.watch(audioHandlerProvider)?.replayGainBoostSupported ?? false;
     _scheduleAutosave();
     // The form only exists once the settings have loaded, so scroll after its
     // first build rather than in initState.
@@ -426,7 +428,9 @@ class _PlaybackSettingsScreenState
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    l10n.playbackSettingsReplayGainIntro,
+                    boost
+                        ? l10n.playbackSettingsReplayGainIntroBoost
+                        : l10n.playbackSettingsReplayGainIntro,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.outline,
                     ),
@@ -508,6 +512,12 @@ class _PlaybackSettingsScreenState
                     ),
                     Text(
                       switch (_replayGainPreamp) {
+                        < 0 when boost =>
+                          l10n.playbackSettingsReplayGainPreampSubtitleDownBoost,
+                        0 when boost =>
+                          l10n.playbackSettingsReplayGainPreampSubtitleZeroBoost,
+                        _ when boost =>
+                          l10n.playbackSettingsReplayGainPreampSubtitleUpBoost,
                         < 0 =>
                           l10n.playbackSettingsReplayGainPreampSubtitleDown,
                         0 => l10n.playbackSettingsReplayGainPreampSubtitleZero,

@@ -726,6 +726,51 @@ extension _NavisQueueEditing on NavisAudioHandler {
     _scheduleQueueItemsPersistence(context: 'song identity alias update');
   }
 
+  /// Copies the ReplayGain the library holds now into the queued songs, after
+  /// a sync that changed song tags. The next song then plays at its new gain.
+  ///
+  /// It never applies a volume, and it leaves the songs that are audible (the
+  /// current one, and the incoming one during a cross-fade) alone: every later
+  /// volume write for a song re-reads its extras, so a patched current song
+  /// would change level mid-song. Extras are matched by song id, so the audible
+  /// song's other queue copies keep the old gain too.
+  // ponytail: the song that was playing keeps its old gain if it plays again
+  // from this queue (previous, repeat); a queue reload picks the new one up.
+  Future<void> _refreshQueuedSongReplayGain() async {
+    final rows = {
+      for (final row in await _libraryDao.getSongsByIds(
+        _queueItems.map((item) => item.id).toSet(),
+      ))
+        row.id: row,
+    };
+    final audible = <String?>{
+      _resolveCurrentQueueMetadata().mediaItem?.id,
+      if (_isCrossfading)
+        _queueItems.elementAtOrNull(_crossfadeTargetIndex ?? -1)?.id,
+    };
+    var changed = false;
+    for (var i = 0; i < _queueItems.length; i++) {
+      final item = _queueItems[i];
+      final row = rows[item.id];
+      if (row == null || audible.contains(item.id)) continue;
+      final gains = navisResolvedPlaybackExtras(song: row)
+        ..removeWhere((key, _) => !key.startsWith('replayGain'));
+      if (gains.entries.every((e) => item.extras?[e.key] == e.value)) continue;
+      _queueItems.replaceAt(
+        i,
+        item.copyWith(extras: <String, Object?>{...?item.extras, ...gains}),
+      );
+      changed = true;
+    }
+    if (!changed) return;
+    queue.add(List<MediaItem>.unmodifiable(_queueItems));
+    _emitSnapshot();
+    // Boost only, no volume: mpv switches the gain per file from this map, so
+    // a natural join reads the next song's new value. The playing song's
+    // extras are untouched, so its own boost is unchanged.
+    _applyReplayGainBoost();
+  }
+
   String _canonicalSongId(String songId) {
     var current = songId;
     final visited = <String>{};

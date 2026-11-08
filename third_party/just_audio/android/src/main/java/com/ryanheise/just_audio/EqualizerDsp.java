@@ -160,6 +160,53 @@ final class EqualizerDsp {
         }
     }
 
+    /**
+     * The ReplayGain boost gain, one value per frame. It lives outside {@link Bank}
+     * because the bank's auto-headroom would cancel a boost.
+     */
+    static final class BoostRamp {
+        /** The most a song is ever turned up, in dB (Dart's replayGainMaxBoostDb). */
+        static final double MAX_DB = 12;
+        private final int rampFrames;
+        private double gain = 1, target = 1, step;
+        private int remaining;
+
+        BoostRamp(int rampFrames) {
+            this.rampFrames = Math.max(1, rampFrames);
+        }
+
+        /** The amplitude for [db]: never a cut, never beyond {@link #MAX_DB}, NaN is none. */
+        static double linear(double db) {
+            if (!(db > 0)) return 1;
+            return Math.pow(10, Math.min(db, MAX_DB) / 20);
+        }
+
+        /** Ramps linearly in gain to [db] over the ramp length; the same target keeps its ramp. */
+        void setTarget(double db) {
+            double next = linear(db);
+            if (next == target) return;
+            target = next;
+            step = (target - gain) / rampFrames;
+            remaining = rampFrames;
+        }
+
+        /** Jumps to [db] with no ramp. */
+        void snap(double db) {
+            gain = target = linear(db);
+            remaining = 0;
+        }
+
+        /** The gain for the next frame. */
+        double next() {
+            if (remaining > 0) gain = --remaining == 0 ? target : gain + step;
+            return gain;
+        }
+
+        double db() {
+            return 20 * Math.log10(gain);
+        }
+    }
+
     private static double response(Biquad[] filters, double hz, double sampleRate) {
         double gain = 0;
         for (Biquad filter : filters) gain += filter.decibelsAt(hz, sampleRate);

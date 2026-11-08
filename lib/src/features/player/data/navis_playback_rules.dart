@@ -53,13 +53,90 @@ enum ReplayGainSource { track, album, untagged }
   };
 }
 
-/// The ReplayGain adjustment in dB for one song, or null when [mode] is 'off'.
+/// The most a song is ever turned up, in dB. It is mpv's own
+/// `volume-gain-max`, so every platform boosts by the same amount.
+const replayGainMaxBoostDb = 12.0;
+
+/// How far under a song's peak ceiling its boost stops, in dB: a lossy copy
+/// can overshoot the tagged peak.
+const replayGainBoostMarginDb = 1.0;
+
+/// Whether the player can turn songs up. mpv has the `volume-gain` stage
+/// (the libmpv macOS bundles, mpv 0.36, predate it); Android has the boost
+/// stage of its EQ processor, which exists only while [androidProcessor] says
+/// the processor pipeline is installed (it is gone after a rebuild without it).
+@visibleForTesting
+bool navisReplayGainBoostSupported({
+  required bool usesMpv,
+  required bool isMacOS,
+  bool androidProcessor = false,
+}) => (usesMpv && !isMacOS) || androidProcessor;
+
+/// The last stretch of a song, in wall-clock ms, in which the audio pipeline
+/// may already hold its successor's samples (Android's processor runs ahead of
+/// the AudioTrack by up to ~0.75 s plus the Dart tick).
+const replayGainBoostGuardWindowMs = 3000;
+
+/// Whether a boost computed for the playing song may already reach the next
+/// song's samples. True in the last [windowMs] of wall-clock time (media time
+/// divided by [speed]), for songs shorter than the window plus 1 s (guarded
+/// from their start), when the timing is unknown, and once a [latched] value
+/// exists: a song stays guarded until its next start or seek, so a speed drop
+/// cannot widen the window back over samples already ahead of the speaker.
+bool replayGainBoostGuarded({
+  required int? remainingMs,
+  required double speed,
+  required int? songDurationMs,
+  bool latched = false,
+  int windowMs = replayGainBoostGuardWindowMs,
+}) {
+  if (latched || remainingMs == null || songDurationMs == null) return true;
+  if (songDurationMs < windowMs + 1000) return true;
+  return remainingMs / (speed > 0 ? speed : 1) <= windowMs;
+}
+
+/// The boost the audio stage may apply to the playing song. Outside the guard
+/// window it is [ownDb]. Inside, it is the lower of [ownDb] and the next
+/// song's [nextDb] (null: no next song), and never above [latchedDb], so the
+/// value only goes down until the next song starts. The lower of two valid
+/// boosts is valid for both songs, which is what a gapless join needs.
+double guardedBoostDb({
+  required double ownDb,
+  double? nextDb,
+  required int? remainingMs,
+  required double speed,
+  required int? songDurationMs,
+  double? latchedDb,
+  int windowMs = replayGainBoostGuardWindowMs,
+}) {
+  if (!replayGainBoostGuarded(
+    remainingMs: remainingMs,
+    speed: speed,
+    songDurationMs: songDurationMs,
+    latched: latchedDb != null,
+    windowMs: windowMs,
+  )) {
+    return ownDb;
+  }
+  final db = math.min(ownDb, nextDb ?? ownDb);
+  return latchedDb == null ? db : math.min(db, latchedDb);
+}
+
+/// How much ReplayGain turns one song down ([cutDb], 0 or less) or up
+/// ([boostDb], 0 or more).
+typedef ReplayGainLevels = ({double cutDb, double boostDb});
+
+/// What ReplayGain does to one song, or null when [mode] is 'off'.
 ///
 /// A song with no usable gain takes [untaggedDb]. The pre-amp (clamped to
-/// -6..6) is added, the song's known peak limits the result, and it never
-/// boosts (0 dB cap). [mode] is 'off', 'track' or 'album'; resolve 'smart'
-/// first with [resolveReplayGainMode].
-double? replayGainDb({
+/// -6..6) is added and the song's known peak limits the result. The cut is
+/// that result capped at 0 dB. The boost is its positive part, and only a
+/// song with both a gain and a valid peak gets one: it stops
+/// [replayGainBoostMarginDb] under the peak ceiling (no limiter follows) and
+/// at [replayGainMaxBoostDb]. A platform that cannot boost
+/// ([boostSupported] false) always reports 0. [mode] is 'off', 'track' or
+/// 'album'; resolve 'smart' first with [resolveReplayGainMode].
+ReplayGainLevels? replayGainLevels({
   required String mode,
   double? trackGain,
   double? albumGain,
@@ -67,6 +144,7 @@ double? replayGainDb({
   double? albumPeak,
   double preampDb = 0,
   required double untaggedDb,
+  required bool boostSupported,
 }) {
   if (mode == 'off') return null;
   final (:gain, :peak, source: _) = _selectReplayGain(
@@ -78,10 +156,21 @@ double? replayGainDb({
   );
   var db = (gain ?? untaggedDb) + preampDb.clamp(-6.0, 6.0);
   // A peak is a sample ratio near 1; anything else is tag garbage.
+  double? ceilingDb;
   if (gain != null && peak != null && peak.isFinite && peak > 0 && peak <= 4) {
-    db = math.min(db, -20 * math.log(peak) / math.ln10);
+    ceilingDb = -20 * math.log(peak) / math.ln10;
+    db = math.min(db, ceilingDb);
   }
-  return math.min(db, 0);
+  final room = ceilingDb == null
+      ? 0.0
+      : math.max(
+          0.0,
+          math.min(ceilingDb - replayGainBoostMarginDb, replayGainMaxBoostDb),
+        );
+  return (
+    cutDb: math.min(db, 0),
+    boostDb: boostSupported ? math.min(math.max(db, 0.0), room) : 0,
+  );
 }
 
 /// The mode a song plays with: 'off', 'track' or 'album'.
@@ -110,7 +199,8 @@ class ReplayGainDecision {
   const new({
     required this.mode,
     required this.resolvedMode,
-    required this.db,
+    required this.cutDb,
+    this.boostDb = 0,
     required this.source,
   });
 
@@ -121,8 +211,17 @@ class ReplayGainDecision {
   /// The mode that was applied: 'off', 'track' or 'album'.
   final String resolvedMode;
 
-  /// The adjustment in dB (0 or less), or null when off.
-  final double? db;
+  /// How much the song is turned down in dB (0 or less), or null when off.
+  /// It is the only part that rides the player volume.
+  final double? cutDb;
+
+  /// How much the song is turned up in dB (0 or more) by the platform's boost
+  /// stage; 0 when off or when the platform cannot boost.
+  final double boostDb;
+
+  /// The signed adjustment in dB, or null when off: the boost when there is
+  /// one, the cut otherwise.
+  double? get db => cutDb == null ? null : (boostDb > 0 ? boostDb : cutDb);
 
   /// The gain used after fallbacks, or null when off.
   final ReplayGainSource? source;
@@ -132,10 +231,12 @@ class ReplayGainDecision {
     'resolvedMode': resolvedMode,
     'source': source?.name,
     'db': db,
+    'cutDb': cutDb,
+    'boostDb': boostDb,
   };
 }
 
-/// [replayGainDb] with the mode resolved from the song's queue neighbours
+/// [replayGainLevels] with the mode resolved from the song's queue neighbours
 /// (see [resolveReplayGainMode]), plus which gain was used.
 ReplayGainDecision replayGainDecision({
   required String mode,
@@ -148,6 +249,7 @@ ReplayGainDecision replayGainDecision({
   double? albumPeak,
   double preampDb = 0,
   required double untaggedDb,
+  required bool boostSupported,
 }) {
   final resolved = resolveReplayGainMode(
     mode,
@@ -155,7 +257,7 @@ ReplayGainDecision replayGainDecision({
     prevAlbumId: prevAlbumId,
     nextAlbumId: nextAlbumId,
   );
-  final db = replayGainDb(
+  final levels = replayGainLevels(
     mode: resolved,
     trackGain: trackGain,
     albumGain: albumGain,
@@ -163,12 +265,14 @@ ReplayGainDecision replayGainDecision({
     albumPeak: albumPeak,
     preampDb: preampDb,
     untaggedDb: untaggedDb,
+    boostSupported: boostSupported,
   );
   return ReplayGainDecision(
     mode: mode,
     resolvedMode: resolved,
-    db: db,
-    source: db == null
+    cutDb: levels?.cutDb,
+    boostDb: levels?.boostDb ?? 0,
+    source: levels == null
         ? null
         : _selectReplayGain(
             mode: resolved,

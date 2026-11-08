@@ -4389,13 +4389,35 @@ queue commits attempt to restore the previous queue and play state. Persisted
 recommendation tracks restore as an ordinary queue after restart, without
 restarting refills.
 
-Background refills retry with backoff. After five consecutive failed refills
-Same Vibes, Server Mix and Personal Radio stop refilling at `retryExhausted`;
-later playback snapshots, a cleared error notice or an expired backoff do not
-resume them. A verified network recovery re-arms Personal Radio's exhausted
-refill within its existing recommendation session, but only after network
-failures; rate limits, invalid keys and unsupported servers keep their backoff. Starting a mix again also
-re-arms refills.
+Same Vibes and Server Mix refills seed on the current song. A refill that
+queues nothing without a failure (Last.fm has no or only queued similar songs,
+the server has none left, or the seed is not server-addressable) is not a
+failure: the mix parks on that seed, with no retry timer and no failure count,
+and refills on the same song return at once. The next current song unparks it
+and the refill runs normally. Only real failures retry with backoff: Last.fm
+network or parse errors and other API errors than "track not found", server
+fallback errors, and for Server Mix a connection failure. Five consecutive
+failed refills (`retryExhausted`) park the mix the same way, silently, and the
+next current song re-arms it with a fresh failure count; starting a mix again
+also re-arms it. When the park is on the last song of the whole queue and
+repeat is off, nothing can extend the mix, so it stops: Same Vibes shows
+"Same Vibes stopped." and Server Mix ends silently. A mid-mix Server Mix
+refill timeout (30 s) counts as a failure and retries quietly; the timed-out
+fetch is abandoned, so its late answer, even one already waiting to be
+appended, queues nothing and counts nothing. Initial-refill failures, the
+initial-start timeout, terminal Last.fm errors (invalid key, rate
+limit) and a server that lacks the similarity endpoints still end the mix with
+their notice; a remote song without a library copy only parks Server Mix. The
+run-out check happens on the next playback snapshot on the parked last song
+(for example a pause), and a skip made while a refill runs is re-checked as
+soon as the refill parks.
+
+Personal Radio retries with the same backoff and stops refilling at
+`retryExhausted`; later playback snapshots, a cleared error notice or an
+expired backoff do not resume it. A verified network recovery re-arms its
+exhausted refill within its existing recommendation session, but only after
+network failures; rate limits, invalid keys and unsupported servers keep their
+backoff. Starting a mix again also re-arms refills.
 
 ## Startup and resume evidence
 
@@ -5074,10 +5096,120 @@ Desktop volume follows a parallel local-settings path:
    transport and mini-player volume controls are desktop-only. Crossfade,
    ReplayGain and ducking scale relative to that 1.0 user volume.
 
-   ReplayGain (`replayGainDb`, `navis_playback_rules.dart`) only turns songs
-   down. Track and album gain fall back to each other; a gain beyond +-24 dB is
+   ReplayGain (`replayGainLevels`, `navis_playback_rules.dart`) splits a
+   song's level into a cut (`cutDb`, 0 or less) and a boost (`boostDb`, 0 or
+   more). Track and album gain fall back to each other; a gain beyond +-24 dB is
    garbage and counts as untagged, and a known peak limits the result. The dB is
-   added to the clamped pre-amp and capped at 0 dB. A song with no usable gain
+   added to the clamped pre-amp. The cut is that capped at 0 dB and is the only
+   part that rides the player volume. The boost is its positive part, only for a
+   song with both a gain and a valid peak (so never an untagged song, whatever
+   the pre-amp), stopping 1 dB under the peak ceiling `-20*log10(peak)` (no
+   limiter follows; a lossy copy can overshoot the tagged peak) and at 12 dB
+   (`replayGainMaxBoostDb`, mpv's `volume-gain-max`). A platform without a boost
+   stage (`replayGainBoostSupported` false) always has boost 0. The invariant
+   every boost stage relies on: a stage never applies more than a song's own
+   boost to that song's samples, so a timing error can only under-boost.
+   Desktop (media_kit/mpv) is the first stage: `_applyReplayGainBoost` sends
+   `setReplayGainBoost` (platform interface) with the boost of every queued URI,
+   and the media_kit adapter sets mpv's file-local `volume-gain` from an
+   `on_load` hook (`ReplayGainBoostState`). mpv applies `volume-gain` to audio
+   it has already queued, so at a natural join the new file starts at
+   `min(previous, own)` and is held, whatever the map says, until it has played
+   0.5 s (a position past the gate also covers a seek that landed); while held
+   an update may only lower the gain. An explicit switch (load, a jump, removing
+   the playing song) is tied to the playlist position it will load, so a join
+   that arrives first is still a join; it starts at its own value. Gain writes
+   are the same synchronous `mpv_set_property_string` the hook uses. The
+   crossfade deck gets its map after it loads and before `play()`. A Next or a
+   jump to the song that follows, pressed in the last ~0.2 s of the playing one,
+   can race the natural join: the adapter then takes the join for the explicit
+   switch and the new song's full boost reaches up to 0.2 s of the old song's
+   queued tail. This is accepted; it needs an input inside a millisecond-wide
+   window and costs at most 0.2 s.
+   Android is the second stage: `NavisEqualizerProcessor` multiplies each frame
+   by a boost gain (`EqualizerDsp.BoostRamp`, 20 ms linear ramps) after the EQ
+   bank and before the 16-bit clamp. It sits outside `Bank`, whose automatic
+   headroom would cancel a boost, so it works with the EQ off and on. It exists
+   only while `_equalizerPipelineEnabled` is true; after
+   `_rebuildPlayerWithoutEqualizer` the capability is false and the boost is 0.
+   Samples that hit the clamp while boosting are counted. The status reports the
+   stage (`replayGainBoost`: `appliedDb`, `requestedDb`, `sentDb`, `guarded`,
+   `clipSamples`); the processor is read back when the status is asked for, not
+   polled during playback.
+   The stage runs ahead of the speaker (up to ~0.75 s of AudioTrack lead, more
+   with Bluetooth or HAL latency, which the 3 s window still covers), so the
+   guard keeps a song's boost no higher than the next song's in the song's last
+   3 s of wall-clock time (`guardedBoostDb`, `replayGainBoostGuarded`): the lower
+   of the two, which is valid for both songs. A per-deck latch keeps that value
+   from ever rising, and a latched song stays guarded until another source
+   starts playing: the latch lives for the playing `IndexedAudioSource` object,
+   not for a song id or an index, so a duplicate entry of the same song is a new
+   play while a removal above the playing song, a loop or shuffle change, a
+   settings pass or a speed change keep the latch and can only lower it. A wrap
+   of one source onto itself (repeat-one, or loop-all over one entry) and a
+   seek or a queue load reset it. The wrap rule (`_isBoostLoopBack`) needs an
+   auto-advance whose previous and current source are the same object, that
+   object to be the latched playing source, and no queue edit in flight:
+   just_audio maps each pairwise auto-advance event against the sequence at its
+   delivery, so around an edit a stale index can name one neighbour twice, and
+   that must not reset the latch. For the same reason no song start is decided
+   while an edit is in flight (the published song can flip to its neighbour and
+   back during one). Native keeps its own latch (`AudioPlayer.applyBoost`):
+   once a guarded value is applied, later boosts for that item are clamped to
+   the lowest guarded value and applied as guarded whatever flag Dart sends; a 0
+   is always applied, and a stale-index message (computed for another song)
+   never latches. It is cleared by `load`, an auto-transition or seek
+   discontinuity, or a change of media-item uid, and kept by a queue edit around
+   the same item (REMOVE or INTERNAL with the same uid), so a lost Dart latch
+   cannot over-boost. Only the heard deck latches in Dart: the refresh
+   that follows a cross-fade hand-over also reaches the paused outgoing deck,
+   and a latch written there would start the next song on that deck at the old
+   song's lower value (a mid-fade refresh would then latch it natively). The
+   outgoing deck is the heard one until the swap, so its tail is still
+   latched, and the incoming deck is latched by the first guarded tick after
+   it becomes heard; a guarded send that reaches it earlier, while it plays
+   its fade-in, is held by the native latch. The tick re-resolves the playing
+   source once the edit is done and resets only when the same new source shows
+   on two ticks in a row, because a natural advance or a removal of the playing
+   song seen only during an edit leaves no event behind and the gap between an
+   edit's reply and its index event can show a neighbour once. A latched song
+   stays guarded after the window closes, so a speed drop cannot widen it back
+   over samples already ahead. Songs shorter than 4 s, and songs whose timing
+   is unknown, are guarded from their start. Position and duration
+   are song time (the fork adds a transcode's start offset). The next song comes
+   from the deck's own play order (`_nextEffectiveIndexOf`, so repeat-one and
+   repeat-all wrap), and the guard is evaluated per deck, so a crossfade's
+   outgoing deck is guarded too. Rolling-cache sources carry no tag, so a
+   song is found by the id in its stream URL (`_mediaItemOfSource`).
+   just_audio publishes an edited `sequence` before the platform replies while
+   `currentIndex` still counts the old list, so the value is computed only when
+   no edit is in flight (`AudioPlayer.sequenceEditInFlight`) and the heard
+   deck's source is the song the index listener published; otherwise nothing
+   is sent. Skipping is safe: a value already in the processor was computed for
+   the playing song, native lowers it before any command that switches songs,
+   and a value that is never sent cannot raise anything. The position tick (`_tickReplayGainBoost`, also with crossfade off)
+   sends a change and re-sends a guarded value every tick. Every message carries
+   the queue index it was computed for and the native bridge ignores a non-zero
+   value whose index is not the current one (a 0 is always applied), so a message
+   that raced a seek, a jump, Play on a completed queue or a resume after an
+   insert cannot put the old song's boost on the new song. After a seek the heard
+   deck's boost may only go strictly down for a second (an equal value still goes
+   out when only the guard flag flips to guarded), because the discontinuity (and any
+   tick before the index event) still describes the old song at the old index.
+   Before any command that can change which song plays next, the native bridge
+   lowers the requested boost to 0 on the main thread (`load`, `seek` to another
+   song, removing the playing song) and, while the last message was guarded,
+   before any queue edit, loop-mode or shuffle change. The index event, a queue
+   load, the loop/shuffle streams and settings or speed changes raise it again;
+   after a native lowering that no event follows (queue edits made by the
+   rolling-window code, such as releasing the tail or trimming played songs),
+   the guarded re-send undoes it within a tick. An Android message without a
+   per-URI map is never deduplicated. A Dart UI-isolate stall over ~1.75 s inside
+   the window of a boosted song followed by a lower-boost song can clip the next
+   song's head by the difference; the clip counter measures it. iOS and macOS
+   (libmpv 0.36 has no `volume-gain`) report boost unsupported and keep today's
+   behaviour.
+   A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
    (`replayGainUntaggedDb`, -15..0 dB in 0.1 dB steps, set on the pitch/speed
    `AdjustmentRuler` counting in tens of dB so a click is 0.1 dB and a labelled
@@ -5111,12 +5243,41 @@ Desktop volume follows a parallel local-settings path:
    nothing is frozen while a queue load settles, and the diagnostics read
    never freezes. An empty album id counts as none. The cross-fade incoming song resolves
    with its own neighbours. `NavisAudioHandler.currentReplayGainDecision`
-   (mode, resolved mode, source track/album/untagged, dB) is reported as
-   `replayGain` by `GET /v1/playback/status`.
+   (mode, resolved mode, source track/album/untagged, signed `db`, `cutDb`,
+   `boostDb`) is reported as `replayGain` by `GET /v1/playback/status`; on
+   desktop `native.mediaKitTransport[*].replayGainBoostDb` is mpv's own
+   `volume-gain` read back (`replayGainBoostIntendedDb` is what the adapter
+   meant to write, `replayGainBoostHeldDb` the target of a held join).
 
-   Guidance. Playback settings explain what ReplayGain does (it only turns
-   songs down, so raise the volume), each mode, and what the pre-amp cannot do
-   (push a song above its original level). The coverage line counts library
+   Queued songs carry their ReplayGain in `MediaItem.extras`, copied from the
+   song row when the queue is built, and a deck source's tag keeps the value
+   it was created with. After a sync run that wrote songs (a promoted
+   snapshot or hydrated albums, whatever its final status), and on every
+   external database change `LibrarySyncController` sees (the Android worker
+   writes while the app is open; on resume it reconciles once, then polls
+   about once a second for up to nine minutes while a worker may commit),
+   it calls `refreshQueuedSongReplayGain()` without awaiting it. It is a queue
+   edit (`_refreshQueuedSongReplayGain`, `prepareSources: false`, no network),
+   and at most one waits at a time: a call made while one is queued shares it.
+   It reads the queued ids from the library with one chunked `getSongsByIds`
+   and patches the `replayGain*` extras where they differ, then publishes the
+   queue once and refreshes the boost map (no volume); nothing changed,
+   nothing published. It never applies a volume and skips the audible songs
+   (the current one, and the incoming one during a cross-fade), because every
+   later volume write re-reads a song's extras: the playing song's level never
+   jumps. On Android a refresh inside the last-3 s clip guard can still lower
+   (never raise) the playing song's boost to the next song's refreshed value.
+   The next song plays at the new gain (cut and boost;
+   `_mediaItemOfSource` prefers the queue's copy over the source tag, and the
+   refreshed boost map is what mpv reads at a natural join). The audible
+   song's other queue copies keep the old gain too, so it plays at the old
+   gain if it comes round again from the same queue (previous, repeat) until
+   the queue is reloaded.
+
+   Guidance. Playback settings explain what ReplayGain does (with a boost
+   stage: it turns quiet songs up only as far as their peak allows; without
+   one: it only turns songs down; either way raise the volume), each mode, and
+   what the pre-amp does (separate copy per capability). The coverage line counts library
    songs with a usable track or album gain out of all live songs (not
    provisional, external or server-deleted), floors the percentage, names the
    untagged level (Automatic or fixed) or says ReplayGain is off, and points to
@@ -6599,7 +6760,8 @@ collaborators does not read locale settings or open the database for localizatio
    than replacing an explicit discovery request. On a metered connection,
    ordinary Check for updates inspects one bounded 50-album newest page and
    hydrates at most three changed albums; it never runs an artist sweep or
-   bulk-song index. Remaining work
+   bulk-song index (this also holds for the scan-triggered snapshot: it needs
+   one-time broad consent). Remaining work
    waits for an unmetered connection, the user disabling the unmetered-only
    setting, or one-time mobile-data consent for broad discovery. Discrepant
    on-server albums use ordinary song hydration and identity/cache reconciliation, so a new album does not wait
@@ -6910,22 +7072,103 @@ contract.
 
 #### Scan awareness, catalog availability, and identity recovery
 
-- **Scan detection.** The scheduled probe reads `getScanStatus` once per
-  eligible check (no separate polling loop) through the typed
-  `SubsonicApiClient.getScanStatus`. Standard `scanning`/`count` fields are
-  supported; Navidrome's optional `lastScan` supplies the scan token. A newly
-  completed token opens one pending reconciliation (`library_scan_observation`)
-  that flows through the existing probe → snapshot path, and collection
-  re-observes the token before promotion: if a scan landed mid-collection, the
-  candidate's completeness evidence is withheld, the ledger records
-  `scanChangedDuringCollection` (with a per-server deferral streak in
-  `libraryScanDeferralStreak`), and the resumable planner recollects. After
-  three consecutive deferrals the engine waits a bounded window for a running
-  scan to finish and releases the promotion once the server is quiet
-  (`scanChurnCapRelease` ledger entry) so a continuously rescanning server
-  cannot defer full-sync promotion forever. Servers
-  without the endpoint are recorded once as unsupported and stay on the
-  existing discovery/audit mechanisms.
+- **Scan detection.** Navidrome exposes no change token below the scan, so a
+  newly completed scan (`lastScan`) is the only signal that song tags
+  (ReplayGain, titles, genres) or membership changed. `getScanStatus` is read
+  through the typed `SubsonicApiClient.getScanStatus`; standard
+  `scanning`/`count` fields are supported and `lastScan` supplies the scan
+  token. A completed token that no promoted snapshot has covered opens a
+  pending reconciliation (`library_scan_observation`). The coordinator turns it
+  into one durable `catalogSnapshot` work row (priority 70, above a queued
+  delta) before selecting resumed work, so the ordinary resume path runs the
+  existing bulk `search3` snapshot, diff analyzer, deletion guard and
+  promotion, and promotion marks reconciled only the scan the candidate was
+  collected under. The coordinator makes
+  one unscoped `getScanStatus` request (`SyncPlanExecutor.observeServerScan`,
+  outside the run budget) only on a catalog pass that could run a snapshot: a
+  manual Check for updates, or an automatic pass that is due, with a baseline,
+  on a network and visibility state that admit a snapshot. A work row the
+  trigger wrote (its checkpoint carries the scan token as `evidenceVersion`)
+  never runs on a metered connection without the one-time broad mobile-data
+  grant, at enqueue, at selection and at execution, so a snapshot an
+  interruption left queued, or a Wi-Fi pass that flipped to cellular, stops
+  there too; the first-setup snapshot is unchanged. A manual check runs the
+  snapshot whenever the server has scanned since the last reconciled one. An
+  automatic pass runs it at most once per 24 hours from the previous attempt
+  (the work row's last transition; a clock that moved back counts as due), and
+  a failed snapshot retries automatically at most once per 24 hours too, while
+  a manual check retries it at once. A failed or incomplete rescan snapshot is
+  not a successful check and leaves the failure circuit alone. While a
+  large-deletion candidate waits for confirmation no new snapshot is queued, so
+  the retag in that candidate waits with the deletions. Installing the update
+  runs one snapshot at the first eligible pass if the server scanned since the
+  last reconciled token. A server that answers `getScanStatus` without a
+  `lastScan` records no token, and one without the endpoint is recorded once as
+  unsupported; both keep the album verification rotation (16 albums per pass,
+  7 days), and the one-request observation still runs before each eligible
+  manual or due automatic pass. Collection reads the token before it starts
+  and promotion re-observes it: if a scan landed mid-collection the promotion
+  waits, the ledger records `scanChangedDuringCollection` (with a per-server
+  deferral streak in `libraryScanDeferralStreak`), and the candidate, stored
+  with its collection token (`libraryCandidateScanToken`), resumes only while
+  the server is still at that token; otherwise its pages are discarded and
+  collected again. A candidate written by an older build carries no token and
+  is discarded and collected again once. A held large-deletion candidate is
+  exempt from the token rule, and a run that carries the dialog's confirmation
+  is exempt from the 24 hour resume window too: it always collects fresh
+  pages, and its generation and start time pin the confirmation fingerprint.
+  Only the explicit, one-shot confirmation of the Apply Library Repair dialog
+  applies a held deletion. It is a `HeldDeletionConfirmation(serverId,
+  generation, count, fingerprint)` that `repairLibrary` puts on that one
+  request (`confirmsHeldDeletion`); it is never stored on a work row and never
+  inferred from the origin, because Force rescan shares the `settingsRepair`
+  origin and `repairLibrary` intent. The engine applies it only on a full
+  repair for the same server that resumes the held generation, when the
+  confirmed generation, count and fingerprint equal the stored hold and the
+  recollected removal set still matches that fingerprint, after a check that
+  the candidate was not discarded since the run began. A matching removal set
+  alone confirms nothing: an automatic pass, a scan-triggered snapshot, a
+  queued or failed snapshot row and Force rescan collect, find the hold and
+  hold again. The coordinator therefore skips `catalogSnapshot` rows while a
+  hold waits and leaves them queued. If the removed set changed since the
+  dialog (even to another set of the same size at the same generation), or
+  another server, count or generation was confirmed, the run holds again and
+  the dialog asks again. The protection windows for local stars and ratings
+  and the `songs_verified_at` stamp begin when the confirming run started, not
+  at the hold. If a scan lands during the confirming run itself, the hold is
+  kept (and visible from the start of a confirming run, so a failed or
+  cancelled press keeps it too) and the run is reported as deferred, so the
+  repair row is not completed. Nothing retries a deferred confirmation by
+  itself: automatic runs refuse a full repair, so only the user's next Repair
+  Library press confirms it (the dialog shows again and carries a new
+  confirmation), and that press releases the row at once (its short backoff
+  never delays it). Discard removes the held candidate together with that
+  server's queued or failed repair row; it is refused while a run holds the
+  execution lease (the screen says so), and a run that finds its candidate
+  discarded stops without restoring it. If the removal no longer applies when
+  a scan lands mid-run, no hold or prompt is restored. When the status read
+  fails (or the server has no status), the current scan is unknown: the
+  candidate is kept and only the scan its pages were collected under is
+  reconciled. A scan still running is a known, different scan, so a stale
+  candidate is discarded. The token is compared before the album-page boundary
+  check, so a candidate that cannot resume costs no page requests. A
+  scan-triggered snapshot whose promotion waits is reported as deferred
+  (`scanChanged`, and `LibrarySyncState.scanDeferred`), not as a success: it
+  shows neither an update notice nor a mobile-data action, the Android worker
+  records it as `deferredScanChanged`, and neither `lastCheckedAt` nor
+  `lastCatalogSyncedAt` advances. Its work row stays queued (a queued row
+  ignores the 24 hour attempt clock, which the requeue still stamps) with the
+  existing 15, 30 and 60 minute backoff, and a manual check retries it at once.
+  Each deferral counts in a streak; a pass whose streak reaches three waits a
+  bounded window for a running scan to finish and releases the promotion of the
+  data it just collected once the server is quiet (`scanChurnCapRelease`
+  ledger entry), which leaves the newer scan pending. If the server has still
+  not settled, the retry after the third backoff step and every later one waits
+  at least 24 hours, so a server that never stops scanning costs four automatic
+  full passes in the first day (at 0, 15, 45 and 105 minutes) and one a day
+  afterwards. A scan-triggered snapshot is not a repair: it bumps
+  `cover_art_revision` only for songs whose cover id changed, never for a
+  ReplayGain or play-count change, so artwork is not downloaded again.
 - **Catalog availability.** Songs, albums, and artists carry a typed
   `catalog_availability` (`present`/`suspectedMissing`/`confirmedMissing`).
   Transport, authentication, rate-limit, and decoding failures never advance
@@ -7921,7 +8164,7 @@ Endpoint admission, actual retry attempts, byte counts, concurrency and elapsed
 limits belong to that scope; unrelated UI traffic is excluded. Automatic passes
 have a 30-second, 96-request, 32-album-detail and 32-MiB ceiling (three concurrent
 requests). Manual discovery has 60 seconds, 200 requests, 64 details and 64 MiB;
-initial/repair snapshots have ten minutes and 512 MiB. Limits defer persisted work
+initial/repair snapshots, and the scan-triggered snapshot, have ten minutes and 512 MiB. Limits defer persisted work
 without discarding committed hydration batches. Long Retry-After responses are
 scheduled through durable retry state.
 The engine obeys the admitted execution plan even when a safely promoted partial

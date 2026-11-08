@@ -1,6 +1,7 @@
 import 'dart:async';
 
-import 'package:audio_service/audio_service.dart' show AudioServiceShuffleMode;
+import 'package:audio_service/audio_service.dart'
+    show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_error.dart';
@@ -11,6 +12,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 
 /// Maximum duration a single refill fetch is allowed to run before it is
 /// cancelled and the refilling flag is reset.
@@ -30,10 +32,14 @@ const _kMinimumRefillInterval = Duration(milliseconds: 1200);
 /// session should persist across navigation until explicitly deactivated or
 /// the queue is cleared by the user.
 class InstantMixNotifier extends Notifier<InstantMixState> {
-  /// [now] lets tests step the refill backoff without waiting.
-  new({DateTime Function()? now}) : _now = now ?? DateTime.now;
+  /// [now] lets tests step the refill backoff without waiting, and
+  /// [refillTimeout] shortens the stall limit of a refill fetch.
+  new({DateTime Function()? now, Duration? refillTimeout})
+    : _now = now ?? DateTime.now,
+      _refillTimeout = refillTimeout ?? _kRefillTimeout;
 
   final DateTime Function() _now;
+  final Duration _refillTimeout;
 
   /// The session whose refill is running. It prevents overlapping refills of
   /// one session even before the Riverpod state update is observed, while a
@@ -51,9 +57,15 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   Timer? _retryTimer;
   int _transientFailures = 0;
 
-  /// Set after five consecutive failed refills: the mix stops refilling until
-  /// the user starts it again.
-  bool _retryExhausted = false;
+  /// Identifies the refill whose answer still counts. A new refill and a
+  /// timeout bump it, so a fetch that answers after being given up on queues
+  /// nothing, changes no state and counts no failure.
+  int _refillEpoch = 0;
+
+  /// The seed a refill found nothing new for (or failed five times in a row
+  /// on). Refills on that song return at once; the next current song re-arms
+  /// the mix.
+  String? _parkedSeedSongId;
 
   @override
   InstantMixState build() {
@@ -84,7 +96,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     _mixSegmentEndIndex = null;
     _nextRefillAllowedAt = null;
     _transientFailures = 0;
-    _retryExhausted = false;
+    _parkedSeedSongId = null;
     _retryTimer?.cancel();
     final coordinator = ref.read(recommendationSessionProvider.notifier);
     final session = coordinator.start(
@@ -114,7 +126,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     _retryTimer?.cancel();
     _retryTimer = null;
     _transientFailures = 0;
-    _retryExhausted = false;
+    _parkedSeedSongId = null;
     _mixSegmentEndIndex = null;
     _nextRefillAllowedAt = null;
     _activationInProgress = false;
@@ -145,7 +157,6 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   void _onSnapshotChanged(PlaybackSnapshot? prev, PlaybackSnapshot next) {
     if (!state.active) return;
     if (_activationInProgress) return;
-    if (_retryExhausted) return;
     if (_consumeActivationSeedSnapshot(next)) return;
     if (next.isRadioMode) return;
     if (state.refilling || state.error != null) return;
@@ -207,23 +218,46 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   Future<void> _refill(String seedSongId, {bool isInitial = false}) async {
     final refillSession = _session;
     if (refillSession == null) return;
-    if (!isInitial && _retryExhausted) return;
     // Only a refill of this same session blocks. Starting a mix replaces the
     // session and cancels the old fetch, so its first refill runs at once
     // instead of waiting, "preparing", for the superseded one.
     if (identical(_refillingSession, refillSession) || state.refilling) return;
+    if (!isInitial && _parkedSeedSongId != null) {
+      if (_parkedSeedSongId == seedSongId) {
+        // The last song found nothing new and nothing can extend the queue.
+        if (_mixCannotExtend(ref.read(playerStateProvider))) deactivate();
+        return;
+      }
+      _parkedSeedSongId = null;
+      _transientFailures = 0;
+      AppLogger.debug('InstantMix: seed changed, refill re-armed');
+    }
     _refillingSession = refillSession;
+    final epoch = ++_refillEpoch;
     state = state.copyWith(refilling: true, seedSongId: seedSongId);
 
     try {
-      await _doRefill(seedSongId, refillSession, isInitial: isInitial).timeout(
-        _kRefillTimeout,
+      await _doRefill(
+        seedSongId,
+        refillSession,
+        epoch,
+        isInitial: isInitial,
+      ).timeout(
+        _refillTimeout,
         onTimeout: () {
           if (!ref.mounted || !_isCurrent(refillSession)) return;
+          // Give up on this fetch: whatever it answers later is dropped.
+          _refillEpoch++;
           AppLogger.debug(
-            'InstantMix: refill timed out after ${_kRefillTimeout.inSeconds}s '
+            'InstantMix: refill timed out after ${_refillTimeout.inSeconds}s '
             '— resetting',
           );
+          if (!isInitial) {
+            // A stalled server may recover: retry quietly like a failed
+            // connection, and keep the session.
+            _scheduleTransientRetry(seedSongId, 'timeout');
+            return;
+          }
           ref.read(recommendationSessionProvider.notifier).stop(refillSession);
           state = const InstantMixState(error: InstantMixError.networkError);
         },
@@ -254,7 +288,8 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 
   Future<void> _doRefill(
     String seedSongId,
-    RecommendationSession session, {
+    RecommendationSession session,
+    int epoch, {
     bool isInitial = false,
   }) async {
     final coordinator = ref.read(recommendationSessionProvider.notifier);
@@ -268,12 +303,28 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       );
       if (!ref.mounted) return;
       if (!coordinator.owns(session)) return;
+      if (epoch != _refillEpoch) return;
       coordinator.report(
         session,
         stage: 'prepared',
         source: batch.source.name,
         candidateCount: batch.songs.length,
       );
+      // Mid-mix, an empty batch is a failed connection to retry or nothing
+      // new to wait out. A server without the endpoints still ends the mix,
+      // but a remote song it cannot address (no library copy) only has
+      // nothing to mix from.
+      if (batch.songs.isEmpty &&
+          !isInitial &&
+          (batch.issue != RecommendationIssue.unsupported ||
+              !isServerAddressableSongId(seedSongId))) {
+        if (batch.issue == RecommendationIssue.networkFailure) {
+          _scheduleTransientRetry(seedSongId, 'networkFailure');
+        } else {
+          _park(session, seedSongId);
+        }
+        return;
+      }
       if (batch.songs.isEmpty) {
         state = InstantMixState(
           error: batch.issue == RecommendationIssue.unsupported
@@ -292,10 +343,12 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         await ref.read(queueProvider.notifier).retainCurrentAsQueue(seedSongId);
         if (!ref.mounted) return;
         if (!coordinator.owns(session)) return;
+        if (epoch != _refillEpoch) return;
       }
-      final queuedCount = await _queueMixSongs(batch.songs, session);
+      final queuedCount = await _queueMixSongs(batch.songs, session, epoch);
       if (!ref.mounted) return;
       if (!coordinator.owns(session)) return;
+      if (epoch != _refillEpoch) return;
       if (queuedCount <= 0) {
         if (previousQueue != null) {
           await _restorePreviousQueue(previousQueue, session);
@@ -304,7 +357,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
           state = const InstantMixState(error: InstantMixError.networkError);
           _reportFailed(session, InstantMixError.networkError);
         } else {
-          _scheduleTransientRetry(seedSongId, 'zeroInsertion');
+          _park(session, seedSongId);
         }
         return;
       }
@@ -316,11 +369,13 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       );
       coordinator.report(session, stage: 'active', insertedCount: queuedCount);
     } on SubsonicNotFoundException {
-      if (!ref.mounted || !_isCurrent(session)) return;
+      if (!ref.mounted || !_isCurrent(session) || epoch != _refillEpoch) {
+        return;
+      }
       state = const InstantMixState(error: InstantMixError.unsupported);
       _reportFailed(session, InstantMixError.unsupported);
     } on Object catch (error, stackTrace) {
-      if (!ref.mounted) return;
+      if (!ref.mounted || epoch != _refillEpoch) return;
       if (queueChangeAttempted && previousQueue != null) {
         await _restorePreviousQueue(previousQueue, session);
       }
@@ -345,19 +400,49 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         .report(session, stage: 'failed', errorCategory: error.name);
   }
 
+  /// Whether nothing can extend the queue past the current song: it is the
+  /// last one and repeat is off.
+  bool _mixCannotExtend(PlaybackSnapshot snapshot) =>
+      snapshot.repeatMode == AudioServiceRepeatMode.none &&
+      snapshot.currentIndex == snapshot.queueSongIds.length - 1;
+
+  /// A refill from [seedSongId] found nothing new, which is no failure: wait
+  /// for the next current song.
+  void _park(RecommendationSession session, String seedSongId) {
+    _parkedSeedSongId = seedSongId;
+    _transientFailures = 0;
+    _retryTimer?.cancel();
+    _nextRefillAllowedAt = null;
+    state = state.copyWith(refilling: false);
+    ref
+        .read(recommendationSessionProvider.notifier)
+        .report(session, stage: 'active', retryCount: 0);
+    AppLogger.debug(
+      'InstantMix: seed spent, waiting for the next song seed=$seedSongId',
+    );
+    // The user may have skipped while this refill ran (snapshots are ignored
+    // meanwhile), and steady playback sends no further one.
+    if (ref.read(playerStateProvider).currentSongId?.trim() != seedSongId) {
+      scheduleMicrotask(() {
+        if (ref.mounted) {
+          _onSnapshotChanged(null, ref.read(playerStateProvider));
+        }
+      });
+    }
+  }
+
   void _scheduleTransientRetry(String seedSongId, String reason) {
     final session = _session;
     if (session == null || !state.active) return;
     _transientFailures++;
     final exhausted = _transientFailures >= 5;
-    if (exhausted) _retryExhausted = true;
     final delay = Duration(
       seconds: 3 * (1 << (_transientFailures - 1).clamp(0, 4)),
     );
-    _nextRefillAllowedAt = _now().add(delay);
-    state = exhausted
-        ? state.copyWith(refilling: false, error: InstantMixError.networkError)
-        : state.copyWith(refilling: false, clearError: true);
+    // Exhausted: wait for the next song, silently; it re-arms the mix.
+    if (exhausted) _parkedSeedSongId = seedSongId;
+    _nextRefillAllowedAt = exhausted ? null : _now().add(delay);
+    state = state.copyWith(refilling: false, clearError: true);
     ref
         .read(recommendationSessionProvider.notifier)
         .report(
@@ -371,7 +456,10 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       _retryTimer = Timer(delay, () {
         if (ref.mounted &&
             ref.read(recommendationSessionProvider.notifier).owns(session)) {
-          unawaited(_refill(seedSongId));
+          // Follow the current song, as a skip during the backoff moves on.
+          unawaited(
+            _refill(ref.read(playerStateProvider).currentSongId ?? seedSongId),
+          );
         }
       });
     }
@@ -404,6 +492,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   Future<int> _queueMixSongs(
     List<Song> songs,
     RecommendationSession session,
+    int epoch,
   ) async {
     if (songs.isEmpty) {
       return 0;
@@ -418,8 +507,11 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
           .appendRecommendationTracks(
             songs,
             expandMatchFlows: false,
+            // The queue checks this after its own awaits, so a refill that
+            // timed out meanwhile appends nothing.
             isCurrent: () =>
                 ref.mounted &&
+                epoch == _refillEpoch &&
                 ref.read(recommendationSessionProvider.notifier).owns(session),
           );
       final queuedCount = result.count;

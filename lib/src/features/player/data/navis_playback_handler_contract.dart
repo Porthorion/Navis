@@ -67,6 +67,10 @@ abstract class NavisPlaybackHandler {
   /// What ReplayGain does to the playing song (null: radio, nothing playing
   /// or off). A read never freezes a Smart decision or changes playback.
   ReplayGainDecision? get currentReplayGainDecision => null;
+
+  /// Whether this platform's player has a stage that turns quiet songs up
+  /// (ReplayGain boost). Without one a song is only ever turned down.
+  bool get replayGainBoostSupported => false;
   Stream<MediaItem?> get mediaItemStream;
   Stream<PlaybackLoadFailure> get loadFailureStream;
 
@@ -159,6 +163,11 @@ abstract class NavisPlaybackHandler {
   /// Remap retired provisional song IDs in the logical queue after library
   /// sync without replacing or interrupting the active audio source.
   Future<void> applySongIdentityAliases(Map<String, String> aliases);
+
+  /// Copies the ReplayGain values the library now holds into the songs that
+  /// are queued, for a sync that changed song tags. The next song plays at the
+  /// new gain; the song that is playing keeps its level.
+  Future<void> refreshQueuedSongReplayGain();
 
   Future<void> toggleLike();
 

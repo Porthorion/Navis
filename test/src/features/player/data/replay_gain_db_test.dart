@@ -13,7 +13,7 @@ void main() {
     double? albumPeak,
     double preamp = 0,
     double untagged = -8,
-  }) => replayGainDb(
+  }) => replayGainLevels(
     mode: mode,
     trackGain: track,
     albumGain: album,
@@ -21,9 +21,50 @@ void main() {
     albumPeak: albumPeak,
     preampDb: preamp,
     untaggedDb: untagged,
-  );
+    boostSupported: true,
+  )?.cutDb;
 
-  group('replayGainDb', () {
+  double? boost({
+    String mode = 'track',
+    double? track,
+    double? album,
+    double? trackPeak,
+    double? albumPeak,
+    double preamp = 0,
+    double untagged = -8,
+    bool supported = true,
+  }) => replayGainLevels(
+    mode: mode,
+    trackGain: track,
+    albumGain: album,
+    trackPeak: trackPeak,
+    albumPeak: albumPeak,
+    preampDb: preamp,
+    untaggedDb: untagged,
+    boostSupported: supported,
+  )?.boostDb;
+
+  /// The rule before the boost existed: the reference every cut must match.
+  double oldReplayGainDb({
+    double? gain,
+    double? peak,
+    double preamp = 0,
+    double untagged = -8,
+  }) {
+    var value = (gain ?? untagged) + preamp.clamp(-6.0, 6.0);
+    if (gain != null &&
+        peak != null &&
+        peak.isFinite &&
+        peak > 0 &&
+        peak <= 4) {
+      value = math.min(value, -20 * math.log(peak) / math.ln10);
+    }
+    return math.min(value, 0);
+  }
+
+  double ceilingOf(double peak) => -20 * math.log(peak) / math.ln10;
+
+  group('replayGainLevels', () {
     test('off applies nothing, even to tagged songs', () {
       expect(db(mode: 'off', track: -10), isNull);
       expect(db(mode: 'off'), isNull);
@@ -52,9 +93,117 @@ void main() {
       expect(db(untagged: 0), 0);
     });
 
-    test('never boosts: positive gain is capped at 0 dB', () {
+    test('the cut never goes above 0 dB; the boost is separate', () {
       expect(db(track: 14.4), 0);
       expect(db(track: 3, preamp: 6), 0);
+      expect(boost(track: 14.4), 0, reason: 'no peak, no boost');
+    });
+
+    test('boost: the gain, stopping 1 dB under the peak ceiling', () {
+      // Cardigan: gain +6.6, peak -7.2 dB (ceiling 7.2) -> min(6.6, 6.2).
+      final cardigan = math.pow(10, -7.2 / 20).toDouble();
+      expect(boost(track: 6.6, trackPeak: cardigan), closeTo(6.2, 0.001));
+      expect(db(track: 6.6, trackPeak: cardigan), 0);
+      // Rockline: gain +2.9, peak -1.9 dB -> +0.9.
+      final rockline = math.pow(10, -1.9 / 20).toDouble();
+      expect(boost(track: 2.9, trackPeak: rockline), closeTo(0.9, 0.001));
+      // Plenty of room: the gain itself.
+      expect(boost(track: 3, trackPeak: 0.1), 3);
+    });
+
+    test('boost needs both a gain and a valid peak', () {
+      expect(boost(track: 6), 0);
+      expect(boost(track: 6, trackPeak: 0), 0);
+      expect(boost(track: 6, trackPeak: 4.5), 0);
+      expect(boost(track: 6, trackPeak: double.nan), 0);
+      expect(boost(track: 6, trackPeak: double.infinity), 0);
+      expect(boost(track: 6, trackPeak: -1), 0);
+    });
+
+    test('a peak at or above full scale leaves no room', () {
+      expect(boost(track: 6, trackPeak: 1), 0);
+      expect(boost(track: 6, trackPeak: 1.2), 0);
+      expect(boost(track: 6, trackPeak: 0.95), 0);
+    });
+
+    test('untagged songs are never boosted, whatever the pre-amp', () {
+      expect(boost(preamp: 6, untagged: 0), 0);
+      expect(boost(preamp: 6), 0);
+      expect(db(preamp: 6, untagged: 0), 0);
+    });
+
+    test('a gain beyond 24 dB is garbage and never boosts', () {
+      expect(boost(track: 30, trackPeak: 0.001), 0);
+    });
+
+    test('a positive pre-amp lifts tagged songs up to their ceiling', () {
+      expect(boost(track: 1, preamp: 6, trackPeak: 0.1), 7);
+      expect(
+        boost(track: 1, preamp: 6, trackPeak: 0.5),
+        closeTo(ceilingOf(0.5) - 1, 0.001),
+      );
+      // Negative total: no boost at all.
+      expect(boost(track: -10, preamp: 6, trackPeak: 0.1), 0);
+    });
+
+    test('the boost is capped at 12 dB', () {
+      expect(boost(track: 20, trackPeak: 0.0001), replayGainMaxBoostDb);
+      expect(replayGainMaxBoostDb, 12);
+    });
+
+    test('album mode boosts with the album peak; a missing one means 0', () {
+      expect(
+        boost(
+          mode: 'album',
+          track: 1,
+          album: 5,
+          trackPeak: 0.1,
+          albumPeak: 0.2,
+        ),
+        5,
+      );
+      expect(boost(mode: 'album', track: 1, album: 5, trackPeak: 0.1), 0);
+      // Track-gain fallback under album mode keeps the track peak pairing.
+      expect(boost(mode: 'album', track: 4, trackPeak: 0.1, albumPeak: 0.9), 4);
+    });
+
+    test('unsupported platforms never boost and cut exactly as before', () {
+      expect(boost(track: 6, trackPeak: 0.1, supported: false), 0);
+      final levels = replayGainLevels(
+        mode: 'track',
+        trackGain: -6,
+        trackPeak: 0.1,
+        untaggedDb: -8,
+        boostSupported: false,
+      )!;
+      expect((levels.cutDb, levels.boostDb), (-6.0, 0.0));
+    });
+
+    test('every cut is identical to the rule before the boost existed', () {
+      for (final gain in <double?>[null, -20, -6, 0, 2.5, 8, 14.4, 30]) {
+        for (final peak in <double?>[null, 0, 0.05, 0.5, 0.95, 1, 1.5, 4, 5]) {
+          for (final preamp in <double>[-8, -3, 0, 2, 6, 9]) {
+            for (final untagged in <double>[-15, -8, -0.5, 0]) {
+              final usable = gain != null && gain.abs() <= replayGainMaxAbsDb;
+              expect(
+                db(
+                  track: gain,
+                  trackPeak: peak,
+                  preamp: preamp,
+                  untagged: untagged,
+                ),
+                oldReplayGainDb(
+                  gain: usable ? gain : null,
+                  peak: usable ? peak : null,
+                  preamp: preamp,
+                  untagged: untagged,
+                ),
+                reason: '$gain/$peak/$preamp/$untagged',
+              );
+            }
+          }
+        }
+      }
     });
 
     test('the pre-amp is added and clamped to -6..6', () {
@@ -156,7 +305,9 @@ void main() {
       double? albumGain,
       double? trackPeak,
       double preamp = 0,
+      bool boostSupported = false,
     }) => replayGainDecision(
+      boostSupported: boostSupported,
       mode: mode,
       albumId: album,
       prevAlbumId: prev,
@@ -207,7 +358,7 @@ void main() {
       expect(off.resolvedMode, 'off');
     });
 
-    test('decision db equals replayGainDb for the resolved mode', () {
+    test('decision cut equals the rule for the resolved mode', () {
       final d = decide(
         album: 'a',
         next: 'a',
@@ -217,16 +368,45 @@ void main() {
         preamp: 2,
       );
       expect(
-        d.db,
-        replayGainDb(
+        d.cutDb,
+        replayGainLevels(
           mode: 'album',
           trackGain: -10,
           albumGain: -4,
           trackPeak: 0.5,
           preampDb: 2,
           untaggedDb: -8,
-        ),
+          boostSupported: true,
+        )!.cutDb,
       );
+    });
+
+    test('a boosted song reports a signed db and the cut stays 0', () {
+      final d = decide(track: 6, trackPeak: 0.1, boostSupported: true);
+      expect(d.cutDb, 0);
+      expect(d.boostDb, 6);
+      expect(d.db, 6);
+    });
+
+    test('boost is 0 and db is the cut when the platform cannot boost', () {
+      final d = decide(track: 6, trackPeak: 0.1);
+      expect(d.boostDb, 0);
+      expect(d.db, 0);
+    });
+
+    test('a cut reports its own db and no boost', () {
+      final d = decide(track: -6, trackPeak: 0.1, boostSupported: true);
+      expect((d.cutDb, d.boostDb, d.db), (-6.0, 0.0, -6.0));
+    });
+
+    test('off has no cut, boost or db', () {
+      final d = decide(
+        mode: 'off',
+        track: 6,
+        trackPeak: 0.1,
+        boostSupported: true,
+      );
+      expect((d.cutDb, d.boostDb, d.db), (null, 0.0, null));
     });
 
     test('toJson reports the diagnostics fields', () {
@@ -236,7 +416,145 @@ void main() {
         'resolvedMode': 'album',
         'source': 'album',
         'db': -4.0,
+        'cutDb': -4.0,
+        'boostDb': 0.0,
       });
+      final boosted = decide(track: 6, trackPeak: 0.1, boostSupported: true);
+      expect(boosted.toJson()['cutDb'], 0.0);
+      expect(boosted.toJson()['boostDb'], 6.0);
+      expect(boosted.toJson()['db'], 6.0);
+    });
+  });
+
+  group('replayGainBoostPlatformSupported', () {
+    test(
+      'mpv boosts except on macOS, whose libmpv 0.36 has no volume-gain',
+      () {
+        expect(
+          navisReplayGainBoostSupported(usesMpv: true, isMacOS: false),
+          isTrue,
+        );
+        expect(
+          navisReplayGainBoostSupported(usesMpv: true, isMacOS: true),
+          isFalse,
+        );
+        expect(
+          navisReplayGainBoostSupported(usesMpv: false, isMacOS: false),
+          isFalse,
+        );
+      },
+    );
+
+    test('Android boosts while its EQ processor pipeline is installed', () {
+      expect(
+        navisReplayGainBoostSupported(
+          usesMpv: false,
+          isMacOS: false,
+          androidProcessor: true,
+        ),
+        isTrue,
+      );
+      expect(
+        navisReplayGainBoostSupported(
+          usesMpv: false,
+          isMacOS: false,
+          androidProcessor: false,
+        ),
+        isFalse,
+        reason: 'the player was rebuilt without the processor',
+      );
+    });
+  });
+
+  group('guardedBoostDb', () {
+    double guarded({
+      double own = 8,
+      double? next = 3,
+      int? remaining = 2000,
+      double speed = 1,
+      int? duration = 180000,
+      double? latched,
+    }) => guardedBoostDb(
+      ownDb: own,
+      nextDb: next,
+      remainingMs: remaining,
+      speed: speed,
+      songDurationMs: duration,
+      latchedDb: latched,
+    );
+
+    test('outside the last 3 s a song keeps its own boost', () {
+      expect(guarded(remaining: 3001), 8);
+      expect(guarded(remaining: 120000), 8);
+    });
+
+    test('inside the window the lower of the two boosts applies', () {
+      expect(guarded(), 3);
+      expect(guarded(remaining: 3000), 3);
+      expect(guarded(next: 12), 8, reason: 'a louder successor never raises');
+    });
+
+    test('no next song, or the same song again, is its own boost', () {
+      expect(guarded(next: null), 8);
+      expect(guarded(next: 8), 8);
+    });
+
+    test('the latch only ever goes down inside the window', () {
+      expect(guarded(latched: 1), 1);
+      expect(guarded(latched: 5), 3);
+      expect(guarded(next: 12, latched: 6), 6);
+    });
+
+    test('a latched song stays guarded after the window closes', () {
+      // A speed drop moves the window; samples already ahead are unchanged.
+      expect(guarded(remaining: 10000, latched: 1), 1);
+      expect(guarded(remaining: 10000, latched: 5), 3);
+      expect(
+        replayGainBoostGuarded(
+          remainingMs: 10000,
+          speed: 1,
+          songDurationMs: 180000,
+          latched: true,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a short song is guarded from its start', () {
+      expect(guarded(remaining: 3900, duration: 3900), 3);
+      expect(guarded(remaining: 3900, duration: 3999), 3);
+      expect(guarded(remaining: 5000, duration: 4000), 8);
+    });
+
+    test('unknown timing is guarded', () {
+      expect(guarded(remaining: null), 3);
+      expect(guarded(duration: null, remaining: 100000), 3);
+    });
+
+    test('the window is wall-clock time, so speed widens it in media time', () {
+      expect(guarded(remaining: 5000, speed: 2), 3);
+      expect(guarded(remaining: 5000, speed: 1), 8);
+      expect(guarded(remaining: 1500, speed: 0.5), 3);
+      expect(guarded(remaining: 2000, speed: 0.5), 8);
+    });
+
+    test('replayGainBoostGuarded names the window', () {
+      expect(
+        replayGainBoostGuarded(
+          remainingMs: 2000,
+          speed: 1,
+          songDurationMs: 180000,
+        ),
+        isTrue,
+      );
+      expect(
+        replayGainBoostGuarded(
+          remainingMs: 4000,
+          speed: 1,
+          songDurationMs: 180000,
+        ),
+        isFalse,
+      );
     });
   });
 

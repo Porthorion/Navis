@@ -7,7 +7,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Always present in the PCM chain so bypass/enabling never reloads media. */
+/**
+ * Always present in the PCM chain so bypass/enabling never reloads media. It
+ * also carries the ReplayGain boost, applied after the EQ bank (whose
+ * auto-headroom would cancel it) and before the 16-bit clamp.
+ */
 final class NavisEqualizerProcessor extends BaseAudioProcessor {
     private final Object configurationLock = new Object();
     private EqualizerDsp.Configuration configuration;
@@ -15,6 +19,12 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
     private volatile EqualizerDsp.Bank applied;
     private EqualizerDsp.Bank outgoing;
     private int sampleRate, channels, fadeRemaining, fadeFrames;
+    // The boost the app asked for (any thread), and what the playback thread applies.
+    private volatile double requestedBoostDb;
+    private volatile boolean boostGuarded;
+    private volatile double appliedBoostDb;
+    private volatile long boostClipSamples;
+    private EqualizerDsp.BoostRamp boost = new EqualizerDsp.BoostRamp(1);
 
     NavisEqualizerProcessor(Map<?, ?> initial) {
         configuration = decode(initial);
@@ -49,6 +59,21 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         return state();
     }
 
+    /** Asks for [db] of boost. [guarded] marks a value lowered for the song that plays next. */
+    void setBoost(double db, boolean guarded) {
+        boostGuarded = guarded;
+        requestedBoostDb = db;
+    }
+
+    /** Drops the boost request to 0 before a command that can change the next song. */
+    void lowerBoost() {
+        requestedBoostDb = 0;
+    }
+
+    boolean boostGuarded() {
+        return boostGuarded;
+    }
+
     Map<String, Object> state() {
         Map<String, Object> result = new HashMap<>();
         EqualizerDsp.Bank actual = applied;
@@ -57,6 +82,10 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         result.put("headroomDb", actual == null ? 0.0 : actual.headroom);
         result.put("reason", actual == null ? null : actual.reason);
         result.put("pending", requested != actual);
+        result.put("boostRequestedDb", requestedBoostDb);
+        result.put("boostAppliedDb", appliedBoostDb);
+        result.put("boostGuarded", boostGuarded);
+        result.put("boostClipSamples", boostClipSamples);
         return result;
     }
 
@@ -84,6 +113,10 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         outgoing = null;
         fadeRemaining = 0;
         fadeFrames = Math.max(1, sampleRate / 50);
+        // A flush starts a song (or a seek): play it at the boost asked for, with no ramp.
+        boost = new EqualizerDsp.BoostRamp(fadeFrames);
+        boost.snap(requestedBoostDb);
+        appliedBoostDb = boost.db();
     }
 
     @Override
@@ -94,8 +127,11 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
             fadeRemaining = outgoing == null ? 0 : fadeFrames;
         }
         EqualizerDsp.Bank current = applied;
+        boost.setTarget(requestedBoostDb);
+        long clipped = 0;
         ByteBuffer output = replaceOutputBuffer(input.remaining());
         while (input.remaining() >= channels * 2) {
+            double gain = boost.next();
             double mix = fadeRemaining == 0 ? 1 : 1 - (double) fadeRemaining / fadeFrames;
             for (int channel = 0; channel < channels; channel++) {
                 double value = input.getShort() / 32768.0;
@@ -104,11 +140,18 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
                     double old = outgoing.process(value, channel);
                     next = old + (next - old) * mix;
                 }
-                output.putShort((short) Math.max(-32768, Math.min(32767, Math.round(next * 32768))));
+                long scaled = Math.round(next * gain * 32768);
+                if (scaled > 32767 || scaled < -32768) {
+                    if (gain > 1) clipped++;
+                    scaled = Math.max(-32768, Math.min(32767, scaled));
+                }
+                output.putShort((short) scaled);
             }
             if (fadeRemaining > 0 && --fadeRemaining == 0) outgoing = null;
         }
         output.flip();
+        appliedBoostDb = boost.db();
+        if (clipped > 0) boostClipSamples += clipped;
     }
 
     @Override
@@ -119,5 +162,7 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         }
         outgoing = null;
         fadeRemaining = 0;
+        boost = new EqualizerDsp.BoostRamp(1);
+        appliedBoostDb = 0;
     }
 }

@@ -2055,11 +2055,23 @@ class SyncDiagnosticsServer {
       if (request.method == 'POST' && path == '/v1/sync/repair') {
         final body = await _readJson(request);
         final allowOverride = body['allowMeteredBroadOverride'] == true;
+        // `confirmHeldDeletion` stands in for the Apply Library Repair dialog:
+        // it confirms exactly the hold the controller state shows. Without it
+        // the call is Force rescan, which never applies a held deletion.
+        final held = _container.read(librarySyncControllerProvider);
+        final confirmation = body['confirmHeldDeletion'] == true
+            ? held.heldDeletionConfirmation(
+                _container.read(serverConfigStateProvider).asData?.value?.id,
+              )
+            : null;
         await _startControllerSync(
           request,
           operation: () => _container
               .read(librarySyncControllerProvider.notifier)
-              .repairLibrary(allowMeteredBroadOverride: allowOverride),
+              .repairLibrary(
+                allowMeteredBroadOverride: allowOverride,
+                confirmation: confirmation,
+              ),
         );
         return;
       }
@@ -3205,6 +3217,28 @@ class SyncDiagnosticsServer {
         });
         return;
       }
+      if (request.method == 'POST' && path == '/v1/playback/replay-gain') {
+        if (!allowsMutations) {
+          await _forbidden(request);
+          return;
+        }
+        // Runtime checks of ReplayGain: `mode` and `preamp` (dB) as set in
+        // Settings > Playback, applied to the playing song at once.
+        final body = await _readJson(request);
+        final repository = _container.read(settingsRepositoryProvider);
+        final current = await repository.getSettings();
+        final mode = body['mode'] as String?;
+        final preamp = (body['preamp'] as num?)?.toDouble();
+        await repository.saveSettings(
+          current.copyWith(replayGainMode: mode, replayGainPreamp: preamp),
+        );
+        await (await _waitForPlaybackHandler()).applyRuntimeSettings();
+        await _respond(request, HttpStatus.ok, <String, Object?>{
+          'mode': mode ?? current.replayGainMode,
+          'preamp': preamp ?? current.replayGainPreamp,
+        });
+        return;
+      }
       if (request.method == 'GET' && path == '/v1/artists/playback/status') {
         await _respond(
           request,
@@ -3391,6 +3425,13 @@ class SyncDiagnosticsServer {
         final handler = await _waitForPlaybackHandler();
         await handler.waitUntilReady();
         final activity = _container.read(rollingCacheActivityProvider);
+        // The Android boost stage's applied gain and clamp counter live in the
+        // native processor: read them now instead of polling during playback.
+        try {
+          await handler.refreshEqualizerState();
+        } on Object {
+          // The status is still worth reading without the stage's numbers.
+        }
         final status = handler.collectPlaybackDiagnostics();
         final uiSnapshot = _container.read(playerStateProvider);
         status['uiPlayback'] = <String, Object?>{

@@ -18,6 +18,10 @@ import 'package:navis/src/features/library/domain/sync_run_contract.dart';
 import 'package:navis/src/utils/app_logger.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
+/// `failureCategory` the engine returns when a scan-triggered promotion waits
+/// because the server scanned during collection.
+const _scanChangedCategory = 'scanChanged';
+
 class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
   new({
     required this._executor,
@@ -133,6 +137,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         intent: request.intent,
         target: request.target,
         grant: SyncNetworkGrant.broadMeteredOnce,
+        confirmsHeldDeletion: request.confirmsHeldDeletion,
       );
     }
     final consented =
@@ -288,7 +293,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       try {
         await _requestSync(
           LibrarySyncRequest(
-            origin: isExplicit ? sourceRequest.origin : SyncRunOrigin.timer,
+            origin: sourceRequest.origin,
             intent: isExplicit
                 ? SyncRunIntent.manualCatalogCheck
                 : SyncRunIntent.automaticCatalogCheck,
@@ -522,6 +527,17 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     final auditDue =
         persisted.lastAuditAt == null ||
         timestamp.difference(persisted.lastAuditAt!) >= auditInterval;
+    final hasBaseline =
+        persisted.currentGeneration > 0 || config.lastSynced != null;
+    await _enqueueScanSnapshotIfDue(
+      serverId: serverId,
+      request: request,
+      policy: policy,
+      persisted: persisted,
+      hasBaseline: hasBaseline,
+      isDue: isDue,
+      now: timestamp,
+    );
     final runnableBeforePlanning = await _database.librarySyncDao
         .getRunnableWork(serverId: serverId, now: timestamp, limit: 8);
     final resumedWork =
@@ -540,6 +556,11 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 request.intent == SyncRunIntent.manualCatalogCheck ||
                 (request.intent == SyncRunIntent.automaticCatalogCheck &&
                     isDue),
+            // A held large deletion waits for the user's explicit
+            // confirmation; a snapshot run must not touch it. The queued row
+            // stays for after the hold is confirmed or discarded.
+            deletionHeld:
+                persisted.candidateStatus == 'awaitingDeletionConfirmation',
           )
         : null;
     final resumedRequest = resumedWork == null
@@ -554,8 +575,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
           LibrarySyncPlannerContext(
             request: request,
             networkPolicy: policy,
-            hasAuthoritativeBaseline:
-                persisted.currentGeneration > 0 || config.lastSynced != null,
+            hasAuthoritativeBaseline: hasBaseline,
             isCatalogCheckDue: isDue,
             pendingHydrationCount: localPendingHydration,
             pendingWorkCount: pendingWork,
@@ -576,6 +596,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       plan: plan,
       policy: policy,
       capabilitiesJson: capabilitiesJson,
+      scanTriggered: _isScanSnapshotWork(resumedWork),
     );
     final durableRun = await _database.librarySyncDao.enqueueSyncRun(
       serverId: serverId,
@@ -674,7 +695,13 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       );
     }
 
-    if (!_workAllowed(workClass, policy, resumedRequest, planKind: plan.kind)) {
+    if (!_workAllowed(
+      workClass,
+      policy,
+      resumedRequest,
+      planKind: plan.kind,
+      scanTriggered: executionPlan.scanTriggered,
+    )) {
       final state = LibrarySyncState(
         status: LibrarySyncStatus.deferred,
         stage: LibrarySyncStage.completed,
@@ -786,7 +813,13 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     int? activeAttemptId;
     final startedAt = _now();
     final livePolicy = _syncPolicy;
-    if (!_workAllowed(workClass, livePolicy, request, planKind: plan.kind)) {
+    if (!_workAllowed(
+      workClass,
+      livePolicy,
+      request,
+      planKind: plan.kind,
+      scanTriggered: executionPlan.scanTriggered,
+    )) {
       return await _finish(
         requestId: durableRunId,
         outcome: const SyncRunOutcome(
@@ -885,6 +918,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               _syncPolicy,
               request,
               planKind: plan.kind,
+              scanTriggered: executionPlan.scanTriggered,
             ),
             onStop: _executor.cancelSync,
           );
@@ -985,6 +1019,10 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
             final runBytes = scope.byteCount;
             final cancelled = result.status == LibrarySyncStatus.cancelled;
             final deferred = result.status == LibrarySyncStatus.deferred;
+            // A scan-triggered promotion that waits for a quiet server did not
+            // check anything: it neither succeeds nor starts the 24 h clock.
+            final scanDeferred =
+                deferred && result.failureCategory == _scanChangedCategory;
             final hasPending =
                 result.hasBlockingPendingAlbums ||
                 result.remainingVerificationCount > 0;
@@ -1005,6 +1043,14 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 await _database.librarySyncDao.requeue(
                   activeWork.id,
                   now: _now(),
+                  notBefore: scanDeferred
+                      ? await _scanDeferralRetryAt(
+                          serverId,
+                          repair:
+                              activeWork.kind ==
+                              LibrarySyncPlanKind.fullRepair.name,
+                        )
+                      : null,
                 );
               } else if (failed) {
                 await _markWorkFailure(
@@ -1043,9 +1089,19 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
                 (plan.kind == LibrarySyncPlanKind.deltaReconcile ||
                     plan.kind == LibrarySyncPlanKind.catalogSnapshot ||
                     plan.kind == LibrarySyncPlanKind.fullRepair);
+            // A rescan snapshot that stopped short of promotion is neither a
+            // successful check nor evidence that the endpoint recovered.
+            final incompleteScanSnapshot =
+                activeWork != null &&
+                _isScanSnapshotWork(activeWork) &&
+                status == LibrarySyncStatus.partial &&
+                !explicitBudgetPartial &&
+                !_didCommitCatalogCandidate(plan, result) &&
+                result.candidateStatus != 'awaitingDeletionConfirmation';
             final successfulCheck =
-                status == LibrarySyncStatus.succeeded ||
-                status == LibrarySyncStatus.partial;
+                (status == LibrarySyncStatus.succeeded ||
+                    status == LibrarySyncStatus.partial) &&
+                !incompleteScanSnapshot;
             final catalogChecked =
                 successfulCheck &&
                 request.target.kind == LibrarySyncTargetKind.catalog &&
@@ -1151,11 +1207,12 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               errorMessage: busyCapped ? librarySyncFailureMessage : null,
               failureCategory: failed
                   ? (busyCapped ? 'sync' : result.failureCategory ?? 'sync')
-                  : deferred || explicitBudgetPartial
+                  : (deferred || explicitBudgetPartial) && !scanDeferred
                   ? result.failureCategory
                   : null,
               clearFailureCategory:
-                  !failed && !deferred && !explicitBudgetPartial,
+                  !failed &&
+                  (!deferred && !explicitBudgetPartial || scanDeferred),
               nextRetryAt: nextRetryAt,
               clearNextRetryAt: nextRetryAt == null,
               candidateGeneration:
@@ -1163,15 +1220,18 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               candidateStatus:
                   result.candidateStatus ?? persisted.candidateStatus,
               deletionCandidateCount: persisted.deletionCandidateCount,
+              deletionCandidateFingerprint:
+                  persisted.deletionCandidateFingerprint,
               carriedForwardEntityCount: result.carriedForwardEntityCount > 0
                   ? result.carriedForwardEntityCount
                   : persisted.candidateCarriedForwardCount,
               lastApplyDurationMs: _didCommitCatalogCandidate(plan, result)
                   ? persisted.lastApplyDurationMs
                   : result.lastApplyDurationMs,
+              scanDeferred: scanDeferred,
               updatesAvailable:
                   result.updatesAvailable ||
-                  deferred ||
+                  (deferred && !scanDeferred) ||
                   (result.probeIndexChanged == true) ||
                   result.probeIndexesUnsupported,
             );
@@ -1371,11 +1431,13 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     required LibrarySyncPlan plan,
     required SyncNetworkPolicy policy,
     required String? capabilitiesJson,
+    bool scanTriggered = false,
   }) {
     final kind = plan.kind;
     return SyncExecutionPlan(
       request: request,
       kind: kind,
+      scanTriggered: scanTriggered,
       reason: _safeReasonForPlan(plan, policy),
       budget: executionBudgetFor(
         request: request,
@@ -1576,6 +1638,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     };
     final reason = switch (kind) {
       SyncRunOutcomeKind.deferred
+          when result.failureCategory == _scanChangedCategory =>
+        SyncSafeReason.scanChanged,
+      SyncRunOutcomeKind.deferred
           when result.failureCategory?.endsWith('Budget') == true =>
         SyncSafeReason.responseBudgetExceeded,
       SyncRunOutcomeKind.partial
@@ -1629,6 +1694,79 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       priority: kind == LibrarySyncPlanKind.deltaReconcile ? 50 : 40,
       workClass: 'background',
       releaseCooldown: true,
+      now: now,
+    );
+  }
+
+  /// Queues one catalog snapshot when the server has completed a scan that no
+  /// promoted snapshot has covered yet.
+  ///
+  /// Navidrome exposes no change token below the scan itself, so a new scan is
+  /// the only signal that song tags (ReplayGain, titles, genres) or membership
+  /// changed, and the bulk snapshot is the cheap way to find which. The row is
+  /// enqueued ahead of any queued delta so selection picks it up through the
+  /// ordinary resume path. Automatic passes run it at most once per
+  /// [librarySyncAutomaticSnapshotInterval] and never on a metered network
+  /// without the one-time broad grant; a manual check always may.
+  Future<void> _enqueueScanSnapshotIfDue({
+    required int serverId,
+    required LibrarySyncRequest request,
+    required SyncNetworkPolicy policy,
+    required LibrarySyncStateTableData persisted,
+    required bool hasBaseline,
+    required bool isDue,
+    required DateTime now,
+  }) async {
+    final manual = request.intent == SyncRunIntent.manualCatalogCheck;
+    if (request.target.kind != LibrarySyncTargetKind.catalog ||
+        !(manual ||
+            (request.intent == SyncRunIntent.automaticCatalogCheck && isDue)) ||
+        !hasBaseline ||
+        // A large-deletion candidate waits for the user's confirmation; a new
+        // pass would only re-collect it.
+        persisted.candidateStatus == 'awaitingDeletionConfirmation' ||
+        !_workAllowed(
+          'background',
+          policy,
+          request,
+          planKind: LibrarySyncPlanKind.catalogSnapshot,
+          scanTriggered: true,
+        )) {
+      return;
+    }
+    final existing = await _database.librarySyncDao.getWork(
+      serverId: serverId,
+      kind: LibrarySyncPlanKind.catalogSnapshot.name,
+    );
+    if (!scanSnapshotWorkDue(work: existing, now: now, manual: manual)) {
+      return;
+    }
+    await _executor.observeServerScan(serverId);
+    final observation = await _database.librarySyncDao.getScanObservation(
+      serverId,
+    );
+    if (!scanSnapshotDue(
+      observation: observation,
+      work: existing,
+      now: now,
+      manual: manual,
+    )) {
+      return;
+    }
+    // Not _enqueueCatalogFollowUp: that clears the retry backoff, which an
+    // automatic pass must leave alone. The scan token is the evidence version.
+    // Evidence merging keeps the previous checkpoint, so an automatic pass
+    // overwrites a stale manual provenance instead of inheriting it.
+    await _database.librarySyncDao.enqueueWork(
+      serverId: serverId,
+      kind: LibrarySyncPlanKind.catalogSnapshot.name,
+      // Above a manual delta (60), which an older leftover row would win by
+      // creation order; below repair (80) and interaction work (100).
+      priority: 70,
+      evidenceVersion: observation!.observedToken,
+      reactivateTerminal: true,
+      releaseCooldown: manual,
+      checkpointJson: _workCheckpoint(request) ?? '{"intent":null}',
       now: now,
     );
   }
@@ -1690,6 +1828,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     return _database.librarySyncDao.markFailed(
       work.id,
       errorType: errorType,
+      now: _now(),
       notBefore: _failureRetryAt(work.attemptCount + 1, retryAt, busy: busy),
     );
   }
@@ -1786,7 +1925,9 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     SyncNetworkPolicy policy,
     LibrarySyncRequest request, {
     required LibrarySyncPlanKind planKind,
+    bool scanTriggered = false,
   }) => librarySyncWorkAllowed(
+    scanTriggeredSnapshot: scanTriggered,
     kind: planKind,
     workClass: workClass,
     request: request,
@@ -1801,6 +1942,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
     SyncNetworkPolicy policy,
     LibrarySyncRequest request, {
     bool catalogWorkOnly = false,
+    bool deletionHeld = false,
   }) {
     for (final work in runnable) {
       final kind = LibrarySyncPlanKind.values.where(
@@ -1810,10 +1952,22 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         continue;
       }
       final planKind = kind.first;
+      if (deletionHeld && planKind == LibrarySyncPlanKind.catalogSnapshot) {
+        continue;
+      }
       if (catalogWorkOnly &&
           (planKind == LibrarySyncPlanKind.targetedHydration ||
               (request.intent == SyncRunIntent.manualCatalogCheck &&
                   planKind == LibrarySyncPlanKind.probe))) {
+        continue;
+      }
+      final scanSnapshot = _isScanSnapshotWork(work);
+      // A failed rescan snapshot retries automatically at most once per 24 h
+      // from its attempt; only a manual check retries sooner.
+      if (scanSnapshot &&
+          work.status == 'failed' &&
+          request.isAutomatic &&
+          !scanSnapshotAttemptStale(work, _now())) {
         continue;
       }
       final workRequest = _requestFromWork(work, fallback: request);
@@ -1822,6 +1976,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
         policy,
         workRequest,
         planKind: planKind,
+        scanTriggered: scanSnapshot,
       )) {
         return work;
       }
@@ -1860,6 +2015,7 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       policy,
       request,
       planKind: kind,
+      scanTriggered: _isScanSnapshotWork(work),
     );
     return LibrarySyncPlan(
       kind: kind,
@@ -1867,6 +2023,59 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
       shouldExecute: !mustDefer,
       deferred: mustDefer,
     );
+  }
+
+  /// The server's consecutive scan-churn deferrals, which the engine records
+  /// next to its other verification evidence; it paces the retry backoff.
+  Future<int> _scanDeferralStreak(int serverId) async {
+    try {
+      final config = await (_database.select(
+        _database.serverConfigTable,
+      )..where((row) => row.id.equals(serverId))).getSingleOrNull();
+      final root = jsonDecode(config?.capabilities ?? '');
+      final navis = root is Map ? root['navis'] : null;
+      final value = navis is Map ? navis['libraryScanDeferralStreak'] : null;
+      return int.tryParse('${value ?? ''}') ?? 1;
+    } on FormatException {
+      return 1;
+    }
+  }
+
+  /// The earliest retry of a scan-triggered snapshot whose promotion waited:
+  /// the existing backoff (15, 30, 60 minutes) while the streak is at most the
+  /// deferral cap, then, if the server still has not settled, a full
+  /// [librarySyncAutomaticSnapshotInterval] so a server that never stops
+  /// scanning costs at most one automatic full pass a day. A manual check
+  /// releases the row at any time.
+  Future<DateTime> _scanDeferralRetryAt(
+    int serverId, {
+    bool repair = false,
+  }) async {
+    final streak = await _scanDeferralStreak(serverId);
+    final backoff = _cooldownUntil(
+      repair ? min(streak, librarySyncScanDeferralCap) : streak,
+    );
+    // A deferred confirming repair is only ever retried by the user's next
+    // Repair Library press (automatic runs refuse fullRepair), which releases
+    // the row at once, so it never gets the daily wait.
+    if (repair || streak <= librarySyncScanDeferralCap) return backoff;
+    final daily = _now().add(librarySyncAutomaticSnapshotInterval);
+    return daily.isAfter(backoff) ? daily : backoff;
+  }
+
+  /// Whether [work] is a catalog snapshot that a new server scan queued, as
+  /// opposed to the first-setup snapshot. Only the trigger writes the scan
+  /// token (`evidenceVersion`) into its checkpoint.
+  bool _isScanSnapshotWork(LibrarySyncWorkTableData? work) {
+    if (work == null || work.kind != LibrarySyncPlanKind.catalogSnapshot.name) {
+      return false;
+    }
+    try {
+      final decoded = jsonDecode(work.checkpointJson ?? '');
+      return decoded is Map && decoded['evidenceVersion'] != null;
+    } on FormatException {
+      return false;
+    }
   }
 
   String? _workCheckpoint(LibrarySyncRequest request) {

@@ -159,7 +159,7 @@ first, restart = (json.load(open(path)) for path in sys.argv[1:])
 assert restart["candidateStatus"] == "awaitingDeletionConfirmation", restart
 assert restart["catalog"] == first["catalog"], (first, restart)
 PY
-api POST /v1/sync/repair '{}' > "$OUTPUT_ROOT/repair-confirm-start.json"
+api POST /v1/sync/repair '{"confirmHeldDeletion":true}' > "$OUTPUT_ROOT/repair-confirm-start.json"
 wait_for_idle "$OUTPUT_ROOT/repair-confirm-result.json"
 api GET /v1/diagnostics/report > "$OUTPUT_ROOT/repair-confirm-report.json"
 python3 - "$OUTPUT_ROOT/repair-confirm-report.json" <<'PY'

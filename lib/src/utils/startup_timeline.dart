@@ -57,6 +57,7 @@ enum StartupOutcome {
   permanentFailure,
   transientFailure,
   stoppedBySystem,
+  deferredScanChanged,
 }
 
 /// Persists a small private ring; the native worker owns a separate file.
@@ -86,6 +87,7 @@ class StartupTimeline {
     StartupOutcome.permanentFailure,
     StartupOutcome.transientFailure,
     StartupOutcome.stoppedBySystem,
+    StartupOutcome.deferredScanChanged,
   };
 
   final Future<Directory> Function() _readDirectory;

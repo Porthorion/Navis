@@ -43,6 +43,16 @@ class LastFmTrackFetchResult {
   final int? statusCode;
   final int? apiErrorCode;
   final String? message;
+
+  /// Last.fm has no similar tracks for the seed: an empty result or its
+  /// "Track not found" error. Neither is a failure worth retrying.
+  bool get hasNoSimilarTracks =>
+      outcome == LastFmFetchOutcome.noResults ||
+      (outcome == LastFmFetchOutcome.apiError &&
+          apiErrorCode == _trackNotFoundErrorCode);
+
+  /// Last.fm's "Track not found".
+  static const _trackNotFoundErrorCode = 6;
 }
 
 class LastFmTrackRecommendation {
@@ -130,7 +140,7 @@ class LastFmApiClient {
     int limit,
   ) async {
     // "Track not found" is as final an answer as an empty list.
-    final empty = _hasNoSimilarTracks(result);
+    final empty = result.hasNoSimilarTracks;
     if (result.outcome != LastFmFetchOutcome.success && !empty) return;
     await _cache?.write(similarTracksNamespace, key, <String, Object?>{
       'limit': limit,
@@ -300,7 +310,7 @@ class LastFmApiClient {
     // Last.fm answers "no similar tracks" or "Track not found" for most songs
     // released since about 2015 and for titles with a qualifier; neither says
     // the artist is unknown. Try the plain title, then the artist's neighbours.
-    if (_hasNoSimilarTracks(result)) {
+    if (result.hasNoSimilarTracks) {
       final plainTitle = stripTitleQualifiers(normalizedTrack);
       if (plainTitle.toLowerCase() != normalizedTrack.toLowerCase()) {
         final retry = await _fetchTrackSimilar(
@@ -311,7 +321,7 @@ class LastFmApiClient {
         if (retry.outcome == LastFmFetchOutcome.success) result = retry;
       }
     }
-    if (_hasNoSimilarTracks(result)) {
+    if (result.hasNoSimilarTracks) {
       final viaArtists = await _similarArtistTracks(normalizedArtist, limit);
       if (viaArtists.isNotEmpty) {
         AppLogger.debug(
@@ -329,14 +339,6 @@ class LastFmApiClient {
     await _storeSimilarTracks(key, result, limit);
     return result;
   }
-
-  static bool _hasNoSimilarTracks(LastFmTrackFetchResult result) =>
-      result.outcome == LastFmFetchOutcome.noResults ||
-      (result.outcome == LastFmFetchOutcome.apiError &&
-          result.apiErrorCode == _trackNotFoundErrorCode);
-
-  /// Last.fm's "Track not found".
-  static const _trackNotFoundErrorCode = 6;
 
   LastFmTrackFetchResult _apiErrorResult(
     Map<String, dynamic> data, {

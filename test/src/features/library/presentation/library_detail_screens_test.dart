@@ -94,6 +94,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   ReplayGainDecision? get currentReplayGainDecision => null;
 
   @override
+  bool get replayGainBoostSupported => false;
+
+  @override
   Stream<MediaItem?> get mediaItemStream => const Stream<MediaItem?>.empty();
 
   @override
@@ -231,6 +234,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
 
   @override
   Future<void> applySongIdentityAliases(Map<String, String> aliases) async {}
+
+  @override
+  Future<void> refreshQueuedSongReplayGain() async {}
 
   @override
   Future<void> toggleLike() async {}

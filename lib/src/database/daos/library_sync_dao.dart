@@ -825,14 +825,24 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
 
   /// Discards only an uncommitted repair candidate after the user declines a
   /// large-deletion confirmation. The committed catalog is never touched.
+  ///
+  /// Refused (false) while a run holds the server's execution lease: a run in
+  /// flight decides the hold itself, and a Discard must never be overridden by
+  /// it nor override it. The user presses Discard again once the run ends.
   Future<bool> discardAwaitingRepairCandidate({
     required int serverId,
     required int generation,
+    DateTime? now,
   }) {
     return transaction(() async {
       final state = await getOrCreateState(serverId);
       if (state.candidateGeneration != generation ||
           state.candidateStatus != 'awaitingDeletionConfirmation') {
+        return false;
+      }
+      final lease = await getExecutionLease(serverId);
+      if (lease != null &&
+          lease.expiresAt.isAfter((now ?? DateTime.now()).toUtc())) {
         return false;
       }
       await attachedDatabase.librarySyncCandidateDao.clearGeneration(
@@ -843,7 +853,12 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
             (table) =>
                 table.serverId.equals(serverId) &
                 table.kind.equals('fullRepair') &
-                table.status.equals('awaitingConfirmation'),
+                // Also the requeued or failed row a deferred confirmation left.
+                table.status.isIn(const <String>[
+                  'awaitingConfirmation',
+                  'queued',
+                  'failed',
+                ]),
           ))
           .go();
       await (update(
@@ -1200,13 +1215,14 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
   Future<void> markRunning(int id, {DateTime? now}) =>
       _writeWork((table) => table.id.equals(id), status: 'running', now: now);
 
-  Future<void> requeue(int id, {DateTime? now}) => _writeWork(
-    (table) => table.id.equals(id),
-    status: 'queued',
-    now: now,
-    notBefore: const Value(null),
-    lastErrorType: const Value(null),
-  );
+  Future<void> requeue(int id, {DateTime? now, DateTime? notBefore}) =>
+      _writeWork(
+        (table) => table.id.equals(id),
+        status: 'queued',
+        now: now,
+        notBefore: Value(notBefore),
+        lastErrorType: const Value(null),
+      );
 
   Future<void> markCompleted(
     int id, {

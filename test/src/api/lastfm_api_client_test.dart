@@ -12,6 +12,20 @@ class _MockDio extends Mock implements Dio;
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('only an empty result or Last.fm "Track not found" means no similar '
+      'tracks', () {
+    LastFmTrackFetchResult result(LastFmFetchOutcome outcome, [int? code]) =>
+        LastFmTrackFetchResult(
+          outcome: outcome,
+          tracks: const <LastFmTrackRecommendation>[],
+          apiErrorCode: code,
+        );
+    expect(result(LastFmFetchOutcome.noResults).hasNoSimilarTracks, isTrue);
+    expect(result(LastFmFetchOutcome.apiError, 6).hasNoSimilarTracks, isTrue);
+    expect(result(LastFmFetchOutcome.apiError, 29).hasNoSimilarTracks, isFalse);
+    expect(result(LastFmFetchOutcome.networkError).hasNoSimilarTracks, isFalse);
+  });
+
   test('similar-track cache normalizes keys, honors limits and expires at 24 hours', () async {
     final root = await Directory.systemTemp.createTemp('lastfm-cache-');
     addTearDown(() async {

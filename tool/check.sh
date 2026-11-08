@@ -87,6 +87,7 @@ else
 fi
 run_step "Windows SQLite asset verification" python3 tool/sqlite3_windows_asset_test.py
 run_step "diagnostics profile preparation" python3 tool/diagnostics_profile_test.py
+run_step "ReplayGain analyzer clamp rules" python3 tool/replaygain_boost_analyze_test.py
 run_step "format check" ./tool/dart_format.sh --check
 run_step "code generation" dart run build_runner build
 run_step "analyze" flutter analyze --no-fatal-infos

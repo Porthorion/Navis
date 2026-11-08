@@ -65,14 +65,26 @@ ReplayGainDecision _tagged(
 }) => ReplayGainDecision(
   mode: mode,
   resolvedMode: resolved,
-  db: db,
+  cutDb: db,
   source: resolved == 'album' ? ReplayGainSource.album : ReplayGainSource.track,
+);
+
+ReplayGainDecision _boosted(
+  double boost, {
+  String mode = 'track',
+  String resolved = 'track',
+}) => ReplayGainDecision(
+  mode: mode,
+  resolvedMode: resolved,
+  cutDb: 0,
+  boostDb: boost,
+  source: ReplayGainSource.track,
 );
 
 ReplayGainDecision _untagged(double db) => ReplayGainDecision(
   mode: 'track',
   resolvedMode: 'track',
-  db: db,
+  cutDb: db,
   source: ReplayGainSource.untagged,
 );
 
@@ -168,6 +180,9 @@ void main() {
     (_tagged(0, mode: 'track', resolved: 'track'), '0.0 dB · track'),
     (_tagged(-0.04, mode: 'track', resolved: 'track'), '0.0 dB · track'),
     (_untagged(-8), '−8.0 dB · untagged (Automatic)'),
+    (_boosted(6.2), '+6.2 dB · track'),
+    (_boosted(0.9, mode: 'smart'), '+0.9 dB · track (Smart)'),
+    (_boosted(0.04), '0.0 dB · track'),
   ]) {
     testWidgets('shows "$text"', (tester) async {
       await pumpPhone(tester, decision: decision);
@@ -175,6 +190,19 @@ void main() {
       expect(find.text(text), findsOneWidget);
     }, skip: !sqliteAvailable);
   }
+
+  testWidgets('a boost shows the volume-up icon, a cut the volume-down one', (
+    tester,
+  ) async {
+    await pumpPhone(tester, decision: _boosted(6.2));
+    await tapInfo(tester);
+    expect(find.byIcon(Icons.volume_up_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.volume_down_outlined), findsNothing);
+    container.read(_decisionProvider.notifier).set(_tagged(-6.2));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.volume_down_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.volume_up_outlined), findsNothing);
+  }, skip: !sqliteAvailable);
 
   testWidgets('a fixed untagged level is named as such', (tester) async {
     await pumpPhone(tester, decision: _untagged(-12), fixedUntaggedDb: -12);

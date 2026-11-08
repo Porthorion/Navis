@@ -27,6 +27,7 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../../../helpers/fake_playback_handler.dart';
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/reachability_fakes.dart';
@@ -374,6 +375,73 @@ void main() {
     });
   }
 
+  group('queued ReplayGain refresh', () {
+    // Runs one manual sync that returns [result]; true when the queue was told
+    // to refresh its ReplayGain.
+    Future<bool> refreshedAfter(LibrarySyncState result) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      final handler = InertPlaybackHandler();
+      final container = _container(
+        StubLibrarySyncEngine.returning(result),
+        database: database,
+        server: config,
+        extra: [audioHandlerProvider.overrideWithValue(handler)],
+      );
+      addTearDown(container.dispose);
+      await container.read(librarySyncControllerProvider.notifier).syncNow();
+      await pumpEventQueue();
+      return handler.replayGainRefreshes > 0;
+    }
+
+    test('a promoted snapshot refreshes it', () async {
+      expect(
+        await refreshedAfter(
+          _succeeded.copyWith(catalogPublishedThisRun: true),
+        ),
+        isTrue,
+      );
+    });
+
+    test('hydrated albums refresh it, even on a partial run', () async {
+      expect(
+        await refreshedAfter(
+          _succeeded.copyWith(
+            status: LibrarySyncStatus.partial,
+            hydratedAlbums: 3,
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('a run that wrote no songs does not', () async {
+      expect(await refreshedAfter(_succeeded), isFalse);
+    });
+
+    test('a failed run that wrote rows refreshes it', () async {
+      expect(
+        await refreshedAfter(
+          _succeeded.copyWith(
+            status: LibrarySyncStatus.failed,
+            catalogPublishedThisRun: true,
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('a failed run that wrote nothing does not', () async {
+      expect(
+        await refreshedAfter(
+          _succeeded.copyWith(status: LibrarySyncStatus.failed),
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('librarySyncControllerProvider', () {
     test(
       'repair and cache reset submit distinct origins with the same grant',
@@ -409,6 +477,113 @@ void main() {
         ]);
       },
     );
+
+    test('Z1: only repairLibrary(confirmation) carries a held-deletion '
+        'confirmation', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final engine = StubLibrarySyncEngine.returning(_succeeded);
+      final container = _container(
+        engine,
+        database: database,
+        reachability: ServerReachabilityStatus.checking,
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(librarySyncControllerProvider.notifier);
+
+      await controller.repairLibrary();
+      await controller.repairLibrary(
+        confirmation: const HeldDeletionConfirmation(
+          serverId: 1,
+          generation: 4,
+          count: 17,
+          fingerprint: 'fp',
+        ),
+      );
+      await controller.resetCachesAndRebuildLibrary();
+
+      expect(engine.requests.map((r) => r.confirmsHeldDeletion?.generation), [
+        null,
+        4,
+        null,
+      ]);
+      expect(engine.requests[1].confirmsHeldDeletion!.count, 17);
+    });
+
+    test('G1: the persisted hold, with its fingerprint, is what the dialog '
+        'confirms after a restart', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(
+        database,
+        // First setup owns the first catalog: no startup sync replaces the
+        // hydrated state.
+        setupPending: true,
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(config.id!),
+          candidateGeneration: const Value(5),
+          candidateStatus: const Value('awaitingDeletionConfirmation'),
+          deletionCandidateCount: const Value(9),
+          deletionCandidateFingerprint: const Value('fp-9'),
+        ),
+      );
+      final engine = StubLibrarySyncEngine.returning(_succeeded);
+      final container = _container(engine, database: database, server: config);
+      addTearDown(container.dispose);
+      container.listen(librarySyncControllerProvider, (_, _) {});
+      container.read(librarySyncControllerProvider.notifier);
+      await pumpEventQueue();
+
+      final confirmation = container
+          .read(librarySyncControllerProvider)
+          .heldDeletionConfirmation(config.id);
+      expect(confirmation, isNotNull);
+      expect(confirmation!.generation, 5);
+      expect(confirmation.count, 9);
+      expect(confirmation.fingerprint, 'fp-9');
+    });
+
+    test('Z3: Discard is refused while a sync is running', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(config.id!),
+          candidateGeneration: const Value(5),
+          candidateStatus: const Value('awaitingDeletionConfirmation'),
+        ),
+      );
+      final engine = StubLibrarySyncEngine.returning(_succeeded);
+      final container = _container(engine, database: database, server: config);
+      addTearDown(container.dispose);
+      container.listen(librarySyncControllerProvider, (_, _) {});
+      final controller = container.read(librarySyncControllerProvider.notifier);
+      controller.state = const LibrarySyncState(
+        status: LibrarySyncStatus.running,
+        stage: LibrarySyncStage.collectingCandidate,
+        candidateGeneration: 5,
+        candidateStatus: 'awaitingDeletionConfirmation',
+      );
+
+      expect(await controller.discardAwaitingRepairCandidate(), isFalse);
+      expect(
+        (await database.librarySyncDao.getOrCreateState(config.id!))
+            .candidateStatus,
+        'awaitingDeletionConfirmation',
+      );
+
+      controller.state = const LibrarySyncState(
+        status: LibrarySyncStatus.partial,
+        stage: LibrarySyncStage.validatingCandidate,
+        candidateGeneration: 5,
+        candidateStatus: 'awaitingDeletionConfirmation',
+      );
+      expect(await controller.discardAwaitingRepairCandidate(), isTrue);
+      await pumpEventQueue();
+    });
 
     test(
       'setup defers startup and automatic schedules until readiness',

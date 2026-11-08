@@ -112,7 +112,7 @@ class DatabasePathTest(unittest.TestCase):
                     self.assertEqual(paths[0], str(self.home / "custom.sqlite" if override else expected))
                     if len(assignments) > 1:
                         self.assertEqual(paths[1], str(expected))
-        self.assertEqual(len(launchers), 11)
+        self.assertEqual(len(launchers), 12)
 
 
 if __name__ == '__main__':

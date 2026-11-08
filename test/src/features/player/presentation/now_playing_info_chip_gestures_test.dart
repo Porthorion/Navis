@@ -64,7 +64,7 @@ const _song = SongsTableData(
 const _decision = ReplayGainDecision(
   mode: 'smart',
   resolvedMode: 'album',
-  db: -6.2,
+  cutDb: -6.2,
   source: ReplayGainSource.album,
 );
 

@@ -139,7 +139,8 @@ Python 3 (stdlib only) and GNU `timeout`. Run `flutter precache --android` once
 if Flutter's wrapper cache is absent. `tool/android_repeat_native_test.sh` copies
 missing ignored wrapper launch/JAR files from that cache, preserving the repository's
 pinned distribution URL and checksum. It runs `:app:testSideloadDebugUnitTest`
-with `--tests '*JustAudioRepeat*Test'` (both suites, including future added
+with `--tests '*JustAudioRepeat*Test' --tests '*JustAudioReplayGainBoost*Test'`
+(the two repeat suites and the ReplayGain boost suite, including future added
 cases), without installing an APK or starting a device. The runner forces the
 sideload test flavor, uses one Gradle worker and in-process Kotlin, bounds the
 Gradle JVM to a 2 GiB heap / 768 MiB metaspace / 256 MiB code cache, and disables
@@ -315,6 +316,12 @@ With `NAVIS_MANUAL_DISCOVERY_OMIT_EXISTING=1` and
 `NAVIS_MANUAL_DISCOVERY_FORCE_MANUAL_RESUME=1`, the same isolated gate returns
 a partial artist detail and proves a user Check for updates retains an omitted
 existing sibling album while importing the new one.
+
+Server-rescan reconciliation has its own isolated Linux gate,
+`python3 tool/rescan_snapshot_diagnostics.py`, which serves the fixture's
+`rescan` scenario and asserts a retag, removals and a new scan token reach the
+library through Check for updates, the 24 h automatic throttle, and the
+metered-network restrictions (see development-workflow.md).
 
 The live clone suite requires the no-override cellular Repair Library action
 to defer for `waitingForMobileConsent` before creating repair work or sending
@@ -975,6 +982,14 @@ tools and NumPy. The quality gate includes the new conversion/controller, paired
 handler, storage, API and responsive widget regression tests through the full
 suite; native device/host coverage must still be reported separately.
 
+### ReplayGain boost release evidence
+
+Playback changes that touch the ReplayGain boost (rule, handler send path or the
+media_kit adapter) also run `tool/replaygain_boost_diagnostics.sh` on Linux; it
+is not part of `./tool/check.sh` because it needs a profile build, a PulseAudio
+null sink and a compositor. The Android stage runs `--scenarios a1` against an
+emulator. Windows (the `\\?\` path key) is not covered. See [development-workflow.md](development-workflow.md).
+
 ### Equalizer release evidence
 
 The quality gate includes native JVM response/PCM fixtures as well as Dart,
@@ -1024,7 +1039,7 @@ The repeat bridge suites run automatically through
 `./tool/android_repeat_native_test.sh` in `check.sh` and the CI `native` job.
 After changing audio_service or the app-owned media service, configure
 `JAVA_HOME` for the Android build's JDK and run
-`cd android && ./gradlew :app:testSideloadDebugUnitTest --tests '*NavisAudioServiceRecoveryTest' --tests '*JustAudioRecoveryPositionTest' --tests '*JustAudioRepeatBoundaryTest' --tests '*JustAudioRepeatCallbackTest'`.
+`cd android && ./gradlew :app:testSideloadDebugUnitTest --tests '*NavisAudioServiceRecoveryTest' --tests '*JustAudioRecoveryPositionTest' --tests '*JustAudioRepeatBoundaryTest' --tests '*JustAudioRepeatCallbackTest' --tests '*JustAudioReplayGainBoostTest'`.
 This reflects on the private listener and handler-interface names/types relied
 on by the lifecycle repair. The position test exercises the vendored Android
 error-event path and requires the actual player position before idle/error

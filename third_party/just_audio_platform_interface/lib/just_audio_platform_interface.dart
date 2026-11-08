@@ -75,6 +75,13 @@ abstract class AudioPlayerPlatform {
     throw UnimplementedError('setEqualizer() is unsupported by this backend.');
   }
 
+  /// Applies the ReplayGain boost. Backends without a boost stage keep this
+  /// default; the caller treats [UnimplementedError] as "unsupported".
+  Future<void> setReplayGainBoost(SetReplayGainBoostRequest request) {
+    throw UnimplementedError(
+        'setReplayGainBoost() is unsupported by this backend.');
+  }
+
   /// Reads the current native processing state.
   Future<EqualizerStateMessage> getEqualizerState() {
     throw UnimplementedError(

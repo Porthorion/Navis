@@ -82,9 +82,7 @@ void main() {
     serve('new-album', 'new-song');
     var promoted = false;
     for (var run = 0; run < 3 && !promoted; run++) {
-      await engine.executeSyncPlan(
-        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-      );
+      await engine.executeSyncPlan(await repairPlanAfterDialog(database));
       promoted = await database.libraryDao.getSongById('new-song') != null;
     }
     expect(promoted, isTrue);

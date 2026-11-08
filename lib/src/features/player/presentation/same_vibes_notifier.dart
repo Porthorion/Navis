@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:audio_service/audio_service.dart' show AudioServiceShuffleMode;
+import 'package:audio_service/audio_service.dart'
+    show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/song.dart';
@@ -58,9 +59,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   DateTime? _nextRefillAllowedAt;
   int _consecutiveTransientFailures = 0;
 
-  /// Set after five consecutive failed refills: the mix stops refilling until
-  /// the user starts it again.
-  bool _retryExhausted = false;
+  /// The seed a refill found nothing new for (or failed five times in a row
+  /// on). Refills on that song return at once; the next current song re-arms
+  /// the mix.
+  String? _parkedSeedSongId;
   int? _mixSegmentEndIndex;
   bool _activationInProgress = false;
   bool _suppressActivationSeedSnapshot = false;
@@ -96,7 +98,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       return;
     }
     _mixSegmentEndIndex = null;
-    _retryExhausted = false;
+    _parkedSeedSongId = null;
     _consecutiveTransientFailures = 0;
     final session = ref
         .read(recommendationSessionProvider.notifier)
@@ -133,7 +135,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     _retryTimer = null;
     _nextRefillAllowedAt = null;
     _consecutiveTransientFailures = 0;
-    _retryExhausted = false;
+    _parkedSeedSongId = null;
     _mixSegmentEndIndex = null;
     _activationInProgress = false;
     _suppressActivationSeedSnapshot = false;
@@ -163,7 +165,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
   void _onSnapshotChanged(PlaybackSnapshot? prev, PlaybackSnapshot next) {
     if (!state.active) return;
     if (_activationInProgress) return;
-    if (_retryExhausted) return;
     if (_consumeActivationSeedSnapshot(next)) return;
     if (next.isRadioMode) return;
     if (state.refilling || state.error != null) {
@@ -207,7 +208,6 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
   Future<void> _refill({bool isInitial = false}) async {
     if (state.refilling) return;
-    if (!isInitial && _retryExhausted) return;
     final now = _now();
     final nextAllowed = _nextRefillAllowedAt;
     if (!isInitial && nextAllowed != null && now.isBefore(nextAllowed)) {
@@ -234,6 +234,16 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
     if (session == null ||
         !ref.read(recommendationSessionProvider.notifier).owns(session)) {
       return;
+    }
+    if (!isInitial && _parkedSeedSongId != null) {
+      if (_parkedSeedSongId == normalizedSeedSongId) {
+        // The last song found nothing new and nothing can extend the queue.
+        if (_mixCannotExtend(snapshot)) deactivate();
+        return;
+      }
+      _parkedSeedSongId = null;
+      _consecutiveTransientFailures = 0;
+      AppLogger.debug('SameVibes diagnostics: seed changed, refill re-armed');
     }
     _nextRefillAllowedAt = now.add(_kMinimumRefillInterval);
     _retryTimer?.cancel();
@@ -521,6 +531,7 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
 
       final songsToQueue = <Song>[...mappedSongs, ...fallbackSongs];
       var totalQueued = 0;
+      var parked = false;
       if (songsToQueue.isNotEmpty) {
         if (isInitial) {
           initialQueueChangeAttempted = true;
@@ -587,7 +598,33 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           _reportFailed(session, SameVibesError.networkError);
           return;
         }
-        _scheduleTransientRetry(reason: fallbackReason);
+        // Only a real failure is worth a retry on this seed; "nothing new"
+        // waits for the next song instead.
+        final failed =
+            switch (lastFmResult.outcome) {
+              LastFmFetchOutcome.networkError ||
+              LastFmFetchOutcome.parseError => true,
+              LastFmFetchOutcome.apiError => !lastFmResult.hasNoSimilarTracks,
+              _ => false,
+            } ||
+            fallbackReason == 'fallback_api_error' ||
+            fallbackReason == 'fallback_transport_error';
+        if (failed) {
+          _scheduleTransientRetry(
+            reason: fallbackReason,
+            seedSongId: normalizedSeedSongId,
+          );
+        } else {
+          parked = true;
+          _parkedSeedSongId = normalizedSeedSongId;
+          _consecutiveTransientFailures = 0;
+          // The park is not a backoff: a skip right after it gets its refill.
+          _nextRefillAllowedAt = null;
+          AppLogger.debug(
+            'SameVibes diagnostics: seed spent, waiting for the next song '
+            'seed=$normalizedSeedSongId',
+          );
+        }
       } else {
         AppLogger.debug('SameVibes diagnostics: queuedTracks=$totalQueued');
         _consecutiveTransientFailures = 0;
@@ -602,13 +639,25 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           .read(recommendationSessionProvider.notifier)
           .report(
             session,
-            // An empty refill keeps the stage its retry reported (pending or
-            // exhausted); only a refill that queued songs is 'active'.
-            stage: totalQueued > 0 ? 'active' : null,
+            // A failed refill keeps the stage its retry reported (pending or
+            // exhausted); a refill that queued songs, or parked, is 'active'.
+            stage: totalQueued > 0 || parked ? 'active' : null,
+            retryCount: totalQueued > 0 || parked ? 0 : null,
             source: mappedSongs.isNotEmpty ? 'lastFm' : 'server',
             candidateCount: songsToQueue.length,
             insertedCount: totalQueued,
           );
+      // The user may have skipped while this refill ran (snapshots are
+      // ignored meanwhile), and steady playback sends no further one.
+      if (parked &&
+          ref.read(playerStateProvider).currentSongId?.trim() !=
+              normalizedSeedSongId) {
+        scheduleMicrotask(() {
+          if (ref.mounted) {
+            _onSnapshotChanged(null, ref.read(playerStateProvider));
+          }
+        });
+      }
     } on Exception catch (error) {
       if (isInitial && initialQueueChangeAttempted) {
         await _restorePreviousQueue(snapshot, session);
@@ -623,7 +672,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         _reportFailed(session, SameVibesError.networkError);
         return;
       }
-      _scheduleTransientRetry(reason: 'unexpected_exception');
+      _scheduleTransientRetry(
+        reason: 'unexpected_exception',
+        seedSongId: normalizedSeedSongId,
+      );
       state = state.copyWith(
         refilling: false,
         error: SameVibesError.networkError,
@@ -642,7 +694,10 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         _reportFailed(session, SameVibesError.networkError);
         return;
       }
-      _scheduleTransientRetry(reason: 'unexpected_exception');
+      _scheduleTransientRetry(
+        reason: 'unexpected_exception',
+        seedSongId: normalizedSeedSongId,
+      );
       if (state.active) {
         state = state.copyWith(
           refilling: false,
@@ -901,13 +956,22 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
         normalized.contains('unsupported');
   }
 
-  void _scheduleTransientRetry({required String reason}) {
+  /// Whether nothing can extend the queue past the current song: it is the
+  /// last one and repeat is off.
+  bool _mixCannotExtend(PlaybackSnapshot snapshot) =>
+      snapshot.repeatMode == AudioServiceRepeatMode.none &&
+      snapshot.currentIndex == snapshot.queueSongIds.length - 1;
+
+  void _scheduleTransientRetry({
+    required String reason,
+    required String seedSongId,
+  }) {
     if (!state.active) {
       return;
     }
     _consecutiveTransientFailures += 1;
     if (_consecutiveTransientFailures >= 5) {
-      _retryExhausted = true;
+      _parkedSeedSongId = seedSongId;
       _retryTimer?.cancel();
       _retryTimer = null;
       final session = _session;

@@ -29,6 +29,9 @@ class InertPlaybackHandler implements NavisPlaybackHandler {
   Set<String> get rollingCacheProtectedSongIds => const <String>{};
   @override
   ReplayGainDecision? get currentReplayGainDecision => null;
+
+  @override
+  bool get replayGainBoostSupported => false;
   @override
   Stream<MediaItem?> get mediaItemStream => const Stream.empty();
   @override
@@ -70,6 +73,11 @@ class InertPlaybackHandler implements NavisPlaybackHandler {
   Future<void> applyRuntimeSettings() async {}
   @override
   Future<void> applySongIdentityAliases(Map<String, String> aliases) async {}
+
+  int replayGainRefreshes = 0;
+
+  @override
+  Future<void> refreshQueuedSongReplayGain() async => replayGainRefreshes++;
 
   @override
   Future<void> replaceQueue(

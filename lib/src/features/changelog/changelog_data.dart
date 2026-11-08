@@ -130,6 +130,32 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Songs already in your queue pick up changed ReplayGain after a sync, '
+        'from the next song on. The song that is playing keeps its level',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Same Vibes and Instant Mix no longer stop adding songs after the '
+        'first batch. When a song has nothing new to suggest, the mix waits '
+        'for the next song and tries again. If it runs out on the last song, '
+        'Same Vibes tells you it stopped',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Tag changes on the server now reach Navis after the server rescans '
+        'its library, without Repair Library: ReplayGain, titles, genres and '
+        'removed songs. Check for updates picks them up whenever the server '
+        'has scanned since the last time, and automatic sync does it at most '
+        'once a day on Wi-Fi (a rescan during the check gets up to three '
+        'quicker retries first). A large removal waits for your confirmation '
+        'in Settings › Sync (Apply Library Repair) instead of deleting '
+        'anything by itself. If your server has scanned since Navis last '
+        'checked, Navis runs one full song check at its next Wi-Fi sync after '
+        'this update. It never runs on mobile data without your one-time '
+        'permission',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'iOS: GitHub releases now include an unsigned IPA for AltStore and '
         'SideStore, which tells you when a newer version is out and links to '
         'its release page',
@@ -232,10 +258,17 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Now Playing can show how much volume normalization (ReplayGain) is '
-        'turning the current song down; hold it to open Playback settings. '
-        'Those settings now explain each mode and the pre-amp, say that '
-        'normalization only turns songs down, and show how many of your '
+        'turning the current song up or down; hold it to open Playback '
+        'settings. Those settings now explain each mode and the pre-amp, say '
+        'what normalization does on your device, and show how many of your '
         'songs have ReplayGain data',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'On Android, Windows and Linux, volume normalization (ReplayGain) now '
+        'turns quiet songs up when their tags show room, stopping 1 dB '
+        'below the song\'s peak so nothing distorts. Songs without '
+        'ReplayGain data are only ever turned down',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

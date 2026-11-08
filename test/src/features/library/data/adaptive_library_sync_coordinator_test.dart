@@ -45,6 +45,9 @@ class _ProbeLibrarySyncEngine implements SyncPlanExecutor {
   }
 
   @override
+  Future<void> observeServerScan(int serverId) async {}
+
+  @override
   Future<LibrarySyncState> executeSyncPlan(
     SyncExecutionPlan plan, {
     Iterable<String> priorityAlbumIds = const <String>[],

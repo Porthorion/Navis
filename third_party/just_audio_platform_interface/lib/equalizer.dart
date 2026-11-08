@@ -54,6 +54,9 @@ class EqualizerStateMessage {
     this.headroomDb = 0,
     this.reason,
     this.pending = false,
+    this.boostRequestedDb = 0,
+    this.boostAppliedDb = 0,
+    this.boostClipSamples = 0,
     this.processedFrames,
     this.levelDeltaDb,
     this.resetCount,
@@ -65,6 +68,13 @@ class EqualizerStateMessage {
   final double headroomDb;
   final String? reason;
   final bool pending;
+
+  /// The ReplayGain boost the app asked the processor for and the gain it
+  /// applies now (dB), and how many samples hit the 16-bit clamp while a
+  /// boost was on. Only the Android processor has a boost stage.
+  final double boostRequestedDb;
+  final double boostAppliedDb;
+  final int boostClipSamples;
 
   /// Frames the backend's equalizer has processed since the player started
   /// (Darwin only; null elsewhere). Grows while audio plays.
@@ -86,8 +96,58 @@ class EqualizerStateMessage {
         headroomDb: (map['headroomDb'] as num?)?.toDouble() ?? 0,
         reason: map['reason'] as String?,
         pending: map['pending'] as bool? ?? false,
+        boostRequestedDb: (map['boostRequestedDb'] as num?)?.toDouble() ?? 0,
+        boostAppliedDb: (map['boostAppliedDb'] as num?)?.toDouble() ?? 0,
+        boostClipSamples: (map['boostClipSamples'] as num?)?.toInt() ?? 0,
         processedFrames: (map['processedFrames'] as num?)?.toInt(),
         levelDeltaDb: (map['levelDeltaDb'] as num?)?.toDouble(),
         resetCount: (map['resetCount'] as num?)?.toInt(),
       );
+}
+
+/// The ReplayGain boost (positive gain) the backend applies on top of the
+/// player volume, which only ever turns songs down.
+///
+/// [currentDb] is the boost of the song that is playing now. [byUri] holds the
+/// boost of every queued song by its source URI, for backends that switch
+/// gain per file (desktop mpv). Both are 0 or more.
+class SetReplayGainBoostRequest {
+  const SetReplayGainBoostRequest({
+    required this.currentDb,
+    this.guarded = false,
+    this.index,
+    this.byUri = const <String, double>{},
+  });
+
+  final double currentDb;
+
+  /// Whether the caller wants [currentDb] to be a lowered value that may only
+  /// go down until the next song starts.
+  final bool guarded;
+
+  /// The queue index [currentDb] was computed for. A backend that can tell
+  /// which song it is playing ignores a non-zero value for another one: a
+  /// message that raced a song switch must not put the old song's boost on the
+  /// new song's samples.
+  final int? index;
+  final Map<String, double> byUri;
+
+  Map<String, Object?> toMap() => {
+        'currentDb': currentDb,
+        'guarded': guarded,
+        'index': index,
+        'byUri': byUri,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is SetReplayGainBoostRequest &&
+      other.currentDb == currentDb &&
+      other.guarded == guarded &&
+      other.index == index &&
+      other.byUri.length == byUri.length &&
+      byUri.entries.every((entry) => other.byUri[entry.key] == entry.value);
+
+  @override
+  int get hashCode => Object.hash(currentDb, guarded, index, byUri.length);
 }

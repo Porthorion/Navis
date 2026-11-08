@@ -192,7 +192,9 @@ Checks performed:
   wrapper cache is missing. The runner generates only missing ignored wrapper
   files, uses the pinned Gradle distribution, one worker, in-process Kotlin and
   a bounded 2 GiB Gradle heap / 768 MiB metaspace / 256 MiB code cache. It selects
-  both `JustAudioRepeat*Test` JVM suites with no device or APK installation;
+  both `JustAudioRepeat*Test` suites and `JustAudioReplayGainBoostTest` (the
+  Android ReplayGain boost stage and its native lowering) as JVM suites with no
+  device or APK installation;
   timeout is ten minutes plus a ten-second kill grace, with no persistent daemon.
   Result XML must report nonzero executed tests and no failures in each suite;
   the runner prints their count, including for up-to-date results. The observed
@@ -364,6 +366,27 @@ timestamps and local request/attempt IDs); it must never contain credentials,
 URLs, media/entity IDs, titles, or paths. Run history is a diagnostics record,
 not a scheduler input; `library_sync_work` owns the durable queue. Use
 `durableOperations` for the separate atomic destructive-mutation audit.
+
+`tool/rescan_snapshot_diagnostics.py` is the gate for server rescans. It
+copies the primary profile into a first-setup clone, serves the fixture's
+`rescan` scenario (`auth_lifecycle_fixture_server.py --scenario rescan
+--phase-file --request-log`; the phase file flips the library from baseline A to
+retagged B and to a further scan C), builds the baseline, then asserts through
+the authenticated API, the clone database and the fixture request log that
+Check for updates runs one catalog snapshot that lands the retag, removals,
+move, rename and genre change and reconciles the scan token; that a restart and
+a second check run no snapshot; that an automatic pass respects the 24 h
+throttle and a held large-deletion candidate; that a rescan during collection
+(phases D to E) defers the promotion with a backoff and the retry promotes fresh
+data; that a held large removal (phases F, G) is confirmed by the first Repair
+Library press even after a new scan; and that a metered network makes
+no `getScanStatus` or bulk song request. It also plays a three-song queue through the
+phase B sync (ReplayGain on, 90 s fixture songs on a null audio sink) and asserts the playing song's
+decision and applied volume do not change, while the retagged queued song takes its new gain at the
+next song. It needs `pactl` and a running PulseAudio/PipeWire server: it creates a
+private null sink, pins the clone's mpv device to it, and fails if the app's
+stream is not on that sink. Run it alone: it builds the profile
+Linux app.
 
 `tool/manual_discovery_diagnostics.sh` is the corresponding bounded
 unchanged-cursor discovery gate. It may seed a copied, isolated database and
@@ -662,6 +685,24 @@ NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
   `POST /v1/presentation/artist-action`, and opens the Queue every five
   seconds while releases hydrate, timing the first frame that shows it
   (`"settle": false` on `POST /v1/presentation/player-overlay`).
+- `sync-playback` (runs only when named) queues 30 songs, presses Check for
+  updates through `POST /v1/sync/check` while they play, and reports the sync
+  outcome, request and byte counts, the longest playback stall, loading time,
+  playback failures, the heartbeat figures and a PASS/FAIL verdict for the
+  sync (`syncVerdict`), playback (`playbackVerdict`) and stall
+  (`stallVerdict`). A control first checks that the position advances at
+  least half as fast as the wall clock without a sync; when it does not (a
+  headless emulator without an audio clock) the stall verdict is `INVALID`,
+  never PASS. A stall is any span of at least 2 s over which the position
+  advances less than half of the wall time, measured between samples.
+  Diagnostics-API calls slower than 2 s are logged with their route and sync
+  stage; the scenario reports the measured wait, not its cause. The stall
+  verdict has blind spots: a freeze hidden inside one long status call (it is
+  seen only when more than half of that gap is frozen), a freeze at a track
+  change (its first sample is lost) and syncs shorter than about 3 s. Against a
+  server that has rescanned since the clone's last reconciled scan it measures
+  the scan-triggered catalog snapshot during playback; it stamps the clone
+  model-current first so no startup repair runs.
 - `folder-import` builds `--folder-files` (default 400) small files named
   `<artist>/<title>.<suffix>` from the catalogue (FLAC files get a minimal
   header) and adopts them through `POST /v1/downloads/folder/adopt`, which
@@ -978,7 +1019,9 @@ the tree remains otherwise usable.
   `{"op":"move","from":a,"to":b}`) and returns the playback diagnostics;
   `POST /v1/playback/quality` sets the Wi-Fi and cellular streaming format and
   bit rate (`{"wifi":{"format":"opus","maxBitRate":128},"cellular":{...}}`) and
-  applies them to the handler; `POST /v1/playback/recovery-fixture` also accepts
+  applies them to the handler; `POST /v1/playback/replay-gain`
+  (`{"mode":"track","preamp":3}`) sets the ReplayGain mode and pre-amp (dB) and
+  applies them to the playing song; `POST /v1/playback/recovery-fixture` also accepts
   `action: rawSeekBack` (a raw player seek about 6 s back that bypasses the
   handler). In a diagnostics build `GET /v1/playback/status` adds
   `transportTrace`, a 200-entry ring of timestamped native-transport events
@@ -2520,6 +2563,47 @@ selection (asserted through `GET /v1/equalizer`), and opening and closing the
 Equalizer page from both the desktop view and Mini Player.
 These controls require normal diagnostics authentication and mutation is
 forbidden in primary-certification mode.
+
+### ReplayGain boost diagnostics
+
+`./tool/replaygain_boost_diagnostics.sh [--scenarios d1,d2,d4,d5,d6]` is the Linux
+runtime gate for the desktop ReplayGain boost (changes to
+`navis_playback_rules.dart` boost rules, `_applyReplayGainBoost`, or the
+media_kit adapter's `ReplayGainBoostState`). It clones the profile, adds
+synthetic songs (Q: a -30 dBFS sine tagged +10 dB with its peak; H: -1 dBFS
+tagged -3 dB), and captures the app's output from a disposable null sink with
+`parec`. `tool/replaygain_boost_analyze.py` asserts the levels: Q plays at -20
+dBFS and H at -4 dBFS (d1), no sample above H's own level at either join, the
+boost adds nothing over a control where Q has no peak, Q's head is held down
+then raised, and the hook's gain write lands at the song change (d3 samples in
+the same run); skip, queue jump, seek, removing the playing song and repeat-one
+keep the right level (d2); cross-fade on has no over-boost and no 50 ms RMS
+step (d4); a pre-amp rise in a song's last second never lifts its tail, with the next song at or under its boost at the join but able to exceed it afterwards (d5: qa a -6 dBFS sine boosted 5 dB, qb tagged +2 dB, +6 dB of pre-amp); the same joins hold on songs served by the fixture server (media bodies are paced at 800 KB/s, so the first pass joins songs that are still downloading and asserts that the join's seek landed on a `directStream` source; the second pass joins the same songs from the completed rolling-cache file and asserts `file`), with Q's head checked per sample from H's last loud sample (d6).
+With no display it starts a private headless `kwin_wayland` and passes
+`--no-enable-impeller` to the build (`NAVIS_DIAGNOSTICS_RUN_ARGS`), since
+Impeller's GLES backend cannot get a framebuffer there. `POST
+/v1/playback/replay-gain` sets the mode and pre-amp for d5. The same Q/H songs
+exist for the streaming fixture server as `TranscodeLibrary(...,
+replay_gain_levels=True)` in `tool/seek_reliability_diagnostics.py`, plus L, a
+-8 dBFS sine tagged +10 dB (boost 7 dB, 1 dB under full scale). Evidence lives
+under `build/replaygain-boost-diagnostics/`.
+
+`./tool/replaygain_boost_diagnostics.sh --scenarios a1 --android-serial SERIAL`
+is the Android gate (the processor stage, the guard and the native lowering in
+`NavisEqualizerProcessor` / `AudioPlayer.java`). It needs a running emulator you
+started (see "Temporary Android emulators"; a headless one needs
+`-gpu swiftshader_indirect -no-window`) and no display or null sink.
+`tool/replaygain_boost_android.py` builds a muted profile sidecar under
+`com.navis.app.navis.rgboost`, serves the fixture library over `adb reverse`,
+and samples `/v1/playback/status` (`replayGainBoost`: `appliedDb`, `requestedDb`,
+`sentDb`, `guarded`, `clipSamples`, read back from the processor when the status
+is asked for) through 10 gapless Q/H joins, an EQ, repeat-one switched off and shuffle
+toggled in the last 3 s, a cross-fade (the script edits the sidecar's own
+database and restarts it) and Opus and MP3 streams of L; then the A2 phases: Play on a completed queue (Q is the last song and plays to its end; the check prints SKIP, not a pass, when the API's Play replays Q instead of restarting at song 0, which is what it does on the emulator; tracked in #374) and an insert that resumes it, a 2x to 1x drop with 5 s left followed by removing a song above, inserting one above (an append, then a move to the top), a loop toggle and a shuffle toggle (Q must stay guarded to 0 and each phase's change must have landed in its rows, or the check fails: Q's queue index 1 to 0 or 1 to 2 for remove-above and insert-above, a repeat or shuffle value change for loop and shuffle, and in `crossfade-speed` a row of H1 in its fade at another speed followed by Q2: the 2x to 1x drop alone makes the latch; the remove-above case runs 5 times, each in its own phase `a2-latch-remove-above-N` and asserted on its own; each run also logs when the Dart status index changed relative to the edit's reply in `a1-ordering.jsonl`, which is the status over HTTP and not evidence of native event order; a probe that never sees the index change fails), a duplicate entry of Q (the second copy must be unguarded and boosted from its start), a repeat-one wrap followed by repeat off (Q unguarded and boosted), explicit skip (also at a song's end), queue jump, removing the playing song, removing and moving entries above the playing song (mid-song and in the last 3 s) and a 2x to 1x speed change inside the window; a cross-fade run (`crossfade-speed`) changes the speed in the middle of the fade to Q2, whose deck was Q1's (Q2 must be boosted all song). `NAVIS_A1_ARGS=--nudge-after-edits` changes the speed 0.5 s after each remove-above, insert-above and duplicate: on a throwaway build with the Dart latch disabled, `requestedDb` staying at the guarded value after the nudge is the on-device proof that the native latch survives a queue edit. `replaygain_boost_analyze.py a1`
+asserts: Q boosted ~10 dB and H unboosted (EQ off, EQ on, cross-fade), Q guarded
+to 0 in its last 3 s before H, Q raised again within 3 s of an H to Q join, L ~7
+dB, no clamped sample in any lossless phase, and in the A2 phases the applied (and the requested) boost never exceeds the playing song's own. Clamped samples are listed per phase and song. The status can still name L while H's first samples clamp (the processor runs ahead of the speaker), so only a rise mid-song for L in a lossy phase is reported instead of asserted: the row, the one before and the one after are unguarded and L is between 1.5 s and 26.25 s. A rise in L's guard window or after it fails, as does any rise while another song plays (L sits 1 dB under full scale, and the margin is the owner's decision). `tool/replaygain_boost_clamps.py` holds the rule (pure Python, with L's own duration from the status samples as the upper bound) and `tool/replaygain_boost_analyze_test.py` (run by `check.sh`, no numpy needed) pins it with synthetic status streams, including an L-labelled clamp at the join that must fail. The Q/H/L fixture songs use `volume=peak*8` because lavfi's sine peaks at 1/8. The `_rebuildPlayerWithoutEqualizer` path
+cannot be provoked through the API; a handler test covers it.
 
 ### Equalizer diagnostics
 

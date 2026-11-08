@@ -1518,6 +1518,12 @@ abstract class AppLocalizations {
   /// **'This removes the uncommitted repair candidate and its deletion confirmation. Your current local library, downloads, and cached audio stay unchanged.'**
   String get syncSettingsRepairDiscardCandidateBody;
 
+  /// No description provided for @syncSettingsRepairDiscardCandidateBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'The repair candidate could not be discarded. It may have changed or a sync may be running.'**
+  String get syncSettingsRepairDiscardCandidateBusy;
+
   /// No description provided for @syncSettingsRepairMeteredConfirmTitle.
   ///
   /// In en, this message translates to:
@@ -1884,6 +1890,12 @@ abstract class AppLocalizations {
   /// **'ReplayGain turns loud songs down so they all play at a similar volume. It never turns songs up, so overall volume may sound lower: turn the volume up to compensate.'**
   String get playbackSettingsReplayGainIntro;
 
+  /// No description provided for @playbackSettingsReplayGainIntroBoost.
+  ///
+  /// In en, this message translates to:
+  /// **'ReplayGain plays every song at a similar volume. It turns loud songs down, and turns quiet songs up only as far as their peak level allows without distortion. Songs without ReplayGain data are never turned up. Most songs still end up quieter, so raise the volume to compensate.'**
+  String get playbackSettingsReplayGainIntroBoost;
+
   /// No description provided for @playbackSettingsReplayGainPreampSubtitleDown.
   ///
   /// In en, this message translates to:
@@ -1901,6 +1913,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Gives back some of the turn-down, but never pushes a song above its original level.'**
   String get playbackSettingsReplayGainPreampSubtitleUp;
+
+  /// No description provided for @playbackSettingsReplayGainPreampSubtitleDownBoost.
+  ///
+  /// In en, this message translates to:
+  /// **'Turns every song down further.'**
+  String get playbackSettingsReplayGainPreampSubtitleDownBoost;
+
+  /// No description provided for @playbackSettingsReplayGainPreampSubtitleZeroBoost.
+  ///
+  /// In en, this message translates to:
+  /// **'Songs play at their ReplayGain level. Move it to turn every song down or up by up to 6 dB.'**
+  String get playbackSettingsReplayGainPreampSubtitleZeroBoost;
+
+  /// No description provided for @playbackSettingsReplayGainPreampSubtitleUpBoost.
+  ///
+  /// In en, this message translates to:
+  /// **'Turns every song up, but never past what its peak level allows. Songs without ReplayGain data or a peak level are never pushed above their original level.'**
+  String get playbackSettingsReplayGainPreampSubtitleUpBoost;
 
   /// No description provided for @playbackSettingsReplayGainCoverage.
   ///

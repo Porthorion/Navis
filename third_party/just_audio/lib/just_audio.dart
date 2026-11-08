@@ -383,6 +383,10 @@ class AudioPlayer {
   /// is in flight an event with the previous event's index still describes
   /// the previous event's item, not whatever now sits at that index.
   int _sequenceEditsInFlight = 0;
+
+  /// Whether a playlist edit's platform call is still running. [sequence] is
+  /// already the edited list while [currentIndex] still counts the old one.
+  bool get sequenceEditInFlight => _sequenceEditsInFlight > 0;
   IndexedAudioSource? _lastEventSource;
   int? _lastEventIndex;
 
@@ -1303,6 +1307,47 @@ class AudioPlayer {
     _equalizerConfiguration = configuration;
     return result;
   }
+
+  /// Sends the ReplayGain boost (see [SetReplayGainBoostRequest]) to the
+  /// platform. [bySource] holds the boost of every queued song; the platform
+  /// sees it by the URI it will load each source from. Throws
+  /// [UnimplementedError] on a backend without a boost stage.
+  Future<void> setReplayGainBoost({
+    required double currentDb,
+    bool guarded = false,
+    int? index,
+    Map<IndexedAudioSource, double> bySource = const {},
+  }) async {
+    if (_disposed || !_active) return;
+    final byUri = <String, double>{};
+    for (final entry in bySource.entries) {
+      final message = entry.key._toMessage();
+      final uri = switch (message) {
+        UriAudioSourceMessage(:final uri) => uri,
+        ClippingAudioSourceMessage(:final child) => child.uri,
+        _ => null,
+      };
+      if (uri != null) byUri[uri] = entry.value;
+    }
+    final request = SetReplayGainBoostRequest(
+        currentDb: currentDb, guarded: guarded, index: index, byUri: byUri);
+    final platform = await _platform;
+    // The caller re-sends on every index event; an unchanged per-file map to
+    // the same native player says nothing new. A message without a map
+    // (Android) is never skipped: the native bridge lowers its boost before
+    // song-switching commands, so an equal value must still go out again.
+    if (byUri.isNotEmpty &&
+        identical(platform, _replayGainBoostPlatform) &&
+        request == _replayGainBoostRequest) {
+      return;
+    }
+    await platform.setReplayGainBoost(request);
+    _replayGainBoostPlatform = platform;
+    _replayGainBoostRequest = request;
+  }
+
+  AudioPlayerPlatform? _replayGainBoostPlatform;
+  SetReplayGainBoostRequest? _replayGainBoostRequest;
 
   /// Reads actual processing state without creating or starting playback.
   Future<EqualizerStateMessage> getEqualizerState() async {

@@ -254,9 +254,7 @@ void main() {
         final timings = <int>[];
         for (var run = 0; run < 3; run++) {
           final watch = Stopwatch()..start();
-          await engine.executeSyncPlan(
-            syncPlanForTest(LibrarySyncPlanKind.fullRepair),
-          );
+          await engine.executeSyncPlan(await repairPlanAfterDialog(database));
           timings.add(watch.elapsedMilliseconds);
         }
         final aliases = await database
