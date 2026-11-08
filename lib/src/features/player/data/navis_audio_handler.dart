@@ -822,10 +822,15 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Whether the backend applies each song's ReplayGain on that song's own
   /// samples (the level travels with the source and later updates are
   /// [setReplayGainLevels] pushes), so the player volume carries none of it.
-  /// False on every platform until the native backends ship.
+  /// True on Linux and Windows mpv; false on macOS, Android and iOS until their
+  /// backends ship.
   @override
   bool get replayGainInPipeline =>
-      _replayGainInPipelineOverride ?? navisReplayGainInPipeline();
+      _replayGainInPipelineOverride ??
+      navisReplayGainInPipeline(
+        usesMpv: _usesMpv,
+        isMacOS: !kIsWeb && Platform.isMacOS,
+      );
 
   @override
   bool get replayGainBoostSupported => navisReplayGainBoostSupported(

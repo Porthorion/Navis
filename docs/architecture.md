@@ -5005,27 +5005,31 @@ Desktop volume follows a parallel local-settings path:
    song with both a gain and a valid peak (so never an untagged song, whatever
    the pre-amp), stopping 1 dB under the peak ceiling `-20*log10(peak)` (no
    limiter follows; a lossy copy can overshoot the tagged peak) and at 12 dB
-   (`replayGainMaxBoostDb`, mpv's `volume-gain-max`). A platform without a boost
+   (`replayGainMaxBoostDb`). A platform without a boost
    stage (`replayGainBoostSupported` false) always has boost 0. The invariant
    every boost stage relies on: a stage never applies more than a song's own
    boost to that song's samples, so a timing error can only under-boost.
-   Desktop (media_kit/mpv) is the first stage: `_applyReplayGainBoost` sends
-   `setReplayGainBoost` (platform interface) with the boost of every queued URI,
-   and the media_kit adapter sets mpv's file-local `volume-gain` from an
-   `on_load` hook (`ReplayGainBoostState`). mpv applies `volume-gain` to audio
-   it has already queued, so at a natural join the new file starts at
-   `min(previous, own)` and is held, whatever the map says, until it has played
-   0.5 s (a position past the gate also covers a seek that landed); while held
-   an update may only lower the gain. An explicit switch (load, a jump, removing
-   the playing song) is tied to the playlist position it will load, so a join
-   that arrives first is still a join; it starts at its own value. Gain writes
-   are the same synchronous `mpv_set_property_string` the hook uses. The
-   crossfade deck gets its map after it loads and before `play()`. A Next or a
-   jump to the song that follows, pressed in the last ~0.2 s of the playing one,
-   can race the natural join: the adapter then takes the join for the explicit
-   switch and the new song's full boost reaches up to 0.2 s of the old song's
-   queued tail. This is accepted; it needs an input inside a millisecond-wide
-   window and costs at most 0.2 s.
+   Desktop mpv (Linux, Windows) applies the whole level (cut
+   and boost) in the filter chain, on each song's own samples
+   (`replayGainInPipeline`; #392 phase 2): the adapter's one composer
+   (`MediaKitPlayer._applyAudio`, `EqualizerChain.withReplayGain`) writes
+   `af` as `@navis_rg:lavfi=[volume=<dB>dB:precision=float],@navis_tempo...,
+   @navis_eq...`, the float volume filter first, so a boost cannot clip before
+   the output converts; speed, pitch and EQ edits always go through it (also
+   with the EQ pipeline off), because media_kit's own setters write `af`
+   themselves and would drop the stage. Each source's level arrives in its
+   `load`/`insert` message and the `on_load` hook writes the entering file's
+   whole chain synchronously (`configureReplayGainFilter`), so a file starts at
+   its own level whether it follows by a natural join, a jump or a seek
+   (`ReplayGainLevels`: a lookup by `replayGainBoostKey`, unknown key 0 dB).
+   Pushes only update the map; the playing file changes only on a `live` push
+   (a settings change), which sends `af-command navis_rg volume <dB>dB volume`
+   (a gapless step) and then writes `af` with the new value, because mpv
+   rebuilds the chain from `af` on any seek; a failed `af-command` is logged
+   and the `af` write still lands the value. macOS keeps the pre-#392 path
+   (cut on the player volume, no boost, media_kit's own speed and pitch
+   setters, no `@navis_rg` in `af`) until `af-command` and lavfi `volume` are
+   verified on its libmpv 0.36 (`navisReplayGainInPipeline`).
    Android is the second stage: `NavisEqualizerProcessor` multiplies each frame
    by a boost gain (`EqualizerDsp.BoostRamp`, 20 ms linear ramps) after the EQ
    bank and before the 16-bit clamp. It sits outside `Bank`, whose automatic
@@ -5106,9 +5110,8 @@ Desktop volume follows a parallel local-settings path:
    the guarded re-send undoes it within a tick. An Android message without a
    per-URI map is never deduplicated. A Dart UI-isolate stall over ~1.75 s inside
    the window of a boosted song followed by a lower-boost song can clip the next
-   song's head by the difference; the clip counter measures it. iOS and macOS
-   (libmpv 0.36 has no `volume-gain`) report boost unsupported and keep today's
-   behaviour.
+   song's head by the difference; the clip counter measures it. iOS reports
+   boost unsupported and keeps today's behaviour.
    A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
    (`replayGainUntaggedDb`, -15..0 dB in 0.1 dB steps, set on the pitch/speed
@@ -5117,9 +5120,9 @@ Desktop volume follows a parallel local-settings path:
    the library from `LibraryDao.trackGainMedian` (-8 dB while fewer than 20
    songs are tagged), cached in `replayGainAutoUntaggedDbProvider` and
    recomputed when a sync publishes or finishes. `_replayGainVolumeFor`
-   converts dB to a player volume: `10^(dB/20)` on ExoPlayer and AVPlayer, where
-   volume is linear, and `10^(dB/60)` on media_kit/mpv, whose volume is cubic
-   (the backend is `playbackAdjustmentCapabilities`). Radio stays at the user
+   converts dB to a player volume, `10^(dB/20)`, on ExoPlayer and AVPlayer, where
+   volume is linear (mpv has the level in its filter chain and keeps the user
+   volume, which is cubic). Radio stays at the user
    volume. New profiles start in Smart mode; stored modes are never rewritten.
    The row-creation value, `resetPlaybackDefaults`, `AppSettingsModel` and
    `PlaybackRuntimeSettings.defaults()` say 'smart'; the Drift column default
@@ -5145,13 +5148,12 @@ Desktop volume follows a parallel local-settings path:
    with its own neighbours. `NavisAudioHandler.currentReplayGainDecision`
    (mode, resolved mode, source track/album/untagged, signed `db`, `cutDb`,
    `boostDb`) is reported as `replayGain` by `GET /v1/playback/status`; on
-   desktop `native.mediaKitTransport[*].replayGainBoostDb` is mpv's own
-   `volume-gain` read back (`replayGainBoostIntendedDb` is what the adapter
-   meant to write, `replayGainBoostHeldDb` the target of a held join).
+   desktop `native.mediaKitTransport[*].audioFilters` is mpv's own `af` read
+   back and `replayGainDb` what the adapter meant the loaded file to play at.
 
    **In-pipeline contract (#392, phase 1).** The handler's
-   `replayGainInPipeline` capability (false on every platform until the mpv,
-   Android and iOS backends ship, so nothing above changes today) moves
+   `replayGainInPipeline` capability (true on mpv except macOS; false on macOS,
+   Android and iOS until their backends ship) moves
    ReplayGain onto each song's own samples. One signed dB per queue entry
    (`ReplayGainDecision.db`, cut and boost together) travels with the source:
    `IndexedAudioSource.replayGainDb`, filled by `_withReplayGain` wherever the

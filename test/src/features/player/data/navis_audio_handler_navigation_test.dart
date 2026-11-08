@@ -15932,11 +15932,13 @@ void main() {
       String Function()? readMode,
       double untagged = replayGainFallbackUntaggedDb,
       bool Function(Uri)? radioAllowed,
+      bool? pipeline,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-rg-');
       final (handler, player, database) = await createHandler(
         directory,
         gains.length,
+        replayGainInPipeline: pipeline,
         replayGainMode: mode,
         readReplayGainMode: readMode,
         replayGainUntaggedDb: untagged,
@@ -15967,12 +15969,17 @@ void main() {
       return (handler, player);
     }
 
-    test('mpv volume is cubic, so the gain is cube-rooted', () async {
-      final (handler, player) = await gained([-10.5], caps: mpv);
+    test('mpv applies the gain in its filter chain, not the volume', () async {
+      final (handler, player) = await gained(
+        [-10.5],
+        caps: mpv,
+        pipeline: true,
+      );
       await handler.setVolume(0.25);
       await handler.replaceQueue(['song-0'], expandMatchFlows: false);
-      expect(player.volume, closeTo(0.25 * mpvFactor(-10.5), 0.00001));
-      expect(player.volume, closeTo(0.167, 0.001));
+      expect(handler.replayGainInPipeline, isTrue);
+      expect(player.volume, 0.25);
+      expect(player.sourceGains.any((g) => g.db == -10.5), isTrue);
     });
 
     test('ExoPlayer volume is linear', () async {
@@ -15991,6 +15998,8 @@ void main() {
       });
     }
 
+    // The by-URI boost channel mpv used before the filter chain (#392); only
+    // the generic non-Android path still speaks it, and phase 5 removes both.
     group('boost', () {
       test(
         'a quiet song with room is turned up on mpv, not by the volume',
@@ -15999,6 +16008,7 @@ void main() {
             [6, -10.5],
             peaks: [0.1, 0.5],
             caps: mpv,
+            pipeline: false,
           );
           await handler.setVolume(0.25);
           await handler.replaceQueue([
@@ -16020,6 +16030,7 @@ void main() {
           [-10.5],
           peaks: [0.1],
           caps: mpv,
+          pipeline: false,
         );
         await handler.setVolume(0.25);
         await handler.replaceQueue(['song-0'], expandMatchFlows: false);
@@ -16028,7 +16039,7 @@ void main() {
       });
 
       test('a song without a peak is never boosted', () async {
-        final (handler, player) = await gained([6], caps: mpv);
+        final (handler, player) = await gained([6], caps: mpv, pipeline: false);
         await handler.replaceQueue(['song-0'], expandMatchFlows: false);
         expect(player.boostMessages.last.currentDb, 0);
         expect(handler.currentReplayGainDecision?.boostDb, 0);
@@ -16036,7 +16047,12 @@ void main() {
 
       test('the boost stops 1 dB under the peak ceiling', () async {
         // Peak 0.5 -> ceiling 6.02 dB -> boost 5.02 dB.
-        final (handler, player) = await gained([9], peaks: [0.5], caps: mpv);
+        final (handler, player) = await gained(
+          [9],
+          peaks: [0.5],
+          caps: mpv,
+          pipeline: false,
+        );
         await handler.replaceQueue(['song-0'], expandMatchFlows: false);
         expect(
           player.boostMessages.last.currentDb,
@@ -16049,6 +16065,7 @@ void main() {
           [6, 3],
           peaks: [0.1, 0.1],
           caps: mpv,
+          pipeline: false,
         );
         await handler.replaceQueue([
           'song-0',
@@ -16066,6 +16083,7 @@ void main() {
           [6],
           peaks: [0.1],
           caps: mpv,
+          pipeline: false,
           readMode: () => mode,
         );
         await handler.replaceQueue(['song-0'], expandMatchFlows: false);
@@ -16095,7 +16113,12 @@ void main() {
       );
 
       test('diagnostics report the cut and the boost', () async {
-        final (handler, _) = await gained([6], peaks: [0.1], caps: mpv);
+        final (handler, _) = await gained(
+          [6],
+          peaks: [0.1],
+          caps: mpv,
+          pipeline: false,
+        );
         await handler.replaceQueue(['song-0'], expandMatchFlows: false);
         final json =
             handler.collectPlaybackDiagnostics()['replayGain']
@@ -17917,10 +17940,10 @@ void main() {
     });
 
     test('an untagged song takes the fallback level', () async {
-      final (handler, player) = await gained([null, -10.5], caps: mpv);
+      final (handler, player) = await gained([null, -10.5], caps: exo);
       await handler.setVolume(0.25);
       await handler.replaceQueue(['song-0'], expandMatchFlows: false);
-      expect(player.volume, closeTo(0.25 * mpvFactor(-8), 0.00001));
+      expect(player.volume, closeTo(0.25 * linearFactor(-8), 0.00001));
     });
 
     test('the untagged level comes from the runtime settings', () async {
@@ -17948,12 +17971,12 @@ void main() {
         var mode = 'track';
         final (handler, player) = await gained(
           [-10.5],
-          caps: mpv,
+          caps: exo,
           readMode: () => mode,
         );
         await handler.setVolume(0.5);
         await handler.replaceQueue(['song-0'], expandMatchFlows: false);
-        expect(player.volume, closeTo(0.5 * mpvFactor(-10.5), 0.00001));
+        expect(player.volume, closeTo(0.5 * linearFactor(-10.5), 0.00001));
         mode = 'off';
         await handler.applyRuntimeSettings();
         await pumpEventQueue();
@@ -17962,18 +17985,18 @@ void main() {
         await handler.applyRuntimeSettings();
         await pumpEventQueue();
         // Album mode falls back to the track gain of a song without album gain.
-        expect(player.volume, closeTo(0.5 * mpvFactor(-10.5), 0.00001));
+        expect(player.volume, closeTo(0.5 * linearFactor(-10.5), 0.00001));
       },
     );
 
     test('moving the slider keeps the gain ratio', () async {
-      final (handler, player) = await gained([-10.5], caps: mpv);
+      final (handler, player) = await gained([-10.5], caps: exo);
       await handler.replaceQueue(['song-0'], expandMatchFlows: false);
       await handler.setVolume(0.5);
       final half = player.volume;
       await handler.setVolume(0.25);
       expect(player.volume / 0.25, closeTo(half / 0.5, 0.00001));
-      expect(player.volume, closeTo(0.25 * mpvFactor(-10.5), 0.00001));
+      expect(player.volume, closeTo(0.25 * linearFactor(-10.5), 0.00001));
     });
 
     test('radio stays at the slider volume', () async {
@@ -18040,8 +18063,9 @@ void main() {
       );
     });
 
+    // macOS keeps mpv's cubic volume path (no filter stage there yet).
     for (final (name, caps, factor) in [
-      ('mpv', mpv, mpvFactor),
+      ('macOS mpv', mpv, mpvFactor),
       ('ExoPlayer', exo, linearFactor),
     ]) {
       test('both cross-fade decks use the $name curve', () async {
@@ -18052,6 +18076,7 @@ void main() {
           crossfade: true,
           replayGainMode: 'track',
           adjustmentCapabilities: caps,
+          replayGainInPipeline: caps == mpv ? false : null,
           seed: (database) async {
             await (database.update(
               database.songsTable,
@@ -18103,11 +18128,13 @@ void main() {
       List<double?>? peaks,
       PlaybackAdjustmentCapabilities caps = exo,
       bool crossfade = false,
+      bool? pipeline,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-rgq-');
       final (handler, player, database) = await createHandler(
         directory,
         gains.length,
+        replayGainInPipeline: pipeline,
         crossfade: crossfade,
         replayGainMode: 'track',
         adjustmentCapabilities: caps,
@@ -18175,6 +18202,7 @@ void main() {
         [6, 3],
         peaks: [0.1, 0.1],
         caps: mpv,
+        pipeline: false,
       );
       await retag(database, 'song-1', 5);
 
@@ -18191,6 +18219,7 @@ void main() {
         [6, 3],
         peaks: [0.1, 0.1],
         caps: mpv,
+        pipeline: false,
       );
       await retag(database, 'song-1', 5);
 
@@ -18449,7 +18478,11 @@ void main() {
       const mpv = PlaybackAdjustmentCapabilities.mediaKit;
       final track = pow(10, -10 / 60).toDouble();
       final album = pow(10, -4 / 60).toDouble();
-      final (handler, player) = await smart(['a', 'b', 'a'], caps: mpv);
+      final (handler, player) = await smart(
+        ['a', 'b', 'a'],
+        caps: mpv,
+        pipeline: false,
+      );
       await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
       expect(player.boostMessages, isNotEmpty);
       expect(player.volume, closeTo(track, 0.00001));
@@ -18825,6 +18858,33 @@ void main() {
         });
       });
 
+      test('a reload after a settings change carries the new level', () async {
+        var mode = 'off';
+        final (handler, player) = await smart(
+          ['a', 'b', 'c'],
+          readMode: () => mode,
+          pipeline: true,
+        );
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        await pumpEventQueue();
+        expect(player.sequence.map((s) => s.replayGainDb), everyElement(0));
+        mode = 'track';
+        await handler.applyRuntimeSettings();
+        await pumpEventQueue();
+        // The tap lands while the player is loading: the handler reloads the
+        // same source objects, which must carry the pushed level, not the
+        // one they were inserted with.
+        final loads = player.sourceGains.where((g) => g.op == 'load').length;
+        player.state = ProcessingState.loading;
+        await handler.skipToNext();
+        await pumpEventQueue();
+        final reloaded = player.sourceGains
+            .where((g) => g.op == 'load')
+            .skip(loads);
+        expect(reloaded, hasLength(3));
+        expect(reloaded.map((g) => g.db), everyElement(-10));
+      });
+
       test('duplicates of a song are two entries with the level', () async {
         final (handler, player) = await smart(
           ['a', 'b'],
@@ -18989,11 +19049,13 @@ void main() {
       NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
       PlaybackSourceResolver Function(PlaybackSourceResolver)? wrapResolver,
       Future<void> Function(NavisDatabase database)? seed,
+      bool? pipeline,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-fade-');
       final created = await createHandler(
         directory,
         count,
+        replayGainInPipeline: pipeline,
         crossfade: true,
         sidecarStreams: sidecarStreams || transcodeOffset,
         streamingQuality: transcodeOffset
@@ -19055,6 +19117,7 @@ void main() {
         final (handler, _, _) = await crossfading(
           3,
           adjustmentCapabilities: mpv,
+          pipeline: false,
           replayGainMode: 'track',
           seed: seedGains,
         );

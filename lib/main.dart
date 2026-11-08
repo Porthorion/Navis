@@ -48,6 +48,7 @@ Future<void> main() => runWithCredentialRedactedPrint(_runNavis);
 
 Future<void> _runNavis() async {
   WidgetsFlutterBinding.ensureInitialized();
+  AppLogger.forwardPackageLogging();
   if (!kIsWeb && Platform.isMacOS) {
     // The unsandboxed bundle declares no user-selected-file entitlement.
     await configureFilePicker();

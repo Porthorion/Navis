@@ -39,4 +39,30 @@ void main() {
       throwsStateError,
     );
   });
+  test('the ReplayGain stage cannot be dropped from the chain', () async {
+    const rg = '@navis_rg:lavfi=[volume=-9.000dB:precision=float],';
+    const serialized =
+        '@navis_rg:lavfi="graph=volume=-9.000dB:precision=float",';
+    when(() => native.getProperty('af'))
+        .thenAnswer((_) async => '$serialized$actual');
+    await verifyOwnedAudioChain(player, '$rg$expected', 1);
+    // media_kit's own speed setter writes `af` without the stage.
+    when(() => native.getProperty('af')).thenAnswer((_) async => actual);
+    await expectLater(
+      verifyOwnedAudioChain(player, '$rg$expected', 1),
+      throwsStateError,
+    );
+  });
+  test(
+    'a chain with the ReplayGain stage alone has no tempo to find',
+    () async {
+      const rg = '@navis_rg:lavfi=[volume=-9.000dB:precision=float]';
+      when(() => native.getProperty('af')).thenAnswer((_) async => rg);
+      await verifyOwnedAudioChain(player, rg, 1);
+      // A leftover tempo stage is not the requested chain.
+      when(() => native.getProperty('af'))
+          .thenAnswer((_) async => '$rg,@navis_tempo:scaletempo:scale=1.0');
+      await expectLater(verifyOwnedAudioChain(player, rg, 1), throwsStateError);
+    },
+  );
 }

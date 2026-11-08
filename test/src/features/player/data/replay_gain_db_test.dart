@@ -427,23 +427,29 @@ void main() {
   });
 
   group('replayGainBoostPlatformSupported', () {
-    test(
-      'mpv boosts except on macOS, whose libmpv 0.36 has no volume-gain',
-      () {
-        expect(
-          navisReplayGainBoostSupported(usesMpv: true, isMacOS: false),
-          isTrue,
-        );
-        expect(
-          navisReplayGainBoostSupported(usesMpv: true, isMacOS: true),
-          isFalse,
-        );
-        expect(
-          navisReplayGainBoostSupported(usesMpv: false, isMacOS: false),
-          isFalse,
-        );
-      },
-    );
+    test('mpv boosts except on macOS, whose libmpv 0.36 is not verified', () {
+      expect(
+        navisReplayGainBoostSupported(usesMpv: true, isMacOS: false),
+        isTrue,
+      );
+      expect(
+        navisReplayGainBoostSupported(usesMpv: true, isMacOS: true),
+        isFalse,
+      );
+      expect(
+        navisReplayGainBoostSupported(usesMpv: false, isMacOS: false),
+        isFalse,
+      );
+    });
+
+    test('the filter stage is on Linux and Windows mpv, off on macOS', () {
+      expect(navisReplayGainInPipeline(usesMpv: true, isMacOS: false), isTrue);
+      expect(navisReplayGainInPipeline(usesMpv: true, isMacOS: true), isFalse);
+      expect(
+        navisReplayGainInPipeline(usesMpv: false, isMacOS: false),
+        isFalse,
+      );
+    });
 
     test('Android boosts while its EQ processor pipeline is installed', () {
       expect(
