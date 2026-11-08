@@ -34,8 +34,14 @@ if navis_cc="$(command -v cc || command -v gcc || command -v clang)"; then
     "${navis_c_sources}/NavisEqualizerDsp.c" \
     -lm -o "${navis_c_out}/navis_pitch_stage_test"
   "${navis_c_out}/navis_pitch_stage_test"
+  # ReplayGain boost (I24): the timing decision and the gain ramp.
+  "${navis_cc}" "${navis_c_flags[@]}" \
+    "${navis_darwin_source}/test/navis_boost_test.c" \
+    "${navis_c_sources}/NavisBoost.c" \
+    -lm -o "${navis_c_out}/navis_boost_test"
+  "${navis_c_out}/navis_boost_test"
   # One tap stream per audio format (I25): the slot set around the stage, with a fake AU.
-  navis_tap_sources=("${navis_c_sources}/NavisTapFormats.c" "${navis_c_sources}/NavisPitchStage.c" "${navis_c_sources}/NavisEqualizerDsp.c")
+  navis_tap_sources=("${navis_c_sources}/NavisTapFormats.c" "${navis_c_sources}/NavisBoost.c" "${navis_c_sources}/NavisPitchStage.c" "${navis_c_sources}/NavisEqualizerDsp.c")
   "${navis_cc}" "${navis_c_flags[@]}" \
     "${navis_darwin_source}/test/navis_tap_formats_test.c" "${navis_tap_sources[@]}" \
     -lm -o "${navis_c_out}/navis_tap_formats_test"

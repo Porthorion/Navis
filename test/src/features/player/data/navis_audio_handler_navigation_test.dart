@@ -16547,6 +16547,112 @@ void main() {
         expect(json['db'], 6);
       });
 
+      group('on iOS (I24)', () {
+        const ios = PlaybackAdjustmentCapabilities.ios;
+
+        test(
+          'the tap boosts and sends the per-file map, nothing else',
+          () async {
+            final (handler, player) = await gained(
+              [6, -10.5],
+              peaks: [0.1, 0.5],
+              caps: ios,
+              eq: EqCapabilities.available,
+            );
+            await handler.replaceQueue([
+              'song-0',
+              'song-1',
+            ], expandMatchFlows: false);
+            expect(handler.replayGainBoostSupported, isTrue);
+            expect(handler.currentReplayGainDecision?.boostDb, 6);
+            expect(
+              player.volume,
+              1,
+              reason: 'the boost never touches the volume',
+            );
+            final sent = player.boostMessages.last;
+            expect(sent.currentDb, 6);
+            expect(sent.bySongId, {'song-0': 6.0, 'song-1': 0.0});
+            expect(sent.index, isNull, reason: 'native knows the playing item');
+            expect(sent.guarded, isFalse, reason: 'native owns the guard');
+          },
+        );
+
+        test('a skip sends the next song\'s own boost, unguarded', () async {
+          final (handler, player) = await gained(
+            [6, 3],
+            peaks: [0.1, 0.1],
+            caps: ios,
+            eq: EqCapabilities.available,
+          );
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          await handler.skipToNext();
+          await settleQueue(handler);
+          final sent = player.boostMessages.last;
+          expect(sent.currentDb, 3);
+          expect(sent.guarded, isFalse);
+          expect(sent.index, isNull);
+          expect(
+            player.boostMessages.where((message) => message.currentDb == 0),
+            isEmpty,
+            reason: 'no lower-to-0 before a command on iOS',
+          );
+        });
+
+        test('a cut song keeps its volume cut and gets no boost', () async {
+          final (handler, player) = await gained(
+            [-3, 6],
+            peaks: [0.98, 0.1],
+            caps: ios,
+            eq: EqCapabilities.available,
+          );
+          await handler.replaceQueue([
+            'song-0',
+            'song-1',
+          ], expandMatchFlows: false);
+          expect(player.volume, closeTo(linearFactor(-3), 0.00001));
+          expect(player.boostMessages.last.currentDb, 0);
+          expect(player.boostMessages.last.bySongId, {
+            'song-0': 0.0,
+            'song-1': 6.0,
+          });
+        });
+
+        test('a settings change re-sends the map', () async {
+          var mode = 'track';
+          final (handler, player) = await gained(
+            [6],
+            peaks: [0.1],
+            caps: ios,
+            eq: EqCapabilities.available,
+            readMode: () => mode,
+          );
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          expect(player.boostMessages.last.bySongId, {'song-0': 6.0});
+          mode = 'off';
+          await handler.applyRuntimeSettings();
+          await pumpEventQueue();
+          expect(player.boostMessages.last.currentDb, 0);
+          expect(player.boostMessages.last.bySongId, {'song-0': 0.0});
+        });
+
+        test('without the EQ pipeline (a rebuild) nothing is sent', () async {
+          final (handler, player) = await gained(
+            [6],
+            peaks: [0.1],
+            caps: ios,
+            eq: EqCapabilities.unavailable,
+          );
+          await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+          expect(handler.replayGainBoostSupported, isFalse);
+          expect(player.boostMessages, isEmpty);
+          expect(handler.currentReplayGainDecision?.boostDb, 0);
+        });
+      });
+
       group('on Android', () {
         const eq = EqCapabilities.available;
         const minute = Duration(minutes: 1);

@@ -464,6 +464,62 @@ void main() {
         reason: 'the player was rebuilt without the processor',
       );
     });
+
+    test('iOS boosts while the tap pipeline is installed (I24)', () {
+      expect(
+        navisReplayGainBoostSupported(
+          usesMpv: false,
+          isMacOS: false,
+          iosTap: true,
+        ),
+        isTrue,
+      );
+      expect(
+        navisReplayGainBoostSupported(
+          usesMpv: false,
+          isMacOS: false,
+          iosTap: false,
+        ),
+        isFalse,
+        reason: 'the player was rebuilt without the tap',
+      );
+      expect(
+        navisReplayGainBoostSupported(usesMpv: false, isMacOS: true),
+        isFalse,
+        reason: 'macOS has no tap and no volume-gain',
+      );
+    });
+  });
+
+  test('no song is ever both cut and boosted, so no gain applies twice', () {
+    // iOS applies the cut on AVPlayer.volume and the boost in the tap.
+    for (final mode in ['track', 'album']) {
+      for (final gain in [-20.0, -6.0, -0.5, 0.0, 0.5, 3.0, 9.0, 14.4]) {
+        for (final peak in [null, 0.05, 0.3, 0.5, 0.9, 1.0, 1.5]) {
+          for (final preamp in [-6.0, 0.0, 6.0]) {
+            for (final untagged in [-8.0, 0.0]) {
+              final levels = replayGainLevels(
+                mode: mode,
+                trackGain: mode == 'track' ? gain : null,
+                albumGain: mode == 'album' ? gain : null,
+                trackPeak: mode == 'track' ? peak : null,
+                albumPeak: mode == 'album' ? peak : null,
+                preampDb: preamp,
+                untaggedDb: untagged,
+                boostSupported: true,
+              )!;
+              final reason =
+                  '$mode gain $gain peak $peak preamp $preamp untagged $untagged';
+              expect(levels.cutDb, lessThanOrEqualTo(0), reason: reason);
+              expect(levels.boostDb, inInclusiveRange(0, 12), reason: reason);
+              if (levels.boostDb > 0) {
+                expect(levels.cutDb, 0, reason: reason);
+              }
+            }
+          }
+        }
+      }
+    }
   });
 
   group('guardedBoostDb', () {

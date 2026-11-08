@@ -122,7 +122,7 @@ static NavisEqConfig config(double preampDb) {
     return c;
 }
 
-static NavisTapFormats *newSet(double preampDb, int32_t cents) {
+static NavisTapFormats *newSetEq(bool enabled, double preampDb, int32_t cents) {
     atomic_store(&g_creates, 0);
     atomic_store(&g_destroys, 0);
     atomic_store(&g_wrongRate, 0);
@@ -131,10 +131,15 @@ static NavisTapFormats *newSet(double preampDb, int32_t cents) {
     g_failCreate = false;
     g_reenter.armed = 0;
     NavisEqConfig c = config(preampDb);
+    c.enabled = enabled;
     NavisPitchFactory factory = {fakeCreate, fakeDestroy, fakeMismatches};
     NavisTapFormats *t = navis_tap_formats_new(&c, cents, factory);
     check(t != NULL, "set created");
     return t;
+}
+
+static NavisTapFormats *newSet(double preampDb, int32_t cents) {
+    return newSetEq(true, preampDb, cents);
 }
 
 static void freeSet(NavisTapFormats *t) {
@@ -612,7 +617,12 @@ static bool held(const NavisTapFormatsState *s, int rate) { return infoFor(s, ra
 static void chaos(NavisTapFormats *t, Render *r, uint32_t *rng) {
     int n = 1 + (int)(xorshift(rng) % 4);
     for (int i = 0; i < n; i++) {
-        switch (xorshift(rng) % 6) {
+        switch (xorshift(rng) % 7) {
+        case 6: {
+            static const float boosts[] = {1.0f, 3.16227766f, 1.5f};
+            navis_tap_formats_set_boost(t, boosts[xorshift(rng) % 3]);
+            break;
+        }
         case 0: {
             NavisEqConfig c = config(xorshift(rng) & 1 ? -6 : -12);
             navis_tap_formats_configure(t, &c);
@@ -901,6 +911,196 @@ static void testBalanceCounters(void) {
     freeSet(t);
 }
 
+// MARK: 10. ReplayGain boost (I24)
+
+#define TEN_DB 3.16227766f /* +10 dB */
+
+static double rmsDb(const Block *b, int channels, int from, int to) {
+    double in = 0, out = 0;
+    for (int c = 0; c < channels; c++)
+        for (int i = from; i < to; i++) {
+            in += (double)b->in[c][i] * b->in[c][i];
+            out += (double)b->out[c][i] * b->out[c][i];
+        }
+    return 10 * log10(out / in);
+}
+
+// out = ratio * in for every frame in [from, to).
+static bool isScaledBetween(const Block *b, int channels, int from, int to, float ratio) {
+    for (int c = 0; c < channels; c++)
+        for (int i = from; i < to; i++)
+            if (fabsf(b->out[c][i] - ratio * b->in[c][i]) > 2e-6f) return false;
+    return true;
+}
+
+static void testBoostLevel(void) {
+    static Block b;
+    // The equalizer off still boosts: the stage is independent of `enabled`.
+    NavisTapFormats *t = newSetEq(false, 0, 0);
+    check(prepare(t, 44100, 2), "prepared");
+    navis_tap_formats_set_boost(t, TEN_DB);
+    long k = 0;
+    for (int i = 0; i < 6; i++, k += 4096) runBlock(t, &b, 44100, 2, 4096, i == 0, 0, k);
+    near(rmsDb(&b, 2, 0, 4096), 10, 0.1, "+10 dB with the EQ off");
+    check(isScaledBetween(&b, 2, 0, 4096, TEN_DB), "and exactly the linear gain");
+    NavisTapFormatsState s = state(t);
+    near(20 * log10(s.boostAppliedGain), 10, 0.01, "the state reports the applied gain");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+
+    // The EQ at -12 dB preamp and +10 dB boost make -2 dB.
+    t = newSet(-12, 0);
+    check(prepare(t, 44100, 2), "prepared");
+    navis_tap_formats_set_boost(t, TEN_DB);
+    for (int i = 0; i < 6; i++, k += 4096) runBlock(t, &b, 44100, 2, 4096, i == 0, 0, k);
+    near(rmsDb(&b, 2, 0, 4096), -2, 0.1, "-12 dB EQ and +10 dB boost make -2 dB");
+    check(isScaledBetween(&b, 2, 0, 4096, EQ12 * TEN_DB), "exactly");
+    // No boost set: unity, bit-exact for the stage (EQ at -12 only).
+    navis_tap_formats_set_boost(t, 1.0f);
+    for (int i = 0; i < 3; i++, k += 4096) runBlock(t, &b, 44100, 2, 4096, false, 0, k);
+    check(isScaledBetween(&b, 2, 0, 4096, EQ12), "target 1.0 is the EQ alone");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+static void testBoostClipCounter(void) {
+    static Block b;
+    NavisTapFormats *t = newSetEq(false, 0, 0);
+    check(prepare(t, 44100, 2), "prepared");
+    // Peak 0.8 x 3.16 = 2.5: every cycle crosses 1.0.
+    navis_tap_formats_set_boost(t, TEN_DB);
+    runBlock(t, &b, 44100, 2, 4096, true, 0, 0);
+    uint64_t counted = state(t).boostClipSamples;
+    uint64_t expected = 0;
+    for (int c = 0; c < 2; c++)
+        for (int i = 0; i < 4096; i++) expected += fabsf(b.out[c][i]) > 1.0f;
+    check(counted == expected && counted > 1000, "the counter holds the samples beyond full scale");
+    check(b.out[0][0] == b.in[0][0] * TEN_DB, "and the samples are not limited");
+    // With no boost nothing counts, whatever the input level.
+    navis_tap_formats_set_boost(t, 1.0f);
+    for (int i = 0; i < 4; i++) runBlock(t, &b, 44100, 2, 4096, false, 0, 4096 * (i + 1));
+    check(state(t).boostClipSamples >= counted, "the counter never goes down");
+    uint64_t before = state(t).boostClipSamples;
+    runBlock(t, &b, 44100, 2, 4096, false, 0, 100000);
+    check(state(t).boostClipSamples == before, "and a unity block adds nothing");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+// A flush bump makes the next block play at the new target from its first frame.
+static void testBoostSnapsOnFlush(void) {
+    static Block b;
+    NavisTapFormats *t = newSetEq(false, 0, 0);
+    check(prepare(t, 44100, 2), "prepared");
+    navis_tap_formats_set_boost(t, TEN_DB);
+    long k = 0;
+    for (int i = 0; i < 4; i++, k += 4096) runBlock(t, &b, 44100, 2, 4096, i == 0, 0, k);
+    check(isScaledBetween(&b, 2, 0, 4096, TEN_DB), "playing at +10 dB");
+
+    // Control: a lowered target with no flush ramps over 20 ms.
+    navis_tap_formats_set_boost(t, 1.0f);
+    runBlock(t, &b, 44100, 2, 4096, false, 0, k);
+    k += 4096;
+    check(!isScaledBetween(&b, 2, 0, 100, 1.0f), "without a flush the drop is a 20 ms ramp");
+    check(isScaledBetween(&b, 2, 882, 4096, 1.0f), "that ends 882 frames in");
+
+    // A drop stored before the flush is in force from the first block after it.
+    navis_tap_formats_set_boost(t, TEN_DB);
+    for (int i = 0; i < 4; i++, k += 4096) runBlock(t, &b, 44100, 2, 4096, false, 0, k);
+    check(isScaledBetween(&b, 2, 0, 4096, TEN_DB), "back at +10 dB");
+    navis_tap_formats_set_boost(t, 1.0f);
+    runBlock(t, &b, 44100, 2, 4096, false, 1, k); // generation 1: the host flushed
+    k += 4096;
+    check(isDry(&b, 2, 4096), "the first block after the flush is entirely at the new gain, no ramp");
+    check(state(t).resetCount == 1, "that was a reset");
+    // And a rise snaps just the same.
+    navis_tap_formats_set_boost(t, TEN_DB);
+    runBlock(t, &b, 44100, 2, 4096, false, 2, k);
+    check(isScaledBetween(&b, 2, 0, 4096, TEN_DB), "a rise stored before the flush is in force from the first frame");
+    // A StartOfStream does the same.
+    navis_tap_formats_set_boost(t, 1.0f);
+    runBlock(t, &b, 44100, 2, 4096, true, 2, k + 4096);
+    check(isDry(&b, 2, 4096), "and so does StartOfStream");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+// Every slot reads the one target; a slot idle since an earlier pipeline snaps at its start.
+static void testBoostTwoSlots(void) {
+    static Block b;
+    NavisTapFormats *t = newSetEq(false, 0, 0);
+    check(prepare(t, 44100, 2) && prepare(t, 48000, 2), "two formats");
+    navis_tap_formats_set_boost(t, TEN_DB);
+    long kA = 0, kB = 0;
+    for (int i = 0; i < 4; i++, kA += 4096) runBlock(t, &b, 44100, 2, 4096, i == 0, 0, kA);
+    check(isScaledBetween(&b, 2, 0, 4096, TEN_DB), "A plays at +10 dB");
+    // B's first block, its StartOfStream: a fresh slot is at the target from its first frame.
+    runBlock(t, &b, 48000, 2, 4096, true, 0, kB);
+    kB += 4096;
+    check(isScaledBetween(&b, 2, 0, 4096, TEN_DB), "a fresh slot starts at the target");
+    // The target drops while B idles; A (playing) ramps, B is not touched.
+    navis_tap_formats_set_boost(t, 1.0f);
+    runBlock(t, &b, 44100, 2, 4096, false, 0, kA);
+    kA += 4096;
+    check(isScaledBetween(&b, 2, 882, 4096, 1.0f) && !isScaledBetween(&b, 2, 0, 882, 1.0f), "the playing slot ramps down");
+    navis_tap_formats_set_boost(t, 2.0f);
+    // B was idle with a gain of 3.16; its next pipeline's StartOfStream snaps it to 2.0.
+    runBlock(t, &b, 48000, 2, 4096, true, 0, kB);
+    kB += 4096;
+    check(isScaledBetween(&b, 2, 0, 4096, 2.0f), "a slot idle since an earlier pipeline snaps at its StartOfStream");
+    // A follows the new target by ramping.
+    runBlock(t, &b, 44100, 2, 4096, false, 0, kA);
+    check(isScaledBetween(&b, 2, 882, 4096, 2.0f), "the other slot follows the same target");
+    NavisTapFormatsState s = state(t);
+    near(s.boostAppliedGain, 2.0, 1e-6, "the state shows the slot of the last block");
+    navis_tap_formats_unprepare(t);
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+// A block that passes dry (no slot) gets no boost, only an under-boost.
+static void testBoostDryBlocksAreNotBoosted(void) {
+    static Block b;
+    NavisTapFormats *t = newSetEq(false, 0, 0);
+    check(prepare(t, 44100, 2), "prepared");
+    navis_tap_formats_set_boost(t, TEN_DB);
+    runBlock(t, &b, 44100, 2, 1024, true, 0, 0);
+    runBlockAt(t, &b, 44100, 44100, 3, 512, false, 0, 0, 0); // another channel count: no slot
+    check(isDry(&b, 3, 512), "a block no slot takes is untouched");
+    check(state(t).boostClipSamples == 0, "and counts no clip");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+// The target is set from the main thread whenever, the blocks keep their invariants.
+static void testBoostRaces(void) {
+    NavisTapFormats *t = newSetEq(false, 0, 0);
+    check(prepare(t, 44100, 2), "prepared");
+    Render r = {.t = t, .frames = 256};
+    pthread_t thread;
+    check(pthread_create(&thread, NULL, renderMain, &r) == 0, "render thread");
+    renderStart(&r, 44100);
+    uint32_t rng = 0x1234567u;
+    for (int i = 0; i < 4000; i++) {
+        static const float targets[] = {1.0f, TEN_DB, 1.5f, 3.98107171f};
+        navis_tap_formats_set_boost(t, targets[xorshift(&rng) % 4]);
+        if (xorshift(&rng) % 5 == 0) atomic_fetch_add(&r.generation, 1);
+        if (xorshift(&rng) % 7 == 0) {
+            NavisTapFormatsState s = state(t);
+            check(s.boostAppliedGain >= 1.0f && s.boostAppliedGain <= 3.9811f, "the applied gain is always within 0..12 dB");
+        }
+        if (xorshift(&rng) % 3 == 0) sched_yield();
+    }
+    renderStop(&r);
+    atomic_store(&r.quit, 1);
+    pthread_join(thread, NULL);
+    check(r.fed > 0, "the render thread ran");
+    NavisTapFormatsState s = state(t);
+    check(s.processedFrames == r.fed && s.unmatchedFrames == 0, "every block was processed by its slot");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
 typedef struct {
     const char *name;
     void (*run)(void);
@@ -925,6 +1125,12 @@ int main(int argc, char **argv) {
         {"pitchStageRebuild", testPitchStageRebuild, false},
         {"reasonsStayUntilAnAudioBlockIsProcessed", testReasonsStayUntilAnAudioBlockIsProcessed, false},
         {"balanceCounters", testBalanceCounters, false},
+        {"boostLevel", testBoostLevel, false},
+        {"boostClipCounter", testBoostClipCounter, false},
+        {"boostSnapsOnFlush", testBoostSnapsOnFlush, false},
+        {"boostTwoSlots", testBoostTwoSlots, false},
+        {"boostDryBlocksAreNotBoosted", testBoostDryBlocksAreNotBoosted, false},
+        {"boostRaces", testBoostRaces, true},
         {"concurrentPipelines", testConcurrentPipelines, true},
         {"twoRenderThreadsOnOneSlot", testTwoRenderThreadsOnOneSlot, true},
     };
