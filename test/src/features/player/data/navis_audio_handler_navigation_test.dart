@@ -958,6 +958,41 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     for (final source in _sources) ...source.sequence,
   ];
 
+  /// The ReplayGain each source carried into a load, add or insert, oldest
+  /// first: what the source message would hold at that call.
+  final sourceGains = <({String op, String? songId, double? db})>[];
+
+  void _logGains(String op, List<AudioSource> sources) {
+    for (final source in sources) {
+      for (final indexed in source.sequence) {
+        sourceGains.add((
+          op: op,
+          songId: navisNativeSourceSongId(indexed),
+          db: indexed.replayGainDb,
+        ));
+      }
+    }
+  }
+
+  /// Every in-pipeline ReplayGain update this deck received, oldest first.
+  final levelMessages = <({Map<String?, double> bySongId, bool live})>[];
+
+  @override
+  Future<void> setReplayGainLevels({
+    required Map<IndexedAudioSource, double> bySource,
+    bool live = false,
+  }) async {
+    // Like just_audio, an unloaded player has nothing to update.
+    if (_sources.isEmpty) return;
+    levelMessages.add((
+      bySongId: {
+        for (final entry in bySource.entries)
+          navisNativeSourceSongId(entry.key): entry.value,
+      },
+      live: live,
+    ));
+  }
+
   /// Every ReplayGain boost message this deck received, oldest first.
   final boostMessages =
       <
@@ -1256,6 +1291,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     ShuffleOrder? shuffleOrder,
   }) => _mutate(() async {
     final source = sources.isEmpty ? null : sources[initialIndex ?? 0];
+    _logGains('load', sources);
     sourceLoads++;
     final claimed = claimedSources;
     if (claimed != null && source != null && !claimed.add(source)) {
@@ -1365,6 +1401,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> addAudioSources(List<AudioSource> sources) => _mutate(() async {
+    _logGains('add', sources);
     await _hangIf('addAudioSources');
     final gate = appendGate;
     if (gate != null) {
@@ -1394,6 +1431,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> insertAudioSources(int at, List<AudioSource> sources) =>
       _mutate(() async {
+        _logGains('insert', sources);
         await _hangIf('insertAudioSources');
         final gate = insertGate;
         insertGate = null;
@@ -1669,6 +1707,7 @@ void main() {
     String Function()? readReplayGainMode,
     double replayGainUntaggedDb = replayGainFallbackUntaggedDb,
     double Function()? readReplayGainUntaggedDb,
+    bool? replayGainInPipeline,
     PlaybackAdjustmentCapabilities adjustmentCapabilities =
         PlaybackAdjustmentCapabilities.android,
     EqCapabilities? equalizerCapabilities,
@@ -1814,6 +1853,7 @@ void main() {
         matchFlowEnabled: matchFlow,
       ),
       adjustmentCapabilities: adjustmentCapabilities,
+      replayGainInPipelineOverride: replayGainInPipeline,
       equalizerCapabilities: equalizerCapabilities,
       crossfadePlayerFactory: () {
         final deck = _ControllableAudioPlayer();
@@ -18260,11 +18300,15 @@ void main() {
       double trackGain = -10,
       double albumGain = -4,
       double? peak,
+      bool? pipeline,
+      List<_ControllableAudioPlayer>? decks,
     }) async {
       final directory = await Directory.systemTemp.createTemp('navis-rgs-');
       final (handler, player, database) = await createHandler(
         directory,
         albums.length,
+        players: decks,
+        replayGainInPipeline: pipeline,
         crossfade: crossfade,
         replayGainMode: mode,
         readReplayGainMode: readMode,
@@ -18646,6 +18690,172 @@ void main() {
         'db': -4.0,
         'cutDb': -4.0,
         'boostDb': 0.0,
+      });
+    });
+
+    group('in the pipeline (#392)', () {
+      // Every smart() song has -10 dB track and -4 dB album gain.
+      Map<String?, double?> carried(
+        _ControllableAudioPlayer player,
+        String op,
+      ) => {
+        for (final g in player.sourceGains.where((g) => g.op == op))
+          g.songId: g.db,
+      };
+
+      test('load, add and the deck load carry the level', () async {
+        final decks = <_ControllableAudioPlayer>[];
+        final (handler, player) = await smart(
+          ['a', 'b', 'c', 'd'],
+          mode: 'track',
+          pipeline: true,
+          crossfade: true,
+          decks: decks,
+        );
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        // The first song's level is in the message that loads it.
+        expect(player.sourceGains.first.op, 'load');
+        expect(player.sourceGains.first.songId, 'song-0');
+        expect(player.sourceGains.first.db, -10);
+        expect(
+          player.sourceGains.every((g) => g.db == -10),
+          isTrue,
+          reason: '${player.sourceGains}',
+        );
+        expect(player.sequence.map((s) => s.replayGainDb), everyElement(-10));
+        await handler.addToQueue(['song-3'], expandMatchFlows: false);
+        expect(
+          carried(player, 'add')['song-3'] ??
+              carried(player, 'insert')['song-3'],
+          -10,
+        );
+        // A deck that never played gets its songs with the level too.
+        await handler.debugStartCrossfade();
+        await pumpEventQueue();
+        final deck = handler.debugInactiveDeck as _ControllableAudioPlayer;
+        expect(deck.sourceGains, isNotEmpty);
+        expect(deck.sourceGains.every((g) => g.db == -10), isTrue);
+      });
+
+      test('off carries 0 dB, not nothing', () async {
+        final (handler, player) = await smart(
+          ['a'],
+          mode: 'off',
+          pipeline: true,
+        );
+        await handler.replaceQueue(ids(1), expandMatchFlows: false);
+        expect(player.sourceGains.single.db, 0);
+      });
+
+      test('the fallback carries nothing and keeps today\'s cut', () async {
+        final (handler, player) = await smart(['a'], mode: 'track');
+        await handler.setVolume(0.25);
+        await handler.replaceQueue(ids(1), expandMatchFlows: false);
+        expect(player.sourceGains.single.db, isNull);
+        expect(player.levelMessages, isEmpty);
+        expect(player.volume, closeTo(0.25 * linear(-10), 0.00001));
+      });
+
+      test('the player volume is independent of ReplayGain', () async {
+        final (handler, player) = await smart(
+          ['a'],
+          mode: 'track',
+          pipeline: true,
+        );
+        await handler.setVolume(0.25);
+        await handler.replaceQueue(ids(1), expandMatchFlows: false);
+        expect(player.volume, 0.25);
+      });
+
+      test('the cross-fade ramps exclude ReplayGain', () async {
+        final (handler, player) = await smart(
+          ['a', 'b'],
+          mode: 'track',
+          pipeline: true,
+          crossfade: true,
+        );
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        await handler.debugStartCrossfade();
+        await pumpEventQueue();
+        final deck = handler.debugInactiveDeck as _ControllableAudioPlayer;
+        await handler.setVolume(0.4);
+        // The two decks share the user volume; a -10 dB cut would scale it.
+        expect(player.volume + deck.volume, closeTo(0.4, 0.00001));
+      });
+
+      test('only a settings change pushes live', () async {
+        var mode = 'track';
+        final (handler, player) = await smart(
+          ['a', 'b'],
+          readMode: () => mode,
+          pipeline: true,
+        );
+        await handler.replaceQueue(ids(2), expandMatchFlows: false);
+        await pumpEventQueue();
+        expect(player.levelMessages, isNotEmpty);
+        expect(player.levelMessages.any((m) => m.live), isFalse);
+        expect(player.levelMessages.last.bySongId, {
+          'song-0': -10.0,
+          'song-1': -10.0,
+        });
+        await handler.refreshQueuedSongReplayGain();
+        await handler.skipToNext();
+        await pumpEventQueue();
+        expect(player.levelMessages.any((m) => m.live), isFalse);
+        mode = 'album';
+        await handler.applyRuntimeSettings();
+        await pumpEventQueue();
+        expect(player.levelMessages.last.live, isTrue);
+        expect(player.levelMessages.last.bySongId, {
+          'song-0': -4.0,
+          'song-1': -4.0,
+        });
+      });
+
+      test('duplicates of a song are two entries with the level', () async {
+        final (handler, player) = await smart(
+          ['a', 'b'],
+          mode: 'track',
+          pipeline: true,
+        );
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+          'song-0',
+        ], expandMatchFlows: false);
+        await pumpEventQueue();
+        final sources = player.sequence;
+        expect(sources.length, 3);
+        expect(sources.map((s) => s.replayGainDb), everyElement(-10));
+        expect(player.sourceGains.where((g) => g.songId == 'song-0').length, 2);
+      });
+
+      test('the Smart start equals the last pushed value', () async {
+        final (handler, player) = await smart(['a', 'a', 'b'], pipeline: true);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        await pumpEventQueue();
+        // song-1 is queued between a (before) and b (after): album gain.
+        final pushed = player.levelMessages.last.bySongId['song-1'];
+        expect(pushed, -4);
+        await handler.skipToNext();
+        await pumpEventQueue();
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(handler.currentReplayGainDecision?.db, pushed);
+        expect(handler.currentReplayGainDecision?.resolvedMode, 'album');
+      });
+
+      test('repeat-all wrap neighbours reach the update push', () async {
+        final (handler, player) = await smart(['a', 'b', 'a'], pipeline: true);
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        expect(player.levelMessages.last.bySongId['song-2'], -10);
+        await handler.setRepeatMode(AudioServiceRepeatMode.all);
+        player.emitLoopMode(LoopMode.all);
+        await pumpEventQueue();
+        // song-2 wraps to song-0, the same album. The playing song-0 stays
+        // frozen at the pair it started with.
+        expect(player.levelMessages.last.bySongId['song-2'], -4);
+        expect(player.levelMessages.last.bySongId['song-0'], -10);
+        expect(player.levelMessages.last.bySongId['song-1'], -10);
       });
     });
   });

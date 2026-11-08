@@ -144,7 +144,12 @@ extension _NavisQueueEditing on NavisAudioHandler {
     required String operation,
   }) async {
     final clones = inserted
-        .map((item) => item.source.asClonedAudioSource(tag: item.mediaItem))
+        .map(
+          (item) => _withReplayGain(
+            item.source.asClonedAudioSource(tag: item.mediaItem),
+            item.mediaItem,
+          ),
+        )
         .toList(growable: false);
     try {
       await _runTimedPlayerOperation(

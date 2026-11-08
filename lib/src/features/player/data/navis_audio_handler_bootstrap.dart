@@ -360,6 +360,9 @@ abstract class _DelegatingNavisPlaybackHandler
   bool get replayGainBoostSupported => _delegate.replayGainBoostSupported;
 
   @override
+  bool get replayGainInPipeline => _delegate.replayGainInPipeline;
+
+  @override
   Stream<MediaItem?> get mediaItemStream => _delegate.mediaItemStream;
 
   @override

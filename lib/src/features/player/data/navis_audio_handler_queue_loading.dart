@@ -857,7 +857,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
       if (leader == null) {
         leaders[path] = held;
       } else {
-        item.audioSource = LockCacheFollowerSource(leader, tag: item.mediaItem);
+        item.audioSource = _withReplayGain(
+          LockCacheFollowerSource(leader, tag: item.mediaItem),
+          item.mediaItem,
+        );
       }
     }
   }
@@ -945,13 +948,15 @@ extension _NavisQueueLoading on NavisAudioHandler {
       song: song,
       source: source,
       mediaItem: item,
-      audioSource:
-          preview?.request?.asAudioSource(
-            tag: item,
-            positionOffset: source.positionOffset,
-          ) ??
-          _runningLockCacheSource(source) ??
-          source.asAudioSource(tag: item),
+      audioSource: _withReplayGain(
+        preview?.request?.asAudioSource(
+              tag: item,
+              positionOffset: source.positionOffset,
+            ) ??
+            _runningLockCacheSource(source) ??
+            source.asAudioSource(tag: item),
+        item,
+      ),
     );
   }
 

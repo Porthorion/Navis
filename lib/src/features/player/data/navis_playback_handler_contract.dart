@@ -71,6 +71,9 @@ abstract class NavisPlaybackHandler {
   /// Whether this platform's player has a stage that turns quiet songs up
   /// (ReplayGain boost). Without one a song is only ever turned down.
   bool get replayGainBoostSupported => false;
+
+  /// Whether the backend applies ReplayGain on each song's own samples.
+  bool get replayGainInPipeline => false;
   Stream<MediaItem?> get mediaItemStream;
   Stream<PlaybackLoadFailure> get loadFailureStream;
 

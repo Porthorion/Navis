@@ -133,3 +133,45 @@ class SetReplayGainBoostRequest {
   @override
   int get hashCode => Object.hash(currentDb, guarded, index, byUri.length);
 }
+
+/// An update of the in-pipeline ReplayGain of queued songs: one signed dB
+/// value (cut and boost together) per entry. Each song's first value travels
+/// with its source message; this only changes values later.
+///
+/// [byId] holds the value of every queued entry by its source id (Android,
+/// iOS); [byUri] holds the same by the URI the entry loads from (desktop mpv,
+/// which switches gain per file). An entry missing from both plays at 0 dB.
+///
+/// The playing entry's value is frozen natively at its boundary: a message
+/// changes it only when [live] is true, which the caller sets for a settings
+/// change (mode, pre-amp, untagged level).
+class SetReplayGainLevelsRequest {
+  const SetReplayGainLevelsRequest({
+    this.byId = const <String, double>{},
+    this.byUri = const <String, double>{},
+    this.live = false,
+  });
+
+  final Map<String, double> byId;
+  final Map<String, double> byUri;
+  final bool live;
+
+  Map<String, Object?> toMap() => {
+        'byId': byId,
+        'byUri': byUri,
+        'live': live,
+      };
+
+  static bool _same(Map<String, double> a, Map<String, double> b) =>
+      a.length == b.length && a.entries.every((e) => b[e.key] == e.value);
+
+  @override
+  bool operator ==(Object other) =>
+      other is SetReplayGainLevelsRequest &&
+      other.live == live &&
+      _same(other.byId, byId) &&
+      _same(other.byUri, byUri);
+
+  @override
+  int get hashCode => Object.hash(live, byId.length, byUri.length);
+}

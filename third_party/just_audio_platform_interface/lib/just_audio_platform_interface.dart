@@ -82,6 +82,12 @@ abstract class AudioPlayerPlatform {
         'setReplayGainBoost() is unsupported by this backend.');
   }
 
+  /// Updates the in-pipeline ReplayGain of queued songs (see
+  /// [SetReplayGainLevelsRequest]). The first value of every song travels with
+  /// its source message, so a backend that has no such stage ignores this: it
+  /// is a no-op by default and never an error.
+  Future<void> setReplayGainLevels(SetReplayGainLevelsRequest request) async {}
+
   /// Reads the current native processing state.
   Future<EqualizerStateMessage> getEqualizerState() {
     throw UnimplementedError(
@@ -1166,9 +1172,16 @@ abstract class UriAudioSourceMessage extends IndexedAudioSourceMessage {
     required this.uri,
     this.headers,
     super.tag,
+    this.replayGainDb,
   });
   final String uri;
   final Map<String, String>? headers;
+
+  /// The song's ReplayGain in dB (signed: cut and boost together) for a
+  /// backend that applies it inside its audio path; null when the caller does
+  /// not use one. It arrives with the load/insert message, so the first
+  /// samples of the song already play at it.
+  final double? replayGainDb;
 }
 
 /// Information about a progressive audio source to be communicated with the
@@ -1179,6 +1192,7 @@ class ProgressiveAudioSourceMessage extends UriAudioSourceMessage {
     required super.uri,
     super.headers,
     super.tag,
+    super.replayGainDb,
     this.options,
   });
   final ProgressiveAudioSourceOptionsMessage? options;
@@ -1189,6 +1203,7 @@ class ProgressiveAudioSourceMessage extends UriAudioSourceMessage {
         'id': id,
         'uri': uri,
         'headers': headers,
+        'replayGainDb': replayGainDb,
         'options': options?.toMap(),
       };
 }
@@ -1201,6 +1216,7 @@ class DashAudioSourceMessage extends UriAudioSourceMessage {
     required super.uri,
     super.headers,
     super.tag,
+    super.replayGainDb,
   });
 
   @override
@@ -1209,6 +1225,7 @@ class DashAudioSourceMessage extends UriAudioSourceMessage {
         'id': id,
         'uri': uri,
         'headers': headers,
+        'replayGainDb': replayGainDb,
       };
 }
 
@@ -1220,6 +1237,7 @@ class HlsAudioSourceMessage extends UriAudioSourceMessage {
     required super.uri,
     super.headers,
     super.tag,
+    super.replayGainDb,
   });
 
   @override
@@ -1228,6 +1246,7 @@ class HlsAudioSourceMessage extends UriAudioSourceMessage {
         'id': id,
         'uri': uri,
         'headers': headers,
+        'replayGainDb': replayGainDb,
       };
 }
 
