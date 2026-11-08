@@ -410,6 +410,16 @@ crosses 1.0 and shows in `boostClipSamples`.
   has no host test; the decision (`navis_boost_decide`) and the tap are tested on
   the host, the wiring on the simulator only (`ios_gapless_diagnostics.sh`,
   phase `boost`).
+- When the player duration is unknown (a stream or chunked transcode) the
+  guard uses the tag duration alone; a wrongly long tag then leaves the song
+  unguarded past its real end, and the next song's first ~0.5 s (the tap's
+  lead) can play at its boost until the `currentItem` observer starts the hold.
+- The harness `increase()` detects a counter restart only when a sample drops
+  below the last one.
+
+## Decisions (coordinator, 2026-11-08)
+
+Both open questions below were answered as recommended.
 
 ## Open questions
 
