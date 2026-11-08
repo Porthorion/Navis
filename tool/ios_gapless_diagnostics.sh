@@ -549,11 +549,6 @@ if s['on']['pitchResetCount'] != s['off']['pitchResetCount']: fail('the EQ toggl
     times="$(seek_to_audio_ms 1000 5000 2000 6000 3000 7000 4000 8000)"
     echo "seek to first audio at pitch +$st st (ms): $times" | tee -a "$SUMMARY"
   done
-  # 9. The speed and pitch panel with pitch +5 (app-owned screenshot; best effort).
-  adjust '{"pitchSemitones":5}'
-  api POST /v1/presentation/adjustments '{"open":true}' > "$OUTPUT_ROOT/pitch-panel-reveal.json" 2>&1 || true
-  sleep 2
-  api POST /v1/presentation/screenshot '{"label":"i21-pitch-panel"}' > "$OUTPUT_ROOT/pitch-panel-screenshot.json" 2>&1 || true
   adjust "$PITCH_ADJUST_RESET"
   api POST /v1/playback/pause '{}' >/dev/null || true
 }
