@@ -19,8 +19,6 @@ extern "C" {
 /// The last stretch of a song, in wall-clock ms, in which the pipeline may already
 /// hold its successor's samples (Dart's replayGainBoostGuardWindowMs).
 #define NAVIS_BOOST_GUARD_WINDOW_MS 3000
-/// A rise waits this long after the last item event (Dart's replayGainBoostRaiseAfter).
-#define NAVIS_BOOST_RAISE_AFTER_MS 500
 
 typedef struct {
     double ownDb;       // the playing song's boost; NaN or negative is 0

@@ -97,6 +97,7 @@ class EqualizerStateMessage {
     this.boostRequestedDb = 0,
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
+    this.boostGuarded = false,
     this.processedFrames,
     this.levelDeltaDb,
     this.resetCount,
@@ -128,11 +129,14 @@ class EqualizerStateMessage {
   final bool pending;
 
   /// The ReplayGain boost the app asked the processor for and the gain it
-  /// applies now (dB), and how many samples hit the 16-bit clamp while a
-  /// boost was on. Only the Android processor has a boost stage.
+  /// applies now (dB), and how many samples hit the 16-bit clamp (Android) or
+  /// went beyond full scale (iOS) while a boost was on. Only the Android
+  /// processor and the iOS tap have a boost stage. [boostGuarded] (iOS) says
+  /// the value is lowered for the song that follows.
   final double boostRequestedDb;
   final double boostAppliedDb;
   final int boostClipSamples;
+  final bool boostGuarded;
 
   /// Frames the backend's equalizer has processed since the player started
   /// (Darwin only; null elsewhere). Grows while audio plays.
@@ -205,6 +209,7 @@ class EqualizerStateMessage {
         boostRequestedDb: (map['boostRequestedDb'] as num?)?.toDouble() ?? 0,
         boostAppliedDb: (map['boostAppliedDb'] as num?)?.toDouble() ?? 0,
         boostClipSamples: (map['boostClipSamples'] as num?)?.toInt() ?? 0,
+        boostGuarded: map['boostGuarded'] as bool? ?? false,
         processedFrames: (map['processedFrames'] as num?)?.toInt(),
         levelDeltaDb: (map['levelDeltaDb'] as num?)?.toDouble(),
         resetCount: (map['resetCount'] as num?)?.toInt(),

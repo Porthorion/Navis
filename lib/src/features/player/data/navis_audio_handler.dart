@@ -828,6 +828,7 @@ class NavisAudioHandler extends BaseAudioHandler
     usesMpv: _usesMpv,
     isMacOS: !kIsWeb && Platform.isMacOS,
     androidProcessor: _usesAndroidNative && _equalizerPipelineEnabled,
+    iosTap: _usesIos && _equalizerPipelineEnabled,
   );
 
   @override

@@ -377,6 +377,7 @@ class EqApplicationState {
     this.boostRequestedDb = 0,
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
+    this.boostGuarded = false,
     this.processedFrames,
     this.levelDeltaDb,
     this.resetCount,
@@ -408,11 +409,13 @@ class EqApplicationState {
   final String? reason;
   final bool pending;
 
-  /// The native ReplayGain boost stage (Android): what it was asked for, what
-  /// it applies, and the samples it had to clamp.
+  /// The native ReplayGain boost stage (Android, iOS): what it was asked for,
+  /// what it applies, the samples it had to clamp (Android) or that went beyond
+  /// full scale (iOS), and whether the value is lowered for the next song.
   final double boostRequestedDb;
   final double boostAppliedDb;
   final int boostClipSamples;
+  final bool boostGuarded;
 
   /// Frames the native equalizer processed (iOS only), for diagnostics.
   final int? processedFrames;
@@ -478,6 +481,10 @@ class EqApplicationState {
     'headroomDb': headroomDb,
     'reason': reason,
     'pending': pending,
+    'boostRequestedDb': boostRequestedDb,
+    'boostAppliedDb': boostAppliedDb,
+    'boostGuarded': boostGuarded,
+    'boostClipSamples': boostClipSamples,
     'processedFrames': processedFrames,
     'levelDeltaDb': levelDeltaDb,
     'resetCount': resetCount,
