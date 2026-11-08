@@ -1,4 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
+import 'package:navis/src/utils/notifications/download_notifier.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/features/downloads/domain/download_failure_message.dart';
 import 'package:navis/src/utils/notifications/notification_localizations.dart';
@@ -37,5 +40,26 @@ void main() {
   test('unsupported locales fall back to English', () {
     final l10n = resolveNotificationLocalizations('xx');
     expect(l10n.localeName, 'en');
+  });
+
+  group('download notification channel follows Settings › Haptics', () {
+    tearDown(NavisHaptics.resetForTest);
+
+    test('vibrating channel while notification haptics are on', () {
+      expect(DownloadNotifier.channelId, 'downloads');
+    });
+
+    test('quiet channel when the Notifications category is off', () {
+      NavisHaptics.prefs = HapticsPrefs.fromColumns(
+        true,
+        HapticCategory.notifications.bit,
+      );
+      expect(DownloadNotifier.channelId, 'downloads_quiet');
+    });
+
+    test('quiet channel when the master is off', () {
+      NavisHaptics.prefs = const HapticsPrefs(enabled: false);
+      expect(DownloadNotifier.channelId, 'downloads_quiet');
+    });
   });
 }

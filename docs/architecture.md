@@ -1870,9 +1870,15 @@ reference feel for `tick` and `firm`, but check `NavisHaptics.allows` first.
 
 Every helper takes the `HapticCategory` of its call site as its first argument
 and plays only when Settings → Haptics allows it (phones and tablets; the page
-is hidden and its route redirects on desktop). Six categories, each with a
+is hidden and its route redirects on desktop). Each category has a
 stored bit: Player Gestures (1), Playback Buttons (2), Sliders & Rulers (4),
-Switches & Steppers (8), Lists & Menus (16), Likes & Alerts (32). The master
+Switches & Steppers (8), Lists & Menus (16), Likes & Alerts (32), Notifications
+(64). Notifications plays no haptic: Android fixes a channel's vibration once
+it exists, so `NotificationBootstrap` creates a vibration-free `downloads_quiet`
+twin of `downloads`, and `DownloadNotifier.channelId` posts progress, complete
+and failed notifications on it whenever `NavisHaptics.allows(notifications)` is
+false (master or category off). Library-scan and playback channels never
+vibrate. The master
 and the categories live in two `app_settings` columns added by schema 112
 (`from111To112`): `haptics_enabled` (default on) and `haptics_disabled` (mask of
 switched-off bits, default 0, so every profile starts with everything on and a
