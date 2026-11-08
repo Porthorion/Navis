@@ -57,9 +57,26 @@ that reason; it is not re-mixed, because that stalls playback. This was not
 tested with a real file. The tap runs before the player's own effects (speed,
 volume), so gapless advance and 1.5× speed use the same path; each crossfade
 deck owns its own equalizer instance and tap (a tap is never shared between two
-players). When playback stops, or the format changes, the audio machinery calls
-unprepare and the DSP stream is freed (the last state stays readable and edits
-apply on resume). The filter history is dropped on a seek or skip, which the
+players). `AVQueuePlayer` runs one audio pipeline per run of queued songs with
+the same source format (rate, channels, int or float samples, codec, bit depth)
+and prepares and unprepares the one shared tap for each of them, on other threads
+than the render thread, so the tap keeps one EQ stream and one pitch stage per
+audio format (`NavisTapFormats.c`, I25). Prepare adds the format's slot or
+reuses the one it has; unprepare frees nothing, so a pause, seek or song change
+never rebuilds a stage. Each block picks the slot of its channel count whose rate
+is nearest to the block's own (frames over the source-range duration, within 4 %
+or inside the rounding of the range's clock; when that admits several rates the
+slot that played the last block, then the slot of the latest prepare, wins); with
+only one slot that slot takes every block. A block with no usable rate (the first
+block of every pipeline) goes to the slot of the latest prepare, and a block no slot
+matches plays unchanged and is counted. Slots
+live until the player is disposed, up to 16 formats; a 17th format is started over
+(all slots freed) only when no pipeline is live, and otherwise that song plays
+unchanged with a `reason`. Edits and pitch reach every slot. Known limit: the
+pipeline switch itself leaves 0.4 to 0.9 s of silence at every change of source
+format (measured on the simulator, 0.43 to 0.47 s for rates, about 0.85 s for
+mono, stereo and float WAVs at one rate), with a tap installed or not; it is
+AVQueuePlayer's, not the tap's. The filter history is dropped on a seek or skip, which the
 player reports with a flush counter that the render thread compares at each
 block with audio (like Android's onFlush), and on the first block of a new
 stream. The source time range is not used: with a shared tap it re-bases
@@ -72,21 +89,32 @@ counts the histories dropped: 0 over steady playback and gapless song changes,
 and 0 or 1 per seek or skip. AVFoundation re-prepares the tap on a seek or
 skip (measured on every one); the new stream starts with an empty history and
 counts nothing, so the history is dropped either by a counted reset (the old
-stream saw the flush first) or by that re-prepare, never kept. The
+stream saw the flush first) or by that re-prepare, never kept. A re-prepare of a
+format the tap already holds (every pause, seek and skip) reuses its slot, and
+the StartOfStream of that pipeline resets it, counted, when its first audio
+arrives. The
 reported `reason` names why the current item is not processed: still attaching,
 the tap could not be created, an unsupported format, or an audio track that is
 not the one mixed.
 
 State adds iOS-only fields, surfaced in `/v1/equalizer` `application`:
-`processedFrames` (frames processed by this platform player, which grows while
+`sampleRate`, `levelDeltaDb` and the pitch fields describe the format that
+processed the last block of audio (the song playing, to about 0.1 s);
+`formatStreams` lists every format of the queue (`sampleRate`, `channels`,
+`processedFrames`, `levelDeltaDb`), and `unmatchedFrames` (audio no format took)
+and `overlapBlocks` (blocks passed dry because another render thread held their
+format) are 0 in a healthy run, as is `clampedUnprepares`, an unprepare that matched
+no live pipeline (`livePipelines`, `prepareCalls` and `unprepareCalls` give the
+balance; starting over at the format cap is only safe while it holds); `processedFrames` (frames processed by this
+platform player, summed over its formats, which grows while
 audio plays and restarts from zero when the app swaps decks or rebuilds the
 player) and `levelDeltaDb` (output minus input level in dB over about the last
 second of played audio, restarted when an edit takes effect; `null` before audio has played). The audio thread
 only accumulates sums of squares; the dB conversion runs on the main thread.
 Counters per native player (every queue replacement stops the player, which
 disposes the native player and its equalizer, so they cover the current queue):
-`tapPrepareCount` (1 per queue unless the audio format changes or the user seeks
-or skips), `flushCount` (seeks and skips noted since the player was created) and
+`tapPrepareCount` (audio pipelines prepared: 1 per queue of one source format,
+3 for 22.05, 48 and 96 kHz songs, plus one per pause, seek or skip), `flushCount` (seeks and skips noted since the player was created) and
 `transitionGapsMs`, the last 8 silences between songs measured on the player's
 own clock (about 0 when gapless; a seek, skip or load clears them; the meter
 runs only in builds that can run the diagnostics API, `diagnosticsBuildEnabled`,
@@ -100,7 +128,10 @@ busy; that is a clock reading, not an overlap in the audio (the transport trace
 intervals stay at the song length). `tool/ios_gapless_diagnostics.sh` plays the
 fixture queues and checks these values.
 The DSP is covered by `third_party/just_audio/darwin/test/navis_equalizer_dsp_test.c`,
-run from `tool/equalizer_native_test.sh` (it needs only a C compiler).
+run from `tool/equalizer_native_test.sh` (it needs only a C compiler), as are
+`navis_pitch_stage_test.c` and `navis_tap_formats_test.c` (the format slots with a
+fake pitch unit, including concurrent pipelines; under ThreadSanitizer too on
+macOS).
 
 The Android processor currently receives 16-bit PCM. Coefficients and filter
 history use doubles internally; this is not a bit-perfect high-resolution path.

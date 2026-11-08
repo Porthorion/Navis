@@ -23,6 +23,20 @@ void main() {
       pitchOutputHz: 587.5,
       pitchPullMismatches: 0,
       pitchReason: 'no pitch',
+      formatStreams: const [
+        {
+          'sampleRate': 22050,
+          'channels': 2,
+          'processedFrames': 88200,
+          'levelDeltaDb': -12.0,
+        },
+      ],
+      unmatchedFrames: 0,
+      overlapBlocks: 0,
+      livePipelines: 1,
+      prepareCalls: 3,
+      unprepareCalls: 2,
+      clampedUnprepares: 0,
     );
     final json = state.toDiagnosticsJson();
     expect(json['sampleRate'], 44100);
@@ -42,6 +56,20 @@ void main() {
     expect(json['pitchOutputHz'], 587.5);
     expect(json['pitchPullMismatches'], 0);
     expect(json['pitchReason'], 'no pitch');
+    expect(json['formatStreams'], [
+      {
+        'sampleRate': 22050,
+        'channels': 2,
+        'processedFrames': 88200,
+        'levelDeltaDb': -12.0,
+      },
+    ]);
+    expect(json['unmatchedFrames'], 0);
+    expect(json['overlapBlocks'], 0);
+    expect(json['livePipelines'], 1);
+    expect(json['prepareCalls'], 3);
+    expect(json['unprepareCalls'], 2);
+    expect(json['clampedUnprepares'], 0);
     expect(json['enabled'], state.applied.enabled);
     expect(json['configuration'], state.applied.toJson());
   });
@@ -67,6 +95,13 @@ void main() {
       'pitchOutputHz',
       'pitchPullMismatches',
       'pitchReason',
+      'formatStreams',
+      'unmatchedFrames',
+      'overlapBlocks',
+      'livePipelines',
+      'prepareCalls',
+      'unprepareCalls',
+      'clampedUnprepares',
     ]) {
       expect(json.containsKey(key), isTrue);
       expect(json[key], isNull);

@@ -4,7 +4,9 @@
 # (`transitionGapsMs`) and equalizer counters from GET /v1/equalizer, for proxied
 # streams and permanent downloads, with the equalizer off and on (-12 dB). It
 # also checks one tap prepare per queue, that seek and skip each reset the
-# filter history once, a mixed 22.05/48/96 kHz queue, a "play next"
+# filter history once, a mixed 22.05/48/96 kHz queue (phase `rates`: every song's
+# EQ runs at its own rate) and a same-rate queue of four source formats (phase
+# `formats`: mono/stereo, 16-bit/float; I25), a "play next"
 # insert in the middle of a song (no gap; the stall it causes is reported),
 # repeat one, the speed of
 # seeking to 0 after the queue ended, and (phase `crossfade`) that crossfade
@@ -16,7 +18,7 @@
 # seek to the first audio at pitch 0 and +5. Needs a booted iOS simulator; one heavy job (see
 # docs/development/development-workflow.md). Evidence: build/ios-gapless-diagnostics/<stamp>/.
 #
-#   GAPLESS_PHASES   space-separated subset of: main rates seek insert loop pitch crossfade (crossfade relaunches
+#   GAPLESS_PHASES   space-separated subset of: main rates formats seek insert loop pitch crossfade (crossfade relaunches
 #                    the app with crossfade on, so it stays last)
 #   GAP_TOLERANCE_MS largest accepted gap at a gapless transition (default 20)
 #   GAPLESS_REPEATS  runs of each main case (default 1); GAPLESS_KEEP_GOING=1
@@ -29,7 +31,7 @@ source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 DIAGNOSTICS_APP_NAME='Navis Gapless Diagnostics'
 DIAGNOSTICS_FAILURE_PREFIX='ios-gapless'
 DIAGNOSTICS_POLL_INTERVAL=0.5
-PHASES="${GAPLESS_PHASES:-main rates seek insert loop pitch crossfade}"
+PHASES="${GAPLESS_PHASES:-main rates formats seek insert loop pitch crossfade}"
 GAP_TOLERANCE_MS="${GAP_TOLERANCE_MS:-20}"
 REPEATS="${GAPLESS_REPEATS:-1}"
 OUTPUT_ROOT="${GAPLESS_OUTPUT:-$PROJECT_DIR/build/ios-gapless-diagnostics/$(date -u +%Y%m%dT%H%M%SZ)}"
@@ -50,6 +52,9 @@ trap cleanup_fixture_app EXIT INT TERM
 # Songs 1-4 are 22.05 kHz; 5 and 6 are 48 and 96 kHz (the mixed-rate queue).
 GAPLESS_SONGS='["fixture-song","fixture-song-2","fixture-song-3","fixture-song-4"]'
 RATE_SONGS='["fixture-song-4","fixture-song-5","fixture-song-6"]'
+# Songs 4, 14, 15, 3 are all 22.05 kHz but four different source formats: mono
+# 16-bit, stereo 16-bit, mono float, mono 16-bit again (see start_fixture).
+FORMAT_SONGS='["fixture-song-4","fixture-song-14","fixture-song-15","fixture-song-3"]'
 FRAMES_PER_SONG=88200
 
 sign_in() {
@@ -83,6 +88,10 @@ folder, tolerance, summary, label = sys.argv[1], float(sys.argv[2]), sys.argv[3]
 s = {os.path.basename(f)[:-5]: json.load(open(f))["application"] for f in glob.glob(folder + "/*.json")}
 problems = []
 def fail(message): problems.append(message)
+# Every phase: the tap's prepares and unprepares balance (starting over at the format cap
+# relies on it), so no unprepare ever found nothing to match.
+for name, a in sorted(s.items()):
+    if a.get("clampedUnprepares") != 0: fail("%s: clampedUnprepares %s" % (name, a.get("clampedUnprepares")))
 $body
 line = "%-34s %s" % (label, "FAIL: " + "; ".join(problems) if problems else "ok")
 open(summary, "a").write(line + "\n")
@@ -114,6 +123,9 @@ for g in gaps[-3:]:
     # A negative gap is the next song clock starting early, not silence. It shows up
     # now and then when the main thread is busy; report it, do not fail on it.
     if g < -tolerance: print("  note: transition clock %.1f ms early (overlap, not silence)" % -g)
+for name in ("at3", "at14", "at19"):
+    if round(s[name].get("sampleRate") or 0) != 22050: fail("%s: the EQ runs at %s Hz for a 22050 Hz song" % (name, s[name].get("sampleRate")))
+if s["at19"]["unmatchedFrames"] != 0: fail("%s frames matched no format" % s["at19"]["unmatchedFrames"])
 frames = s["at19"]["processedFrames"]
 if frames < 0.95 * 4 * %FRAMES%: fail("the tap processed %d frames, expected about %d" % (frames, 4 * %FRAMES%))
 if s["at19"]["resetCount"] != s["at3"]["resetCount"]: fail("resetCount moved %s -> %s during playback" % (s["at3"]["resetCount"], s["at19"]["resetCount"]))
@@ -137,23 +149,90 @@ run_main() {
   done
 }
 
+# play_each <label> <songs-json> <song-number...>: plays the queue with the EQ at -12 dB
+# and snapshots each song 1.5 s after it became the playing one (the start latency
+# and the format changes move the songs around, so no fixed times), then once more
+# when the queue has ended (`<label>/zend.json`).
+play_each() {
+  local label="$1" songs="$2"; shift 2
+  mkdir -p "$OUTPUT_ROOT/$label"
+  api POST /v1/playback/pause '{}' >/dev/null || true
+  set_eq on
+  sleep 1
+  api POST /v1/playback/queue "{\"songIds\":$songs}" > "$OUTPUT_ROOT/$label-queue.json"
+  local n=0 song last
+  for song in "$@"; do
+    n=$((n + 1)); last=$song
+    wait_for /v1/playback/status "v.get(\"songId\") == \"fixture-song-$song\" and v.get(\"playing\")" "$OUTPUT_ROOT/$label-status-$n.json" 40
+    sleep 1.5
+    snap "$OUTPUT_ROOT/$label/song$n-$song.json"
+  done
+  wait_for /v1/playback/status "v.get(\"songId\") == \"fixture-song-$last\" and v.get(\"playing\") is False" "$OUTPUT_ROOT/$label-status-final.json" 20
+  snap "$OUTPUT_ROOT/$label/zend.json"
+}
+
 run_rates() {
-  play_queue rates "$RATE_SONGS" on 3 7 11 15
-  wait_for /v1/playback/status 'v.get("songId") == "fixture-song-6" and v.get("playing") is False' "$OUTPUT_ROOT/rates-status-final.json" 20
+  play_each rates "$RATE_SONGS" 4 5 6
   check rates '
-# AVFoundation picks the format the tap sees (it may resample to the faster
-# neighbour), so only require that it is never below the song rate, that the
-# equalizer applies at every rate, and that each format change re-prepares.
-for name, rate in (("at3", 22050), ("at7", 48000), ("at11", 96000)):
+# AVQueuePlayer runs one audio pipeline per source format and prepares the shared
+# tap for each, so the tap keeps one EQ stream per format: every song runs at its
+# own rate, is processed at -12 dB, and nothing is left unmatched.
+for name, rate in (("song1-4", 22050), ("song2-5", 48000), ("song3-6", 96000)):
     seen = round(s[name].get("sampleRate") or 0)
-    if seen < rate: fail("%s: the tap runs at %d Hz for a %d Hz song" % (name, seen, rate))
+    if seen != rate: fail("%s: the EQ runs at %d Hz for a %d Hz song" % (name, seen, rate))
     level = s[name].get("levelDeltaDb")
     if level is None or abs(level + 12) > 0.6: fail("%s: levelDeltaDb %s" % (name, level))
-if s["at15"]["processedFrames"] < 0.9 * 3 * 4 * 22050: fail("the tap processed only %d frames" % s["at15"]["processedFrames"])
-gaps = s["at15"].get("transitionGapsMs") or []
+end = s["zend"]
+streams = {round(f["sampleRate"]): f for f in end.get("formatStreams") or []}
+if sorted(streams) != [22050, 48000, 96000]: fail("formatStreams hold rates %s" % sorted(streams))
+for rate, f in streams.items():
+    if f["processedFrames"] < 0.9 * 4 * rate: fail("%d Hz: %d frames processed, expected about %d" % (rate, f["processedFrames"], 4 * rate))
+    if f["levelDeltaDb"] is None or abs(f["levelDeltaDb"] + 12) > 0.6: fail("%d Hz: levelDeltaDb %s" % (rate, f["levelDeltaDb"]))
+if end["unmatchedFrames"] != 0: fail("%s frames matched no format" % end["unmatchedFrames"])
+if end["overlapBlocks"] != 0: fail("%s blocks overlapped on one format" % end["overlapBlocks"])
+if end["tapPrepareCount"] != 3: fail("%s tap prepares for three formats" % end["tapPrepareCount"])
+gaps = end.get("transitionGapsMs") or []
 if any(g > 1500 for g in gaps): fail("a format change took %s ms" % gaps)
-print("  prepares=%s rates=%s format-change gaps (not gapless by design): %s" % (
-    s["at15"]["tapPrepareCount"], [s[n].get("sampleRate") for n in ("at3", "at7", "at11")], gaps))
+print("  prepares=%s rates=%s frames=%s unmatched=%s overlap=%s format-change gaps (not gapless by design): %s" % (
+    end["tapPrepareCount"], [s[n].get("sampleRate") for n in ("song1-4", "song2-5", "song3-6")],
+    {r: f["processedFrames"] for r, f in sorted(streams.items())}, end["unmatchedFrames"], end["overlapBlocks"], gaps))
+'
+}
+
+# Four source formats at one rate (I25): mono 16-bit, stereo 16-bit, mono float,
+# mono 16-bit. The last step is a same-key transition across two pipelines.
+run_formats() {
+  play_each formats "$FORMAT_SONGS" 4 14 15 3
+  check formats '
+for name in ("song1-4", "song2-14", "song3-15", "song4-3"):
+    a = s[name]
+    if round(a.get("sampleRate") or 0) != 22050: fail("%s: the EQ runs at %s Hz" % (name, a.get("sampleRate")))
+    level = a.get("levelDeltaDb")
+    if level is None or abs(level + 12) > 0.6: fail("%s: levelDeltaDb %s" % (name, level))
+# Each song is sampled 1.5 s into it. The slot of its channel count (mono 16-bit, stereo 16-bit,
+# mono float, mono 16-bit) must have grown by about that much since the previous sample; the
+# previous song had the other channel count, or ended in the part of its slot that is counted before.
+def frames_by_format(a): return {(round(f["sampleRate"]), f["channels"]): f["processedFrames"] for f in a.get("formatStreams") or []}
+previous = {}
+for name, channels in (("song1-4", 1), ("song2-14", 2), ("song3-15", 1), ("song4-3", 1)):
+    now = frames_by_format(s[name])
+    key = (22050, channels)
+    grown = now.get(key, 0) - previous.get(key, 0)
+    if grown < 0.9 * 1.5 * 22050: fail("%s: the %s slot processed %d frames since the last sample, expected about %d" % (name, key, grown, 1.5 * 22050))
+    previous = now
+end = s["zend"]
+streams = {(round(f["sampleRate"]), f["channels"]): f for f in end.get("formatStreams") or []}
+if sorted(streams) != [(22050, 1), (22050, 2)]: fail("formatStreams hold %s, expected mono and stereo at 22050" % sorted(streams))
+for key, f in streams.items():
+    if f["processedFrames"] <= 0: fail("%s processed no frames" % (key,))
+    if f["levelDeltaDb"] is None or abs(f["levelDeltaDb"] + 12) > 0.6: fail("%s: levelDeltaDb %s" % (key, f["levelDeltaDb"]))
+if end["processedFrames"] < 0.9 * 4 * 88200: fail("the tap processed %d frames, expected about %d" % (end["processedFrames"], 4 * 88200))
+if end["unmatchedFrames"] != 0: fail("%s frames matched no format" % end["unmatchedFrames"])
+if end["overlapBlocks"] != 0: fail("%s blocks overlapped on one format" % end["overlapBlocks"])
+gaps = end.get("transitionGapsMs") or []
+if any(g > 1500 for g in gaps): fail("a format change took %s ms" % gaps)
+print("  prepares=%s streams=%s frames=%s unmatched=%s overlap=%s gaps=%s" % (
+    end["tapPrepareCount"], sorted(streams), end["processedFrames"], end["unmatchedFrames"], end["overlapBlocks"], gaps))
 '
 }
 
@@ -276,9 +355,8 @@ print("  repeat one: gaps=%s prepares=%s" % (gaps, s["at15"]["tapPrepareCount"])
 
 # Fixture songs of this phase (see start_fixture below): 12 s sines at 44.1, 48 and
 # 96 kHz (songs 7 to 9), a 6 s filler of the same rate after each (11, 10, 13: the
-# queue API needs two songs, and a neighbour of another rate makes AVFoundation
-# re-prepare the shared tap early) and a 440 -> 660 Hz pair of 6 s songs at
-# 44.1 kHz (11, 12).
+# queue API needs two songs) and a 440 -> 660 Hz pair of 6 s songs at 44.1 kHz
+# (11, 12).
 PITCH_ADJUST_RESET='{"speed":1,"lockPitchToSpeed":false,"pitchSemitones":0}'
 
 # adjust <json>: speed/pitch through the same API the settings panel uses.
@@ -398,6 +476,7 @@ if a['pitchCents'] != round(100 * $st): fail('pitchCents %s for $st semitones' %
 if a['pitchActive'] != ($st != 0): fail('pitchActive %s at $st semitones' % a['pitchActive'])
 if a['pitchLatencyFrames'] != $latency: fail('latency %s frames, expected $latency' % a['pitchLatencyFrames'])
 if round(a.get('sampleRate') or 0) != $rate: fail('the tap runs at %s Hz, expected $rate' % a.get('sampleRate'))
+if a['unmatchedFrames'] != 0: fail('%s frames matched no format' % a['unmatchedFrames'])
 if $st == 0 and abs(a['levelDeltaDb'] or 0) > 0.6: fail('levelDeltaDb %s at pitch 0' % a['levelDeltaDb'])
 print('  %s st: out/in %.4f cents %d latency %d resets %d' % ($st, a['pitchOutputHz'] / a['pitchInputHz'], a['pitchCents'], a['pitchLatencyFrames'], a['pitchResetCount']))
 "
@@ -423,6 +502,9 @@ $PITCH_RATIO_CHECK
 r = 2 ** ($st / 12.0)
 ratio('first', r, 440)
 ratio('second', r, 660)
+for k in ('first', 'second'):
+    if round(s[k].get('sampleRate') or 0) != 44100: fail('%s: the tap runs at %s Hz, expected 44100' % (k, s[k].get('sampleRate')))
+    if s[k]['unmatchedFrames'] != 0: fail('%s: %s frames matched no format' % (k, s[k]['unmatchedFrames']))
 gaps = s['second'].get('transitionGapsMs') or []
 if not gaps: fail('no transition gap measured')
 if gaps[-1] > tolerance: fail('silence of %.1f ms at the song change' % gaps[-1])
@@ -457,16 +539,18 @@ n = [s[k]['pitchResetCount'] for k in ('a-playing', 'b-paused', 'c-resumed', 'd-
 got = [n[i + 1] - n[i] for i in range(4)]
 p = [s[k]['tapPrepareCount'] for k in ('a-playing', 'b-paused', 'c-resumed', 'd-seeked', 'e-skipped')]
 prep = [p[i + 1] - p[i] for i in range(4)]
-# The stage resets when the stream it rides on sees the flush with audio; a seek or skip
-# usually re-prepares the tap first (a new stage with an empty buffer: nothing to reset),
-# so each is one reset or one new prepare, as for the equalizer. Pause and resume reset
-# nothing, and resume prepares nothing. A pause may re-prepare the tap (AVFoundation does
-# it on dev too, measured with the pre-I21 build: +1 per pause), which is reported, not
-# failed: a new stage has nothing to reset.
-if got[0] != 0 or got[1] != 0 or prep[1] != 0: fail('pause or resume moved pitchResetCount %s or resume moved tapPrepareCount %s (counts %s, prepares %s)' % (got[:2], prep[1], n, p))
+# AVFoundation re-prepares the tap for a pause (+1 on dev too), a seek and a skip. Format slots
+# live until the tap does (I25), so the pipeline that starts afterwards reuses its slot and its
+# StartOfStream resets that stage once when its first audio arrives (a new stage had nothing to
+# reset and counted nothing): a pause moves pitchResetCount by 0, the resume after it by at most
+# the number of pipelines the pause re-prepared (and prepares nothing), and a seek or skip by at
+# most 2 (its flush, then the StartOfStream of the re-prepared pipeline), with a re-prepare or a
+# reset at least.
+if got[0] != 0 or got[1] > prep[0] or prep[1] != 0: fail('pause or resume moved pitchResetCount %s or resume moved tapPrepareCount %s (counts %s, prepares %s)' % (got[:2], prep[1], n, p))
 for name, i in (('seek', 2), ('skip', 3)):
-    if got[i] > 1 or got[i] + prep[i] < 1: fail('a %s moved pitchResetCount by %d and tapPrepareCount by %d' % (name, got[i], prep[i]))
+    if got[i] > 2 or got[i] + prep[i] < 1: fail('a %s moved pitchResetCount by %d and tapPrepareCount by %d' % (name, got[i], prep[i]))
 ratio('e-skipped', 2 ** (5 / 12.0), 440)
+if round(s['e-skipped'].get('sampleRate') or 0) != 44100 or s['e-skipped']['unmatchedFrames'] != 0: fail('e-skipped: rate %s Hz, %s frames matched no format' % (s['e-skipped'].get('sampleRate'), s['e-skipped']['unmatchedFrames']))
 print('  pitchResetCount %s tapPrepareCount %s (steps: pause, resume, seek, skip)' % (n, p))
 "
   # 4. Speed 1.5 x pitch +5: the tap pitches the source, AVPlayer plays it 1.5x faster.
@@ -621,8 +705,9 @@ if (s["at-song4"].get("processedFrames") or 0) <= 0: fail("the equalizer process
 }
 
 : > "$SUMMARY"
-start_fixture 'navis-gapless-fixture' --scenario downloads --song-count 13 \
+start_fixture 'navis-gapless-fixture' --scenario downloads --song-count 15 \
   --song-rate fixture-song-5=48000 --song-rate fixture-song-6=96000 \
+  --song-wav fixture-song-14=2:16 --song-wav fixture-song-15=1:32 \
   --song-tone fixture-song-7=440:44100:12 --song-tone fixture-song-8=440:48000:12 \
   --song-tone fixture-song-9=440:96000:12 --song-tone fixture-song-10=440:48000:6 \
   --song-tone fixture-song-11=440:44100:6 --song-tone fixture-song-12=660:44100:6 \
@@ -637,6 +722,7 @@ for phase in $PHASES; do
       wait_for /v1/downloads/status 'sum(1 for d in v["permanentDownloads"] if d["songId"].startswith("fixture-song")) >= 6 and sum(v["queue"].values()) == 0' "$OUTPUT_ROOT/download-status.json" 180
       run_main download ;;
     rates) run_rates ;;
+    formats) run_formats ;;
     seek) run_seek ;;
     insert) run_insert ;;
     loop) run_loop ;;

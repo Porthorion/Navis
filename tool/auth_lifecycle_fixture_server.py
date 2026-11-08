@@ -14,21 +14,29 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 
-def _wav_bytes(seconds=4, rate=22050, hz=440) -> bytes:
+def _wav_bytes(seconds=4, rate=22050, hz=440, channels=1, bits=16) -> bytes:
     """Four seconds of 440 Hz (1760 whole cycles, so consecutive songs join
     phase-continuously) at the given sample rate. A song that lasts a whole
     number of seconds at a whole number of hertz ends on a zero crossing, so a
-    tone of another frequency can follow it without a step."""
+    tone of another frequency can follow it without a step. `bits` 32 makes a
+    float WAV (format tag 3, which the wave module cannot write); every channel
+    carries the same tone."""
+    amplitude = 5000 / 32768
+    samples = [amplitude * math.sin(2 * math.pi * hz * index / rate) for index in range(rate * seconds)]
+    if bits == 32:
+        data = b"".join(struct.pack("<f", value) * channels for value in samples)
+        header = (
+            b"RIFF" + struct.pack("<I", 36 + len(data)) + b"WAVEfmt "
+            + struct.pack("<IHHIIHH", 16, 3, channels, rate, rate * channels * 4, channels * 4, 32)
+            + b"data" + struct.pack("<I", len(data))
+        )
+        return header + data
     output = io.BytesIO()
     with wave.open(output, "wb") as wav:
-        wav.setnchannels(1)
+        wav.setnchannels(channels)
         wav.setsampwidth(2)
         wav.setframerate(rate)
-        frames = bytearray()
-        for index in range(rate * seconds):
-            sample = int(5000 * math.sin(2 * math.pi * hz * index / rate))
-            frames.extend(struct.pack("<h", sample))
-        wav.writeframes(frames)
+        wav.writeframes(b"".join(struct.pack("<h", int(value * 32768)) * channels for value in samples))
     return output.getvalue()
 
 
@@ -677,6 +685,15 @@ def main():
         "default 22050; length SECONDS, default 4).",
     )
     parser.add_argument(
+        "--song-wav",
+        action="append",
+        default=[],
+        metavar="SONG_ID=CHANNELS:BITS",
+        help="Serve this downloads-mode song as a 4 s, 22.05 kHz, 440 Hz WAV with "
+        "this many channels and BITS 16 (integer) or 32 (float): another source "
+        "format for AVQueuePlayer.",
+    )
+    parser.add_argument(
         "--media-seconds",
         type=float,
         default=0.0,
@@ -743,6 +760,10 @@ def main():
         hz, rate, seconds = parts[0], (parts[1:2] or ["22050"])[0], (parts[2:3] or ["4"])[0]
         SONG_AUDIO[song_id] = _wav_bytes(seconds=int(seconds), rate=int(rate), hz=int(hz))
         SONG_SECONDS[song_id] = int(seconds)
+    for entry in args.song_wav:
+        song_id, _, spec = entry.partition("=")
+        channels, _, bits = spec.partition(":")
+        SONG_AUDIO[song_id] = _wav_bytes(channels=int(channels), bits=int(bits))
     if args.scenario == "downloads":
         _configure_downloads_fixture(
             max(1, args.song_count), distinct_covers=args.distinct_covers
