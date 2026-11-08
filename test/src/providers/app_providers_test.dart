@@ -81,6 +81,8 @@ class _FakePlaybackHandler extends InertPlaybackHandler {
   final List<bool> replaceQueueExpandFlags = <bool>[];
   final List<double> volumeCalls = <double>[];
   int resetSessionCalls = 0;
+  final List<void Function()> runtimeSettingsObservers = <void Function()>[];
+  int applyRuntimeSettingsCalls = 0;
   double volume = 1;
   PlaybackSnapshot _snapshot = const PlaybackSnapshot.idle();
   PlaybackBufferState _bufferState = const PlaybackBufferState.idle();
@@ -121,6 +123,14 @@ class _FakePlaybackHandler extends InertPlaybackHandler {
   Future<void> clearQueue() async {
     _snapshot = const PlaybackSnapshot.idle();
     _controller.add(_snapshot);
+  }
+
+  @override
+  Future<void> applyRuntimeSettings() async {
+    applyRuntimeSettingsCalls++;
+    for (final observer in runtimeSettingsObservers) {
+      observer();
+    }
   }
 
   @override
@@ -3083,6 +3093,108 @@ void main() {
       expect(seen.length, 3);
       expect(seen[0], const IntegrationPolicy.denyAll());
       expect(seen[2].allows(IntegrationFeature.radioNowPlaying), isFalse);
+    });
+  });
+
+  group('audio handler runtime settings', () {
+    late NavisDatabase database;
+    late SettingsRepository settings;
+
+    setUp(() async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      database = createTestDatabase();
+      settings = SettingsRepository(database.appSettingsDao);
+      await settings.saveSettings(
+        const AppSettingsModel.defaults().copyWith(crossfadeEnabled: true),
+      );
+    });
+    tearDown(() => database.close());
+
+    Future<ProviderContainer> start(NavisPlaybackHandler? handler) async {
+      final container = ProviderContainer(
+        overrides: [
+          navisDatabaseProvider.overrideWithValue(database),
+          audioHandlerProvider.overrideWithValue(handler),
+          connectivityProvider.overrideWith((_) => const Stream.empty()),
+        ],
+      );
+      addTearDown(container.dispose);
+      container.listen(appSettingsProvider, (_, _) {});
+      await container.read(appSettingsProvider.future);
+      container.read(audioHandlerInitializerProvider);
+      await pumpEventQueue();
+      return container;
+    }
+
+    test(
+      're-applies once the settings stream emits a handler setting',
+      () async {
+        final handler = _FakePlaybackHandler();
+        addTearDown(handler.dispose);
+        final container = await start(handler);
+        final seen = <bool?>[];
+        handler.runtimeSettingsObservers.add(
+          () => seen.add(
+            container.read(appSettingsProvider).asData?.value.crossfadeEnabled,
+          ),
+        );
+
+        await settings.saveSettings(
+          const AppSettingsModel.defaults().copyWith(crossfadeEnabled: false),
+        );
+        await pumpEventQueue();
+
+        expect(seen, <bool?>[false]);
+      },
+    );
+
+    test('two quick toggles end on the last value', () async {
+      final handler = _FakePlaybackHandler();
+      addTearDown(handler.dispose);
+      final container = await start(handler);
+      final seen = <bool?>[];
+      handler.runtimeSettingsObservers.add(
+        () => seen.add(
+          container.read(appSettingsProvider).asData?.value.crossfadeEnabled,
+        ),
+      );
+
+      await Future.wait([
+        for (final enabled in [false, true, false])
+          settings.saveSettings(
+            const AppSettingsModel.defaults().copyWith(
+              crossfadeEnabled: enabled,
+            ),
+          ),
+      ]);
+      await pumpEventQueue();
+
+      expect(seen, isNotEmpty);
+      expect(seen.last, isFalse);
+    });
+
+    test('a desktop volume save does not re-apply', () async {
+      final handler = _FakePlaybackHandler();
+      addTearDown(handler.dispose);
+      await start(handler);
+      final before = handler.applyRuntimeSettingsCalls;
+
+      await settings.saveDesktopPlaybackVolume(
+        volume: 0.4,
+        lastAudibleVolume: 0.4,
+      );
+      await pumpEventQueue();
+
+      expect(handler.applyRuntimeSettingsCalls, before);
+    });
+
+    test('a settings change before the handler exists is ignored', () async {
+      await start(null);
+
+      await settings.saveSettings(
+        const AppSettingsModel.defaults().copyWith(crossfadeEnabled: false),
+      );
+      await pumpEventQueue();
     });
   });
 

@@ -24,3 +24,6 @@ reads as "no boost stage here".
 `SetReplayGainBoostRequest.index` is the queue index the boost was computed for;
 a backend that knows which song it plays ignores a non-zero value for another
 index.
+
+`EqualizerStateMessage` also carries the optional Darwin-only `processedFrames`
+and `levelDeltaDb` diagnostics.

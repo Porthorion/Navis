@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:logger/logger.dart';
+import 'package:navis/src/utils/diagnostics_build_gate.dart';
 import 'package:navis/src/utils/startup_timeline.dart';
 
 import 'package:flutter/foundation.dart';
@@ -46,7 +47,7 @@ class AppLogger {
 
   /// Logs a standard informational message.
   static void info(String message) {
-    if (kProfileMode &&
+    if (diagnosticsBuildEnabled &&
         const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
         message.startsWith('Audio bootstrap')) {
       debugPrint(message);

@@ -34,6 +34,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
     final generation = ++_loadGeneration;
     _activeLoadGeneration = generation;
+    _loadedSourceApplied = false;
+    _failedAfterApply = false;
     _isLoading = isLoading;
     _loadingSongId = isLoading ? loadingSongId : null;
     if (isLoading && loadingSongId != null) {
@@ -192,6 +194,21 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
     _emitSnapshot();
     _continueIntoDeferredTail();
+    // The native player can report a source failure after its load returned
+    // but before this load ends (libmpv opens a file after `open` returns, so
+    // a 404 lands after the first ready). Recovery ignores a song that is
+    // still loading and a failed load throws instead, so only this gap is
+    // left unhandled: without this the song stays idle yet playing.
+    final failedAfterApply = _failedAfterApply;
+    _loadedSourceApplied = false;
+    _failedAfterApply = false;
+    if (!failed && failedAfterApply && _remoteSourceFailed) {
+      unawaited(
+        _recoverCurrentSongFromRemotePlaybackFailure(
+          reason: 'failed while loading',
+        ),
+      );
+    }
   }
 
   void _reportDroppedSongs(List<String> songIds, QueueDropReason reason) {
@@ -994,6 +1011,22 @@ extension _NavisQueueLoading on NavisAudioHandler {
     }
   }
 
+  /// The song phase 1 loads together with the start song, or null: only on
+  /// iOS, when a song follows and phase 2 will hand the native player at least
+  /// that one (it fills the window after the start song).
+  SongsTableData? _gaplessNextSong(
+    List<SongsTableData> songs,
+    int startIndex,
+  ) => _isIosRuntime && _queueWindow.ahead > 0 && startIndex + 1 < songs.length
+      ? songs[startIndex + 1]
+      : null;
+
+  /// Drops a prepared item that was never handed to the player.
+  void _disposeUnattached(_PreparedQueueItem? item) {
+    // ignore: experimental_member_use, reason: Drop an adopted response before native attachment.
+    if (item?.audioSource case final StreamAudioSource source) source.dispose();
+  }
+
   /// Phase 1 of two-phase queue replacement: resolve *only* the target song,
   /// set a single audio source on the player, and start playback immediately.
   /// Returns the list of all songs (for Phase 2) and the prepared start item.
@@ -1046,6 +1079,17 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _emitSnapshot();
     final startupTrace = _activeStartupTrace;
     startupTrace?.markOnce('selectedSourcePreparationStart');
+
+    // On iOS a queue that starts with a single native item cannot be joined
+    // gaplessly to the song added after it, so the next song is resolved with
+    // the start song and loaded with it. A failure just leaves one source.
+    final nextSong = _gaplessNextSong(songs, clampedIndex);
+    final nextFuture = nextSong == null
+        ? null
+        : _prepareSingleItemForQueueFill(nextSong).then<_PreparedQueueItem?>(
+            (item) => item,
+            onError: (Object _) => null,
+          );
 
     // Resolve the target song's playback source.
     _PreparedQueueItem startItem;
@@ -1135,12 +1179,34 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _checkQueueWorkCurrent(token, generation);
     await _clearDeferredTail();
     _checkQueueWorkCurrent(token, generation);
+    // A slow resolve of the next song must not delay this one: past the bound
+    // the queue starts with one source and phase 2 appends the next song.
+    var nextItem = nextFuture == null
+        ? null
+        : await nextFuture.timeout(
+            _timeouts.nextSongPreload,
+            onTimeout: () {
+              // It finishes later and nothing will attach it.
+              unawaited(nextFuture.then(_disposeUnattached));
+              return null;
+            },
+          );
+    if (nextItem != null) {
+      _shareLockCacheSources(<_PreparedQueueItem>[
+        startItem,
+        nextItem,
+      ], replacesQueue: true);
+    }
+    _checkQueueWorkCurrent(token, generation);
     // Native index 0 must resolve to the selected occurrence as soon as
     // setAudioSources starts emitting events, including single-song loads.
     _restoredQueueIndex = null;
+    // The queue lists every source the player is given, the preloaded next
+    // song included, so an advance to it before phase 2 finishes resolves.
     _queueItems
       ..clear()
-      ..add(startItem.mediaItem);
+      ..add(startItem.mediaItem)
+      ..addAll([?nextItem?.mediaItem]);
     _setQueueReplacementMetadataAnchor(
       expectedIndex: clampedIndex,
       mediaItem: startItem.mediaItem,
@@ -1150,7 +1216,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
     startupTrace?.mark('selectedSourceApplyStart');
     try {
       await _setAudioSourcesWithFallback(
-        audioSources: <AudioSource>[startItem.audioSource],
+        audioSources: <AudioSource>[
+          startItem.audioSource,
+          if (nextItem != null) nextItem.audioSource,
+        ],
         preload: true,
         initialIndex: 0,
         initialPosition: initialPosition,
@@ -1161,6 +1230,13 @@ extension _NavisQueueLoading on NavisAudioHandler {
     } on OperationCancelledException {
       rethrow;
     } on Object catch (error, stackTrace) {
+      // The retired player disposes the next source with the start source, and
+      // the queue lists only what is left to load: a rethrow below must not
+      // leave [start, next] behind while the player holds neither.
+      nextItem = null;
+      _queueItems
+        ..clear()
+        ..add(startItem.mediaItem);
       _checkQueueWorkCurrent(token, generation);
       final seek = _pendingSeek;
       final retryColdSeek =
@@ -1231,6 +1307,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
 
     queue.add(List<MediaItem>.unmodifiable(_queueItems));
     _setCurrentMediaItem(startItem.mediaItem);
+    startItem.gaplessNext = nextItem;
 
     if (!holdPlayback &&
         (_latestExplicitTransportPlaying == true ||
@@ -1240,7 +1317,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       await _player.pause();
     }
 
-    _observeLockCacheForPrepared([startItem]);
+    _observeLockCacheForPrepared([startItem, ?nextItem]);
 
     _broadcastPlaybackState();
     _emitSnapshot();
@@ -1428,6 +1505,8 @@ extension _NavisQueueLoading on NavisAudioHandler {
   }) async {
     // A new load replaces the failed source, even one left unprepared.
     _loadedSourceFailed = false;
+    _loadedSourceApplied = false;
+    _failedAfterApply = false;
     const operations = <String>[
       'active queue apply',
       'active queue apply retry',
@@ -1487,6 +1566,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
       }
     }
     token?.checkCancelled();
+    _loadedSourceApplied = true;
     await _restoreActivePlayerVolume();
   }
 

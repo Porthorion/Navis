@@ -25,15 +25,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  tooling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # the base-without-harness self-check walks to the repository's root commit
+      # The system Python on ubuntu-24.04 is externally managed (PEP 668): pip install is refused.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends python3-numpy
+      - run: python3 tool/playback_harness_test.py
+      - run: python3 tool/validation_gate_test.py
+      - run: for script in tool/*.sh tool/lib/*.sh; do bash -n "$script"; done
+
   # Format, committed generated code, analyze and dead-code gate.
   static:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # 3.47.5 is the minimum and active 3.47.x baseline in tool/bootstrap.sh.
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           flutter-version: 3.47.5
@@ -61,9 +74,9 @@ jobs:
       matrix:
         shard: [0, 1, 2, 3]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
         with:
           channel: stable
           flutter-version: 3.47.5
@@ -104,10 +117,27 @@ jobs:
       - run: ./tool/android_repeat_runner_test.sh
       - run: ./tool/android_repeat_native_test.sh
 
+  # Proves the iOS project compiles (Swift plugins, the vendored just_audio
+  # Darwin code and the equalizer tap). The simulator slice needs no signing
+  # and is what the simulator runtime loop uses; the repository is public, so
+  # macOS minutes are free. No CocoaPods: the iOS project uses SwiftPM only.
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+      - run: ./tool/bootstrap.sh
+      - run: flutter build ios --simulator --debug
+
   # One stable name to require in branch protection.
   ci:
-    needs: [static, test, native]
+    needs: [static, test, tooling, native, ios]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success && test "${{ needs.native.result }}" = success
+      - run: test "${{ needs.static.result }}" = success && test "${{ needs.test.result }}" = success && test "${{ needs.tooling.result }}" = success && test "${{ needs.native.result }}" = success && test "${{ needs.ios.result }}" = success

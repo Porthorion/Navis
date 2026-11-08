@@ -61,6 +61,7 @@ class UpdateRepository {
     UpdateCheckStore? updateCheckStore,
     this.signingPublicKey = AppConstants.updateSigningPublicKey,
     bool? isIOS,
+    bool? iosSideload,
     bool? isAndroid,
     UpdateInstallMode Function()? installModeDetector,
     String Function()? linuxDebArch,
@@ -69,6 +70,7 @@ class UpdateRepository {
        _installSourceService = installSourceService ?? InstallSourceService(),
        _updateCheckStore = updateCheckStore ?? UpdateCheckStore(),
        _isIOS = isIOS ?? Platform.isIOS,
+       _iosSideload = iosSideload ?? AppConstants.iosSideload,
        _isAndroid = isAndroid ?? Platform.isAndroid,
        _installModeDetector = installModeDetector ?? detectInstallMode,
        _debArch = linuxDebArch ?? _linuxDebArch,
@@ -80,6 +82,7 @@ class UpdateRepository {
   final UpdateCheckStore _updateCheckStore;
   final String signingPublicKey;
   final bool _isIOS;
+  final bool _iosSideload;
   final bool _isAndroid;
   final UpdateInstallMode Function() _installModeDetector;
   final String Function() _debArch;
@@ -111,7 +114,8 @@ class UpdateRepository {
     String? updateChannel,
     bool forceCheck = false,
   }) async {
-    if (_isIOS) return null;
+    // Only the sideload build checks; App Store and TestFlight builds never do.
+    if (_isIOS && !_iosSideload) return null;
     final channel = channelFor(updateChannel);
     final effectiveSource = source.effectiveFor(channel);
     final identity = '$channel/${effectiveSource.name}';
@@ -272,14 +276,16 @@ class UpdateRepository {
           ? await _installSourceService.getInstallSource()
           : null;
       final mode = _installModeDetector();
-      assetKey = switch (mode) {
-        UpdateInstallMode.linuxDeb => 'linuxDeb-${_debArch()}',
-        UpdateInstallMode.linuxRpm => 'linuxRpm-${_rpmArch()}',
-        UpdateInstallMode.linuxPackageManaged => 'linuxPortable',
-        _ => mode.name,
-      };
+      assetKey = _isIOS
+          ? 'iosSideload'
+          : switch (mode) {
+              UpdateInstallMode.linuxDeb => 'linuxDeb-${_debArch()}',
+              UpdateInstallMode.linuxRpm => 'linuxRpm-${_rpmArch()}',
+              UpdateInstallMode.linuxPackageManaged => 'linuxPortable',
+              _ => mode.name,
+            };
       final assets = payload['assets'];
-      if (mode == UpdateInstallMode.androidApk && assets is Map) {
+      if (!_isIOS && mode == UpdateInstallMode.androidApk && assets is Map) {
         final abi = installSource?.primaryAbi;
         if (const {'arm64-v8a', 'armeabi-v7a', 'x86_64'}.contains(abi)) {
           final splitKey = 'androidApk-$abi';
@@ -314,16 +320,27 @@ class UpdateRepository {
         isAndroid: _isAndroid,
         selfUpdateBuildEnabled: selfUpdateBuildEnabled,
         installerPackage: installSource?.installerPackage,
+        isIOS: _isIOS,
       );
-      final storeRedirect = delivery == UpdateDelivery.storeRedirect;
+      // Store and release-page updates carry no download to verify.
+      final linkOnly =
+          delivery == UpdateDelivery.storeRedirect ||
+          delivery == UpdateDelivery.releasePage;
       final notesUrl = payload['notes_url'];
       final notesUri = notesUrl is String ? Uri.tryParse(notesUrl) : null;
-      final htmlUrl =
+      final signedNotesUrl =
           notesUri?.scheme == 'https' &&
               notesUri?.host == 'navis.porthorion.com' &&
               notesUri?.userInfo == ''
           ? notesUrl! as String
-          : AppConstants.updateManualDownloadUrl;
+          : null;
+      // The sideload notice prefers the signed release-notes page. The GitHub
+      // tag page is the fallback: it can 404 on an R2-only publish.
+      final htmlUrl =
+          signedNotesUrl ??
+          (delivery == UpdateDelivery.releasePage
+              ? '${AppConstants.githubReleasesBaseUrl}/tag/${Uri.encodeComponent(tag)}'
+              : AppConstants.updateManualDownloadUrl);
       record(tag: tag);
       final info = UpdateInfo(
         tagName: tag,
@@ -332,10 +349,10 @@ class UpdateRepository {
         htmlUrl: htmlUrl,
         delivery: delivery,
         releaseNotes: payload['notes'] as String?,
-        downloadUrl: storeRedirect ? null : assetUrl,
-        assetFileName: storeRedirect ? null : assetUri.pathSegments.last,
-        sha256: storeRedirect ? null : hash,
-        size: storeRedirect ? null : size,
+        downloadUrl: linkOnly ? null : assetUrl,
+        assetFileName: linkOnly ? null : assetUri.pathSegments.last,
+        sha256: linkOnly ? null : hash,
+        size: linkOnly ? null : size,
       );
       if (!fromCache) {
         await _updateCheckStore.recordVerifiedManifest({

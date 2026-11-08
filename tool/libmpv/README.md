@@ -94,3 +94,74 @@ tests; validate real playback on Windows as described in
 The build does not upload or publish anything. Ubuntu packages are not
 snapshot-pinned, so compare BUILDINFO on rebuilds; equal hashes are not promised
 across toolchain updates. Remove only task-owned Docker images and build caches.
+
+## macOS
+
+`build_macos_lgpl.sh` builds an audio-only universal (arm64 + x86_64)
+`Mpv.xcframework` natively on a Mac, with the same mpv and FFmpeg commits as
+Linux and Windows (`eb0ee1031590b3f369a5b783e8aa91eeaaded7e6` and `151814650`)
+and the same static libass, libplacebo (with submodules), FreeType, FriBidi and
+HarfBuzz versions and source digests as Windows. FFmpeg keeps the Windows audio
+component set (native decoders, MP4/Ogg/Matroska/WAV demuxers, HLS/MPEG-TS, ICY
+HTTP, filters `volume`, `biquad`, `equalizer`, `atempo`, `aresample`, format
+conversion) but uses Apple's SecureTransport for TLS, so HTTPS streams are
+verified against the macOS system trust store with no bundled CA file or TLS
+library. mpv is `-Dgpl=false`, libmpv only, CoreAudio output, no video or
+Cocoa. `patches/mpv-macos-coreaudio-channelmap.patch` is the only source
+change: the pinned mpv commit sets the AUHAL ChannelMap property from an
+AudioChannelLayout, which current macOS rejects (error -50, so no sound);
+mpv master removed that call and so does the patch. mpv's own
+`osdep/utils-mac.c`, which the CoreAudio output needs but
+mpv's meson only builds with Cocoa, is compiled separately (unmodified) and
+linked in; the script fails if any symbol is left to dynamic lookup, which
+would otherwise crash at the first CoreAudio call. zlib is the macOS system
+library. Nothing from Homebrew or MacPorts is
+linked: `nasm` is the only build tool beyond Xcode, git, curl and python3
+(meson and jinja2 are installed into a private venv), and the script fails if
+`otool -L` shows any library outside `/usr/lib` and `/System/Library/Frameworks`.
+The deployment target is 12.0, the same as `macos/Podfile` and the Runner.
+
+```bash
+df -h /                        # needs a few GB: one architecture is built at a time
+tool/libmpv/build_macos_lgpl.sh
+```
+
+Defaults: scratch in `~/Library/Caches/navis-libmpv-build` (`WORK`, outside the
+repository; downloaded sources are cached in `src/`), per-architecture build
+trees in `/private/tmp/navis-libmpv-build-<uid>` (`BUILD_BASE`, outside `$HOME` so the
+configuration strings compiled into mpv and FFmpeg carry no home path; compilers
+also map it to `/navis-build`; each tree is deleted once its stripped dylib is
+staged), output in
+`$WORK/out/libmpv-macos-universal-lgpl-<date>/` (`OUT`, `ARTIFACT_DATE`). The
+script verifies that FFmpeg's `config.h` has SecureTransport and neither GPL nor
+nonfree, that the filters are compiled in, that the binary strings carry mpv's
+`-Dgpl=false` and FFmpeg's LGPL line, the deployment target of both slices and
+the system-only linkage and no dynamic-lookup symbols (a failing `nm` or `vtool`,
+or a missing `minos` line, also fails), that neither the binary's strings nor the
+published metadata contain `$HOME`, then runs a native playback smoke on both slices
+(arm64, and x86_64 under Rosetta), once with the null and once with the real
+CoreAudio output at volume 0 (`SKIP_COREAUDIO_SMOKE=1` on a host without audio),
+with the app's `scaletempo` + `volume` + `biquad` + `equalizer` chain and an
+exact seek. Output: the tarball
+`libmpv-macos-universal-lgpl-<date>.tar.gz` (`Mpv.xcframework`, BUILDINFO.txt,
+the build script, FFmpeg configure flags and component list), `SOURCES.md`,
+`BUILDINFO.txt`, `SHA256SUMS` and every source archive in `src/`.
+
+To publish a build, the release operator uploads the tarball, `SOURCES.md`,
+`BUILDINFO.txt`, `patches/` and the contents of `src/` together to
+`navis/third-party/libmpv-macos-universal-lgpl-<date>/` on R2, with no flat
+copy, and keeps older folders. The vendored package
+`third_party/media_kit_libs_macos_audio/macos/fetch_libmpv.sh` pins the
+tarball name, that URL and its SHA-256; update all three, and the SOURCES.md
+URL in `assets/licenses/libmpv-macos-NOTICE.txt` plus its test, for a new build.
+Until the upload exists (or to test a rebuild), point the pod install at the
+local file, whose SHA-256 must still equal the pin:
+
+```bash
+NAVIS_LIBMPV_MACOS_ARCHIVE="$HOME/Library/Caches/navis-libmpv-build/out/libmpv-macos-universal-lgpl-<date>/libmpv-macos-universal-lgpl-<date>.tar.gz" \
+  flutter build macos --profile
+```
+
+The build does not upload or publish anything. Xcode/SDK versions are not
+pinned: compare BUILDINFO on rebuilds, since equal hashes are not promised.
+Remove `$WORK` (except `out/` and `src/` until the upload is done) afterwards.

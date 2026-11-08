@@ -60,10 +60,9 @@ packages:
   audio_service:
     dependency: "direct main"
     description:
-      name: audio_service
-      sha256: "95f3267f3449eb5cf71c8fcf1d556f57af1e898e2dc5815fb168d1843653edb7"
-      url: "https://pub.dev"
-    source: hosted
+      path: "third_party/audio_service"
+      relative: true
+    source: path
     version: "0.18.19"
   audio_service_platform_interface:
     dependency: transitive
@@ -869,11 +868,10 @@ packages:
   media_kit_libs_macos_audio:
     dependency: "direct main"
     description:
-      name: media_kit_libs_macos_audio
-      sha256: "3be21844df98f286de32808592835073cdef2c1a10078bac135da790badca950"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.1.4"
+      path: "third_party/media_kit_libs_macos_audio"
+      relative: true
+    source: path
+    version: "1.1.4+navis.1"
   media_kit_libs_windows_audio:
     dependency: "direct main"
     description:
@@ -1237,7 +1235,7 @@ packages:
     source: hosted
     version: "1.10.2"
   sqflite:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: sqflite
       sha256: "54ad23e2a79c846b596b6c56cdd9c867ea58c288258402316b602f78df0cbfe0"
@@ -1260,6 +1258,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.5.13"
+  sqflite_common_ffi:
+    dependency: "direct dev"
+    description:
+      name: sqflite_common_ffi
+      sha256: "119d730460264a1f11f414d9eaa43fb686789357e81ce35f9e8ccb66ddd040e4"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.4.5"
   sqflite_darwin:
     dependency: transitive
     description:

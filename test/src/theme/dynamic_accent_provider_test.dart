@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:audio_service/audio_service.dart'
+    show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:file/file.dart' show File;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,6 +15,7 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/theme/dynamic_accent_provider.dart';
+import 'package:navis/src/utils/connectivity.dart';
 
 class _SongIndexNotifier extends Notifier<int> {
   @override
@@ -56,6 +59,81 @@ class _ControlledAccentCache extends DynamicAccentColorCache {
   }) => gate(source).future;
 }
 
+/// Counts extractions instead of decoding an image; each call waits on a
+/// completer the test controls.
+class _CountingAccentCache extends DynamicAccentColorCache {
+  final List<Completer<int?>> extractions = <Completer<int?>>[];
+
+  @override
+  Future<int?> extractSeed(ImageProvider<Object> image) {
+    final completer = Completer<int?>();
+    extractions.add(completer);
+    return completer.future;
+  }
+}
+
+CacheManager _unusedCacheManager() => CacheManager(
+  Config(
+    'navis-accent-test',
+    repo: NonStoringObjectProvider(),
+    fileSystem: _UnusedFileSystem(),
+  ),
+);
+
+/// Records every source asked for and serves seeds from a map the way the
+/// real cache does after a successful extraction.
+class _RecordingAccentCache extends DynamicAccentColorCache {
+  final List<String> requested = <String>[];
+  final Map<String, int> seeds = <String, int>{};
+  Completer<int?>? holdCurrent;
+  bool failResolve = false;
+  bool nullCurrent = false;
+
+  @override
+  int? peek(String source) => seeds[source];
+
+  @override
+  Future<int?> resolve({
+    required String source,
+    required SubsonicApiClient? api,
+    required BaseCacheManager cacheManager,
+  }) {
+    requested.add(source);
+    if (failResolve) return Future<int?>.error(StateError('offline'));
+    final hold = holdCurrent;
+    if (hold != null && requested.length == 1) return hold.future;
+    if (nullCurrent) return Future<int?>.value();
+    return Future<int?>.value(seeds[source] = 0xFF000000 + source.length);
+  }
+}
+
+class _SnapshotNotifier extends Notifier<PlaybackSnapshot> {
+  @override
+  PlaybackSnapshot build() => const PlaybackSnapshot.idle();
+
+  // ignore: use_setters_to_change_properties, a Notifier cannot expose one.
+  void set(PlaybackSnapshot value) => state = value;
+}
+
+final _snapshotProvider = NotifierProvider<_SnapshotNotifier, PlaybackSnapshot>(
+  _SnapshotNotifier.new,
+);
+
+PlaybackSnapshot _queueAt(
+  List<String> ids,
+  int index, {
+  AudioServiceRepeatMode repeat = AudioServiceRepeatMode.none,
+  AudioServiceShuffleMode shuffle = AudioServiceShuffleMode.none,
+  RadioStationMetadata? radio,
+}) => const PlaybackSnapshot.idle().copyWith(
+  shuffleMode: shuffle,
+  queueSongIds: ids,
+  currentSongId: ids[index],
+  currentIndex: index,
+  repeatMode: repeat,
+  radioStation: radio,
+);
+
 SongsTableData _song(String id, String? coverArt) => SongsTableData(
   id: id,
   title: 't',
@@ -81,6 +159,76 @@ void main() {
     });
     expect(tester.takeException(), isNull);
   });
+  group('DynamicAccentColorCache.resolve', () {
+    const source = 'url:https://example.test/a.jpg';
+
+    Future<int?> resolve(DynamicAccentColorCache cache, [String? s]) =>
+        cache.resolve(
+          source: s ?? source,
+          api: null,
+          cacheManager: _unusedCacheManager(),
+        );
+
+    test('concurrent callers for one source share one extraction', () async {
+      final cache = _CountingAccentCache();
+      final first = resolve(cache);
+      final second = resolve(cache);
+      await pumpEventQueue();
+
+      expect(cache.extractions, hasLength(1));
+      cache.extractions.single.complete(0xFF112233);
+      expect(await first, 0xFF112233);
+      expect(await second, 0xFF112233);
+      expect(cache.peek(source), 0xFF112233);
+
+      // Now cached: no further extraction.
+      expect(await resolve(cache), 0xFF112233);
+      expect(cache.extractions, hasLength(1));
+    });
+
+    test('different sources extract independently', () async {
+      final cache = _CountingAccentCache();
+      unawaited(resolve(cache));
+      unawaited(resolve(cache, 'url:https://example.test/b.jpg'));
+      await pumpEventQueue();
+
+      expect(cache.extractions, hasLength(2));
+    });
+
+    test('a null result is shared but not cached', () async {
+      final cache = _CountingAccentCache();
+      final first = resolve(cache);
+      final second = resolve(cache);
+      await pumpEventQueue();
+      cache.extractions.single.complete(null);
+      expect(await first, isNull);
+      expect(await second, isNull);
+      expect(cache.peek(source), isNull);
+
+      final retry = resolve(cache);
+      await pumpEventQueue();
+      expect(cache.extractions, hasLength(2));
+      cache.extractions.last.complete(0xFF445566);
+      expect(await retry, 0xFF445566);
+    });
+
+    test('a failed extraction releases the entry', () async {
+      final cache = _CountingAccentCache();
+      final first = resolve(cache);
+      final second = resolve(cache);
+      await pumpEventQueue();
+      cache.extractions.single.completeError(StateError('decode failed'));
+      expect(await first, isNull);
+      expect(await second, isNull);
+
+      final retry = resolve(cache);
+      await pumpEventQueue();
+      expect(cache.extractions, hasLength(2));
+      cache.extractions.last.complete(0xFF778899);
+      expect(await retry, 0xFF778899);
+    });
+  });
+
   group('effectiveColorSchemeSeedProvider', () {
     test('falls back to selected seed when dynamic seed is null', () async {
       final container = ProviderContainer(
@@ -378,6 +526,196 @@ void main() {
       expect(container.read(effectiveColorSchemeSeedProvider), selectedSeed);
       expect(log, [selectedSeed]);
       expect(cache.seeds, isEmpty);
+    });
+  });
+
+  group('next track prefetch', () {
+    late _RecordingAccentCache cache;
+    late ProviderContainer container;
+
+    Future<void> setUpContainer({
+      bool enabled = true,
+      NetworkType network = NetworkType.wifi,
+      bool? metered,
+      bool prefetchOnMobileData = true,
+      Map<String, String?> covers = const {'a': 'ca', 'b': 'cb', 'c': 'cc'},
+    }) async {
+      cache = _RecordingAccentCache();
+      container = ProviderContainer(
+        overrides: [
+          colorSchemeSeedProvider.overrideWith((_) => 0xFF123456),
+          dynamicAccentEnabledProvider.overrideWith((_) => enabled),
+          networkTypeProvider.overrideWithValue(network),
+          nativeNetworkMeteredProvider.overrideWith((_) async => metered),
+          appSettingsProvider.overrideWithValue(
+            AsyncData(
+              const AppSettingsModel.defaults().copyWith(
+                prefetchNextOnMobileData: prefetchOnMobileData,
+              ),
+            ),
+          ),
+          subsonicApiProvider.overrideWithValue(null),
+          coverArtCacheManagerProvider.overrideWithValue(_unusedCacheManager()),
+          dynamicAccentColorCacheProvider.overrideWithValue(cache),
+          playerStateProvider.overrideWith(
+            (ref) => ref.watch(_snapshotProvider),
+          ),
+          songByIdProvider.overrideWith(
+            (ref, id) => Stream.value(
+              covers.containsKey(id) ? _song(id, covers[id]) : null,
+            ),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      // Hold the real consumers the app root holds.
+      container.listen(effectiveColorSchemeSeedProvider, (_, _) {});
+      container.listen(dynamicAccentNextPrefetchProvider, (_, _) {});
+    }
+
+    Future<void> play(PlaybackSnapshot snapshot) async {
+      container.read(_snapshotProvider.notifier).set(snapshot);
+      await pumpEventQueue();
+    }
+
+    test('requests the next cover once when the track changes', () async {
+      await setUpContainer();
+      await play(_queueAt(['a', 'b', 'c'], 0));
+      expect(cache.requested, ['id:ca', 'id:cb']);
+
+      await play(_queueAt(['a', 'b', 'c'], 1));
+      // b is cached; c is the new next item. Nothing else is requested.
+      expect(cache.requested, ['id:ca', 'id:cb', 'id:cb', 'id:cc']);
+      expect(cache.requested.where((s) => s == 'id:cc'), hasLength(1));
+    });
+
+    test('does nothing when Dynamic Album Colour is off', () async {
+      await setUpContainer(enabled: false);
+      await play(_queueAt(['a', 'b', 'c'], 0));
+      expect(cache.requested, isEmpty);
+    });
+
+    test('does nothing at the end of the queue with repeat off', () async {
+      await setUpContainer();
+      await play(_queueAt(['a', 'b'], 1));
+      expect(cache.requested, ['id:cb']);
+    });
+
+    test('wraps to the first item with repeat all', () async {
+      await setUpContainer();
+      await play(_queueAt(['a', 'b'], 1, repeat: AudioServiceRepeatMode.all));
+      expect(cache.requested, ['id:cb', 'id:ca']);
+    });
+
+    test('does nothing for repeat one or a single-item queue', () async {
+      await setUpContainer();
+      await play(_queueAt(['a', 'b'], 0, repeat: AudioServiceRepeatMode.one));
+      expect(cache.requested, ['id:ca']);
+      await play(_queueAt(['a'], 0, repeat: AudioServiceRepeatMode.all));
+      expect(cache.requested, ['id:ca']);
+    });
+
+    test('skips a next cover equal to the current one', () async {
+      await setUpContainer(covers: {'a': 'same', 'b': 'same'});
+      await play(_queueAt(['a', 'b'], 0));
+      expect(cache.requested, ['id:same']);
+    });
+
+    test(
+      'skips a next cover equal to the current one when it is unknown',
+      () async {
+        await setUpContainer(covers: {'a': 'same', 'b': 'same'});
+        cache.nullCurrent = true;
+        await play(_queueAt(['a', 'b'], 0));
+        // The current resolve returned null, so nothing is cached for 'same':
+        // only the equality guard keeps the prefetch from asking again.
+        expect(cache.requested, ['id:same']);
+      },
+    );
+
+    test('does nothing on cellular with the mobile-data setting off', () async {
+      await setUpContainer(
+        network: NetworkType.cellular,
+        prefetchOnMobileData: false,
+      );
+      await play(_queueAt(['a', 'b'], 0));
+      expect(cache.requested, ['id:ca']);
+    });
+
+    test('does nothing on a metered link with the setting off', () async {
+      await setUpContainer(metered: true, prefetchOnMobileData: false);
+      await play(_queueAt(['a', 'b'], 0));
+      expect(cache.requested, ['id:ca']);
+    });
+
+    test('prefetches on cellular when the setting allows it', () async {
+      await setUpContainer(network: NetworkType.cellular);
+      await play(_queueAt(['a', 'b'], 0));
+      expect(cache.requested, ['id:ca', 'id:cb']);
+    });
+
+    test('does nothing offline', () async {
+      await setUpContainer(network: NetworkType.offline);
+      await play(_queueAt(['a', 'b'], 0));
+      expect(cache.requested, ['id:ca']);
+    });
+
+    test('does not guess the next item when a shuffle pass restarts', () async {
+      await setUpContainer();
+      await play(
+        _queueAt(
+          ['a', 'b'],
+          1,
+          repeat: AudioServiceRepeatMode.all,
+          shuffle: AudioServiceShuffleMode.all,
+        ),
+      );
+      expect(cache.requested, ['id:cb']);
+    });
+
+    test('skips a next song without a cover or row', () async {
+      await setUpContainer(covers: {'a': 'ca', 'b': null});
+      await play(_queueAt(['a', 'b', 'missing'], 0));
+      expect(cache.requested, ['id:ca']);
+      await play(_queueAt(['a', 'b', 'missing'], 1));
+      expect(cache.requested, ['id:ca']);
+    });
+
+    test('does nothing for an empty queue or radio', () async {
+      await setUpContainer();
+      await play(const PlaybackSnapshot.idle());
+      expect(cache.requested, isEmpty);
+      await play(
+        _queueAt(
+          ['a', 'b'],
+          0,
+          radio: const RadioStationMetadata(
+            stationId: 'r',
+            stationName: 'r',
+            streamUrl: 'https://radio.test/s',
+          ),
+        ),
+      );
+      expect(cache.requested, isEmpty);
+    });
+
+    test('waits for the current album colour before prefetching', () async {
+      await setUpContainer();
+      cache.holdCurrent = Completer<int?>();
+      await play(_queueAt(['a', 'b'], 0));
+      expect(cache.requested, ['id:ca']);
+
+      cache.holdCurrent!.complete(0xFF111111);
+      await pumpEventQueue();
+      expect(cache.requested, ['id:ca', 'id:cb']);
+    });
+
+    test('swallows prefetch errors', () async {
+      await setUpContainer();
+      cache.failResolve = true;
+      await play(_queueAt(['a', 'b'], 0));
+      await pumpEventQueue();
+      expect(cache.requested, isNotEmpty);
     });
   });
 }

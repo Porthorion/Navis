@@ -31,6 +31,7 @@ chmod 700 "$OUTPUT_ROOT"
 FLUTTER_PID=0
 FIXTURE_PID=0
 FIXTURE_PORT=''
+FIXTURE_HOST='127.0.0.1'
 TOKEN=''
 BASE_URL=''
 APP_LOG=''
@@ -152,10 +153,10 @@ api POST /v1/diagnostics/overrides \
   '{"networkType":"wifi","nativeMetered":false}' >/dev/null
 api POST /v1/session/connect "$(python3 -c '
 import json, sys
-print(json.dumps({"url": f"http://127.0.0.1:{sys.argv[1]}",
+print(json.dumps({"url": f"http://{sys.argv[3]}:{sys.argv[1]}",
                   "username": "diagnostics",
                   "password": open(sys.argv[2]).read().strip()}))' \
-  "$FIXTURE_PORT" "$CREDENTIAL_FILE")" > "$OUTPUT_ROOT/connect.json"
+  "$FIXTURE_PORT" "$CREDENTIAL_FILE" "$FIXTURE_HOST")" > "$OUTPUT_ROOT/connect.json"
 wait_for /v1/session/status 'v.get("phase") == "ready"' \
   "$OUTPUT_ROOT/session-ready.json" 300
 api POST /v1/presentation/onboarding/complete '{}' >/dev/null || true
@@ -293,10 +294,11 @@ if find "$OUTPUT_ROOT/cache" -maxdepth 1 -name 'navis_cover_art_cache*' | grep -
   fail "the cover art cache was not cleared"
 fi
 launch_app offline
-api GET /v1/downloads/status > "$OUTPUT_ROOT/offline-status.json"
-check "$OUTPUT_ROOT/offline-status.json" \
+# The download service loads its stored settings asynchronously after launch
+# (slower on a simulator), so wait for them rather than reading a default.
+wait_for /v1/downloads/status \
   'v["qualityPreference"]["mode"] == "transcode" and v["qualityPreference"]["prompted"] and v["maxConcurrent"] == 3 and not v["paused"] and len(v["permanentDownloads"]) == 7' \
-  "download preferences did not survive the restart"
+  "$OUTPUT_ROOT/offline-status.json" 30
 api POST /v1/presentation/navigate \
   '{"location":"/library/albums/fixture-album"}' >/dev/null
 sleep 3

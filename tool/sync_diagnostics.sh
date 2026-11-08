@@ -150,8 +150,15 @@ PY
       echo "Last.fm diagnostics key file must be a regular file." >&2
       exit 66
     fi
-    if [[ "$(stat -c '%u' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")" != "$(id -u)" ||
-          "$(stat -c '%a' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")" != "600" ]]; then
+    # macOS: BSD stat by path, since GNU coreutils may shadow it on PATH.
+    if [[ "$(uname -s)" == Darwin ]]; then
+      key_owner="$(/usr/bin/stat -f '%u' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")"
+      key_mode="$(/usr/bin/stat -f '%Lp' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")"
+    else
+      key_owner="$(stat -c '%u' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")"
+      key_mode="$(stat -c '%a' "$NAVIS_DIAGNOSTICS_LASTFM_KEY_FILE")"
+    fi
+    if [[ "$key_owner" != "$(id -u)" || "$key_mode" != "600" ]]; then
       echo "Last.fm diagnostics key file must be owned by this user with mode 600." >&2
       exit 77
     fi
@@ -196,7 +203,9 @@ summary = {
         ),
         "downloadQueue": count("SELECT COUNT(*) FROM download_queue"),
     },
-    "aliases": count("SELECT COUNT(*) FROM song_identity_aliases"),
+    "aliases": count(
+        "SELECT COUNT(*) FROM entity_identity_aliases WHERE entity_type = 'song'"
+    ),
 }
 cache_root = sys.argv[3]
 if cache_root:
@@ -240,7 +249,7 @@ launch_app() {
   if [[ "$MODE" == "throughput" || "$MODE" == "full-rescan" || "$MODE" == "cache-alias" ]]; then
     diagnostics_runtime_mode="clone"
   fi
-  flutter run -d linux --profile \
+  flutter run -d "$(diagnostics_device)" "$(diagnostics_build_mode)" \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define=NAVIS_APP_NAME='Navis Diagnostics' \
@@ -485,7 +494,10 @@ with open(path, 'wb') as output:
     output.write(b'isolated cache identity migration probe')
 db.execute('DELETE FROM cached_tracks WHERE song_id = ?', (remote_id,))
 db.execute('DELETE FROM songs WHERE id = ?', (remote_id,))
-db.execute('DELETE FROM song_identity_aliases WHERE old_song_id = ?', (remote_id,))
+db.execute(
+    "DELETE FROM entity_identity_aliases WHERE entity_type = 'song' AND old_id = ?",
+    (remote_id,),
+)
 db.execute('DELETE FROM albums WHERE id = ?', (remote_album_id,))
 db.execute('DELETE FROM artists WHERE id = ?', (remote_artist_id,))
 db.execute('''
@@ -535,7 +547,8 @@ db = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True)
 result = json.load(open(sys.argv[2], encoding='utf-8'))
 remote_id = 'navis-diagnostics-provisional-cache-alias'
 alias = db.execute(
-    'SELECT canonical_song_id FROM song_identity_aliases WHERE old_song_id = ?',
+    "SELECT new_id FROM entity_identity_aliases "
+    "WHERE entity_type = 'song' AND old_id = ?",
     (remote_id,),
 ).fetchone()
 remote_cache_count = db.execute(

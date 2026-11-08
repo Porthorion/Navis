@@ -2847,6 +2847,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nowPlayingNext => 'Next';
 
   @override
+  String get macosMenuControls => 'Controls';
+
+  @override
   String get nowPlayingNoNextTrack => 'No next track';
 
   @override
@@ -3639,6 +3642,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get downloadsCustomFolderUnsupported =>
       'Custom download folders are not available on this platform.';
+
+  @override
+  String get downloadsFilesAppTitle => 'Downloads in Files';
+
+  @override
+  String get downloadsFilesAppSubtitle =>
+      'Downloads appear in the Files app under On My iPhone › Navis.';
 
   @override
   String get downloadsCustomFolderChooseAction => 'Choose Folder';
@@ -4712,6 +4722,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get updateNoWriteAccess =>
       'Navis cannot update itself from this location. Please download manually.';
+
+  @override
+  String get updateMoveToApplications =>
+      'Move Navis to the Applications folder to update it.';
 
   @override
   String get updateUsePackageManager =>
@@ -6458,6 +6472,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationLibraryScanStageIdle => 'Waiting to scan';
+
+  @override
+  String get notificationPlaybackChannelName => 'Playback';
+
+  @override
+  String get notificationPlaybackChannelDescription =>
+      'Media playback controls and status';
 
   @override
   String get notificationDownloadsChannelName => 'Downloads';

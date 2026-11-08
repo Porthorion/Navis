@@ -1,3 +1,7 @@
+// Release scripts run on the Linux release host and use its GNU tool paths.
+@TestOn('linux')
+library;
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -796,6 +800,64 @@ fi
       expectNoReleaseActions(await log());
     });
   }
+
+  test(
+    'publish-from accepts the staged iOS sideload IPA, and only that name',
+    () async {
+      await build();
+      Future<void> stage(String name) async {
+        await write('dist/v1.5.0/$name', 'fixture ipa');
+        final listed = File(p.join(fixture.path, 'dist/v1.5.0/assets.txt'));
+        await listed.writeAsString('${await listed.readAsString()}$name\n');
+        final names = (await listed.readAsLines()).join(' ');
+        final sums = await run(
+          const [],
+          command:
+              'cd dist/v1.5.0 && sha256sum -- assets.txt release.json '
+              'release-notes.md $names > SHA256SUMS',
+        );
+        expect(sums.exitCode, 0, reason: '${sums.stderr}');
+      }
+
+      await stage('navis-v1.5.0-ios.ipa');
+      await write('log', '');
+      final refused = await run([
+        'v1.5.0',
+        '--publish-from=dist/v1.5.0',
+        '--skip-checks',
+      ]);
+      expect(refused.exitCode, 1);
+      expect(refused.stdout, contains('Invalid staged asset name'));
+      expectNoReleaseActions(await log());
+
+      await run(
+        const [],
+        command:
+            'cd dist/v1.5.0 && grep -v -x navis-v1.5.0-ios.ipa assets.txt > a.tmp && '
+            'mv a.tmp assets.txt && rm navis-v1.5.0-ios.ipa',
+      );
+      await stage('navis-v1.5.0-ios-sideload.ipa');
+      await write('log', '');
+      final accepted = await run(
+        [
+          'v1.5.0',
+          '--publish-from=dist/v1.5.0',
+          '--skip-checks',
+          '--no-github',
+        ],
+        environment: {'ALLOW_PUBLISH_FLOW': 'true', 'NAVIS_LASTFM_API_KEY': ''},
+      );
+      expect(
+        accepted.exitCode,
+        0,
+        reason: '${accepted.stdout}\n${accepted.stderr}',
+      );
+      expect(
+        (await log()).singleWhere((line) => line.startsWith('r2:publish')),
+        contains('navis-v1.5.0-ios-sideload.ipa'),
+      );
+    },
+  );
 
   test('missing asset fails before release actions', () async {
     await build();

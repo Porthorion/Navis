@@ -1294,6 +1294,39 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
     if (!next.hasValue || previous?.value == next.value) return;
     unawaited(ref.read(audioHandlerProvider)?.applyRuntimeSettings());
   });
+  // The handler caches these settings and a save re-reads them before the
+  // settings stream has emitted, so re-apply when the stream catches up.
+  // Only these fields: a whole-row listener would also fire on every desktop
+  // volume save and cancel seek previews.
+  ref.listen(
+    appSettingsProvider.select((async) {
+      final s = async.asData?.value;
+      if (s == null) return null;
+      return (
+        s.gaplessEnabled,
+        s.crossfadeEnabled,
+        s.crossfadeDurationSeconds,
+        s.crossfadeType,
+        s.replayGainMode,
+        s.replayGainPreamp,
+        s.replayGainUntaggedDb,
+        s.playbackSpeed,
+        s.playbackPitchSemitones,
+        s.lockPitchToSpeed,
+      );
+    }),
+    (previous, next) {
+      if (next == null) return;
+      final apply = ref.read(audioHandlerProvider)?.applyRuntimeSettings();
+      unawaited(
+        apply?.catchError((Object error, StackTrace stackTrace) {
+          AppLogger.warning(
+            'Applying playback settings failed. $error\n$stackTrace',
+          );
+        }),
+      );
+    },
+  );
   ref.listen<ServerReachabilityState>(serverReachabilityControllerProvider, (
     previous,
     next,
@@ -1363,6 +1396,8 @@ final audioHandlerInitializerProvider = Provider<AudioHandlerInitializer>((
       readServerHost: () => ref.mounted ? ref.read(serverHostProvider) : null,
     );
     final handler = await initNavisAudioHandler(
+      readLocalizations: () =>
+          resolveNotificationLocalizations(ref.read(appLocaleProvider)),
       reconcileNetwork: () => ref.read(networkReconciliationProvider)(),
       checkDeviceConnected: () => ref.read(deviceConnectionCheckProvider)(),
       recoveredNetwork: recoveredNetwork.stream,

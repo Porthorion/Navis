@@ -377,6 +377,12 @@ class EqApplicationState {
     this.boostRequestedDb = 0,
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
+    this.processedFrames,
+    this.levelDeltaDb,
+    this.resetCount,
+    this.tapPrepareCount,
+    this.flushCount,
+    this.transitionGapsMs,
   });
 
   final EqConfiguration desired;
@@ -392,4 +398,41 @@ class EqApplicationState {
   final double boostRequestedDb;
   final double boostAppliedDb;
   final int boostClipSamples;
+
+  /// Frames the native equalizer processed (iOS only), for diagnostics.
+  final int? processedFrames;
+
+  /// Output-minus-input level in dB over recently played audio (iOS only).
+  final double? levelDeltaDb;
+
+  /// Filter-history resets of the native equalizer (iOS only), for diagnostics.
+  final int? resetCount;
+
+  /// Times the native tap was prepared (iOS only), for diagnostics.
+  final int? tapPrepareCount;
+
+  /// Seeks and skips the native equalizer was told about (iOS only), for
+  /// diagnostics.
+  final int? flushCount;
+
+  /// The last silences between songs in ms on the player's clock (iOS only),
+  /// for diagnostics; about 0 when playback is gapless.
+  final List<double>? transitionGapsMs;
+
+  /// The `application` object of the diagnostics API's `/v1/equalizer`.
+  Map<String, Object?> toDiagnosticsJson() => {
+    'configuration': applied.toJson(),
+    'enabled': applied.enabled,
+    'sampleRate': sampleRate,
+    'responseSampleRate': responseSampleRate,
+    'headroomDb': headroomDb,
+    'reason': reason,
+    'pending': pending,
+    'processedFrames': processedFrames,
+    'levelDeltaDb': levelDeltaDb,
+    'resetCount': resetCount,
+    'tapPrepareCount': tapPrepareCount,
+    'flushCount': flushCount,
+    'transitionGapsMs': transitionGapsMs,
+  };
 }

@@ -12,7 +12,10 @@ class _Storage extends Mock implements FlutterSecureStorage;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  setUp(resetSecureStorageQueue);
+  setUp(() {
+    resetSecureStorageQueue();
+    resetUnclearableSecureKeys();
+  });
   tearDown(resetSecureStorageQueue);
 
   test('Android scrobble reads disable destructive reset only', () async {
@@ -55,6 +58,60 @@ void main() {
       verify(() => storage.delete(key: any(named: 'key'))).called(1);
     },
   );
+
+  group('a token delete the keychain refuses', () {
+    const tokenKey = 'navis.external_scrobble.listenbrainz.token';
+    late _Storage storage;
+    late Map<String, String> persisted;
+    late bool failWrites;
+
+    setUp(() {
+      storage = _Storage();
+      persisted = {tokenKey: 'old-token'};
+      failWrites = false;
+      when(() => storage.delete(key: any(named: 'key')))
+          .thenThrow(PlatformException(code: '-25244'));
+      when(
+        () => storage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      ).thenAnswer((invocation) async {
+        if (failWrites) throw PlatformException(code: '-25244');
+        persisted[invocation.namedArguments[#key]! as String] =
+            invocation.namedArguments[#value]! as String;
+      });
+      when(() => storage.read(key: any(named: 'key'))).thenAnswer(
+        (invocation) async =>
+            persisted[invocation.namedArguments[#key]! as String],
+      );
+    });
+
+    test('is overwritten with an empty value that reads as absent', () async {
+      final store = FlutterExternalScrobbleCredentialStore(storage: storage);
+
+      await store.clearListenBrainzToken();
+
+      expect(persisted[tokenKey], '');
+      expect(await store.readListenBrainzToken(), isNull);
+    });
+
+    test('stays hidden by the marker until a save succeeds', () async {
+      final store = FlutterExternalScrobbleCredentialStore(storage: storage);
+      failWrites = true;
+
+      await expectLater(
+        store.clearListenBrainzToken(),
+        throwsA(isA<PlatformException>()),
+      );
+      expect(persisted[tokenKey], 'old-token');
+      expect(await store.readListenBrainzToken(), isNull);
+
+      failWrites = false;
+      await store.saveListenBrainzToken('new-token');
+      expect(await store.readListenBrainzToken(), 'new-token');
+    });
+  });
 
   test('platform token deletion uses the existing secure key', () async {
     final storage = _Storage();

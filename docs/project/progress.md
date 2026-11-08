@@ -19,6 +19,17 @@ Last updated: 2026-11-08
 - [x] Item W PR1 (1.5.2, #368), tag changes and removals reach the library through normal sync: a new unreconciled `getScanStatus.lastScan` queues one `catalogSnapshot` (priority 70, ahead of a queued manual delta) from the coordinator (`_enqueueScanSnapshotIfDue`, `scanSnapshotDue`, `SyncPlanExecutor.observeServerScan`); manual checks run it whenever the server rescanned, automatic passes at most once per 24 h from the last attempt, never on metered data without the broad grant, and not while a large-deletion candidate waits — 2026-11-07 (branch `fix/i368-sync-rescan-full-pass`; evidence: scan_snapshot_due_test.dart, adaptive_library_sync_coordinator_scan_snapshot_test.dart, library_sync_engine_scan_snapshot_test.dart, tool/rescan_snapshot_diagnostics.py; queued-song ReplayGain refresh is PR2; round 2 after review: a candidate resumes only under the scan it was collected under, a trigger-written snapshot row needs unmetered data or the broad grant at selection and execution, a failed snapshot retries automatically at most once per 24 h, a promotion that waits for a quiet server is reported deferred with a short backoff, and a rescan snapshot no longer refetches song artwork for ReplayGain or play-count changes; round 3: a held deletion confirms after a new scan, a never-settling server costs at most one automatic full pass a day after the retry cap, a scan deferral shows no update notice and the Android worker records it as deferredScanChanged with origin androidWorker; round 6: only the Apply Library Repair dialog's explicit one-shot confirmation applies a held large deletion, so an automatic pass, a queued or failed scan snapshot and Force rescan hold again, the coordinator skips snapshot rows while a hold waits, and Discard is refused while a run is in flight)
 - [x] Item W PR2 (1.5.2, #368), queued songs take changed ReplayGain from the next song: `refreshQueuedSongReplayGain()` (queue edit, one chunked `getSongsByIds`, no network) patches the `replayGain*` extras of queued songs and publishes once, never applies a volume and skips the audible songs; `_mediaItemOfSource` prefers the queue copy over the deck source tag so the next song's boost follows; `LibrarySyncController` calls it after a run that promoted a snapshot or hydrated albums and after the Android worker's changes are picked up on resume — 2026-11-08 (branch `feat/iW-queued-replaygain`; evidence: navis_audio_handler_navigation_test.dart "ReplayGain refresh after a sync", library_sync_provider_test.dart "queued ReplayGain refresh"; mutants: applying the volume, patching the audible song, dropping the cross-fade incoming exclusion, dropping the worker hook, dropping the boost refresh and dropping the coalescing each fail a test; round 2 (review): the boost map is refreshed so an mpv natural join reads the new value, the sync gate fires for any run that wrote songs, at most one refresh waits at a time)
 - [x] Item V PR2 (1.5.2), ReplayGain boost on Android: `NavisEqualizerProcessor` applies a per-frame boost (`EqualizerDsp.BoostRamp`, 20 ms linear ramps, 12 dB cap) after the EQ bank and before the 16-bit clamp, so it works with the EQ off and on and counts the samples it clamps; `replayGainBoostSupported` is true on Android while the processor pipeline exists and false after `_rebuildPlayerWithoutEqualizer`; the boost is guarded in the song's last 3 s (`guardedBoostDb`: the lower of this and the next song's boost, a per-deck latch, per-deck next song, position tick with crossfade off) and `AudioPlayer.java` lowers it to 0 before `load`, a seek to another song, removing the playing song and, while guarded, any queue edit, loop or shuffle change; rolling-cache sources have no tag, so the song is found by its URL id; round 6: a same-index auto-advance around a queue edit is not a loop-back (`_isBoostLoopBack` is false while an edit is in flight and needs the latched source on both ends), the Android bridge keeps a native latch (a guarded value clamps every later boost for that item until `load`, an auto-transition or seek discontinuity, or a media-item uid change; REMOVE/INTERNAL with the same uid keeps it; a stale-index 0 is applied but never latches; Kotlin tests incl. clamp-removed, clear-on-REMOVE, rising-latch and latch-on-stale-0 mutants), and only the heard deck latches in Dart (round 6's cross-fade failure was a stale latch written for the paused outgoing deck and carried into the next fade on that deck, not unknown timing; round 8 replaced the clear on prepare, which a speed change inside the prepare could undo, with the heard-only latch), the A2 remove-above case runs 5 times in its own phase each asserted separately, plus an insert-above phase (the status-index timing probe is the Dart status over HTTP, not native ordering); round 5: the latch lives for one playing source object (a duplicate entry of a song is a new play; a removal above keeps it), a same-source auto-advance (repeat-one, loop-all over one entry) and a seek reset it, and the tick re-resolves the playing source after an edit (two ticks in a row) for a song start seen only during one; the clamp rule moved to a pure-Python module (self-test without numpy, bounds from L's own duration); Play on a finished queue replaying the last song is tracked in #374; round 4: the latch lives for one song (the song id), so an edit above the playing song, a loop or shuffle toggle, a settings pass and a speed change keep it, and no song start is decided while a queue edit is in flight; an equal value still goes out when only the guard flag flips to guarded; the analyzer exempts a lossy clamp only mid-song for L (unguarded around it) and has a self-test that an L-labelled clamp at the L to H join fails; emulator A1+A2 now also drives a 2x to 1x drop followed by remove-above, loop and shuffle. The native index check has had NO runtime exercise: it rests on the Kotlin bridge tests and the Dart fake (on the emulator the Play button and the API's Play replay the ended last song, so handler.dart's restart-at-index-0 seek never ran; that A2 check is SKIP); round 3: every boost message carries its queue index and the native bridge ignores a non-zero value for another index (the old song's boost can no longer reach the next song after a seek, a jump or a resume), the post-seek hold is strictly lower-only, nothing is sent while a queue edit is in flight, the guard resets for another song at the same index; round 2: the value is 0 while a just_audio queue edit is in flight or the heard source is not the published song (a stale index could send another song's boost), a latched song stays guarded after a speed drop, positions are song time, a seek holds the boost down for a second, a guarded value is re-sent every tick, the index event resets the guard only for a new index, the status reads the processor on request; status `replayGainBoost` reports applied/requested/sent boost, the guard and clamped samples; PR1 leftovers: monotonic switch expiry, `cancelSwitch` removed, D5 asserts the join and the hold, Smart cut unchanged by a boost send, the Next-at-the-join race documented — 2026-11-07 (branch `feat/i152v-replaygain-boost-pr2`; evidence: EqualizerDspTest, JustAudioReplayGainBoostTest (in `android_repeat_native_test.sh`), replay_gain_db_test.dart "guardedBoostDb", navigation_test "boost on Android"; emulator A1 run on API 37 with Q/H/L songs: 10 gapless joins, EQ on and off, repeat-one switched off and shuffle toggled in the last 3 s, cross-fade, Opus and MP3 streams: 0 clamped samples, Q 10 dB, L 7 dB, Q guarded to 0 before H, raised again ~1 s after H to Q; round 3: fresh d6 on throttled fixture songs (the first pass asserts a directStream source, the second a file), fresh d5 with the F1 mutant failing the hold check, emulator A1+A2 with Play on a completed queue and an insert that resumes: no clamped sample in any phase; round 2: emulator A1 plus A2 (skip, jump, remove-current, edits above the playing song, 2x to 1x inside the window) 0 clamped samples and applied boost never above the playing song's own, desktop d6 on streamed songs (mpv plays the sidecar rolling-cache file) and d5 with a mutation that drops the join hold failing; Opus and MP3 clamp counts reported (10 samples in one run, 0 in the next); not run: the rebuild-without-EQ path on the emulator (handler test only), an unguarded negative control)
+- [ ] I23 iOS gapless regression from the I9 equalizer tap (1.5.2) — 2026-11-08 (branch `ios-i23-gapless-tap`, PR #381; evidence: `tool/equalizer_native_test.sh` (C flush rule, red before), the "iOS queue start" cases in `navis_audio_handler_navigation_test.dart` (red before), `tool/ios_gapless_diagnostics.sh` on the iPhone 17 simulator: silence at every song change 0 ms (±0.5 ms, an occasional few tens of ms early reading) against 0.8 to 1.2 s on dev, proxied and downloaded, EQ off and on at -12 dB, one tap prepare per queue; 48 and 96 kHz queue, seek and skip one flush each, seek to 0 after the queue ended 10 to 190 ms, crossfade, repeat one; local evidence under `build/ios-diagnostics/I23-run/fix/`). Not run: a file whose audio track ID is not 1, HLS, the device pass (I5). Known limitation: "play next" in the middle of a song stalls the playing song for about 0.8 s (shared pipeline rebuild; dev stalled in one of two runs).
+- [x] I7 iOS release path (1.5.2) — 2026-11-07 (branch `ios-i7-testflight`, PR #364; evidence: `tool/ios_release_test.sh` (new, in `check.sh`; red before the change, mutation-checked for the stale-IPA clean) and `bash -n tool/release.sh`, `tool/github_release_test.sh`, `tool/dev_release_test.sh`, `tool/release_tag_guard_test.sh` pass; `docs/release/release-ios.md`; no real signed build or upload, the App Store Connect API key does not exist yet)
+- [x] I8 iOS docs and CI (1.5.2) — 2026-11-07 (branch `i8-ios-docs-ci`, PR pending; evidence: README iOS row and status section, `technical-overview.md` row, `docs/platforms/ios-testing-playbook.md`, new CI `ios` job (`macos-latest`, `flutter build ios --simulator --debug`, required by the `ci` aggregate); `./tool/bootstrap.sh && flutter build ios --simulator --debug` exit 0 locally (69.6 s Xcode build); `tool/android_repeat_runner_test.sh` contract passes with the new gate; the job itself runs only on GitHub)
+- [x] I22 iOS sideload IPA on GitHub releases (1.5.2) — 2026-11-08 (branch `ios-i11-sideload-ipa`, PR #379; evidence: `tool/ios_release_test.sh` (red before, mutation-checked for the define leaking into the App Store build), update repository, resolver, About and dialog tests, one real `flutter build ios --release --no-codesign --dart-define=NAVIS_IOS_SIDELOAD=true` with `Info.plist` 1.5.2 (10502), unsigned; `docs/release/release-ios.md`)
+- [x] I18 accessibility pass (1.5.2) — 2026-11-07 (merged in #355, `a7740d09`; evidence: focused tests `now_playing_accessibility_test.dart`, `settings_accessibility_test.dart`, the 'phone mini player is usable' cases in `app_shell_navigation_test.dart` (failing first: mini buttons 36 vs 44, playback settings RenderFlex overflow 184 px, endless blink under Reduce Motion), existing now playing, settings and shell tests green; iOS simulator at accessibility-extra-extra-extra-large and with Reduce Motion, screenshots in `build/ios-diagnostics/i18-run/`; deferred items in the I18 row of `docs/plans/iOS_Parity_Plan.md`)
+- [x] I4 + I14 iOS downloads in the Files app and backup exclusion (1.5.2) — merged in #350 (`ebdbe05f`): 2026-11-07 (branch `feat/i4-ios-downloads-files`; evidence: focused tests in `test/src/database/database_location_test.dart`, `test/src/features/downloads/` (resolver, capacity/`BackupExclusion`, artwork store, queue, screen); `flutter build ios --simulator --debug`; iOS simulator on the real container: the database and its `-wal`/`-shm` moved from `Documents` to `Library/Application Support`, `Documents` holds only `Downloads/`, a downloaded song sits in `Documents/Downloads/<artist>/`, `xattr -l` shows `com.apple.metadata:com_apple_backup_excludeItem` on `Documents/Downloads` and `Library/Application Support/artwork/permanent`, playback resolved `kind=file`, Downloads settings show the Files note, Now Playing's left transport slot shows the equalizer button and opens the equalizer); review fixes: stored absolute paths rebased when iOS changes the container UUID (`CacheDao.rebaseContainerPaths` from `NavisDatabase.beforeOpen`; simulator reinstall moved the container from `F792F3C9-…` to `5C2D2545-…`, the rows were rewritten at launch, the song resolved `kind=file` from the new path, no queue entries, one file), stranded `-wal`/`-shm` never adopted (a crash between renames leaves the old database in place), a failed rebase skips the destructive startup passes on that launch, backup exclusion recorded only when confirmed (remaining: reviews, CI; Files-app behaviour on a device)
+- [x] I2 iOS local network and LAN/https servers (1.5.2) — 2026-11-07 (branch `feat/i2-ios-local-network`, PR #353; evidence: `NSLocalNetworkUsageDescription` in `ios/Runner/Info.plist` and `macos/Runner/Info.plist` (`plutil -lint` OK); iOS simulator run against the fixture server bound to the LAN IP over plain http: login, insecure-http note, stream (`kind=lockCachedStream` via the loopback proxy), then the https server streams; no ATS exception; the prompt itself is an I5 device check; logs and screenshots in `build/ios-diagnostics/i2-run/`)
+- [x] I6 iOS native project (1.5.2) — merged in #348: 2026-11-07 (branch `feat/i6-ios-native-project`; evidence: `flutter build ios --simulator --debug` and `flutter build ios --release --no-codesign` exit 0 with no CocoaPods warning and no regenerated `ios/Podfile`; release `Runner.app` holds `PrivacyInfo.xcprivacy`, `Base.lproj/LaunchScreen.storyboardc` and `ITSAppUsesNonExemptEncryption` false)
+- [ ] I9 equalizer on iOS (1.5.2) — partial: 2026-11-07 (branch `feat/ios-equalizer`, draft PR #335; evidence: `tool/equalizer_native_test.sh` C DSP fixtures (also clean under ASan/UBSan/TSan), `flutter test test/src/features/equalizer`, iOS simulator `/v1/equalizer` runs: sampleRate 44100, pending false, processedFrames growing, levelDeltaDb -12.000 with preamp -12 dB and 0.000 with EQ off, on a local file, proxied `lockCachedStream`, permanent download, gapless change, crossfade and 1.5x; `flutter build macos --debug` compiles with the tap gated off) (remaining: reviews, CI, device-only checks: audible A/B, AirPlay, lock screen, CPU on hi-res files, interruptions)
+- [x] Debug startup Riverpod assertion (1.5.2) — 2026-11-07 (branch `fix/riverpod-startup-listener-assertion`; the `serverConfigStateProvider` listeners of `ServerReachabilityController` and `LibrarySyncController` ran inside `NavisApp.build` and wrote state, which Riverpod's debug check rejects, skipping the rest of each callback; both now use `runOutsideWidgetBuild` and the debug-only router prewarm in `lib/main.dart` is gone. Failing-first: `Tried to modify a provider while the widget tree was building.` in the two new scenario tests; 146 focused tests pass; the iOS simulator `download_preferences_diagnostics.sh` run exits 0 with no assertion in `first-navis.log`. The script's post-restart check now waits for the asynchronously loaded download settings. Release builds unchanged; `check.sh` omitted per machine rules)
+- [x] Playback settings apply after the settings stream updates (1.5.2), crossfade off kept crossfading — 2026-11-07 (branch `fix/runtime-settings-apply`; evidence: `flutter test test/src/providers/app_providers_test.dart`, group 'audio handler runtime settings'; failing first: `Expected: [false] Actual: []`)
 - [x] Item T (1.5.2), Now Playing info chips: the hold is the whole chip's (`InkWell.onLongPress`, so a hold off the 16 px text no longer pages), holding ReplayGain opens Playback settings scrolled to the ReplayGain section (`AppRoutes.playbackReplayGain`, `PlaybackSettingsScreen(focusReplayGain:)`, `NavService.openPlaybackReplayGainSettings`), and the desktop info grid's Quality and ReplayGain cells open track info and that section on click or hold — 2026-11-07 (branch `fix/i152t-info-chip-gestures`; evidence: now_playing_info_chip_gestures_test.dart, app_router_test.dart "ReplayGain deep link"; real-phone hold with a loose thumb pending)
 - [x] Item S (1.5.2), untagged ReplayGain level in 0.1 dB steps: the Playback settings ruler is the pitch/speed `AdjustmentRuler` counting in tens of dB (0.1 dB click, stronger tick and label per whole dB, 80 px a dB), values rounded to one decimal, steppers stay 1 dB like pitch (1 semitone) and speed (0.1x) — 2026-11-07 (branch `fix/i152s-untagged-fine-ruler`; evidence: playback_settings_screen_test.dart "ReplayGain untagged songs"; phone feel pending)
 - [x] Item R (1.5.2), granular haptics settings: Settings › Haptics (phones and tablets) with a master switch and six categories (Player Gestures, Playback Buttons, Sliders & Rulers, Switches & Steppers, Lists & Menus, Likes & Alerts) gating every `NavisHaptics` call through an app-root pushed `HapticsPrefs`; framework long-press and tooltip vibrations switched off at the source; schema 112 (`haptics_enabled`, `haptics_disabled`), `GET/POST /v1/presentation/haptics` — 2026-11-07 (branch `feat/i152r-haptics-settings`; evidence: haptics_prefs_test.dart, navis_haptics_test.dart, app_settings_dao_test.dart, navis_migration_test.dart "111 to 112 haptics", haptics_settings_screen_test.dart, long_press_haptics_test.dart, haptics_source_guard_test.dart, widget_test.dart, playback/queue/star/refresh/ruler gating tests; phone feel per category pending)
@@ -1311,66 +1322,45 @@ Last updated: 2026-11-08
   eleven edited Dart files unchanged; final scoped analysis exits 0 with no
   errors or warnings and 25 informational findings mapped to unchanged HEAD
   lines. The complete diff passes `git diff --check`.
-- [ ] Issue #86, Android progressive HTTP repeat-one rewind — partial: 2026-10-20
-  (`fix/repeat-one-rewind`, based on `3c1d8c54`, remaining: coordinator Android
-  runtime probes, independent review and `./tool/check.sh`): native repeat-one
-  is replaced by repeat-off plus pause-at-end only for progressive HTTP VOD;
-  the same item restarts at native zero with command-revision cancellation and
-  no terminal completion. Radio's default-retry opt-out, local/asset sources,
-  HLS/DASH and repeat-all remain native. The existing Dart offset-loop handler
-  clears an offset source with one reload; no parallel Dart repeat mechanism
-  was introduced. The JVM regression first failed with `AssertionError:
-  progressive repeat one must disable native preloading of itself`; all
-  equalizer fixtures, 12 retry fixtures and 21 repeat fixtures now pass via
-  `./tool/equalizer_native_test.sh`. Two plain-stream unknown-duration Dart
-  cases first failed (`00:00 +19 -2`); fixing the pairwise detector's reversed
-  subtraction makes all 21 `position_offset_test.dart` cases pass. The
-  handler regression covers middle/last offset items and exactly one reload.
-  The combined `flutter test --concurrency=4 --timeout 60s` run of
-  `position_offset_test.dart` and `navis_audio_handler_navigation_test.dart`
-  passed `05:22 +580: All tests passed!`, including repeat-one crossfade and
-  timeline cases. Bootstrap ran once; edited non-vendored Dart files pass
-  formatting and the complete diff passes `git diff --check`. No app, emulator
-  or VM was launched; Android
-  compilation/runtime, analyzer and the full gate remain with the coordinator.
-  Review round 1 fixes: boundary ownership now uses the timeline window UID,
-  so appends/inserts/moves retain a pending restart or paused boundary while
-  the same occurrence stays current; removal/replacement cancels it, and the
-  runnable seeks its current index. Removed redundant loop-policy updates from
-  Play/Pause. The insert-before fixture first failed with `AssertionError:
-  inserting before the boundary item restarts at its shifted index`; the JVM
-  harness now passes all equalizer fixtures, 12 retry fixtures and 26 repeat
-  fixtures. The same two-file targeted Dart command above passed
-  `05:19 +580: All tests passed!`. Architecture, vendored change notes and the
-  existing release-note entry were updated. The complete diff passes
-  `git diff --check`. No app, emulator, VM, Android build, analyzer or
-  `./tool/check.sh` was run for this round, per the assigned validation scope.
-- [ ] Issue #86, unknown-length Android stall replay — partial: 2026-10-20
-  (`fix/stall-replay`): Media3 progressive load errors with unknown HTTP length
+- [x] Shared server identity URL canonicalisation — 2026-10-19
+  (`refactor/server-identity-url`): retained-profile comparison and Android
+  WorkManager profile keys now use `canonicalServerIdentityUrl`. Recorded three
+  existing profile hashes and passed their pinned assertions before extraction;
+  the new helper suite failed first because the helper did not exist. After
+  extraction, all 65 tests across the helper, background scheduler, background
+  entrypoint and server repository suites pass with `flutter test --concurrency=4`.
+  Scoped `flutter analyze` reports no issues across all five touched Dart files;
+  bootstrap completed once. Neither old helper name occurs in `docs/`.
+  Full gate, app runtime and emulators were explicitly excluded by the task's
+  host-memory constraints. No user-visible behavior or persisted-key change.
+- [x] Notification channel l10n and server URL tests — 2026-10-19
+  (`fix/notification-l10n-url-tests`): the `playback`, `downloads` and
+  `library_sync_silent` Android channels (bootstrap and audio_service) take
+  their names and descriptions from l10n, honoring the in-app language
+  override; IDs, importance and silence flags are pinned by test. Added
+  `server_url_validation_test.dart`, pinning loopback and remote http handling.
+  Targeted `flutter test` runs only; `./tool/check.sh` remains pending.
+- [x] Issue #86, transcode offset seek — 2026-10-20 (PR #96,
+  `fix/transcode-offset-seek`): `streamUrl` `timeOffset`, the `transcodeOffset`
+  capability, a vendored just_audio `positionOffset` translation layer, an
+  offset resolver source with a full-URI sidecar, and the handler seek branch
+  with its edge-case tests (`docs/plans/Transcode_Offset_Seek_Plan.md`).
+  `./tool/check.sh` passed; runtime pass with `tool/live_seek_stress.py` on
+  Linux and the Android emulator against the live server.
+- [x] Issue #86, Android progressive HTTP repeat-one rewind — 2026-10-20 (PR #100,
+  `fix/repeat-one-rewind`): progressive HTTP VOD repeat-one runs native
+  repeat-off plus pause-at-end and restarts the same item (window-UID owned) at
+  the boundary; radio, local, HLS/DASH and repeat-all stay native. JVM
+  `ProgressiveRepeatTest` fixtures run in `./tool/equalizer_native_test.sh`.
+  `./tool/check.sh` passed (`+8903`); Android emulator and Linux runtime pass
+  with `tool/live_seek_stress.py`. Trade-off: the loop point is not gapless.
+- [x] Issue #86, unknown-length Android stall replay — 2026-10-20 (PR #98,
+  `fix/stall-replay`): Media3 progressive load errors with unknown HTTP length
   become fatal instead of restarting at byte zero; sized/ranged sources and
   radio retain native retries. Handler recovery prefers the completed cache,
-  then reuses transcode-offset seeking at the current song time, with the seek
-  lane, cancellation, Play/Pause intent and existing one-retry budget. An error
-  at the known end advances without a reload. The initial handler run failed
-  four new regressions (`05:14 +550 -4`); the pure JVM framing fixture first
-  failed on chunked playback and then passed all 11 cases. The end-of-song
-  regression also failed before its advance guard. Broader validation exposed
-  two existing Play/rearm regressions; distinguishing automatic recovery from
-  a user seek fixed both. The focused rerun passed `00:03 +15`; the final
-  `flutter test --concurrency=4 --timeout 60s` run of
-  `navis_audio_handler_navigation_test.dart`, `position_offset_test.dart` and
-  `lock_caching_audio_source_test.dart` passed `05:14 +583: All tests passed!`.
-  All nine edited Dart files pass the formatter check; the complete diff passes
-  `git diff --check`. Coordinator retains the emulator stall probe,
-  runtime loop, independent review and `./tool/check.sh`; no app, emulator or
-  VM was launched for this implementation task.
-- [ ] Issue #86, transcode offset seek — partial: 2026-10-20
-  (`fix/transcode-offset-seek`, remaining: orchestrator runtime pass with
-  `tool/live_seek_stress.py` on Linux and the Android emulator): `streamUrl`
-  `timeOffset`, the `transcodeOffset` capability, a vendored just_audio
-  `positionOffset` translation layer, an offset resolver source with a
-  full-URI sidecar, and the handler seek branch with its edge-case tests
-  (`docs/plans/Transcode_Offset_Seek_Plan.md`).
+  then transcode-offset seeking at the current song time, within the existing
+  retry budget. `./tool/check.sh` passed; emulator stall probe resumed in place
+  twice with no progress lost.
 - [x] Issue #86, abort interrupted audio proxy responses — 2026-10-20
   (`fix/proxy-download-error`): stream and header-forwarding proxies abort
   origin body errors instead of sending clean EOF or entering HTTP/0.9 fallback
@@ -4396,3 +4386,63 @@ Latest activity (2026-03-07): published `v0.8.0` APK via `tool/release.sh` and s
   limits, the new harness was not run: no builds, publication, SSH, containers,
   app launches, emulators or full gate. R1–R9 runtime acceptance remains open;
   the active plan stays under `docs/plans/` until that evidence exists.
+# Validation evidence workflow — 2026-10-26 (in progress)
+
+- Branch `chore/validation-evidence` extends the existing playback harness and
+  check command. The coverage inventory retains 118 Linux and 73 Android cells
+  per variant (382 A/B cells); no matrix or threshold reduction.
+- Builders reported 60 harness and 20 gate checks passing before independent
+  review. Review found nested-timeout cleanup, contradictory report verdicts
+  and missing local NumPy setup guidance. The fixes passed ten focused evidence
+  checks and 21 gate checks, including real nested-session cleanup probes.
+- Full `check.sh`, Linux and Android runtime validation are assigned to one
+  owner and remain pending. Self-check results do not certify playback runtime.
+- 2026-10-27: four review rounds (three Sonnet, one Opus) closed with all
+  findings fixed; harness and gate self-checks pass (64 + 37, hermetic). A real
+  Linux smoke, `ab queue-edit --platform linux --base github/dev` on 05f7e58a5
+  against 3e5bf9e06, exited 0 with `RESULT PASS` (3 + 3 cells, 0 case errors,
+  0 violations) and finalized `evidence.json` (`status: passed`, 68 artifacts)
+  under `build/harness/20261027T181142.198691Z/`. The full gate and Android
+  runtime runs stay at the final release validation step.
+  See [plan](../plans/validation-evidence-workflow.md) and
+  [coverage map](../development/playback-validation-coverage.md).
+
+# Playback harness reliability (1.5.1 P4, ledger #86) — 2026-10-28 (in progress)
+
+- Branch `fix/harness-reliability`. Emulator boot wait: a guest that logs "Boot
+  completed" while adb stays `unauthorized`/`offline` now gets one reconnect at 40 s
+  and an `InfraError` at 90 s instead of spinning to the 240 s timeout; `cmd_ab`
+  replaces a guest that failed to boot once (`run_guest_scenario`). Hermetic
+  self-checks only (fake adb and clock); no emulator or harness run.
+- Rows 24/29 (order bias): base and fix repetitions now alternate per repetition
+  (`schedule`: base r1, fix r1, fix r2, base r2, ...), one engine invocation per
+  repetition (`live_seek_stress.py --rep-start`), merged by `merge_reps` into the
+  unchanged per-variant evidence record. Inventory, cell counts and thresholds
+  untouched; recalibration stays a separate, evidence-based step. Layout is per
+  platform: Linux interleaves per repetition; Android keeps one fresh guest per
+  variant and scenario (all repetitions, 2 boots per scenario as before) and
+  alternates the first variant per scenario (`android_schedule`, ABBA). A
+  self-check pins the Android order and that a full A/B starts 2 guests per scenario.
+- Row 26 (`repeat_one_fill`): waits for the backend duration instead of choosing
+  0, uses disjoint wrap windows (`repeat_wrap_bounds`) and an observation that
+  ends before a second loop; fixtures for zero duration at start, a true 5 s loop
+  and the 300 s case. Row 25 (partial emulator acquisition) already fixed; its
+  self-check still passes. Row 27 (Linux cut-recovery) stays open: needs runtime
+  evidence. Self-checks only (hermetic), no harness or emulator run.
+- Review round 1 fixes (all self-check first): Linux repetitions draw their own
+  fixture songs (`Random(86 + rep)` via `--rep-start`; base and fix still match per
+  rep, Android unchanged); `repeat_one_fill` aborts record a `caseError`; the boot
+  wait keeps its first-bad clock (flapping adb still ends at ~90 s) and a failed
+  `adb -s <serial> reconnect` is an `InfraError` (no serial-less fallback); the
+  Linux first variant also alternates by scenario position (quick runs); the
+  `repeat_one_fill` window ends relative to the observed landing; merged report row
+  ids are `<rep>-<id>` with `repDir`. 75 harness + 44 gate self-checks, hermetic.
+- Android cut-recovery `baseCutObserved` no longer needs a base reload (the current
+  base splices, so every A/B reported RESULT FAIL): it requires `cutsObserved >= 1`
+  (continuation requests + splice events + reloads after the cut). Still fails when
+  no cut was observed. 76 harness + 44 gate self-checks, hermetic.
+- Review round 2 (a stray comment in `metrics()` dropped `playerErrorsAfterCut`; a real-report-shaped self-check now guards every gated splice metric; the Android cut smoke showed `cutsObserved` 2 on base and fix): boot wait clears its bad-state clock after 10 s of a steady
+  `device` state (a late blip on a slow boot no longer fails; flapping still does),
+  `repeat_one_fill` minimum 2500 ms (named constant), `cutsObserved` is the minimum
+  over cut cells with `spliceEvents` limited to the cut window. 80 harness + 45 gate
+  self-checks, hermetic.

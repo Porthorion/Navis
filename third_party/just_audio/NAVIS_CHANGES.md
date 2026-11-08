@@ -310,3 +310,46 @@ Dart side latches only the heard deck, so a stale guard cannot be latched again
 for a prepared crossfade deck. A reused deck can still receive one guarded
 message for its old position while it is prepared; native clears it on the
 prepare's seek or load. `JustAudioReplayGainBoostTest` covers each rule.
+
+## iOS equalizer
+
+The Darwin player accepts the same `equalizerConfiguration`, `setEqualizer` and
+`getEqualizerState` as Android. `NavisEqualizerDsp.c/.h` is a C port of
+`EqualizerDsp.java` plus the bank swap and 20 ms crossfade of
+`NavisEqualizerProcessor.java`. `NavisEqualizer.m/.h` (one per `AudioPlayer`)
+creates one `MTAudioProcessingTap` (pre-effects) per player and gives every
+item of the `AVQueuePlayer` an `AVMutableAudioMix` with that tap and the
+first audio track (`trackID` 1, or its real ID when the asset's `tracks` key is
+already loaded; checked with `statusOfValueForKey:`, never loaded here), synchronously and in the same run-loop turn as the insert
+(`AudioPlayer attachEqualizerToQueue`, called at the end of `enqueueFrom:`). No
+tracks are loaded, so covering the whole queue costs no network. Two
+constraints come from `AVQueuePlayer` and were measured (I23, iOS 27.2
+simulator and macOS): an item with its own tap gets its own audio pipeline that
+starts only after the previous item's drained (0.4 to 1.2 s of silence at every
+song change, which I9 shipped), so all items share one tap; and setting the mix
+of an item that is already queued rebuilds the pipeline and stalls playback for
+about 0.5 s, so a mix is set once, before the item is queued, and never again
+(a file whose audio track ID differs from the one mixed plays unchanged, with a
+state `reason`; not tested with a real file).
+The state reports Android's keys plus `processedFrames`, `levelDeltaDb`,
+`resetCount`, `tapPrepareCount`, `flushCount` and `transitionGapsMs` (a 50 Hz
+main-thread gap meter that runs only while playing and only when the app set
+`diagnostics` in the equalizer configuration at creation, i.e. in builds that
+can run the diagnostics API; it reads `item.duration` and skips a tick while that
+is not finite). The filter history resets
+on StartOfStream and when `AudioPlayer` calls `noteFlush` (a seek or skip, at
+the top of `seek:index:completionHandler:`, and a new `load:`); the render
+thread compares the flush counter at each block with audio
+(`navis_eq_stream_begin_block`), never the source time range, which re-bases
+mid-song when an item is queued behind the playing one. `enqueueFrom:` no longer
+removes and re-inserts the queued items that already sit in the right order at
+the head of the queue (an append used to remove the prefetched next item, whose
+removal restarts the shared pipeline); it still rebuilds the queue for any other
+change, and while looping. This is iOS only (`TARGET_OS_IOS`): macOS behaves as
+before. The class is compiled for iOS only
+(`TARGET_OS_IOS`); the C DSP is inert on macOS, which never sends a
+configuration. `MediaToolbox` is linked for iOS in the podspec and
+`Package.swift`. Host-side C fixtures live in
+`darwin/test/navis_equalizer_dsp_test.c`. Known limitation: putting another
+song in front of the prefetched next one ("play next" in the middle of a song)
+rebuilds the shared pipeline and stalls the playing song for about 0.8 s.

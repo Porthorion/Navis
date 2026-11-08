@@ -558,6 +558,65 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('failed iOS path rebase keeps a missing local-only record unavailable '
+        'but unpruned', () async {
+      final song = await _insertSong(
+        database,
+        id: 'song-unverified-local',
+        title: 'Unverified Local',
+        serverDeletedAt: DateTime.now(),
+      );
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: song.id,
+          filePath: p.join(rollingDir.path, 'stale.mp3'),
+          fileSize: 3,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
+      database.containerRebaseFailed = true;
+      final resolver = resolverFor(withLibrary: true);
+
+      await expectLater(
+        resolver.resolveForSong(song),
+        throwsA(isA<PlaybackSourceUnavailableException>()),
+      );
+      expect(await database.cacheDao.getCachedTrack(song.id), isNotNull);
+      expect(await database.libraryDao.getSongById(song.id), isNotNull);
+    }, skip: !sqliteAvailable);
+
+    test('failed iOS path rebase streams past a missing cached file without '
+        'removing its record', () async {
+      final song = await _insertSong(
+        database,
+        id: 'song-unverified',
+        title: 'Unverified',
+      );
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: song.id,
+          filePath: p.join(rollingDir.path, 'stale.mp3'),
+          fileSize: 1000,
+          format: 'mp3',
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+          lastAccessedAt: DateTime.now(),
+        ),
+      );
+      database.containerRebaseFailed = true;
+
+      final resolved = await resolverFor(
+        quality: () =>
+            const StreamingQuality(label: 'cellular', maxBitRate: 128),
+      ).resolveForSong(song);
+
+      expect(resolved.isLocal, isFalse);
+      expect(await database.cacheDao.getCachedTrack(song.id), isNotNull);
+    }, skip: !sqliteAvailable);
+
     test(
       'uses lock-cached stream source when cached file is unavailable',
       () async {

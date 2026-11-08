@@ -16,7 +16,8 @@ Required environment (if options omitted):
   MACOS_NOTARY_PROFILE
 
 This script:
-  1) signs the .app bundle
+  1) signs the .app bundle inside-out (nested code first, then the app with
+     hardened runtime and macos/Runner/Release.entitlements)
   2) submits a zip to Apple notary service and waits
   3) staples the notarization ticket
   4) emits a final distributable zip at --output
@@ -83,12 +84,29 @@ trap cleanup EXIT
 APP_NAME="$(basename "${APP_PATH}")"
 NOTARY_ZIP="${TMP_DIR}/${APP_NAME%.app}-notary.zip"
 
+ENTITLEMENTS="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/macos/Runner/Release.entitlements"
+if [[ ! -f "${ENTITLEMENTS}" ]]; then
+  echo "Error: entitlements file not found: ${ENTITLEMENTS}" >&2
+  exit 1
+fi
+
+# Sign inside-out: nested code first (find -depth lists children before their
+# parents), then the app. Hardened runtime and a secure timestamp everywhere;
+# entitlements only on the app, whose main executable is the one that needs
+# them. --deep is deprecated for signing and would skip that distinction.
+echo "==> Signing nested code in ${APP_NAME}..."
+while IFS= read -r -d '' nested; do
+  codesign --force --options runtime --timestamp --sign "${IDENTITY}" "${nested}"
+done < <(find "${APP_PATH}/Contents" -depth \
+  \( -name '*.dylib' -o -name '*.framework' -o -name '*.xpc' -o -name '*.app' \) \
+  -print0)
+
 echo "==> Signing ${APP_NAME}..."
 codesign \
   --force \
-  --deep \
   --options runtime \
   --timestamp \
+  --entitlements "${ENTITLEMENTS}" \
   --sign "${IDENTITY}" \
   "${APP_PATH}"
 

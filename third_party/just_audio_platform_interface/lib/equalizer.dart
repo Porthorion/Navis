@@ -30,7 +30,12 @@ class EqualizerConfigurationMessage {
     required this.preampDb,
     required this.autoHeadroom,
     required List<EqualizerFilterMessage> filters,
+    this.diagnostics = false,
   }) : filters = List.unmodifiable(filters);
+
+  /// Lets the Darwin player run its transition gap meter (a main-thread timer
+  /// while playing). Set only in builds that can run the diagnostics API.
+  final bool diagnostics;
 
   final bool enabled;
   final double preampDb;
@@ -42,6 +47,7 @@ class EqualizerConfigurationMessage {
         'preampDb': preampDb,
         'autoHeadroom': autoHeadroom,
         'filters': filters.map((filter) => filter.toMap()).toList(),
+        if (diagnostics) 'diagnostics': true,
       };
 }
 
@@ -57,6 +63,12 @@ class EqualizerStateMessage {
     this.boostRequestedDb = 0,
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
+    this.processedFrames,
+    this.levelDeltaDb,
+    this.resetCount,
+    this.tapPrepareCount,
+    this.flushCount,
+    this.transitionGapsMs,
   });
 
   final bool enabled;
@@ -73,6 +85,30 @@ class EqualizerStateMessage {
   final double boostAppliedDb;
   final int boostClipSamples;
 
+  /// Frames the backend's equalizer has processed since the player started
+  /// (Darwin only; null elsewhere). Grows while audio plays.
+  final int? processedFrames;
+
+  /// Output-minus-input level in dB over a recent window of played audio
+  /// (Darwin only; null elsewhere or before any audio has played).
+  final double? levelDeltaDb;
+
+  /// Times the equalizer dropped its filter history because playback started,
+  /// resumed or jumped (Darwin only; null elsewhere), for diagnostics.
+  final int? resetCount;
+
+  /// Times the player's shared tap was prepared (Darwin only), for diagnostics:
+  /// one per queue unless the audio format changed.
+  final int? tapPrepareCount;
+
+  /// Seeks and skips the player told the equalizer about (Darwin only,
+  /// diagnostics); each one drops the filter history once.
+  final int? flushCount;
+
+  /// The last silences between songs in milliseconds, measured on the player's
+  /// clock (Darwin only, diagnostics): about 0 when playback is gapless.
+  final List<double>? transitionGapsMs;
+
   static EqualizerStateMessage fromMap(Map<dynamic, dynamic> map) =>
       EqualizerStateMessage(
         enabled: map['enabled'] as bool,
@@ -84,6 +120,14 @@ class EqualizerStateMessage {
         boostRequestedDb: (map['boostRequestedDb'] as num?)?.toDouble() ?? 0,
         boostAppliedDb: (map['boostAppliedDb'] as num?)?.toDouble() ?? 0,
         boostClipSamples: (map['boostClipSamples'] as num?)?.toInt() ?? 0,
+        processedFrames: (map['processedFrames'] as num?)?.toInt(),
+        levelDeltaDb: (map['levelDeltaDb'] as num?)?.toDouble(),
+        resetCount: (map['resetCount'] as num?)?.toInt(),
+        tapPrepareCount: (map['tapPrepareCount'] as num?)?.toInt(),
+        flushCount: (map['flushCount'] as num?)?.toInt(),
+        transitionGapsMs: (map['transitionGapsMs'] as List<dynamic>?)
+            ?.map((gap) => (gap as num).toDouble())
+            .toList(growable: false),
       );
 }
 

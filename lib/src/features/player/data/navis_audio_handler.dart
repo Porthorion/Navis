@@ -15,6 +15,8 @@ import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:just_audio_media_kit/mediakit_player.dart' show MediaKitPlayer;
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -57,6 +59,7 @@ import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
 import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/diagnostics_build_gate.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/genre_key.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -137,6 +140,7 @@ class NavisAudioHandler extends BaseAudioHandler
     this._queueWindow = const NavisQueueWindow(),
     this._timeouts = const NavisPlaybackTimeouts(),
     @visibleForTesting this.desktopRuntimeOverride,
+    @visibleForTesting this.iosRuntimeOverride,
     math.Random? shuffleRandom,
   }) : _sidecarDownloader =
            sidecarDownloader ?? RollingCacheSidecarDownloader(),
@@ -220,6 +224,9 @@ class NavisAudioHandler extends BaseAudioHandler
   @visibleForTesting
   final bool? desktopRuntimeOverride;
   bool get _isDesktopRuntime => desktopRuntimeOverride ?? _isDesktopPlatform;
+  @visibleForTesting
+  final bool? iosRuntimeOverride;
+  bool get _isIosRuntime => iosRuntimeOverride ?? _isIosPlatform;
 
   /// Whether the latest seek request carries a trace callback (tests).
   /// The registered lock-cache source of [songId] (tests assert it is the one
@@ -288,6 +295,14 @@ class NavisAudioHandler extends BaseAudioHandler
   /// player's error code, which just_audio keeps on an idle player after
   /// another load, this lasts only until the next load or progress.
   bool _loadedSourceFailed = false;
+
+  /// The last queue apply returned normally, so a failure reported before
+  /// its load ends was not surfaced by the load itself.
+  bool _loadedSourceApplied = false;
+
+  /// A failure was reported after the load's source was applied and while
+  /// the load still ran; recovery skipped it, so the load end must act.
+  bool _failedAfterApply = false;
 
   /// Automatic failovers since playback last advanced for
   /// [NavisPlaybackTimeouts.healthyPlayback]; [_maxAutoFailovers] is the cap.
@@ -1550,7 +1565,12 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueFillResolveMs = 0;
     _queueFillNativeMs = 0;
     _queueFillBatches = 0;
-    final preparedByIndex = <int, _PreparedQueueItem>{clampedIndex: startItem};
+    // The song after the start one may already be in the native player (iOS).
+    final preloadedNext = afterStart.isEmpty ? null : startItem.gaplessNext;
+    final preparedByIndex = <int, _PreparedQueueItem>{
+      clampedIndex: startItem,
+      if (preloadedNext != null) clampedIndex + 1: preloadedNext,
+    };
     final skippedSongIds = <String>[];
 
     AppLogger.debug(
@@ -1568,16 +1588,18 @@ class NavisAudioHandler extends BaseAudioHandler
     // playbackEventStream fires position ticks on every event loop turn, and
     // any _emitSnapshot() call between _queueItems.insert() and the player
     // acknowledging the new currentIndex would produce a stale snapshot.
-    // Keeping _queueItems=[startSong] throughout Phase 2 lets the metadata
-    // anchor keep the display on the tapped song until _queueItems is rebuilt
-    // atomically from allPrepared at the very end.
+    // Keeping _queueItems as phase 1 left it (the start song, plus the next
+    // song on iOS) throughout Phase 2 lets the metadata anchor keep the display
+    // on the tapped song until _queueItems is rebuilt atomically from
+    // allPrepared at the very end.
     //
     // Songs after the start are appended first so the next track is queued
     // before the (possibly long) prefix is inserted behind the current item.
-    var appended = 0;
+    final alreadyAppended = preloadedNext == null ? 0 : 1;
+    var appended = alreadyAppended;
     while (appended < afterStart.length) {
       final batchEnd = math.min(
-        appended + _queueFillBatchSize(appended),
+        appended + _queueFillBatchSize(appended - alreadyAppended),
         afterStart.length,
       );
       await _fillQueueBatch(
@@ -3388,7 +3410,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> customAction(String name, [Map<String, dynamic>? extras]) {
-    if (kProfileMode &&
+    if (diagnosticsBuildEnabled &&
         const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
         const String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE') ==
             'clone' &&

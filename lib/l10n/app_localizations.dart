@@ -4497,6 +4497,12 @@ abstract class AppLocalizations {
   /// **'Next'**
   String get nowPlayingNext;
 
+  /// No description provided for @macosMenuControls.
+  ///
+  /// In en, this message translates to:
+  /// **'Controls'**
+  String get macosMenuControls;
+
   /// No description provided for @nowPlayingNoNextTrack.
   ///
   /// In en, this message translates to:
@@ -5714,6 +5720,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Custom download folders are not available on this platform.'**
   String get downloadsCustomFolderUnsupported;
+
+  /// No description provided for @downloadsFilesAppTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads in Files'**
+  String get downloadsFilesAppTitle;
+
+  /// No description provided for @downloadsFilesAppSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Downloads appear in the Files app under On My iPhone › Navis.'**
+  String get downloadsFilesAppSubtitle;
 
   /// No description provided for @downloadsCustomFolderChooseAction.
   ///
@@ -7418,6 +7436,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Navis cannot update itself from this location. Please download manually.'**
   String get updateNoWriteAccess;
+
+  /// No description provided for @updateMoveToApplications.
+  ///
+  /// In en, this message translates to:
+  /// **'Move Navis to the Applications folder to update it.'**
+  String get updateMoveToApplications;
 
   /// No description provided for @updateUsePackageManager.
   ///
@@ -10302,6 +10326,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Waiting to scan'**
   String get notificationLibraryScanStageIdle;
+
+  /// System notification: name of the Android channel for the media playback notification.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback'**
+  String get notificationPlaybackChannelName;
+
+  /// System notification: description of the playback channel in system settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Media playback controls and status'**
+  String get notificationPlaybackChannelDescription;
 
   /// System notification: name of the Android channel for download notifications.
   ///

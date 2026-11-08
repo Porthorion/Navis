@@ -163,12 +163,12 @@ class _ActionRowState extends ConsumerState<_ActionRow>
 /// It sits where Shuffle used to be; Shuffle now lives in the queue header
 /// because it reorders the queue rather than controlling the current track.
 class _NowPlayingMixButton extends ConsumerWidget {
-  const new({required this.songId, this.compact = false});
+  const new({required this.songId, this.visualDensity});
 
   static const Key buttonKey = ValueKey<String>('nowPlayingMixButton');
 
   final String? songId;
-  final bool compact;
+  final VisualDensity? visualDensity;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -189,7 +189,7 @@ class _NowPlayingMixButton extends ConsumerWidget {
 
     return IconButton(
       key: buttonKey,
-      visualDensity: compact ? VisualDensity.compact : null,
+      visualDensity: visualDensity,
       tooltip: label,
       isSelected: mixActive,
       onPressed: seedSongId == null

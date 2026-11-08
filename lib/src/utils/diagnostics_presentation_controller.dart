@@ -1572,8 +1572,9 @@ class DiagnosticsPresentationController {
   void _setPosixMode(String path, String mode) {
     // Android primary certification writes below the sidecar's scoped
     // external-files directory. POSIX chmod is unavailable there; Android's
-    // scoped-storage boundary provides the relevant protection instead.
-    if (Platform.isWindows || Platform.isAndroid) return;
+    // scoped-storage boundary provides the relevant protection instead. iOS
+    // cannot spawn processes; the launch scripts create the run root mode 700.
+    if (Platform.isWindows || Platform.isAndroid || Platform.isIOS) return;
     final result = Process.runSync('chmod', <String>[mode, path]);
     if (result.exitCode != 0) {
       throw FileSystemException(

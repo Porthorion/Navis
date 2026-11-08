@@ -7,6 +7,7 @@
 #import "./include/just_audio/ConcatenatingAudioSource.h"
 #import "./include/just_audio/LoopingAudioSource.h"
 #import "./include/just_audio/ClippingAudioSource.h"
+#import "NavisEqualizer.h"
 #import <AVFoundation/AVFoundation.h>
 #import <stdlib.h>
 #include <TargetConditionals.h>
@@ -53,9 +54,13 @@
     NSDictionary<NSString *, NSObject *> *_icyMetadata;
     NSNumber *_errorCode;
     NSString *_errorMessage;
+#if TARGET_OS_IOS
+    // Navis: nil unless the app sent an equalizerConfiguration (iOS only).
+    NavisEqualizer *_equalizer;
+#endif
 }
 
-- (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar playerId:(NSString*)idParam loadConfiguration:(NSDictionary *)loadConfiguration useLazyPreparation:(BOOL)useLazyPreparation {
+- (instancetype)initWithRegistrar:(NSObject<FlutterPluginRegistrar> *)registrar playerId:(NSString*)idParam loadConfiguration:(NSDictionary *)loadConfiguration useLazyPreparation:(BOOL)useLazyPreparation equalizerConfiguration:(NSDictionary *)equalizerConfiguration {
     self = [super init];
     NSAssert(self, @"super init cannot be nil");
     _registrar = registrar;
@@ -108,6 +113,15 @@
         _loadControl.canUseNetworkResourcesForLiveStreamingWhilePaused = NO;
         _loadControl.preferredPeakBitRate = (NSNumber *)[NSNull null];
     }
+#if TARGET_OS_IOS
+    if (equalizerConfiguration) {
+        NSString *equalizerError = nil;
+        _equalizer = [[NavisEqualizer alloc] initWithConfiguration:equalizerConfiguration error:&equalizerError];
+        if (!_equalizer) NSLog(@"just_audio: equalizer unavailable: %@", equalizerError);
+        __weak __typeof__(self) weakSelf = self;
+        _equalizer.currentItemProvider = ^AVPlayerItem *{ return weakSelf.player.currentItem; };
+    }
+#endif
     _speed = 1.0f;
     _volume = 1.0f;
     _justAdvanced = NO;
@@ -178,6 +192,10 @@
         } else if ([@"concatenatingMove" isEqualToString:call.method]) {
             [self concatenatingMove:(NSString *)request[@"id"] currentIndex:[request[@"currentIndex"] intValue] newIndex:[request[@"newIndex"] intValue] shuffleOrder:(NSArray<NSNumber *> *)request[@"shuffleOrder"]];
             result(@{});
+        } else if ([@"setEqualizer" isEqualToString:call.method]) {
+            [self setEqualizer:request result:result];
+        } else if ([@"getEqualizerState" isEqualToString:call.method]) {
+            [self getEqualizerState:result];
         } else if ([@"setAndroidAudioAttributes" isEqualToString:call.method]) {
             result(@{});
         } else {
@@ -188,6 +206,56 @@
         FlutterError *flutterError = [FlutterError errorWithCode:@"error" message:@"Error in handleMethodCall" details:nil];
         result(flutterError);
     }
+}
+
+// Navis: equalizer (iOS). Unsupported where no tap was installed, as on Android.
+- (void)setEqualizer:(NSDictionary *)request result:(FlutterResult)result {
+#if TARGET_OS_IOS
+    if (_equalizer) {
+        NSString *error = nil;
+        NSDictionary *state = [_equalizer setConfiguration:request error:&error];
+        result(state ?: [FlutterError errorWithCode:@"eq_invalid" message:error details:nil]);
+        return;
+    }
+#endif
+    result([FlutterError errorWithCode:@"eq_unavailable" message:@"No EQ processor was installed for this player" details:nil]);
+}
+
+- (void)getEqualizerState:(FlutterResult)result {
+#if TARGET_OS_IOS
+    if (_equalizer) {
+        result([_equalizer state]);
+        return;
+    }
+#endif
+    result([FlutterError errorWithCode:@"eq_unavailable" message:@"No EQ processor was installed for this player" details:nil]);
+}
+
+// Every queued item gets the equalizer's shared tap in the same run-loop turn
+// as its insert (see enqueueFrom:). Attaching is synchronous and loads no
+// tracks, so covering the whole queue costs nothing; an item that is already
+// queued is never re-mixed.
+- (void)attachEqualizerToQueue {
+#if TARGET_OS_IOS
+    for (AVPlayerItem *item in _player.items) {
+        [_equalizer attachToItem:item];
+    }
+#endif
+}
+
+// Navis: a seek, skip or new load; the equalizer drops its filter history at
+// the next block of audio.
+- (void)noteEqualizerFlush {
+#if TARGET_OS_IOS
+    [_equalizer noteFlush];
+#endif
+}
+
+// Navis: the transition gap meter samples only while playing.
+- (void)noteEqualizerPlaying:(BOOL)playing {
+#if TARGET_OS_IOS
+    [_equalizer setPlaying:playing];
+#endif
 }
 
 - (AVQueuePlayer *)player {
@@ -512,13 +580,34 @@
     IndexedPlayerItem *existingItem = nil;
     IndexedPlayerItem *newItem = _indexedAudioSources.count > 0 ? _indexedAudioSources[_index].playerItem : nil;
     NSArray *oldPlayerItems = [NSArray arrayWithArray:_player.items];
+    // Navis: queued items that are already in the right order stay as they are.
+    // Removing and re-inserting the prefetched next item (every append of a
+    // queue fill does) restarts its audio pipeline, which breaks the gapless
+    // join to it. Only while the playing item stays first and not looping.
+    NSMutableSet<AVPlayerItem *> *kept = [NSMutableSet set];
+#if TARGET_OS_IOS
+    if (_loopMode == lmLoopOff && newItem && oldPlayerItems.count > 0 && oldPlayerItems[0] == newItem) {
+        BOOL inOrder = NO;
+        NSUInteger matched = 0;
+        for (int i = 0; i < [_order count]; i++) {
+            int si = [_order[i] intValue];
+            if (si == _index) inOrder = YES;
+            if (!inOrder) continue;
+            AVPlayerItem *wanted = _indexedAudioSources[si].playerItem;
+            if (matched >= oldPlayerItems.count || oldPlayerItems[matched] != wanted) break;
+            [kept addObject:wanted];
+            matched++;
+        }
+    }
+#endif
     // In the first pass, preserve the old and new items.
-    // TODO: preserve as much of the treadmill as possible
     for (int i = 0; i < oldPlayerItems.count; i++) {
         if (oldPlayerItems[i] == newItem) {
             // Preserve and tag new item if it is already in the queue.
             existingItem = oldPlayerItems[i];
             //NSLog(@"Preserving existing item %d", [self indexForItem:existingItem]);
+        } else if ([kept containsObject:oldPlayerItems[i]]) {
+            // Navis: already queued in the right order.
         } else if (oldPlayerItems[i] == oldItem) {
             //NSLog(@"Preserving old item %d", [self indexForItem:oldItem]);
             // Temporarily preserve old item, just to avoid jumping to
@@ -546,7 +635,8 @@
         for (int i = 0; i < [_order count]; i++) {
             int si = [_order[i] intValue];
             if (si == _index) include = YES;
-            if (include && _indexedAudioSources[si].playerItem != existingItem) {
+            if (include && _indexedAudioSources[si].playerItem != existingItem
+                && ![kept containsObject:_indexedAudioSources[si].playerItem]) {
                 if (_indexedAudioSources[si].lazyLoading && _player.items.count >= TREADMILL_SIZE) {
                     // Enqueue up until the first lazy item that does not fit on the treadmill.
                     _enqueuedAll = NO;
@@ -584,6 +674,7 @@
 
     /* NSLog(@"after reorder: _player.items.count: ", _player.items.count); */
     /* [self dumpQueue]; */
+    [self attachEqualizerToQueue];
 
     if (_processingState != psLoading && oldItem != newItem) {
         // || !_player.currentItem.playbackLikelyToKeepUp;
@@ -604,6 +695,7 @@
 }
 
 - (void)load:(NSDictionary *)source initialPosition:(CMTime)initialPosition initialIndex:(NSNumber *)initialIndex result:(FlutterResult)result {
+    [self noteEqualizerFlush];
     if (_playing) {
         [_player pause];
     }
@@ -1046,6 +1138,7 @@
         _playResult = result;
     }
     _playing = YES;
+    [self noteEqualizerPlaying:YES];
     _player.rate = _speed;
     [self updatePosition];
     if (@available(macOS 10.12, iOS 10.0, *)) {}
@@ -1060,6 +1153,7 @@
 - (void)pause {
     if (!_playing) return;
     _playing = NO;
+    [self noteEqualizerPlaying:NO];
     [_player pause];
     [self updatePosition];
     [self broadcastPlaybackEvent];
@@ -1212,6 +1306,8 @@
         }
         return;
     }
+    // A user seek or skip (also the first half of a jump to another item).
+    [self noteEqualizerFlush];
     int index = _index;
     if (newIndex != (id)[NSNull null]) {
         index = [newIndex intValue];
@@ -1383,6 +1479,10 @@
         _player = nil;
     }
     // Untested:
+#if TARGET_OS_IOS
+    [_equalizer dispose];
+    _equalizer = nil;
+#endif
     [_eventChannel dispose];
     [_dataEventChannel dispose];
     [_methodChannel setMethodCallHandler:nil];
