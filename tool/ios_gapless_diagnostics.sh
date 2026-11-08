@@ -209,15 +209,16 @@ for name in ("song1-4", "song2-14", "song3-15", "song4-3"):
     if round(a.get("sampleRate") or 0) != 22050: fail("%s: the EQ runs at %s Hz" % (name, a.get("sampleRate")))
     level = a.get("levelDeltaDb")
     if level is None or abs(level + 12) > 0.6: fail("%s: levelDeltaDb %s" % (name, level))
-# The slot that processed each song is the one whose frames grew since the previous snapshot:
-# its channel count is that of the song (mono 16-bit, stereo 16-bit, mono float, mono 16-bit).
+# Each song is sampled 1.5 s into it. The slot of its channel count (mono 16-bit, stereo 16-bit,
+# mono float, mono 16-bit) must have grown by about that much since the previous sample; the
+# previous song had the other channel count, or ended in the part of its slot that is counted before.
 def frames_by_format(a): return {(round(f["sampleRate"]), f["channels"]): f["processedFrames"] for f in a.get("formatStreams") or []}
 previous = {}
 for name, channels in (("song1-4", 1), ("song2-14", 2), ("song3-15", 1), ("song4-3", 1)):
     now = frames_by_format(s[name])
-    grown = {k: v - previous.get(k, 0) for k, v in now.items()}
-    busiest = max(grown, key=grown.get)
-    if busiest != (22050, channels): fail("%s was processed by the %s slot, expected %s" % (name, busiest, (22050, channels)))
+    key = (22050, channels)
+    grown = now.get(key, 0) - previous.get(key, 0)
+    if grown < 0.9 * 1.5 * 22050: fail("%s: the %s slot processed %d frames since the last sample, expected about %d" % (name, key, grown, 1.5 * 22050))
     previous = now
 end = s["zend"]
 streams = {(round(f["sampleRate"]), f["channels"]): f for f in end.get("formatStreams") or []}
