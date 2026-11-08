@@ -2,10 +2,12 @@ library just_audio_media_kit;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
 import 'package:logging/logging.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:universal_platform/universal_platform.dart';
 import 'src/audio_request_batch.dart';
 import 'src/deferred_seek.dart';
 import 'src/icy_metadata.dart';
@@ -22,8 +24,18 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       {EqualizerConfigurationMessage? equalizer,
       IcyPropertySource? icyPropertySource,
       Player? player,
-      Future<Duration?> Function(Player)? positionReader})
-      : _positionReader = positionReader ?? nativePosition {
+      Future<Duration?> Function(Player)? positionReader,
+      bool Function(String)? commandSync,
+      bool Function(String, String)? setPropertySync,
+      bool? replayGainFilter})
+      : _positionReader = positionReader ?? nativePosition,
+        // ponytail: macOS stays off until `af-command` and lavfi `volume` are
+        // verified on libmpv 0.36 (design D5; the same switch is
+        // `navisReplayGainInPipeline`'s isMacOS): drop the platform test then.
+        _replayGainFilter = replayGainFilter ?? !UniversalPlatform.isMacOS {
+    _commandSync = commandSync ?? ((line) => nativeCommandSync(_player, line));
+    _setPropertySync = setPropertySync ??
+        ((name, value) => nativeSetPropertySync(_player, name, value));
     _equalizer = equalizer;
     _player = player ??
         Player(
@@ -80,10 +92,12 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       return start.position;
     });
 
-    // Navis: ReplayGain boost (positive gain) rides mpv's per-file
-    // `volume-gain`, set from the `on_load` hook so it ends with the file.
-    configureReplayGainBoost(
-        _player, (index, path) => _boost.onLoad(position: index, path: path));
+    // Navis: ReplayGain rides the `@navis_rg` filter at the head of mpv's
+    // `af` chain; the `on_load` hook builds each file's chain with its own
+    // level, so it applies from the file's first sample.
+    if (_replayGainFilter) {
+      configureReplayGainFilter(_player, replayGainFiltersForLoad);
+    }
 
     _nativeSeekingReady = configureNativeSeeking(_player, (seeking) {
       _nativeSeeking = seeking;
@@ -137,7 +151,6 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         _updatePlaybackEvent();
       }),
       _player.stream.position.listen((position) {
-        _raiseBoostIfDue(position);
         if (!_mediaOpened) return;
         _position = position;
         final start = _currentMedia?.start;
@@ -284,9 +297,18 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// Seeks sent before that are rejected, so retained positions wait for it.
   bool _playbackInitialized = false;
 
-  /// The ReplayGain boost of the playing file and the queue (see
-  /// [setReplayGainBoost]).
-  final _boost = ReplayGainBoostState();
+  /// The ReplayGain of the playing file and the queue.
+  final _levels = ReplayGainLevels();
+
+  /// Synchronous libmpv calls (the hook's kind), replaceable by tests: an
+  /// awaited write could land on the file that follows.
+  late final bool Function(String) _commandSync;
+  late final bool Function(String, String) _setPropertySync;
+
+  /// Whether the `@navis_rg` stage is in `af`. Off (macOS), the adapter keeps
+  /// its pre-#392 behaviour: no stage, media_kit's own speed and pitch setters
+  /// while the EQ pipeline is off, and levels are ignored.
+  final bool _replayGainFilter;
 
   /// The entry and position mpv starts the next load of that entry at.
   ({int index, Duration position})? _nativeStart;
@@ -384,10 +406,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         'processingState': _processingState.name,
         'pendingPosition': _deferredSeek.isPending,
         'seeking': _nativeSeeking,
-        // What mpv itself reports, then what the adapter meant to write.
-        'replayGainBoostDb': nativeVolumeGain(_player),
-        'replayGainBoostIntendedDb': _boost.applied,
-        'replayGainBoostHeldDb': _boost.held,
+        // What the adapter meant the loaded file to play at, then what mpv
+        // itself reports.
+        'replayGainDb': _levels.current,
+        'audioFilters': nativeAudioFilters(_player),
       };
 
   EqualizerConfigurationMessage? _equalizer;
@@ -396,6 +418,10 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   double _rate = 1;
   double _pitch = 1;
   double? _sampleRate;
+
+  /// The chain behind the ReplayGain stage that the `on_load` hook and a live
+  /// level change write; [_applyAudio] replaces it.
+  late EqualizerChain _chain = _compile(_equalizer, 1, 1);
 
   void _updateDuration(Duration duration) {
     final start = _currentMedia?.start;
@@ -474,7 +500,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     _loadCompleter = load;
     _deferredSeek.beginLoad(request.initialPosition);
     _currentIndex = request.initialIndex ?? 0;
-    _boost.expectSwitch(_currentIndex);
+    _levels.clear();
     final initialPosition = request.initialPosition;
     _nativeStart = _nativeStartSupported &&
             initialPosition != null &&
@@ -560,6 +586,32 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     return result;
   }
 
+  /// The configuration the chain is built from while the EQ pipeline is off.
+  static final _noEqualizer = EqualizerConfigurationMessage(
+      enabled: false, preampDb: 0, autoHeadroom: false, filters: const []);
+
+  /// The chain for [eq] (null: no EQ pipeline) at [rate] and [pitch]. Without
+  /// the EQ pipeline and at 1x there is nothing to stretch: the chain is empty,
+  /// as it was before the ReplayGain stage.
+  EqualizerChain _compile(
+          EqualizerConfigurationMessage? eq, double rate, double pitch) =>
+      eq == null && rate == 1 && pitch == 1
+          ? EqualizerChain(
+              filters: '',
+              state: EqualizerStateMessage(
+                  enabled: false, sampleRate: _sampleRate))
+          : EqualizerChain.compile(eq ?? _noEqualizer,
+              speed: rate, pitch: pitch, sampleRate: _sampleRate);
+
+  /// [chain] as the `af` string: behind the ReplayGain stage of the loaded
+  /// file, unless the stage is off.
+  String _stages(EqualizerChain chain) =>
+      _replayGainFilter ? chain.withReplayGain(_levels.current) : chain.filters;
+
+  /// The only writer of mpv's `af` besides the `on_load` hook and a live
+  /// ReplayGain change: speed, pitch and EQ edits all compose their chain
+  /// here, behind the ReplayGain stage of the loaded file. media_kit's own
+  /// speed and pitch setters write `af` themselves and would drop that stage.
   Future<void> _applyAudio(
       {double? rate,
       double? pitch,
@@ -567,23 +619,24 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     await ready();
     final nextRate = rate ?? _rate;
     final nextPitch = pitch ?? _pitch;
-    final nextEq = equalizer ?? _equalizer!;
-    final chain = EqualizerChain.compile(nextEq,
-        speed: nextRate, pitch: nextPitch, sampleRate: _sampleRate);
+    final nextEq = equalizer ?? _equalizer;
+    final chain = _compile(nextEq, nextRate, nextPitch);
     try {
       await setProperty(_player, 'audio-pitch-correction', 'no');
       await setProperty(_player, 'speed', nextPitch.toString());
-      await setProperty(_player, 'af', chain.filters);
-      await verifyOwnedAudioChain(_player, chain.filters, nextPitch);
+      // Read when written: a live change in between must not be undone.
+      final filters = _stages(chain);
+      await setProperty(_player, 'af', filters);
+      await verifyOwnedAudioChain(_player, filters, nextPitch);
     } catch (_) {
       // Only needed to roll back, and compiling a chain with the EQ on is
       // not free.
-      final previous = EqualizerChain.compile(_equalizer!,
-          speed: _rate, pitch: _pitch, sampleRate: _sampleRate);
+      final previous = _compile(_equalizer, _rate, _pitch);
       try {
+        final filters = _stages(previous);
         await setProperty(_player, 'speed', _pitch.toString());
-        await setProperty(_player, 'af', previous.filters);
-        await verifyOwnedAudioChain(_player, previous.filters, _pitch);
+        await setProperty(_player, 'af', filters);
+        await verifyOwnedAudioChain(_player, filters, _pitch);
       } catch (rollbackError) {
         _eqState = EqualizerStateMessage(
             enabled: false,
@@ -594,7 +647,8 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     }
     _rate = nextRate;
     _pitch = nextPitch;
-    _equalizer = nextEq;
+    _chain = chain;
+    if (equalizer != null) _equalizer = equalizer;
     _eqState = chain.state;
     _dataController.add(PlayerDataMessage(speed: _rate, pitch: _pitch));
   }
@@ -612,24 +666,32 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     return _eqState;
   }
 
-  /// Stores the boost of every queued URI for the `on_load` hook and applies
-  /// the playing file's own boost now (see [ReplayGainBoostState]).
+  /// The `af` chain for the file mpv is about to load from [path]: its own
+  /// ReplayGain level ahead of the current speed, pitch and EQ stages. The
+  /// `on_load` hook writes it; the level is the file's own whether it follows
+  /// by a natural join, a jump or a seek.
+  @visibleForTesting
+  String replayGainFiltersForLoad(String path) =>
+      _chain.withReplayGain(_levels.onLoad(path));
+
+  /// Stores the level of every queued URI for the `on_load` hook. Only a
+  /// [SetReplayGainLevelsRequest.live] update changes the playing file, and
+  /// then in two steps: `af-command` steps the running filter without a gap,
+  /// and the `af` property carries the value too because mpv rebuilds the
+  /// chain from it on every seek.
   @override
-  Future<void> setReplayGainBoost(SetReplayGainBoostRequest request) async {
-    if (_released) return;
-    _writeBoost(_boost.update(request.byUri));
-  }
-
-  void _raiseBoostIfDue(Duration position) {
-    if (_released) return;
-    _writeBoost(_boost.raiseDue(position));
-  }
-
-  void _writeBoost(double? db) {
-    if (db == null || _released) return;
-    // Synchronous, like the hook: an awaited property set could land on the
-    // file that follows.
-    writeFileLocalVolumeGain(_player, db);
+  Future<void> setReplayGainLevels(SetReplayGainLevelsRequest request) async {
+    if (_released || !_replayGainFilter) return;
+    final db = _levels.update(request.byUri, live: request.live);
+    if (db == null) return;
+    // Not "unavailable": it also fails while no chain exists yet (before the
+    // output opens, between files), and the `af` write below still lands.
+    if (!_commandSync('af-command navis_rg volume ${db.toStringAsFixed(3)}dB '
+        'volume')) {
+      _logger.warning('af-command navis_rg failed (no chain yet, or libmpv '
+          'without af-command); the af write carries the level');
+    }
+    _setPropertySync('af', _chain.withReplayGain(db));
   }
 
   @override
@@ -640,7 +702,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   @override
   Future<SetSpeedResponse> setSpeed(SetSpeedRequest request) async {
-    if (_equalizer == null) {
+    if (!_replayGainFilter && _equalizer == null) {
       await _player.setRate(request.speed);
     } else {
       await _audioRequests.request(rate: request.speed);
@@ -650,7 +712,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   @override
   Future<SetPitchResponse> setPitch(SetPitchRequest request) async {
-    if (_equalizer == null) {
+    if (!_replayGainFilter && _equalizer == null) {
       await _player.setPitch(request.pitch);
       await verifyPlaybackAdjustments(_player);
     } else {
@@ -706,11 +768,6 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     if (request.index != null && !sameEntry) {
       final position = request.position;
       _playbackInitialized = false;
-      // mpv ignores a jump to the entry it is already on, and then no hook
-      // follows; its own position tells, media_kit's state lags it.
-      if (nativePlaylistPosition(_player) != request.index) {
-        _boost.expectSwitch(request.index!);
-      }
       // A fresh entry starts at zero; only non-zero positions need a seek.
       _deferredSeek.beginLoad(position);
       _nativeStart =
@@ -797,17 +854,6 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // One playback event for the range, as for inserts, rather than one per
     // removed child.
     _bulkPlaylistMutation = true;
-    // Removing the playing entry replaces the file and clears mpv's buffer,
-    // but only when an entry follows it to be loaded.
-    final playing =
-        nativePlaylistPosition(_player) ?? _player.state.playlist.index;
-    final remaining = _player.state.playlist.medias.length -
-        (request.endIndex - request.startIndex);
-    if (playing >= request.startIndex &&
-        playing < request.endIndex &&
-        remaining > request.startIndex) {
-      _boost.expectSwitch(request.startIndex);
-    }
     try {
       for (var i = request.startIndex; i < request.endIndex; i++) {
         await _player.remove(request.startIndex);
@@ -852,10 +898,17 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     _streamSubscriptions.clear();
   }
 
+  /// A source's first level arrives with its message, before mpv loads it.
+  void _seedLevel(UriAudioSourceMessage source) {
+    final db = source.replayGainDb;
+    if (db != null && _replayGainFilter) _levels.seed(source.uri, db);
+  }
+
   /// Converts an [AudioSourceMessage] into a [Media] for playback
   Media _convertAudioSourceIntoMediaKit(AudioSourceMessage audioSource) {
     switch (audioSource) {
       case final UriAudioSourceMessage uriSource:
+        _seedLevel(uriSource);
         return Media(uriSource.uri, httpHeaders: audioSource.headers);
 
       // removed because it doesn't seem to be actually working.
@@ -868,6 +921,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       //   );
 
       case final ClippingAudioSourceMessage clippingSource:
+        _seedLevel(clippingSource.child);
         return Media(clippingSource.child.uri,
             start: clippingSource.start, end: clippingSource.end);
 

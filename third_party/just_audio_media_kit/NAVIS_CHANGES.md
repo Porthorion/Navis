@@ -14,17 +14,24 @@ media_kit's seek-on-completed behavior in `play()` is unchanged.
 Keep upgrades narrow and re-run the vendored adapter fixtures and Navis
 playback tests when updating this package.
 
-ReplayGain boost (positive gain): `setReplayGainBoost` keeps a per-URI boost
-map and an `on_load` hook (`configureReplayGainBoost`, next to
-`configureStartPosition`) sets mpv's file-local `volume-gain` from it, so the
-gain ends with the file. mpv applies `volume-gain` to audio it has already
-queued, so a natural join starts at `min(previous, own)` and is held (may only go
-down) until it has played 0.5 s (`ReplayGainBoostState`,
-`src/replay_gain_boost.dart`); load, indexed seeks and removing the playing
-entry are explicit switches, tied to the playlist position they load. Gain
-writes are synchronous. The global
-`volume-gain` is never set.
-
-`ReplayGainBoostState` measures the lifetime of an expected switch on a
-monotonic `Stopwatch` instead of the wall clock, and no longer has the unused
-`cancelSwitch()`.
+ReplayGain (#392 phase 2): the level of a file (signed dB, cut and boost
+together) is the `@navis_rg:lavfi=[volume=<dB>dB:precision=float]` stage at the
+head of the `af` chain. `MediaKitPlayer._applyAudio` is the one composer of
+`af` (`EqualizerChain.withReplayGain`): speed, pitch and EQ edits all go
+through it, with the EQ pipeline off too, because media_kit's own `setRate` and
+`setPitch` write `af=scaletempo:...` and would drop the stage mid-song. The
+`on_load` hook (`configureReplayGainFilter`, next to `configureStartPosition`)
+writes the entering file's whole chain synchronously; the level comes from
+`ReplayGainLevels` (`src/replay_gain_boost.dart`), a map by `replayGainBoostKey`
+seeded from `UriAudioSourceMessage.replayGainDb` in `load`/`insert` and merged
+from `setReplayGainLevels` pushes, so a natural join, a jump and a seek are the
+same lookup and an unknown key is 0 dB. Only a `live` push moves the playing
+file: `af-command navis_rg volume <dB>dB volume` (the 4th argument is required),
+then an `af` write, since mpv rebuilds the chain from `af` on any seek; if
+`af-command` fails the `af` write alone lands the value (logged). Without the
+EQ pipeline at 1x the chain is the stage alone (no tempo). The global
+`volume-gain` is never set. `commandSync` and `setPropertySync` are injectable
+like `positionReader`. macOS (`replayGainFilter` false, the default there)
+keeps the pre-phase-2 adapter: no stage in `af`, no hook, levels ignored, and
+media_kit's own `setRate`/`setPitch` while the EQ pipeline is off, until
+`af-command` and lavfi `volume` are verified on libmpv 0.36.

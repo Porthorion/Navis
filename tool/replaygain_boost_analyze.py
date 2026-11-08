@@ -55,15 +55,17 @@ def d1(root):
     check('D1 Q plays boosted (~0.1)', len(q) > 20 and 0.085 <= np.median(q) <= 0.115, f'median={np.median(q) if len(q) else None}')
     check('D1 H plays at ~0.63', len(h) > 20 and 0.58 <= np.median(h) <= 0.68, f'median={np.median(h) if len(h) else None}')
     # H's last 0.2 s plays without its cut because Dart lifts the cut at the index event
-    # (present without any boost); the boost must add nothing to it.
+    # (present without any boost); the boost must add nothing to it. (On mpv the gain is per file, so
+    # H's tail keeps its own level; the control stays the bound.)
     check('D1 H->Q: the boost adds nothing over the no-boost control', len(hq) and np.max(np.abs(hq)) <= np.max(np.abs(hqn)) + 0.01,
           f'hq max={np.max(np.abs(hq)) if len(hq) else None} control max={np.max(np.abs(hqn)) if len(hqn) else None}')
     b = after_loud(hq)
     if b is not None:
         late = peaks(hq[b:])  # per-sample boundary: H's last half-cycle is not Q's head
-        head = np.max(np.abs(hq[b:b + int(0.3 * RATE)]))
-        check('D1 Q head held down after H->Q (<= 0.05)', head <= 0.05, f'head max={head:.4f}')
-        check('D1 Q boosted again within ~1.2 s', np.median(late[119:159]) >= 0.085, f'late median={np.median(late[119:159])}')
+        head = peaks(hq[b:b + int(0.3 * RATE)])
+        check('D1 Q is boosted from its first sample after H->Q (~0.1)', len(head) > 10 and 0.085 <= np.median(head) <= 0.115,
+              f'head median={np.median(head) if len(head) else None}')
+        check('D1 Q stays boosted later in the song', np.median(late[119:159]) >= 0.085, f'late median={np.median(late[119:159])}')
     else:
         check('D1 H->Q join found', False, 'no H region')
 
@@ -73,8 +75,8 @@ def d6(root):
     that are still downloading, so a stream plays (the seek's source kind is directStream); pass 'st2'
     joins the same songs once the rolling cache holds them (a file plays). H's last 0.2 s plays
     without its cut because Dart lifts the cut at the index event (1.014 on the base build too), so
-    the H->Q cap is 1.05, not H's own level. The head of Q is checked per sample from the end of
-    H's last loud sample."""
+    the H->Q cap is 1.05, not H's own level. The head of Q is checked from the end of H's last
+    loud sample: Q plays boosted at once, each file starts at its own level."""
     import json
     for name, label, kind in (('st', 'streamed', 'directStream'), ('st2', 'rolling cache', 'file')):
         for join in ('qh', 'hq'):
@@ -99,23 +101,24 @@ def d6(root):
         if b is None:
             check(f'D6 {label} H->Q join found', False, 'no H region')
             continue
-        head = np.max(np.abs(hq[b:b + int(0.3 * RATE)]))
-        check(f'D6 {label} Q head held down after H->Q (<= 0.05)', head <= 0.05, f'head max={head:.4f}')
+        head = peaks(hq[b:b + int(0.3 * RATE)])
+        check(f'D6 {label} Q is boosted from its first sample after H->Q (~0.1)', len(head) > 10 and 0.085 <= np.median(head) <= 0.115,
+              f'head median={np.median(head) if len(head) else None}')
         late = peaks(hq[b:])
-        check(f'D6 {label} Q boosted again within ~1.2 s', np.median(late[119:159]) >= 0.085,
+        check(f'D6 {label} Q stays boosted later in the song', np.median(late[119:159]) >= 0.085,
               f'late median={np.median(late[119:159])}')
 
 
 def d3(root):
     """The on_load hook runs when the next file starts, not when it is prefetched: during Q->H the
-    adapter's gain write (10 -> 0 dB) lands within 0.6 s of the heard song changing and in Q's
-    last second, with prefetch-playlist off."""
+    gain stage in mpv's own af (mpvDb, read from the @navis_rg stage) goes 10 -> -3 dB within 0.6 s of
+    the heard song changing and in Q's last second, with prefetch-playlist off."""
     import json
     path = os.path.join(root, 'd3-samples.log')
     rows = [json.loads(line) for line in open(path)] if os.path.exists(path) else []
     rows = [r for r in rows if r.get('songId')]
     heard = next((r for i, r in enumerate(rows[1:], 1) if r['songId'] != rows[i - 1]['songId'] and r['songId'] == 'rgboost-h1'), None)
-    hook = next((r for i, r in enumerate(rows[1:], 1) if rows[i - 1]['intendedDb'] == 10 and r['intendedDb'] == 0), None)
+    hook = next((r for i, r in enumerate(rows[1:], 1) if rows[i - 1]['mpvDb'] == 10 and r['mpvDb'] == -3), None)
     check('D3 samples show the heard song change and the hook write', heard and hook, f'rows={len(rows)}')
     if heard and hook:
         last = max((r for r in rows if r['songId'] == 'rgboost-q1' and r['t'] <= hook['t']), key=lambda r: r['t'])
@@ -157,9 +160,9 @@ def d5(root):
     dB: its boost stops 1 dB under its peak at 5 dB (0.889) and the pre-amp cannot lift it. qb is
     tagged +2 dB, so its hook value is at or under qa's, and 6 dB of pre-amp lifts it to 8 dB. A raise
     that lands on qa's queued tail puts 0.5 * 10^(8/20) = 1.256 on it (the F1 regression). The join
-    itself shows one 10 ms window ~8 % off (also in the no-boost control), hence 15 %. qb has to stay
-    held for 0.5 s of its own playback, then rise to 0.0794. The join is 1.0 s after the first audible
-    sample: the runner seeks to 29 s of a 30 s song."""
+    itself shows one 10 ms window ~8 % off (also in the no-boost control), hence 15 %. qb is raised at
+    the join itself (its file starts at its own level), to 0.0794. The join is 1.0 s after the first
+    audible sample: the runner seeks to 29 s of a 30 s song."""
     qa_own, margin = 0.5 * 10 ** (5 / 20), 1.15
     for delay in ('0.55', '0.80', '0.86', '0.91', '0.96', '1.01'):
         x = load(root, f'd5-{delay}')
@@ -172,7 +175,7 @@ def d5(root):
               f'max up to the join={tail:.4f} limit={qa_own * margin:.4f}')
         raised = np.where(peaks(x[b:]) >= 0.07)[0]
         at = raised[0] * 0.01 if len(raised) else None
-        check(f'D5 delay {delay}: qb is raised only after the 0.5 s hold', at is not None and at >= 0.4,
+        check(f'D5 delay {delay}: qb starts at its own level at the join', at is not None and at <= 0.1,
               f'join at {b / RATE:.2f}s, qb raised {at}s after it')
 
 

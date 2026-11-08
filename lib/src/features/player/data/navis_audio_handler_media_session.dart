@@ -813,12 +813,10 @@ extension _NavisMediaSession on NavisAudioHandler {
 
   /// Tells every deck how much each queued song is turned up.
   ///
-  /// mpv switches the gain per file from the queued songs' boost and applies
-  /// the playing song's now (see the media_kit adapter), which keeps the end
-  /// of a quiet song from playing at its louder successor's gain. A backend
-  /// without a boost stage ([replayGainBoostSupported] false) gets nothing.
-  /// Boost is derived from the same frozen decision as the cut, except for
-  /// songs not playing yet, which read it without freezing.
+  /// A backend without a boost stage ([replayGainBoostSupported] false and not
+  /// [replayGainInPipeline]) gets nothing. Boost is derived from the same
+  /// frozen decision as the cut, except for songs not playing yet, which read
+  /// it without freezing.
   ///
   /// In the pipeline this is the update push of every queued song's level
   /// ([_pushReplayGainLevels]); [live] is set only by a settings change.
@@ -880,10 +878,14 @@ extension _NavisMediaSession on NavisAudioHandler {
       final item = _mediaItemOfSource(source);
       // A non-live push does not reach the heard entry (native froze it), so
       // it must not replace the pair that entry's level was built from.
-      final db = item == null
-          ? null
-          : _replayGainLevelFor(item, push: live || i != heard);
-      if (db != null) bySource[source] = db;
+      final push = live || i != heard;
+      final db = item == null ? null : _replayGainLevelFor(item, push: push);
+      if (db == null) continue;
+      bySource[source] = db;
+      // A reload re-sends these objects (navigation fallback), so the stamp
+      // must follow the push. Native reads it only when it loads the source,
+      // and the heard entry keeps its frozen stamp unless the push is live.
+      if (push) source.replayGainDb = db;
     }
     await player.setReplayGainLevels(bySource: bySource, live: live);
   }

@@ -2569,16 +2569,17 @@ forbidden in primary-certification mode.
 `./tool/replaygain_boost_diagnostics.sh [--scenarios d1,d2,d4,d5,d6]` is the Linux
 runtime gate for the desktop ReplayGain boost (changes to
 `navis_playback_rules.dart` boost rules, `_applyReplayGainBoost`, or the
-media_kit adapter's `ReplayGainBoostState`). It clones the profile, adds
+media_kit adapter's `ReplayGainLevels` and `@navis_rg` chain). It clones the profile, adds
 synthetic songs (Q: a -30 dBFS sine tagged +10 dB with its peak; H: -1 dBFS
 tagged -3 dB), and captures the app's output from a disposable null sink with
 `parec`. `tool/replaygain_boost_analyze.py` asserts the levels: Q plays at -20
 dBFS and H at -4 dBFS (d1), no sample above H's own level at either join, the
-boost adds nothing over a control where Q has no peak, Q's head is held down
-then raised, and the hook's gain write lands at the song change (d3 samples in
-the same run); skip, queue jump, seek, removing the playing song and repeat-one
+boost adds nothing over a control where Q has no peak, Q is boosted from its
+first sample after H (each file starts at its own level: no hold, no raise), and
+the `@navis_rg` stage in mpv's own `af` goes 10 to -3 dB at the song change (d3
+samples in the same run); skip, queue jump, seek, removing the playing song and repeat-one
 keep the right level (d2); cross-fade on has no over-boost and no 50 ms RMS
-step (d4); a pre-amp rise in a song's last second never lifts its tail, with the next song at or under its boost at the join but able to exceed it afterwards (d5: qa a -6 dBFS sine boosted 5 dB, qb tagged +2 dB, +6 dB of pre-amp); the same joins hold on songs served by the fixture server (media bodies are paced at 800 KB/s, so the first pass joins songs that are still downloading and asserts that the join's seek landed on a `directStream` source; the second pass joins the same songs from the completed rolling-cache file and asserts `file`), with Q's head checked per sample from H's last loud sample (d6).
+step (d4); a pre-amp rise in a song's last second never lifts its tail, with the next song at its own level at the join (d5: qa a -6 dBFS sine boosted 5 dB, qb tagged +2 dB, +6 dB of pre-amp); the same joins hold on songs served by the fixture server (media bodies are paced at 800 KB/s, so the first pass joins songs that are still downloading and asserts that the join's seek landed on a `directStream` source; the second pass joins the same songs from the completed rolling-cache file and asserts `file`), with Q's head checked from H's last loud sample (d6).
 With no display it starts a private headless `kwin_wayland` and passes
 `--no-enable-impeller` to the build (`NAVIS_DIAGNOSTICS_RUN_ARGS`), since
 Impeller's GLES backend cannot get a framebuffer there. `POST
