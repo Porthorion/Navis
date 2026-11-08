@@ -3,14 +3,26 @@ import 'dart:io';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
 /// Manages download-progress and completion notifications on the
-/// `downloads` Android notification channel.
+/// `downloads` Android notification channel, or on `downloads_quiet` (same
+/// look and sound, no vibration) while Settings → Haptics → Notifications is
+/// off.
 class DownloadNotifier {
   new _();
 
   static final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+
+  /// The channel to post on. `NavisHaptics.prefs` is the static the app root
+  /// keeps current, and downloads run on the same isolate, so it is valid here.
+  @visibleForTesting
+  static String get channelId =>
+      NavisHaptics.allows(HapticCategory.notifications)
+      ? 'downloads'
+      : 'downloads_quiet';
 
   /// Fixed notification ID used for the ongoing progress notification.
   static const int _progressId = 9001;
@@ -50,12 +62,13 @@ class DownloadNotifier {
 
     final l10n = readLocalizations();
     final androidDetails = AndroidNotificationDetails(
-      'downloads',
+      channelId,
       l10n.notificationDownloadsChannelName,
       channelDescription: l10n.notificationDownloadsChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.low,
+      enableVibration: channelId == 'downloads',
       priority: Priority.low,
       onlyAlertOnce: true,
       ongoing: true,
@@ -98,12 +111,13 @@ class DownloadNotifier {
 
     final l10n = readLocalizations();
     final androidDetails = AndroidNotificationDetails(
-      'downloads',
+      channelId,
       l10n.notificationDownloadsChannelName,
       channelDescription: l10n.notificationDownloadsChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.defaultImportance,
+      enableVibration: channelId == 'downloads',
       priority: Priority.defaultPriority,
     );
 
@@ -129,12 +143,13 @@ class DownloadNotifier {
 
     final l10n = readLocalizations();
     final androidDetails = AndroidNotificationDetails(
-      'downloads',
+      channelId,
       l10n.notificationDownloadsChannelName,
       channelDescription: l10n.notificationDownloadsChannelDescription,
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.defaultImportance,
+      enableVibration: channelId == 'downloads',
       priority: Priority.defaultPriority,
     );
 

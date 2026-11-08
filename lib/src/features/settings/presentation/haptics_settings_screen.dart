@@ -63,6 +63,10 @@ class HapticsSettingsScreen extends ConsumerWidget {
         l10n.hapticsLikesAndAlertsTitle,
         l10n.hapticsLikesAndAlertsSubtitle,
       ),
+      HapticCategory.notifications: (
+        l10n.hapticsNotificationsTitle,
+        l10n.hapticsNotificationsSubtitle,
+      ),
     };
     return Align(
       alignment: Alignment.topCenter,

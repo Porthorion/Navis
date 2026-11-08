@@ -72,7 +72,7 @@ Future<_Harness> _pump(
 }
 
 void main() {
-  testWidgets('shows the master and the six categories', (tester) async {
+  testWidgets('shows the master and the seven categories', (tester) async {
     final h = await _pump(tester);
     for (final title in [
       'Haptics',
@@ -82,6 +82,7 @@ void main() {
       'Switches & Steppers',
       'Lists & Menus',
       'Likes & Alerts',
+      'Notifications',
     ]) {
       expect(find.text(title), findsWidgets, reason: title);
     }

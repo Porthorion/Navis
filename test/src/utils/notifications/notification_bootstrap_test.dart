@@ -49,11 +49,19 @@ void main() {
   test('channel names and descriptions come from localizations', () async {
     await NotificationBootstrap.initialize(readLocalizations: _Translated.new);
     final created = channels();
-    expect(created.keys, {'playback', 'downloads', 'library_sync_silent'});
+    expect(created.keys, {
+      'playback',
+      'downloads',
+      'downloads_quiet',
+      'library_sync_silent',
+    });
     expect(created['playback']!['name'], 'Lecture');
     expect(created['playback']!['description'], 'Lecture desc');
     expect(created['downloads']!['name'], 'Telechargements');
     expect(created['downloads']!['description'], 'Telechargements desc');
+    expect(created['downloads_quiet']!['name'], 'Telechargements');
+    expect(created['downloads_quiet']!['description'], 'Telechargements desc');
+    expect(created['downloads_quiet']!['enableVibration'], isFalse);
     expect(created['library_sync_silent']!['name'], 'Analyse');
     expect(created['library_sync_silent']!['description'], 'Analyse desc');
     expect(created['playback']!['importance'], Importance.low.value);

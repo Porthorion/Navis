@@ -56,6 +56,16 @@ class NotificationBootstrap {
         description: l10n.notificationDownloadsChannelDescription,
       );
 
+      // Android fixes a channel's vibration once it exists, so the quiet twin
+      // is a second channel; the download notifier picks one from Settings →
+      // Haptics → Notifications.
+      final downloadsQuietChannel = AndroidNotificationChannel(
+        'downloads_quiet',
+        l10n.notificationDownloadsChannelName,
+        description: l10n.notificationDownloadsChannelDescription,
+        enableVibration: false,
+      );
+
       final librarySyncChannel = AndroidNotificationChannel(
         'library_sync_silent',
         l10n.notificationLibraryScanChannelName,
@@ -67,6 +77,7 @@ class NotificationBootstrap {
 
       await androidPlugin.createNotificationChannel(playbackChannel);
       await androidPlugin.createNotificationChannel(downloadsChannel);
+      await androidPlugin.createNotificationChannel(downloadsQuietChannel);
       await androidPlugin.createNotificationChannel(librarySyncChannel);
 
       final granted = await androidPlugin.requestNotificationsPermission();

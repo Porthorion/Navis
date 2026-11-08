@@ -326,6 +326,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'Likes, ratings, downloads, copying and actions that aren\'t available.';
 
   @override
+  String get hapticsNotificationsTitle => 'Notifications';
+
+  @override
+  String get hapticsNotificationsSubtitle => 'Download finished or failed.';
+
+  @override
   String get hapticsLoadError => 'Could Not Load Haptics Settings';
 
   @override
