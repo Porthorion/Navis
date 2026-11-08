@@ -428,3 +428,11 @@ block is processed (a layout-failing block calls `navis_tap_formats_note_dry`).
 Deviations from the plan: `process` takes `(durationValue, timescale)` instead of
 `blockRate`, so the rounding interval is computed in the tested C; `unprepare`
 returns false for an unmatched call and the glue logs it.
+
+`IndexedAudioSource.replayGainDb` (signed dB, null by default) is carried by
+the progressive, DASH, HLS and stream source messages (and a clipping source's
+child), so a backend that applies ReplayGain in its audio path has each song's
+first level with its `load`/`insert` message. `AudioPlayer.setReplayGainLevels`
+sends later updates (`byId`, `byUri`, `live`) and skips an identical non-live
+request, until a load, insert or removal (stamped sources change what native
+holds). A clipping source's own level wins over its child's.

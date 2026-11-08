@@ -76,6 +76,18 @@ extension _NavisQueueEditing on NavisAudioHandler {
     final deckInSync =
         inactiveDeck != null &&
         inactiveDeck.sequence.length == _queueItems.length;
+    // The sources were built before they had a place: stamp them with the
+    // levels the queue after this insert gives them.
+    if (replayGainInPipeline) {
+      _stampReplayGainFor(prepared, [
+        for (final queued in _queueItems.take(at))
+          queued.extras?['albumId'] as String?,
+        for (final item in prepared)
+          item.mediaItem.extras?['albumId'] as String?,
+        for (final queued in _queueItems.skip(at))
+          queued.extras?['albumId'] as String?,
+      ], at: at);
+    }
     Future<void> apply(int index, List<_PreparedQueueItem> items) {
       final sources = items
           .map((item) => item.audioSource)
@@ -144,7 +156,12 @@ extension _NavisQueueEditing on NavisAudioHandler {
     required String operation,
   }) async {
     final clones = inserted
-        .map((item) => item.source.asClonedAudioSource(tag: item.mediaItem))
+        .map(
+          (item) => _withReplayGain(
+            item.source.asClonedAudioSource(tag: item.mediaItem),
+            item.mediaItem,
+          ),
+        )
         .toList(growable: false);
     try {
       await _runTimedPlayerOperation(

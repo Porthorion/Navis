@@ -50,6 +50,17 @@ class MethodChannelAudioPlayer extends AudioPlayerPlatform {
   Future<void> setReplayGainBoost(SetReplayGainBoostRequest request) =>
       _channel.invokeMethod<void>('setReplayGainBoost', request.toMap());
 
+  /// A native side that does not know the method is a backend without an
+  /// in-pipeline stage: playback must not see the failure.
+  @override
+  Future<void> setReplayGainLevels(SetReplayGainLevelsRequest request) async {
+    try {
+      await _channel.invokeMethod<void>('setReplayGainLevels', request.toMap());
+    } on MissingPluginException {
+      // Nothing to update.
+    }
+  }
+
   @override
   Future<EqualizerStateMessage> getEqualizerState() async {
     return EqualizerStateMessage.fromMap((await _channel

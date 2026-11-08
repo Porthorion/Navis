@@ -39,3 +39,10 @@ is unchanged.
 the tap keeps one equalizer stream per audio format of the queue; and
 `livePipelines`, `prepareCalls`, `unprepareCalls` and `clampedUnprepares`, the
 balance of the pipelines that prepared the tap.
+
+`UriAudioSourceMessage.replayGainDb` (progressive, DASH, HLS) is a song's
+signed in-pipeline ReplayGain. `AudioPlayerPlatform.setReplayGainLevels`
+(`SetReplayGainLevelsRequest`: `byId`, `byUri`, `live`) updates it later; the
+default does nothing and the method channel ignores `MissingPluginException`,
+so a backend without the stage never fails playback.
+

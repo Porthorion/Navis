@@ -669,7 +669,10 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// Scales the user volume by the song's ReplayGain level (see
   /// [_replayGainVolumeFor]). When the mode is 'off' (or while radio plays),
   /// restores to _userVolume.
-  void _applyReplayGainVolume({bool forceDuringCrossfade = false}) {
+  void _applyReplayGainVolume({
+    bool forceDuringCrossfade = false,
+    bool live = false,
+  }) {
     if (_isLoading ||
         _pendingLogicalQueueSongIds != null ||
         (_isCrossfading && !forceDuringCrossfade)) {
@@ -684,8 +687,13 @@ extension _NavisMediaSession on NavisAudioHandler {
     _smartNeighbours.removeWhere(
       (id, _) => id != current?.id && id != incoming,
     );
+    final queued = {for (final item in _queueItems) item.id};
+    _pushedSmartNeighbours.removeWhere((id, _) => !queued.contains(id));
+    // In the pipeline the song's start adopts the Smart pair last pushed to
+    // native, which is the only place the level is applied.
+    if (replayGainInPipeline) _replayGainDecisionFor(current);
     unawaited(_player.setVolume(_replayGainVolumeFor(current)));
-    _applyReplayGainBoost();
+    _applyReplayGainBoost(live: live);
   }
 
   /// Whether the player is mpv through media_kit (Linux, Windows and macOS).
@@ -702,7 +710,10 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// Whether the boost stage is Android's EQ processor, which is told one
   /// value for the playing song instead of a per-file map.
   bool get _usesAndroidBoost =>
-      replayGainBoostSupported && !_usesMpv && _usesAndroidNative;
+      replayGainBoostSupported &&
+      !_usesMpv &&
+      _usesAndroidNative &&
+      !replayGainInPipeline;
 
   /// The player volume for [item]: the user volume (ducked or not) scaled by
   /// its ReplayGain cut, which only ever turns the song down. Turning a song
@@ -713,11 +724,84 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// is cubic (volume 50 is -18 dB), so the same dB needs `10^(dB/60)`.
   /// Radio has no gain data and is left at the user volume.
   double _replayGainVolumeFor(MediaItem? item) {
-    final base = _isDucked ? _userVolume * 2 / 5 : _userVolume;
+    final base = _baseVolumeFor();
+    // The backend applies the gain on the song's own samples: the player
+    // volume stays user volume x ducking (x any cross-fade ramp).
+    if (replayGainInPipeline) return base;
     final gainDb = _replayGainDecisionFor(item)?.cutDb;
     if (gainDb == null) return base;
     return (math.pow(10, gainDb / (_usesMpv ? 60 : 20)).toDouble() * base)
         .clamp(0.0, 1.0);
+  }
+
+  /// The player volume without ReplayGain: the user volume, ducked or not.
+  double _baseVolumeFor() => _isDucked ? _userVolume * 2 / 5 : _userVolume;
+
+  /// The signed ReplayGain in dB native applies to [item] from its first
+  /// sample, or null when it has none (radio). An update [push] records the
+  /// Smart pair it used, which the song's start then freezes. A level sent
+  /// with a source records it only for [playOrder] (see [_withReplayGain]):
+  /// without one the queue may still be filling.
+  double? _replayGainLevelFor(
+    MediaItem item, {
+    bool push = false,
+    ({List<String?> albumIds, int index})? playOrder,
+  }) {
+    final decision = _replayGainDecisionFor(
+      item,
+      freeze: false,
+      push: push,
+      playOrder: playOrder,
+    );
+    if (decision == null && _radioStation != null) return null;
+    return decision?.db ?? 0;
+  }
+
+  /// Gives [source] the ReplayGain of [item] before it is loaded or inserted,
+  /// so the level arrives with the source message and the song's first samples
+  /// play at it (a map pushed later is ignored by a player that is not
+  /// active yet). Outside the pipeline it changes nothing.
+  ///
+  /// [playOrder] is the song list that will actually play, as album ids, and
+  /// the source's position in it. A source that goes to a queue not yet in
+  /// [_queueItems] (a replace, an insert, a released tail) passes it, so Smart
+  /// reads the right neighbours and the song's start adopts the pair native
+  /// holds. Without it the neighbours come from [_queueItems] and are not
+  /// recorded.
+  S _withReplayGain<S extends IndexedAudioSource>(
+    S source,
+    MediaItem? item, {
+    ({List<String?> albumIds, int index})? playOrder,
+  }) {
+    if (replayGainInPipeline && item != null) {
+      source.replayGainDb = _replayGainLevelFor(
+        item,
+        push: playOrder != null,
+        playOrder: playOrder,
+      );
+    }
+    return source;
+  }
+
+  /// Re-stamps [prepared], which will sit at [at] in [queue], with the levels
+  /// that queue gives them. [queue] is the whole play order after the change.
+  void _stampReplayGainFor(
+    Iterable<_PreparedQueueItem> prepared,
+    List<String?> queue, {
+    required int at,
+  }) {
+    var index = at;
+    for (final item in prepared) {
+      final source = item.audioSource;
+      if (source is IndexedAudioSource) {
+        _withReplayGain(
+          source,
+          item.mediaItem,
+          playOrder: (albumIds: queue, index: index),
+        );
+      }
+      index++;
+    }
   }
 
   /// Tells every deck how much each queued song is turned up.
@@ -728,19 +812,27 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// without a boost stage ([replayGainBoostSupported] false) gets nothing.
   /// Boost is derived from the same frozen decision as the cut, except for
   /// songs not playing yet, which read it without freezing.
-  void _applyReplayGainBoost() {
-    if (!replayGainBoostSupported) return;
+  ///
+  /// In the pipeline this is the update push of every queued song's level
+  /// ([_pushReplayGainLevels]); [live] is set only by a settings change.
+  void _applyReplayGainBoost({bool live = false}) {
+    if (!replayGainBoostSupported && !replayGainInPipeline) return;
     unawaited(
-      _applyToStableDecks(_sendReplayGainBoostTo).catchError((Object error) {
-        AppLogger.debug('ReplayGain boost could not be applied: $error');
-      }),
+      _applyToStableDecks((deck) => _sendReplayGainLevelsTo(deck, live: live))
+          .catchError((Object error) {
+            AppLogger.debug('ReplayGain boost could not be applied: $error');
+          }),
     );
   }
 
   /// Sends one deck the boost of every song it holds. Only the deck that is
   /// heard freezes a Smart decision: the idle deck's current song may be
   /// stale, and a freeze there would outlive the prune at the next song start.
-  Future<void> _sendReplayGainBoostTo(AudioPlayer player) async {
+  Future<void> _sendReplayGainLevelsTo(
+    AudioPlayer player, {
+    bool live = false,
+  }) async {
+    if (replayGainInPipeline) return _pushReplayGainLevels(player, live: live);
     if (_usesAndroidBoost) return _sendAndroidBoostTo(player);
     final current = player.currentIndex;
     final bySource = <IndexedAudioSource, double>{};
@@ -759,6 +851,29 @@ extension _NavisMediaSession on NavisAudioHandler {
       currentDb: bySource[current == null ? null : sequence[current]] ?? 0,
       bySource: bySource,
     );
+  }
+
+  /// Updates one deck's in-pipeline level of every song it holds. Nothing
+  /// freezes here: the heard song freezes at its start from the pair this push
+  /// recorded, so native and the display agree.
+  Future<void> _pushReplayGainLevels(
+    AudioPlayer player, {
+    required bool live,
+  }) async {
+    final bySource = <IndexedAudioSource, double>{};
+    final heard = player.currentIndex;
+    final sequence = player.sequence;
+    for (var i = 0; i < sequence.length; i++) {
+      final source = sequence[i];
+      final item = _mediaItemOfSource(source);
+      // A non-live push does not reach the heard entry (native froze it), so
+      // it must not replace the pair that entry's level was built from.
+      final db = item == null
+          ? null
+          : _replayGainLevelFor(item, push: live || i != heard);
+      if (db != null) bySource[source] = db;
+    }
+    await player.setReplayGainLevels(bySource: bySource, live: live);
   }
 
   /// The queue entry [source] plays. Rolling-cache sources on Android carry no
@@ -959,7 +1074,8 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// the window the value only goes down, and the min with the new next song
   /// can still lower it.
   void _refreshBoostGuard() {
-    if (!_usesAndroidBoost) return;
+    // In the pipeline a loop change moves the Smart wrap neighbours.
+    if (!_usesAndroidBoost && !replayGainInPipeline) return;
     _applyReplayGainBoost();
   }
 
@@ -1023,12 +1139,19 @@ extension _NavisMediaSession on NavisAudioHandler {
   ReplayGainDecision? _replayGainDecisionFor(
     MediaItem? item, {
     bool freeze = true,
+    bool push = false,
+    ({List<String?> albumIds, int index})? playOrder,
   }) {
     if (_radioStation != null) return null;
     final runtime = _readRuntimeSettings();
     final extras = item?.extras;
     final neighbours = runtime.replayGainMode == 'smart' && item != null
-        ? _smartNeighbourAlbums(item, freeze: freeze)
+        ? _smartNeighbourAlbums(
+            item,
+            freeze: freeze,
+            push: push,
+            playOrder: playOrder,
+          )
         : null;
     return replayGainDecision(
       boostSupported: replayGainBoostSupported,
@@ -1066,27 +1189,44 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// jump to another copy of the playing song, drops them
   /// ([_applyNavigationDecision]). While a queue load settles the neighbours
   /// may be incomplete, so nothing is frozen then.
+  ///
+  /// [playOrder] reads a list that is not [_queueItems] yet (see
+  /// [_withReplayGain]); it ignores a frozen pair, which belongs to a song
+  /// already playing.
   ({String? prev, String? next}) _smartNeighbourAlbums(
     MediaItem item, {
     required bool freeze,
+    bool push = false,
+    ({List<String?> albumIds, int index})? playOrder,
   }) {
-    final frozen = _smartNeighbours[item.id];
+    final frozen = playOrder == null ? _smartNeighbours[item.id] : null;
     if (frozen != null) return frozen;
-    final index = _queueIndexOfSong(item);
+    final length = playOrder?.albumIds.length ?? _queueItems.length;
+    final index = playOrder?.index ?? _queueIndexOfSong(item);
     String? albumAt(int i) => i < 0
         ? null
+        : playOrder != null
+        ? playOrder.albumIds.elementAtOrNull(i)
         : _queueItems.elementAtOrNull(i)?.extras?['albumId'] as String?;
     final wraps =
         _desiredLoopMode == LoopMode.all &&
-        _queueItems.length > 1 &&
+        length > 1 &&
         _deferredHead.isEmpty &&
         _deferredTail.isEmpty;
-    final last = _queueItems.length - 1;
-    final neighbours = (
+    final last = length - 1;
+    var neighbours = (
       prev: albumAt(wraps && index == 0 ? last : index - 1),
       next: albumAt(wraps && index == last ? 0 : index + 1),
     );
+    // In the pipeline native holds the pair last pushed (or sent with the
+    // source): the song's start adopts it, so a queue edit between that push
+    // and the start cannot make the display disagree with what plays.
+    if (replayGainInPipeline && freeze) {
+      neighbours = _pushedSmartNeighbours[item.id] ?? neighbours;
+    }
+    if (push) _pushedSmartNeighbours[item.id] = neighbours;
     if (freeze &&
+        playOrder == null &&
         !_isLoading &&
         _pendingLogicalQueueSongIds == null &&
         index >= 0) {
