@@ -45,7 +45,7 @@ Each one also affects tablets, iPads and rotation, not only foldables.
 
 ## Foldable/tablet tuning
 
-These are behaviour changes, so the target release is the owner's call.
+Owner decision, 2026-11-09: A1–A4 and B1 all ship in **1.5.2**.
 
 - **B1, album detail:** at 669x951 the cover hero is about 500 pt tall, and no
   songs show above the mini player. In landscape the cover fills the pane.
@@ -87,8 +87,8 @@ These are behaviour changes, so the target release is the owner's call.
   - The iPad split view at 507 and 678 pt widths.
 - **Branch:** these files are shared by all platforms. A1–A4 go to
   `release/1.5` (a 1.5.2 fix for tablets everywhere) and are then forwarded to
-  `dev`. Check the other machine's open PRs first. B1 follows the owner's
-  target.
+  `dev`. Check the other machine's open PRs first. B1 goes with them (owner,
+  2026-11-09).
 - **Risk:** low (UI). One Sonnet review, focused tests, then CI.
 - **Runtime check:** the Duo simulator in both states once fold control works,
   and the Pixel Fold emulator.
