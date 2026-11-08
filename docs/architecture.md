@@ -4294,13 +4294,28 @@ queue commits attempt to restore the previous queue and play state. Persisted
 recommendation tracks restore as an ordinary queue after restart, without
 restarting refills.
 
-Background refills retry with backoff. After five consecutive failed refills
-Same Vibes, Server Mix and Personal Radio stop refilling at `retryExhausted`;
-later playback snapshots, a cleared error notice or an expired backoff do not
-resume them. A verified network recovery re-arms Personal Radio's exhausted
-refill within its existing recommendation session, but only after network
-failures; rate limits, invalid keys and unsupported servers keep their backoff. Starting a mix again also
-re-arms refills.
+Same Vibes and Server Mix refills seed on the current song. A refill that
+queues nothing without a failure (Last.fm has no or only queued similar songs,
+the server has none left, or the seed is not server-addressable) is not a
+failure: the mix parks on that seed, with no retry timer and no failure count,
+and refills on the same song return at once. The next current song unparks it
+and the refill runs normally. Only real failures retry with backoff: Last.fm
+network or parse errors and other API errors than "track not found", server
+fallback errors, and for Server Mix a connection failure. Five consecutive
+failed refills (`retryExhausted`) park the mix the same way, silently, and the
+next current song re-arms it with a fresh failure count; starting a mix again
+also re-arms it. When the park is on the last song of the whole queue and
+repeat is off, nothing can extend the mix, so it stops: Same Vibes shows
+"Same Vibes stopped." and Server Mix ends silently. Initial-refill failures,
+terminal Last.fm errors (invalid key, rate limit), an unsupported server and
+Server Mix's refill timeout still end the mix with their notice.
+
+Personal Radio retries with the same backoff and stops refilling at
+`retryExhausted`; later playback snapshots, a cleared error notice or an
+expired backoff do not resume it. A verified network recovery re-arms its
+exhausted refill within its existing recommendation session, but only after
+network failures; rate limits, invalid keys and unsupported servers keep their
+backoff. Starting a mix again also re-arms refills.
 
 ## Startup and resume evidence
 

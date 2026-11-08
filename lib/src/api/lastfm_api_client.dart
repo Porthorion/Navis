@@ -43,6 +43,16 @@ class LastFmTrackFetchResult {
   final int? statusCode;
   final int? apiErrorCode;
   final String? message;
+
+  /// Last.fm has no similar tracks for the seed: an empty result or its
+  /// "Track not found" error. Neither is a failure worth retrying.
+  bool get hasNoSimilarTracks =>
+      outcome == LastFmFetchOutcome.noResults ||
+      (outcome == LastFmFetchOutcome.apiError &&
+          apiErrorCode == _trackNotFoundErrorCode);
+
+  /// Last.fm's "Track not found".
+  static const _trackNotFoundErrorCode = 6;
 }
 
 class LastFmTrackRecommendation {
@@ -331,12 +341,7 @@ class LastFmApiClient {
   }
 
   static bool _hasNoSimilarTracks(LastFmTrackFetchResult result) =>
-      result.outcome == LastFmFetchOutcome.noResults ||
-      (result.outcome == LastFmFetchOutcome.apiError &&
-          result.apiErrorCode == _trackNotFoundErrorCode);
-
-  /// Last.fm's "Track not found".
-  static const _trackNotFoundErrorCode = 6;
+      result.hasNoSimilarTracks;
 
   LastFmTrackFetchResult _apiErrorResult(
     Map<String, dynamic> data, {

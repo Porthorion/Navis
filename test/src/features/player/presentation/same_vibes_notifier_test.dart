@@ -9,6 +9,7 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/api/lastfm_api_client.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
+import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/features/player/domain/same_vibes_state.dart';
 import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
@@ -20,6 +21,41 @@ import '../../../../helpers/recommendation_test_harness.dart';
 class _MockSubsonicApiClient extends Mock implements SubsonicApiClient;
 
 class _MockLastFmApiClient extends Mock implements LastFmApiClient;
+
+/// A container for the park and retry tests: [now] drives the backoff and
+/// the playing song follows the snapshots the test emits.
+ProviderContainer _parkContainer({
+  required SubsonicApiClient api,
+  required LastFmApiClient lastFm,
+  required DateTime Function() now,
+}) {
+  final container = createRecommendationContainer(
+    overrides: [
+      queueProvider.overrideWith(RecordingRecommendationQueue.new),
+      sameVibesProvider.overrideWith(() => SameVibesNotifier(now: now)),
+      subsonicApiProvider.overrideWithValue(api),
+      lastFmApiClientProvider.overrideWithValue(lastFm),
+      integrationPolicyProvider.overrideWithValue(
+        const IntegrationPolicy(lastFmVerified: true),
+      ),
+      currentMediaItemProvider.overrideWith(
+        (ref) => Stream<MediaItem?>.value(
+          const MediaItem(id: 'seed-a', title: 'Seed', artist: 'Artist'),
+        ),
+      ),
+      downloadedSongIdsProvider.overrideWithValue(const AsyncData(<String>{})),
+      cachedSongIdsProvider.overrideWithValue(const AsyncData(<String>{})),
+      sameVibesAlbumSongCountLookupProvider.overrideWithValue(
+        (albumIds) async => const <String, int?>{},
+      ),
+      sameVibesQueueSongKeyLookupProvider.overrideWithValue(
+        (songIds) async => const <String>{},
+      ),
+    ],
+  );
+  container.listen(currentMediaItemProvider, (_, _) {});
+  return container;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -2336,13 +2372,16 @@ void main() {
     late _MockSubsonicApiClient api;
     late _MockLastFmApiClient lastFm;
     var similarCalls = 0;
+    var failing = true;
     var fakeNow = DateTime(2026, 10, 9, 12);
 
     setUp(() {
       similarCalls = 0;
+      failing = true;
       fakeNow = DateTime(2026, 10, 9, 12);
       api = _MockSubsonicApiClient();
       lastFm = _MockLastFmApiClient();
+      // Last.fm is unreachable while [failing], and has nothing otherwise.
       when(
         () => lastFm.getSimilarTracksResult(
           artist: any(named: 'artist'),
@@ -2350,16 +2389,19 @@ void main() {
           limit: any(named: 'limit'),
         ),
       ).thenAnswer(
-        (_) async => const LastFmTrackFetchResult(
-          outcome: LastFmFetchOutcome.noResults,
-          tracks: <LastFmTrackRecommendation>[],
+        (_) async => LastFmTrackFetchResult(
+          outcome: failing
+              ? LastFmFetchOutcome.networkError
+              : LastFmFetchOutcome.noResults,
+          tracks: const <LastFmTrackRecommendation>[],
         ),
       );
       when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
           .thenAnswer(
             (_) async => const Song(id: 'q', title: 'Seed', artist: 'Artist'),
           );
-      // The first (initial) refill succeeds; every later one finds nothing.
+      // The first (initial) refill succeeds; later ones fail with a
+      // connection error while [failing].
       when(
         () => api.getSimilarSongs(
           any(),
@@ -2368,112 +2410,112 @@ void main() {
         ),
       ).thenAnswer((_) async {
         similarCalls++;
-        return similarCalls == 1
-            ? List<Song>.generate(
-                5,
-                (index) => Song(id: 'rec-$index', title: 'Rec $index'),
-              )
-            : const <Song>[];
+        if (similarCalls > 1 && failing) {
+          throw const SubsonicConnectionException('offline');
+        }
+        return List<Song>.generate(
+          5,
+          (index) => Song(id: 'rec-$index', title: 'Rec $index'),
+        );
       });
     });
 
-    test(
-      'five failed refills stop the mix until it is started again',
-      () async {
-        final container = createRecommendationContainer(
-          overrides: [
-            queueProvider.overrideWith(RecordingRecommendationQueue.new),
-            sameVibesProvider.overrideWith(
-              () => SameVibesNotifier(now: () => fakeNow),
-            ),
-            subsonicApiProvider.overrideWithValue(api),
-            lastFmApiClientProvider.overrideWithValue(lastFm),
-            integrationPolicyProvider.overrideWithValue(
-              const IntegrationPolicy(lastFmVerified: true),
-            ),
-            currentMediaItemProvider.overrideWith(
-              (ref) => Stream<MediaItem?>.value(
-                const MediaItem(id: 'seed-a', title: 'Seed', artist: 'Artist'),
-              ),
-            ),
-            downloadedSongIdsProvider.overrideWithValue(
-              const AsyncData(<String>{}),
-            ),
-            cachedSongIdsProvider.overrideWithValue(
-              const AsyncData(<String>{}),
-            ),
-            sameVibesAlbumSongCountLookupProvider.overrideWithValue(
-              (albumIds) async => const <String, int?>{},
-            ),
-            sameVibesQueueSongKeyLookupProvider.overrideWithValue(
-              (songIds) async => const <String>{},
-            ),
-          ],
-        );
-        container.listen(currentMediaItemProvider, (_, _) {});
-        final notifier = container.read(sameVibesProvider.notifier);
-        void emit(int length) => container
+    test('five failed refills wait for the next song, then retry', () async {
+      final container = _parkContainer(
+        api: api,
+        lastFm: lastFm,
+        now: () => fakeNow,
+      );
+      final notifier = container.read(sameVibesProvider.notifier);
+      var tick = 0;
+      void emit(int length) => container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: List<String>.generate(length, (i) => 'q-$i'),
+              currentSongId: 'q-${length - 1}',
+              currentIndex: length - 1,
+            ).copyWith(position: Duration(seconds: tick++)),
+          );
+      // Each step plays the last queued song, so a refill is due, and moves
+      // the clock past any backoff.
+      Future<void> playToEnd(int length) async {
+        fakeNow = fakeNow.add(const Duration(minutes: 5));
+        emit(length);
+        await pumpEventQueue();
+        while (container.read(sameVibesProvider).refilling) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+      }
+
+      String stage() => container.read(recommendationSessionProvider).stage;
+
+      emit(1);
+      await notifier.activate('seed-a');
+      expect(similarCalls, 1);
+
+      await playToEnd(6);
+      expect(similarCalls, 2);
+      expect(
+        stage(),
+        'retryPending',
+        reason: 'a failed refill must not overwrite its retry stage',
+      );
+      for (var length = 7; length <= 9; length++) {
+        await playToEnd(length);
+      }
+      expect(similarCalls, 5);
+      expect(stage(), 'retryPending');
+      await playToEnd(10);
+      expect(similarCalls, 6);
+      expect(stage(), 'retryExhausted');
+      expect(container.read(recommendationSessionProvider).retryCount, 5);
+
+      // Further snapshots of the same song make no fetch.
+      fakeNow = fakeNow.add(const Duration(minutes: 5));
+      for (var i = 0; i < 3; i++) {
+        container
             .read(recommendationSnapshotProvider.notifier)
             .emitSnapshot(
               snapshot(
-                queueSongIds: List<String>.generate(length, (i) => 'q-$i'),
-                currentSongId: 'q-${length - 1}',
-                currentIndex: length - 1,
-              ),
+                // Not the last song, so the mix is not running out.
+                queueSongIds: List<String>.generate(15, (i) => 'q-$i'),
+                currentSongId: 'q-9',
+                currentIndex: 9,
+              ).copyWith(position: Duration(seconds: 1000 + i)),
             );
-        // Each step plays the last queued song, so a refill is due, and moves
-        // the clock past any backoff.
-        Future<void> playToEnd(int length) async {
-          fakeNow = fakeNow.add(const Duration(minutes: 5));
-          emit(length);
-          await pumpEventQueue();
-          while (container.read(sameVibesProvider).refilling) {
-            await Future<void>.delayed(const Duration(milliseconds: 5));
-          }
-        }
+        await pumpEventQueue();
+      }
+      expect(similarCalls, 6);
+      expect(stage(), 'retryExhausted');
 
-        emit(1);
-        await notifier.activate('seed-a');
-        expect(similarCalls, 1);
+      // The next song re-arms the mix with a fresh failure count.
+      await playToEnd(11);
+      expect(similarCalls, 7);
+      expect(stage(), 'retryPending');
+      expect(container.read(recommendationSessionProvider).retryCount, 1);
 
-        await playToEnd(6);
-        expect(similarCalls, 2);
-        expect(
-          container.read(recommendationSessionProvider).stage,
-          'retryPending',
-          reason: 'a failed refill must not overwrite its retry stage',
-        );
-        for (var length = 7; length <= 9; length++) {
-          await playToEnd(length);
-        }
-        expect(similarCalls, 5);
-        expect(
-          container.read(recommendationSessionProvider).stage,
-          'retryPending',
-        );
-        await playToEnd(10);
-        expect(similarCalls, 6);
-        expect(
-          container.read(recommendationSessionProvider).stage,
-          'retryExhausted',
-        );
-        expect(container.read(recommendationSessionProvider).retryCount, 5);
+      // Once the connection is back the mix queues songs again.
+      failing = false;
+      await playToEnd(12);
+      expect(similarCalls, 8);
+      expect(stage(), 'active');
+      expect(
+        container.read(queueProvider.notifier),
+        isA<RecordingRecommendationQueue>().having(
+          (queue) => queue.queuedSongs.length,
+          'queued songs',
+          greaterThan(5),
+        ),
+      );
+      final state = container.read(sameVibesProvider);
+      expect(state.active, isTrue);
+      expect(state.error, isNull, reason: 'the mix heals without a notice');
 
-        // Later snapshots no longer resume the exhausted refill.
-        await playToEnd(11);
-        await playToEnd(12);
-        expect(similarCalls, 6);
-        expect(
-          container.read(recommendationSessionProvider).stage,
-          'retryExhausted',
-        );
-        expect(container.read(sameVibesProvider).active, isTrue);
-
-        // Starting the mix again re-arms it.
-        await notifier.activate('seed-a');
-        expect(similarCalls, 7);
-      },
-    );
+      // Starting the mix again re-arms it too.
+      await notifier.activate('seed-a');
+      expect(similarCalls, 9);
+    });
   });
 
   group('seed with no new songs (#377)', () {
@@ -2631,6 +2673,210 @@ void main() {
         expect(session.retryCount, lessThan(5));
       },
     );
+  });
+
+  group('spent seeds (#377)', () {
+    late _MockSubsonicApiClient api;
+    late _MockLastFmApiClient lastFm;
+    var fakeNow = DateTime(2026, 11, 8, 12);
+    var similarCalls = 0;
+    var lastFmResult = const LastFmTrackFetchResult(
+      outcome: LastFmFetchOutcome.noResults,
+      tracks: <LastFmTrackRecommendation>[],
+    );
+    Completer<List<Song>>? gate;
+    final fallbackSeeds = <String>[];
+    const queue = <String>['q-0', 'q-1', 'q-2', 'q-3', 'q-4', 'q-5'];
+
+    setUp(() {
+      fakeNow = DateTime(2026, 11, 8, 12);
+      similarCalls = 0;
+      gate = null;
+      fallbackSeeds.clear();
+      lastFmResult = const LastFmTrackFetchResult(
+        outcome: LastFmFetchOutcome.noResults,
+        tracks: <LastFmTrackRecommendation>[],
+      );
+      api = _MockSubsonicApiClient();
+      lastFm = _MockLastFmApiClient();
+      when(
+        () => lastFm.getSimilarTracksResult(
+          artist: any(named: 'artist'),
+          track: any(named: 'track'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer((_) async => lastFmResult);
+      when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+          .thenAnswer(
+            (_) async => const Song(id: 'q', title: 'Seed', artist: 'Artist'),
+          );
+      // The initial refill finds five songs; the seed has nothing else.
+      when(
+        () => api.getSimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((invocation) async {
+        similarCalls++;
+        fallbackSeeds.add(invocation.positionalArguments.first as String);
+        if (similarCalls == 1) {
+          return List<Song>.generate(
+            5,
+            (index) => Song(id: 'rec-$index', title: 'Rec $index'),
+          );
+        }
+        final pending = gate;
+        if (pending != null) return pending.future;
+        return const <Song>[];
+      });
+    });
+
+    /// Starts the mix, then plays [index] of [queue] on each call; every
+    /// call differs by [position] so the snapshot listener fires.
+    Future<
+      ({
+        ProviderContainer container,
+        Future<void> Function(int, int, {bool wait}) play,
+      })
+    >
+    start() async {
+      final container = _parkContainer(
+        api: api,
+        lastFm: lastFm,
+        now: () => fakeNow,
+      );
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: const <String>['seed-a'],
+              currentSongId: 'seed-a',
+              currentIndex: 0,
+            ),
+          );
+      await container.read(sameVibesProvider.notifier).activate('seed-a');
+      Future<void> play(int index, int position, {bool wait = true}) async {
+        fakeNow = fakeNow.add(const Duration(minutes: 5));
+        container
+            .read(recommendationSnapshotProvider.notifier)
+            .emitSnapshot(
+              snapshot(
+                queueSongIds: queue,
+                currentSongId: queue[index],
+                currentIndex: index,
+              ).copyWith(position: Duration(seconds: position)),
+            );
+        await pumpEventQueue();
+        while (wait && container.read(sameVibesProvider).refilling) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+      }
+
+      return (container: container, play: play);
+    }
+
+    for (final entry in <String, LastFmTrackFetchResult>{
+      'Last.fm has no results': const LastFmTrackFetchResult(
+        outcome: LastFmFetchOutcome.noResults,
+        tracks: <LastFmTrackRecommendation>[],
+      ),
+      'Last.fm answers track not found': const LastFmTrackFetchResult(
+        outcome: LastFmFetchOutcome.apiError,
+        tracks: <LastFmTrackRecommendation>[],
+        apiErrorCode: 6,
+      ),
+    }.entries) {
+      test('a refill that finds nothing waits for the next song without '
+          'failing (${entry.key})', () async {
+        lastFmResult = entry.value;
+        final (:container, :play) = await start();
+        expect(similarCalls, 1);
+
+        final stages = <String>[];
+        container.listen(
+          recommendationSessionProvider,
+          (_, next) => stages.add(next.stage),
+        );
+        for (var tick = 1; tick <= 6; tick++) {
+          await play(0, tick);
+        }
+        expect(similarCalls, 2, reason: 'one fetch, then parked on the song');
+        expect(container.read(recommendationSessionProvider).retryCount, 0);
+        expect(stages, isNot(contains('retryPending')));
+        expect(stages, isNot(contains('retryExhausted')));
+
+        await play(1, 100);
+        expect(similarCalls, 3, reason: 'a new song gets its own try');
+        expect(fallbackSeeds.last, 'q-1');
+        expect(container.read(sameVibesProvider).active, isTrue);
+        expect(container.read(sameVibesProvider).error, isNull);
+      });
+    }
+
+    test('a skip during a refill gives the new song its own try', () async {
+      final (:container, :play) = await start();
+      gate = Completer<List<Song>>();
+      unawaited(play(0, 1, wait: false));
+      // Reading the provider is what delivers the snapshot to the notifier.
+      while (similarCalls < 2) {
+        container.read(sameVibesProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(container.read(sameVibesProvider).refilling, isTrue);
+      // The user skips while the refill for song 0 is still running.
+      await play(1, 2, wait: false);
+      expect(similarCalls, 2, reason: 'no overlapping refill');
+      gate!.complete(const <Song>[]);
+      gate = null;
+      while (container.read(sameVibesProvider).refilling) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      await play(1, 3);
+      expect(similarCalls, 3);
+      expect(fallbackSeeds, ['seed-a', 'q-0', 'q-1']);
+    });
+
+    for (final repeatMode in <AudioServiceRepeatMode>[
+      AudioServiceRepeatMode.none,
+      AudioServiceRepeatMode.all,
+    ]) {
+      test('the last song finding nothing new ends the mix only when repeat is '
+          'off (${repeatMode.name})', () async {
+        final (:container, :play) = await start();
+        void playLast(int position) {
+          fakeNow = fakeNow.add(const Duration(minutes: 5));
+          container
+              .read(recommendationSnapshotProvider.notifier)
+              .emitSnapshot(
+                snapshot(
+                  queueSongIds: queue,
+                  currentSongId: queue.last,
+                  currentIndex: queue.length - 1,
+                ).copyWith(
+                  position: Duration(seconds: position),
+                  repeatMode: repeatMode,
+                ),
+              );
+        }
+
+        playLast(1);
+        await pumpEventQueue();
+        while (container.read(sameVibesProvider).refilling) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        expect(similarCalls, 2);
+        expect(container.read(sameVibesProvider).active, isTrue);
+
+        playLast(2);
+        await pumpEventQueue();
+        expect(similarCalls, 2);
+        final state = container.read(sameVibesProvider);
+        expect(state.error, isNull, reason: 'running out is not an error');
+        expect(state.active, repeatMode != AudioServiceRepeatMode.none);
+      });
+    }
   });
 
   group('Last.fm similar-track fallbacks', () {
