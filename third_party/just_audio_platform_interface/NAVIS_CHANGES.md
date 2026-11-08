@@ -24,3 +24,10 @@ reads as "no boost stage here".
 `SetReplayGainBoostRequest.index` is the queue index the boost was computed for;
 a backend that knows which song it plays ignores a non-zero value for another
 index.
+
+`UriAudioSourceMessage.replayGainDb` (progressive, DASH, HLS) is a song's
+signed in-pipeline ReplayGain. `AudioPlayerPlatform.setReplayGainLevels`
+(`SetReplayGainLevelsRequest`: `byId`, `byUri`, `live`) updates it later; the
+default does nothing and the method channel ignores `MissingPluginException`,
+so a backend without the stage never fails playback.
+

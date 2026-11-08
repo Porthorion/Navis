@@ -857,7 +857,10 @@ extension _NavisQueueLoading on NavisAudioHandler {
       if (leader == null) {
         leaders[path] = held;
       } else {
-        item.audioSource = LockCacheFollowerSource(leader, tag: item.mediaItem);
+        item.audioSource = _withReplayGain(
+          LockCacheFollowerSource(leader, tag: item.mediaItem),
+          item.mediaItem,
+        );
       }
     }
   }
@@ -945,13 +948,15 @@ extension _NavisQueueLoading on NavisAudioHandler {
       song: song,
       source: source,
       mediaItem: item,
-      audioSource:
-          preview?.request?.asAudioSource(
-            tag: item,
-            positionOffset: source.positionOffset,
-          ) ??
-          _runningLockCacheSource(source) ??
-          source.asAudioSource(tag: item),
+      audioSource: _withReplayGain(
+        preview?.request?.asAudioSource(
+              tag: item,
+              positionOffset: source.positionOffset,
+            ) ??
+            _runningLockCacheSource(source) ??
+            source.asAudioSource(tag: item),
+        item,
+      ),
     );
   }
 
@@ -1078,6 +1083,19 @@ extension _NavisQueueLoading on NavisAudioHandler {
       }
     }
 
+    // The start song loads alone, before _queueItems holds the new queue, so
+    // its level reads the neighbours from the incoming list.
+    void stampStart() {
+      if (replayGainInPipeline) {
+        _stampReplayGainFor(
+          [startItem],
+          [for (final song in songs) song.albumId],
+          at: clampedIndex,
+        );
+      }
+    }
+
+    stampStart();
     // Pause independently of stop so a hung native stop cannot stay audible.
     _checkQueueWorkCurrent(token, generation);
     if (isStillWanted != null && !isStillWanted()) {
@@ -1201,6 +1219,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
         transcodeOffset: transcodeOffset,
         fastSeekBridge: fastSeekBridge,
       );
+      stampStart();
       _checkQueueWorkCurrent(token, generation);
       _queueItems
         ..clear()

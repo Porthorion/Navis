@@ -97,6 +97,9 @@ class _DelayedReplaceHandler implements NavisPlaybackHandler {
   bool get replayGainBoostSupported => false;
 
   @override
+  bool get replayGainInPipeline => false;
+
+  @override
   Stream<MediaItem?> get mediaItemStream => const Stream<MediaItem?>.empty();
 
   @override

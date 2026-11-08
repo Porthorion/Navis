@@ -131,6 +131,7 @@ class NavisAudioHandler extends BaseAudioHandler
     AudioPlayer? player,
     RollingCacheSidecarDownloader? sidecarDownloader,
     this._adjustmentCapabilities,
+    this._replayGainInPipelineOverride,
     EqCapabilities? equalizerCapabilities,
     this._crossfadePlayerFactory,
     this._playerFactory,
@@ -211,6 +212,9 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   final PlaybackAdjustmentCapabilities? _adjustmentCapabilities;
+
+  /// Tests inject the in-pipeline capability the way they inject the backend.
+  final bool? _replayGainInPipelineOverride;
   final EqCapabilities? _injectedEqualizerCapabilities;
   final AudioPlayer Function()? _crossfadePlayerFactory;
 
@@ -382,6 +386,13 @@ class NavisAudioHandler extends BaseAudioHandler
   /// at the song's start so a queue edit cannot make the level jump mid-song.
   /// See `_smartNeighbourAlbums` for when an entry is dropped.
   final Map<String, ({String? prev, String? next})> _smartNeighbours =
+      <String, ({String? prev, String? next})>{};
+
+  /// The pair behind the level last sent to native for each song (with its
+  /// source, or in an update push), by song id. A song's start freezes this
+  /// pair instead of re-reading the queue, so an edit that lands between the
+  /// push and the start cannot make the display disagree with what plays.
+  final Map<String, ({String? prev, String? next})> _pushedSmartNeighbours =
       <String, ({String? prev, String? next})>{};
 
   /// Android's ReplayGain boost guard: the lowest boost the heard deck was
@@ -808,6 +819,14 @@ class NavisAudioHandler extends BaseAudioHandler
   ReplayGainDecision? get currentReplayGainDecision =>
       _currentReplayGainDecision;
 
+  /// Whether the backend applies each song's ReplayGain on that song's own
+  /// samples (the level travels with the source and later updates are
+  /// [setReplayGainLevels] pushes), so the player volume carries none of it.
+  /// False on every platform until the native backends ship.
+  @override
+  bool get replayGainInPipeline =>
+      _replayGainInPipelineOverride ?? navisReplayGainInPipeline();
+
   @override
   bool get replayGainBoostSupported => navisReplayGainBoostSupported(
     usesMpv: _usesMpv,
@@ -1113,6 +1132,14 @@ class NavisAudioHandler extends BaseAudioHandler
       final deckInSync =
           inactiveDeck != null &&
           inactiveDeck.sequence.length == _queueItems.length;
+      if (replayGainInPipeline) {
+        _stampReplayGainFor(prepared, [
+          for (final queued in _queueItems)
+            queued.extras?['albumId'] as String?,
+          for (final item in prepared)
+            item.mediaItem.extras?['albumId'] as String?,
+        ], at: _queueItems.length);
+      }
       await _runTimedPlayerOperation(
         generation: _activeLoadGeneration,
         operation: 'release deferred queue',
@@ -2549,7 +2576,8 @@ class NavisAudioHandler extends BaseAudioHandler
     }
     // The boost guard's latch stays: inside the window a settings pass (or the
     // speed it puts back) may only lower the boost until the next song starts.
-    _applyReplayGainVolume();
+    // The only live push: a settings change may move the playing song too.
+    _applyReplayGainVolume(live: true);
 
     if (equalizerCapabilities.supported) {
       await _setEqualizer(runtime.equalizer ?? _desiredEqualizer);
@@ -3256,7 +3284,7 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Sends [deck] its ReplayGain boost as the handler does.
   @visibleForTesting
   Future<void> debugSendReplayGainBoostTo(AudioPlayer deck) =>
-      _sendReplayGainBoostTo(deck);
+      _sendReplayGainLevelsTo(deck);
 
   /// The songs whose Smart ReplayGain neighbours are frozen.
   @visibleForTesting

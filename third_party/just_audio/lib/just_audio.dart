@@ -992,6 +992,9 @@ class AudioPlayer {
   List<AudioSource> get audioSources => _playlist.children;
 
   Future<void> _broadcastSequence({bool sequenceChanged = true}) async {
+    // A load, insert or removal sends sources with their own stamped levels,
+    // which can differ from the last pushed map: the same map is news again.
+    if (sequenceChanged) _replayGainLevelsRequest = null;
     _sequenceStateSubject.add(sequenceState.copyWith(
       sequence: sequenceChanged ? _playlist.sequence : sequenceState.sequence,
       shuffleIndices: _playlist.shuffleIndices,
@@ -1348,6 +1351,49 @@ class AudioPlayer {
 
   AudioPlayerPlatform? _replayGainBoostPlatform;
   SetReplayGainBoostRequest? _replayGainBoostRequest;
+
+  /// Updates the in-pipeline ReplayGain of queued songs (see
+  /// [SetReplayGainLevelsRequest]). [bySource] holds the signed dB of every
+  /// queued entry; the platform sees it by source id and by the URI it loads
+  /// each source from. A song's first value travels with its source message
+  /// ([IndexedAudioSource.replayGainDb]), so a player that is not active has
+  /// nothing to update. [live] lets the value of the playing entry change.
+  /// A backend without such a stage ignores the message.
+  Future<void> setReplayGainLevels({
+    required Map<IndexedAudioSource, double> bySource,
+    bool live = false,
+  }) async {
+    if (_disposed || !_active) return;
+    final byId = <String, double>{};
+    final byUri = <String, double>{};
+    for (final entry in bySource.entries) {
+      final message = entry.key._toMessage();
+      byId[message.id] = entry.value;
+      final uri = switch (message) {
+        UriAudioSourceMessage(:final uri) => uri,
+        ClippingAudioSourceMessage(:final child) => child.uri,
+        _ => null,
+      };
+      if (uri != null) byUri[uri] = entry.value;
+    }
+    final request =
+        SetReplayGainLevelsRequest(byId: byId, byUri: byUri, live: live);
+    final platform = await _platform;
+    // The caller re-sends on every index event; an unchanged map says nothing
+    // new. A live change is never skipped: the playing value may have moved
+    // on at a boundary since the last identical one.
+    if (!live &&
+        identical(platform, _replayGainLevelsPlatform) &&
+        request == _replayGainLevelsRequest) {
+      return;
+    }
+    await platform.setReplayGainLevels(request);
+    _replayGainLevelsPlatform = platform;
+    _replayGainLevelsRequest = request;
+  }
+
+  AudioPlayerPlatform? _replayGainLevelsPlatform;
+  SetReplayGainLevelsRequest? _replayGainLevelsRequest;
 
   /// Reads actual processing state without creating or starting playback.
   Future<EqualizerStateMessage> getEqualizerState() async {
@@ -2896,6 +2942,12 @@ abstract class IndexedAudioSource extends AudioSource {
   final dynamic tag;
   Duration? duration;
 
+  /// The song's ReplayGain in dB (signed: cut and boost together) for a
+  /// backend that applies it in its audio path. The owner sets it before the
+  /// source is loaded or inserted, and it travels in that source message, so
+  /// the song's first samples already play at it. Null: nothing to apply.
+  double? replayGainDb;
+
   @override
   void _shuffle({int? initialIndex}) {}
 
@@ -3021,6 +3073,7 @@ class ProgressiveAudioSource extends UriAudioSource {
         uri: _effectiveUri.toString(),
         headers: _mergedHeaders,
         tag: tag,
+        replayGainDb: replayGainDb,
         options: options?._toMessage(),
       );
 }
@@ -3050,6 +3103,7 @@ class DashAudioSource extends UriAudioSource {
         uri: _effectiveUri.toString(),
         headers: _mergedHeaders,
         tag: tag,
+        replayGainDb: replayGainDb,
       );
 }
 
@@ -3077,6 +3131,7 @@ class HlsAudioSource extends UriAudioSource {
         uri: _effectiveUri.toString(),
         headers: _mergedHeaders,
         tag: tag,
+        replayGainDb: replayGainDb,
       );
 }
 
@@ -3519,10 +3574,40 @@ class ClippingAudioSource extends IndexedAudioSource {
     await child._onLoad();
   }
 
+  /// The clip's own gain (the one the app stamped on this source) wins over
+  /// the child's, which nobody stamps; else the child's travels as it is.
+  UriAudioSourceMessage _childMessageWithGain() {
+    final message = child._toMessage() as UriAudioSourceMessage;
+    final gain = replayGainDb;
+    if (gain == null) return message;
+    return switch (message) {
+      ProgressiveAudioSourceMessage() => ProgressiveAudioSourceMessage(
+          id: message.id,
+          uri: message.uri,
+          headers: message.headers,
+          tag: message.tag,
+          options: message.options,
+          replayGainDb: gain),
+      DashAudioSourceMessage() => DashAudioSourceMessage(
+          id: message.id,
+          uri: message.uri,
+          headers: message.headers,
+          tag: message.tag,
+          replayGainDb: gain),
+      HlsAudioSourceMessage() => HlsAudioSourceMessage(
+          id: message.id,
+          uri: message.uri,
+          headers: message.headers,
+          tag: message.tag,
+          replayGainDb: gain),
+      _ => message,
+    };
+  }
+
   @override
   AudioSourceMessage _toMessage() => ClippingAudioSourceMessage(
       id: _id,
-      child: child._toMessage() as UriAudioSourceMessage,
+      child: _childMessageWithGain(),
       start: start,
       end: end,
       tag: tag);
@@ -3613,7 +3698,11 @@ abstract class StreamAudioSource extends IndexedAudioSource {
 
   @override
   AudioSourceMessage _toMessage() => ProgressiveAudioSourceMessage(
-      id: _id, uri: _uri.toString(), headers: null, tag: tag);
+      id: _id,
+      uri: _uri.toString(),
+      headers: null,
+      tag: tag,
+      replayGainDb: replayGainDb);
 }
 
 /// The response for a [StreamAudioSource]. This API is experimental.

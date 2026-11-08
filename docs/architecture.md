@@ -5149,6 +5149,36 @@ Desktop volume follows a parallel local-settings path:
    `volume-gain` read back (`replayGainBoostIntendedDb` is what the adapter
    meant to write, `replayGainBoostHeldDb` the target of a held join).
 
+   **In-pipeline contract (#392, phase 1).** The handler's
+   `replayGainInPipeline` capability (false on every platform until the mpv,
+   Android and iOS backends ship, so nothing above changes today) moves
+   ReplayGain onto each song's own samples. One signed dB per queue entry
+   (`ReplayGainDecision.db`, cut and boost together) travels with the source:
+   `IndexedAudioSource.replayGainDb`, filled by `_withReplayGain` wherever the
+   handler builds a source (queue load, insert, recovery, cross-fade deck
+   load), is in the `load`/`insert` message (`UriAudioSourceMessage.replayGainDb`,
+   the clipping child included), so the first song and a never-played deck
+   need no earlier map. Later changes go through
+   `AudioPlayer.setReplayGainLevels({bySource, live})`
+   (`SetReplayGainLevelsRequest`: `byId` by source id, `byUri` by URI; an
+   identical non-live request is skipped; a backend or method channel that
+   does not know it ignores it). `_applyReplayGainBoost` becomes that push
+   (`_sendReplayGainLevelsTo`) on every deck. `live` is true only from
+   `applyRuntimeSettings`: native freezes the playing entry's value at its
+   boundary and a tag refresh or index event never changes it. The player
+   volume is then user volume x ducking x cross-fade ramp
+   (`_baseVolumeFor`), never ReplayGain. A push, and a source stamped for a
+   list that is not `_queueItems` yet (a replace's start song, an insert, a
+   released tail, which pass their incoming play order to `_withReplayGain`),
+   records the Smart pair it used (`_pushedSmartNeighbours`). A non-live push
+   leaves the heard entry's record alone, since native froze it. The song's
+   start freezes the recorded pair instead of re-reading the queue, so the
+   display equals what native holds. A stamp without a play order (a queue
+   fill still in progress) is corrected by the push that follows the fill. Any
+   load, insert or removal makes the next identical map push news again
+   (`AudioPlayer._broadcastSequence`), because stamped sources change what
+   native holds.
+
    Queued songs carry their ReplayGain in `MediaItem.extras`, copied from the
    song row when the queue is built, and a deck source's tag keeps the value
    it was created with. After a sync run that wrote songs (a promoted
