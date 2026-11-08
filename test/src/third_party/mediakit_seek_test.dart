@@ -37,12 +37,14 @@ void main() {
   late MediaKitPlayer adapter;
   late _Properties properties;
   late StreamController<Duration> duration;
+  late StreamController<bool> completed;
   late PlayerState state;
 
   setUp(() async {
     player = _Player();
     final streams = _Streams();
     duration = StreamController<Duration>.broadcast();
+    completed = StreamController<bool>.broadcast();
     final playlist = Playlist([
       Media('https://stream.example.invalid/a'),
       Media('https://stream.example.invalid/b'),
@@ -61,7 +63,7 @@ void main() {
     when(() => streams.buffering).thenAnswer((_) => const Stream.empty());
     when(() => streams.buffer).thenAnswer((_) => const Stream.empty());
     when(() => streams.volume).thenAnswer((_) => const Stream.empty());
-    when(() => streams.completed).thenAnswer((_) => const Stream.empty());
+    when(() => streams.completed).thenAnswer((_) => completed.stream);
     when(() => streams.error).thenAnswer((_) => const Stream.empty());
     when(() => streams.playlist).thenAnswer((_) => const Stream.empty());
     when(() => streams.playlistMode).thenAnswer((_) => const Stream.empty());
@@ -79,6 +81,7 @@ void main() {
       );
     });
     when(player.pause).thenAnswer((_) async {});
+    when(player.play).thenAnswer((_) async {});
     when(() => player.seek(any())).thenAnswer((_) async {});
     when(player.dispose).thenAnswer((_) async {});
     properties = _Properties();
@@ -113,6 +116,7 @@ void main() {
   tearDown(() async {
     await adapter.release();
     await duration.close();
+    await completed.close();
   });
 
   test(
@@ -193,4 +197,69 @@ void main() {
       },
     );
   }
+
+  group('seek out of a finished queue', () {
+    // A one-song queue whose only entry has played to the end. mpv keeps the
+    // file open and paused at EOF, which media_kit reports as completed.
+    Future<void> finishOneSongQueue({required bool playing}) async {
+      final one = Playlist([Media('https://stream.example.invalid/a')]);
+      state = state.copyWith(playlist: one);
+      await adapter.load(
+        LoadRequest(
+          audioSourceMessage: ConcatenatingAudioSourceMessage(
+            id: 'queue',
+            children: [
+              ProgressiveAudioSourceMessage(
+                id: 'a',
+                uri: one.medias.single.uri,
+                headers: null,
+              ),
+            ],
+            useLazyPreparation: false,
+            shuffleOrder: [0],
+          ),
+          initialIndex: 0,
+          initialPosition: null,
+        ),
+      );
+      duration.add(state.duration);
+      await Future<void>.delayed(Duration.zero);
+      if (playing) await adapter.play(PlayRequest());
+      state = state.copyWith(completed: true, playing: false);
+      completed.add(true);
+      await Future<void>.delayed(Duration.zero);
+      expect(adapter.debugTransportState['processingState'], 'completed');
+      clearInteractions(player);
+    }
+
+    for (final (name, request) in [
+      ('restart by index', SeekRequest(index: 0, position: Duration.zero)),
+      (
+        'seek bar',
+        SeekRequest(index: null, position: const Duration(seconds: 5)),
+      ),
+    ]) {
+      test('$name resumes the paused-at-EOF player', () async {
+        await finishOneSongQueue(playing: true);
+        await adapter.seek(request);
+        verify(() => player.play()).called(1);
+        verify(() => player.seek(any())).called(1);
+        expect(
+          adapter.debugTransportState['processingState'],
+          isNot('completed'),
+        );
+      });
+    }
+
+    test('a paused queue leaves completed but stays silent', () async {
+      await finishOneSongQueue(playing: false);
+      await adapter.seek(SeekRequest(index: 0, position: Duration.zero));
+      verifyNever(() => player.play());
+      verify(() => player.seek(any())).called(1);
+      expect(
+        adapter.debugTransportState['processingState'],
+        isNot('completed'),
+      );
+    });
+  });
 }
