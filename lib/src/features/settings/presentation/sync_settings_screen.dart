@@ -615,16 +615,15 @@ class SyncSettingsScreen extends ConsumerWidget {
   ) async {
     final l10n = AppLocalizations.of(context)!;
     final syncState = ref.read(librarySyncControllerProvider);
-    final awaitingDeletionConfirmation =
-        syncState.candidateStatus == 'awaitingDeletionConfirmation' &&
-        syncState.deletionCandidateCount > 0;
     // What the dialog shows is what the user confirms, once: this server's
     // hold, its generation, item count and removal set. A hold that changed
-    // meanwhile asks again.
+    // meanwhile asks again. The dialog opens only when that full confirmation
+    // can be built; otherwise there is nothing to confirm and the press runs
+    // the ordinary repair.
     final confirmation = syncState.heldDeletionConfirmation(
       ref.read(serverConfigStateProvider).asData?.value?.id,
     );
-    if (awaitingDeletionConfirmation) {
+    if (confirmation != null) {
       final confirmed = await _confirm(
         context,
         title: l10n.syncSettingsRepairDeletionConfirmationTitle,
@@ -679,7 +678,8 @@ class SyncSettingsScreen extends ConsumerWidget {
           .read(librarySyncControllerProvider.notifier)
           .discardAwaitingRepairCandidate();
       if (!discarded && context.mounted) {
-        // A sync started meanwhile and owns the candidate until it ends.
+        // Refused: a sync owns the candidate until it ends, or the hold is
+        // already gone.
         showAppNotice(
           context,
           message: l10n.syncSettingsRepairDiscardCandidateBusy,

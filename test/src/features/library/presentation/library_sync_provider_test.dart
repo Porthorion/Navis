@@ -442,6 +442,41 @@ void main() {
       expect(engine.requests[1].confirmsHeldDeletion!.count, 17);
     });
 
+    test('G1: the persisted hold, with its fingerprint, is what the dialog '
+        'confirms after a restart', () async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(
+        database,
+        // First setup owns the first catalog: no startup sync replaces the
+        // hydrated state.
+        setupPending: true,
+      );
+      await database.librarySyncDao.writeState(
+        LibrarySyncStateTableCompanion(
+          serverId: Value(config.id!),
+          candidateGeneration: const Value(5),
+          candidateStatus: const Value('awaitingDeletionConfirmation'),
+          deletionCandidateCount: const Value(9),
+          deletionCandidateFingerprint: const Value('fp-9'),
+        ),
+      );
+      final engine = StubLibrarySyncEngine.returning(_succeeded);
+      final container = _container(engine, database: database, server: config);
+      addTearDown(container.dispose);
+      container.listen(librarySyncControllerProvider, (_, _) {});
+      container.read(librarySyncControllerProvider.notifier);
+      await pumpEventQueue();
+
+      final confirmation = container
+          .read(librarySyncControllerProvider)
+          .heldDeletionConfirmation(config.id);
+      expect(confirmation, isNotNull);
+      expect(confirmation!.generation, 5);
+      expect(confirmation.count, 9);
+      expect(confirmation.fingerprint, 'fp-9');
+    });
+
     test('Z3: Discard is refused while a sync is running', () async {
       final database = createTestDatabase();
       addTearDown(database.close);

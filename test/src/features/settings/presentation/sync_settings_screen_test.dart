@@ -886,6 +886,42 @@ void main() {
     },
   );
 
+  testWidgets('G3: a hold that cannot be confirmed opens no deletion dialog', (
+    tester,
+  ) async {
+    final database = createTestDatabase();
+    addTearDown(database.close);
+    await _pumpSyncSettings(
+      tester,
+      database,
+      controller: () => _FakeLibrarySyncController(
+        // Awaiting with a count, but no fingerprint: nothing to confirm.
+        stateValue: LibrarySyncState(
+          status: LibrarySyncStatus.partial,
+          stage: LibrarySyncStage.validatingCandidate,
+          candidateGeneration: 12,
+          candidateStatus: 'awaitingDeletionConfirmation',
+          deletionCandidateCount: 531,
+        ),
+      ),
+      server: _defaultServer.copyWith(id: 7),
+    );
+
+    await tester.drag(find.byType(ListView), const Offset(0, -600));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Repair Library'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Confirm Library Repair'), findsNothing);
+    final controller =
+        ProviderScope.containerOf(
+              tester.element(find.byType(SyncSettingsScreen)),
+            ).read(librarySyncControllerProvider.notifier)
+            as _FakeLibrarySyncController;
+    expect(controller.repairCalls, 1);
+    expect(controller.lastRepairConfirmation, isNull);
+  });
+
   testWidgets('repair requires confirmation before applying server deletions', (
     tester,
   ) async {

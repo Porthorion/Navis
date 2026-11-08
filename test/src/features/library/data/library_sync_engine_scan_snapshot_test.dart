@@ -1270,6 +1270,48 @@ void main() {
     expect((await songsById()).containsKey('s7'), isFalse);
   }, skip: !sqliteAvailable);
 
+  test(
+    'G1: the coordinator result after a hold lets the dialog confirm it',
+    () async {
+      final sync = AdaptiveLibrarySyncCoordinator(
+        executor: engine,
+        database: database,
+        serverConfigRepository: repository,
+        networkType: NetworkType.wifi,
+        staleAfter: const Duration(hours: 1),
+        readHasActivePlayback: () => false,
+      );
+      serve(removalSongs(), removalAlbums(), scan2);
+      await snapshot(scanTriggered: true);
+      // A plain Force rescan re-holds; its result is what the controller shows.
+      final shown = await sync.requestSync(
+        const LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+        ),
+      );
+      final stored = await database.librarySyncDao.getOrCreateState(serverId);
+      expect(shown.candidateStatus, 'awaitingDeletionConfirmation');
+      final confirmation = shown.heldDeletionConfirmation(serverId);
+      expect(
+        confirmation,
+        isNotNull,
+        reason: 'the dialog must be able to confirm',
+      );
+      expect(confirmation!.fingerprint, stored.deletionCandidateFingerprint);
+      // The press built from that result applies the shown set.
+      await sync.requestSync(
+        LibrarySyncRequest(
+          origin: SyncRunOrigin.settingsRepair,
+          intent: SyncRunIntent.repairLibrary,
+          confirmsHeldDeletion: confirmation,
+        ),
+      );
+      expect((await songsById()).containsKey('s7'), isFalse);
+    },
+    skip: !sqliteAvailable,
+  );
+
   test('Z1: a confirmation on anything but a full repair is ignored', () async {
     serve(removalSongs(), removalAlbums(), scan2);
     await snapshot(scanTriggered: true);
