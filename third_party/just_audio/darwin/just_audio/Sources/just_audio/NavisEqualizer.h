@@ -1,6 +1,9 @@
 // iOS equalizer: one NavisEqualizer per AudioPlayer. AVFoundation exposes no
 // PCM, so the player gets one MTAudioProcessingTap, shared by every queued
-// AVPlayerItem, that runs the shared C DSP (NavisEqualizerDsp.c).
+// AVPlayerItem, that runs the shared C DSP (NavisEqualizerDsp.c). AVQueuePlayer
+// starts one audio pipeline per run of items with the same source format, and
+// each one prepares that tap, so the tap keeps an EQ stream and a pitch stage
+// per audio format (NavisTapFormats.c) and every block runs at its own.
 // iOS only (TARGET_OS_IOS): the shared Darwin source also builds for macOS,
 // where the whole class compiles away and macOS never receives a config.
 #import <AVFoundation/AVFoundation.h>
@@ -15,9 +18,12 @@
 /// The new state, or nil with *error set. Applies to every live tap.
 - (NSDictionary *)setConfiguration:(NSDictionary *)map error:(NSString **)error;
 /// Keys: enabled, sampleRate, headroomDb, reason, pending (as on Android) plus
-/// processedFrames, levelDeltaDb, resetCount, tapPrepareCount, flushCount (seeks
-/// and skips noted since the tap was created) and
-/// transitionGapsMs (the last 8 gaps between songs, in ms; diagnostics).
+/// processedFrames, levelDeltaDb, resetCount, tapPrepareCount (audio pipelines
+/// prepared), flushCount (seeks and skips noted since the tap was created) and
+/// transitionGapsMs (the last 8 gaps between songs, in ms; diagnostics). The
+/// rate, level and pitch fields describe the format that processed the last
+/// block; formatStreams lists every format of the queue, and unmatchedFrames and
+/// overlapBlocks count audio no format took (0 when healthy).
 - (NSDictionary *)state;
 /// Independent pitch in cents (+-2400), applied to the player's one tap; 0 is a
 /// bit-exact bypass. Main thread. Safe before the tap exists (it is seeded).
