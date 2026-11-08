@@ -1158,6 +1158,11 @@ extension _NavisMediaSession on NavisAudioHandler {
         pitchOutputHz: native.pitchOutputHz,
         pitchPullMismatches: native.pitchPullMismatches,
         pitchReason: native.pitchReason,
+        formatStreams: native.formatStreams
+            ?.map((stream) => stream.toJson())
+            .toList(growable: false),
+        unmatchedFrames: native.unmatchedFrames,
+        overlapBlocks: native.overlapBlocks,
       ),
     );
   }

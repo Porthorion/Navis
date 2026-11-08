@@ -51,6 +51,40 @@ class EqualizerConfigurationMessage {
       };
 }
 
+/// One audio format of the queue as the Darwin tap sees it (I25): the tap keeps
+/// an equalizer stream per format, so every song runs at its own rate.
+class EqualizerFormatStreamMessage {
+  const EqualizerFormatStreamMessage({
+    required this.sampleRate,
+    required this.channels,
+    required this.processedFrames,
+    this.levelDeltaDb,
+  });
+
+  final int sampleRate;
+  final int channels;
+  final int processedFrames;
+
+  /// Output-minus-input level in dB over recent audio of this format; null
+  /// before any.
+  final double? levelDeltaDb;
+
+  static EqualizerFormatStreamMessage fromMap(Map<dynamic, dynamic> map) =>
+      EqualizerFormatStreamMessage(
+        sampleRate: (map['sampleRate'] as num).toInt(),
+        channels: (map['channels'] as num).toInt(),
+        processedFrames: (map['processedFrames'] as num).toInt(),
+        levelDeltaDb: (map['levelDeltaDb'] as num?)?.toDouble(),
+      );
+
+  Map<String, Object?> toJson() => {
+        'sampleRate': sampleRate,
+        'channels': channels,
+        'processedFrames': processedFrames,
+        'levelDeltaDb': levelDeltaDb,
+      };
+}
+
 /// Reports actual processing availability, separately from the desired values.
 class EqualizerStateMessage {
   const EqualizerStateMessage({
@@ -77,6 +111,9 @@ class EqualizerStateMessage {
     this.pitchOutputHz,
     this.pitchPullMismatches,
     this.pitchReason,
+    this.formatStreams,
+    this.unmatchedFrames,
+    this.overlapBlocks,
   });
 
   final bool enabled;
@@ -106,7 +143,9 @@ class EqualizerStateMessage {
   final int? resetCount;
 
   /// Times the player's shared tap was prepared (Darwin only), for diagnostics:
-  /// one per queue unless the audio format changed.
+  /// once per audio pipeline, which AVQueuePlayer starts for each run of
+  /// queued songs with the same source format (rate, channels, sample type or
+  /// codec), so 1 for a queue of one format and 3 for 22.05, 48 and 96 kHz.
   final int? tapPrepareCount;
 
   /// Seeks and skips the player told the equalizer about (Darwin only,
@@ -131,6 +170,16 @@ class EqualizerStateMessage {
   /// filled; expected 0) and why the tap cannot pitch its audio, if it cannot.
   final int? pitchPullMismatches;
   final String? pitchReason;
+
+  /// One entry per audio format of the queue (Darwin only, diagnostics); the
+  /// top-level rate, level and pitch fields describe the format that processed
+  /// the last block.
+  final List<EqualizerFormatStreamMessage>? formatStreams;
+
+  /// Audio frames no format took and blocks passed dry because another render
+  /// thread held their format (Darwin only, diagnostics); both 0 when healthy.
+  final int? unmatchedFrames;
+  final int? overlapBlocks;
 
   static EqualizerStateMessage fromMap(Map<dynamic, dynamic> map) =>
       EqualizerStateMessage(
@@ -159,6 +208,15 @@ class EqualizerStateMessage {
         pitchOutputHz: (map['pitchOutputHz'] as num?)?.toDouble(),
         pitchPullMismatches: (map['pitchPullMismatches'] as num?)?.toInt(),
         pitchReason: map['pitchReason'] as String?,
+        formatStreams: (map['formatStreams'] as List<dynamic>?)
+            ?.map(
+              (stream) => EqualizerFormatStreamMessage.fromMap(
+                stream as Map<dynamic, dynamic>,
+              ),
+            )
+            .toList(growable: false),
+        unmatchedFrames: (map['unmatchedFrames'] as num?)?.toInt(),
+        overlapBlocks: (map['overlapBlocks'] as num?)?.toInt(),
       );
 }
 

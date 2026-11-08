@@ -391,6 +391,9 @@ class EqApplicationState {
     this.pitchOutputHz,
     this.pitchPullMismatches,
     this.pitchReason,
+    this.formatStreams,
+    this.unmatchedFrames,
+    this.overlapBlocks,
   });
 
   final EqConfiguration desired;
@@ -416,7 +419,8 @@ class EqApplicationState {
   /// Filter-history resets of the native equalizer (iOS only), for diagnostics.
   final int? resetCount;
 
-  /// Times the native tap was prepared (iOS only), for diagnostics.
+  /// Times the native tap was prepared (iOS only), for diagnostics: once per
+  /// audio pipeline (a run of queued songs with the same source format).
   final int? tapPrepareCount;
 
   /// Seeks and skips the native equalizer was told about (iOS only), for
@@ -444,6 +448,15 @@ class EqApplicationState {
   final int? pitchPullMismatches;
   final String? pitchReason;
 
+  /// One entry per audio format of the queue (iOS only), for diagnostics:
+  /// `{sampleRate, channels, processedFrames, levelDeltaDb}`.
+  final List<Map<String, Object?>>? formatStreams;
+
+  /// Audio no format took and blocks passed dry on a format clash (iOS only);
+  /// both 0 when healthy.
+  final int? unmatchedFrames;
+  final int? overlapBlocks;
+
   /// The `application` object of the diagnostics API's `/v1/equalizer`.
   Map<String, Object?> toDiagnosticsJson() => {
     'configuration': applied.toJson(),
@@ -467,5 +480,8 @@ class EqApplicationState {
     'pitchOutputHz': pitchOutputHz,
     'pitchPullMismatches': pitchPullMismatches,
     'pitchReason': pitchReason,
+    'formatStreams': formatStreams,
+    'unmatchedFrames': unmatchedFrames,
+    'overlapBlocks': overlapBlocks,
   };
 }
