@@ -49,10 +49,22 @@ static _Thread_local int t_blockRate; // the rate of the block this thread is pr
 static Fake *g_aus[64];                // the first 64 by creation order; NULL once destroyed (control thread only)
 static int g_nAus;
 static bool g_failCreate;
+// Armed: the next render of any fake AU starts another process call on the same
+// set from inside it, the way a second render thread would find the slot busy.
+static struct {
+    NavisTapFormats *t;
+    int armed;
+} g_reenter;
 
 static int fakeRender(void *user, const float *const *in, float *const *out, int channels, int frames) {
     Fake *f = user;
     atomic_fetch_add(&f->renders, 1);
+    if (g_reenter.armed) {
+        g_reenter.armed = 0;
+        float nested[2][128] = {{0}};
+        float *nch[2] = {nested[0], nested[1]};
+        navis_tap_formats_process(g_reenter.t, true, 0, 128, 44100, nch, 2, 128);
+    }
     if (t_blockRate && f->rate != t_blockRate) atomic_fetch_add(&g_wrongRate, 1);
     for (int i = 0; i < frames; i++) {
         for (int c = 0; c < channels; c++) {
@@ -117,6 +129,7 @@ static NavisTapFormats *newSet(double preampDb, int32_t cents) {
     memset(g_aus, 0, sizeof g_aus);
     g_nAus = 0;
     g_failCreate = false;
+    g_reenter.armed = 0;
     NavisEqConfig c = config(preampDb);
     NavisPitchFactory factory = {fakeCreate, fakeDestroy, fakeMismatches};
     NavisTapFormats *t = navis_tap_formats_new(&c, cents, factory);
@@ -222,7 +235,7 @@ static void testFormatFollowsTheBlock(void) {
     s = state(t);
     check(s.hasStream && s.stream.sampleRate == 96000, "the 96000 song runs at the 96000 stream");
     near(s.stream.levelDeltaDb, -12, 0.1, "level delta of the 96000 song");
-    check(s.slotCount == 3 && s.prepareCount == 3 && s.live == 1, "three formats, three pipelines, one live");
+    check(s.slotCount == 3 && s.prepareCalls == 3 && s.livePipelines == 1, "three formats, three pipelines, one live");
     for (int i = 0; i < 3; i++) check(s.formats[i].processedFrames > 0, "every format processed frames");
     check(infoFor(&s, 22050, 2)->processedFrames == 4 * 4096 && infoFor(&s, 96000, 2)->processedFrames == 4 * 8208,
           "each format counts its own frames");
@@ -243,7 +256,7 @@ static void testReuseKeepsTheSlot(void) {
     uint64_t frames = state(t).formats[0].processedFrames;
     check(navis_tap_formats_unprepare(t) && navis_tap_formats_unprepare(t), "both ended");
     NavisTapFormatsState s = state(t);
-    check(s.slotCount == 1 && s.live == 0, "one slot, nothing live");
+    check(s.slotCount == 1 && s.livePipelines == 0, "one slot, nothing live");
     check(atomic_load(&g_creates) == 1 && atomic_load(&g_destroys) == 0, "unprepare frees nothing");
     check(s.formats[0].processedFrames == frames, "the history survives");
     check(prepare(t, 44100, 2), "prepared again");
@@ -275,7 +288,7 @@ static void testFreeAllOnlyAtTheCap(void) {
     NavisTapFormats *t = newSet(-12, 0);
     fillCap(t, &b, 0);
     NavisTapFormatsState before = state(t);
-    check(before.slotCount == 16 && before.live == 0 && atomic_load(&g_creates) == 16 && atomic_load(&g_destroys) == 0,
+    check(before.slotCount == 16 && before.livePipelines == 0 && atomic_load(&g_creates) == 16 && atomic_load(&g_destroys) == 0,
           "16 slots, none freed by 16 unprepares");
     check(prepare(t, 44100, 2), "the 17th format is prepared when no pipeline is live");
     check(atomic_load(&g_destroys) == 16 && atomic_load(&g_creates) == 17, "16 destroys, then the new slot");
@@ -292,7 +305,7 @@ static void testFreeAllOnlyAtTheCap(void) {
     // With a pipeline live the 17th plays dry, with the reason.
     t = newSet(-12, 0);
     fillCap(t, &b, 1);
-    check(state(t).live == 1, "one pipeline is still live");
+    check(state(t).livePipelines == 1, "one pipeline is still live");
     check(!prepare(t, 44100, 2), "the 17th format has no slot while another pipeline is live");
     check(atomic_load(&g_destroys) == 0 && atomic_load(&g_creates) == 16 && state(t).slotCount == 16,
           "nothing was freed under a live pipeline");
@@ -301,7 +314,7 @@ static void testFreeAllOnlyAtTheCap(void) {
     NavisTapFormatsState s = state(t);
     check(s.unmatchedFrames == 1024, "and count as unmatched");
     check(s.formatReason && strstr(s.formatReason, "Too many") && s.pitchReason, "with the reason");
-    check(navis_tap_formats_unprepare(t) && navis_tap_formats_unprepare(t) && state(t).live == 0, "both ended");
+    check(navis_tap_formats_unprepare(t) && navis_tap_formats_unprepare(t) && state(t).livePipelines == 0, "both ended");
     check(prepare(t, 44100, 2) && atomic_load(&g_destroys) == 16, "with nothing live it starts over");
     check(state(t).formatReason == NULL, "and the reason is gone");
     navis_tap_formats_unprepare(t);
@@ -336,9 +349,12 @@ static void testStaleLastSlot(void) {
 static void testExtraUnprepareIsClamped(void) {
     NavisTapFormats *t = newSet(-12, 0);
     check(!navis_tap_formats_unprepare(t), "nothing to unprepare");
-    check(state(t).live == 0, "live stays 0");
-    check(prepare(t, 44100, 2) && state(t).live == 1, "the next prepare counts one");
-    check(navis_tap_formats_unprepare(t) && !navis_tap_formats_unprepare(t) && state(t).live == 0, "and one extra is clamped");
+    check(state(t).livePipelines == 0, "live stays 0");
+    check(prepare(t, 44100, 2) && state(t).livePipelines == 1, "the next prepare counts one");
+    check(navis_tap_formats_unprepare(t) && !navis_tap_formats_unprepare(t) && state(t).livePipelines == 0, "and one extra is clamped");
+    NavisTapFormatsState s = state(t);
+    check(s.prepareCalls == 1 && s.unprepareCalls == 3 && s.clampedUnprepares == 2,
+          "every call is counted, and the unprepares that matched nothing");
     freeSet(t);
 }
 
@@ -355,10 +371,11 @@ static void testMatching(void) {
     check(isDry(&b, 3, 4096), "a 3-buffer block passes bit-exact");
     NavisTapFormatsState s = state(t);
     check(s.unmatchedFrames == 8192, "and both count as unmatched");
-    // An invalid range is not audio yet: dry, not counted.
+    // An invalid range has no rate (the first block of every pipeline): it goes to the
+    // slot of the latest prepare, here 96000, whatever rate the block really has.
     runBlockAt(t, &b, 48000, 48000, 2, 4096, true, 0, 0, 0);
-    check(isDry(&b, 2, 4096) && state(t).unmatchedFrames == 8192, "an invalid range passes dry and is not counted");
-    check(state(t).formats[0].processedFrames == 0 && state(t).formats[1].processedFrames == 0, "no slot processed any of them");
+    check(isScaled(&b, 2, 4096, EQ12, 0) && state(t).unmatchedFrames == 8192, "an invalid range uses the latest prepared slot");
+    check(state(t).formats[0].processedFrames == 0 && state(t).formats[1].processedFrames == 4096, "and only that slot");
     runBlock(t, &b, 48000, 2, 4096, true, 0, 0);
     check(isScaled(&b, 2, 4096, EQ12, 0), "the next block of audio is processed");
     navis_tap_formats_unprepare(t);
@@ -598,7 +615,7 @@ static void chaos(NavisTapFormats *t, Render *r, uint32_t *rng) {
         }
         case 2: {
             NavisTapFormatsState s = state(t);
-            check(s.slotCount <= NAVIS_TAP_MAX_FORMATS && s.live >= 0 && s.live <= 3, "sane state");
+            check(s.slotCount <= NAVIS_TAP_MAX_FORMATS && s.livePipelines >= 0 && s.livePipelines <= 3, "sane state");
             if (s.hasStream) check(s.stream.sampleRate > 0, "the reporting slot has a rate");
             break;
         }
@@ -668,7 +685,7 @@ static void testConcurrentPipelines(void) {
     atomic_store(&r.quit, 1);
     pthread_join(thread, NULL);
     NavisTapFormatsState s = state(t);
-    check(s.live == 0 && s.prepareCount >= 900, "balanced");
+    check(s.livePipelines == 0 && s.prepareCalls >= 900, "balanced");
     check(s.unmatchedFrames == 0 && s.overlapBlocks == 0, "no block missed its slot or overlapped");
     check(atomic_load(&g_wrongRate) == 0, "no block reached a pitch stage of another rate");
     check(s.processedFrames == r.fed, "every audio block was processed by exactly one slot");
@@ -716,22 +733,202 @@ static void testTwoRenderThreadsOnOneSlot(void) {
     freeSet(t);
 }
 
-int main(int argc, char **argv) {
-    bool concurrencyOnly = argc > 1 && strcmp(argv[1], "--concurrency") == 0;
-    if (!concurrencyOnly) {
-        testFormatFollowsTheBlock();
-        testReuseKeepsTheSlot();
-        testFreeAllOnlyAtTheCap();
-        testStaleLastSlot();
-        testExtraUnprepareIsClamped();
-        testMatching();
-        testInterleavedStartAndFlush();
-        testFanOut();
+
+// MARK: 10. a block without a rate
+
+static void testBlocksWithoutARate(void) {
+    static Block b;
+    NavisTapFormats *t = newSet(-12, 0);
+    check(prepare(t, 48000, 2) && prepare(t, 96000, 2), "48000 and 96000");
+    long k = 0;
+    for (int i = 0; i < 2; i++, k += 1024) {
+        runBlock(t, &b, 48000, 2, 1024, i == 0, 0, k);
+        runBlock(t, &b, 96000, 2, 1024, i == 0, 0, k);
     }
-    testConcurrentPipelines();
-    testTwoRenderThreadsOnOneSlot();
-    puts(concurrencyOnly
-             ? "Navis Darwin tap formats (concurrency): pipelines, free-all and overlap passed."
-             : "Navis Darwin tap formats: format follows the block, reuse, cap, matching, resets, fan-out and concurrency passed.");
+    check(navis_tap_formats_unprepare(t) && navis_tap_formats_unprepare(t), "both ended");
+    check(prepare(t, 48000, 2), "a new pipeline of 48000, the latest prepare");
+    // Its first block has an invalid range, and StartOfStream may come with it.
+    runBlockAt(t, &b, 48000, 48000, 2, 1024, true, 0, k, 0);
+    check(isScaled(&b, 2, 1024, EQ12, 0), "it runs in the latest prepared slot");
+    runBlock(t, &b, 48000, 2, 1024, false, 0, k);
+    NavisTapFormatsState s = state(t);
+    check(infoFor(&s, 48000, 2)->resetCount == 1, "and its StartOfStream applies to that slot");
+    check(infoFor(&s, 96000, 2)->resetCount == 0 && s.unmatchedFrames == 0, "not to the other, and nothing is unmatched");
+    // The channel count has to match, else it passes dry and is counted.
+    runBlockAt(t, &b, 48000, 48000, 3, 512, false, 0, 0, 0);
+    check(isDry(&b, 3, 512) && state(t).unmatchedFrames == 512, "another channel count passes dry and counts");
+    // After a prepare that gave no slot there is none to route to.
+    check(!navis_tap_formats_prepare(t, 44100, 2, 4096, false), "an unsupported format");
+    runBlockAt(t, &b, 44100, 44100, 2, 256, false, 0, 0, 0);
+    check(isDry(&b, 2, 256) && state(t).unmatchedFrames == 768, "it passes dry and counts");
+    navis_tap_formats_unprepare(t);
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+// MARK: 11. a coarse clock admits several rates
+
+static void testCoarseClockKeepsTheSongOnItsSlot(void) {
+    static Block b;
+    static const int rates[] = {22050, 24000, 44100, 48000, 88200, 96000};
+    static const int32_t scales[] = {600, 1000};
+    static const int sizes[] = {136, 512};
+    NavisTapFormats *t = newSet(-12, 0);
+    for (int i = 0; i < 6; i++) check(prepare(t, rates[i], 2), "prepared");
+    for (int i = 0; i < 6; i++) {
+        // The song starts on its own clock, then the clock turns coarse.
+        runBlock(t, &b, rates[i], 2, 1024, true, 0, 0);
+        for (int sc = 0; sc < 2; sc++)
+            for (int sz = 0; sz < 2; sz++)
+                for (int rep = 0; rep < 3; rep++) {
+                    uint64_t before = state(t).formats[i].processedFrames;
+                    runBlockAt(t, &b, rates[i], scales[sc], 2, sizes[sz], false, 0, 0, ticks(sizes[sz], rates[i], scales[sc]));
+                    if (state(t).formats[i].processedFrames != before + (uint64_t)sizes[sz])
+                        fail("a song stays on its own slot on a coarse clock", rates[i], scales[sc] * 10000 + sizes[sz]);
+                }
+    }
+    check(state(t).unmatchedFrames == 0, "none unmatched");
+    // Nothing to prefer: the nearest of the admitted rates.
+    NavisTapFormats *u = newSet(-12, 0);
+    check(prepare(u, 44100, 2) && prepare(u, 48000, 2) && prepare(u, 96000, 2), "44100, 48000, 96000");
+    runBlock(u, &b, 96000, 2, 1024, true, 0, 0); // lastSlot and latest prepare: 96000
+    runBlockAt(u, &b, 48000, 1000, 2, 136, false, 0, 0, ticks(136, 48000, 1000)); // 3 ticks: 45333 Hz
+    check(state(u).formats[0].processedFrames == 136, "with neither last nor prepared among them, the nearest wins");
+    for (int i = 0; i < 3; i++) navis_tap_formats_unprepare(u);
+    freeSet(u);
+    for (int i = 0; i < 6; i++) navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+// MARK: 12. a block dropped on a busy slot keeps its start
+
+static void testDroppedBlockKeepsItsStart(void) {
+    static Block b;
+    NavisTapFormats *t = newSet(-12, 700); // pitch on: the fake renderer is where the second call starts
+    check(prepare(t, 44100, 2), "one format");
+    long k = 0;
+    for (int i = 0; i < 3; i++, k += 1024) runBlock(t, &b, 44100, 2, 1024, i == 0, 0, k);
+    check(state(t).resetCount == 0, "no reset so far");
+    g_reenter.t = t;
+    g_reenter.armed = 1;
+    runBlock(t, &b, 44100, 2, 1024, false, 0, k); // another call with StartOfStream arrives in the middle of it
+    k += 1024;
+    NavisTapFormatsState s = state(t);
+    check(s.overlapBlocks == 1 && s.resetCount == 0, "it found the slot busy and was dropped");
+    runBlock(t, &b, 44100, 2, 1024, false, 0, k);
+    s = state(t);
+    check(s.resetCount == 1 && s.pitchResetCount == 1, "the next block of the slot carries its StartOfStream");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+// MARK: 13. a slot whose pitch could not be built is rebuilt
+
+static void testPitchStageRebuild(void) {
+    static Block b;
+    NavisTapFormats *t = newSet(-12, 700);
+    g_failCreate = true;
+    check(prepare(t, 44100, 2), "the format still gets its equalizer");
+    NavisTapFormatsState s = state(t);
+    check(s.hasStream && !s.hasPitch && s.pitchReason, "without a pitch stage, with the reason");
+    g_failCreate = false;
+    check(navis_tap_formats_unprepare(t) && prepare(t, 44100, 2), "the next prepare of that format");
+    check(atomic_load(&g_creates) == 1, "builds the unit again");
+    s = state(t);
+    check(s.hasPitch && s.pitchReason == NULL && s.slotCount == 1, "and the slot has its pitch stage");
+    long k = 0;
+    for (int i = 0; i < 2; i++, k += 1024) runBlock(t, &b, 44100, 2, 1024, i == 0, 0, k);
+    for (int c = 0; c < 2; c++)
+        for (int i = 0; i < 1024; i++)
+            near(b.out[c][i], EQ12 * GAIN * sample(c, k - 1024 + i - LAT), 2e-6, "the recovered stage pitches, seeded with the cents");
+    navis_tap_formats_set_cents(t, 0);
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+// MARK: 14. reasons
+
+static void testReasonsStayUntilAnAudioBlockIsProcessed(void) {
+    static Block b;
+    NavisTapFormats *t = newSet(-12, 0);
+    check(!navis_tap_formats_prepare(t, 44100, 2, 4096, false), "an unsupported format first");
+    NavisTapFormatsState s = state(t);
+    check(!s.hasStream && s.formatReason && s.pitchReason, "nothing has played: the reason shows");
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+
+    t = newSet(-12, 0);
+    check(prepare(t, 48000, 2), "a 48000 song");
+    runBlock(t, &b, 48000, 2, 1024, true, 0, 0);
+    check(!navis_tap_formats_prepare(t, 44100, 2, 4096, false), "the next song's format is unsupported");
+    s = state(t);
+    check(s.hasStream && s.stream.sampleRate == 48000 && s.formatReason == NULL, "the song playing still shows its own state");
+    navis_tap_formats_note_dry(t, 1024); // the unsupported song's block fails the layout checks
+    s = state(t);
+    check(s.formatReason && s.pitchReason, "a block that passes unchanged shows the reason, not the previous slot");
+    check(prepare(t, 48000, 2), "a later prepare");
+    check(state(t).formatReason != NULL, "does not clear it");
+    runBlock(t, &b, 48000, 2, 1024, false, 0, 1024);
+    s = state(t);
+    check(s.formatReason == NULL && s.pitchReason == NULL, "a processed block does");
+    navis_tap_formats_note_dry(t, 0);
+    check(state(t).formatReason == NULL, "an empty block is not dry");
+    navis_tap_formats_unprepare(t);
+    navis_tap_formats_unprepare(t);
+    navis_tap_formats_unprepare(t);
+    freeSet(t);
+}
+
+// MARK: 15. the balance counters
+
+static void testBalanceCounters(void) {
+    NavisTapFormats *t = newSet(-12, 0);
+    for (int i = 0; i < 3; i++) check(prepare(t, 44100, 2), "prepared");
+    for (int i = 0; i < 4; i++) navis_tap_formats_unprepare(t);
+    NavisTapFormatsState s = state(t);
+    check(s.prepareCalls == 3 && s.unprepareCalls == 4 && s.clampedUnprepares == 1 && s.livePipelines == 0,
+          "three prepares, four unprepares, one clamped, none live");
+    freeSet(t);
+}
+
+typedef struct {
+    const char *name;
+    void (*run)(void);
+    bool concurrency;
+} Test;
+
+// argv: "--concurrency" runs only the threaded tests (the ThreadSanitizer build);
+// "--only NAME" runs one test by name.
+int main(int argc, char **argv) {
+    static const Test tests[] = {
+        {"formatFollowsTheBlock", testFormatFollowsTheBlock, false},
+        {"reuseKeepsTheSlot", testReuseKeepsTheSlot, false},
+        {"freeAllOnlyAtTheCap", testFreeAllOnlyAtTheCap, false},
+        {"staleLastSlot", testStaleLastSlot, false},
+        {"extraUnprepareIsClamped", testExtraUnprepareIsClamped, false},
+        {"matching", testMatching, false},
+        {"interleavedStartAndFlush", testInterleavedStartAndFlush, false},
+        {"fanOut", testFanOut, false},
+        {"blocksWithoutARate", testBlocksWithoutARate, false},
+        {"coarseClockKeepsTheSongOnItsSlot", testCoarseClockKeepsTheSongOnItsSlot, false},
+        {"droppedBlockKeepsItsStart", testDroppedBlockKeepsItsStart, false},
+        {"pitchStageRebuild", testPitchStageRebuild, false},
+        {"reasonsStayUntilAnAudioBlockIsProcessed", testReasonsStayUntilAnAudioBlockIsProcessed, false},
+        {"balanceCounters", testBalanceCounters, false},
+        {"concurrentPipelines", testConcurrentPipelines, true},
+        {"twoRenderThreadsOnOneSlot", testTwoRenderThreadsOnOneSlot, true},
+    };
+    bool concurrencyOnly = argc > 1 && strcmp(argv[1], "--concurrency") == 0;
+    const char *only = argc > 2 && strcmp(argv[1], "--only") == 0 ? argv[2] : NULL;
+    for (size_t i = 0; i < sizeof tests / sizeof *tests; i++) {
+        if (only ? strcmp(only, tests[i].name) != 0 : concurrencyOnly && !tests[i].concurrency) continue;
+        tests[i].run();
+        if (only) printf("ok %s\n", tests[i].name);
+    }
+    if (!only) {
+        puts(concurrencyOnly
+                 ? "Navis Darwin tap formats (concurrency): pipelines, free-all and overlap passed."
+                 : "Navis Darwin tap formats: format follows the block, reuse, cap, matching, resets, fan-out and concurrency passed.");
+    }
     return 0;
 }

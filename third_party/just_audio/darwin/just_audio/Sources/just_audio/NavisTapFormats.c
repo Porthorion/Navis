@@ -298,6 +298,11 @@ void navis_tap_formats_set_cents(NavisTapFormats *t, int32_t cents) {
     pthread_mutex_unlock(&t->lock);
 }
 
+void navis_tap_formats_note_dry(NavisTapFormats *t, int frames) {
+    (void)t;
+    (void)frames;
+}
+
 void navis_tap_formats_state(NavisTapFormats *t, NavisTapFormatsState *out) {
     memset(out, 0, sizeof *out);
     pthread_mutex_lock(&t->lock);
@@ -306,8 +311,8 @@ void navis_tap_formats_state(NavisTapFormats *t, NavisTapFormatsState *out) {
     bool played = report != NULL;
     if (!report) report = t->preparedSlot;
     out->slotCount = n;
-    out->live = t->live;
-    out->prepareCount = t->prepareCount;
+    out->livePipelines = t->live;
+    out->prepareCalls = t->prepareCount;
     out->unmatchedFrames = atomic_load_explicit(&t->unmatchedFrames, memory_order_relaxed);
     out->overlapBlocks = atomic_load_explicit(&t->overlapBlocks, memory_order_relaxed);
     out->processedFrames = t->retiredFrames;

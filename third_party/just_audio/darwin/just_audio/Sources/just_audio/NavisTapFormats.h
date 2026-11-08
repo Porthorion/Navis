@@ -52,8 +52,11 @@ typedef struct {
 
 typedef struct {
     int slotCount;            // formats held
-    int live;                 // pipelines prepared and not yet unprepared
-    uint64_t prepareCount;    // pipelines prepared
+    int livePipelines;        // pipelines prepared and not yet unprepared
+    /// Every prepare and unprepare call, and the unprepares that found no live
+    /// pipeline to match (0 in a healthy run). Starting over at the cap is only
+    /// safe while prepare and unprepare balance.
+    uint64_t prepareCalls, unprepareCalls, clampedUnprepares;
     /// Audio frames no slot was picked for (a rate or channel count nobody
     /// prepared), passed dry. 0 in a healthy run.
     uint64_t unmatchedFrames;
@@ -102,6 +105,10 @@ void navis_tap_formats_configure(NavisTapFormats *t, const NavisEqConfig *config
 /// Cents already clamped to +-NAVIS_PITCH_MAX_CENTS by the caller.
 void navis_tap_formats_set_cents(NavisTapFormats *t, int32_t cents);
 void navis_tap_formats_state(NavisTapFormats *t, NavisTapFormatsState *out);
+/// Realtime, a plain atomic store. The tap glue calls it for a block with `frames`
+/// frames that failed its layout checks and so passes unchanged without reaching
+/// process: the state then no longer shows the previous format as processing.
+void navis_tap_formats_note_dry(NavisTapFormats *t, int frames);
 
 #ifdef __cplusplus
 }
