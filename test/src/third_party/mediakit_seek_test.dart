@@ -204,7 +204,11 @@ void main() {
   group('seek out of a finished queue', () {
     // A one-song queue whose only entry has played to the end. mpv keeps the
     // file open and paused at EOF, which media_kit reports as completed.
-    Future<void> finishQueue({required bool playing, int count = 1}) async {
+    Future<void> finishQueue({
+      required bool playing,
+      int count = 1,
+      bool initialized = true,
+    }) async {
       final queue = Playlist([
         for (var i = 0; i < count; i++)
           Media('https://stream.example.invalid/$i'),
@@ -229,7 +233,7 @@ void main() {
           initialPosition: null,
         ),
       );
-      duration.add(state.duration);
+      if (initialized) duration.add(state.duration);
       await Future<void>.delayed(Duration.zero);
       if (playing) await adapter.play(PlayRequest());
       state = state.copyWith(completed: true, playing: false);
@@ -267,6 +271,46 @@ void main() {
         adapter.debugTransportState['processingState'],
         isNot('completed'),
       );
+    });
+
+    for (final (name, target) in [
+      ('the end', const Duration(minutes: 2)),
+      ('100 ms before the end', const Duration(minutes: 2, milliseconds: -100)),
+    ]) {
+      test('a seek to $name stays completed and does not resume', () async {
+        // mpv never reports the end again after a seek this close to it.
+        await finishQueue(playing: true);
+        await adapter.seek(SeekRequest(index: null, position: target));
+        verifyNever(() => player.play());
+        expect(adapter.debugTransportState['processingState'], 'completed');
+      });
+    }
+
+    test('a seek 1 s before the end resumes', () async {
+      await finishQueue(playing: true);
+      await adapter.seek(
+        SeekRequest(
+          index: null,
+          position: const Duration(minutes: 2, seconds: -1),
+        ),
+      );
+      verify(() => player.play()).called(1);
+    });
+
+    test('play, pause, then a seek stays silent', () async {
+      await finishQueue(playing: true);
+      await adapter.pause(PauseRequest());
+      clearInteractions(player);
+      await adapter.seek(SeekRequest(index: null, position: Duration.zero));
+      verifyNever(() => player.play());
+      verify(() => player.seek(any())).called(1);
+    });
+
+    test('an unapplied (deferred) seek does not call play', () async {
+      await finishQueue(playing: true, initialized: false);
+      await adapter.seek(SeekRequest(index: null, position: Duration.zero));
+      expect(adapter.debugTransportState['pendingPosition'], isTrue);
+      verifyNever(() => player.play());
     });
 
     test('a buffering event during the seek still resumes mpv', () async {

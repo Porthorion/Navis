@@ -859,7 +859,8 @@ bool navisVisiblePlaying({
 ///
 /// Only the transition into `completed` at the end of the song counts: the
 /// desktop backend can keep reporting `completed`, or re-enter it, while a
-/// restarted song plays from the start. Continuing into songs not yet loaded
+/// multi-song jump restarts the queue from the start. Continuing into songs
+/// not yet loaded
 /// into the player is not a finish.
 @visibleForTesting
 bool navisQueueJustFinished({

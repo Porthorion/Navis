@@ -131,7 +131,8 @@ extension _NavisQueueWindow on NavisAudioHandler {
 
   /// Whether the player is still in that echo. Any other state, a second of
   /// progress or a newer transport command retires it, so it cannot hide the
-  /// real end of the restarted song.
+  /// real end of the restarted song. (A desktop jump to another song can still
+  /// stay `completed` until the first buffering event.)
   bool get _inEndedSeekEcho {
     final echo = _endedSeekEcho;
     if (echo == null) return false;
