@@ -273,7 +273,7 @@ the platform loads it from. A backend without a boost stage throws
 `UnimplementedError`.
 
 Android `NavisEqualizerProcessor` carries the ReplayGain boost: a per-frame
-gain (`EqualizerDsp.BoostRamp`, 20 ms linear ramps, capped at 12 dB) applied
+gain (`EqualizerDsp.GainRamp`, 20 ms linear ramps, capped at 12 dB) applied
 after the EQ bank, outside its auto-headroom, and before the 16-bit clamp. The
 `setReplayGainBoost {currentDb, guarded}` channel method sets it (error
 `eq_unavailable` without a processor); `getEqualizerState` adds
@@ -318,3 +318,22 @@ first level with its `load`/`insert` message. `AudioPlayer.setReplayGainLevels`
 sends later updates (`byId`, `byUri`, `live`) and skips an identical non-live
 request, until a load, insert or removal (stamped sources change what native
 holds). A clipping source's own level wins over its child's.
+
+ReplayGain in the Android audio processor (#392 phase 3a). `NavisEqualizerProcessor`
+applies one signed dB per queue entry (`levels` by just_audio source id,
+`EqualizerDsp.GainRamp`: cuts allowed, +12 dB max, 20 ms ramps). The first value
+of an entry comes from its source message (`replayGainDb` on a progressive or
+DASH message, noted while decoding and published on `load` (replaces) and
+`concatenatingInsertAll` (merges)); `setReplayGainLevels` (`byId`, `live`)
+merges later values. An unknown or untagged (HLS) key plays at 0 dB.
+`NavisAudioRenderer` (a `MediaCodecAudioRenderer` subclass, built in the
+factory only when the processor exists) reads the entry's tag in
+`onStreamChanged` and marks it in `onOutputStreamOffsetUsChanged`. The key
+becomes current at the first `onFlush` after that offset event (a join is two or
+three flushes; at speed 1.5 the outgoing song's Sonic tail still arrives after
+the event), or at the event itself when no input arrived since the last flush
+(first song, explicit skip). A flush with no new key (a seek in the song) keeps
+the frozen gain; only a `live` update changes it mid-song, with a ramp. The
+legacy `setReplayGainBoost` path is unchanged and adds on top of the level (0
+while no levels are sent); phase 3b removes it. `getEqualizerState` adds
+`replayGainCurrentKey` and `replayGainAppliedDb`.

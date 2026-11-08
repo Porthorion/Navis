@@ -5031,7 +5031,7 @@ Desktop volume follows a parallel local-settings path:
    setters, no `@navis_rg` in `af`) until `af-command` and lavfi `volume` are
    verified on its libmpv 0.36 (`navisReplayGainInPipeline`).
    Android is the second stage: `NavisEqualizerProcessor` multiplies each frame
-   by a boost gain (`EqualizerDsp.BoostRamp`, 20 ms linear ramps) after the EQ
+   by a boost gain (`EqualizerDsp.GainRamp`, 20 ms linear ramps) after the EQ
    bank and before the 16-bit clamp. It sits outside `Bank`, whose automatic
    headroom would cancel a boost, so it works with the EQ off and on. It exists
    only while `_equalizerPipelineEnabled` is true; after

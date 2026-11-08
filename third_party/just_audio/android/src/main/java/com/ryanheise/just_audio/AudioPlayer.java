@@ -648,11 +648,28 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                     }
                 }
                 break;
+            case "setReplayGainLevels":
+                // The in-pipeline ReplayGain stage (#392). A player without one has nothing to update.
+                if (navisEqualizer != null) {
+                    Map<String, Double> byId = new HashMap<>();
+                    Map<?, ?> rawLevels = call.argument("byId");
+                    if (rawLevels != null) {
+                        for (Map.Entry<?, ?> entry : rawLevels.entrySet()) {
+                            if (entry.getKey() instanceof String && entry.getValue() instanceof Number) {
+                                byId.put((String) entry.getKey(), ((Number) entry.getValue()).doubleValue());
+                            }
+                        }
+                    }
+                    navisEqualizer.setLevels(byId, Boolean.TRUE.equals(call.<Boolean>argument("live")));
+                }
+                result.success(new HashMap<String, Object>());
+                break;
             case "load":
                 Long initialPosition = getLong(call.argument("initialPosition"));
                 Integer initialIndex = call.argument("initialIndex");
                 Map<?, ?> audioSourceMap = call.argument("audioSource");
                 MediaSource[] children = getAudioSourcesArray(audioSourceMap.get("children"));
+                commitReplayGainLevels(true);
                 ShuffleOrder shuffleOrder = decodeShuffleOrder(mapGet(audioSourceMap, "shuffleOrder"));
                 load(Arrays.asList(children), shuffleOrder,
                         initialPosition == null ? C.TIME_UNSET : initialPosition / 1000,
@@ -712,13 +729,15 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 break;
             case "concatenatingInsertAll":
                 lowerBoost(true);
+                List<MediaSource> inserted = getAudioSources(call.argument("children"));
+                commitReplayGainLevels(false);
                 if (((String)call.argument("id")).length() == 0) {
-                    player.addMediaSources(call.argument("index"), getAudioSources(call.argument("children"))); 
+                    player.addMediaSources(call.argument("index"), inserted); 
                     player.setShuffleOrder(decodeShuffleOrder(call.argument("shuffleOrder")));
                     result.success(new HashMap<String, Object>());
                 } else {
                     concatenating(call.argument("id"))
-                        .addMediaSources(call.argument("index"), getAudioSources(call.argument("children")), handler, () -> result.success(new HashMap<String, Object>()));
+                        .addMediaSources(call.argument("index"), inserted, handler, () -> result.success(new HashMap<String, Object>()));
                     concatenating(call.argument("id"))
                         .setShuffleOrder(decodeShuffleOrder(call.argument("shuffleOrder")));
                 }
@@ -860,6 +879,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         String id = (String)map.get("id");
         switch ((String)map.get("type")) {
         case "progressive":
+            noteReplayGainLevel(map);
             Map<?, ?> options = mapGet(map, "options");
             boolean useDefaultRetry = options != null
                     && Boolean.TRUE.equals(options.get("androidUseDefaultLoadErrorHandling"));
@@ -885,6 +905,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                             .setTag(id)
                             .build());
         case "dash":
+            noteReplayGainLevel(map);
             return new DashMediaSource.Factory(buildDataSourceFactory(mapGet(map, "headers")))
                     .createMediaSource(new MediaItem.Builder()
                             .setUri(Uri.parse((String)map.get("uri")))
@@ -925,6 +946,15 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         default:
             throw new IllegalArgumentException("Unknown AudioSource type: " + map.get("type"));
         }
+    }
+
+    /** An entry's first ReplayGain level travels in its source message; it is known before its first sample. */
+    private void noteReplayGainLevel(Map<?, ?> sourceMessage) {
+        if (navisEqualizer != null) navisEqualizer.noteSource(sourceMessage);
+    }
+
+    private void commitReplayGainLevels(boolean replace) {
+        if (navisEqualizer != null) navisEqualizer.commitSources(replace);
     }
 
     private MediaSource[] getAudioSourcesArray(final Object json) {
@@ -1063,6 +1093,25 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         if (player == null) {
             RenderersFactory renderersFactory = (eventHandler, videoListener, audioListener, textOutput, metadataOutput) -> {
                 Renderer[] defaultRenderers = new DefaultRenderersFactory(context) {
+                    @Override
+                    protected void buildAudioRenderers(Context ctx, int extensionRendererMode,
+                            androidx.media3.exoplayer.mediacodec.MediaCodecSelector selector,
+                            boolean enableDecoderFallback, AudioSink sink, Handler handler,
+                            androidx.media3.exoplayer.audio.AudioRendererEventListener listener,
+                            ArrayList<Renderer> out) {
+                        super.buildAudioRenderers(ctx, extensionRendererMode, selector, enableDecoderFallback,
+                                sink, handler, listener, out);
+                        if (navisEqualizer == null) return;
+                        // The processor needs to know which entry a stream belongs to (ReplayGain).
+                        for (int i = 0; i < out.size(); i++) {
+                            if (out.get(i).getClass() == androidx.media3.exoplayer.audio.MediaCodecAudioRenderer.class) {
+                                out.set(i, new NavisAudioRenderer(ctx, selector, enableDecoderFallback, handler,
+                                        listener, sink, navisEqualizer));
+                                break;
+                            }
+                        }
+                    }
+
                     @Override
                     protected AudioSink buildAudioSink(Context sinkContext, boolean enableFloatOutput,
                             boolean enableAudioTrackPlaybackParams) {
