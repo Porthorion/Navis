@@ -140,6 +140,7 @@ class NavisAudioHandler extends BaseAudioHandler
     this._queueWindow = const NavisQueueWindow(),
     this._timeouts = const NavisPlaybackTimeouts(),
     @visibleForTesting this.desktopRuntimeOverride,
+    @visibleForTesting this.iosRuntimeOverride,
     math.Random? shuffleRandom,
   }) : _sidecarDownloader =
            sidecarDownloader ?? RollingCacheSidecarDownloader(),
@@ -223,6 +224,9 @@ class NavisAudioHandler extends BaseAudioHandler
   @visibleForTesting
   final bool? desktopRuntimeOverride;
   bool get _isDesktopRuntime => desktopRuntimeOverride ?? _isDesktopPlatform;
+  @visibleForTesting
+  final bool? iosRuntimeOverride;
+  bool get _isIosRuntime => iosRuntimeOverride ?? _isIosPlatform;
 
   /// Whether the latest seek request carries a trace callback (tests).
   /// The registered lock-cache source of [songId] (tests assert it is the one
@@ -1561,7 +1565,12 @@ class NavisAudioHandler extends BaseAudioHandler
     _queueFillResolveMs = 0;
     _queueFillNativeMs = 0;
     _queueFillBatches = 0;
-    final preparedByIndex = <int, _PreparedQueueItem>{clampedIndex: startItem};
+    // The song after the start one may already be in the native player (iOS).
+    final preloadedNext = afterStart.isEmpty ? null : startItem.gaplessNext;
+    final preparedByIndex = <int, _PreparedQueueItem>{
+      clampedIndex: startItem,
+      if (preloadedNext != null) clampedIndex + 1: preloadedNext,
+    };
     final skippedSongIds = <String>[];
 
     AppLogger.debug(
@@ -1579,16 +1588,18 @@ class NavisAudioHandler extends BaseAudioHandler
     // playbackEventStream fires position ticks on every event loop turn, and
     // any _emitSnapshot() call between _queueItems.insert() and the player
     // acknowledging the new currentIndex would produce a stale snapshot.
-    // Keeping _queueItems=[startSong] throughout Phase 2 lets the metadata
-    // anchor keep the display on the tapped song until _queueItems is rebuilt
-    // atomically from allPrepared at the very end.
+    // Keeping _queueItems as phase 1 left it (the start song, plus the next
+    // song on iOS) throughout Phase 2 lets the metadata anchor keep the display
+    // on the tapped song until _queueItems is rebuilt atomically from
+    // allPrepared at the very end.
     //
     // Songs after the start are appended first so the next track is queued
     // before the (possibly long) prefix is inserted behind the current item.
-    var appended = 0;
+    final alreadyAppended = preloadedNext == null ? 0 : 1;
+    var appended = alreadyAppended;
     while (appended < afterStart.length) {
       final batchEnd = math.min(
-        appended + _queueFillBatchSize(appended),
+        appended + _queueFillBatchSize(appended - alreadyAppended),
         afterStart.length,
       );
       await _fillQueueBatch(

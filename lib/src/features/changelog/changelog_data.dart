@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'iOS: gapless playback works again with the equalizer; songs no '
+        'longer pause for almost a second between each other',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Songs already in your queue pick up changed ReplayGain after a sync, '
         'from the next song on. The song that is playing keeps its level',
         type: ChangelogEntryType.improvement,

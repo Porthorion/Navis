@@ -25,48 +25,80 @@ workspace built from the existing theme, typography, and adaptive shell; see
 | Linux media-kit/libmpv | Native floating-point filter chain; actual captured output and clean restart are covered |
 | Windows media-kit/libmpv | The Linux filter chain, on the full libmpv Navis pins and bundles (see [Releasing for Windows](../release/release-windows.md#bundled-libmpv)); a build without the filters falls back to EQ unavailable |
 | macOS media-kit/libmpv | The same filter chain, on the Navis-built universal libmpv the macOS app bundles (see [Releasing for macOS](../release/release-macos.md#bundled-libmpv)); a build without the filters falls back to EQ unavailable |
-| iOS AVFoundation | An `MTAudioProcessingTap` on each queued `AVPlayerItem` runs the same biquads and auto-headroom in C (`NavisEqualizerDsp.c`); see [iOS](#ios) |
+| iOS AVFoundation | One `MTAudioProcessingTap` per player, shared by its queued `AVPlayerItem`s, runs the same biquads and auto-headroom in C (`NavisEqualizerDsp.c`); see [iOS](#ios) |
 | macOS debug (AVFoundation) and web | UI disabled; processing is unavailable. The Darwin tap is compiled only for iOS (`TARGET_OS_IOS`), so macOS playback is unchanged |
 
 ### iOS
 
 AVFoundation hands no PCM to just_audio, so the vendored Darwin player
-(`third_party/just_audio/darwin`) attaches a `MTAudioProcessingTap` (pre-effects,
-so the DSP sees the source sample rate before speed changes) to the current
-and next item of each `AVQueuePlayer` (not to every queued item: loading the
-audio tracks of a whole queue would hit the network) as soon as their audio
-track has loaded, using the
-config map Android receives (`equalizerConfiguration`, `setEqualizer`,
-`getEqualizerState`). The tap stays installed with EQ off and bypasses inside
-the DSP, because changing an item's audio mix during playback can drop out.
-Banks are built off the audio thread and swapped at a block boundary with the
-same 20 ms crossfade as Android; the render callback has no locks, allocation,
-Objective-C or `log`/`pow`. Only non-interleaved 32-bit float PCM of one to
-eight channels is processed; any other format plays unchanged and `reason` says
-so. The tap runs before the player's own effects (speed, volume), so crossfade
-decks, gapless advance and 1.5× speed all use the same path (each deck owns its
-own equalizer instance). When playback stops the audio machinery calls
+(`third_party/just_audio/darwin`) gives each `AVPlayer` one `MTAudioProcessingTap`
+(pre-effects, so the DSP sees the source sample rate before speed changes),
+shared by every queued item, using the config map Android receives
+(`equalizerConfiguration`, `setEqualizer`, `getEqualizerState`). One shared tap
+matters for gapless playback: `AVQueuePlayer` runs an item that has its own tap
+through its own audio pipeline and starts the next item's only after the
+previous one drained (0.4 to 1.2 s of silence at every song change), while
+items sharing one tap share one pipeline and join sample-continuously (I23).
+Every item gets an audio mix naming the shared tap and the first audio track
+(its real ID when the asset's tracks are already loaded, which is checked without
+blocking; otherwise track 1; no track loading) in the same run-loop turn as its
+insert into the queue, never later: changing
+the mix of an item that is already queued rebuilds the pipeline and stalls
+playback for about 0.5 s. The tap stays installed with EQ off and bypasses inside
+the DSP. Banks are built off the audio thread and swapped at a block boundary
+with the same 20 ms crossfade as Android; the render callback has no locks,
+allocation, Objective-C or `log`/`pow`. Only non-interleaved 32-bit float PCM of
+one to eight channels is processed; any other format plays unchanged and
+`reason` says so, as it does for a file whose audio track ID is not the one the
+mix named. Limit: the tracks are almost never loaded when an item is queued, so
+the mix names track 1 and a file whose first audio track has another ID (rare
+for mp3, flac, m4a and wav; possible in multi-track mp4) plays unchanged with
+that reason; it is not re-mixed, because that stalls playback. This was not
+tested with a real file. The tap runs before the player's own effects (speed,
+volume), so gapless advance and 1.5× speed use the same path; each crossfade
+deck owns its own equalizer instance and tap (a tap is never shared between two
+players). When playback stops, or the format changes, the audio machinery calls
 unprepare and the DSP stream is freed (the last state stays readable and edits
-apply on resume). A seek or resume resets the filter history like Android's
-flush: it shows up as a start that is more than 2.5 ms away from where the
-previous block ended (start plus frames over sample rate; the tolerance covers
-rounding of both ends to a timescale as coarse as 600), because the header's
-StartOfStream flag is only set on the first block after prepare. While paused
-or seeking the tap is still called with empty source ranges (zero duration),
-which are ignored. `resetCount` in the diagnostics `application` counts these
-resets (measured on the iOS simulator with a +9 dB, 60 Hz filter on 96, 48 and 44.1 kHz FLAC files at 1× and 1.5× and a 44.1 kHz proxied stream at 1×: 1 at the start, no growth over 35 s of steady playback, +1 per pause and resume, +1 per seek). The reported `reason` names why
-the current item is not processed: still attaching, no audio track (for example
-HLS before playback), the track load failed, the tap could not be created, or
-an unsupported format. Known limitation: an asset whose track load never
-completes or fails (a stalled network) keeps reporting "attaching" until it
-does.
+apply on resume). The filter history is dropped on a seek or skip, which the
+player reports with a flush counter that the render thread compares at each
+block with audio (like Android's onFlush), and on the first block of a new
+stream. The source time range is not used: with a shared tap it re-bases
+mid-song whenever an item is queued behind the playing one, without any jump in
+the audio. Pause and resume no longer reset the history (the 21 ms that
+AVFoundation re-reads on resume are not an audible discontinuity). While paused,
+seeking or right after prepare the tap is called with empty or invalid source
+ranges, which are not audio. `resetCount` in the diagnostics `application`
+counts the histories dropped: 0 over steady playback and gapless song changes,
+and 0 or 1 per seek or skip. AVFoundation re-prepares the tap on a seek or
+skip (measured on every one); the new stream starts with an empty history and
+counts nothing, so the history is dropped either by a counted reset (the old
+stream saw the flush first) or by that re-prepare, never kept. The
+reported `reason` names why the current item is not processed: still attaching,
+the tap could not be created, an unsupported format, or an audio track that is
+not the one mixed.
 
-State adds two iOS-only fields, surfaced in `/v1/equalizer` `application`:
+State adds iOS-only fields, surfaced in `/v1/equalizer` `application`:
 `processedFrames` (frames processed by this platform player, which grows while
 audio plays and restarts from zero when the app swaps decks or rebuilds the
 player) and `levelDeltaDb` (output minus input level in dB over about the last
 second of played audio, restarted when an edit takes effect; `null` before audio has played). The audio thread
 only accumulates sums of squares; the dB conversion runs on the main thread.
+Counters per native player (every queue replacement stops the player, which
+disposes the native player and its equalizer, so they cover the current queue):
+`tapPrepareCount` (1 per queue unless the audio format changes or the user seeks
+or skips), `flushCount` (seeks and skips noted since the player was created) and
+`transitionGapsMs`, the last 8 silences between songs measured on the player's
+own clock (about 0 when gapless; a seek, skip or load clears them; the meter
+runs only in builds that can run the diagnostics API, `diagnosticsBuildEnabled`,
+which the app tells the player at creation, so a release build has no timer and
+reports an empty list). The gap from
+song n to n+1 is `startOffset(n+1) - endOffset(n) - duration(n)` with
+`offset = wall time - item time`, as a median of five samples at 50 Hz from a
+main-thread timer that runs only while playing. A song change now and then
+reads a few tens of milliseconds early (a negative gap) when the main thread is
+busy; that is a clock reading, not an overlap in the audio (the transport trace
+intervals stay at the song length). `tool/ios_gapless_diagnostics.sh` plays the
+fixture queues and checks these values.
 The DSP is covered by `third_party/just_audio/darwin/test/navis_equalizer_dsp_test.c`,
 run from `tool/equalizer_native_test.sh` (it needs only a C compiler).
 

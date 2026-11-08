@@ -200,8 +200,9 @@ struct NavisEqStream {
     _Atomic bool busy; // a process call is running
     _Atomic double inPower, outPower;
     // Audio thread only.
-    bool haveSourceEnd;
-    double sourceEnd; // where the next block should start in the source timeline
+    bool startPending;        // StartOfStream seen, waiting for a block with audio
+    uint32_t seenGeneration;  // the host flush generation already acted on
+    bool audioSeen;           // a block with audio has begun: the history may hold something
     int fadeRemaining;
     NavisEqBank *fadeBank;
     // Non-audio thread only: every bank not yet freed.
@@ -297,16 +298,19 @@ int navis_eq_stream_bank_count(const NavisEqStream *s) {
     return n;
 }
 
-// Rounding the start and the end to a CMTime timescale as coarse as 600 is off
-// by up to 0.83 ms each; real seek and resume jumps are tens of ms or more.
-#define NAVIS_EQ_CONTINUITY_TOLERANCE 0.0025
-
-bool navis_eq_stream_source_block(NavisEqStream *s, double start, int frames) {
-    if (frames <= 0) return false; // empty range: nothing is playing (pause, seek in progress)
-    bool jump = s->haveSourceEnd && fabs(start - s->sourceEnd) > NAVIS_EQ_CONTINUITY_TOLERANCE;
-    s->sourceEnd = start + (double)frames / s->sampleRate;
-    s->haveSourceEnd = true;
-    return jump;
+bool navis_eq_stream_begin_block(NavisEqStream *s, bool startOfStream, uint32_t flushGeneration, int frames) {
+    if (startOfStream) s->startPending = true;
+    if (frames <= 0) return false; // paused or seeking: keep the start and flush for the next audio block
+    bool reset = s->startPending || flushGeneration != s->seenGeneration;
+    s->startPending = false;
+    s->seenGeneration = flushGeneration;
+    // A stream that has seen no audio yet has an empty history already (empty
+    // paused or seeking blocks do not fill it).
+    bool hadAudio = s->audioSeen;
+    s->audioSeen = true;
+    if (!reset || !hadAudio) return false;
+    navis_eq_stream_reset_history(s);
+    return true;
 }
 
 void navis_eq_stream_reset_history(NavisEqStream *s) {

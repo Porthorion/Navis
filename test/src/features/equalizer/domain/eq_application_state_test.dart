@@ -12,6 +12,9 @@ void main() {
       processedFrames: 4096,
       levelDeltaDb: -12.0,
       resetCount: 2,
+      tapPrepareCount: 1,
+      flushCount: 2,
+      transitionGapsMs: const [0.4, -0.2],
     );
     final json = state.toDiagnosticsJson();
     expect(json['sampleRate'], 44100);
@@ -20,6 +23,9 @@ void main() {
     expect(json['processedFrames'], 4096);
     expect(json['levelDeltaDb'], -12.0);
     expect(json['resetCount'], 2);
+    expect(json['tapPrepareCount'], 1);
+    expect(json['flushCount'], 2);
+    expect(json['transitionGapsMs'], [0.4, -0.2]);
     expect(json['enabled'], state.applied.enabled);
     expect(json['configuration'], state.applied.toJson());
   });
@@ -33,5 +39,8 @@ void main() {
     expect(json['processedFrames'], isNull);
     expect(json['levelDeltaDb'], isNull);
     expect(json['resetCount'], isNull);
+    expect(json['tapPrepareCount'], isNull);
+    expect(json['flushCount'], isNull);
+    expect(json['transitionGapsMs'], isNull);
   });
 }

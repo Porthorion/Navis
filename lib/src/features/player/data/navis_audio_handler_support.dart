@@ -6,6 +6,8 @@ bool get _isWindowsRuntime => !kIsWeb && Platform.isWindows;
 
 bool get _isLinuxRuntime => !kIsWeb && Platform.isLinux;
 
+bool get _isIosPlatform => !kIsWeb && Platform.isIOS;
+
 bool get _isMacOSRuntime => !kIsWeb && Platform.isMacOS;
 
 bool get _isDesktopPlatform =>
@@ -26,6 +28,10 @@ class _PreparedQueueItem {
   final ResolvedPlaybackSource source;
   final MediaItem mediaItem;
   AudioSource audioSource;
+
+  /// The song after this one when phase 1 of a queue replacement loaded both
+  /// into the native player (iOS gapless start); phase 2 skips it.
+  _PreparedQueueItem? gaplessNext;
 }
 
 class CrossfadeTransitionMetric {
@@ -90,6 +96,7 @@ class CrossfadeTransitionMetric {
 class NavisPlaybackTimeouts {
   const new({
     this.load = const Duration(seconds: 12),
+    this.nextSongPreload = const Duration(seconds: 2),
     this.remoteStall = const Duration(seconds: 12),
     this.seekBufferingRecovery = const Duration(seconds: 3),
     this.reset = const Duration(seconds: 4),
@@ -108,6 +115,10 @@ class NavisPlaybackTimeouts {
   /// Initial deadline for a native load, or fixed deadline for queue edits.
   /// A song load may extend while bytes or its native buffer advance.
   final Duration load;
+
+  /// How long phase 1 of an iOS queue replacement waits for the next song to
+  /// resolve before it starts with the start song alone.
+  final Duration nextSongPreload;
 
   /// A remote stream that stops making progress for this long is recovered.
   final Duration remoteStall;

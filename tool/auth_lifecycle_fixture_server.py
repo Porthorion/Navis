@@ -14,21 +14,25 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 
-def _wav_bytes(seconds=4) -> bytes:
+def _wav_bytes(seconds=4, rate=22050) -> bytes:
+    """Four seconds of 440 Hz (1760 whole cycles, so consecutive songs join
+    phase-continuously) at the given sample rate."""
     output = io.BytesIO()
     with wave.open(output, "wb") as wav:
         wav.setnchannels(1)
         wav.setsampwidth(2)
-        wav.setframerate(22050)
+        wav.setframerate(rate)
         frames = bytearray()
-        for index in range(22050 * seconds):
-            sample = int(5000 * math.sin(2 * math.pi * 440 * index / 22050))
+        for index in range(rate * seconds):
+            sample = int(5000 * math.sin(2 * math.pi * 440 * index / rate))
             frames.extend(struct.pack("<h", sample))
         wav.writeframes(frames)
     return output.getvalue()
 
 
 AUDIO = _wav_bytes()
+# Songs with their own sample rate (--song-rate), by song id.
+SONG_AUDIO = {}
 def _cover_png(size=48) -> bytes:
     """A visible cover: orange and teal quarters, so screenshots can tell a
     rendered cover from the placeholder."""
@@ -185,6 +189,8 @@ def _configure_downloads_fixture(song_count, distinct_covers=False):
             "title": f"Lifecycle Tone {index}",
             "track": index,
             **({"coverArt": f"fixture-cover-{index}"} if distinct_covers else {}),
+            **({"size": len(SONG_AUDIO[f"fixture-song-{index}"])}
+               if f"fixture-song-{index}" in SONG_AUDIO else {}),
         }
         for index in range(2, song_count + 1)
     }
@@ -519,7 +525,7 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         if endpoint in {"stream", "download"}:
-            self._bytes(AUDIO, "audio/wav")
+            self._bytes(SONG_AUDIO.get(query.get("id", [""])[0], AUDIO), "audio/wav")
             return
         if endpoint == "getCoverArt":
             self._bytes(PNG, "image/png")
@@ -650,6 +656,13 @@ def main():
         help="Songs on the fixture album in downloads mode.",
     )
     parser.add_argument(
+        "--song-rate",
+        action="append",
+        default=[],
+        metavar="SONG_ID=HZ",
+        help="Serve this downloads-mode song as a 4 s tone at another sample rate.",
+    )
+    parser.add_argument(
         "--media-seconds",
         type=float,
         default=0.0,
@@ -707,6 +720,9 @@ def main():
         else ""
     )
     MEDIA_SECONDS = max(0.0, args.media_seconds)
+    for entry in args.song_rate:
+        song_id, _, rate = entry.partition("=")
+        SONG_AUDIO[song_id] = _wav_bytes(rate=int(rate))
     if args.scenario == "downloads":
         _configure_downloads_fixture(
             max(1, args.song_count), distinct_covers=args.distinct_covers

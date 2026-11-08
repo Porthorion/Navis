@@ -1113,6 +1113,7 @@ extension _NavisMediaSession on NavisAudioHandler {
 
   EqualizerConfigurationMessage _equalizerMessage(EqConfiguration values) =>
       EqualizerConfigurationMessage(
+        diagnostics: diagnosticsBuildEnabled,
         enabled: values.enabled,
         preampDb: values.preampDb,
         autoHeadroom: values.autoHeadroom,
@@ -1146,6 +1147,9 @@ extension _NavisMediaSession on NavisAudioHandler {
         processedFrames: native.processedFrames,
         levelDeltaDb: native.levelDeltaDb,
         resetCount: native.resetCount,
+        tapPrepareCount: native.tapPrepareCount,
+        flushCount: native.flushCount,
+        transitionGapsMs: native.transitionGapsMs,
       ),
     );
   }

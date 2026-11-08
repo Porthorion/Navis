@@ -2617,6 +2617,25 @@ inline-editor app-owned EQ screenshots. Graph drag/Undo/cancel checks and a
 32-band sustained-drag profile expose measured frame timings and bounded queues.
 It never installs over or edits the primary profile.
 
+`./tool/ios_gapless_diagnostics.sh` (iOS simulator, one heavy job) plays four
+phase-continuous 440 Hz songs through `POST /v1/playback/queue` from the
+loopback fixture server (`--song-count 6`, songs 5 and 6 at 48 and 96 kHz through
+`--song-rate`), proxied and as permanent downloads, with the equalizer off and
+on at a flat -12 dB. It reads the iOS-only `transitionGapsMs` (silence between
+songs on the player's clock), `tapPrepareCount`, `flushCount`, `resetCount`,
+`processedFrames` and `levelDeltaDb` from `GET /v1/equalizer` `application`
+and fails when a gap exceeds `GAP_TOLERANCE_MS` (20), when a queue prepares the
+tap more than once, when the history resets during steady playback, or when
+`levelDeltaDb` is not -12 (0 off). Further phases (`GAPLESS_PHASES`): `rates`
+(a 22.05, 48 and 96 kHz queue), `seek` (one flush per seek and per skip, and
+seeking to 0 after the queue ended stays under 2 s), `insert` (a mid-song "play
+next"; its known 0.8 s stall is reported), `loop` (repeat one) and `crossfade`
+(relaunches the profile with crossfade on). The transport trace in
+`GET /v1/playback/status` (`songCurrent` event times) is an independent check of
+the song-change timing; the first song change includes the player start
+latency (about 0.8 s on the simulator), so compare the later ones with the song
+length.
+
 The Android driver validates a running isolated sidecar via its owned API:
 
 ```bash
