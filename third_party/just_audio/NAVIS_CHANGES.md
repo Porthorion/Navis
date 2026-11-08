@@ -364,7 +364,7 @@ as on Android). Without a tap only pitch 1 succeeds; anything else returns the
 error code `pitch_unavailable`, which the app reads as "no pitch here" (macOS
 never sends it). Items keep their time-domain algorithm and are never re-mixed,
 so speed and pitch stay independent and lock-to-speed is just the app sending
-`pitchFactor = speed`.
+`pitchFactor = speed`. (I25 moved the stage and its AU into per-format slots.)
 
 `NavisPitchStage.c/.h` (plain C11, host-tested with a fake renderer) holds the
 state machine: bit-exact bypass at 0 cents; wet from the first frame (one AU
@@ -377,12 +377,15 @@ switch to 0. It resets exactly when `navis_eq_stream_begin_block` returns true
 it moves by 0 or 1 for a seek or skip: AVFoundation usually re-prepares the tap
 first, and a new stage has an empty buffer (and, at non-zero cents, starts wet),
 so there is nothing to reset. A natural song change in the shared tap is not a
-reset: the AU carries over. Pause and resume reset nothing, with or without a
-re-prepare.
+reset: the AU carries over. Pause and resume reset nothing in a pipeline that
+keeps running; since I25 a re-prepare reuses the format's slot, so the resume
+after a pause that re-prepared counts one reset (the stage restarts empty, as a
+new one did).
 `NavisPitchAU.c/.h` binds the unit (one `AudioUnitRender` and one input pull per
 block, a monotonic sample time, AudioToolbox linked for iOS in the podspec and
 `Package.swift`); it is built for iOS and for the host test only. The AU and the
-stage are created in `tapPrepare` and freed in `tapUnprepare` and nowhere else.
+stage are created in `tapPrepare`, one per audio format, and freed with the tap
+(I25; see below).
 The state adds `pitchCents`, `pitchActive`, `pitchLatencyFrames`,
 `pitchResetCount`, `pitchInputHz` and `pitchOutputHz` (zero-crossing estimates
 over a tumbling one-second window, computed on the audio thread) and
@@ -390,3 +393,32 @@ over a tumbling one-second window, computed on the audio thread) and
 portable) and `darwin/test/navis_pitch_au_test.c` (the real unit, macOS only).
 Known limits: the heard audio lags `currentTime` by one AU latency while pitch
 is on; the AU runs while lock-to-speed is on at a speed other than 1x.
+
+## Darwin one tap stream per audio format (I25)
+
+`AVQueuePlayer` runs one audio pipeline per run of items with an identical
+source format (rate, channels, int or float samples, codec, bit depth) and each
+one prepares and unprepares the one shared tap, with no pipeline identity, on
+other threads than the render thread. The single stream and pitch stage of I23
+and I21 therefore ran song N at song N+1's format, were freed at each unprepare
+and left the last pipeline with no EQ or pitch (evidence in
+`docs/plans/iOS_I25_Format_Streams_Plan.md`). `NavisTapFormats.c/.h` (plain C11 +
+pthread, host-tested in `darwin/test/navis_tap_formats_test.c` with a fake AU
+under ASan/UBSan, and its concurrency tests under ThreadSanitizer on macOS)
+holds the lock, counters and a slot per (rounded rate, channels): an EQ stream,
+a pitch stage and its AU. Slots are published with release stores and live until
+`navis_tap_formats_free` (the tap's finalize), at most 16; only a 17th format
+with no pipeline live frees them all (clearing `lastSlot` first). `tapProcess`
+passes the source-range duration (value and timescale) and the slot is the one
+of the block's channel count with the nearest rate within 4 % or inside the
+CMTime rounding interval; one slot takes every block of its channel count;
+otherwise the block passes dry (`unmatchedFrames`, counted only for blocks with a
+valid range), and a slot in use by another render thread passes the later block
+dry (`overlapBlocks`). `NavisEqualizer.m` keeps the MediaToolbox glue, the item
+records and the meter, and its `NavisPitchFactory` wraps `NavisPitchAU`. The
+state adds `formatStreams`, `unmatchedFrames` and `overlapBlocks`; the other
+fields describe the slot of the last audio block and the counters are sums over
+the slots. The layout checks in `tapProcess` now run before the reset decision.
+Deviations from the plan: `process` takes `(durationValue, timescale)` instead of
+`blockRate`, so the rounding interval is computed in the tested C; `unprepare`
+returns false for an unmatched call and the glue logs it.

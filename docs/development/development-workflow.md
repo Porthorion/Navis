@@ -2619,15 +2619,19 @@ It never installs over or edits the primary profile.
 
 `./tool/ios_gapless_diagnostics.sh` (iOS simulator, one heavy job) plays four
 phase-continuous 440 Hz songs through `POST /v1/playback/queue` from the
-loopback fixture server (`--song-count 6`, songs 5 and 6 at 48 and 96 kHz through
-`--song-rate`), proxied and as permanent downloads, with the equalizer off and
+loopback fixture server (`--song-count 15`, songs 5 and 6 at 48 and 96 kHz through
+`--song-rate`, songs 14 and 15 as a stereo 16-bit and a mono float WAV through
+`--song-wav`), proxied and as permanent downloads, with the equalizer off and
 on at a flat -12 dB. It reads the iOS-only `transitionGapsMs` (silence between
 songs on the player's clock), `tapPrepareCount`, `flushCount`, `resetCount`,
 `processedFrames` and `levelDeltaDb` from `GET /v1/equalizer` `application`
 and fails when a gap exceeds `GAP_TOLERANCE_MS` (20), when a queue prepares the
 tap more than once, when the history resets during steady playback, or when
 `levelDeltaDb` is not -12 (0 off). Further phases (`GAPLESS_PHASES`): `rates`
-(a 22.05, 48 and 96 kHz queue), `seek` (one flush per seek and per skip, and
+(a 22.05, 48 and 96 kHz queue: each song's EQ runs at its own rate, -12 dB, and
+`formatStreams`, `unmatchedFrames` and `overlapBlocks` are checked), `formats`
+(four source formats at 22.05 kHz: mono 16-bit, stereo 16-bit, mono float, mono
+16-bit), `seek` (one flush per seek and per skip, and
 seeking to 0 after the queue ended stays under 2 s), `insert` (a mid-song "play
 next"; its known 0.8 s stall is reported), `loop` (repeat one) and `crossfade`
 (relaunches the profile with crossfade on). The transport trace in
