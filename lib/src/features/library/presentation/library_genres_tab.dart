@@ -322,6 +322,7 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
         return Stack(
           children: <Widget>[
             ScrollablePositionedList.builder(
+              key: const PageStorageKey<String>('library-genres'),
               itemCount: _items.length,
               itemScrollController: widget.itemScrollController,
               itemPositionsListener: _positionsListener,

@@ -2210,11 +2210,18 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             ? 4.0
             : 8.0;
         // Portrait phones size the cover, text and gaps from the body height
-        // (see NowPlayingPhoneLayout); standard, split and embedded layouts
-        // keep their own geometry.
+        // (see NowPlayingPhoneLayout). So does a tablet pane beside the rail
+        // (embedded, compact or standard width): a short, wide pane such as
+        // 633x669 would otherwise push the controls off the bottom. Split and
+        // desktop layouts keep their own geometry.
+        final embeddedTabletPane =
+            widget.wideEmbeddedMode &&
+            !resolveAdaptiveContextFor(context).desktopRuntime &&
+            layoutMode != _NowPlayingLayoutMode.split;
         final phoneLayout =
-            layoutMode == _NowPlayingLayoutMode.compact &&
-                !widget.wideEmbeddedMode
+            (layoutMode == _NowPlayingLayoutMode.compact &&
+                    !widget.wideEmbeddedMode) ||
+                embeddedTabletPane
             ? NowPlayingPhoneLayout.compute(
                 width: constraints.maxWidth,
                 height: constraints.maxHeight,

@@ -280,7 +280,8 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
           ),
         Positioned(
           bottom: 16,
-          right: 16,
+          // Clear of a right system strip (iPhone Duo cover screen).
+          right: 16 + rightSystemInsetFor(context),
           child: FloatingActionButton(
             heroTag: 'library_playlists_fab',
             onPressed: () => showCreatePlaylistDialog(context, ref),
@@ -310,6 +311,7 @@ class _LibraryPlaylistsTabState extends ConsumerState<_LibraryPlaylistsTab>
     }
 
     return ListView.builder(
+      key: const PageStorageKey<String>('library-playlists'),
       controller: widget.scrollController,
       padding: const EdgeInsets.only(bottom: 80),
       itemCount: rows.length + (serverPlaylistsFailed ? 1 : 0),

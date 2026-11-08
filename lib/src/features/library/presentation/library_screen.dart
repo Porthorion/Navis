@@ -1139,6 +1139,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 return Stack(
                   children: <Widget>[
                     ScrollablePositionedList.builder(
+                      key: const PageStorageKey<String>('library-artists-list'),
                       itemCount: _artistListItems.length,
                       itemScrollController: _artistsItemScrollController,
                       itemPositionsListener: _artistsItemPositionsListener,
@@ -1332,6 +1333,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 thumbVisibility: false,
                 interactive: true,
                 child: CustomScrollView(
+                  // The page storage key restores the offset when a layout
+                  // class change (fold, rotation) rebuilds this subtree.
+                  key: const PageStorageKey<String>('library-albums'),
                   controller: _albumsScrollController,
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: <Widget>[
@@ -1581,6 +1585,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 : Stack(
                     children: <Widget>[
                       ScrollablePositionedList.builder(
+                        key: const PageStorageKey<String>('library-years'),
                         itemCount: _yearListItems.length,
                         itemScrollController: _yearItemScrollController,
                         itemPositionsListener: _yearItemPositionsListener,
@@ -1839,6 +1844,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               .take(ContentLayout.shelfLimit(width, albumExtent))
               .toList(growable: false);
           return CustomScrollView(
+            key: const PageStorageKey<String>('library-liked'),
             controller: _likedScrollController,
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: <Widget>[
@@ -2315,13 +2321,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       builder: (context, constraints) {
         final inset = ContentLayout.padding(constraints.maxWidth);
         return CustomScrollView(
+          key: const PageStorageKey<String>('library-artists-grid'),
           controller: _artistsGridScrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: <Widget>[
             for (final letter in letters) ...<Widget>[
               SliverToBoxAdapter(
-                key: _artistGridSectionKeys[letter],
+                // The key sits on the box child: a sliver's render object is
+                // not a RenderBox, so the scroll tracking could not measure it.
                 child: Padding(
+                  key: _artistGridSectionKeys[letter],
                   padding: EdgeInsets.fromLTRB(inset, 10, inset, 6),
                   child: Text(
                     letter,

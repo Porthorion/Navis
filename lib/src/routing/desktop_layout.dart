@@ -424,3 +424,11 @@ AdaptiveContext resolveAdaptiveContextFor(
     safePadding: mediaQuery.padding,
   );
 }
+
+/// The right system inset (a status strip beside the iPhone Duo cover screen)
+/// that a widget floating at the right edge must clear. The compact wide
+/// landscape shell already pads its content by that inset, so it adds none.
+double rightSystemInsetFor(BuildContext context) =>
+    resolveAdaptiveContextFor(context).useCompactWideLandscape
+    ? 0
+    : MediaQuery.paddingOf(context).right;
