@@ -5,13 +5,20 @@ services:
     image: deluan/navidrome:0.64.2@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
     user: "${DEMO_UID}:${DEMO_GID}"
-    restart: unless-stopped
+    restart: ${DEMO_RESTART:-unless-stopped}   # bootstrap.sh overrides with "no"
+    # Resource caps sized for a ~40-track library.
+    cpus: 1
+    mem_limit: 512m
+    pids_limit: 200
+    # ponytail: outbound traffic is left open (a network allow-list is not worth the
+    # complexity); external services are disabled in Navidrome itself. Add an
+    # egress-blocking network if that ever matters.
     ports:
       - "127.0.0.1:${DEMO_PORT:-4535}:4533"
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     read_only: true
-    tmpfs: ["/tmp"]
+    tmpfs: ["/tmp:size=64m"]
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
@@ -31,8 +38,11 @@ services:
       ND_BASEURL: /demo
       ND_MUSICFOLDER: /music
       ND_DATAFOLDER: /data
-      ND_LOGLEVEL: warn
-      ND_PASSWORDENCRYPTIONKEY: ${ND_PASSWORDENCRYPTIONKEY}
+      ND_LOGLEVEL: error   # warn would log typed usernames of failed logins
+      # Navidrome sees every client as the proxy/docker gateway, so its per-IP failed-login
+      # limiter would let anyone lock the reviewer out; the proxy rate-limits instead.
+      ND_AUTHREQUESTLIMIT: "0"
+      ND_PASSWORDENCRYPTIONKEY: ${ND_PASSWORDENCRYPTIONKEY:?set it in .env (openssl rand -hex 32)}
       # Features off: sharing, user editing, uploads, transcoding config, plugins.
       ND_ENABLESHARING: "false"
       ND_ENABLEUSEREDITING: "false"

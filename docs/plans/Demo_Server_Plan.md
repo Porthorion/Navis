@@ -39,21 +39,21 @@ Pinned image; bound to 127.0.0.1; non-root, `cap_drop: ALL`,
 `no-new-privileges`; library `:ro`; sharing, Last.fm, Spotify, ListenBrainz,
 insights, plugins and user editing off; admin with a random name and password
 only in the host-only master seed (deleted from the public seed); reviewer non-admin; proxy blocks user, password and
-share methods; proxy `limit_req`; `access_log off` for `/demo`; Navidrome log
-level `warn`; Docker log rotation; host unattended-upgrades (already on).
+share methods; proxy `limit_req`, `limit_conn` on stream and download, failed-login limiter off, resource caps; `access_log off` for `/demo`; Navidrome log
+level `error`; Docker log rotation; host unattended-upgrades (already on).
 
 ## Ledger
 
 | Step | State | Evidence |
 |---|---|---|
 | Survey: routing, host, client path handling | done | the client keeps base path (`_buildMediaUri`, Dio `baseUrl`) |
-| Library candidates and licences | todo | |
-| Infra files and docs | todo | |
+| Library candidates and licences | done | all CC0, checked per source page |
+| Infra files and docs | done | |
 | Library built on host | done | 40 tracks, 6 albums |
 | Bootstrap, seed DB, Komodo stack, reset procedure | done (2026-11-08) | stack deployed via Komodo, procedure run once by hand |
 | Proxy location | done (2026-11-08) | public checks pass; proxy host backup kept on host |
-| Reviews (Sonnet, Opus) | todo | |
-| Linux app run against `/demo` | todo | |
+| Reviews (Sonnet, Opus) | done | one fix round |
+| Linux app run against `/demo` | done | 82/82 requests kept `/demo`; evidence in `build/ios-diagnostics/demo-run/linux/` |
 | Admin removed from public DB | done (2026-11-08) | selftest and live: admin ping fails after restart |
 | Reset verified | manual run done; first scheduled run 04:00 next day to check | stars and playlists empty after RunProcedure |
 | iOS simulator and macOS runs | deferred | needs a linked Mac |
