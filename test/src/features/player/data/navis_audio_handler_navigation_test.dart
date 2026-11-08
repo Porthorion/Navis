@@ -741,6 +741,14 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   /// A seek with an index out of `completed` first emits `completed` at the
   /// new index, as ExoPlayer does on Android.
   bool exoEndedSeek = false;
+
+  /// Like [exoEndedSeek], but `seek` has already returned when the stale
+  /// `completed` arrives; ExoPlayer leaves ENDED a moment later.
+  bool exoEndedSeekLate = false;
+
+  /// A seek out of `completed` keeps reporting `completed`, as media_kit does
+  /// while the restarted song plays (mediakit_player.dart `_processingState`).
+  bool completedStaysOnSeek = false;
   bool gateNonEmptyLoadsOnly = false;
   bool bufferAfterLoad = false;
   Completer<void>? loadGate;
@@ -1438,6 +1446,25 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       _events.add(playbackEvent);
       _indices.add(index);
       await Future<void>.delayed(Duration.zero);
+    }
+    if ((exoEndedSeekLate || completedStaysOnSeek) &&
+        state == ProcessingState.completed &&
+        index != null) {
+      this.index = index;
+      simulatedPosition = position ?? Duration.zero;
+      nativeIndexOverride = null;
+      _indices.add(index);
+      if (completedStaysOnSeek) {
+        _events.add(playbackEvent);
+        return;
+      }
+      Timer(const Duration(milliseconds: 20), () => _events.add(playbackEvent));
+      Timer(const Duration(milliseconds: 40), () {
+        state = ProcessingState.ready;
+        emitPlayerEvent();
+        _events.add(playbackEvent);
+      });
+      return;
     }
     final ignored = ignoreSeeks || ignoredSeeks > 0;
     if (ignoredSeeks > 0) ignoredSeeks--;
@@ -24147,57 +24174,214 @@ void main() {
   // index 0 is first reported as `completed` at index 0, position 0, and only
   // then as `buffering`.
   group('Play on a completed queue (#374)', () {
-    for (final androidOrder in [false, true]) {
-      test(
-        androidOrder
-            ? 'restarts at song 0 when the seek is first reported as completed'
-            : 'restarts at song 0 when the seek is reported as ready',
-        () async {
-          final directory = await Directory.systemTemp.createTemp(
-            'navis-i374-',
-          );
-          final (handler, player, database) = await createHandler(
-            directory,
-            2,
-            desktopRuntimeOverride: false,
-          );
-          addTearDown(() async {
-            await handler.disposeHandler();
-            await database.close();
-            await directory.delete(recursive: true);
-          });
-          await handler.replaceQueue(
-            ['song-0', 'song-1'],
-            startIndex: 1,
-            expandMatchFlows: false,
-          );
-          await settleQueue(handler);
-          await handler.play();
-          await pumpEventQueue();
-          player
-            ..isPlaying = true
-            ..state = ProcessingState.ready;
+    Future<(NavisAudioHandler, _ControllableAudioPlayer)> finished({
+      int count = 2,
+      bool desktop = false,
+      NavisQueueWindow queueWindow = const NavisQueueWindow(),
+      bool shuffle = false,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis-i374-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        count,
+        desktopRuntimeOverride: desktop,
+        queueWindow: queueWindow,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final ids = [for (var i = 0; i < count; i++) 'song-$i'];
+      await handler.replaceQueue(
+        ids,
+        startIndex: shuffle ? 0 : count - 1,
+        expandMatchFlows: false,
+      );
+      await settleQueue(handler);
+      if (shuffle) {
+        await handler.setShuffleMode(AudioServiceShuffleMode.all);
+        await settleQueue(handler);
+      }
+      await handler.play();
+      await pumpEventQueue();
+      player
+        ..isPlaying = true
+        ..state = ProcessingState.ready;
+      if (queueWindow.deferThreshold ==
+          const NavisQueueWindow().deferThreshold) {
+        for (
+          var i = 0;
+          i < count && player.state != ProcessingState.completed;
+          i++
+        ) {
           player.finishCurrentTrack();
           await pumpEventQueue();
-          expect(player.state, ProcessingState.completed);
-          expect(player.index, 1);
-          expect(handler.snapshot.currentSongId, 'song-1');
+        }
+      } else {
+        // The player holds only the window around the last song.
+        player
+          ..index = player.sourceIds.length - 1
+          ..state = ProcessingState.completed;
+        player._events.add(player.playbackEvent);
+      }
+      await pumpEventQueue();
+      expect(player.state, ProcessingState.completed);
+      return (handler, player);
+    }
 
-          player.exoEndedSeek = androidOrder;
-          final seeksBefore = player.seekCalls;
-          await handler.play();
-          await Future<void>.delayed(const Duration(milliseconds: 300));
-          await pumpEventQueue();
+    Future<void> settle() async {
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await pumpEventQueue();
+    }
 
+    test('restarts at song 0 when the seek is reported as ready', () async {
+      final (handler, player) = await finished();
+      final seeksBefore = player.seekCalls;
+      await handler.play();
+      await settle();
+
+      expect(handler.snapshot.currentSongId, 'song-0');
+      expect(player.index, 0);
+      expect(player.seekCalls - seeksBefore, 1);
+    });
+
+    // a: the stale `completed` arrives while the seek is in flight; b: after
+    // the seek future has resolved.
+    for (final late in [false, true]) {
+      test('restarts at song 0 when the seek is first reported as completed '
+          '${late ? 'after seek returned' : 'during the seek'}', () async {
+        final (handler, player) = await finished();
+        player
+          ..exoEndedSeek = !late
+          ..exoEndedSeekLate = late;
+        final seeksBefore = player.seekCalls;
+        await handler.play();
+        await settle();
+
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(player.index, 0);
+        expect(
+          player.seekCalls - seeksBefore,
+          1,
+          reason: 'only the restart seek; a second one is the failover',
+        );
+      });
+    }
+
+    // c: song 0 then plays to its end and the queue moves on.
+    for (final desktop in [false, true]) {
+      test('song 0 plays on to song 1 after the restart '
+          '(${desktop ? 'media_kit order' : 'Android order'})', () async {
+        final (handler, player) = await finished(count: 3, desktop: desktop);
+        player
+          ..exoEndedSeekLate = !desktop
+          ..completedStaysOnSeek = desktop;
+        await handler.play();
+        await settle();
+        expect(handler.snapshot.currentSongId, 'song-0');
+        if (desktop) {
+          // Still `completed` at index 0, now at the song's end: the stale
+          // note must not hide this real end.
+          player.simulatedPosition = player.simulatedDuration;
+          player._events.add(player.playbackEvent);
+        } else {
+          player.simulatedPosition = const Duration(seconds: 5);
+          player._events.add(player.playbackEvent);
+          await settle();
           expect(handler.snapshot.currentSongId, 'song-0');
-          expect(player.index, 0);
-          expect(
-            player.seekCalls - seeksBefore,
-            1,
-            reason: 'only the restart seek; a second one is the failover',
-          );
-        },
+          player.finishCurrentTrack();
+        }
+        await settle();
+
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.index, 1);
+      });
+    }
+
+    // d: a genuine premature end of song 0 right after the restart still
+    // runs the skip-past-failed-song recovery.
+    test('song 0 ending early after the restart is still skipped', () async {
+      final (handler, player) = await finished(count: 3);
+      player.exoEndedSeekLate = true;
+      await handler.play();
+      await settle();
+      expect(handler.snapshot.currentSongId, 'song-0');
+      player
+        ..exoEndedSeekLate = false
+        ..simulatedPosition = const Duration(seconds: 2)
+        ..state = ProcessingState.completed;
+      player._events.add(player.playbackEvent);
+      await settle();
+
+      expect(handler.snapshot.currentSongId, 'song-1');
+    });
+
+    // e: the shuffle and deferred-head restarts land on their own target.
+    test('a shuffled queue restarts at the new pass start', () async {
+      final (handler, player) = await finished(count: 4, shuffle: true);
+      player.exoEndedSeekLate = true;
+      final finishedSong = handler.snapshot.currentSongId;
+      await handler.play();
+      await settle();
+
+      expect(handler.snapshot.currentIndex, 0);
+      expect(handler.snapshot.currentSongId, isNot(finishedSong));
+      expect(player.index, 0);
+    });
+
+    test('a queue with a deferred head restarts at song 0', () async {
+      const window = NavisQueueWindow(
+        deferThreshold: 16,
+        ahead: 8,
+        lowWater: 3,
+        page: 8,
+        nearJump: 16,
       );
+      final (handler, player) = await finished(count: 60, queueWindow: window);
+      expect(
+        handler.collectPlaybackDiagnostics()['deferredHeadLength'],
+        greaterThan(0),
+      );
+      player
+        ..exoEndedSeek = true
+        ..exoEndedSeekLate = true;
+      await handler.play();
+      await settle();
+
+      expect(handler.snapshot.currentSongId, 'song-0');
+      expect(handler.snapshot.currentIndex, 0);
+    });
+
+    // f: the other seeks out of a finished queue.
+    for (final late in [false, true]) {
+      test('Play from index 0 on a finished queue stays on song 0 '
+          '(${late ? 'late' : 'in-seek'} echo)', () async {
+        final (handler, player) = await finished(count: 3);
+        player
+          ..exoEndedSeek = !late
+          ..exoEndedSeekLate = late;
+        await handler.playFromIndex(0);
+        await settle();
+
+        expect(handler.snapshot.currentSongId, 'song-0');
+        expect(player.index, 0);
+      });
+
+      test('Previous on a finished queue lands on the previous song '
+          '(${late ? 'late' : 'in-seek'} echo)', () async {
+        final (handler, player) = await finished(count: 3);
+        // Within the first seconds Previous goes to the earlier song.
+        player
+          ..simulatedPosition = const Duration(seconds: 1)
+          ..exoEndedSeek = !late
+          ..exoEndedSeekLate = late;
+        await handler.skipToPrevious();
+        await settle();
+
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.index, 1);
+      });
     }
   });
 }

@@ -352,7 +352,7 @@ extension _NavisNavigation on NavisAudioHandler {
             await _runTimedPlayerOperation(
               generation: generation,
               operation: 'manual queue navigation',
-              action: () => _player.seek(Duration.zero, index: index),
+              action: () => _seekPlayerToIndex(index),
               songId: targetId,
               timeout: coldRemote
                   ? _timeouts.remoteLoad

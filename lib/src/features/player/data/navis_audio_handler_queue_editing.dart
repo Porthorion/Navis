@@ -376,7 +376,7 @@ extension _NavisQueueEditing on NavisAudioHandler {
     }
 
     _clearQueueReplacementMetadataAnchor();
-    await _player.seek(Duration.zero, index: resumeIndex);
+    await _seekPlayerToIndex(resumeIndex);
     final inactiveDeck = _crossfadePlayer;
     if (inactiveDeck != null) {
       try {

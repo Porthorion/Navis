@@ -1039,6 +1039,10 @@ class NavisAudioHandler extends BaseAudioHandler
 
   bool _continuingIntoDeferredTail = false;
 
+  /// A seek out of `completed` to this player index in this transport intent.
+  /// See [_seekPlayerToIndex].
+  ({int index, int transport})? _endedSeekEcho;
+
   /// Moves up to [count] songs from the front of the deferred tail into the
   /// native player with a single append; songs that cannot be resolved are
   /// dropped. A song that is only unavailable for now (offline, or no
@@ -2422,7 +2426,7 @@ class NavisAudioHandler extends BaseAudioHandler
           await seek(Duration.zero);
           return;
         }
-        await _player.seek(Duration.zero, index: 0);
+        await _seekPlayerToIndex(0);
         if (!_isCurrentTransportIntent(transportGeneration)) return;
         final inactiveDeck = _crossfadePlayer;
         if (inactiveDeck != null) {

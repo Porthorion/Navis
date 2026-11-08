@@ -298,6 +298,8 @@ extension _NavisMediaSession on NavisAudioHandler {
       final index = _player.currentIndex;
       if (processing == ProcessingState.completed) {
         _continueIntoDeferredTail();
+      } else {
+        _endedSeekEcho = null;
       }
       if (navisQueueJustFinished(
         previous: _finishObservedProcessingState,

@@ -114,6 +114,38 @@ extension _NavisQueueWindow on NavisAudioHandler {
     return _queueItems.length - 1 - current < _queueWindow.lowWater;
   }
 
+  /// Seeks the active player to [index] from the start. ExoPlayer reports a
+  /// seek out of `completed` first as `completed` at the new index and
+  /// position 0, which the playback events and the load epilogue would read
+  /// as that song ending (#374), so the seek is noted until the player leaves
+  /// `completed`.
+  Future<void> _seekPlayerToIndex(int index) async {
+    if (_player.processingState == ProcessingState.completed) {
+      _endedSeekEcho = (index: index, transport: _transportGeneration);
+    }
+    await _player.seek(Duration.zero, index: index);
+    if (_player.processingState != ProcessingState.completed) {
+      _endedSeekEcho = null;
+    }
+  }
+
+  /// Whether the player is still in that echo. Any other state, a second of
+  /// progress or a newer transport command retires it, so it cannot hide the
+  /// real end of the restarted song (desktop keeps reporting `completed`
+  /// while it plays).
+  bool get _inEndedSeekEcho {
+    final echo = _endedSeekEcho;
+    if (echo == null) return false;
+    final event = _player.playbackEvent;
+    if (echo.transport != _transportGeneration ||
+        event.processingState != ProcessingState.completed ||
+        event.updatePosition >= const Duration(seconds: 1)) {
+      _endedSeekEcho = null;
+      return false;
+    }
+    return event.currentIndex == echo.index;
+  }
+
   /// Continues a completed native playlist after an initial fill or tail
   /// release, or wraps a queue whose played head has been released.
   void _continueIntoDeferredTail() {
@@ -124,7 +156,8 @@ extension _NavisQueueWindow on NavisAudioHandler {
         _pendingLogicalQueueSongIds != null ||
         _isLoading ||
         _player.processingState != ProcessingState.completed ||
-        _latestExplicitTransportPlaying == false) {
+        _latestExplicitTransportPlaying == false ||
+        _inEndedSeekEcho) {
       return;
     }
     if (_retryPrematureTranscodeEnd(_player.playbackEvent)) {
