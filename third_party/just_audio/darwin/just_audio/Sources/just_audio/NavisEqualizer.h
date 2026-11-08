@@ -10,10 +10,6 @@
 
 @interface NavisEqualizer : NSObject
 
-/// Plugin registration: loads the pitch AudioUnit's component once, off the main
-/// thread. The first AUNewTimePitch of a process takes about 2.6 s to create (on a
-/// Mac; 0.5 ms after), which would otherwise delay the first song of the session.
-+ (void)warmUp;
 /// nil with *error set when the configuration map is invalid.
 - (instancetype)initWithConfiguration:(NSDictionary *)map error:(NSString **)error;
 /// The new state, or nil with *error set. Applies to every live tap.

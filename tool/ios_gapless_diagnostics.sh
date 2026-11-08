@@ -16,7 +16,8 @@
 # seek to the first audio at pitch 0 and +5. Needs a booted iOS simulator; one heavy job (see
 # docs/development/development-workflow.md). Evidence: build/ios-gapless-diagnostics/<stamp>/.
 #
-#   GAPLESS_PHASES   space-separated subset of: main rates seek insert loop crossfade pitch
+#   GAPLESS_PHASES   space-separated subset of: main rates seek insert loop pitch crossfade (crossfade relaunches
+#                    the app with crossfade on, so it stays last)
 #   GAP_TOLERANCE_MS largest accepted gap at a gapless transition (default 20)
 #   GAPLESS_REPEATS  runs of each main case (default 1); GAPLESS_KEEP_GOING=1
 #                    reports failures and carries on instead of stopping
@@ -28,7 +29,7 @@ source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 DIAGNOSTICS_APP_NAME='Navis Gapless Diagnostics'
 DIAGNOSTICS_FAILURE_PREFIX='ios-gapless'
 DIAGNOSTICS_POLL_INTERVAL=0.5
-PHASES="${GAPLESS_PHASES:-main rates seek insert loop crossfade pitch}"
+PHASES="${GAPLESS_PHASES:-main rates seek insert loop pitch crossfade}"
 GAP_TOLERANCE_MS="${GAP_TOLERANCE_MS:-20}"
 REPEATS="${GAPLESS_REPEATS:-1}"
 OUTPUT_ROOT="${GAPLESS_OUTPUT:-$PROJECT_DIR/build/ios-gapless-diagnostics/$(date -u +%Y%m%dT%H%M%SZ)}"
@@ -548,6 +549,11 @@ if s['on']['pitchResetCount'] != s['off']['pitchResetCount']: fail('the EQ toggl
     times="$(seek_to_audio_ms 1000 5000 2000 6000 3000 7000 4000 8000)"
     echo "seek to first audio at pitch +$st st (ms): $times" | tee -a "$SUMMARY"
   done
+  # 9. The speed and pitch panel with pitch +5 (app-owned screenshot; best effort).
+  adjust '{"pitchSemitones":5}'
+  api POST /v1/presentation/adjustments '{"open":true}' > "$OUTPUT_ROOT/pitch-panel-reveal.json" 2>&1 || true
+  sleep 2
+  api POST /v1/presentation/screenshot '{"label":"i21-pitch-panel"}' > "$OUTPUT_ROOT/pitch-panel-screenshot.json" 2>&1 || true
   adjust "$PITCH_ADJUST_RESET"
   api POST /v1/playback/pause '{}' >/dev/null || true
 }

@@ -2,7 +2,6 @@
 #import "./include/just_audio/AudioPlayer.h"
 #import <AVFoundation/AVFoundation.h>
 #include <TargetConditionals.h>
-#import "NavisEqualizer.h"
 
 @implementation JustAudioPlugin {
     NSObject<FlutterPluginRegistrar>* _registrar;
@@ -13,9 +12,6 @@
     FlutterMethodChannel* channel = [FlutterMethodChannel
         methodChannelWithName:@"com.ryanheise.just_audio.methods"
               binaryMessenger:[registrar messenger]];
-#if TARGET_OS_IOS
-    [NavisEqualizer warmUp];
-#endif
     JustAudioPlugin* instance = [[JustAudioPlugin alloc] initWithRegistrar:registrar];
     [registrar addMethodCallDelegate:instance channel:channel];
 }
