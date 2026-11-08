@@ -1,10 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
+import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/features/settings/presentation/sync_settings_screen.dart';
@@ -14,15 +16,23 @@ import 'package:navis/src/features/settings/presentation/settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
 import '../../../../helpers/adaptive_test_harness.dart';
+import '../../../../helpers/test_database.dart';
 
-final _overrides = [
-  pendingSetupHighlightsProvider.overrideWithValue(const <SetupHighlight>{}),
-  appSettingsProvider.overrideWithValue(
-    const AsyncData(AppSettingsModel.defaults()),
-  ),
-];
+List<Override> _overrides(NavisDatabase database) => withTestDatabase(
+  database,
+  overrides: [
+    pendingSetupHighlightsProvider.overrideWithValue(const <SetupHighlight>{}),
+    appSettingsProvider.overrideWithValue(
+      const AsyncData(AppSettingsModel.defaults()),
+    ),
+  ],
+);
 
 void main() {
+  // One database for the file: a provider-created one per test is closed
+  // asynchronously, so the next test's would overlap it and drift would warn.
+  final database = createTestDatabase();
+  tearDownAll(database.close);
   final screens = <String, Widget>{
     'Settings': const SettingsScreen(),
     'Playback settings': const PlaybackSettingsScreen(),
@@ -37,7 +47,7 @@ void main() {
         setAdaptiveTestViewport(tester, const Size(390, 844));
         await tester.pumpWidget(
           ProviderScope(
-            overrides: _overrides,
+            overrides: _overrides(database),
             child: MaterialApp(
               theme: ThemeData(platform: TargetPlatform.iOS),
               localizationsDelegates: navisLocalizationsDelegates,
@@ -70,7 +80,7 @@ void main() {
       setAdaptiveTestViewport(tester, const Size(390, 4000));
       await tester.pumpWidget(
         ProviderScope(
-          overrides: _overrides,
+          overrides: _overrides(database),
           child: MaterialApp(
             localizationsDelegates: navisLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,

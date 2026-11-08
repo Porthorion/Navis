@@ -19,7 +19,11 @@ void main() {
   late Directory root;
   late String oldHome;
   late String newHome;
-  late NavisDatabase database;
+  NavisDatabase? opened;
+
+  // Created on first use so tests that open their own databases do not run
+  // next to a second live NavisDatabase (drift warns about that).
+  NavisDatabase db() => opened ??= createTestDatabase();
 
   String containers(String uuid) =>
       p.join(root.path, 'Containers', 'Data', 'Application', uuid);
@@ -34,16 +38,16 @@ void main() {
       await file.parent.create(recursive: true);
       await file.writeAsBytes(List<int>.filled(128, 7));
     }
-    database = createTestDatabase();
+    opened = null;
   });
 
   tearDown(() async {
-    await database.close();
+    await opened?.close();
     await root.delete(recursive: true);
   });
 
   Future<void> seed(String songId, String path, CacheType type) =>
-      database.cacheDao.upsertCachedTrack(
+      db().cacheDao.upsertCachedTrack(
         CachedTracksTableCompanion.insert(
           songId: songId,
           filePath: path,
@@ -56,7 +60,7 @@ void main() {
       );
 
   Future<String> pathOf(String songId) async =>
-      (await database.cacheDao.getCachedTrack(songId))!.filePath;
+      (await db().cacheDao.getCachedTrack(songId))!.filePath;
 
   test(
     'rows under an old container are rebased and survive both prunes',
@@ -74,7 +78,7 @@ void main() {
       );
       await seed('plain', '/not/a/container/x.mp3', CacheType.permanent);
 
-      expect(await database.cacheDao.rebaseContainerPaths(newHome), 2);
+      expect(await db().cacheDao.rebaseContainerPaths(newHome), 2);
 
       expect(
         await pathOf('perm'),
@@ -87,17 +91,17 @@ void main() {
       );
       expect(await pathOf('plain'), '/not/a/container/x.mp3');
 
-      final manager = RollingCacheManager(cacheDao: database.cacheDao);
+      final manager = RollingCacheManager(cacheDao: db().cacheDao);
       await manager.pruneMissingFiles();
       await manager.pruneMissingPermanentFiles();
-      expect(await database.cacheDao.getCachedTrack('perm'), isNotNull);
-      expect(await database.cacheDao.getCachedTrack('roll'), isNotNull);
-      expect(await database.cacheDao.getCachedTrack('current'), isNotNull);
+      expect(await db().cacheDao.getCachedTrack('perm'), isNotNull);
+      expect(await db().cacheDao.getCachedTrack('roll'), isNotNull);
+      expect(await db().cacheDao.getCachedTrack('current'), isNotNull);
       // Unrelated stale rows are still pruned as before.
-      expect(await database.cacheDao.getCachedTrack('plain'), isNull);
+      expect(await db().cacheDao.getCachedTrack('plain'), isNull);
 
       // Nothing differs now: a second pass changes nothing.
-      expect(await database.cacheDao.rebaseContainerPaths(newHome), 0);
+      expect(await db().cacheDao.rebaseContainerPaths(newHome), 0);
     },
   );
 
@@ -112,7 +116,7 @@ void main() {
       'phase': 'transferring',
       'partPath': '/not/a/container/a.navis-part',
     });
-    final queue = database.downloadQueueDao;
+    final queue = db().downloadQueueDao;
     for (final entry in {
       's1': journal,
       's2': transferring,
@@ -128,7 +132,7 @@ void main() {
       );
     }
 
-    await database.cacheDao.rebaseContainerPaths(newHome);
+    await db().cacheDao.rebaseContainerPaths(newHome);
 
     final items = {
       for (final item in await queue.watchQueue().first) item.songId: item,
@@ -153,7 +157,7 @@ void main() {
       CacheType.permanent,
     );
     expect(
-      await database.cacheDao.rebaseContainerPaths('/tmp/diagnostics-root'),
+      await db().cacheDao.rebaseContainerPaths('/tmp/diagnostics-root'),
       0,
     );
     expect(await pathOf('perm'), p.join(oldHome, 'Documents/Downloads/a.mp3'));
@@ -234,7 +238,7 @@ void main() {
     );
     await seed('look', lookalike, CacheType.permanent);
     await seed('own', p.join(home, 'Documents/y.mp3'), CacheType.permanent);
-    expect(await database.cacheDao.rebaseContainerPaths(home), 1);
+    expect(await db().cacheDao.rebaseContainerPaths(home), 1);
     expect(await pathOf('look'), p.join(home, 'Documents/x.mp3'));
     expect(await pathOf('own'), p.join(home, 'Documents/y.mp3'));
   });
