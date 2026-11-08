@@ -18132,6 +18132,22 @@ void main() {
       expect(gainOf(handler.queue.value[1]), -12);
     });
 
+    test('a refresh cancelled by a queue clear is not reused', () async {
+      final (handler, _, _) = await queued([-6, -6]);
+      // Hold the lane so the refresh is still waiting when the queue clears.
+      final blocker = handler
+          .addToQueue(['song-0'], expandMatchFlows: false)
+          .catchError((Object _) {});
+      final waiting = handler.refreshQueuedSongReplayGain();
+      final swallowed = waiting.then<void>((_) {}, onError: (Object _) {});
+      final cleared = handler.clearQueue().catchError((Object _) {});
+      await Future.wait(<Future<void>>[blocker, swallowed, cleared]);
+
+      final before = handler.debugQueueEditCount;
+      await handler.refreshQueuedSongReplayGain().catchError((Object _) {});
+      expect(handler.debugQueueEditCount, before + 1);
+    });
+
     test('unchanged rows publish nothing', () async {
       final (handler, _, database) = await queued([-6, -6]);
       var emissions = 0;

@@ -5145,7 +5145,8 @@ Desktop volume follows a parallel local-settings path:
    it was created with. After a sync run that wrote songs (a promoted
    snapshot or hydrated albums, whatever its final status), and on every
    external database change `LibrarySyncController` sees (the Android worker
-   writes while the app is open, polled about once a second, and on resume),
+   writes while the app is open; on resume it reconciles once, then polls
+   about once a second for up to nine minutes while a worker may commit),
    it calls `refreshQueuedSongReplayGain()` without awaiting it. It is a queue
    edit (`_refreshQueuedSongReplayGain`, `prepareSources: false`, no network),
    and at most one waits at a time: a call made while one is queued shares it.
@@ -5155,7 +5156,9 @@ Desktop volume follows a parallel local-settings path:
    nothing published. It never applies a volume and skips the audible songs
    (the current one, and the incoming one during a cross-fade), because every
    later volume write re-reads a song's extras: the playing song's level never
-   jumps. The next song plays at the new gain (cut and boost;
+   jumps. On Android a refresh inside the last-3 s clip guard can still lower
+   (never raise) the playing song's boost to the next song's refreshed value.
+   The next song plays at the new gain (cut and boost;
    `_mediaItemOfSource` prefers the queue's copy over the source tag, and the
    refreshed boost map is what mpv reads at a natural join). The audible
    song's other queue copies keep the old gain too, so it plays at the old
