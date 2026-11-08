@@ -1317,20 +1317,34 @@ class AudioPlayer {
     bool guarded = false,
     int? index,
     Map<IndexedAudioSource, double> bySource = const {},
+    Map<IndexedAudioSource, int> durationMsBySource = const {},
   }) async {
     if (_disposed || !_active) return;
-    final byUri = <String, double>{};
-    for (final entry in bySource.entries) {
-      final message = entry.key._toMessage();
-      final uri = switch (message) {
+    String? uriOf(IndexedAudioSource source) {
+      final message = source._toMessage();
+      return switch (message) {
         UriAudioSourceMessage(:final uri) => uri,
         ClippingAudioSourceMessage(:final child) => child.uri,
         _ => null,
       };
+    }
+
+    final byUri = <String, double>{};
+    for (final entry in bySource.entries) {
+      final uri = uriOf(entry.key);
       if (uri != null) byUri[uri] = entry.value;
     }
+    final durationMsByUri = <String, int>{};
+    for (final entry in durationMsBySource.entries) {
+      final uri = uriOf(entry.key);
+      if (uri != null) durationMsByUri[uri] = entry.value;
+    }
     final request = SetReplayGainBoostRequest(
-        currentDb: currentDb, guarded: guarded, index: index, byUri: byUri);
+        currentDb: currentDb,
+        guarded: guarded,
+        index: index,
+        byUri: byUri,
+        durationMsByUri: durationMsByUri);
     final platform = await _platform;
     // The caller re-sends on every index event; an unchanged per-file map to
     // the same native player says nothing new. A message without a map

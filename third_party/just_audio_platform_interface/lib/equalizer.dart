@@ -254,6 +254,7 @@ class SetReplayGainBoostRequest {
     this.guarded = false,
     this.index,
     this.byUri = const <String, double>{},
+    this.durationMsByUri = const <String, int>{},
   });
 
   final double currentDb;
@@ -269,11 +270,18 @@ class SetReplayGainBoostRequest {
   final int? index;
   final Map<String, double> byUri;
 
+  /// The song tag's duration in ms by source URI, for a backend that times its
+  /// own end-of-song guard (iOS): the player's duration can be wrong for a VBR
+  /// MP3 without a Xing header or an overestimated stream, so the smaller
+  /// remaining time of the two wins, as on Android.
+  final Map<String, int> durationMsByUri;
+
   Map<String, Object?> toMap() => {
         'currentDb': currentDb,
         'guarded': guarded,
         'index': index,
         'byUri': byUri,
+        'durationMsByUri': durationMsByUri,
       };
 
   @override
@@ -283,7 +291,10 @@ class SetReplayGainBoostRequest {
       other.guarded == guarded &&
       other.index == index &&
       other.byUri.length == byUri.length &&
-      byUri.entries.every((entry) => other.byUri[entry.key] == entry.value);
+      byUri.entries.every((entry) => other.byUri[entry.key] == entry.value) &&
+      other.durationMsByUri.length == durationMsByUri.length &&
+      durationMsByUri.entries
+          .every((entry) => other.durationMsByUri[entry.key] == entry.value);
 
   @override
   int get hashCode => Object.hash(currentDb, guarded, index, byUri.length);

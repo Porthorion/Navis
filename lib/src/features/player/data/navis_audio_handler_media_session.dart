@@ -751,6 +751,7 @@ extension _NavisMediaSession on NavisAudioHandler {
     if (_usesAndroidBoost) return _sendAndroidBoostTo(player);
     final current = player.currentIndex;
     final bySource = <IndexedAudioSource, double>{};
+    final durationMsBySource = <IndexedAudioSource, int>{};
     final sequence = player.sequence;
     for (var i = 0; i < sequence.length; i++) {
       final item = _mediaItemOfSource(sequence[i]);
@@ -761,10 +762,14 @@ extension _NavisMediaSession on NavisAudioHandler {
             freeze: identical(player, _player) && i == current,
           )?.boostDb ??
           0;
+      // The tag's duration times the iOS guard along with the player's own.
+      final tagMs = item.duration?.inMilliseconds;
+      if (tagMs != null && tagMs > 0) durationMsBySource[sequence[i]] = tagMs;
     }
     await player.setReplayGainBoost(
       currentDb: bySource[current == null ? null : sequence[current]] ?? 0,
       bySource: bySource,
+      durationMsBySource: durationMsBySource,
     );
   }
 

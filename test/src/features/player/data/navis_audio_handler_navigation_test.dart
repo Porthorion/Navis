@@ -986,6 +986,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
           bool playing,
           int? index,
           Map<String?, double> bySongId,
+          Map<String?, int> durationMsBySongId,
         })
       >[];
 
@@ -1002,6 +1003,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     bool guarded = false,
     int? index,
     Map<IndexedAudioSource, double> bySource = const {},
+    Map<IndexedAudioSource, int> durationMsBySource = const {},
   }) async {
     boostMessages.add((
       currentDb: currentDb,
@@ -1010,6 +1012,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       index: index,
       bySongId: {
         for (final entry in bySource.entries)
+          navisNativeSourceSongId(entry.key): entry.value,
+      },
+      durationMsBySongId: {
+        for (final entry in durationMsBySource.entries)
           navisNativeSourceSongId(entry.key): entry.value,
       },
     ));
@@ -16558,6 +16564,7 @@ void main() {
               peaks: [0.1, 0.5],
               caps: ios,
               eq: EqCapabilities.available,
+              durationSeconds: 200,
             );
             await handler.replaceQueue([
               'song-0',
@@ -16575,6 +16582,12 @@ void main() {
             expect(sent.bySongId, {'song-0': 6.0, 'song-1': 0.0});
             expect(sent.index, isNull, reason: 'native knows the playing item');
             expect(sent.guarded, isFalse, reason: 'native owns the guard');
+            expect(
+              sent.durationMsBySongId,
+              {'song-0': 200000, 'song-1': 200000},
+              reason:
+                  'the tag durations time the guard when the player is wrong',
+            );
           },
         );
 
