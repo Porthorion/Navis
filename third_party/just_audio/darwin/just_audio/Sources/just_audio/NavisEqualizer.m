@@ -304,6 +304,15 @@ static const NSUInteger kGapHistory = 8;
 static const NSTimeInterval kMeterInterval = 0.02;
 static const NSUInteger kMeterSamples = 5; // medians over this many samples absorb clock jitter
 
++ (void)warmUp {
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+            navis_pitch_au_free(navis_pitch_au_new(44100, 2, 4096));
+        });
+    });
+}
+
 - (instancetype)initWithConfiguration:(NSDictionary *)map error:(NSString **)error {
     self = [super init];
     if (!decodeConfiguration(map, &_config, error)) return nil;

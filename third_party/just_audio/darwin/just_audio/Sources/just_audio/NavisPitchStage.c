@@ -30,7 +30,7 @@ struct NavisPitchStage {
     int32_t applied; // cents the renderer was last given
     float wetGain;   // 0 dry ... 1 wet
     int64_t fed;     // frames given to the renderer since it was last reset
-    bool resetLatched, started;
+    bool resetLatched;
     Meter in, out;
     // Published for the state reader.
     _Atomic bool active;
@@ -190,31 +190,25 @@ static void processChunk(NavisPitchStage *s, float *const *ch, int n) {
 
 void navis_pitch_stage_process(NavisPitchStage *s, float *const *channels, int channelCount, int frames) {
     if (frames <= 0 || channelCount != s->channels) return;
-    bool first = !s->started;
-    s->started = true;
-    if (s->resetLatched || first) {
+    if (s->resetLatched) {
+        s->resetLatched = false;
         atomic_fetch_add_explicit(&s->resets, 1, memory_order_relaxed);
         s->in = s->out = (Meter){0};
-        if (s->resetLatched) {
-            // Nothing to drop while the renderer is idle at pitch 0.
-            if (s->mode != MODE_BYPASS || atomic_load_explicit(&s->requested, memory_order_relaxed) != 0) {
-                s->renderer.reset(s->renderer.user);
+        int32_t target = atomic_load_explicit(&s->requested, memory_order_relaxed);
+        // Nothing to drop while the renderer is idle at pitch 0.
+        if (s->mode != MODE_BYPASS || target != 0) s->renderer.reset(s->renderer.user);
+        s->fed = 0;
+        // Wet from the first frame (one latency of silence); no ramp.
+        s->mode = MODE_BYPASS;
+        s->wetGain = 0;
+        if (target != 0) {
+            if (target != s->applied) {
+                s->renderer.set_cents(s->renderer.user, (float)target);
+                s->applied = target;
             }
-            s->fed = 0;
-            // Wet from the first frame (one latency of silence); no ramp.
-            s->mode = MODE_BYPASS;
-            s->wetGain = 0;
-            int32_t target = atomic_load_explicit(&s->requested, memory_order_relaxed);
-            if (target != 0) {
-                if (target != s->applied) {
-                    s->renderer.set_cents(s->renderer.user, (float)target);
-                    s->applied = target;
-                }
-                s->mode = MODE_WET;
-                s->wetGain = 1;
-            }
+            s->mode = MODE_WET;
+            s->wetGain = 1;
         }
-        s->resetLatched = false;
     }
     float *chunk[NAVIS_PITCH_MAX_CHANNELS];
     for (int offset = 0; offset < frames; offset += s->maxFrames) {

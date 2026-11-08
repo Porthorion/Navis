@@ -221,17 +221,17 @@ static void testResetRule(void) {
     Fake f;
     NavisPitchStage *s = newStage(&f, 700);
     run(s, 0, 20 * 512, 512, -1);
-    check(state(s).resetCount == 1 && f.resets == 0, "the first audio block counts as the stage's reset");
+    check(state(s).resetCount == 0 && f.resets == 0, "a new stage's first block of audio is not a reset");
     // No reset: a long run of blocks (natural item change, range re-base, pause/resume).
     run(s, 20 * 512, 100 * 512, 512, -1);
-    check(state(s).resetCount == 1 && f.resets == 0, "blocks without a reset never reset");
+    check(state(s).resetCount == 0 && f.resets == 0, "blocks without a reset never reset");
     for (long k = 30 * 512; k < 100 * 512; k++) near(outputBuf[0][k], GAIN * inputBuf[0][k - LATENCY], 0, "audio plays on across blocks");
     // A reset drops the delay line: zeros for L frames, then the input shifted by L.
     long r = 100 * 512;
     navis_pitch_stage_note_reset(s);
     navis_pitch_stage_note_reset(s); // latched: two notes before a block are one reset
     run(s, r, r + 12000, 512, -1);
-    check(state(s).resetCount == 2 && f.resets == 1, "one reset, counted once");
+    check(state(s).resetCount == 1 && f.resets == 1, "one reset, counted once");
     for (long k = r; k < r + LATENCY; k++) near(outputBuf[0][k], 0, 0, "wet from the first frame after a reset: silence for L");
     for (long k = r + LATENCY; k < r + 12000; k++) near(outputBuf[0][k], GAIN * inputBuf[0][k - LATENCY], 0, "then the input at k - L");
     // A reset during the user's dry priming is wet from the first frame as well.
@@ -250,7 +250,7 @@ static void testResetRule(void) {
     run(u, 0, 512, 512, -1);
     navis_pitch_stage_note_reset(u);
     run(u, 512, 1024, 512, -1);
-    check(state(u).resetCount == 2 && fu.renders == 0, "a reset at pitch 0 is counted and touches nothing");
+    check(state(u).resetCount == 1 && fu.renders == 0, "a reset at pitch 0 is counted and touches nothing");
     for (long k = 0; k < 1024; k++) check(memcmp(&outputBuf[0][k], &inputBuf[0][k], 4) == 0, "still bit-exact");
     navis_pitch_stage_free(s);
     navis_pitch_stage_free(t);
@@ -320,13 +320,13 @@ static void testStageFollowsEqualizerResetDecision(void) {
     NavisPitchStage *s = newStage(&f, 700);
     struct { bool start; uint32_t generation; int frames; int expectResets; } steps[] = {
         {true, 0, 0, 0},    // StartOfStream on an empty block: latched
-        {false, 0, 512, 1}, // first audio: the stage counts its own start
-        {false, 0, 512, 1}, // steady
-        {false, 0, 0, 1},   // pause: empty blocks
-        {false, 0, 512, 1}, // resume: no reset
-        {false, 1, 0, 1},   // seek: flush noted, empty block
-        {false, 1, 512, 2}, // the first audio after the flush resets
-        {false, 1, 512, 2},
+        {false, 0, 512, 0}, // first audio: an empty history, nothing to reset
+        {false, 0, 512, 0}, // steady
+        {false, 0, 0, 0},   // pause: empty blocks
+        {false, 0, 512, 0}, // resume: no reset
+        {false, 1, 0, 0},   // seek: flush noted, empty block
+        {false, 1, 512, 1}, // the first audio after the flush resets
+        {false, 1, 512, 1},
     };
     long k = 0;
     for (size_t i = 0; i < sizeof steps / sizeof *steps; i++) {

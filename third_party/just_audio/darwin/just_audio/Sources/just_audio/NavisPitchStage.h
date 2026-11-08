@@ -36,7 +36,7 @@ typedef struct {
     int32_t cents;          // requested
     bool active;            // not bypassed (includes priming and the ramps)
     int latencyFrames;
-    uint64_t resetCount;    // each reset, and the stage's first block of audio
+    uint64_t resetCount;    // note_reset events consumed (a new stage starts at 0)
     uint64_t renderErrors;
     float inputHz, outputHz; // zero-crossing estimates over the last second of audio; 0 before one
 } NavisPitchState;

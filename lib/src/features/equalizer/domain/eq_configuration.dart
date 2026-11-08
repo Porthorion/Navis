@@ -426,9 +426,10 @@ class EqApplicationState {
   final List<double>? transitionGapsMs;
 
   /// The native pitch stage (iOS only), for diagnostics: the requested cents,
-  /// whether it is processing, its latency in frames, its resets (each seek,
-  /// skip or stream start; none on a natural song change) and the zero-crossing
-  /// frequency of its input and output over the last second.
+  /// whether it is processing, its latency in frames, its resets (a seek or skip
+  /// the playing stream saw; none on a natural song change, pause or resume)
+  /// and the zero-crossing frequency of its input and output over the last
+  /// second.
   final int? pitchCents;
   final bool? pitchActive;
   final int? pitchLatencyFrames;

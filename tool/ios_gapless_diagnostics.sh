@@ -274,7 +274,10 @@ print("  repeat one: gaps=%s prepares=%s" % (gaps, s["at15"]["tapPrepareCount"])
 # MARK: pitch (I21)
 
 # Fixture songs of this phase (see start_fixture below): 12 s sines at 44.1, 48 and
-# 96 kHz (songs 7 to 9) and a 440 -> 660 Hz pair of 6 s songs at 44.1 kHz (11, 12).
+# 96 kHz (songs 7 to 9), a 6 s filler of the same rate after each (11, 10, 13: the
+# queue API needs two songs, and a neighbour of another rate makes AVFoundation
+# re-prepare the shared tap early) and a 440 -> 660 Hz pair of 6 s songs at
+# 44.1 kHz (11, 12).
 PITCH_ADJUST_RESET='{"speed":1,"lockPitchToSpeed":false,"pitchSemitones":0}'
 
 # adjust <json>: speed/pitch through the same API the settings panel uses.
@@ -290,7 +293,7 @@ def position():
     t = time.monotonic()
     c.request("GET", "/v1/playback/status", headers={"Authorization": "Bearer " + sys.argv[2]})
     v = json.loads(c.getresponse().read())
-    return (t + time.monotonic()) / 2, v["positionMs"] / 1000.0
+    return (t + time.monotonic()) / 2, v["uiPlayback"]["positionStreamMs"] / 1000.0
 t0, p0 = position()
 time.sleep(float(sys.argv[3]))
 t1, p1 = position()
@@ -298,9 +301,9 @@ print("%.4f" % ((p1 - p0) / (t1 - t0)))
 PYTHON
 }
 
-# seek_to_audio_ms <target-ms...>: ms from each seek request until the pitch stage
-# sees the first block of audio after it (its resetCount moves then, whether the seek
-# re-prepared the tap or not), polled every 5 ms.
+# seek_to_audio_ms <target-ms...>: ms from each seek request until audio reaches the
+# tap again, polled every 5 ms: the pitch stage resets (the old stream saw the flush) or
+# the tap was prepared again and then processes frames.
 seek_to_audio_ms() {
   python3 - "$BASE_URL" "$TOKEN" "$@" <<'PYTHON'
 import http.client, json, sys, time, urllib.parse
@@ -310,17 +313,46 @@ def call(method, path, body=None):
     c.request(method, path, body=json.dumps(body) if body is not None else None,
               headers={"Authorization": "Bearer " + sys.argv[2], "Content-Type": "application/json"})
     return json.loads(c.getresponse().read() or b"{}")
-resets = lambda: call("GET", "/v1/equalizer")["application"]["pitchResetCount"]
+state = lambda: call("GET", "/v1/equalizer")["application"]
 times = []
 for target in sys.argv[3:]:
-    before = resets()
+    before = state()
     t0 = time.monotonic()
     call("POST", "/v1/playback/seek", {"positionMs": int(target)})
-    while resets() == before and time.monotonic() - t0 < 5:
+    frames_at_prepare = None
+    while time.monotonic() - t0 < 5:
+        now = state()
+        if now["pitchResetCount"] > before["pitchResetCount"]: break
+        if now["tapPrepareCount"] > before["tapPrepareCount"]:
+            if frames_at_prepare is None: frames_at_prepare = now["processedFrames"]
+            elif now["processedFrames"] > frames_at_prepare: break
         time.sleep(0.005)
     times.append(round((time.monotonic() - t0) * 1000, 1))
     time.sleep(1.2)
 print(json.dumps(times))
+PYTHON
+}
+
+# audio_start_ms <songs-json>: ms from the queue request until the tap has processed
+# audio on the new native player (every queue starts one, so its frames start at 0),
+# polled every 5 ms.
+audio_start_ms() {
+  python3 - "$BASE_URL" "$TOKEN" "$1" <<'PYTHON'
+import http.client, json, sys, time, urllib.parse
+u = urllib.parse.urlparse(sys.argv[1])
+c = http.client.HTTPConnection(u.hostname, u.port, timeout=10)
+def call(method, path, body=None):
+    c.request(method, path, body=body, headers={"Authorization": "Bearer " + sys.argv[2], "Content-Type": "application/json"})
+    return json.loads(c.getresponse().read() or b"{}")
+t0 = time.monotonic()
+call("POST", "/v1/playback/queue", sys.argv[3])
+while time.monotonic() - t0 < 10:
+    try:
+        if call("GET", "/v1/equalizer")["application"]["processedFrames"] > 0: break
+    except KeyError:
+        pass
+    time.sleep(0.005)
+print(round((time.monotonic() - t0) * 1000, 1))
 PYTHON
 }
 
@@ -338,14 +370,23 @@ run_pitch() {
   api POST /v1/playback/pause '{}' >/dev/null || true
   set_eq off
   adjust "$PITCH_ADJUST_RESET"
+  # 0. Queue request to first audio, the first one in this app process (a cold
+  # AudioToolbox) and then warm ones, at pitch 0 and +5.
+  local starts="" st_start
+  for st_start in 0 0 0 5 5; do
+    adjust "{\"pitchSemitones\":$st_start}"
+    starts="$starts +${st_start}st:$(audio_start_ms '{"songIds":["fixture-song-7","fixture-song-11"]}')"
+    sleep 1.5
+  done
+  echo "queue request to first audio (ms), in order:$starts" | tee -a "$SUMMARY"
   # 1. The measured frequency ratio per rate and pitch.
-  for entry in fixture-song-7:44100:4096 fixture-song-8:48000:4096 fixture-song-9:96000:8192; do
-    IFS=: read -r song rate latency <<<"$entry"
+  for entry in fixture-song-7:44100:4096:fixture-song-11 fixture-song-8:48000:4096:fixture-song-10 fixture-song-9:96000:8192:fixture-song-13; do
+    IFS=: read -r song rate latency filler <<<"$entry"
     for st in 0 12 -12 7; do
       local label="pitch-$song-st$st"
       mkdir -p "$OUTPUT_ROOT/$label"
       adjust "{\"pitchSemitones\":$st}"
-      api POST /v1/playback/queue "{\"songIds\":[\"$song\"]}" > "$OUTPUT_ROOT/$label-queue.json"
+      api POST /v1/playback/queue "{\"songIds\":[\"$song\",\"$filler\"]}" > "$OUTPUT_ROOT/$label-queue.json"
       sleep 5
       snap "$OUTPUT_ROOT/$label/at5.json"
       check "$label" "
@@ -394,7 +435,7 @@ print('  gaps=%s prepares=%s resets=%s out %.1f -> %.1f Hz' % (gaps[-2:], s['sec
   local label=pitch-transport
   mkdir -p "$OUTPUT_ROOT/$label"
   adjust '{"pitchSemitones":5}'
-  api POST /v1/playback/queue '{"songIds":["fixture-song-7","fixture-song-8"]}' > "$OUTPUT_ROOT/$label-queue.json"
+  api POST /v1/playback/queue '{"songIds":["fixture-song-7","fixture-song-11"]}' > "$OUTPUT_ROOT/$label-queue.json"
   sleep 5
   snap "$OUTPUT_ROOT/$label/a-playing.json"
   api POST /v1/playback/pause '{}' >/dev/null
@@ -412,17 +453,24 @@ print('  gaps=%s prepares=%s resets=%s out %.1f -> %.1f Hz' % (gaps[-2:], s['sec
   check "$label" "
 $PITCH_RATIO_CHECK
 n = [s[k]['pitchResetCount'] for k in ('a-playing', 'b-paused', 'c-resumed', 'd-seeked', 'e-skipped')]
-want = [0, 0, 1, 1]
 got = [n[i + 1] - n[i] for i in range(4)]
-if got != [0, 0, 1, 1]: fail('pitch resets per step (pause, resume, seek, skip) %s, expected [0, 0, 1, 1] (counts %s)' % (got, n))
+p = [s[k]['tapPrepareCount'] for k in ('a-playing', 'b-paused', 'c-resumed', 'd-seeked', 'e-skipped')]
+prep = [p[i + 1] - p[i] for i in range(4)]
+# The stage resets when the stream it rides on sees the flush with audio; a seek or skip
+# usually re-prepares the tap first (a new stage with an empty buffer: nothing to reset),
+# so each is one reset or one new prepare, as for the equalizer. Pause and resume reset
+# nothing, whether or not AVFoundation re-prepares the tap meanwhile.
+if got[0] != 0 or got[1] != 0: fail('pause or resume reset the pitch: %s (counts %s)' % (got, n))
+for name, i in (('seek', 2), ('skip', 3)):
+    if got[i] > 1 or got[i] + prep[i] < 1: fail('a %s moved pitchResetCount by %d and tapPrepareCount by %d' % (name, got[i], prep[i]))
 ratio('e-skipped', 2 ** (5 / 12.0), 440)
-print('  pitchResetCount %s tapPrepareCount %s' % (n, [s[k]['tapPrepareCount'] for k in sorted(s)]))
+print('  pitchResetCount %s tapPrepareCount %s (steps: pause, resume, seek, skip)' % (n, p))
 "
   # 4. Speed 1.5 x pitch +5: the tap pitches the source, AVPlayer plays it 1.5x faster.
   label=pitch-speed
   mkdir -p "$OUTPUT_ROOT/$label"
   adjust '{"speed":1.5,"pitchSemitones":5}'
-  api POST /v1/playback/queue '{"songIds":["fixture-song-7"]}' > "$OUTPUT_ROOT/$label-queue.json"
+  api POST /v1/playback/queue '{"songIds":["fixture-song-7","fixture-song-11"]}' > "$OUTPUT_ROOT/$label-queue.json"
   sleep 3
   local rate
   rate="$(position_rate 3)"
@@ -437,7 +485,7 @@ if abs($rate - 1.5) > 0.08: fail('currentTime advanced %s x, expected 1.5' % $ra
   label=pitch-lock
   mkdir -p "$OUTPUT_ROOT/$label"
   adjust "$PITCH_ADJUST_RESET"
-  api POST /v1/playback/queue '{"songIds":["fixture-song-8"]}' > "$OUTPUT_ROOT/$label-queue.json"
+  api POST /v1/playback/queue '{"songIds":["fixture-song-8","fixture-song-10"]}' > "$OUTPUT_ROOT/$label-queue.json"
   sleep 3
   snap "$OUTPUT_ROOT/$label/before.json"
   adjust '{"speed":1.25,"lockPitchToSpeed":true}'
@@ -459,7 +507,7 @@ if a['tapPrepareCount'] != s['before']['tapPrepareCount']: fail('the lock prepar
   mkdir -p "$OUTPUT_ROOT/$label"
   adjust "$PITCH_ADJUST_RESET"
   adjust '{"pitchSemitones":5}'
-  api POST /v1/playback/queue '{"songIds":["fixture-song-7"]}' > "$OUTPUT_ROOT/$label-queue.json"
+  api POST /v1/playback/queue '{"songIds":["fixture-song-7","fixture-song-11"]}' > "$OUTPUT_ROOT/$label-queue.json"
   sleep 3
   snap "$OUTPUT_ROOT/$label/a-before.json"
   adjust '{"speed":1.5}'
@@ -494,7 +542,7 @@ if s['on']['pitchResetCount'] != s['off']['pitchResetCount']: fail('the EQ toggl
   # 8. Seek to first audio, pitch 0 against +5 (the AU is created in prepare either way).
   for st in 0 5; do
     adjust "{\"pitchSemitones\":$st}"
-    api POST /v1/playback/queue '{"songIds":["fixture-song-7"]}' >/dev/null
+    api POST /v1/playback/queue '{"songIds":["fixture-song-7","fixture-song-11"]}' >/dev/null
     sleep 4
     local times
     times="$(seek_to_audio_ms 1000 5000 2000 6000 3000 7000 4000 8000)"
@@ -530,11 +578,12 @@ if (s["at-song4"].get("processedFrames") or 0) <= 0: fail("the equalizer process
 }
 
 : > "$SUMMARY"
-start_fixture 'navis-gapless-fixture' --scenario downloads --song-count 12 \
+start_fixture 'navis-gapless-fixture' --scenario downloads --song-count 13 \
   --song-rate fixture-song-5=48000 --song-rate fixture-song-6=96000 \
   --song-tone fixture-song-7=440:44100:12 --song-tone fixture-song-8=440:48000:12 \
-  --song-tone fixture-song-9=440:96000:12 --song-tone fixture-song-11=440:44100:6 \
-  --song-tone fixture-song-12=660:44100:6
+  --song-tone fixture-song-9=440:96000:12 --song-tone fixture-song-10=440:48000:6 \
+  --song-tone fixture-song-11=440:44100:6 --song-tone fixture-song-12=660:44100:6 \
+  --song-tone fixture-song-13=440:96000:6
 sign_in main
 snap "$OUTPUT_ROOT/equalizer-initial.json"
 for phase in $PHASES; do
