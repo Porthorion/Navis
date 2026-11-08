@@ -737,6 +737,10 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   int? hangStopsFrom;
   Completer<void>? seekGate;
   Completer<void>? seekEntered;
+
+  /// A seek with an index out of `completed` first emits `completed` at the
+  /// new index, as ExoPlayer does on Android.
+  bool exoEndedSeek = false;
   bool gateNonEmptyLoadsOnly = false;
   bool bufferAfterLoad = false;
   Completer<void>? loadGate;
@@ -1426,6 +1430,15 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       await gate.future;
     }
     if (state == ProcessingState.loading) return;
+    if (exoEndedSeek && state == ProcessingState.completed && index != null) {
+      // ExoPlayer reports the new window while still STATE_ENDED, then
+      // leaves ENDED (#374; a2-r4b transport trace seq 525 and 529).
+      this.index = index;
+      simulatedPosition = position ?? Duration.zero;
+      _events.add(playbackEvent);
+      _indices.add(index);
+      await Future<void>.delayed(Duration.zero);
+    }
     final ignored = ignoreSeeks || ignoredSeeks > 0;
     if (ignoredSeeks > 0) ignoredSeeks--;
     if (position != null && !ignored) {
@@ -24126,5 +24139,65 @@ void main() {
       expect(handler.bufferState.songId, isNull);
       expect(line(handler), Duration.zero);
     });
+  });
+
+  // #374: Play on a finished queue must restart it at song 0. The fake's
+  // seek flips `completed` to `ready` before it emits, which hides the bug.
+  // On Android (ExoPlayer; a2-r4b transport trace seq 523-532) the seek to
+  // index 0 is first reported as `completed` at index 0, position 0, and only
+  // then as `buffering`.
+  group('Play on a completed queue (#374)', () {
+    for (final androidOrder in [false, true]) {
+      test(
+        androidOrder
+            ? 'restarts at song 0 when the seek is first reported as completed'
+            : 'restarts at song 0 when the seek is reported as ready',
+        () async {
+          final directory = await Directory.systemTemp.createTemp(
+            'navis-i374-',
+          );
+          final (handler, player, database) = await createHandler(
+            directory,
+            2,
+            desktopRuntimeOverride: false,
+          );
+          addTearDown(() async {
+            await handler.disposeHandler();
+            await database.close();
+            await directory.delete(recursive: true);
+          });
+          await handler.replaceQueue(
+            ['song-0', 'song-1'],
+            startIndex: 1,
+            expandMatchFlows: false,
+          );
+          await settleQueue(handler);
+          await handler.play();
+          await pumpEventQueue();
+          player
+            ..isPlaying = true
+            ..state = ProcessingState.ready;
+          player.finishCurrentTrack();
+          await pumpEventQueue();
+          expect(player.state, ProcessingState.completed);
+          expect(player.index, 1);
+          expect(handler.snapshot.currentSongId, 'song-1');
+
+          player.exoEndedSeek = androidOrder;
+          final seeksBefore = player.seekCalls;
+          await handler.play();
+          await Future<void>.delayed(const Duration(milliseconds: 300));
+          await pumpEventQueue();
+
+          expect(handler.snapshot.currentSongId, 'song-0');
+          expect(player.index, 0);
+          expect(
+            player.seekCalls - seeksBefore,
+            1,
+            reason: 'only the restart seek; a second one is the failover',
+          );
+        },
+      );
+    }
   });
 }
