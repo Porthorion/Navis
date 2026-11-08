@@ -9037,7 +9037,9 @@ void main() {
       PlaybackAdjustmentCapabilities? injected,
       EqCapabilities? equalizer = EqCapabilities.available,
     }) async {
-      final directory = await Directory.systemTemp.createTemp('navis-ios-pitch-');
+      final directory = await Directory.systemTemp.createTemp(
+        'navis-ios-pitch-',
+      );
       final (handler, player, database) = await createHandler(
         directory,
         1,
@@ -9061,25 +9063,33 @@ void main() {
       );
     });
 
-    test('iOS without the pipeline, and other platforms, report none', () async {
-      final (off, _) = await iosHandler(equalizer: EqCapabilities.unavailable);
-      expect(off.playbackAdjustmentCapabilities.pitchSupported, isFalse);
-      final (notIos, _) = await iosHandler(ios: false);
-      expect(notIos.playbackAdjustmentCapabilities.pitchSupported, isFalse);
-      final (unset, _) = await iosHandler(ios: null);
-      expect(unset.playbackAdjustmentCapabilities.pitchSupported, isFalse);
-    });
+    test(
+      'iOS without the pipeline, and other platforms, report none',
+      () async {
+        final (off, _) = await iosHandler(
+          equalizer: EqCapabilities.unavailable,
+        );
+        expect(off.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+        final (notIos, _) = await iosHandler(ios: false);
+        expect(notIos.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+        final (unset, _) = await iosHandler(ios: null);
+        expect(unset.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+      },
+    );
 
-    test('locked to speed 1.25 sends pitch 1.25 and a speed change re-sends it', () async {
-      final (handler, player) = await iosHandler();
-      await handler.setPlaybackAdjustments(
-        const PlaybackAdjustments(speed: 1.25, lockPitchToSpeed: true),
-      );
-      expect(player.appliedSpeed, 1.25);
-      expect(player.appliedPitch, 1.25);
-      await handler.setPlaybackSpeed(1.5);
-      expect(player.appliedPitch, 1.5);
-    });
+    test(
+      'locked to speed 1.25 sends pitch 1.25 and a speed change re-sends it',
+      () async {
+        final (handler, player) = await iosHandler();
+        await handler.setPlaybackAdjustments(
+          const PlaybackAdjustments(speed: 1.25, lockPitchToSpeed: true),
+        );
+        expect(player.appliedSpeed, 1.25);
+        expect(player.appliedPitch, 1.25);
+        await handler.setPlaybackSpeed(1.5);
+        expect(player.appliedPitch, 1.5);
+      },
+    );
 
     test('independent +5 semitones sends the pitch factor', () async {
       final (handler, player) = await iosHandler();
@@ -9095,7 +9105,9 @@ void main() {
       final before = player.pitchCalls;
       player.pitchError = PlatformException(code: 'pitch_unavailable');
       await expectLater(
-        handler.setPlaybackAdjustments(const PlaybackAdjustments(pitchSemitones: 2)),
+        handler.setPlaybackAdjustments(
+          const PlaybackAdjustments(pitchSemitones: 2),
+        ),
         throwsA(isA<PlatformException>()),
       );
       // One failing call; the rollback does not ask the player for pitch again.
