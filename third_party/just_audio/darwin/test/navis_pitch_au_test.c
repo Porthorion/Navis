@@ -77,6 +77,7 @@ static void testRatios(void) {
             renderSine(au, r, rate, 440, total, total, maxFrames, out, 0);
             double ratio = crossingsHz(out, total / 2, total, rate) / 440.0;
             near(ratio, pow(2, cents[ci] / 1200.0), pow(2, cents[ci] / 1200.0) * 0.01, "frequency ratio within 1%");
+            check(navis_pitch_au_pull_mismatches(au) == 0, "every input pull matched its block");
             navis_pitch_au_free(au);
         }
         free(out);

@@ -6,6 +6,7 @@
 
 #include <AudioToolbox/AudioToolbox.h>
 #include <math.h>
+#include <stdatomic.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,7 @@ struct NavisPitchAU {
     float *pull;               // channels * maxFrames, for a pull that brings no buffers
     AudioBufferList *output;   // channels buffers, allocated in _new
     uint64_t sampleTime;       // monotonic: a seek restarts the audio, never this clock
+    _Atomic uint64_t mismatches; // input pulls that did not match the block (zero-filled)
 };
 
 // The unit asks for its input once per render, `frames` long. Anything the block
@@ -26,7 +28,14 @@ static OSStatus pullInput(void *ref, AudioUnitRenderActionFlags *flags, const Au
                           UInt32 bus, UInt32 frames, AudioBufferList *io) {
     (void)flags; (void)time; (void)bus;
     NavisPitchAU *au = ref;
-    if (frames > (UInt32)au->maxFrames) return kAudioUnitErr_TooManyFramesToProcess;
+    if (frames > (UInt32)au->maxFrames) {
+        atomic_fetch_add_explicit(&au->mismatches, 1, memory_order_relaxed);
+        return kAudioUnitErr_TooManyFramesToProcess;
+    }
+    // One pull per render, as long as the block: anything else is counted.
+    if (!au->input || (UInt32)au->inputFrames != frames || io->mNumberBuffers != (UInt32)au->channels) {
+        atomic_fetch_add_explicit(&au->mismatches, 1, memory_order_relaxed);
+    }
     for (UInt32 b = 0; b < io->mNumberBuffers; b++) {
         float *dst = io->mBuffers[b].mData;
         if (!dst && b < (UInt32)au->channels) {
@@ -82,6 +91,7 @@ NavisPitchAU *navis_pitch_au_new(double sampleRate, int channels, int maxFrames)
     if (channels < 1 || channels > NAVIS_PITCH_MAX_CHANNELS || maxFrames < 1 || !(sampleRate > 0)) return NULL;
     NavisPitchAU *au = calloc(1, sizeof *au);
     if (!au) return NULL;
+    atomic_init(&au->mismatches, 0);
     au->channels = channels;
     au->maxFrames = maxFrames;
     au->pull = calloc((size_t)channels * (size_t)maxFrames, sizeof(float));
@@ -131,6 +141,10 @@ void navis_pitch_au_free(NavisPitchAU *au) {
     free(au->pull);
     free(au->output);
     free(au);
+}
+
+uint64_t navis_pitch_au_pull_mismatches(const NavisPitchAU *au) {
+    return au ? atomic_load_explicit(&((NavisPitchAU *)au)->mismatches, memory_order_relaxed) : 0;
 }
 
 NavisPitchRenderer navis_pitch_au_renderer(NavisPitchAU *au) {

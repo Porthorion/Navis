@@ -21,6 +21,8 @@ void main() {
       pitchResetCount: 3,
       pitchInputHz: 440,
       pitchOutputHz: 587.5,
+      pitchPullMismatches: 0,
+      pitchReason: 'no pitch',
     );
     final json = state.toDiagnosticsJson();
     expect(json['sampleRate'], 44100);
@@ -38,6 +40,8 @@ void main() {
     expect(json['pitchResetCount'], 3);
     expect(json['pitchInputHz'], 440);
     expect(json['pitchOutputHz'], 587.5);
+    expect(json['pitchPullMismatches'], 0);
+    expect(json['pitchReason'], 'no pitch');
     expect(json['enabled'], state.applied.enabled);
     expect(json['configuration'], state.applied.toJson());
   });
@@ -61,6 +65,8 @@ void main() {
       'pitchResetCount',
       'pitchInputHz',
       'pitchOutputHz',
+      'pitchPullMismatches',
+      'pitchReason',
     ]) {
       expect(json.containsKey(key), isTrue);
       expect(json[key], isNull);

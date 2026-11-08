@@ -40,6 +40,8 @@ void main() {
       'pitchResetCount': 2,
       'pitchInputHz': 440,
       'pitchOutputHz': 587.5,
+      'pitchPullMismatches': 0,
+      'pitchReason': 'Pitch cannot be applied to this audio format.',
     });
     expect(state.pitchCents, 500);
     expect(state.pitchActive, isTrue);
@@ -47,6 +49,8 @@ void main() {
     expect(state.pitchResetCount, 2);
     expect(state.pitchInputHz, 440.0);
     expect(state.pitchOutputHz, 587.5);
+    expect(state.pitchPullMismatches, 0);
+    expect(state.pitchReason, 'Pitch cannot be applied to this audio format.');
   });
 
   test('fromMap leaves the counters null for backends without them', () {
@@ -63,6 +67,8 @@ void main() {
     expect(state.pitchResetCount, isNull);
     expect(state.pitchInputHz, isNull);
     expect(state.pitchOutputHz, isNull);
+    expect(state.pitchPullMismatches, isNull);
+    expect(state.pitchReason, isNull);
   });
 
   test('fromMap accepts integral levelDeltaDb and 64-bit frame counts', () {

@@ -389,6 +389,8 @@ class EqApplicationState {
     this.pitchResetCount,
     this.pitchInputHz,
     this.pitchOutputHz,
+    this.pitchPullMismatches,
+    this.pitchReason,
   });
 
   final EqConfiguration desired;
@@ -437,6 +439,11 @@ class EqApplicationState {
   final double? pitchInputHz;
   final double? pitchOutputHz;
 
+  /// Pitch-unit input pulls that did not match the block (expected 0) and why
+  /// the tap cannot pitch its audio (iOS only).
+  final int? pitchPullMismatches;
+  final String? pitchReason;
+
   /// The `application` object of the diagnostics API's `/v1/equalizer`.
   Map<String, Object?> toDiagnosticsJson() => {
     'configuration': applied.toJson(),
@@ -458,5 +465,7 @@ class EqApplicationState {
     'pitchResetCount': pitchResetCount,
     'pitchInputHz': pitchInputHz,
     'pitchOutputHz': pitchOutputHz,
+    'pitchPullMismatches': pitchPullMismatches,
+    'pitchReason': pitchReason,
   };
 }

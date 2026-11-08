@@ -459,9 +459,9 @@ p = [s[k]['tapPrepareCount'] for k in ('a-playing', 'b-paused', 'c-resumed', 'd-
 prep = [p[i + 1] - p[i] for i in range(4)]
 # The stage resets when the stream it rides on sees the flush with audio; a seek or skip
 # usually re-prepares the tap first (a new stage with an empty buffer: nothing to reset),
-# so each is one reset or one new prepare, as for the equalizer. Pause and resume reset
-# nothing, whether or not AVFoundation re-prepares the tap meanwhile.
-if got[0] != 0 or got[1] != 0: fail('pause or resume reset the pitch: %s (counts %s)' % (got, n))
+# so each is one reset or one new prepare, as for the equalizer. Pause and resume
+# change neither count: no pitch reset and no new prepare.
+if got[0] != 0 or got[1] != 0 or prep[0] != 0 or prep[1] != 0: fail('pause or resume moved pitchResetCount %s or tapPrepareCount %s (counts %s, prepares %s)' % (got[:2], prep[:2], n, p))
 for name, i in (('seek', 2), ('skip', 3)):
     if got[i] > 1 or got[i] + prep[i] < 1: fail('a %s moved pitchResetCount by %d and tapPrepareCount by %d' % (name, got[i], prep[i]))
 ratio('e-skipped', 2 ** (5 / 12.0), 440)
@@ -553,6 +553,45 @@ if s['on']['pitchResetCount'] != s['off']['pitchResetCount']: fail('the EQ toggl
   api POST /v1/playback/pause '{}' >/dev/null || true
 }
 
+# Pitch with crossfade on (I21): both decks get the pitch factor, each deck that plays
+# reports it in the tap, and the deck that played pitched is not left active after the
+# pitch is cleared. Runs inside run_crossfade, whose app has crossfade on.
+run_crossfade_pitch() {
+  mkdir -p "$OUTPUT_ROOT/crossfade-pitch" "$OUTPUT_ROOT/crossfade-pitch-status"
+  adjust '{"pitchSemitones":5}'
+  api POST /v1/playback/queue "{\"songIds\":$GAPLESS_SONGS}" > "$OUTPUT_ROOT/crossfade-pitch-queue.json"
+  for n in 2 3; do
+    wait_for /v1/playback/status "v.get(\"songId\") == \"fixture-song-$n\" and v.get(\"playing\")" "$OUTPUT_ROOT/crossfade-pitch-status/song$n.json" 30
+    sleep 1.5
+    snap "$OUTPUT_ROOT/crossfade-pitch/song$n.json"
+    api GET /v1/playback/status > "$OUTPUT_ROOT/crossfade-pitch-status/song$n-settled.json"
+  done
+  adjust "$PITCH_ADJUST_RESET"
+  wait_for /v1/playback/status 'v.get("songId") == "fixture-song-4" and v.get("playing")' "$OUTPUT_ROOT/crossfade-pitch-status/song4.json" 30
+  sleep 2.5
+  snap "$OUTPUT_ROOT/crossfade-pitch/song4-cleared.json"
+  api GET /v1/playback/status > "$OUTPUT_ROOT/crossfade-pitch-status/song4-settled.json"
+  python3 - "$OUTPUT_ROOT/crossfade-pitch-status" <<'PYTHON' || fail "crossfade pitch: the decks did not both take the pitch"
+import json, math, sys
+d = sys.argv[1]
+want = 2 ** (5 / 12)
+for name, pitched in (("song2-settled", True), ("song3-settled", True), ("song4-settled", False)):
+    v = json.load(open("%s/%s.json" % (d, name)))
+    expected = want if pitched else 1.0
+    for key in ("playerPitchFactor", "crossfadePitchFactor"):
+        if abs(v[key] - expected) > 1e-6: raise SystemExit("%s: %s = %s, expected %s" % (name, key, v[key], expected))
+print("  crossfade: both decks' pitch factors follow the setting")
+PYTHON
+  check crossfade-pitch '
+for k in ("song2", "song3"):
+    a = s[k]
+    if a["pitchCents"] != 500 or not a["pitchActive"]: fail("%s: the playing deck reports cents %s active %s" % (k, a["pitchCents"], a["pitchActive"]))
+a = s["song4-cleared"]
+if a["pitchCents"] != 0 or a["pitchActive"]: fail("after clearing the pitch the deck reports cents %s active %s" % (a["pitchCents"], a["pitchActive"]))
+print("  crossfade pitch: song 2 %s/%s, song 3 %s/%s, cleared %s/%s (cents/active)" % (s["song2"]["pitchCents"], s["song2"]["pitchActive"], s["song3"]["pitchCents"], s["song3"]["pitchActive"], a["pitchCents"], a["pitchActive"]))
+'
+}
+
 run_crossfade() {
   stop_app
   command -v sqlite3 >/dev/null || fail "sqlite3 is required for the crossfade phase"
@@ -576,6 +615,7 @@ PYTHON
 if not s["at-song4"]["enabled"]: fail("the equalizer is not applied during crossfade playback")
 if (s["at-song4"].get("processedFrames") or 0) <= 0: fail("the equalizer processed no audio during crossfade playback")
 '
+  run_crossfade_pitch
 }
 
 : > "$SUMMARY"

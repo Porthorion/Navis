@@ -10,6 +10,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "NavisEqualizerDsp.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,9 +20,10 @@ extern "C" {
 /// AUNewTimePitch range: +-2 octaves.
 #define NAVIS_PITCH_MAX_CENTS 2400
 
-/// The pitch shifter behind the stage. All callbacks run on the audio thread
-/// (render, reset, set_cents) except none: the stage never calls them
-/// elsewhere. `in` is the stage's own scratch copy of the block.
+/// The pitch shifter behind the stage. The stage calls render, reset and
+/// set_cents from process, and from navis_pitch_stage_new (set_cents for a
+/// stage created at non-zero cents, at prepare time), never from anywhere else.
+/// `in` is the stage's own scratch copy of the block.
 typedef struct {
     void *user;
     /// Writes `frames` frames to `out` for the `frames` frames of `in`; 0 on success.
@@ -62,6 +65,17 @@ void navis_pitch_stage_note_reset(NavisPitchStage *stage);
 void navis_pitch_stage_process(NavisPitchStage *stage, float *const *channels, int channelCount, int frames);
 /// Any thread.
 void navis_pitch_stage_state(NavisPitchStage *stage, NavisPitchState *out);
+
+/// The tap's reset glue, called once per block before its layout early-returns:
+/// the equalizer stream decides (StartOfStream latched, or a new flush
+/// generation) and the pitch stage, when there is one, is told exactly that
+/// decision. Returns it.
+static inline bool navis_pitch_stage_begin_block(NavisPitchStage *pitch, NavisEqStream *eq, bool startOfStream,
+                                                 uint32_t flushGeneration, int frames) {
+    bool reset = navis_eq_stream_begin_block(eq, startOfStream, flushGeneration, frames);
+    if (pitch && reset) navis_pitch_stage_note_reset(pitch);
+    return reset;
+}
 
 #ifdef __cplusplus
 }

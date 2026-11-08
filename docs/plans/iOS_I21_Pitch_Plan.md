@@ -389,7 +389,15 @@ Device-only checks go to I5 (borrowed iPhone, with notice):
   pause behaves like a pause (no reset). A route change that re-prepares the
   tap creates a fresh AU at the new format.
 - **Sample-rate change between items:** the shared tap re-prepares (the
-  accepted I23 cost), creating a new AU at the item's rate; one reset.
+  accepted I23 cost), creating a new AU and a fresh stage at the item's rate.
+  A fresh stage starts empty (wet from its first frame at non-zero cents), so
+  `pitchResetCount` stays at 0: it counts only the resets of a stream that is
+  playing (see "As built"). **Known I23 problem, tracked as I25:** in a queue that
+  mixes sample rates the tap re-prepares at the next item's rate while the current
+  item still plays, so the declared tap rate and the audio can disagree (the
+  harness' `pitchInputHz` reads 404 Hz for a 440 Hz sine, 440 x 44100/48000).
+  I21 does not try to fix it and its mixed-rate harness expectations stay as they
+  are.
 - **Non-float or interleaved formats:** pitch off for that item, with a
   `reason`, the same as the EQ.
 - **Pitch at the range edges (±2400):** clamp natively as well as in Dart.
@@ -421,3 +429,20 @@ Medium–large, one PR:
 
 About one Sonnet build session, then two review rounds and one simulator
 runtime pass.
+
+## As built (2026-11-08)
+
+- `pitchResetCount` counts only `note_reset` events, i.e. what
+  `navis_eq_stream_begin_block` decided, like the EQ's `resetCount`. A seek or
+  skip moves it by 0 or 1: AVFoundation usually re-prepares the tap first, and
+  the new stage has nothing to reset. The runtime table's "+1 per seek or skip"
+  is therefore checked as "`pitchResetCount` delta + `tapPrepareCount` delta >= 1";
+  pause, resume and a natural item change move neither.
+- The AU and the stage are built in `tapPrepare` before `c->lock` is taken
+  (creating an AudioUnit can be slow and the main thread reads the state under the
+  lock) and published under it. One throwaway AU is created and freed on a
+  utility queue when the first `NavisEqualizer` is made, only to load the
+  component before the first prepare; it is never attached to a tap.
+- `pitchPullMismatches` (input pulls of the unit that did not match the block,
+  zero-filled; expected 0) and `pitchReason` are in the state and in
+  `/v1/equalizer`.

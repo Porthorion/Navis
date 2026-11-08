@@ -1156,6 +1156,8 @@ extension _NavisMediaSession on NavisAudioHandler {
         pitchResetCount: native.pitchResetCount,
         pitchInputHz: native.pitchInputHz,
         pitchOutputHz: native.pitchOutputHz,
+        pitchPullMismatches: native.pitchPullMismatches,
+        pitchReason: native.pitchReason,
       ),
     );
   }

@@ -309,8 +309,8 @@ static void testHzMeters(void) {
     }
 }
 
-// What tapProcess does: the value navis_eq_stream_begin_block returns is what
-// the pitch stage is told. The EQ stream and the pitch stage see the same blocks.
+// The EQ stream and the pitch stage see the same blocks through the one helper
+// tapProcess uses.
 static void testStageFollowsEqualizerResetDecision(void) {
     NavisEqConfig cfg;
     memset(&cfg, 0, sizeof cfg);
@@ -330,8 +330,8 @@ static void testStageFollowsEqualizerResetDecision(void) {
     };
     long k = 0;
     for (size_t i = 0; i < sizeof steps / sizeof *steps; i++) {
-        bool reset = navis_eq_stream_begin_block(eq, steps[i].start, steps[i].generation, steps[i].frames);
-        if (reset) navis_pitch_stage_note_reset(s);
+        // The helper tapProcess calls: the EQ stream decides, the stage is told.
+        navis_pitch_stage_begin_block(s, eq, steps[i].start, steps[i].generation, steps[i].frames);
         if (steps[i].frames > 0) {
             run(s, k, k + steps[i].frames, steps[i].frames, -1);
             k += steps[i].frames;
@@ -340,6 +340,72 @@ static void testStageFollowsEqualizerResetDecision(void) {
     }
     navis_pitch_stage_free(s);
     navis_eq_stream_free(eq);
+}
+
+// MARK: transitions the other tests step over
+
+// A user switch on that is cancelled while the renderer is still filling: nothing wet
+// was heard, so the stage drops straight back to a bit-exact bypass.
+static void testPrimeCancelledGoesStraightToBypass(void) {
+    Fake f;
+    NavisPitchStage *s = newStage(&f, 0);
+    run(s, 0, 1024, 512, -1);
+    navis_pitch_stage_request(s, 700);
+    run(s, 1024, 2048, 512, -1); // priming: dry
+    check(state(s).active, "priming is active");
+    navis_pitch_stage_request(s, 0);
+    run(s, 2048, 2048 + 3 * LATENCY, 512, -1);
+    for (long k = 2048; k < 2048 + 3 * LATENCY; k++) check(memcmp(&outputBuf[0][k], &inputBuf[0][k], 4) == 0, "cancelled priming never turns wet");
+    check(!state(s).active, "and the stage is inactive");
+    check(f.renders == 2, "and stops feeding the renderer at once (only the two primed blocks)");
+    navis_pitch_stage_free(s);
+}
+
+// A switch off that is reversed during its ramp goes back up from where it is: no
+// bypass, no reset, no jump.
+static void testRampOutReversedGoesBackUp(void) {
+    Fake f;
+    NavisPitchStage *s = newStage(&f, 700);
+    run(s, 0, 20 * 512, 512, -1);
+    navis_pitch_stage_request(s, 0);
+    run(s, 20 * 512, 20 * 512 + 512, 512, -1); // 512 of the 960 ramp frames
+    navis_pitch_stage_request(s, 700);
+    long k = 21 * 512;
+    run(s, k, k + 4096, 512, -1);
+    check(f.resets == 0, "reversing the ramp does not reset the renderer");
+    for (long i = k + 2 * FADE; i < k + 4096; i++) near(outputBuf[0][i], GAIN * inputBuf[0][i - LATENCY], 0, "wet again after the reversed ramp");
+    for (long i = k; i < k + 2 * FADE; i++) {
+        float dry = inputBuf[0][i], wet = GAIN * inputBuf[0][i - LATENCY];
+        check(outputBuf[0][i] >= fminf(dry, wet) - 1e-6f && outputBuf[0][i] <= fmaxf(dry, wet) + 1e-6f, "the reversed ramp stays between dry and wet");
+    }
+    check(state(s).active, "active again");
+    navis_pitch_stage_free(s);
+}
+
+// A renderer that fails for a block leaves that block exactly as it came in.
+static void testRenderFailurePlaysTheBlockDry(void) {
+    Fake f;
+    NavisPitchStage *s = newStage(&f, 700);
+    f.failRenders = 1;
+    run(s, 0, 512, 512, -1);
+    for (long k = 0; k < 512; k++)
+        for (int c = 0; c < 2; c++) check(memcmp(&outputBuf[c][k], &inputBuf[c][k], 4) == 0, "a failed render plays the dry block");
+    navis_pitch_stage_free(s);
+}
+
+// The state's `active` follows every transition, including the first block of a user switch on.
+static void testActiveFollowsTheModeAfterEveryBlock(void) {
+    Fake f;
+    NavisPitchStage *s = newStage(&f, 0);
+    run(s, 0, 512, 512, -1);
+    check(!state(s).active, "inactive at pitch 0");
+    navis_pitch_stage_request(s, 700);
+    run(s, 512, 1024, 512, -1);
+    check(state(s).active, "active after the first block of a user switch on");
+    navis_pitch_stage_request(s, 0);
+    run(s, 1024, 1024 + 2 * LATENCY, 512, -1); // cancelled priming
+    check(!state(s).active, "inactive after the cancel");
+    navis_pitch_stage_free(s);
 }
 
 int main(void) {
@@ -353,6 +419,10 @@ int main(void) {
     testRenderFailureAndLayout();
     testHzMeters();
     testStageFollowsEqualizerResetDecision();
+    testPrimeCancelledGoesStraightToBypass();
+    testRampOutReversedGoesBackUp();
+    testRenderFailurePlaysTheBlockDry();
+    testActiveFollowsTheModeAfterEveryBlock();
     puts("Navis Darwin pitch stage: bypass, wet-from-reset, ramps, frame parity, reset rule, tail and meters passed.");
     return 0;
 }

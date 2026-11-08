@@ -25,7 +25,8 @@ struct NavisPitchStage {
     int channels, maxFrames, fadeFrames, meterWindow;
     float *dry, *wet; // channels * maxFrames each, allocated in _new
     _Atomic int32_t requested;
-    // Audio thread only.
+    // Audio thread only once the stage is published (_new sets the starting
+    // values before that).
     Mode mode;
     int32_t applied; // cents the renderer was last given
     float wetGain;   // 0 dry ... 1 wet

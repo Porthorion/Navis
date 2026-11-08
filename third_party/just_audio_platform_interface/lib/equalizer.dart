@@ -75,6 +75,8 @@ class EqualizerStateMessage {
     this.pitchResetCount,
     this.pitchInputHz,
     this.pitchOutputHz,
+    this.pitchPullMismatches,
+    this.pitchReason,
   });
 
   final bool enabled;
@@ -125,6 +127,11 @@ class EqualizerStateMessage {
   final double? pitchInputHz;
   final double? pitchOutputHz;
 
+  /// Input pulls of the pitch unit whose size differed from the block (zero
+  /// filled; expected 0) and why the tap cannot pitch its audio, if it cannot.
+  final int? pitchPullMismatches;
+  final String? pitchReason;
+
   static EqualizerStateMessage fromMap(Map<dynamic, dynamic> map) =>
       EqualizerStateMessage(
         enabled: map['enabled'] as bool,
@@ -150,6 +157,8 @@ class EqualizerStateMessage {
         pitchResetCount: (map['pitchResetCount'] as num?)?.toInt(),
         pitchInputHz: (map['pitchInputHz'] as num?)?.toDouble(),
         pitchOutputHz: (map['pitchOutputHz'] as num?)?.toDouble(),
+        pitchPullMismatches: (map['pitchPullMismatches'] as num?)?.toInt(),
+        pitchReason: map['pitchReason'] as String?,
       );
 }
 
