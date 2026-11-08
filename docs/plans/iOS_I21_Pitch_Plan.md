@@ -1,9 +1,47 @@
-# iOS I10: independent pitch (build plan)
+# iOS I21: independent pitch (build plan)
 
-Ledger row: I10 in [iOS_Parity_Plan.md](iOS_Parity_Plan.md). Risky (playback,
+Ledger row: I21 (planned as I10, renumbered) in [iOS_Parity_Plan.md](iOS_Parity_Plan.md). Risky (playback,
 native, realtime): Sonnet builds from this plan test-first, then a fresh Sonnet
 `high` review and a fresh Opus review before merge. Opus plan, 2026-11-08, on
-dev `77e7098c`.
+dev `77e7098c`; **updated 2026-11-08 to the merged I23 design (dev
+`3a1890bf`)**: one shared tap per player, the host flush counter as the reset
+trigger, and a re-prepare at every seek/skip. Where this plan and the code
+disagree, the code at `3a1890bf` wins; line numbers below are from before I23,
+so find the functions by name.
+
+## I23 changes to this plan (read first)
+
+- **One shared tap per player** (`NavisEqualizer.m`): one `NavisTapContext`
+  per equalizer, the same `MTAudioProcessingTapRef` on every queued item
+  (`attachEqualizerToQueue`). There is no per-item tap or `_taps` list. So the
+  pitch state lives once in that context, the AU is continuous across a natural
+  item change (no prepare, no flush, no reset there) and the heard audio simply
+  lags by one AU latency while the pitch is not 0. No silent start per item.
+- **Reset trigger = the EQ's trigger.** `navis_eq_stream_begin_block` already
+  decides "drop history" from StartOfStream (latched until a block with audio)
+  or a changed `flushGeneration` (`noteFlush`, bumped at the top of
+  `seek:index:` and in `load:`). The pitch stage resets on exactly the same
+  decision; it takes it as a `bool reset` input. The old rule ("a
+  zero-duration flush at a new start, or a range jump, means seek") is
+  **dropped**: with a shared tap the source range re-bases mid-song whenever an
+  item is inserted, with no audio jump (I23 plan, `sharetapinsert`), so a
+  range rule would reset spuriously. Pause/resume bumps no flush, so the AU's
+  buffered audio plays on.
+- **Every seek/skip re-prepares the tap** (I23 measurement), so the AU is
+  created fresh at prepare anyway; the flush counter covers a seek that does
+  not re-prepare. Prepare now also instantiates and initializes an
+  `AUNewTimePitch`: measure seek-to-audio time against the I23 baseline (see
+  Runtime evidence). A sample-rate change between items already re-prepares
+  (0.43 s, accepted in I23) and gets a new AU at the new rate.
+- **Never touch a queued item's `audioMix` or other chain-rebuilding property
+  after insert** (I23 finding 2: a late mix tears the chain down, ~0.5 s
+  stall). The pitch algorithm is set on the item **before** it is inserted
+  (`UriAudioSource`); lock-to-speed switching on already-queued items is a
+  user action and its cost is measured, not assumed.
+- **Gap meter:** `transitionGapsMs` in `getEqualizerState` (diagnostics builds
+  only, `map[@"diagnostics"]`) measures the silence between songs on the
+  player clock; use it for the gapless criteria. It cannot see the AU's own
+  latency, which is constant across items with the shared tap.
 
 ## Decision
 
@@ -33,21 +71,24 @@ Drain needs no code:
 
 While the pitch is not 0, the remaining artefacts are:
 
-- each item starts with one AU latency of silence (4096 frames at 44.1/48 kHz,
-  8192 at 96 kHz; about 85–93 ms);
+- after each reset (start, seek, skip, load, sample-rate change) the stage
+  plays dry for one AU latency (4096 frames at 44.1/48 kHz, 8192 at 96 kHz;
+  about 85–93 ms) and then crossfades to wet, so the start repeats one latency
+  of audio rather than going silent;
 - the heard audio lags `currentTime` by the same amount;
-- the tail plays only if AVPlayer renders its post-end blocks, which is a
-  device check.
+- with the shared tap a natural item change is not a reset: the AU carries
+  over, so there is no silence between songs; only the queue's final tail
+  depends on AVPlayer rendering its post-end blocks (device check).
 
 ### Tap requirement
 
-The pitch rides on the I9 tap. Since I9 the tap exists on iOS whenever the EQ
+The pitch rides on the shared I23 tap. The tap exists on iOS whenever the EQ
 pipeline is on, and on iOS it is always on: `navisEqualizerSupported(ios:
 true)`, and `equalizerConfiguration` is sent for every player. The user's EQ
 toggle only bypasses the DSP; it never removes the tap. So pitch works with the
 EQ switched off, with no new attach path. Do not add "attach a tap only when
-pitch is not 0": the probe shows each tap costs gapless (see "I9 finding"
-below), and the pipeline is never off on iOS.
+pitch is not 0": setting a mix on a queued item rebuilds the chain (I23), and
+the pipeline is never off on iOS.
 
 ### Processing order
 
@@ -82,25 +123,11 @@ duration):
 2.0748 0.569660 0.09288   audio resumes at the target + 3072 frames
 ```
 
-### I9 finding (outside I10, for the coordinator)
+### I9 finding (resolved)
 
-With the just_audio/Navis default `automaticallyWaitsToMinimizeStalling =
-YES`, two plain 2 s WAVs in an `AVQueuePlayer` measure as follows:
-
-| Taps | Gap between items |
-|---|---|
-| none | −0.001 s (gapless) |
-| plain tap on each item | 0.439 s |
-| tap with the AU on each item | 0.445 s |
-
-Item 2's process calls start only after item 1 unprepares. A `PostEffects` tap
-gives 0.25 s; a tap on item 1 only gives 0.08 s (logs `queue_*wait_a44s`,
-`queue_post_a44s`, `queue_passfirst_a44s`).
-
-So gapless playback on iOS has likely been broken since I9 (#335). This is
-simulator timing only: confirm it in Navis on the simulator, then on a device
-(I5). It needs its own item. Bypass adds nothing to this gap, which is one more
-reason to keep the AU off at pitch 0.
+The probe's per-item-tap gap (0.44 s) was confirmed in Navis and fixed by I23
+(shared tap, ~0 ms). Its seek trace above still describes the source ranges,
+but the reset decision no longer reads them (see "I23 changes").
 
 ## Native changes
 
@@ -121,8 +148,8 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
    NavisPitchStage *navis_pitch_stage_new(const NavisPitchRenderer *r, int channels, int maxFrames, double sampleRate); // prepare only
    void navis_pitch_stage_free(NavisPitchStage *);                                                          // unprepare only
    void navis_pitch_stage_request(NavisPitchStage *, float cents);                                          // any thread, atomic store
-   void navis_pitch_stage_source_block(NavisPitchStage *, double startSeconds, double durationSeconds);     // every callback
-   void navis_pitch_stage_process(NavisPitchStage *, float *const *channels, int channelCount, int frames); // audio thread, in place
+   void navis_pitch_stage_process(NavisPitchStage *, float *const *channels, int channelCount, int frames,
+                                  bool reset);                                                              // audio thread, in place; audio blocks only
    void navis_pitch_stage_state(NavisPitchStage *, NavisPitchState *out); // cents applied, active, latencyFrames, resets, Hz in/out
    ```
 
@@ -140,17 +167,14 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
      latency of audio.
    - **Not 0 → not 0:** call `set_cents` on the audio thread before the next
      render, with no reset.
-   - **Discontinuities**, using `NAVIS_EQ_CONTINUITY_TOLERANCE` (2.5 ms, today private to `NavisEqualizerDsp.c:302`; move it to the header and share it):
-     - keep `expectedStart`, the end of the last audio block;
-     - keep `lastFlushStart`, the start of the last zero-duration block before
-       audio resumes;
-     - at the next audio block, a flush whose last start differs from
-       `expectedStart` is a **seek**: reset;
-     - a flush at `expectedStart` is **pause/resume**: no reset, so the AU's
-       buffered pre-pause audio plays on;
-     - an audio-block jump with no flush is a **discontinuity**: reset;
-     - StartOfStream: reset.
-     - Zero-duration blocks are never rendered; they pass through as today.
+   - **Reset** when `reset` is true: `reset` and drop the AU's buffer, then
+     start again as 0 → not 0 (dry for one latency, then the ramp) if the
+     cents are not 0. `reset` is the return value of the existing
+     `navis_eq_stream_begin_block` (StartOfStream latched, or a new host flush
+     generation), computed once per block in `tapProcess`; the stage keeps no
+     source-time state of its own. A source range re-base never resets.
+   - Process is called only for blocks with audio (`audioFrames > 0`);
+     zero-duration blocks pass through untouched, as today.
    - The dry copy goes into scratch allocated in `_new` at `maxFrames` per
      channel. The renderer reads its input from that scratch.
 
@@ -168,33 +192,40 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
      seek.
    - Used by both the app and the Darwin test.
 
-3. **`NavisEqualizer.m`.** `NavisTapContext` gains `_Atomic float pitchCents`,
+3. **`NavisEqualizer.m`** (one context per player since I23). `NavisTapContext` gains `_Atomic float pitchCents`,
    `NavisPitchStage *pitch` and `void *pitchAU`.
    - **`tapPrepare` (:58):** create the AU and the stage whenever the format is
      planar float, even at 0 cents, so that turning pitch on later never
      allocates. Store both atomically, like `stream`.
    - **`tapUnprepare` (:88):** take both, snapshot the state, then free them.
-   - **`tapProcess` (:106–143):** after the single `GetSourceAudio` and the
-     buffer checks, call `navis_pitch_stage_source_block` and
-     `navis_pitch_stage_process`, then the existing EQ calls, unchanged.
-   - **New `setPitchCents:`:** store the cents in `_pitchCents` (new taps start
-     with it via `contextNew`), then loop over `_taps` and call
-     `navis_pitch_stage_request` (or store into `c->pitchCents` while the tap
-     is not prepared), the same pattern as `setConfiguration:` (:238).
+   - **`tapProcess`:** keep the `bool` returned by
+     `navis_eq_stream_begin_block`; after the buffer checks, when
+     `audioFrames > 0` call `navis_pitch_stage_process(pitch, channels, count,
+     frames, reset)`, then the existing EQ process call, unchanged. The pitch
+     stage needs the same planar-float layout as the EQ; when the EQ stream is
+     NULL (unsupported format) the pitch is off too, with the same reason.
+   - **New `setPitchCents:`:** store the cents in the one context's
+     `pitchCents` atomic; prepare seeds a new stage from it, and a prepared
+     stage gets `navis_pitch_stage_request` (the same pattern as
+     `setConfiguration:`). No per-tap loop exists any more.
    - **`state` (:316):** adds `pitchCents`, `pitchActive`,
      `pitchLatencyFrames`, `pitchResetCount` (the stage's own resets; the EQ
      `resetCount` also counts every resume), `pitchInputHz` and
      `pitchOutputHz`. The last two are
      zero-crossing estimates over a rolling window, computed on the audio
-     thread with integer counters only and read under the existing lock. They
-     come from the current item's context.
+     thread with integer counters only and read under the existing lock, from
+     the player's one context; `pitchResetCount` survives unprepare through
+     the snapshot, like `retiredResets`.
 4. **`AudioPlayer.m`:**
    - Add a `setPitch` branch next to `setSpeed` (:157).
    - `- (void)setPitch:(float)pitch lockToSpeed:(BOOL)lock`:
      - **locked:** `_pitchLocked = YES`, set
        `AVAudioTimePitchAlgorithmVarispeed` on every item in `_player.items`
        (current, next and the crossfade deck's own player), and send 0 cents
-       to the equalizer;
+       to the equalizer. Changing the algorithm on a queued item may rebuild
+       the chain like a late `audioMix` (I23 finding 2): measure it once on
+       the simulator (current item stall, `tapPrepareCount`); it is
+       acceptable for a user toggle, never for routine queue work;
      - **unlocked:** `TimeDomain` and `1200·log2(pitch)` cents.
      - Without `_equalizer`, pitch 1 unlocked is a no-op success. Anything else
        returns `FlutterError` code `pitch_unavailable`.
@@ -264,9 +295,14 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
    - 0 → not 0: dry until L frames have been fed, then a 20 ms ramp, with no
      sample above the input's peak and no NaN.
    - Not 0 → 0: the ramp, then bit-exact.
-   - Seek rule: a flush at a new start resets, a flush at the expected start
-     does not. Use the trace above as fixture data.
-   - An audio jump without a flush resets; StartOfStream resets.
+   - Reset input: `reset = true` drops the delay line and restarts the
+     dry-then-ramp sequence; a long run of `reset = false` blocks (a natural
+     item change, a range re-base, pause/resume) never resets, and
+     `pitchResetCount` counts only the `true` blocks.
+   - The EQ side: `navis_eq_stream_begin_block` already has tests for
+     StartOfStream latching and the flush generation; add one that the value
+     it returns is what `tapProcess` passes on (a C-level helper both use, if
+     that is the smallest seam).
    - The tail: L post-end zero blocks bring out the delayed input exactly.
    - Alignment: after a reset, output frame k equals input frame k − L.
 2. **AU test.** File `third_party/just_audio/darwin/test/navis_pitch_au_test.c`,
@@ -312,12 +348,14 @@ Read `/v1/equalizer` (`pitchCents`, `pitchActive`, `pitchLatencyFrames`,
 | +12 st / −12 st / +7 st | output/input Hz = 2 / 0.5 / 1.498, within 1%; latency 4096 (44.1/48 kHz) or 8192 (96 kHz) |
 | local file, proxied stream, permanent download | same as above, `sourceKind` noted |
 | crossfade on | both decks report the pitch; no stuck `pitchActive` on the idle deck |
-| two-tone gapless at pitch 0 and at +5 st | the item change happens; the `currentTime` gap equals the pitch-0 baseline (the I9 gap); `pitchLatencyFrames` matches the rate. `currentTime` cannot see the AU's silent start, so the heard gap (baseline + one latency) and the tail are I5 device checks |
+| two-tone gapless at pitch 0 and at +5 st, proxied and downloaded | `transitionGapsMs` ~0 ms in both (the I23 result), `tapPrepareCount` and `pitchResetCount` unchanged across the natural item change, `pitchOutputHz` follows 440 → 660 × 2^(5/12) |
+| seek-to-audio time, pitch 0 and +5 st | within 20 ms of the I23 baseline (AU created in prepare); if worse, report the numbers, do not work around it |
 | speed 1.5 × pitch +5 st | output Hz ratio 1.335 in the tap; `currentTime` advances 1.5× |
 | lock to speed 1.25 | algorithm Varispeed, `pitchActive` false, `currentTime` advances 1.25× |
 | speed changed at runtime while pitch is set | pitch unchanged, no reset counted |
 | EQ toggled while pitch is set | pitch unchanged; EQ `levelDeltaDb` follows the toggle |
-| seek and pause/resume at pitch +5 st | `pitchResetCount` +1 per seek, +0 per pause/resume |
+| seek, skip, pause/resume at pitch +5 st | `pitchResetCount` +1 per seek or skip, +0 per pause/resume and per natural item change |
+| lock-to-speed toggled while playing | the measured stall and `tapPrepareCount` change, recorded |
 
 Device-only checks go to I5 (borrowed iPhone, with notice):
 
@@ -330,13 +368,16 @@ Device-only checks go to I5 (borrowed iPhone, with notice):
 
 ## Edge cases
 
-- **Seek:** the reset rule above. The AU buffer is never carried across a seek.
-- **Crossfade:** two players, each with its own equalizer and taps.
+- **Seek/skip/load:** the flush counter (and the re-prepare) resets; the AU
+  buffer is never carried across a seek.
+- **Natural item change:** no reset; the AU's buffered audio of song n plays
+  into song n+1, which is what gapless means here.
+- **Crossfade:** two players, each with its own equalizer and shared tap.
   `_applyToStableDecks` already sends `setPitch` to both. Each new tap takes
   `_pitchCents` from its equalizer.
-- **Next-item taps:** taps attach to the queue head (`attachEqualizerToQueueHead`,
-  `AudioPlayer.m:235`). A tap created after `setPitch` starts with the current
-  cents; one already prepared gets the atomic store.
+- **Queued items:** all share the player's tap (`attachEqualizerToQueue`);
+  the cents live in the one context, so every item plays at the current
+  pitch with no per-item work.
 - **Speed × pitch:** independent by construction (PreEffects tap, TimeDomain).
   The AU latency in wall time shrinks with speed (L / speed).
 - **Speed change at runtime:** never touches the stage.
@@ -353,15 +394,15 @@ Device-only checks go to I5 (borrowed iPhone, with notice):
 - **Backgrounding and interruption:** the tap keeps running. An interruption
   pause behaves like a pause (no reset). A route change that re-prepares the
   tap creates a fresh AU at the new format.
-- **Sample-rate change between items:** a new prepare with a new AU at the item's
-  rate.
+- **Sample-rate change between items:** the shared tap re-prepares (the
+  accepted I23 cost), creating a new AU at the item's rate; one reset.
 - **Non-float or interleaved formats:** pitch off for that item, with a
   `reason`, the same as the EQ.
 - **Pitch at the range edges (±2400):** clamp natively as well as in Dart.
 
 ## Docs in the same PR
 
-- **`iOS_Parity_Plan.md`:** update the I10 row and the Inventory "Speed /
+- **`iOS_Parity_Plan.md`:** update the I21 row and the Inventory "Speed /
   pitch" row.
 - **`docs/platforms/ios-testing-playbook.md`:** add pitch to "Valid on the
   simulator", and the splice/tail/CPU check to the device list.
