@@ -67,11 +67,16 @@ Future<SyncExecutionPlan> repairPlanAfterDialog(NavisDatabase database) async {
       .firstOrNull;
   return syncPlanForTest(
     LibrarySyncPlanKind.fullRepair,
-    confirms: held == null || held.candidateGeneration == null
+    confirms:
+        held == null ||
+            held.candidateGeneration == null ||
+            held.deletionCandidateFingerprint == null
         ? null
         : HeldDeletionConfirmation(
+            serverId: held.serverId,
             generation: held.candidateGeneration!,
             count: held.deletionCandidateCount,
+            fingerprint: held.deletionCandidateFingerprint!,
           ),
   );
 }

@@ -1220,6 +1220,8 @@ class AdaptiveLibrarySyncCoordinator implements LibrarySyncEngine {
               candidateStatus:
                   result.candidateStatus ?? persisted.candidateStatus,
               deletionCandidateCount: persisted.deletionCandidateCount,
+              deletionCandidateFingerprint:
+                  persisted.deletionCandidateFingerprint,
               carriedForwardEntityCount: result.carriedForwardEntityCount > 0
                   ? result.carriedForwardEntityCount
                   : persisted.candidateCarriedForwardCount,

@@ -2006,11 +2006,25 @@ void main() {
         candidateGeneration: 7,
         candidateStatus: 'awaitingDeletionConfirmation',
         deletionCandidateCount: 3,
+        deletionCandidateFingerprint: 'fp-3',
       ),
     );
     final fixture = await _startFixture(
       SyncDiagnosticsMode.clone,
-      overrides: [librarySyncControllerProvider.overrideWith(() => controller)],
+      overrides: [
+        librarySyncControllerProvider.overrideWith(() => controller),
+        serverConfigStateProvider.overrideWithValue(
+          const AsyncData(
+            ServerConfigModel(
+              id: 3,
+              url: 'https://music.example.test',
+              username: 'listener',
+              password: 'secret',
+              apiVersion: '1.16.1',
+            ),
+          ),
+        ),
+      ],
     );
     addTearDown(fixture.close);
 
@@ -2025,6 +2039,8 @@ void main() {
     final confirmation = controller.repairConfirmations.last!;
     expect(confirmation.generation, 7);
     expect(confirmation.count, 3);
+    expect(confirmation.fingerprint, 'fp-3');
+    expect(confirmation.serverId, 3);
   });
 
   test(

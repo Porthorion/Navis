@@ -2059,13 +2059,9 @@ class SyncDiagnosticsServer {
         // it confirms exactly the hold the controller state shows. Without it
         // the call is Force rescan, which never applies a held deletion.
         final held = _container.read(librarySyncControllerProvider);
-        final confirmation =
-            body['confirmHeldDeletion'] == true &&
-                held.candidateStatus == 'awaitingDeletionConfirmation' &&
-                held.candidateGeneration != null
-            ? HeldDeletionConfirmation(
-                generation: held.candidateGeneration!,
-                count: held.deletionCandidateCount,
+        final confirmation = body['confirmHeldDeletion'] == true
+            ? held.heldDeletionConfirmation(
+                _container.read(serverConfigStateProvider).asData?.value?.id,
               )
             : null;
         await _startControllerSync(

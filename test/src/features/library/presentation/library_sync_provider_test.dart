@@ -425,7 +425,12 @@ void main() {
 
       await controller.repairLibrary();
       await controller.repairLibrary(
-        confirmation: const HeldDeletionConfirmation(generation: 4, count: 17),
+        confirmation: const HeldDeletionConfirmation(
+          serverId: 1,
+          generation: 4,
+          count: 17,
+          fingerprint: 'fp',
+        ),
       );
       await controller.resetCachesAndRebuildLibrary();
 

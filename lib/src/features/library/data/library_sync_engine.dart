@@ -2650,7 +2650,8 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         persistentState.candidateStatus == 'awaitingDeletionConfirmation';
     final runStartedAt = DateTime.now();
     // Only the dialog's explicit, one-shot confirmation applies a held
-    // deletion, and only on a full repair for the generation it showed. A
+    // deletion, and only on a full repair for the server, generation and
+    // removal set it showed. A
     // matching removal set alone (an automatic pass, a queued scan snapshot,
     // Force rescan) never confirms: those runs hold again.
     final offered = _activeExecutionPlan?.kind == LibrarySyncPlanKind.fullRepair
@@ -2659,7 +2660,9 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     final confirmation =
         held &&
             offered != null &&
-            offered.generation == persistentState.candidateGeneration
+            offered.serverId == serverId &&
+            offered.generation == persistentState.candidateGeneration &&
+            offered.fingerprint == persistentState.deletionCandidateFingerprint
         ? offered
         : null;
     var resumableGeneration =

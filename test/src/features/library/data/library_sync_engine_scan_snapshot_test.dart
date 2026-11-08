@@ -10,6 +10,7 @@ import 'package:navis/src/api/subsonic_error.dart';
 import 'package:navis/src/api/sync_request_scope.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/data/server_config_repository.dart';
+import 'package:navis/src/features/library/data/adaptive_library_sync_coordinator.dart';
 import 'package:navis/src/features/library/data/library_sync_engine.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
 import 'package:navis/src/features/library/domain/sync_run_contract.dart';
@@ -88,14 +89,22 @@ void main() {
   };
 
   /// The plan of the dialog's explicit confirmation: a full repair that
-  /// carries what the dialog showed (the held generation and item count).
-  Future<SyncExecutionPlan> confirmPlan({int? count, int? generation}) async {
+  /// carries what the dialog showed (the server, the held generation, item
+  /// count and removal set); each can be overridden to model a stale dialog.
+  Future<SyncExecutionPlan> confirmPlan({
+    int? count,
+    int? generation,
+    int? server,
+    String? fingerprint,
+  }) async {
     final state = await database.librarySyncDao.getOrCreateState(serverId);
     return syncPlanForTest(
       LibrarySyncPlanKind.fullRepair,
       confirms: HeldDeletionConfirmation(
+        serverId: server ?? serverId,
         generation: generation ?? state.candidateGeneration!,
         count: count ?? state.deletionCandidateCount,
+        fingerprint: fingerprint ?? state.deletionCandidateFingerprint!,
       ),
     );
   }
@@ -1175,6 +1184,92 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  List<Song> otherRemovalSongs() => [
+    for (final s in withGain(-3.5))
+      if (s.albumId != 'a9' && s.albumId != 'a10') s,
+  ];
+  List<Album> otherRemovalAlbums() => [
+    for (final a in baseAlbums())
+      if (a.id != 'a9' && a.id != 'a10') a,
+  ];
+
+  test('F1: a stale dialog (same generation and count, another removal set) holds again', () async {
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+    final shown = await database.librarySyncDao.getOrCreateState(serverId);
+    // The dialog opens here and captures what it shows.
+    final dialog = await confirmPlan();
+
+    // Within 24 h a plain run finds the server now lacks a9 and a10 instead:
+    // the same generation and item count, a different set.
+    serve(
+      otherRemovalSongs(),
+      otherRemovalAlbums(),
+      DateTime.utc(2026, 11, 7, 13),
+    );
+    await snapshot(scanTriggered: true);
+    final reheld = await database.librarySyncDao.getOrCreateState(serverId);
+    expect(reheld.candidateGeneration, shown.candidateGeneration);
+    expect(reheld.deletionCandidateCount, shown.deletionCandidateCount);
+    expect(
+      reheld.deletionCandidateFingerprint,
+      isNot(shown.deletionCandidateFingerprint),
+    );
+
+    await engine.executeSyncPlan(dialog);
+
+    final rows = await songsById();
+    expect(rows.containsKey('s9'), isTrue, reason: 'the unseen set survives');
+    expect(rows.containsKey('s10'), isTrue);
+    expect(rows.containsKey('s7'), isTrue);
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      'awaitingDeletionConfirmation',
+    );
+  }, skip: !sqliteAvailable);
+
+  test('F1: a confirmation of another server holds again', () async {
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+
+    await engine.executeSyncPlan(await confirmPlan(server: serverId + 1));
+
+    await expectStillHeld();
+  }, skip: !sqliteAvailable);
+
+  test('F3: a confirmation survives the coordinator\'s metered-grant rebuild and applies', () async {
+    serve(removalSongs(), removalAlbums(), scan2);
+    await snapshot(scanTriggered: true);
+    final request = LibrarySyncRequest(
+      origin: SyncRunOrigin.settingsRepair,
+      intent: SyncRunIntent.repairLibrary,
+      confirmsHeldDeletion: (await confirmPlan()).request.confirmsHeldDeletion,
+    );
+    final sync = AdaptiveLibrarySyncCoordinator(
+      executor: engine,
+      database: database,
+      serverConfigRepository: repository,
+      networkType: NetworkType.cellular,
+      staleAfter: const Duration(hours: 1),
+      readHasActivePlayback: () => false,
+    );
+
+    // The user confirmed the deletion dialog and then the mobile-data dialog:
+    // the repair session carries the grant and the coordinator rebuilds the
+    // request with it.
+    sync.beginRepairSession(serverId: serverId, allowMetered: true);
+    await sync.requestSync(request);
+    sync.endRepairSession(serverId: serverId);
+
+    expect(
+      (await database.librarySyncDao.getOrCreateState(serverId))
+          .candidateStatus,
+      isNull,
+    );
+    expect((await songsById()).containsKey('s7'), isFalse);
+  }, skip: !sqliteAvailable);
+
   test('Z1: a confirmation on anything but a full repair is ignored', () async {
     serve(removalSongs(), removalAlbums(), scan2);
     await snapshot(scanTriggered: true);
@@ -1185,8 +1280,10 @@ void main() {
         LibrarySyncPlanKind.catalogSnapshot,
         scanTriggered: true,
         confirms: HeldDeletionConfirmation(
+          serverId: serverId,
           generation: held.candidateGeneration!,
           count: held.deletionCandidateCount,
+          fingerprint: held.deletionCandidateFingerprint!,
         ),
       ),
     );

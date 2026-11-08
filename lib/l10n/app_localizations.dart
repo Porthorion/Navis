@@ -1521,7 +1521,7 @@ abstract class AppLocalizations {
   /// No description provided for @syncSettingsRepairDiscardCandidateBusy.
   ///
   /// In en, this message translates to:
-  /// **'A sync is running. Try again when it finishes.'**
+  /// **'The repair candidate could not be discarded. It may have changed or a sync may be running.'**
   String get syncSettingsRepairDiscardCandidateBusy;
 
   /// No description provided for @syncSettingsRepairMeteredConfirmTitle.

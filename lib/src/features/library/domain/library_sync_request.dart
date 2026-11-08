@@ -109,16 +109,27 @@ String librarySyncTargetEntityIdFromWorkKey(
 }
 
 /// The user's explicit confirmation of a held large deletion: what the Sync
-/// settings "Apply library repair" dialog showed (the candidate generation and
-/// the number of items). It travels on that one request only, never in a work
+/// settings "Apply library repair" dialog showed: the server, the candidate
+/// generation, the number of items and the fingerprint of the removal set. It
+/// travels on that one request only, never in a work
 /// row and never inferred from the request's origin, so no other run (an
 /// automatic pass, a scan snapshot, a requeued row, Force rescan) can apply a
 /// held deletion.
 class HeldDeletionConfirmation {
-  const new({required this.generation, required this.count});
+  const new({
+    required this.serverId,
+    required this.generation,
+    required this.count,
+    required this.fingerprint,
+  });
 
+  final int serverId;
   final int generation;
   final int count;
+
+  /// Pins the exact removal set the dialog showed: a re-hold of another set
+  /// of the same size at the same generation does not match it.
+  final String fingerprint;
 }
 
 /// Immutable caller policy shared by planning, admission and execution.

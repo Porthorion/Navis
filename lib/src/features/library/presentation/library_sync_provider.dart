@@ -632,6 +632,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
         clearCandidateGeneration: true,
         clearCandidateStatus: true,
         deletionCandidateCount: 0,
+        clearDeletionCandidateFingerprint: true,
         carriedForwardEntityCount: 0,
       );
     }
@@ -1096,6 +1097,7 @@ class LibrarySyncController extends Notifier<LibrarySyncState> {
       candidateGeneration: persisted.candidateGeneration,
       candidateStatus: persisted.candidateStatus,
       deletionCandidateCount: persisted.deletionCandidateCount,
+      deletionCandidateFingerprint: persisted.deletionCandidateFingerprint,
     );
     if (schedule) _schedulePeriodicSync(ref.read(syncIntervalMinutesProvider));
   }

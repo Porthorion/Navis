@@ -618,15 +618,12 @@ class SyncSettingsScreen extends ConsumerWidget {
     final awaitingDeletionConfirmation =
         syncState.candidateStatus == 'awaitingDeletionConfirmation' &&
         syncState.deletionCandidateCount > 0;
-    // What the dialog shows is what the user confirms: this generation and
-    // this item count, once. A hold that changed meanwhile asks again.
-    final confirmation =
-        awaitingDeletionConfirmation && syncState.candidateGeneration != null
-        ? HeldDeletionConfirmation(
-            generation: syncState.candidateGeneration!,
-            count: syncState.deletionCandidateCount,
-          )
-        : null;
+    // What the dialog shows is what the user confirms, once: this server's
+    // hold, its generation, item count and removal set. A hold that changed
+    // meanwhile asks again.
+    final confirmation = syncState.heldDeletionConfirmation(
+      ref.read(serverConfigStateProvider).asData?.value?.id,
+    );
     if (awaitingDeletionConfirmation) {
       final confirmed = await _confirm(
         context,
