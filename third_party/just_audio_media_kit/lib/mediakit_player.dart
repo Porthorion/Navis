@@ -20,7 +20,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   MediaKitPlayer(super.id,
       {EqualizerConfigurationMessage? equalizer,
       IcyPropertySource? icyPropertySource,
-      Player? player}) {
+      Player? player,
+      Future<Duration?> Function(Player)? positionReader})
+      : _positionReader = positionReader ?? nativePosition {
     _equalizer = equalizer;
     _player = player ??
         Player(
@@ -297,6 +299,12 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// The index that's currently playing
   int _currentIndex = 0;
 
+  /// Reads mpv's own playback position; injectable for tests.
+  final Future<Duration?> Function(Player) _positionReader;
+
+  /// True while [seek] moves a finished queue; see [seek].
+  bool _leavingCompleted = false;
+
   late final DeferredSeek _deferredSeek = DeferredSeek(
     // Progressive streams can become playable without a native duration, so
     // readiness comes from native initialization or a fresh duration event,
@@ -310,7 +318,8 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       final target = position + (_currentMedia?.start ?? Duration.zero);
       // A load's start position is normally applied natively before playback
       // begins; seeking there again would only restart decoding.
-      final current = await nativePosition(_player);
+      // Leaving completed always seeks: media_kit stays completed otherwise.
+      final current = _leavingCompleted ? null : await nativePosition(_player);
       if (current != null &&
           (current - target).abs() < const Duration(milliseconds: 500)) {
         return;
@@ -371,6 +380,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         'playing': _player.state.playing,
         'buffering': _player.state.buffering,
         'requestedPlaying': _playing,
+        'processingState': _processingState.name,
         'pendingPosition': _deferredSeek.isPending,
         'seeking': _nativeSeeking,
         // What mpv itself reports, then what the adapter meant to write.
@@ -675,6 +685,23 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     final sameEntry = request.index != null &&
         _player.state.playlist.medias.isNotEmpty &&
         request.index == _player.state.playlist.index;
+    // A seek within the file, as opposed to a jump, cannot resume mpv itself
+    // when it leaves a finished queue (see below). mpv never reports the end
+    // again after a seek to within 100 ms of it, so such a seek stays
+    // completed, as it always did. The end is mpv's own position at EOF; the
+    // adapter's duration (possibly overstated for transcodes) only stands in
+    // when that is unavailable, and an unknown duration then means no resume.
+    final target = request.position ?? (sameEntry ? Duration.zero : null);
+    var leavingCompleted =
+        _processingState == ProcessingStateMessage.completed &&
+            (request.index == null || sameEntry) &&
+            target != null;
+    if (leavingCompleted) {
+      final end =
+          await _positionReader(_player) ?? _duration ?? _player.state.duration;
+      leavingCompleted = end > Duration.zero &&
+          end - target > const Duration(milliseconds: 500);
+    }
     if (request.index != null && !sameEntry) {
       final position = request.position;
       _playbackInitialized = false;
@@ -694,11 +721,34 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     }
 
     final position = request.position ?? (sameEntry ? Duration.zero : null);
-    if (position != null) {
-      if (request.index == null || sameEntry) _deferredSeek.request(position);
-      await _deferredSeek.flush();
-    } else {
-      _position = Duration.zero;
+    _leavingCompleted = leavingCompleted;
+    try {
+      if (position != null) {
+        if (request.index == null || sameEntry) {
+          _deferredSeek.request(position);
+        }
+        await _deferredSeek.flush();
+      } else {
+        _position = Duration.zero;
+      }
+    } finally {
+      _leavingCompleted = false;
+    }
+
+    // keep-open leaves mpv paused at the end of the last file. A jump resumes
+    // it, but a seek within the file only clears media_kit's completed flag,
+    // and just_audio's play() is a no-op while it already reports playing.
+    // Resume here whenever playback is wanted, whatever event arrived during
+    // the seek.
+    // A seek still waiting for the file would let media_kit's own completed
+    // branch in play() jump to the first entry.
+    if (leavingCompleted && !_released && !_deferredSeek.isPending) {
+      if (_processingState == ProcessingStateMessage.completed) {
+        _processingState = _nativeSeeking || _player.state.buffering
+            ? ProcessingStateMessage.buffering
+            : ProcessingStateMessage.ready;
+      }
+      if (_playing) await _player.play();
     }
 
     // reset position on seek
