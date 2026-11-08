@@ -23,7 +23,8 @@
 #   GAPLESS_PHASES   space-separated subset of: main rates formats seek insert loop pitch boost crossfade (crossfade
 #                    relaunches the app with crossfade on, so it stays last)
 #   GAP_TOLERANCE_MS largest accepted gap at a gapless transition (default 20)
-#   BOOST_ON_RUNS    runs of the boost-on queue in phase `boost` (default 1)
+#   BOOST_ON_RUNS    runs of the boost-on queue in phase `boost` (default 1); BOOST_STEPS its steps
+#                    (default "on off level skip seek insert preamp")
 #   GAPLESS_REPEATS  runs of each main case (default 1); GAPLESS_KEEP_GOING=1
 #                    reports failures and carries on instead of stopping
 set -euo pipefail
@@ -36,6 +37,7 @@ DIAGNOSTICS_FAILURE_PREFIX='ios-gapless'
 DIAGNOSTICS_POLL_INTERVAL=0.5
 PHASES="${GAPLESS_PHASES:-main rates formats seek insert loop pitch boost crossfade}"
 BOOST_ON_RUNS="${BOOST_ON_RUNS:-1}"
+BOOST_STEPS="${BOOST_STEPS:-on off level skip seek insert preamp}"
 GAP_TOLERANCE_MS="${GAP_TOLERANCE_MS:-20}"
 REPEATS="${GAPLESS_REPEATS:-1}"
 OUTPUT_ROOT="${GAPLESS_OUTPUT:-$PROJECT_DIR/build/ios-gapless-diagnostics/$(date -u +%Y%m%dT%H%M%SZ)}"
@@ -747,27 +749,34 @@ boost_run() {
 
 run_boost() {
   rg_mode() { api POST /v1/playback/replay-gain "{\"mode\":\"$1\",\"preamp\":${2:-0}}" > "$OUTPUT_ROOT/boost-replay-gain-$1.json"; }
+  step() { [[ " $BOOST_STEPS " == *" $1 "* ]]; }
   local run
   # 1. Boost on, queue Q H Q Q48 H, the EQ off so that any leak onto H crosses full scale.
-  rg_mode track
-  for run in $(seq 1 "$BOOST_ON_RUNS"); do
-    boost_run "on-r$run" on off "$BOOST_SONGS" 64
-  done
+  if step on; then
+    rg_mode track
+    for run in $(seq 1 "$BOOST_ON_RUNS"); do
+      boost_run "on-r$run" on off "$BOOST_SONGS" 64
+    done
+  fi
   # 2. Boost off (ReplayGain off), then a pre-amp change while it plays.
-  rg_mode off
-  boost_run off off off "$BOOST_SONGS" 40 "10:POST:/v1/playback/replay-gain:{\"mode\":\"off\",\"preamp\":6}"
+  if step off; then
+    rg_mode off
+    boost_run off off off "$BOOST_SONGS" 40 "10:POST:/v1/playback/replay-gain:{\"mode\":\"off\",\"preamp\":6}"
+  fi
   # 3. Per-song level with the EQ at -12 dB, boost on and off.
-  rg_mode track
-  boost_run level-on level on '["fixture-song-16","fixture-song-17"]' 26
-  rg_mode off
-  boost_run level-off level on '["fixture-song-16","fixture-song-17"]' 26
+  if step level; then
+    rg_mode track
+    boost_run level-on level on '["fixture-song-16","fixture-song-17"]' 26
+    rg_mode off
+    boost_run level-off level on '["fixture-song-16","fixture-song-17"]' 26
+  fi
   # 4. Skip, seek, insert and a pre-amp change on the playing song.
   rg_mode track
-  boost_run skip skip off '["fixture-song-16","fixture-song-17"]' 12 "fixture-song-16@4000:POST:/v1/playback/next:{}"
-  boost_run seek seek off '["fixture-song-16","fixture-song-17"]' 13 "fixture-song-16@4000:POST:/v1/playback/seek:{\"positionMs\":7000}"
-  boost_run insert insert off '["fixture-song-16","fixture-song-18"]' 38 \
+  step skip && boost_run skip skip off '["fixture-song-16","fixture-song-17"]' 12 "fixture-song-16@4000:POST:/v1/playback/next:{}"
+  step seek && boost_run seek seek off '["fixture-song-16","fixture-song-17"]' 13 "fixture-song-16@4000:POST:/v1/playback/seek:{\"positionMs\":7000}"
+  step insert && boost_run insert insert off '["fixture-song-16","fixture-song-18"]' 38 \
     'fixture-song-16@10000:POST:/v1/playback/queue-edit:{"op":"playNext","songIds":["fixture-song-17"]}'
-  boost_run preamp preamp off '["fixture-song-16","fixture-song-17"]' 14 "fixture-song-16@3000:POST:/v1/playback/replay-gain:{\"mode\":\"track\",\"preamp\":6}"
+  step preamp && boost_run preamp preamp off '["fixture-song-16","fixture-song-17"]' 14 "fixture-song-16@3000:POST:/v1/playback/replay-gain:{\"mode\":\"track\",\"preamp\":6}"
   rg_mode track 0
   api POST /v1/playback/pause '{}' >/dev/null || true
 }

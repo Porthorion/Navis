@@ -34,8 +34,8 @@ def mid(song, low=1000, high=8500):
     return [r for r in of(song) if low <= r["positionMs"] <= high and r["boostAppliedDb"] is not None]
 
 
-def expect_level(song, wanted, label=None):
-    samples = mid(song)
+def expect_level(song, wanted, high=8500):
+    samples = mid(song, high=high)
     if len(samples) < 8:
         fail("%s: only %d mid-song samples" % (song, len(samples)))
         return None
@@ -103,7 +103,8 @@ elif kind == "off":
     if max_clip() != 0:
         fail("boostClipSamples reached %d with ReplayGain off" % max_clip())
 elif kind == "skip":
-    expect_level("fixture-song-16", 10)
+    # The skip is requested at 4000 ms; a sample after it can still name Q.
+    expect_level("fixture-song-16", 10, high=3600)
     h = of("fixture-song-17")
     if len(h) < 4:
         fail("fixture-song-17 never played")
