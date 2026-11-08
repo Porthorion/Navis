@@ -15,12 +15,15 @@
 # a 440 -> 660 Hz two-song pair (gapless, no pitch reset at the song change, proxied
 # and downloaded), the pitch resets of pause/resume/seek/skip, speed 1.5 x pitch
 # +5, lock-to-speed 1.25, speed and EQ changes with pitch set, and the time from a
-# seek to the first audio at pitch 0 and +5. Needs a booted iOS simulator; one heavy job (see
+# seek to the first audio at pitch 0 and +5. Phase `boost` (I24, ReplayGain boost) plays
+# -30 dBFS songs tagged +10 dB and 0.98 FS songs tagged -3 dB (queue Q H Q Q48 H) and
+# samples the tap's boost every 250 ms. Needs a booted iOS simulator; one heavy job (see
 # docs/development/development-workflow.md). Evidence: build/ios-gapless-diagnostics/<stamp>/.
 #
-#   GAPLESS_PHASES   space-separated subset of: main rates formats seek insert loop pitch crossfade (crossfade relaunches
-#                    the app with crossfade on, so it stays last)
+#   GAPLESS_PHASES   space-separated subset of: main rates formats seek insert loop pitch boost crossfade (crossfade
+#                    relaunches the app with crossfade on, so it stays last)
 #   GAP_TOLERANCE_MS largest accepted gap at a gapless transition (default 20)
+#   BOOST_ON_RUNS    runs of the boost-on queue in phase `boost` (default 1)
 #   GAPLESS_REPEATS  runs of each main case (default 1); GAPLESS_KEEP_GOING=1
 #                    reports failures and carries on instead of stopping
 set -euo pipefail
@@ -31,7 +34,8 @@ source "$PROJECT_DIR/tool/lib/diagnostics.sh"
 DIAGNOSTICS_APP_NAME='Navis Gapless Diagnostics'
 DIAGNOSTICS_FAILURE_PREFIX='ios-gapless'
 DIAGNOSTICS_POLL_INTERVAL=0.5
-PHASES="${GAPLESS_PHASES:-main rates formats seek insert loop pitch crossfade}"
+PHASES="${GAPLESS_PHASES:-main rates formats seek insert loop pitch boost crossfade}"
+BOOST_ON_RUNS="${BOOST_ON_RUNS:-1}"
 GAP_TOLERANCE_MS="${GAP_TOLERANCE_MS:-20}"
 REPEATS="${GAPLESS_REPEATS:-1}"
 OUTPUT_ROOT="${GAPLESS_OUTPUT:-$PROJECT_DIR/build/ios-gapless-diagnostics/$(date -u +%Y%m%dT%H%M%SZ)}"
@@ -678,6 +682,96 @@ print("  crossfade pitch: song 2 %s/%s, song 3 %s/%s, cleared %s/%s (cents/activ
 '
 }
 
+# MARK: boost (I24)
+
+# Fixture songs of this phase (see start_fixture below), 12 s each: 16 and 18 (Q) a 440 Hz
+# sine at -30 dBFS tagged +10 dB with its peak (boost 10 dB), 19 (Q48) the same at 48 kHz,
+# 17 and 20 (H) a 660 Hz sine at 0.98 of full scale tagged -3 dB (cut, never boosted).
+BOOST_SONGS='["fixture-song-16","fixture-song-17","fixture-song-18","fixture-song-19","fixture-song-20"]'
+
+# boost_sample <label> <seconds> [WHEN:METHOD:PATH:JSON...]: samples the playing song and the
+# tap's boost fields every 250 ms into boost/<label>.jsonl. WHEN is a time in seconds from the
+# start, or SONG@MS: the first sample at or after that position of the song.
+boost_sample() {
+  mkdir -p "$OUTPUT_ROOT/boost"
+  python3 - "$BASE_URL" "$TOKEN" "$OUTPUT_ROOT/boost/$1.jsonl" "$2" "${@:3}" <<'PYTHON'
+import http.client, json, sys, time, urllib.parse
+u = urllib.parse.urlparse(sys.argv[1])
+c = http.client.HTTPConnection(u.hostname, u.port, timeout=10)
+def call(method, path, body=None):
+    c.request(method, path, body=json.dumps(body) if body is not None else None,
+              headers={"Authorization": "Bearer " + sys.argv[2], "Content-Type": "application/json"})
+    return json.loads(c.getresponse().read() or b"{}")
+actions = []
+for spec in sys.argv[5:]:
+    when, method, path, body = spec.split(":", 3)
+    actions.append((when, method, path, json.loads(body) if body else None))
+keys = ("boostRequestedDb", "boostAppliedDb", "boostGuarded", "boostClipSamples", "levelDeltaDb", "sampleRate",
+        "transitionGapsMs", "tapPrepareCount", "flushCount")
+out = open(sys.argv[3], "w")
+t0 = time.monotonic()
+duration = float(sys.argv[4])
+while time.monotonic() - t0 < duration:
+    now = time.monotonic() - t0
+    status = call("GET", "/v1/playback/status")
+    song, position = status.get("songId"), status["uiPlayback"]["positionStreamMs"]
+    for action in list(actions):
+        when = action[0]
+        due = (now >= float(when)) if "@" not in when else (
+            song == when.split("@")[0] and position >= int(when.split("@")[1]))
+        if due:
+            actions.remove(action)
+            call(action[1], action[2], action[3])
+    app = call("GET", "/v1/equalizer")["application"]
+    out.write(json.dumps({"t": round(now, 3), "songId": song, "positionMs": position, "playing": status.get("playing"),
+                          **{k: app.get(k) for k in keys}}) + "\n")
+    time.sleep(max(0.0, 0.25 - (time.monotonic() - t0 - now)))
+out.close()
+PYTHON
+}
+
+# boost_run <label> <kind> <eq off|on> <songs-json> <seconds> [actions...]
+boost_run() {
+  local label="$1" kind="$2" eq="$3" songs="$4" seconds="$5"; shift 5
+  api POST /v1/playback/pause '{}' >/dev/null || true
+  set_eq "$eq"
+  sleep 1
+  api POST /v1/playback/queue "{\"songIds\":$songs}" > "$OUTPUT_ROOT/boost-$label-queue.json"
+  boost_sample "$label" "$seconds" "$@"
+  local line
+  line="$(python3 "$PROJECT_DIR/tool/ios_boost_check.py" "$kind" "$OUTPUT_ROOT/boost/$label.jsonl" "$GAP_TOLERANCE_MS")" || true
+  printf 'boost %-20s %s\n' "$label" "$(tail -1 <<<"$line")" | tee -a "$SUMMARY"
+  sed '$d' <<<"$line" | tee -a "$SUMMARY"
+  [[ "$(tail -1 <<<"$line")" == ok ]] || [[ -n "${GAPLESS_KEEP_GOING:-}" ]] || fail "boost $label failed"
+}
+
+run_boost() {
+  rg_mode() { api POST /v1/playback/replay-gain "{\"mode\":\"$1\",\"preamp\":${2:-0}}" > "$OUTPUT_ROOT/boost-replay-gain-$1.json"; }
+  local run
+  # 1. Boost on, queue Q H Q Q48 H, the EQ off so that any leak onto H crosses full scale.
+  rg_mode track
+  for run in $(seq 1 "$BOOST_ON_RUNS"); do
+    boost_run "on-r$run" on off "$BOOST_SONGS" 64
+  done
+  # 2. Boost off (ReplayGain off), then a pre-amp change while it plays.
+  rg_mode off
+  boost_run off off off "$BOOST_SONGS" 40 "10:POST:/v1/playback/replay-gain:{\"mode\":\"off\",\"preamp\":6}"
+  # 3. Per-song level with the EQ at -12 dB, boost on and off.
+  rg_mode track
+  boost_run level-on level on '["fixture-song-16","fixture-song-17"]' 26
+  rg_mode off
+  boost_run level-off level on '["fixture-song-16","fixture-song-17"]' 26
+  # 4. Skip, seek, insert and a pre-amp change on the playing song.
+  rg_mode track
+  boost_run skip skip off '["fixture-song-16","fixture-song-17"]' 12 "fixture-song-16@4000:POST:/v1/playback/next:{}"
+  boost_run seek seek off '["fixture-song-16","fixture-song-17"]' 13 "fixture-song-16@4000:POST:/v1/playback/seek:{\"positionMs\":7000}"
+  boost_run insert insert off '["fixture-song-16","fixture-song-18"]' 38 \
+    'fixture-song-16@10000:POST:/v1/playback/queue-edit:{"op":"playNext","songIds":["fixture-song-17"]}'
+  boost_run preamp preamp off '["fixture-song-16","fixture-song-17"]' 14 "fixture-song-16@3000:POST:/v1/playback/replay-gain:{\"mode\":\"track\",\"preamp\":6}"
+  rg_mode track 0
+  api POST /v1/playback/pause '{}' >/dev/null || true
+}
+
 run_crossfade() {
   stop_app
   command -v sqlite3 >/dev/null || fail "sqlite3 is required for the crossfade phase"
@@ -705,13 +799,18 @@ if (s["at-song4"].get("processedFrames") or 0) <= 0: fail("the equalizer process
 }
 
 : > "$SUMMARY"
-start_fixture 'navis-gapless-fixture' --scenario downloads --song-count 15 \
+start_fixture 'navis-gapless-fixture' --scenario downloads --song-count 20 \
   --song-rate fixture-song-5=48000 --song-rate fixture-song-6=96000 \
   --song-wav fixture-song-14=2:16 --song-wav fixture-song-15=1:32 \
   --song-tone fixture-song-7=440:44100:12 --song-tone fixture-song-8=440:48000:12 \
   --song-tone fixture-song-9=440:96000:12 --song-tone fixture-song-10=440:48000:6 \
   --song-tone fixture-song-11=440:44100:6 --song-tone fixture-song-12=660:44100:6 \
-  --song-tone fixture-song-13=440:96000:6
+  --song-tone fixture-song-13=440:96000:6 \
+  --song-tone fixture-song-16=440:44100:12:0.0316 --song-tone fixture-song-17=660:44100:12:0.98 \
+  --song-tone fixture-song-18=440:44100:12:0.0316 --song-tone fixture-song-19=440:48000:12:0.0316 \
+  --song-tone fixture-song-20=660:44100:12:0.98 \
+  --song-gain fixture-song-16=10:0.0316 --song-gain fixture-song-17=-3:0.98 --song-gain fixture-song-18=10:0.0316 \
+  --song-gain fixture-song-19=10:0.0316 --song-gain fixture-song-20=-3:0.98
 sign_in main
 snap "$OUTPUT_ROOT/equalizer-initial.json"
 for phase in $PHASES; do
@@ -728,6 +827,7 @@ for phase in $PHASES; do
     loop) run_loop ;;
     crossfade) run_crossfade ;;
     pitch) run_pitch ;;
+    boost) run_boost ;;
     *) fail "unknown phase $phase" ;;
   esac
 done
