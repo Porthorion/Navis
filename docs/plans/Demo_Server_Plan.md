@@ -47,11 +47,11 @@ level `warn`; Docker log rotation; host unattended-upgrades (already on).
 | Survey: routing, host, client path handling | done | the client keeps base path (`_buildMediaUri`, Dio `baseUrl`) |
 | Library candidates and licences | todo | |
 | Infra files and docs | todo | |
-| Library built on host | todo | |
-| Bootstrap, seed DB, Komodo stack, reset procedure | todo | |
-| Proxy location | todo | |
+| Library built on host | done | 40 tracks, 6 albums |
+| Bootstrap, seed DB, Komodo stack, reset procedure | done (2026-11-08) | stack deployed via Komodo, procedure run once by hand |
+| Proxy location | done (2026-11-08) | public checks pass; proxy host backup kept on host |
 | Reviews (Sonnet, Opus) | todo | |
 | Linux app run against `/demo` | todo | |
-| Reset verified | todo | |
+| Reset verified | manual run done; first scheduled run 04:00 next day to check | stars and playlists empty after RunProcedure |
 | iOS simulator and macOS runs | deferred | needs a linked Mac |
 | PR into dev | todo | |

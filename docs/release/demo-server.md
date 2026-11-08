@@ -15,7 +15,10 @@ client -> Cloudflare -> tunnel -> proxy (NPMplus/nginx) -> 127.0.0.1:${DEMO_PORT
 ```
 
 - The proxy exposes only `/demo/rest/` (the Subsonic API Navis uses). Every
-  other path under `/demo` (web UI, `/auth`, `/api`) is a 404.
+  other path under `/demo` (web UI, `/auth`, `/api`) is a 404. Navidrome's UI
+  cookie is stripped. The admin account is not blocked at the proxy: Subsonic
+  auth is per request, so the admin can use `/demo/rest/` with its random
+  192-bit password (rate-limited); the web UI and native API stay closed.
 - The proxy blocks user, password, share, radio and jukebox methods (403),
   rate-limits per client IP and disables the access log for `/demo`.
 - **Nightly reset = restart.** On every start the entrypoint copies the seed
@@ -50,12 +53,29 @@ client -> Cloudflare -> tunnel -> proxy (NPMplus/nginx) -> 127.0.0.1:${DEMO_PORT
    non-admin reviewer, runs a full scan, exports `seed/navidrome.db` and starts
    the stack in normal mode. Afterwards remove the reviewer password from
    `.env`. Re-running with a seed present refuses unless `DEMO_FORCE=1`.
-5. Komodo: create a "files on server" stack pointing at that directory.
-6. Komodo scheduled procedure: restart the stack daily at 04:00 host time.
-7. Proxy: put `nginx/http-zone.conf` in the `http` context and
-   `nginx/demo-location.conf` in the proxy host's Advanced config (fix the
-   upstream address if the proxy is not on the same host).
-8. Check from outside: `ping` as the reviewer works, `/demo/` is 404.
+5. Komodo (v2 API): the periphery stacks directory is root-owned, so create
+   `<stacks>/<name>` with a throwaway root container
+   (`docker run --rm -v <stacks>:/s alpine sh -c 'mkdir /s/<name> && chown <uid>:<gid> /s/<name>'`)
+   and keep the stack files there. `CreateStack` with `files_on_host: true`,
+   `run_directory: ""`, `file_paths: ["compose.yaml"]`, `env_file_path: ".env"`,
+   `server_id` of the host; then `DeployStack`. `docker compose down` the
+   bootstrap container first. Do not print `GetStack` output: `deployed_config`
+   contains the interpolated `.env` values.
+6. Komodo procedure with one stage `RestartStack`, fields `schedule_format:
+   "Cron"`, `schedule: "0 0 4 * * *"` (six fields, seconds first),
+   `schedule_timezone: "<host IANA zone>"`, `schedule_enabled: true`.
+   `ListProcedures` reports `next_scheduled_run`; check it reads 04:00 local.
+7. Proxy: append `nginx/http-zone.conf` to the proxy's `custom_nginx/http.conf`
+   (root-owned, same root-container trick; already included in the `http`
+   context) and set the proxy host's `advanced_config` to
+   `nginx/demo-location.conf` (fix the upstream address if the proxy is not on
+   the same host). Via the NPMplus API, `PUT /api/nginx/proxy-hosts/<id>` rejects
+   unknown keys: send only the keys listed in the PUT schema (`GET /api/schema`),
+   so drop `id`, dates, `owner_user_id` and `access_list_id`. Back up the host JSON
+   and `http.conf` first; rollback is `advanced_config: ""` plus the old file.
+8. Check from outside: `ping` as the reviewer works, `/demo/` is 404, no
+   `Set-Cookie`, `cf-cache-status` is DYNAMIC. Reset proof: star a song and
+   create a playlist, run the procedure, both lists are empty afterwards.
 
 Validate any change to these files with `deploy/demo-server/selftest.sh`
 (about two minutes; creates and removes its own containers and temp dir).

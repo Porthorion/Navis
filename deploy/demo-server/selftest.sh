@@ -82,6 +82,7 @@ check "search3 finds a song" test -n "$SID"
 check "stream.view returns audio" test "$(curl -s -o /dev/null -w '%{content_type}' "$P/rest/stream.view?$Q&id=$SID")" = audio/flac
 check "stream.view honours Range (206)" test "$(code -H 'Range: bytes=0-99' "$P/rest/stream.view?$Q&id=$SID")" = 206
 check "getCoverArt answers 200" test "$(code "$P/rest/getCoverArt.view?$Q&id=$SID")" = 200
+check "API responses carry no Set-Cookie" bash -c "! curl -s -D- -o /dev/null '$P/rest/ping?$Q' | grep -qi ^set-cookie"
 check "download.view works" test "$(code "$P/rest/download.view?$Q&id=$SID")" = 200
 if [[ -n "${DEMO_TEST_MUSIC:-}" ]]; then
   echo "== library"
