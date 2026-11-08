@@ -321,7 +321,10 @@ list (header, drag handle) move the sheet even when the list is not at the top.
 - Native Drift access uses WAL plus two pooled readers. Candidate collection
   and classification stay on the writer while an interactive read can proceed
   alongside a long catalog read, without a second `NavisDatabase` or candidate
-  visibility in reactive providers.
+  visibility in reactive providers. `LibrarySyncDao.getOrCreateState` reads an
+  existing state row outside a transaction so `/v1/sync/status` and other
+  readers never queue behind a catalog apply (they see the state committed
+  before it); only a missing row is created through the writer.
 - Drift caches a failed open or migration on its executor for the life of the
   database. `NavisDatabase()` and `NavisDatabase.atPath` therefore open
   through a reopening executor inside the sync write fence

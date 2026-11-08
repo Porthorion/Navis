@@ -234,8 +234,14 @@ Future<_ParkedCheck> _parkedCheck(
     status: LibrarySyncStatus.running,
     stage: LibrarySyncStage.fetchingArtists,
   );
+  var parkedOnce = false;
   final engine = StubLibrarySyncEngine((request, {onProgress}) async {
-    if (!request.isAutomatic) return const LibrarySyncState.idle();
+    // Only the first automatic run parks; a re-signed-in session's own
+    // startup run (same user, still due) must not share the old run's release.
+    if (!request.isAutomatic || parkedOnce) {
+      return const LibrarySyncState.idle();
+    }
+    parkedOnce = true;
     onProgress?.call(running);
     // A count-only update is held for the throttle's trailing timer.
     onProgress?.call(running.copyWith(processed: 1, total: 10));
@@ -258,6 +264,9 @@ Future<_ParkedCheck> _parkedCheck(
     extra: [librarySyncNotifierProvider.overrideWithValue(notifier)],
   );
   addTearDown(container.dispose);
+  // The app's UI always listens; an unlistened Riverpod 3 provider is paused
+  // and would observe the session change late.
+  container.listen(librarySyncControllerProvider, (_, _) {});
   container.read(_serverConfigSource.notifier).set(AsyncData(config));
   final automatic = container
       .read(librarySyncControllerProvider.notifier)
