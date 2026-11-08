@@ -16,8 +16,8 @@ Review and TestFlight external testers can sign in.
   the existing proxy host needs no DNS, TLS or tunnel change. NPMplus already
   trusts `X-Forwarded-For` from the tunnel, so rate limits see real client IPs.
 - **Only `/demo/rest/` is public.** Navis uses only the Subsonic API (no
-  Navidrome `/auth` or `/api`), so the web UI and native API stay unreachable
-  and the admin can't sign in from outside.
+  Navidrome `/auth` or `/api`), so the web UI and native API stay unreachable.
+  (The admin can still authenticate through `/demo/rest/`; its random 192-bit password and the rate limit are its only protection.)
 - **Komodo stack, files on server**, copied from `deploy/demo-server/`.
 - **Nightly reset = restart.** The container entrypoint copies a seed
   database (host only, read-only mount) over the live one on every start, so
