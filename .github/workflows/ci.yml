@@ -132,6 +132,9 @@ jobs:
           flutter-version: 3.47.5
           cache: true
       - run: ./tool/bootstrap.sh
+      # The pitch stage test also runs in the Linux native job; here the real
+      # AUNewTimePitch test runs too (macOS only), without the Java part.
+      - run: NAVIS_NATIVE_C_ONLY=1 ./tool/equalizer_native_test.sh
       - run: flutter build ios --simulator --debug
 
   # One stable name to require in branch protection.

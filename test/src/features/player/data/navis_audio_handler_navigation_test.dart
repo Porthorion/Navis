@@ -9092,19 +9092,20 @@ void main() {
 
     test('pitch_unavailable downgrades the capabilities once and does not loop', () async {
       final (handler, player) = await iosHandler();
+      final before = player.pitchCalls;
       player.pitchError = PlatformException(code: 'pitch_unavailable');
       await expectLater(
         handler.setPlaybackAdjustments(const PlaybackAdjustments(pitchSemitones: 2)),
         throwsA(isA<PlatformException>()),
       );
       // One failing call; the rollback does not ask the player for pitch again.
-      expect(player.pitchCalls, 1);
+      expect(player.pitchCalls, before + 1);
       expect(handler.playbackAdjustmentCapabilities.pitchSupported, isFalse);
       expect(handler.playbackAdjustments, const PlaybackAdjustments());
       // Speed still works for the rest of the session without touching pitch.
       await handler.setPlaybackSpeed(1.2);
       expect(player.appliedSpeed, 1.2);
-      expect(player.pitchCalls, 1);
+      expect(player.pitchCalls, before + 1);
     });
   });
 

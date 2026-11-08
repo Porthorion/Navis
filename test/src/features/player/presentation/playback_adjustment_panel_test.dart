@@ -308,7 +308,10 @@ void main() {
 
   testWidgets('iOS capabilities show the pitch controls', (tester) async {
     await mount(tester, capabilities: PlaybackAdjustmentCapabilities.ios);
-    expect(find.byKey(const ValueKey('adjustment-pitch-ruler')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('adjustment-pitch-ruler')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('playback-pitch-lock')), findsOneWidget);
     expect(
       find.text('Pitch control is unavailable on this audio backend.'),

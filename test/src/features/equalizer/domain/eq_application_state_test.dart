@@ -54,7 +54,14 @@ void main() {
     expect(json['tapPrepareCount'], isNull);
     expect(json['flushCount'], isNull);
     expect(json['transitionGapsMs'], isNull);
-    for (final key in ['pitchCents', 'pitchActive', 'pitchLatencyFrames', 'pitchResetCount', 'pitchInputHz', 'pitchOutputHz']) {
+    for (final key in [
+      'pitchCents',
+      'pitchActive',
+      'pitchLatencyFrames',
+      'pitchResetCount',
+      'pitchInputHz',
+      'pitchOutputHz',
+    ]) {
       expect(json.containsKey(key), isTrue);
       expect(json[key], isNull);
     }

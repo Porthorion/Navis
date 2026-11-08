@@ -88,12 +88,23 @@ void main() {
     expect(ios.maximumSpeed, isNull);
     expect(ios.supports(const PlaybackAdjustments(pitchSemitones: 12)), isTrue);
     expect(ios.supports(const PlaybackAdjustments(pitchSemitones: 24)), isTrue);
-    expect(ios.supports(const PlaybackAdjustments(pitchSemitones: -24)), isTrue);
-    expect(ios.supports(const PlaybackAdjustments(pitchSemitones: 25)), isFalse);
-    expect(ios.supports(const PlaybackAdjustments(pitchSemitones: -25)), isFalse);
+    expect(
+      ios.supports(const PlaybackAdjustments(pitchSemitones: -24)),
+      isTrue,
+    );
+    expect(
+      ios.supports(const PlaybackAdjustments(pitchSemitones: 25)),
+      isFalse,
+    );
+    expect(
+      ios.supports(const PlaybackAdjustments(pitchSemitones: -25)),
+      isFalse,
+    );
     // Locked, the pitch factor is the speed.
     expect(
-      ios.supports(const PlaybackAdjustments(speed: 1.25, lockPitchToSpeed: true)),
+      ios.supports(
+        const PlaybackAdjustments(speed: 1.25, lockPitchToSpeed: true),
+      ),
       isTrue,
     );
     expect(
@@ -105,7 +116,9 @@ void main() {
       isFalse,
     );
     expect(
-      ios.supports(const PlaybackAdjustments(speed: 0.2, lockPitchToSpeed: true)),
+      ios.supports(
+        const PlaybackAdjustments(speed: 0.2, lockPitchToSpeed: true),
+      ),
       isFalse,
     );
     expect(ios.pitchRange(const PlaybackAdjustments()).minimum, -24);
