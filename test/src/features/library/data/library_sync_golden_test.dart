@@ -44,7 +44,7 @@ void main() {
     );
     Future<LibrarySyncState> runRepair() async {
       final result = await engine.executeSyncPlan(
-        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        await repairPlanAfterDialog(database),
       );
       // Explicit repairs refresh both companions independently of the catalog.
       await engine.executeSyncPlan(

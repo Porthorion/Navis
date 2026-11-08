@@ -1518,6 +1518,12 @@ abstract class AppLocalizations {
   /// **'This removes the uncommitted repair candidate and its deletion confirmation. Your current local library, downloads, and cached audio stay unchanged.'**
   String get syncSettingsRepairDiscardCandidateBody;
 
+  /// No description provided for @syncSettingsRepairDiscardCandidateBusy.
+  ///
+  /// In en, this message translates to:
+  /// **'The repair candidate could not be discarded. It may have changed or a sync may be running.'**
+  String get syncSettingsRepairDiscardCandidateBusy;
+
   /// No description provided for @syncSettingsRepairMeteredConfirmTitle.
   ///
   /// In en, this message translates to:

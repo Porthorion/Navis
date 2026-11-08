@@ -2055,11 +2055,23 @@ class SyncDiagnosticsServer {
       if (request.method == 'POST' && path == '/v1/sync/repair') {
         final body = await _readJson(request);
         final allowOverride = body['allowMeteredBroadOverride'] == true;
+        // `confirmHeldDeletion` stands in for the Apply Library Repair dialog:
+        // it confirms exactly the hold the controller state shows. Without it
+        // the call is Force rescan, which never applies a held deletion.
+        final held = _container.read(librarySyncControllerProvider);
+        final confirmation = body['confirmHeldDeletion'] == true
+            ? held.heldDeletionConfirmation(
+                _container.read(serverConfigStateProvider).asData?.value?.id,
+              )
+            : null;
         await _startControllerSync(
           request,
           operation: () => _container
               .read(librarySyncControllerProvider.notifier)
-              .repairLibrary(allowMeteredBroadOverride: allowOverride),
+              .repairLibrary(
+                allowMeteredBroadOverride: allowOverride,
+                confirmation: confirmation,
+              ),
         );
         return;
       }

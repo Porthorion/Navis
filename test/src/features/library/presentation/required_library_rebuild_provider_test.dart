@@ -64,6 +64,7 @@ class _ControlledSync extends LibrarySyncController {
   @override
   Future<LibrarySyncState> repairLibrary({
     bool allowMeteredBroadOverride = false,
+    HeldDeletionConfirmation? confirmation,
   }) => _run('repairLibrary', allowMeteredBroadOverride);
 
   Future<LibrarySyncState> _run(

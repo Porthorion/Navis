@@ -130,6 +130,20 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Tag changes on the server now reach Navis after the server rescans '
+        'its library, without Repair Library: ReplayGain, titles, genres and '
+        'removed songs. Check for updates picks them up whenever the server '
+        'has scanned since the last time, and automatic sync does it at most '
+        'once a day on Wi-Fi (a rescan during the check gets up to three '
+        'quicker retries first). A large removal waits for your confirmation '
+        'in Settings › Sync (Apply Library Repair) instead of deleting '
+        'anything by itself. If your server has scanned since Navis last '
+        'checked, Navis runs one full song check at its next Wi-Fi sync after '
+        'this update. It never runs on mobile data without your one-time '
+        'permission',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Settings › Haptics turns vibration off entirely or for Player '
         'Gestures, Playback Buttons, Sliders & Rulers, Switches & Steppers, '
         'Lists & Menus or Likes & Alerts, so you can keep the ones you like',

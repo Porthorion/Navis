@@ -391,7 +391,7 @@ void main() {
       expect(expired.candidateStatus, 'awaitingDeletionConfirmation');
       expect(await db.libraryDao.getAlbumById('a'), isNotNull);
       final confirmed = await engine.executeSyncPlan(
-        syncPlanForTest(LibrarySyncPlanKind.fullRepair),
+        await repairPlanAfterDialog(db),
       );
       expect(confirmed.status, LibrarySyncStatus.succeeded);
       expect(confirmed.candidateStatus, isNull);

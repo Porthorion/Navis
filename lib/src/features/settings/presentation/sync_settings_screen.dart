@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/confirm_dialog.dart';
 import 'package:navis/src/common_widgets/navis_switch.dart';
 import 'package:navis/src/database/navis_database.dart';
@@ -614,10 +615,15 @@ class SyncSettingsScreen extends ConsumerWidget {
   ) async {
     final l10n = AppLocalizations.of(context)!;
     final syncState = ref.read(librarySyncControllerProvider);
-    final awaitingDeletionConfirmation =
-        syncState.candidateStatus == 'awaitingDeletionConfirmation' &&
-        syncState.deletionCandidateCount > 0;
-    if (awaitingDeletionConfirmation) {
+    // What the dialog shows is what the user confirms, once: this server's
+    // hold, its generation, item count and removal set. A hold that changed
+    // meanwhile asks again. The dialog opens only when that full confirmation
+    // can be built; otherwise there is nothing to confirm and the press runs
+    // the ordinary repair.
+    final confirmation = syncState.heldDeletionConfirmation(
+      ref.read(serverConfigStateProvider).asData?.value?.id,
+    );
+    if (confirmation != null) {
       final confirmed = await _confirm(
         context,
         title: l10n.syncSettingsRepairDeletionConfirmationTitle,
@@ -649,7 +655,10 @@ class SyncSettingsScreen extends ConsumerWidget {
     unawaited(
       ref
           .read(librarySyncControllerProvider.notifier)
-          .repairLibrary(allowMeteredBroadOverride: allowMeteredBroadOverride),
+          .repairLibrary(
+            allowMeteredBroadOverride: allowMeteredBroadOverride,
+            confirmation: confirmation,
+          ),
     );
   }
 
@@ -665,18 +674,27 @@ class SyncSettingsScreen extends ConsumerWidget {
       action: l10n.syncSettingsRepairDiscardCandidate,
     );
     if (confirmed && context.mounted) {
-      await ref
+      final discarded = await ref
           .read(librarySyncControllerProvider.notifier)
           .discardAwaitingRepairCandidate();
+      if (!discarded && context.mounted) {
+        // Refused: a sync owns the candidate until it ends, or the hold is
+        // already gone.
+        showAppNotice(
+          context,
+          message: l10n.syncSettingsRepairDiscardCandidateBusy,
+        );
+      }
     }
   }
 
   static bool _showUpdatesMessaging(LibrarySyncState state) {
+    if (state.scanDeferred) return false;
     return state.updatesAvailable || _hasDeferredBroadWork(state);
   }
 
   static bool _hasDeferredBroadWork(LibrarySyncState state) {
-    if (state.status != LibrarySyncStatus.deferred) {
+    if (state.status != LibrarySyncStatus.deferred || state.scanDeferred) {
       return false;
     }
     final planKind = state.planKind;

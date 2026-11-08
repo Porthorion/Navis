@@ -656,7 +656,10 @@ raise SystemExit(0 if json.loads(sys.argv[1]).get('candidateStatus') else 1)
 PY
       then
         FULL_RESCAN_CONFIRMATION_ATTEMPTED=1
-        api POST /v1/sync/repair > "$OUTPUT_ROOT/full-rescan-confirmation-start.json"
+        # Only the dialog's explicit confirmation applies a held deletion; a
+        # plain repair is Force rescan and holds again.
+        api POST /v1/sync/repair '{"confirmHeldDeletion":true}' \
+          > "$OUTPUT_ROOT/full-rescan-confirmation-start.json"
         continue
       fi
       printf '%s\n' "$STATUS" > "$OUTPUT_ROOT/full-rescan-result.json"
@@ -672,6 +675,16 @@ PY
   api POST /v1/shutdown > "$OUTPUT_ROOT/full-rescan-shutdown.json" || true
   wait "$FLUTTER_PID" || true
   FLUTTER_PID=0
+  # A run that ends with the deletion still held did not finish the rescan.
+  if python3 - "$OUTPUT_ROOT/full-rescan-result.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1]))
+raise SystemExit(0 if value.get('candidateStatus') == 'awaitingDeletionConfirmation' else 1)
+PY
+  then
+    echo "Full rescan ended with a large deletion still awaiting confirmation: $OUTPUT_ROOT" >&2
+    exit 71
+  fi
   echo "Full-rescan diagnostics completed: $OUTPUT_ROOT"
   exit 0
 elif [[ "$MODE" == "throughput" ]]; then
@@ -1031,8 +1044,19 @@ import json, sys
 raise SystemExit(0 if json.loads(sys.argv[1]).get("candidateStatus") else 1)
 PY
   then
-    api POST /v1/sync/repair > "$OUTPUT_ROOT/repair-confirmation-start.json"
+    # Only the dialog's explicit confirmation applies a held deletion.
+    api POST /v1/sync/repair '{"confirmHeldDeletion":true}' \
+      > "$OUTPUT_ROOT/repair-confirmation-start.json"
     wait_for_sync > "$OUTPUT_ROOT/repair-confirmation-result.json"
+    if python3 - "$OUTPUT_ROOT/repair-confirmation-result.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1]))
+raise SystemExit(0 if value.get("candidateStatus") == "awaitingDeletionConfirmation" else 1)
+PY
+    then
+      echo "Repair ended with a large deletion still awaiting confirmation: $OUTPUT_ROOT" >&2
+      exit 71
+    fi
   fi
 fi
 

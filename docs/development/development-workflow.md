@@ -350,6 +350,22 @@ URLs, media/entity IDs, titles, or paths. Run history is a diagnostics record,
 not a scheduler input; `library_sync_work` owns the durable queue. Use
 `durableOperations` for the separate atomic destructive-mutation audit.
 
+`tool/rescan_snapshot_diagnostics.py` is the gate for server rescans. It
+copies the primary profile into a first-setup clone, serves the fixture's
+`rescan` scenario (`auth_lifecycle_fixture_server.py --scenario rescan
+--phase-file --request-log`; the phase file flips the library from baseline A to
+retagged B and to a further scan C), builds the baseline, then asserts through
+the authenticated API, the clone database and the fixture request log that
+Check for updates runs one catalog snapshot that lands the retag, removals,
+move, rename and genre change and reconciles the scan token; that a restart and
+a second check run no snapshot; that an automatic pass respects the 24 h
+throttle and a held large-deletion candidate; that a rescan during collection
+(phases D to E) defers the promotion with a backoff and the retry promotes fresh
+data; that a held large removal (phases F, G) is confirmed by the first Repair
+Library press even after a new scan; and that a metered network makes
+no `getScanStatus` or bulk song request. Run it alone: it builds the profile
+Linux app.
+
 `tool/manual_discovery_diagnostics.sh` is the corresponding bounded
 unchanged-cursor discovery gate. It may seed a copied, isolated database and
 loopback fixture before launch, but its acceptance action is the running
@@ -646,6 +662,24 @@ NAVIS_PERF_CREDENTIAL_FILE=build/perf-diagnostics/credentials.json \
   `POST /v1/presentation/artist-action`, and opens the Queue every five
   seconds while releases hydrate, timing the first frame that shows it
   (`"settle": false` on `POST /v1/presentation/player-overlay`).
+- `sync-playback` (runs only when named) queues 30 songs, presses Check for
+  updates through `POST /v1/sync/check` while they play, and reports the sync
+  outcome, request and byte counts, the longest playback stall, loading time,
+  playback failures, the heartbeat figures and a PASS/FAIL verdict for the
+  sync (`syncVerdict`), playback (`playbackVerdict`) and stall
+  (`stallVerdict`). A control first checks that the position advances at
+  least half as fast as the wall clock without a sync; when it does not (a
+  headless emulator without an audio clock) the stall verdict is `INVALID`,
+  never PASS. A stall is any span of at least 2 s over which the position
+  advances less than half of the wall time, measured between samples.
+  Diagnostics-API calls slower than 2 s are logged with their route and sync
+  stage; the scenario reports the measured wait, not its cause. The stall
+  verdict has blind spots: a freeze hidden inside one long status call (it is
+  seen only when more than half of that gap is frozen), a freeze at a track
+  change (its first sample is lost) and syncs shorter than about 3 s. Against a
+  server that has rescanned since the clone's last reconciled scan it measures
+  the scan-triggered catalog snapshot during playback; it stamps the clone
+  model-current first so no startup repair runs.
 - `folder-import` builds `--folder-files` (default 400) small files named
   `<artist>/<title>.<suffix>` from the catalogue (FLAC files get a minimal
   header) and adopts them through `POST /v1/downloads/folder/adopt`, which

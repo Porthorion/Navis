@@ -1039,6 +1039,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'This removes the uncommitted repair candidate and its deletion confirmation. Your current local library, downloads, and cached audio stay unchanged.';
 
   @override
+  String get syncSettingsRepairDiscardCandidateBusy =>
+      'The repair candidate could not be discarded. It may have changed or a sync may be running.';
+
+  @override
   String get syncSettingsRepairMeteredConfirmTitle =>
       'Repair Library on Mobile Data?';
 
