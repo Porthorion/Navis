@@ -17980,6 +17980,114 @@ void main() {
     }
   });
 
+  group('ReplayGain refresh after a sync', () {
+    const mpv = PlaybackAdjustmentCapabilities.mediaKit;
+    const exo = PlaybackAdjustmentCapabilities.android;
+    double linear(double db) => pow(10, db / 20).toDouble();
+
+    Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)> queued(
+      List<double?> gains, {
+      List<double?>? peaks,
+      PlaybackAdjustmentCapabilities caps = exo,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis-rgq-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        gains.length,
+        replayGainMode: 'track',
+        adjustmentCapabilities: caps,
+        seed: (database) async {
+          for (var i = 0; i < gains.length; i++) {
+            await (database.update(
+              database.songsTable,
+            )..where((song) => song.id.equals('song-$i'))).write(
+              SongsTableCompanion(
+                replayGainTrackGain: Value(gains[i]),
+                replayGainTrackPeak: Value(peaks?.elementAtOrNull(i)),
+              ),
+            );
+          }
+        },
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      await handler.replaceQueue([
+        for (var i = 0; i < gains.length; i++) 'song-$i',
+      ], expandMatchFlows: false);
+      return (handler, player, database);
+    }
+
+    Future<void> retag(NavisDatabase database, String id, double? gain) =>
+        (database.update(database.songsTable)
+              ..where((song) => song.id.equals(id)))
+            .write(SongsTableCompanion(replayGainTrackGain: Value(gain)));
+
+    double? gainOf(MediaItem? item) =>
+        item?.extras?['replayGainTrackGain'] as double?;
+
+    test('queued songs take the new gain from the next song, never '
+        'mid-song', () async {
+      final (handler, player, database) = await queued([-6, -6, null]);
+      expect(player.appliedVolumes.last, closeTo(linear(-6), 0.00001));
+      for (final id in ['song-0', 'song-1', 'song-2']) {
+        await retag(database, id, -12);
+      }
+      final writes = player.appliedVolumes.length;
+
+      await handler.refreshQueuedSongReplayGain();
+
+      final items = handler.queue.value;
+      expect(gainOf(items[0]), -6, reason: 'the playing song keeps its gain');
+      expect(gainOf(handler.currentMediaItem), -6);
+      expect(gainOf(items[1]), -12);
+      expect(gainOf(items[2]), -12, reason: 'untagged became tagged');
+      expect(player.appliedVolumes, hasLength(writes), reason: 'no apply');
+      // A later volume write for the playing song still uses its old gain.
+      await handler.setVolume(0.5);
+      expect(player.appliedVolumes.last, closeTo(0.5 * linear(-6), 0.00001));
+      expect(handler.currentReplayGainDecision?.db, -6);
+
+      await handler.skipToNext();
+      await settleQueue(handler);
+      expect(player.appliedVolumes.last, closeTo(0.5 * linear(-12), 0.00001));
+    });
+
+    test('the next song is boosted with its new gain', () async {
+      final (handler, player, database) = await queued(
+        [6, 3],
+        peaks: [0.1, 0.1],
+        caps: mpv,
+      );
+      await retag(database, 'song-1', 5);
+
+      await handler.refreshQueuedSongReplayGain();
+      await handler.skipToNext();
+      await settleQueue(handler);
+
+      expect(player.boostMessages.last.currentDb, 5);
+    });
+
+    test('unchanged rows publish nothing', () async {
+      final (handler, _, database) = await queued([-6, -6]);
+      var emissions = 0;
+      final subscription = handler.queue.skip(1).listen((_) => emissions++);
+      addTearDown(subscription.cancel);
+      // A row that left the library is left alone as well.
+      await (database.delete(
+        database.songsTable,
+      )..where((song) => song.id.equals('song-1'))).go();
+
+      await handler.refreshQueuedSongReplayGain();
+      await pumpEventQueue();
+
+      expect(emissions, 0);
+      expect(gainOf(handler.queue.value[1]), -6);
+    });
+  });
+
   group('ReplayGain Smart mode', () {
     const exo = PlaybackAdjustmentCapabilities.android;
     double linear(double db) => pow(10, db / 20).toDouble();

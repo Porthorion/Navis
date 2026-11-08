@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Songs already in your queue pick up changed ReplayGain after a sync, '
+        'from the next song on. The song that is playing keeps its level',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Same Vibes and Instant Mix no longer stop adding songs after the '
         'first batch. When a song has nothing new to suggest, the mix waits '
         'for the next song and tries again. If it runs out on the last song, '

@@ -27,6 +27,7 @@ import 'package:navis/src/utils/connectivity.dart';
 import 'package:navis/src/utils/notifications/library_sync_notifier.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../../../helpers/fake_playback_handler.dart';
 import '../../../../helpers/library_sync_fakes.dart';
 import '../../../../helpers/test_database.dart';
 import '../../../../helpers/reachability_fakes.dart';
@@ -373,6 +374,64 @@ void main() {
       expect(requests.single.origin, SyncRunOrigin.interaction);
     });
   }
+
+  group('queued ReplayGain refresh', () {
+    // Runs one manual sync that returns [result]; true when the queue was told
+    // to refresh its ReplayGain.
+    Future<bool> refreshedAfter(LibrarySyncState result) async {
+      final database = createTestDatabase();
+      addTearDown(database.close);
+      final config = await _saveAuthenticatedServer(database);
+      final handler = InertPlaybackHandler();
+      final container = _container(
+        StubLibrarySyncEngine.returning(result),
+        database: database,
+        server: config,
+        extra: [audioHandlerProvider.overrideWithValue(handler)],
+      );
+      addTearDown(container.dispose);
+      await container.read(librarySyncControllerProvider.notifier).syncNow();
+      await pumpEventQueue();
+      return handler.replayGainRefreshes > 0;
+    }
+
+    test('a promoted snapshot refreshes it', () async {
+      expect(
+        await refreshedAfter(
+          _succeeded.copyWith(catalogPublishedThisRun: true),
+        ),
+        isTrue,
+      );
+    });
+
+    test('hydrated albums refresh it, even on a partial run', () async {
+      expect(
+        await refreshedAfter(
+          _succeeded.copyWith(
+            status: LibrarySyncStatus.partial,
+            hydratedAlbums: 3,
+          ),
+        ),
+        isTrue,
+      );
+    });
+
+    test('a run that wrote no songs does not', () async {
+      expect(await refreshedAfter(_succeeded), isFalse);
+    });
+
+    test('a failed run does not', () async {
+      expect(
+        await refreshedAfter(
+          _succeeded.copyWith(
+            status: LibrarySyncStatus.failed,
+            catalogPublishedThisRun: true,
+          ),
+        ),
+        isFalse,
+      );
+    });
+  });
 
   group('librarySyncControllerProvider', () {
     test(

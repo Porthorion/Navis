@@ -3313,6 +3313,12 @@ class NavisAudioHandler extends BaseAudioHandler
   }
 
   @override
+  Future<void> refreshQueuedSongReplayGain() => _enqueueQueueEdit(
+    (_) => _refreshQueuedSongReplayGain(),
+    prepareSources: false,
+  );
+
+  @override
   Future<void> applySongIdentityAliases(Map<String, String> aliases) {
     final normalized = <String, String>{
       for (final entry in aliases.entries)

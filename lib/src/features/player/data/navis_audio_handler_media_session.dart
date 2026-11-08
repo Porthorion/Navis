@@ -763,10 +763,12 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// tag, so they are found by the song id in their stream URL.
   MediaItem? _mediaItemOfSource(IndexedAudioSource source) {
     final tag = source.tag;
-    if (tag is MediaItem) return tag;
-    final songId = navisNativeSourceSongId(source);
+    final songId = tag is MediaItem ? tag.id : navisNativeSourceSongId(source);
     if (songId == null) return null;
-    return _queueItems.where((item) => item.id == songId).firstOrNull;
+    // The queue's copy first: a sync refreshes its ReplayGain
+    // ([_refreshQueuedSongReplayGain]), while a tag is as old as its source.
+    return _queueItems.where((item) => item.id == songId).firstOrNull ??
+        (tag is MediaItem ? tag : null);
   }
 
   /// Tells [deck]'s processor the boost for its playing song, guarded as

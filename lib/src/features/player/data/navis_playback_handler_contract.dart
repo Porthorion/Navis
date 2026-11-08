@@ -164,6 +164,11 @@ abstract class NavisPlaybackHandler {
   /// sync without replacing or interrupting the active audio source.
   Future<void> applySongIdentityAliases(Map<String, String> aliases);
 
+  /// Copies the ReplayGain values the library now holds into the songs that
+  /// are queued, for a sync that changed song tags. The next song plays at the
+  /// new gain; the song that is playing keeps its level.
+  Future<void> refreshQueuedSongReplayGain();
+
   Future<void> toggleLike();
 
   /// Synchronise the liked state of every queue item whose id matches

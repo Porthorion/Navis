@@ -524,6 +524,10 @@ abstract class _DelegatingNavisPlaybackHandler
       _delegate.applySongIdentityAliases(aliases);
 
   @override
+  Future<void> refreshQueuedSongReplayGain() =>
+      _delegate.refreshQueuedSongReplayGain();
+
+  @override
   Future<void> toggleLike() => _delegate.toggleLike();
 
   @override

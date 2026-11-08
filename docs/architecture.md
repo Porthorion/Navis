@@ -5140,6 +5140,23 @@ Desktop volume follows a parallel local-settings path:
    `volume-gain` read back (`replayGainBoostIntendedDb` is what the adapter
    meant to write, `replayGainBoostHeldDb` the target of a held join).
 
+   Queued songs carry their ReplayGain in `MediaItem.extras`, copied from the
+   song row when the queue is built, and a deck source's tag keeps the value
+   it was created with. After a sync run that rewrote songs (a promoted
+   snapshot or hydrated albums), or when the Android worker's changes are
+   picked up on resume, `LibrarySyncController` calls
+   `refreshQueuedSongReplayGain()` without awaiting it. It is a queue edit
+   (`_refreshQueuedSongReplayGain`, `prepareSources: false`, no network) that
+   reads the queued ids from the library with one chunked `getSongsByIds` and
+   patches the `replayGain*` extras where they differ, then publishes the
+   queue once; nothing changed, nothing published. It never applies a volume
+   and skips the audible songs (the current one, and the incoming one during a
+   cross-fade), because every later volume write re-reads a song's extras:
+   the playing song's level never jumps, and the next song plays at the new
+   gain (cut and boost; `_mediaItemOfSource` prefers the queue's copy over the
+   source tag). The song that was playing keeps its old gain if it plays again
+   from the same queue.
+
    Guidance. Playback settings explain what ReplayGain does (with a boost
    stage: it turns quiet songs up only as far as their peak allows; without
    one: it only turns songs down; either way raise the volume), each mode, and
