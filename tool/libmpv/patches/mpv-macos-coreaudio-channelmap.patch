@@ -1,0 +1,20 @@
+--- a/audio/out/ao_coreaudio.c
++++ b/audio/out/ao_coreaudio.c
+@@ -323,12 +323,11 @@
+     CHECK_CA_ERROR_L(coreaudio_error_audiounit,
+                      "can't link audio unit to selected device");
+ 
+-    err = AudioUnitSetProperty(p->audio_unit,
+-                               kAudioOutputUnitProperty_ChannelMap,
+-                               kAudioUnitScope_Global, 0, layout, layout_size);
+-
+-    CHECK_CA_ERROR_L(coreaudio_error_audiounit,
+-                     "unable to set the input channel layout on the audio unit");
++    // Navis: mpv eb0ee1031590 hands an AudioChannelLayout to the ChannelMap
++    // property. Current macOS rejects it (-50, no sound), and mpv master dropped
++    // the call, so the unit keeps its default channel map.
++    (void)layout;
++    (void)layout_size;
+ 
+     AURenderCallbackStruct render_cb = (AURenderCallbackStruct) {
+         .inputProc       = render_cb_lpcm,

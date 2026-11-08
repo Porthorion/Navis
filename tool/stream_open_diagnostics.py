@@ -3,8 +3,8 @@
 
 Starts a loopback Subsonic fixture whose `stream.view` returns 404 for one
 song, puts a recording `yt-dlp` stand-in first on the app's PATH, and launches
-an isolated muted Linux profile. Through the authenticated diagnostics API it
-then:
+an isolated muted profile (Linux, or macOS on a Mac). Through the
+authenticated diagnostics API it then:
 
 1. plays the 404 song and waits for the load to settle. libmpv's built-in
    ytdl hook would hand the failed, credential-bearing URL to yt-dlp; the
@@ -16,8 +16,8 @@ then:
    poll, captures an app-owned screenshot, and stops the station;
 4. starts a second station whose stream is served over HTTPS with a
    throw-away self-signed certificate. libmpv must refuse the certificate
-   (`tls-verify`): the TLS server sees the connection attempt, no request
-   completes, and the station never plays;
+   (`tls-verify`, with the system CA file on macOS): the TLS server sees the
+   connection attempt, no request completes, and the station never plays;
 5. turns Online services off and starts a third station whose stream host
    (`localhost`) differs from the server's (`127.0.0.1`). The app must refuse
    it without connecting and show why, while the station on the server's own
@@ -39,6 +39,7 @@ import shutil
 import ssl
 import stat
 import subprocess
+import sys
 import threading
 import time
 import urllib.error
@@ -287,7 +288,8 @@ def main():
         NAVIS_SYNC_DIAGNOSTICS_ROOT=str(output),
         NAVIS_SYNC_DIAGNOSTICS_DB_PATH=str(output / 'navis.sqlite'),
         NAVIS_SYNC_DIAGNOSTICS_CREDENTIAL_PATH=str(credential))
-    command = ['flutter', 'run', '-d', 'linux', '--profile',
+    device = 'macos' if sys.platform == 'darwin' else 'linux'
+    command = ['flutter', 'run', '-d', device, '--profile',
                *[f'--dart-define={k}={v}' for k, v in defines.items()]]
     environment = {**os.environ, 'PATH': f'{bindir}{os.pathsep}{os.environ["PATH"]}'}
     log_path = output / 'app.log'
@@ -346,8 +348,11 @@ def main():
                    'the failing stream request')
         settled = wait_until(lambda: (lambda s: s if not s.get('isLoading') else None)(
             api('/v1/playback/status')), 60, 'the failed load to settle')
-        # A hook subprocess runs inside the load, before mpv reports failure.
+        # A hook subprocess runs inside the load, before mpv reports failure,
+        # and a failure reported just after the load returned is recovered
+        # asynchronously: read the state again once both have had time.
         time.sleep(3)
+        settled = api('/v1/playback/status')
         app_log = log_path.read_text(errors='replace')
         details['failedStream'] = {
             'startResponse': started,

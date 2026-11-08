@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-// Windows and Linux bundles both ship dynamically linked LGPL libmpv/FFmpeg.
+// Windows, Linux and macOS bundles ship dynamically linked LGPL libmpv/FFmpeg.
 const bool _bundlesLgplLibmpv = true;
 
 /// Registers bundled assets and native libraries absent from Dart notices.
@@ -38,17 +38,21 @@ void registerBundledLicenses({
     }
     if (bundlesLgplLibmpv &&
         !isWeb &&
-        (target == TargetPlatform.windows || target == TargetPlatform.linux)) {
+        (target == TargetPlatform.windows ||
+            target == TargetPlatform.linux ||
+            target == TargetPlatform.macOS)) {
+      // Every desktop bundles a Navis-built libmpv under LGPL-2.1+; macOS has
+      // its own source offer and static dependency notices.
       final notice = await rootBundle.loadString(
-        'assets/licenses/libmpv-ffmpeg-NOTICE.txt',
+        target == TargetPlatform.macOS
+            ? 'assets/licenses/libmpv-macos-NOTICE.txt'
+            : 'assets/licenses/libmpv-ffmpeg-NOTICE.txt',
       );
-      final license = await rootBundle.loadString(
-        'assets/licenses/LGPL-2.1.txt',
-      );
+      final lgpl = await rootBundle.loadString('assets/licenses/LGPL-2.1.txt');
       yield LicenseEntryWithLineBreaks(const [
         'libmpv',
         'FFmpeg',
-      ], '$notice\n\n$license');
+      ], '$notice\n\n$lgpl');
     }
   });
 }

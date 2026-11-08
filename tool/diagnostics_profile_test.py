@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -39,7 +40,8 @@ class DatabasePathTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.home = Path(self.temp.name)
-        self.current = self.home / ".local/share/com.navis.app.navis/navis.sqlite.sqlite"
+        support = "Library/Application Support" if sys.platform == "darwin" else ".local/share"
+        self.current = self.home / support / "com.navis.app.navis/navis.sqlite.sqlite"
         self.legacy = self.home / "Documents/navis.sqlite.sqlite"
         self.current.parent.mkdir(parents=True)
         self.legacy.parent.mkdir(parents=True)
@@ -53,6 +55,14 @@ class DatabasePathTest(unittest.TestCase):
     def test_current_path_even_when_no_database_exists(self):
         self.assertEqual(default_primary_database(), self.current)
         self.assertEqual(primary_database(), self.current)
+
+    def test_macos_and_linux_defaults(self):
+        module = primary_database.__module__
+        for platform, support in (("darwin", "Library/Application Support"),
+                                  ("linux", ".local/share")):
+            with self.subTest(platform=platform), patch(f"{module}.sys.platform", platform):
+                self.assertEqual(default_primary_database(),
+                                 self.home / support / "com.navis.app.navis/navis.sqlite.sqlite")
 
     def test_existing_legacy_database_is_used_until_migration(self):
         self.legacy.touch()

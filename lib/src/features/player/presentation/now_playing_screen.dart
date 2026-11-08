@@ -1246,13 +1246,20 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     Duration duration = const Duration(milliseconds: 170),
     Curve curve = Curves.easeOutCubic,
   }) {
-    _artSwipeController.duration = duration;
+    // Reduce Motion: snap instead of animating; the swipe still works.
+    _artSwipeController.duration = MotionPolicy.of(context).reduceMotion
+        ? Duration.zero
+        : duration;
     return _artSwipeController.animateTo(target, curve: curve);
   }
 
   void _showTrackNavigationFeedback(_TrackNavigationFeedback feedback) {
     _trackNavigationFeedbackResetTimer?.cancel();
     setState(() => _trackNavigationFeedback = feedback);
+    _trackNavigationFeedbackController.duration =
+        MotionPolicy.of(context).reduceMotion
+        ? Duration.zero
+        : const Duration(milliseconds: 150);
     _trackNavigationFeedbackController.forward(from: 0);
     _trackNavigationFeedbackResetTimer = Timer(
       const Duration(milliseconds: 170),
@@ -2113,8 +2120,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 child: IgnorePointer(
                   ignoring: compactOverlayPage == null,
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    reverseDuration: const Duration(milliseconds: 220),
+                    duration: artLyricsSwapDuration,
+                    reverseDuration: artLyricsSwapDuration,
                     switchInCurve: Curves.easeOut,
                     switchOutCurve: Curves.easeIn,
                     // _CompactWideOverlaySheet owns all its animation;
@@ -2800,8 +2807,8 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     ),
                     Positioned.fill(
                       child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        reverseDuration: const Duration(milliseconds: 220),
+                        duration: artLyricsSwapDuration,
+                        reverseDuration: artLyricsSwapDuration,
                         switchInCurve: Curves.easeOut,
                         switchOutCurve: Curves.easeIn,
                         layoutBuilder: (currentChild, previousChildren) {

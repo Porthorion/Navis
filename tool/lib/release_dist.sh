@@ -76,12 +76,12 @@ load_release_dist() {
   ASSET_NAMES=()
   while IFS= read -r name || [[ -n "${name}" ]]; do
     case "${name}" in
-      "${prefix}-${VERSION}.apk"|"${prefix}-${VERSION}.ipa"|\
+      "${prefix}-${VERSION}.apk"|\
       "${prefix}-${VERSION}-android-arm64-v8a.apk"|"${prefix}-${VERSION}-android-armeabi-v7a.apk"|\
       "${prefix}-${VERSION}-android-x86_64.apk"|"${prefix}-${VERSION}-linux.tar.gz"|\
       "${prefix}-${VERSION}-linux-amd64.deb"|"${prefix}-${VERSION}-linux-x86_64.rpm"|\
       "${prefix}-${VERSION}-windows.zip"|"${prefix}-${VERSION}-windows-installer.exe"|\
-      "${prefix}-${VERSION}-macos.zip") ;;
+      "${prefix}-${VERSION}-macos.zip"|"${prefix}-${VERSION}-ios-sideload.ipa") ;;
       *) echo "Error: Invalid staged asset name: ${name}"; exit 1 ;;
     esac
     [[ -s "${PUBLISH_FROM}/${name}" && ! -L "${PUBLISH_FROM}/${name}" ]] || {

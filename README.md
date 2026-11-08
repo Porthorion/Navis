@@ -36,7 +36,7 @@ Navis connects straight to **your own music server**. There's no Navis account, 
 ### 🎧 Playback done right
 Gapless playback and crossfade, an **equalizer** (simple, 10-band or fully parametric) with AutoEQ headphone profiles, speed and pitch controls, ReplayGain, and synced lyrics.
 
-On Linux and Windows, Fast Seeking can play an Opus 256 kbps stream when you
+On Linux, Windows and macOS (release builds), Fast Seeking can play an Opus 256 kbps stream when you
 seek beyond a lossless download on a server with offset support. The original
 keeps downloading for the cache; seek back into the downloaded part or replay
 the song to return to lossless.
@@ -89,8 +89,32 @@ Every online service has its own switch. Turn off *Online services* and Navis on
 | **Android** | [Website](https://navis.porthorion.com) · [GitHub Releases](https://github.com/Porthorion/Navis/releases/latest) | Android 7.0+. One universal APK, or per-architecture APKs |
 | **Windows** | Installer from the [website](https://navis.porthorion.com) or [Releases](https://github.com/Porthorion/Navis/releases/latest) | Windows 10 / 11, x64 |
 | **Linux** | `.deb`, `.rpm`, portable `.tar.gz` or the [per-user install script](#linux-install-script) | x86_64, glibc 2.35+ (Ubuntu 22.04+, Debian 12+, Fedora). AUR coming soon |
+| **macOS** | Not released yet; [build from source](#build-from-source) | macOS 12+, universal (Apple silicon and Intel). [Status](#macos-status) |
+| **iOS** | Unsigned sideload IPA on [GitHub Releases](https://github.com/Porthorion/Navis/releases/latest); TestFlight and the App Store are planned for 1.5.2 | iOS 16+, iPhone and iPad. [Status](#ios-status) |
 
 Official downloads are served from Porthorion's Cloudflare R2 storage (`downloads.porthorion.com`). Each GitHub release carries identical copies plus a `SHA256SUMS` file, so you can check any download with `sha256sum -c SHA256SUMS`. Navis updates itself from a signed release manifest.
+
+### macOS status
+
+The macOS build is not released yet. It plays and caches like the other desktop builds, with Now Playing and media keys, a Dock menu and a Controls menu, a sign-in saved in the login keychain, and self-update that restores the previous app if the new one does not start. Release builds also have the equalizer and Fast Seeking. Known limits:
+
+- Streaming needs a server that allows TLS 1.2 or lower: the macOS player backend cannot connect to a TLS 1.3-only server (sign-in still works).
+- Now Playing and the media keys only include Navis after it has played audio once in a launch (a macOS rule).
+- Debug builds use AVFoundation instead of libmpv (unless `NAVIS_ENABLE_MEDIA_KIT_DEBUG=true`), so they have no equalizer or Fast Seeking.
+
+Open work is tracked in the [macOS parity plan](docs/plans/macOS_Parity_Plan.md).
+
+### iOS status
+
+The iOS build is not on the App Store yet; TestFlight and App Store distribution are planned for 1.5.2. Each GitHub release attaches an unsigned IPA (`navis-<tag>-ios-sideload.ipa`) for AltStore or SideStore, which sign and install it with your own Apple ID. That build checks for updates and, when one exists, links to the release page; iOS cannot install it for you, so install the new IPA the same way. TestFlight and App Store builds never check for updates. It has been checked on the iOS simulator only. It streams, downloads and caches in Navis's usual order (permanent download, rolling cache, stream), including from plain-http LAN servers and https servers, and it has the equalizer, a sign-in saved in the keychain, downloads visible in the Files app (under Navis, On My iPhone), and larger-text and Reduce Motion support. Known limits:
+
+- Nothing has run on a physical iPhone yet. Lock screen and Control Center Now Playing, AirPods, interruptions, the local network prompt and VoiceOver are device checks still pending ([iOS testing playbook](docs/platforms/ios-testing-playbook.md)).
+- A download deleted in the Files app is dropped from your downloads at the next launch rather than downloaded again; remove downloads inside Navis.
+- On the narrowest phones (iPhone SE and mini) the Now Playing transport buttons stay at 40 pt.
+- Independent pitch, Fast Seeking, notifications and background library sync are not available.
+- CarPlay, Siri and Shortcuts, widgets and Live Activities, an output device button, a sleep timer and share links are planned for 1.6.
+
+Open work is tracked in the [iOS parity plan](docs/plans/iOS_Parity_Plan.md).
 
 ### Linux install script
 
@@ -108,7 +132,7 @@ If you trust the repository, `curl -fsSL https://raw.githubusercontent.com/Porth
 
 ## Build from source
 
-You need Flutter 3.47.5+ (stable) and the toolchain for your platform: Android SDK, Linux desktop packages, or Visual Studio + Rust for Windows. Details are in the [development workflow](docs/development/development-workflow.md).
+You need Flutter 3.47.5+ (stable) and the toolchain for your platform: Android SDK, Linux desktop packages, Visual Studio + Rust for Windows, or Xcode + CocoaPods for macOS (see [release-macos](docs/release/release-macos.md) for the libmpv fetch and `NAVIS_LIBMPV_MACOS_ARCHIVE`). Details are in the [development workflow](docs/development/development-workflow.md).
 The full quality gate additionally needs JDK 21, Android SDK 37 and GNU `timeout`
 for the Android host JVM fixtures.
 

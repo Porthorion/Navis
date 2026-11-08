@@ -3,6 +3,7 @@ import argparse
 import os
 from pathlib import Path
 import sqlite3
+import sys
 
 
 def disable_external_integrations(clone: sqlite3.Connection) -> None:
@@ -15,15 +16,18 @@ def disable_external_integrations(clone: sqlite3.Connection) -> None:
 
 
 def default_primary_database() -> Path:
-    """Prefer Linux application support, falling back only to an existing legacy DB."""
+    """Prefer desktop application support, falling back only to an existing legacy DB."""
     home = Path.home()
-    current = home / ".local" / "share" / "com.navis.app.navis" / "navis.sqlite.sqlite"
+    # The macOS app is not sandboxed, so path_provider uses the user Library.
+    support = (home / "Library" / "Application Support" if sys.platform == "darwin"
+               else home / ".local" / "share")
+    current = support / "com.navis.app.navis" / "navis.sqlite.sqlite"
     legacy = home / "Documents" / "navis.sqlite.sqlite"
     return legacy if not current.is_file() and legacy.is_file() else current
 
 
 def primary_database() -> Path:
-    """Resolve the diagnostics override or the normal Linux database location."""
+    """Resolve the diagnostics override or the normal desktop database location."""
     override = os.environ.get("NAVIS_DIAGNOSTICS_PRIMARY_DB")
     return Path(override).expanduser() if override else default_primary_database()
 
