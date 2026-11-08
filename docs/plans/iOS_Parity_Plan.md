@@ -85,8 +85,8 @@ The owner asked for a split that avoids features on one platform but not the
 others. Rule: **1.5.2 brings iOS up to what Android already has; new
 features land in 1.6 on every platform at once.**
 
-- **1.5.2 (iOS):** I9 (merged), I18, I4 with I14, plus the release items I2,
-  I5, I6, I7, I8.
+- **1.5.2 (iOS):** I9 (merged), I18, I4 with I14, I21 to I26, plus the release
+  items I2, I5, I6, I7, I8.
 - **1.6, all platforms:** I13 sleep timer; I12 as an "Output device" button
   (AirPlay on iOS, the system output switcher on Android, the audio-device
   list on desktop); I15 share sheet and `navis://` links; I17 widgets on

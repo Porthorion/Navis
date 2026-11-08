@@ -194,9 +194,10 @@ Follow [Semantic Versioning](https://semver.org/) — `MAJOR.MINOR.PATCH`:
 | Phase 17 complete (accessibility + locale + test coverage) | `1.5.0` | `v1.5.0` |
 | Phase 18 complete (platform extensions) | `1.6.0` | `v1.6.0` |
 | Phase 12 complete (Android Auto & CarPlay) | `2.0.0` | `v2.0.0` |
+| Phase 13 complete (desktop support) | `2.1.0` | `v2.1.0` |
+
 
 Superseded for CarPlay (2026-11-08): Android Auto shipped through Phase 26, and CarPlay is iOS item I20, targeted at **1.6** in [iOS_Parity_Plan.md](../plans/iOS_Parity_Plan.md). The `2.0.0` row is kept as history.
-| Phase 13 complete (desktop support) | `2.1.0` | `v2.1.0` |
 
 Bug fixes on any version bump the patch: `0.3.1`, `1.0.1`, etc.
 
