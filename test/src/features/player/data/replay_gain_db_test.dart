@@ -427,39 +427,20 @@ void main() {
   });
 
   group('replayGainBoostPlatformSupported', () {
-    test(
-      'mpv boosts except on macOS, whose libmpv 0.36 has no volume-gain',
-      () {
-        expect(
-          navisReplayGainBoostSupported(usesMpv: true, isMacOS: false),
-          isTrue,
-        );
-        expect(
-          navisReplayGainBoostSupported(usesMpv: true, isMacOS: true),
-          isFalse,
-        );
-        expect(
-          navisReplayGainBoostSupported(usesMpv: false, isMacOS: false),
-          isFalse,
-        );
-      },
-    );
+    test('mpv boosts on every desktop platform, macOS included', () {
+      expect(navisReplayGainBoostSupported(usesMpv: true), isTrue);
+      expect(navisReplayGainBoostSupported(usesMpv: false), isFalse);
+      expect(navisReplayGainInPipeline(usesMpv: true), isTrue);
+      expect(navisReplayGainInPipeline(usesMpv: false), isFalse);
+    });
 
     test('Android boosts while its EQ processor pipeline is installed', () {
       expect(
-        navisReplayGainBoostSupported(
-          usesMpv: false,
-          isMacOS: false,
-          androidProcessor: true,
-        ),
+        navisReplayGainBoostSupported(usesMpv: false, androidProcessor: true),
         isTrue,
       );
       expect(
-        navisReplayGainBoostSupported(
-          usesMpv: false,
-          isMacOS: false,
-          androidProcessor: false,
-        ),
+        navisReplayGainBoostSupported(usesMpv: false, androidProcessor: false),
         isFalse,
         reason: 'the player was rebuilt without the processor',
       );

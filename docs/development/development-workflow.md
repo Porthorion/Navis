@@ -2335,7 +2335,7 @@ forbidden in primary-certification mode.
 `./tool/replaygain_boost_diagnostics.sh [--scenarios d1,d2,d4,d5,d6]` is the Linux
 runtime gate for the desktop ReplayGain boost (changes to
 `navis_playback_rules.dart` boost rules, `_applyReplayGainBoost`, or the
-media_kit adapter's `ReplayGainBoostState`). It clones the profile, adds
+media_kit adapter's `ReplayGainLevels` and `@navis_rg` chain). It clones the profile, adds
 synthetic songs (Q: a -30 dBFS sine tagged +10 dB with its peak; H: -1 dBFS
 tagged -3 dB), and captures the app's output from a disposable null sink with
 `parec`. `tool/replaygain_boost_analyze.py` asserts the levels: Q plays at -20

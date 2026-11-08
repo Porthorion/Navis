@@ -136,8 +136,7 @@ import json, sys, time
 v = json.load(sys.stdin)
 t = ((v.get("native") or {}).get("mediaKitTransport") or [{}])[0]
 print(json.dumps({"t": round(time.time(), 3), "songId": v.get("songId"), "positionMs": v.get("playerPositionMs"),
-                  "intendedDb": t.get("replayGainBoostIntendedDb"), "mpvDb": t.get("replayGainBoostDb"),
-                  "heldDb": t.get("replayGainBoostHeldDb")}))' >> "$1" || true
+                  "intendedDb": t.get("replayGainDb"), "mpvDb": t.get("audioFilters")}))' >> "$1" || true
     sleep 0.05
   done
 }
