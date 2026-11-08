@@ -348,8 +348,13 @@ static const int kBoostTickMs = 250;
         .remainingMs = NAN, .durationMs = NAN, .speed = _speed,
         .latched = _boostLatched, .held = _boostHeld, .previousDb = _boostTargetDb,
     };
-    if (timed && index >= 0 && index < (int)_indexedAudioSources.count) {
-        IndexedAudioSource *source = _indexedAudioSources[index];
+    NSArray<AVPlayerItem *> *heard = _player.items;
+    IndexedAudioSource *clock = timed && index >= 0 && index < (int)_indexedAudioSources.count ? _indexedAudioSources[index] : nil;
+    // The source reads its `playerItem`, which is not the item being heard until a loop-all wrap
+    // has flipped it, and a pending seek leaves its time stale: either would read the end of the
+    // song. Then the timing is unknown, which guards without latching.
+    if (clock && heard.count > 0 && heard[0] == clock.playerItem && CMTIME_IS_INVALID(_seekPos)) {
+        IndexedAudioSource *source = clock;
         double duration = CMTimeGetSeconds(source.duration) * 1000;
         double position = CMTimeGetSeconds(source.position) * 1000;
         in.durationMs = duration;

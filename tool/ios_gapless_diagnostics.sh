@@ -24,7 +24,7 @@
 #                    relaunches the app with crossfade on, so it stays last)
 #   GAP_TOLERANCE_MS largest accepted gap at a gapless transition (default 20)
 #   BOOST_ON_RUNS    runs of the boost-on queue in phase `boost` (default 1); BOOST_STEPS its steps
-#                    (default "on off level skip seek insert preamp")
+#                    (default "on off level skip seek insert wrap jump seekback preamp clip")
 #   GAPLESS_REPEATS  runs of each main case (default 1); GAPLESS_KEEP_GOING=1
 #                    reports failures and carries on instead of stopping
 set -euo pipefail
@@ -37,7 +37,7 @@ DIAGNOSTICS_FAILURE_PREFIX='ios-gapless'
 DIAGNOSTICS_POLL_INTERVAL=0.5
 PHASES="${GAPLESS_PHASES:-main rates formats seek insert loop pitch boost crossfade}"
 BOOST_ON_RUNS="${BOOST_ON_RUNS:-1}"
-BOOST_STEPS="${BOOST_STEPS:-on off level skip seek insert preamp}"
+BOOST_STEPS="${BOOST_STEPS:-on off level skip seek insert wrap jump seekback preamp clip}"
 GAP_TOLERANCE_MS="${GAP_TOLERANCE_MS:-20}"
 REPEATS="${GAPLESS_REPEATS:-1}"
 OUTPUT_ROOT="${GAPLESS_OUTPUT:-$PROJECT_DIR/build/ios-gapless-diagnostics/$(date -u +%Y%m%dT%H%M%SZ)}"
@@ -688,7 +688,8 @@ print("  crossfade pitch: song 2 %s/%s, song 3 %s/%s, cleared %s/%s (cents/activ
 
 # Fixture songs of this phase (see start_fixture below), 12 s each: 16 and 18 (Q) a 440 Hz
 # sine at -30 dBFS tagged +10 dB with its peak (boost 10 dB), 19 (Q48) the same at 48 kHz,
-# 17 and 20 (H) a 660 Hz sine at 0.98 of full scale tagged -3 dB (cut, never boosted).
+# 17 and 20 (H) a 660 Hz sine at 0.98 of full scale tagged -3 dB (cut, never boosted), 21 a 0.5 FS sine
+# wrongly tagged like Q (the clip counter's positive control).
 BOOST_SONGS='["fixture-song-16","fixture-song-17","fixture-song-18","fixture-song-19","fixture-song-20"]'
 
 # boost_sample <label> <seconds> [WHEN:METHOD:PATH:JSON...]: samples the playing song and the
@@ -708,7 +709,7 @@ actions = []
 for spec in sys.argv[5:]:
     when, method, path, body = spec.split(":", 3)
     actions.append((when, method, path, json.loads(body) if body else None))
-keys = ("boostRequestedDb", "boostAppliedDb", "boostGuarded", "boostClipSamples", "levelDeltaDb", "sampleRate",
+keys = ("processedFrames", "boostRequestedDb", "boostAppliedDb", "boostGuarded", "boostClipSamples", "levelDeltaDb", "sampleRate",
         "transitionGapsMs", "tapPrepareCount", "flushCount")
 out = open(sys.argv[3], "w")
 t0 = time.monotonic()
@@ -776,6 +777,16 @@ run_boost() {
   step seek && boost_run seek seek off '["fixture-song-16","fixture-song-17"]' 13 "fixture-song-16@4000:POST:/v1/playback/seek:{\"positionMs\":7000}"
   step insert && boost_run insert insert off '["fixture-song-16","fixture-song-18"]' 38 \
     'fixture-song-16@10000:POST:/v1/playback/queue-edit:{"op":"playNext","songIds":["fixture-song-17"]}'
+  # Q again after a loop-all wrap, a jump back to it and a seek back out of its guard window: the
+  # song's clock must not leave it latched.
+  if step wrap; then
+    boost_run wrap again off '["fixture-song-16","fixture-song-17"]' 40 "1:POST:/v1/playback/repeat:{\"mode\":\"all\"}"
+    api POST /v1/playback/repeat '{"mode":"none"}' >/dev/null
+  fi
+  step jump && boost_run jump again off '["fixture-song-16","fixture-song-17"]' 30 "fixture-song-17@3000:POST:/v1/playback/queue-index:{\"index\":0}"
+  step seekback && boost_run seekback seekback off '["fixture-song-16","fixture-song-17"]' 22 "fixture-song-16@10500:POST:/v1/playback/seek:{\"positionMs\":2000}"
+  # Positive control for the counter: a 0.5 FS sine boosted 10 dB (a wrong peak tag) clips on 56 % of its samples.
+  step clip && boost_run clip clip off '["fixture-song-21","fixture-song-16"]' 17
   step preamp && boost_run preamp preamp off '["fixture-song-16","fixture-song-17"]' 14 "fixture-song-16@3000:POST:/v1/playback/replay-gain:{\"mode\":\"track\",\"preamp\":6}"
   rg_mode track 0
   api POST /v1/playback/pause '{}' >/dev/null || true
@@ -808,7 +819,7 @@ if (s["at-song4"].get("processedFrames") or 0) <= 0: fail("the equalizer process
 }
 
 : > "$SUMMARY"
-start_fixture 'navis-gapless-fixture' --scenario downloads --song-count 20 \
+start_fixture 'navis-gapless-fixture' --scenario downloads --song-count 21 \
   --song-rate fixture-song-5=48000 --song-rate fixture-song-6=96000 \
   --song-wav fixture-song-14=2:16 --song-wav fixture-song-15=1:32 \
   --song-tone fixture-song-7=440:44100:12 --song-tone fixture-song-8=440:48000:12 \
@@ -819,7 +830,8 @@ start_fixture 'navis-gapless-fixture' --scenario downloads --song-count 20 \
   --song-tone fixture-song-18=440:44100:12:0.0316 --song-tone fixture-song-19=440:48000:12:0.0316 \
   --song-tone fixture-song-20=660:44100:12:0.98 \
   --song-gain fixture-song-16=10:0.0316 --song-gain fixture-song-17=-3:0.98 --song-gain fixture-song-18=10:0.0316 \
-  --song-gain fixture-song-19=10:0.0316 --song-gain fixture-song-20=-3:0.98
+  --song-gain fixture-song-19=10:0.0316 --song-gain fixture-song-20=-3:0.98 \
+  --song-tone fixture-song-21=440:44100:12:0.5 --song-gain fixture-song-21=10:0.0316
 sign_in main
 snap "$OUTPUT_ROOT/equalizer-initial.json"
 for phase in $PHASES; do

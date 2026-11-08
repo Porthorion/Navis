@@ -17,7 +17,7 @@ import sys
 
 kind, path, tolerance = sys.argv[1], sys.argv[2], float(sys.argv[3])
 rows = [json.loads(line) for line in open(path)]
-Q = {"fixture-song-16", "fixture-song-18", "fixture-song-19"}
+Q = {"fixture-song-16", "fixture-song-18", "fixture-song-19"}  # fixture-song-21 is the clip control
 H = {"fixture-song-17", "fixture-song-20"}
 problems = []
 
@@ -143,6 +143,50 @@ elif kind == "preamp":
         fail("H boosted by up to %.2f dB" % max(r["boostAppliedDb"] for r in h))
     if max_clip() != 0:
         fail("boostClipSamples reached %d" % max_clip())
+elif kind in ("again", "seekback"):
+    # Q plays a second time in this run (a loop-all wrap or a jump back to it), or is sought back
+    # from inside its guard window: the clock the native side reads must not leave it latched at
+    # min(own, next), so Q is back at 10 dB mid-song with no clip.
+    if kind == "again":
+        runs = []
+        for r in rows:
+            if not runs or runs[-1][0] != r["songId"]:
+                runs.append((r["songId"], []))
+            runs[-1][1].append(r)
+        q = [run for song, run in runs if song == "fixture-song-16"]
+        if len(q) < 2:
+            fail("Q played %d time(s), expected 2" % len(q))
+            again = []
+        else:
+            again = [r for r in q[-1] if 1500 <= r["positionMs"] <= 8500]
+    else:
+        drop = next((i for i in range(1, len(rows)) if rows[i]["songId"] == rows[i - 1]["songId"] == "fixture-song-16"
+                     and rows[i]["positionMs"] < rows[i - 1]["positionMs"] - 3000), None)
+        if drop is None:
+            fail("no seek back seen")
+            again = []
+        else:
+            again = [r for r in rows[drop:] if r["songId"] == "fixture-song-16" and 3500 <= r["positionMs"] <= 8500]
+    if len(again) < 8:
+        fail("only %d mid-song samples of the second play" % len(again))
+    elif max(abs(r["boostAppliedDb"] - 10) for r in again) > 0.1:
+        fail("Q is at %.2f dB mid-song after the wrap/jump/seek (min %.2f)" % (
+            statistics.median(r["boostAppliedDb"] for r in again), min(r["boostAppliedDb"] for r in again)))
+    if max_clip() != 0:
+        fail("boostClipSamples reached %d" % max_clip())
+elif kind == "clip":
+    # Positive control: fixture-song-21 is a 0.5 FS sine boosted 10 dB by an (artificially) wrong peak
+    # tag, so |x| > 1 for sin > 0.632 (56 % of the samples) from the hold (0.5 s) to its end. The
+    # counter holds that share of everything the tap processed up to the next song's start.
+    expect_level("fixture-song-21", 10)
+    after = next((r for r in rows if r["songId"] == "fixture-song-16"), None)
+    if after is None or not after.get("processedFrames"):
+        fail("the song after the control never played")
+    else:
+        share = after["boostClipSamples"] / after["processedFrames"]
+        print("  clip share %.3f (%d of %d frames), expected about 0.54" % (share, after["boostClipSamples"], after["processedFrames"]))
+        if not 0.45 <= share <= 0.60:
+            fail("clip share %.3f outside 0.45..0.60" % share)
 elif kind == "level":
     pass
 else:

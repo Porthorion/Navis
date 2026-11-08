@@ -2619,7 +2619,7 @@ It never installs over or edits the primary profile.
 
 `./tool/ios_gapless_diagnostics.sh` (iOS simulator, one heavy job) plays four
 phase-continuous 440 Hz songs through `POST /v1/playback/queue` from the
-loopback fixture server (`--song-count 15`, songs 5 and 6 at 48 and 96 kHz through
+loopback fixture server (`--song-count 21`, songs 5 and 6 at 48 and 96 kHz through
 `--song-rate`, songs 14 and 15 as a stereo 16-bit and a mono float WAV through
 `--song-wav`), proxied and as permanent downloads, with the equalizer off and
 on at a flat -12 dB. It reads the iOS-only `transitionGapsMs` (silence between
