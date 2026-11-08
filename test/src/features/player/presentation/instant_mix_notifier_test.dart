@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,6 +36,29 @@ class _DryingQueueController extends RecordingRecommendationQueue {
     if (appends > 1) {
       return Future.value(const RecommendationQueueResult(<String>[]));
     }
+    return super.appendRecommendationTracks(
+      songs,
+      expandMatchFlows: expandMatchFlows,
+      isCurrent: isCurrent,
+    );
+  }
+}
+
+/// Holds every recommendation append until [gate] completes, then asks
+/// [isCurrent] as the real queue does after its own awaits.
+class _GatedQueueController extends RecordingRecommendationQueue {
+  new() : super();
+
+  static Completer<void>? gate;
+
+  @override
+  Future<RecommendationQueueResult> appendRecommendationTracks(
+    List<Song> songs, {
+    bool expandMatchFlows = false,
+    bool Function()? isCurrent,
+  }) async {
+    final pending = gate;
+    if (pending != null) await pending.future;
     return super.appendRecommendationTracks(
       songs,
       expandMatchFlows: expandMatchFlows,
@@ -896,8 +920,59 @@ void main() {
       fakeNow = DateTime(2026, 10, 9, 12);
     });
 
+    ProviderContainer build(
+      _MockSubsonicApiClient api, {
+      RecordingRecommendationQueue Function() queue =
+          RecordingRecommendationQueue.new,
+      Duration? refillTimeout,
+    }) => createRecommendationContainer(
+      overrides: [
+        queueProvider.overrideWith(queue),
+        audioHandlerProvider.overrideWithValue(null),
+        instantMixProvider.overrideWith(
+          () => InstantMixNotifier(
+            now: () => fakeNow,
+            refillTimeout: refillTimeout,
+          ),
+        ),
+        subsonicApiProvider.overrideWithValue(api),
+        appSettingsProvider.overrideWithValue(
+          const AsyncData(AppSettingsModel.defaults()),
+        ),
+      ],
+    );
+
+    /// Plays [song] (index [index]) of a queue of [length] songs; each call
+    /// differs by [length], so the snapshot listener fires. The clock moves
+    /// past any backoff, and the error the app shell clears after showing it
+    /// is cleared.
+    Future<void> tick(
+      ProviderContainer container, {
+      required int length,
+      required int index,
+      String? currentId,
+      Duration position = Duration.zero,
+      AudioServiceRepeatMode repeatMode = AudioServiceRepeatMode.none,
+    }) async {
+      fakeNow = fakeNow.add(const Duration(minutes: 5));
+      container.read(instantMixProvider.notifier).clearError();
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: List<String>.generate(length, (i) => 'q-$i'),
+              currentSongId: currentId ?? 'q-$index',
+              currentIndex: index,
+            ).copyWith(repeatMode: repeatMode, position: position),
+          );
+      await pumpEventQueue();
+      while (container.read(instantMixProvider).refilling) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+    }
+
     test(
-      'five failed refills stop the mix until it is started again',
+      'zero insertions from an unchanged seed wait for the next song',
       () async {
         final api = _MockSubsonicApiClient();
         var fetches = 0;
@@ -911,66 +986,533 @@ void main() {
           fetches++;
           return songs(5);
         });
-        final container = createRecommendationContainer(
-          overrides: [
-            queueProvider.overrideWith(_DryingQueueController.new),
-            audioHandlerProvider.overrideWithValue(null),
-            instantMixProvider.overrideWith(
-              () => InstantMixNotifier(now: () => fakeNow),
-            ),
-            subsonicApiProvider.overrideWithValue(api),
-            appSettingsProvider.overrideWithValue(
-              const AsyncData(AppSettingsModel.defaults()),
-            ),
-          ],
+        final container = build(api, queue: _DryingQueueController.new);
+        final stages = <String>[];
+        container.listen(
+          recommendationSessionProvider,
+          (_, next) => stages.add(next.stage),
         );
         final notifier = container.read(instantMixProvider.notifier);
-        void emit(int length) => container
+        container
             .read(recommendationSnapshotProvider.notifier)
             .emitSnapshot(
               snapshot(
-                queueSongIds: List<String>.generate(length, (i) => 'q-$i'),
-                currentSongId: 'q-8',
-                currentIndex: 8,
+                queueSongIds: const <String>['q-0'],
+                currentSongId: 'q-0',
+                currentIndex: 0,
               ),
             );
-        // Moves the clock past any backoff and clears the error the app shell
-        // clears after showing it, then lets a due refill run.
-        Future<void> nextSnapshot(int length) async {
-          fakeNow = fakeNow.add(const Duration(minutes: 5));
-          notifier.clearError();
-          emit(length);
-          await pumpEventQueue();
-          while (container.read(instantMixProvider).refilling) {
-            await Future<void>.delayed(const Duration(milliseconds: 5));
-          }
-        }
-
-        emit(5);
         await notifier.activate('seed-a');
         expect(fetches, 1);
 
-        for (var failure = 1; failure <= 5; failure++) {
-          await nextSnapshot(10 + failure);
-          expect(fetches, 1 + failure);
+        for (var length = 11; length <= 18; length++) {
+          await tick(container, length: length, index: 8);
         }
-        final exhausted = container.read(recommendationSessionProvider);
-        expect(exhausted.stage, 'retryExhausted');
-        expect(exhausted.retryCount, 5);
+        expect(fetches, 2, reason: 'one fetch, then parked on the song');
+        expect(stages, isNot(contains('retryPending')));
+        expect(stages, isNot(contains('retryExhausted')));
+        expect(container.read(recommendationSessionProvider).retryCount, 0);
 
-        // Later snapshots no longer resume the exhausted refill.
-        await nextSnapshot(20);
-        await nextSnapshot(21);
-        expect(fetches, 6);
-        expect(
-          container.read(recommendationSessionProvider).stage,
-          'retryExhausted',
-        );
-
-        // Starting the mix again re-arms it.
-        await notifier.activate('seed-a');
-        expect(fetches, 7);
+        await tick(container, length: 20, index: 9);
+        expect(fetches, 3, reason: 'a new song gets its own try');
+        expect(container.read(instantMixProvider).active, isTrue);
+        expect(container.read(instantMixProvider).error, isNull);
       },
     );
+
+    test('a skip during a parking refill still gives the new song its try without another snapshot', () async {
+      final api = _MockSubsonicApiClient();
+      var fetches = 0;
+      Completer<List<Song>>? gate;
+      final seeds = <String>[];
+      when(
+        () => api.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((inv) async {
+        fetches++;
+        seeds.add(inv.positionalArguments.first as String);
+        if (fetches == 1) return songs(5);
+        final g = gate;
+        if (g != null) return g.future;
+        return const <Song>[];
+      });
+      final container = build(api);
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: const <String>['q-0'],
+              currentSongId: 'q-0',
+              currentIndex: 0,
+            ),
+          );
+      await container.read(instantMixProvider.notifier).activate('seed-a');
+      gate = Completer<List<Song>>();
+      void emit(int index) => container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: List<String>.generate(12, (i) => 'q-$i'),
+              currentSongId: 'q-$index',
+              currentIndex: index,
+            ),
+          );
+      fakeNow = fakeNow.add(const Duration(minutes: 5));
+      emit(8);
+      while (fetches < 2) {
+        container.read(instantMixProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      emit(9); // skip while the q-8 refill runs
+      container.read(instantMixProvider);
+      await pumpEventQueue();
+      gate.complete(const <Song>[]);
+      gate = null;
+      while (container.read(instantMixProvider).refilling) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      fakeNow = fakeNow.add(const Duration(minutes: 5));
+      await Future<void>.delayed(const Duration(seconds: 4));
+      container.read(instantMixProvider);
+      await pumpEventQueue();
+      expect(seeds, ['seed-a', 'q-8', 'q-9'], reason: 'q-9 never refilled');
+    });
+
+    /// Starts a mix on 'seed-a' whose first fetch gives five songs; later
+    /// fetches are answered by [later].
+    Future<ProviderContainer> startMix(
+      _MockSubsonicApiClient api,
+      Future<List<Song>> Function(String seed, int fetch) later, {
+      RecordingRecommendationQueue Function() queue =
+          RecordingRecommendationQueue.new,
+      Duration? refillTimeout,
+    }) async {
+      var fetches = 0;
+      when(
+        () => api.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((invocation) {
+        fetches++;
+        if (fetches == 1) return Future.value(songs(5));
+        return later(invocation.positionalArguments.first as String, fetches);
+      });
+      final container = build(api, queue: queue, refillTimeout: refillTimeout);
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: const <String>['q-0'],
+              currentSongId: 'q-0',
+              currentIndex: 0,
+            ),
+          );
+      await container.read(instantMixProvider.notifier).activate('seed-a');
+      return container;
+    }
+
+    test('a remote song without a library copy parks instead of ending the '
+        'mix', () async {
+      final api = _MockSubsonicApiClient();
+      when(() => api.getSong(any(), cancelToken: any(named: 'cancelToken')))
+          .thenAnswer((invocation) async {
+            // The server has no library copy: it answers with the remote song.
+            return Song(
+              id: invocation.positionalArguments.first as String,
+              title: 'Remote',
+            );
+          });
+      var fetches = 0;
+      final container = await startMix(api, (seed, fetch) {
+        fetches++;
+        throw const SubsonicNotFoundException(message: 'Song not found');
+      });
+      when(
+        () => api.getLegacySimilarSongs(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenThrow(const SubsonicNotFoundException(message: 'Song not found'));
+      when(
+        () => api.getInstantMix(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenThrow(const SubsonicNotFoundException(message: 'Song not found'));
+
+      for (var length = 11; length <= 14; length++) {
+        await tick(
+          container,
+          length: length,
+          index: 8,
+          currentId: 'ext-deezer-song-1',
+        );
+      }
+      expect(fetches, 1, reason: 'one fetch, then parked on the song');
+      final state = container.read(instantMixProvider);
+      expect(state.active, isTrue);
+      expect(state.error, isNull);
+      expect(container.read(recommendationSessionProvider).stage, 'active');
+
+      // A song the server can address that it says it cannot mix still ends
+      // the mix.
+      await tick(container, length: 20, index: 9);
+      expect(container.read(instantMixProvider).active, isFalse);
+      expect(
+        container.read(instantMixProvider).error,
+        InstantMixError.unsupported,
+      );
+    });
+
+    test('a refill that times out mid-mix is a silent failure that retries, '
+        'while the first one still ends the start', () async {
+      final api = _MockSubsonicApiClient();
+      final container = await startMix(
+        api,
+        (seed, fetch) => Completer<List<Song>>().future,
+        refillTimeout: const Duration(milliseconds: 40),
+      );
+      await tick(container, length: 11, index: 8);
+      final state = container.read(instantMixProvider);
+      expect(state.active, isTrue);
+      expect(state.error, isNull, reason: 'no "Couldn\'t start" mid-mix');
+      final session = container.read(recommendationSessionProvider);
+      expect(session.stage, 'retryPending');
+      expect(session.retryCount, 1);
+
+      final startApi = _MockSubsonicApiClient();
+      when(
+        () => startApi.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) => Completer<List<Song>>().future);
+      final starting = build(
+        startApi,
+        refillTimeout: const Duration(milliseconds: 40),
+      );
+      await starting.read(instantMixProvider.notifier).activate('seed-a');
+      expect(starting.read(instantMixProvider).active, isFalse);
+      expect(
+        starting.read(instantMixProvider).error,
+        InstantMixError.networkError,
+      );
+    });
+
+    group('a fetch that timed out mid-mix answers late', () {
+      late _MockSubsonicApiClient api;
+      late List<Completer<List<Song>>> gates;
+
+      /// A mix whose later fetches wait on [gates] in call order.
+      Future<ProviderContainer> start(Duration timeout) {
+        api = _MockSubsonicApiClient();
+        gates = <Completer<List<Song>>>[];
+        return startMix(api, (seed, fetch) {
+          final gate = Completer<List<Song>>();
+          gates.add(gate);
+          return gate.future;
+        }, refillTimeout: timeout);
+      }
+
+      Future<void> until(
+        ProviderContainer container,
+        bool Function() done,
+      ) async {
+        while (!done()) {
+          container.read(instantMixProvider);
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+      }
+
+      List<String> queued(ProviderContainer container) =>
+          (container.read(queueProvider.notifier)
+                  as RecordingRecommendationQueue)
+              .queuedSongs
+              .map((song) => song.id)
+              .toList();
+
+      test(
+        'its songs are not queued again after the retry queued them',
+        () async {
+          final container = await start(const Duration(milliseconds: 40));
+          await tick(container, length: 11, index: 8);
+          // The 3 s retry fetches the same songs and queues them.
+          await until(container, () => gates.length == 2);
+          gates[1].complete(songs(5, prefix: 'more'));
+          await until(container, () => queued(container).length == 10);
+          gates[0].complete(songs(5, prefix: 'more'));
+          await pumpEventQueue();
+          container.read(instantMixProvider);
+          await pumpEventQueue();
+          expect(queued(container), hasLength(10));
+          expect(queued(container).toSet(), hasLength(10));
+        },
+      );
+
+      test('it does not clear the flag of the retry that is running', () async {
+        final container = await start(const Duration(milliseconds: 800));
+        await tick(container, length: 11, index: 8);
+        await until(container, () => gates.length == 2);
+        expect(container.read(instantMixProvider).refilling, isTrue);
+        gates[0].complete(songs(5, prefix: 'more'));
+        await pumpEventQueue();
+        expect(
+          container.read(instantMixProvider).refilling,
+          isTrue,
+          reason: 'the retry fetch is still in flight',
+        );
+        gates[1].complete(const <Song>[]);
+        await pumpEventQueue();
+      });
+
+      test(
+        'an append it already started is dropped when it is released late',
+        () async {
+          api = _MockSubsonicApiClient();
+          gates = <Completer<List<Song>>>[];
+          var fetches = 0;
+          when(
+            () => api.getSimilarSongs2(
+              any(),
+              count: any(named: 'count'),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).thenAnswer((_) {
+            fetches++;
+            return Future.value(
+              songs(5, prefix: fetches == 1 ? 'rec' : 'more'),
+            );
+          });
+          _GatedQueueController.gate = null;
+          addTearDown(() => _GatedQueueController.gate = null);
+          final container = build(
+            api,
+            queue: _GatedQueueController.new,
+            refillTimeout: const Duration(milliseconds: 40),
+          );
+          container
+              .read(recommendationSnapshotProvider.notifier)
+              .emitSnapshot(
+                snapshot(
+                  queueSongIds: const <String>['q-0'],
+                  currentSongId: 'q-0',
+                  currentIndex: 0,
+                ),
+              );
+          await container.read(instantMixProvider.notifier).activate('seed-a');
+          // The mid-mix append is held by the queue past the timeout.
+          _GatedQueueController.gate = Completer<void>();
+          await tick(container, length: 11, index: 8);
+          expect(container.read(recommendationSessionProvider).retryCount, 1);
+          _GatedQueueController.gate!.complete();
+          _GatedQueueController.gate = null;
+          await pumpEventQueue();
+          container.read(instantMixProvider);
+          await pumpEventQueue();
+          expect(
+            queued(container),
+            hasLength(5),
+            reason: 'only the first batch',
+          );
+        },
+      );
+
+      test('an unexpected error it throws is not counted either', () async {
+        final container = await start(const Duration(milliseconds: 40));
+        await tick(container, length: 11, index: 8);
+        gates[0].completeError(StateError('late'));
+        await pumpEventQueue();
+        container.read(instantMixProvider);
+        await pumpEventQueue();
+        expect(container.read(recommendationSessionProvider).retryCount, 1);
+      });
+
+      test('its failure is not counted a second time', () async {
+        final container = await start(const Duration(milliseconds: 40));
+        await tick(container, length: 11, index: 8);
+        expect(container.read(recommendationSessionProvider).retryCount, 1);
+        gates[0].completeError(const SubsonicConnectionException('late'));
+        await pumpEventQueue();
+        container.read(instantMixProvider);
+        await pumpEventQueue();
+        final session = container.read(recommendationSessionProvider);
+        expect(session.retryCount, 1);
+        expect(session.stage, 'retryPending');
+      });
+    });
+
+    test('the retry follows the song playing when it fires', () async {
+      final api = _MockSubsonicApiClient();
+      final seeds = <String>[];
+      final container = await startMix(api, (seed, fetch) {
+        seeds.add(seed);
+        if (seeds.length == 1) throw const SubsonicConnectionException('x');
+        return Future.value(songs(5, prefix: 'more'));
+      });
+      await tick(container, length: 12, index: 8);
+      expect(seeds, ['q-8']);
+      // Skip during the 3 s backoff: the snapshot is held back by the
+      // backoff, so only the timer can serve q-9.
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: List<String>.generate(12, (i) => 'q-$i'),
+              currentSongId: 'q-9',
+              currentIndex: 9,
+            ),
+          );
+      container.read(instantMixProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 3600));
+      expect(seeds, ['q-8', 'q-9']);
+    });
+
+    test('parking cancels a retry still pending for the same song', () async {
+      final api = _MockSubsonicApiClient();
+      var failNext = true;
+      final container = await startMix(api, (seed, fetch) {
+        if (failNext) throw const SubsonicConnectionException('x');
+        return Future.value(songs(5));
+      }, queue: _DryingQueueController.new);
+      // The last song of the queue: a stale retry would find it parked and
+      // end the mix.
+      await tick(container, length: 10, index: 9);
+      expect(
+        container.read(recommendationSessionProvider).stage,
+        'retryPending',
+      );
+      failNext = false;
+      await tick(
+        container,
+        length: 10,
+        index: 9,
+        position: const Duration(seconds: 1),
+      );
+      expect(container.read(recommendationSessionProvider).stage, 'active');
+      await Future<void>.delayed(const Duration(milliseconds: 3600));
+      container.read(instantMixProvider);
+      await pumpEventQueue();
+      expect(container.read(instantMixProvider).active, isTrue);
+    });
+
+    test('five network failures wait for the next song, then retry', () async {
+      final api = _MockSubsonicApiClient();
+      var fetches = 0;
+      var failing = true;
+      when(
+        () => api.getSimilarSongs2(
+          any(),
+          count: any(named: 'count'),
+          cancelToken: any(named: 'cancelToken'),
+        ),
+      ).thenAnswer((_) async {
+        fetches++;
+        if (fetches > 1 && failing) {
+          throw const SubsonicConnectionException('offline');
+        }
+        return songs(5);
+      });
+      final container = build(api);
+      final notifier = container.read(instantMixProvider.notifier);
+      String stage() => container.read(recommendationSessionProvider).stage;
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: const <String>['q-0'],
+              currentSongId: 'q-0',
+              currentIndex: 0,
+            ),
+          );
+      await notifier.activate('seed-a');
+      expect(fetches, 1);
+
+      for (var failure = 1; failure <= 5; failure++) {
+        await tick(container, length: 10 + failure, index: 8);
+        expect(fetches, 1 + failure);
+      }
+      expect(stage(), 'retryExhausted');
+      expect(container.read(recommendationSessionProvider).retryCount, 5);
+      expect(container.read(instantMixProvider).active, isTrue);
+      expect(
+        container.read(instantMixProvider).error,
+        isNull,
+        reason: 'the mix heals by itself, so no notice',
+      );
+
+      // The same song makes no further fetch.
+      await tick(container, length: 20, index: 8);
+      await tick(container, length: 21, index: 8);
+      expect(fetches, 6);
+      expect(stage(), 'retryExhausted');
+
+      // The next song re-arms the mix with a fresh failure count.
+      await tick(container, length: 22, index: 9);
+      expect(fetches, 7);
+      expect(stage(), 'retryPending');
+      expect(container.read(recommendationSessionProvider).retryCount, 1);
+
+      // Once the connection is back the mix queues songs again.
+      failing = false;
+      await tick(container, length: 23, index: 9);
+      expect(fetches, 8);
+      expect(stage(), 'active');
+      expect(container.read(instantMixProvider).active, isTrue);
+      expect(container.read(instantMixProvider).error, isNull);
+
+      // Starting the mix again re-arms it too.
+      await notifier.activate('seed-a');
+      expect(fetches, 9);
+    });
+
+    for (final repeatMode in <AudioServiceRepeatMode>[
+      AudioServiceRepeatMode.none,
+      AudioServiceRepeatMode.all,
+    ]) {
+      test('the last song finding nothing new ends the mix only when repeat '
+          'is off (${repeatMode.name})', () async {
+        final api = _MockSubsonicApiClient();
+        var fetches = 0;
+        when(
+          () => api.getSimilarSongs2(
+            any(),
+            count: any(named: 'count'),
+            cancelToken: any(named: 'cancelToken'),
+          ),
+        ).thenAnswer((_) async {
+          fetches++;
+          return fetches == 1 ? songs(5) : const <Song>[];
+        });
+        final container = build(api);
+        container
+            .read(recommendationSnapshotProvider.notifier)
+            .emitSnapshot(
+              snapshot(
+                queueSongIds: const <String>['q-0'],
+                currentSongId: 'q-0',
+                currentIndex: 0,
+              ),
+            );
+        await container.read(instantMixProvider.notifier).activate('seed-a');
+
+        await tick(container, length: 6, index: 5, repeatMode: repeatMode);
+        expect(fetches, 2);
+        expect(container.read(instantMixProvider).active, isTrue);
+
+        await tick(container, length: 6, index: 5, repeatMode: repeatMode);
+        expect(fetches, 2);
+        final state = container.read(instantMixProvider);
+        expect(state.error, isNull, reason: 'running out is not an error');
+        expect(state.active, repeatMode != AudioServiceRepeatMode.none);
+      });
+    }
   });
 }

@@ -130,6 +130,13 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Same Vibes and Instant Mix no longer stop adding songs after the '
+        'first batch. When a song has nothing new to suggest, the mix waits '
+        'for the next song and tries again. If it runs out on the last song, '
+        'Same Vibes tells you it stopped',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Tag changes on the server now reach Navis after the server rescans '
         'its library, without Repair Library: ReplayGain, titles, genres and '
         'removed songs. Check for updates picks them up whenever the server '
