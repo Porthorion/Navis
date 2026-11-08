@@ -152,6 +152,8 @@ class PlaybackAdjustmentController
       } on Object {
         values = handler.playbackAdjustments;
         applicationFailed = true;
+        // The apply may have downgraded the capabilities (pitch_unavailable).
+        ref.invalidate(playbackAdjustmentCapabilitiesProvider);
       }
     }
     final selected = unsupported || applicationFailed

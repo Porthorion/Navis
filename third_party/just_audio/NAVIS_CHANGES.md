@@ -386,7 +386,7 @@ stage are created in `tapPrepare` and freed in `tapUnprepare` and nowhere else.
 The state adds `pitchCents`, `pitchActive`, `pitchLatencyFrames`,
 `pitchResetCount`, `pitchInputHz` and `pitchOutputHz` (zero-crossing estimates
 over a tumbling one-second window, computed on the audio thread) and
-`pitchReason`. Host fixtures: `darwin/test/navis_pitch_stage_test.c` (ASan/UBSan,
+`pitchReason`, `pitchPullMismatches` (AU input pulls that did not match the block, zero-filled). Host fixtures: `darwin/test/navis_pitch_stage_test.c` (ASan/UBSan,
 portable) and `darwin/test/navis_pitch_au_test.c` (the real unit, macOS only).
 Known limits: the heard audio lags `currentTime` by one AU latency while pitch
 is on; the AU runs while lock-to-speed is on at a speed other than 1x.
