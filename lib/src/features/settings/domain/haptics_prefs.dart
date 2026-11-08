@@ -22,7 +22,11 @@ enum HapticCategory {
   listsAndMenus(16),
 
   /// Likes, ratings, downloads, copying and actions that aren't available.
-  likesAndAlerts(32);
+  likesAndAlerts(32),
+
+  /// Download notifications. Unlike the others this is not a haptic Navis
+  /// plays: it picks the Android notification channel that vibrates or not.
+  notifications(64);
 
   const HapticCategory(this.bit);
 
