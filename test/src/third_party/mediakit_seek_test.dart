@@ -38,6 +38,7 @@ void main() {
   late _Properties properties;
   late StreamController<Duration> duration;
   late StreamController<bool> completed;
+  late StreamController<bool> buffering;
   late PlayerState state;
 
   setUp(() async {
@@ -45,6 +46,7 @@ void main() {
     final streams = _Streams();
     duration = StreamController<Duration>.broadcast();
     completed = StreamController<bool>.broadcast();
+    buffering = StreamController<bool>.broadcast();
     final playlist = Playlist([
       Media('https://stream.example.invalid/a'),
       Media('https://stream.example.invalid/b'),
@@ -60,7 +62,7 @@ void main() {
     when(() => streams.audioParams).thenAnswer((_) => const Stream.empty());
     when(() => streams.duration).thenAnswer((_) => duration.stream);
     when(() => streams.position).thenAnswer((_) => const Stream.empty());
-    when(() => streams.buffering).thenAnswer((_) => const Stream.empty());
+    when(() => streams.buffering).thenAnswer((_) => buffering.stream);
     when(() => streams.buffer).thenAnswer((_) => const Stream.empty());
     when(() => streams.volume).thenAnswer((_) => const Stream.empty());
     when(() => streams.completed).thenAnswer((_) => completed.stream);
@@ -117,6 +119,7 @@ void main() {
     await adapter.release();
     await duration.close();
     await completed.close();
+    await buffering.close();
   });
 
   test(
@@ -201,24 +204,28 @@ void main() {
   group('seek out of a finished queue', () {
     // A one-song queue whose only entry has played to the end. mpv keeps the
     // file open and paused at EOF, which media_kit reports as completed.
-    Future<void> finishOneSongQueue({required bool playing}) async {
-      final one = Playlist([Media('https://stream.example.invalid/a')]);
-      state = state.copyWith(playlist: one);
+    Future<void> finishQueue({required bool playing, int count = 1}) async {
+      final queue = Playlist([
+        for (var i = 0; i < count; i++)
+          Media('https://stream.example.invalid/$i'),
+      ], index: count - 1);
+      state = state.copyWith(playlist: queue);
       await adapter.load(
         LoadRequest(
           audioSourceMessage: ConcatenatingAudioSourceMessage(
             id: 'queue',
             children: [
-              ProgressiveAudioSourceMessage(
-                id: 'a',
-                uri: one.medias.single.uri,
-                headers: null,
-              ),
+              for (final media in queue.medias)
+                ProgressiveAudioSourceMessage(
+                  id: media.uri,
+                  uri: media.uri,
+                  headers: null,
+                ),
             ],
             useLazyPreparation: false,
-            shuffleOrder: [0],
+            shuffleOrder: [for (var i = 0; i < count; i++) i],
           ),
-          initialIndex: 0,
+          initialIndex: count - 1,
           initialPosition: null,
         ),
       );
@@ -240,7 +247,7 @@ void main() {
       ),
     ]) {
       test('$name resumes the paused-at-EOF player', () async {
-        await finishOneSongQueue(playing: true);
+        await finishQueue(playing: true);
         await adapter.seek(request);
         verify(() => player.play()).called(1);
         verify(() => player.seek(any())).called(1);
@@ -252,13 +259,42 @@ void main() {
     }
 
     test('a paused queue leaves completed but stays silent', () async {
-      await finishOneSongQueue(playing: false);
+      await finishQueue(playing: false);
       await adapter.seek(SeekRequest(index: 0, position: Duration.zero));
       verifyNever(() => player.play());
       verify(() => player.seek(any())).called(1);
       expect(
         adapter.debugTransportState['processingState'],
         isNot('completed'),
+      );
+    });
+
+    test('a buffering event during the seek still resumes mpv', () async {
+      await finishQueue(playing: true);
+      when(() => player.seek(any())).thenAnswer((_) async {
+        state = state.copyWith(buffering: true);
+        buffering.add(true);
+        await Future<void>.delayed(Duration.zero);
+      });
+      await adapter.seek(SeekRequest(index: null, position: Duration.zero));
+      verify(() => player.play()).called(1);
+      expect(adapter.debugTransportState['processingState'], 'buffering');
+    });
+
+    test('a jump out of a finished multi-song queue is not touched', () async {
+      await finishQueue(playing: true, count: 2);
+      final events = <PlaybackEventMessage>[];
+      final subscription = adapter.playbackEventMessageStream.listen(
+        events.add,
+      );
+      await adapter.seek(SeekRequest(index: 0, position: Duration.zero));
+      await Future<void>.delayed(Duration.zero);
+      await subscription.cancel();
+      verify(() => player.jump(0)).called(1);
+      verifyNever(() => player.play());
+      expect(
+        events.map((event) => event.processingState),
+        isNot(contains(ProcessingStateMessage.ready)),
       );
     });
   });

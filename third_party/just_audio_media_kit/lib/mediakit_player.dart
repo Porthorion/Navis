@@ -675,12 +675,16 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   Future<SeekResponse> seek(SeekRequest request) async {
     _logger.finest('seek(${request.toMap()})');
     if (_released) return SeekResponse();
-    final wasCompleted = _processingState == ProcessingStateMessage.completed;
     // mpv ignores a jump to the entry that is already playing, so seeking to
     // the current index (Previous restarting a song) is a plain seek.
     final sameEntry = request.index != null &&
         _player.state.playlist.medias.isNotEmpty &&
         request.index == _player.state.playlist.index;
+    // A seek within the file, as opposed to a jump, cannot resume mpv itself
+    // when it leaves a finished queue (see below).
+    final leavingCompleted =
+        _processingState == ProcessingStateMessage.completed &&
+            (request.index == null || sameEntry);
     if (request.index != null && !sameEntry) {
       final position = request.position;
       _playbackInitialized = false;
@@ -700,7 +704,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     }
 
     final position = request.position ?? (sameEntry ? Duration.zero : null);
-    _leavingCompleted = wasCompleted;
+    _leavingCompleted = leavingCompleted;
     try {
       if (position != null) {
         if (request.index == null || sameEntry) {
@@ -717,11 +721,14 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // keep-open leaves mpv paused at the end of the last file. A jump resumes
     // it, but a seek within the file only clears media_kit's completed flag,
     // and just_audio's play() is a no-op while it already reports playing.
-    // The seek leaves completed, so resume here when playback is wanted.
-    if (wasCompleted &&
-        _processingState == ProcessingStateMessage.completed &&
-        !_released) {
-      _processingState = ProcessingStateMessage.ready;
+    // Resume here whenever playback is wanted, whatever event arrived during
+    // the seek.
+    if (leavingCompleted && !_released) {
+      if (_processingState == ProcessingStateMessage.completed) {
+        _processingState = _nativeSeeking || _player.state.buffering
+            ? ProcessingStateMessage.buffering
+            : ProcessingStateMessage.ready;
+      }
       if (_playing) await _player.play();
     }
 
