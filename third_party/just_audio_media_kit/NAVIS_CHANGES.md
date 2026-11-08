@@ -27,7 +27,11 @@ seeded from `UriAudioSourceMessage.replayGainDb` in `load`/`insert` and merged
 from `setReplayGainLevels` pushes, so a natural join, a jump and a seek are the
 same lookup and an unknown key is 0 dB. Only a `live` push moves the playing
 file: `af-command navis_rg volume <dB>dB volume` (the 4th argument is required),
-then an `af` write, since mpv rebuilds the chain from `af` on any seek; without
-`af-command` (macOS libmpv 0.36) the `af` write alone lands the value. The
-global `volume-gain` is never set. `commandSync` and `setPropertySync` are
-injectable like `positionReader`.
+then an `af` write, since mpv rebuilds the chain from `af` on any seek; if
+`af-command` fails the `af` write alone lands the value (logged). Without the
+EQ pipeline at 1x the chain is the stage alone (no tempo). The global
+`volume-gain` is never set. `commandSync` and `setPropertySync` are injectable
+like `positionReader`. macOS (`replayGainFilter` false, the default there)
+keeps the pre-phase-2 adapter: no stage in `af`, no hook, levels ignored, and
+media_kit's own `setRate`/`setPitch` while the EQ pipeline is off, until
+`af-command` and lavfi `volume` are verified on libmpv 0.36.

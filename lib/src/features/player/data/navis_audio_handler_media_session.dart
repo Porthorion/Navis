@@ -720,9 +720,9 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// up is the platform's boost stage ([_applyReplayGainBoost]), which a
   /// 0..1 volume cannot do.
   ///
-  /// ExoPlayer's volume is linear, so the gain is `10^(dB/20)`. (mpv applies
-  /// the gain in its filter chain and never reaches this line.) Radio has no
-  /// gain data and is left at the user volume.
+  /// ExoPlayer's volume is linear, so the gain is `10^(dB/20)`. mpv's volume
+  /// is cubic (volume 50 is -18 dB), so the same dB needs `10^(dB/60)`.
+  /// Radio has no gain data and is left at the user volume.
   double _replayGainVolumeFor(MediaItem? item) {
     final base = _baseVolumeFor();
     // The backend applies the gain on the song's own samples: the player
@@ -730,7 +730,8 @@ extension _NavisMediaSession on NavisAudioHandler {
     if (replayGainInPipeline) return base;
     final gainDb = _replayGainDecisionFor(item)?.cutDb;
     if (gainDb == null) return base;
-    return (math.pow(10, gainDb / 20).toDouble() * base).clamp(0.0, 1.0);
+    return (math.pow(10, gainDb / (_usesMpv ? 60 : 20)).toDouble() * base)
+        .clamp(0.0, 1.0);
   }
 
   /// The player volume without ReplayGain: the user volume, ducked or not.
@@ -805,12 +806,10 @@ extension _NavisMediaSession on NavisAudioHandler {
 
   /// Tells every deck how much each queued song is turned up.
   ///
-  /// mpv switches the gain per file from the queued songs' boost and applies
-  /// the playing song's now (see the media_kit adapter), which keeps the end
-  /// of a quiet song from playing at its louder successor's gain. A backend
-  /// without a boost stage ([replayGainBoostSupported] false) gets nothing.
-  /// Boost is derived from the same frozen decision as the cut, except for
-  /// songs not playing yet, which read it without freezing.
+  /// A backend without a boost stage ([replayGainBoostSupported] false and not
+  /// [replayGainInPipeline]) gets nothing. Boost is derived from the same
+  /// frozen decision as the cut, except for songs not playing yet, which read
+  /// it without freezing.
   ///
   /// In the pipeline this is the update push of every queued song's level
   /// ([_pushReplayGainLevels]); [live] is set only by a settings change.

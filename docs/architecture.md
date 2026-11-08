@@ -5005,11 +5005,11 @@ Desktop volume follows a parallel local-settings path:
    song with both a gain and a valid peak (so never an untagged song, whatever
    the pre-amp), stopping 1 dB under the peak ceiling `-20*log10(peak)` (no
    limiter follows; a lossy copy can overshoot the tagged peak) and at 12 dB
-   (`replayGainMaxBoostDb`, mpv's `volume-gain-max`). A platform without a boost
+   (`replayGainMaxBoostDb`). A platform without a boost
    stage (`replayGainBoostSupported` false) always has boost 0. The invariant
    every boost stage relies on: a stage never applies more than a song's own
    boost to that song's samples, so a timing error can only under-boost.
-   Desktop (media_kit/mpv: Linux, Windows, macOS) applies the whole level (cut
+   Desktop mpv (Linux, Windows) applies the whole level (cut
    and boost) in the filter chain, on each song's own samples
    (`replayGainInPipeline`; #392 phase 2): the adapter's one composer
    (`MediaKitPlayer._applyAudio`, `EqualizerChain.withReplayGain`) writes
@@ -5025,8 +5025,11 @@ Desktop volume follows a parallel local-settings path:
    Pushes only update the map; the playing file changes only on a `live` push
    (a settings change), which sends `af-command navis_rg volume <dB>dB volume`
    (a gapless step) and then writes `af` with the new value, because mpv
-   rebuilds the chain from `af` on any seek (libmpv 0.36 on macOS has no
-   `af-command`: that is logged once and the `af` write lands the value).
+   rebuilds the chain from `af` on any seek; a failed `af-command` is logged
+   and the `af` write still lands the value. macOS keeps the pre-#392 path
+   (cut on the player volume, no boost, media_kit's own speed and pitch
+   setters, no `@navis_rg` in `af`) until `af-command` and lavfi `volume` are
+   verified on its libmpv 0.36 (`navisReplayGainInPipeline`).
    Android is the second stage: `NavisEqualizerProcessor` multiplies each frame
    by a boost gain (`EqualizerDsp.BoostRamp`, 20 ms linear ramps) after the EQ
    bank and before the 16-bit clamp. It sits outside `Bank`, whose automatic

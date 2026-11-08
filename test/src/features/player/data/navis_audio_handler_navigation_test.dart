@@ -15915,6 +15915,7 @@ void main() {
   group('ReplayGain loudness (#313)', () {
     const mpv = PlaybackAdjustmentCapabilities.mediaKit;
     const exo = PlaybackAdjustmentCapabilities.android;
+    double mpvFactor(double db) => pow(10, db / 60).toDouble();
     double linearFactor(double db) => pow(10, db / 20).toDouble();
 
     // song-N carries gains[N]; a null entry is an untagged song. peaks[N] is
@@ -16029,7 +16030,7 @@ void main() {
         );
         await handler.setVolume(0.25);
         await handler.replaceQueue(['song-0'], expandMatchFlows: false);
-        expect(player.volume, closeTo(0.25 * linearFactor(-10.5), 0.00001));
+        expect(player.volume, closeTo(0.25 * mpvFactor(-10.5), 0.00001));
         expect(player.boostMessages.last.currentDb, 0);
       });
 
@@ -18058,7 +18059,11 @@ void main() {
       );
     });
 
-    for (final (name, caps, factor) in [('ExoPlayer', exo, linearFactor)]) {
+    // macOS keeps mpv's cubic volume path (no filter stage there yet).
+    for (final (name, caps, factor) in [
+      ('macOS mpv', mpv, mpvFactor),
+      ('ExoPlayer', exo, linearFactor),
+    ]) {
       test('both cross-fade decks use the $name curve', () async {
         final directory = await Directory.systemTemp.createTemp('navis-rgf-');
         final (handler, outgoing, database) = await createHandler(
@@ -18067,6 +18072,7 @@ void main() {
           crossfade: true,
           replayGainMode: 'track',
           adjustmentCapabilities: caps,
+          replayGainInPipeline: caps == mpv ? false : null,
           seed: (database) async {
             await (database.update(
               database.songsTable,
@@ -18466,8 +18472,8 @@ void main() {
     test('a boost send leaves the next song\'s cut unchanged', () async {
       // mpv has the boost stage, so every song start sends a boost message.
       const mpv = PlaybackAdjustmentCapabilities.mediaKit;
-      final track = pow(10, -10 / 20).toDouble();
-      final album = pow(10, -4 / 20).toDouble();
+      final track = pow(10, -10 / 60).toDouble();
+      final album = pow(10, -4 / 60).toDouble();
       final (handler, player) = await smart(
         ['a', 'b', 'a'],
         caps: mpv,

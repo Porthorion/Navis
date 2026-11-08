@@ -95,6 +95,17 @@ void main() {
       expect(levels.onLoad('/music/a.flac'), 0);
     });
 
+    test(
+      'a live push between clear and the next hook leaves the heard file',
+      () {
+        final levels = queue()..onLoad('/music/a.flac');
+        levels.clear();
+        expect(levels.update({'/music/x.flac': -3}, live: true), isNull);
+        expect(levels.current, -9);
+        expect(levels.onLoad('/music/x.flac'), -3);
+      },
+    );
+
     test('a level that is not finite plays at 0 dB', () {
       final levels = ReplayGainLevels()..seed(_a, double.nan);
       expect(levels.onLoad('/music/a.flac'), 0);

@@ -7,11 +7,11 @@
 #
 # d1  Q (quiet, boosted) and H (hot, cut) join gaplessly, both ways, plus a
 #     control where Q has no peak and so no boost
-# (d1 also records d3-samples.log: the hook's gain write against the heard song)
+# (d1 also records d3-samples.log: the gain stage mpv holds against the heard song)
 # d2  skip, queue jump, seek, removing the playing song, repeat-one
 # d4  the same joins with cross-fade on: no over-boost, no level step
 # d5  a pre-amp rise in the last second of a song, with the next song's boost at or under its own
-#     at the join but able to exceed it afterwards, must not raise its tail (the F1 case)
+#     at the join, must not raise its tail (the F1 case); the next song starts at its own level
 # d6  the same Q/H joins on songs streamed from a loopback Navidrome-like server (no downloaded
 #     files, a fresh profile signed in to the fixture), first from the stream and then, the
 #     files being in the rolling cache by then, from the cache
@@ -128,15 +128,17 @@ rec_start() { parec --device="$AUDIO_SINK.monitor" --raw --rate=44100 --format=f
 rec_stop() { sleep "$1"; kill "$REC_PID" 2>/dev/null || true; wait "$REC_PID" 2>/dev/null || true; }
 play_queue() { api POST /v1/playback/queue "{\"songIds\":$1}" > "$OUTPUT_ROOT/queue.json"; }
 post() { api POST "$1" "${2:-}" > /dev/null; }
-# One JSON line per status read: heard song, position and the adapter's gain.
+# One JSON line per status read: heard song, position, the level the adapter meant for the
+# loaded file and the volume of the @navis_rg stage in mpv's own af (null before the first file).
 sample_status() { # sample_status <file>
   while :; do
     api GET /v1/playback/status 2>/dev/null | python3 -c '
-import json, sys, time
+import json, re, sys, time
 v = json.load(sys.stdin)
 t = ((v.get("native") or {}).get("mediaKitTransport") or [{}])[0]
+m = re.search(r"navis_rg.*?volume=(-?[0-9.]+)dB", t.get("audioFilters") or "")
 print(json.dumps({"t": round(time.time(), 3), "songId": v.get("songId"), "positionMs": v.get("playerPositionMs"),
-                  "intendedDb": t.get("replayGainDb"), "mpvDb": t.get("audioFilters")}))' >> "$1" || true
+                  "intendedDb": t.get("replayGainDb"), "mpvDb": float(m.group(1)) if m else None}))' >> "$1" || true
     sleep 0.05
   done
 }

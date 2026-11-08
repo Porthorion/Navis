@@ -7,6 +7,7 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
 import 'package:logging/logging.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:universal_platform/universal_platform.dart';
 import 'src/audio_request_batch.dart';
 import 'src/deferred_seek.dart';
 import 'src/icy_metadata.dart';
@@ -24,8 +25,13 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       Player? player,
       Future<Duration?> Function(Player)? positionReader,
       bool Function(String)? commandSync,
-      bool Function(String, String)? setPropertySync})
-      : _positionReader = positionReader ?? nativePosition {
+      bool Function(String, String)? setPropertySync,
+      bool? replayGainFilter})
+      : _positionReader = positionReader ?? nativePosition,
+        // ponytail: macOS stays off until `af-command` and lavfi `volume` are
+        // verified on libmpv 0.36 (design D5; the same switch is
+        // `navisReplayGainInPipeline`'s isMacOS): drop the platform test then.
+        _replayGainFilter = replayGainFilter ?? !UniversalPlatform.isMacOS {
     _commandSync = commandSync ?? ((line) => nativeCommandSync(_player, line));
     _setPropertySync = setPropertySync ??
         ((name, value) => nativeSetPropertySync(_player, name, value));
@@ -88,7 +94,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // Navis: ReplayGain rides the `@navis_rg` filter at the head of mpv's
     // `af` chain; the `on_load` hook builds each file's chain with its own
     // level, so it applies from the file's first sample.
-    configureReplayGainFilter(_player, replayGainFiltersForLoad);
+    if (_replayGainFilter) {
+      configureReplayGainFilter(_player, replayGainFiltersForLoad);
+    }
 
     _nativeSeekingReady = configureNativeSeeking(_player, (seeking) {
       _nativeSeeking = seeking;
@@ -295,7 +303,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// awaited write could land on the file that follows.
   late final bool Function(String) _commandSync;
   late final bool Function(String, String) _setPropertySync;
-  var _commandWarned = false;
+
+  /// Whether the `@navis_rg` stage is in `af`. Off (macOS), the adapter keeps
+  /// its pre-#392 behaviour: no stage, media_kit's own speed and pitch setters
+  /// while the EQ pipeline is off, and levels are ignored.
+  final bool _replayGainFilter;
 
   /// The entry and position mpv starts the next load of that entry at.
   ({int index, Duration position})? _nativeStart;
@@ -408,8 +420,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   /// The chain behind the ReplayGain stage that the `on_load` hook and a live
   /// level change write; [_applyAudio] replaces it.
-  EqualizerChain _chain =
-      EqualizerChain.compile(_noEqualizer, speed: 1, pitch: 1);
+  late EqualizerChain _chain = _compile(_equalizer, 1, 1);
 
   void _updateDuration(Duration duration) {
     final start = _currentMedia?.start;
@@ -578,6 +589,24 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   static final _noEqualizer = EqualizerConfigurationMessage(
       enabled: false, preampDb: 0, autoHeadroom: false, filters: const []);
 
+  /// The chain for [eq] (null: no EQ pipeline) at [rate] and [pitch]. Without
+  /// the EQ pipeline and at 1x there is nothing to stretch: the chain is empty,
+  /// as it was before the ReplayGain stage.
+  EqualizerChain _compile(
+          EqualizerConfigurationMessage? eq, double rate, double pitch) =>
+      eq == null && rate == 1 && pitch == 1
+          ? EqualizerChain(
+              filters: '',
+              state: EqualizerStateMessage(
+                  enabled: false, sampleRate: _sampleRate))
+          : EqualizerChain.compile(eq ?? _noEqualizer,
+              speed: rate, pitch: pitch, sampleRate: _sampleRate);
+
+  /// [chain] as the `af` string: behind the ReplayGain stage of the loaded
+  /// file, unless the stage is off.
+  String _stages(EqualizerChain chain) =>
+      _replayGainFilter ? chain.withReplayGain(_levels.current) : chain.filters;
+
   /// The only writer of mpv's `af` besides the `on_load` hook and a live
   /// ReplayGain change: speed, pitch and EQ edits all compose their chain
   /// here, behind the ReplayGain stage of the loaded file. media_kit's own
@@ -589,23 +618,21 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     await ready();
     final nextRate = rate ?? _rate;
     final nextPitch = pitch ?? _pitch;
-    final nextEq = equalizer ?? _equalizer ?? _noEqualizer;
-    final chain = EqualizerChain.compile(nextEq,
-        speed: nextRate, pitch: nextPitch, sampleRate: _sampleRate);
+    final nextEq = equalizer ?? _equalizer;
+    final chain = _compile(nextEq, nextRate, nextPitch);
     try {
       await setProperty(_player, 'audio-pitch-correction', 'no');
       await setProperty(_player, 'speed', nextPitch.toString());
       // Read when written: a live change in between must not be undone.
-      final filters = chain.withReplayGain(_levels.current);
+      final filters = _stages(chain);
       await setProperty(_player, 'af', filters);
       await verifyOwnedAudioChain(_player, filters, nextPitch);
     } catch (_) {
       // Only needed to roll back, and compiling a chain with the EQ on is
       // not free.
-      final previous = EqualizerChain.compile(_equalizer ?? _noEqualizer,
-          speed: _rate, pitch: _pitch, sampleRate: _sampleRate);
+      final previous = _compile(_equalizer, _rate, _pitch);
       try {
-        final filters = previous.withReplayGain(_levels.current);
+        final filters = _stages(previous);
         await setProperty(_player, 'speed', _pitch.toString());
         await setProperty(_player, 'af', filters);
         await verifyOwnedAudioChain(_player, filters, _pitch);
@@ -653,16 +680,15 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// chain from it on every seek.
   @override
   Future<void> setReplayGainLevels(SetReplayGainLevelsRequest request) async {
-    if (_released) return;
+    if (_released || !_replayGainFilter) return;
     final db = _levels.update(request.byUri, live: request.live);
     if (db == null) return;
-    final value = db.toStringAsFixed(3);
-    if (!_commandSync('af-command navis_rg volume ${value}dB volume') &&
-        !_commandWarned) {
-      // libmpv 0.36 (macOS) has no af-command: the rebuild below still lands.
-      _commandWarned = true;
-      _logger.warning('af-command is unavailable; ReplayGain steps by a '
-          'filter rebuild');
+    // Not "unavailable": it also fails while no chain exists yet (before the
+    // output opens, between files), and the `af` write below still lands.
+    if (!_commandSync('af-command navis_rg volume ${db.toStringAsFixed(3)}dB '
+        'volume')) {
+      _logger.warning('af-command navis_rg failed (no chain yet, or libmpv '
+          'without af-command); the af write carries the level');
     }
     _setPropertySync('af', _chain.withReplayGain(db));
   }
@@ -675,13 +701,22 @@ class MediaKitPlayer extends AudioPlayerPlatform {
 
   @override
   Future<SetSpeedResponse> setSpeed(SetSpeedRequest request) async {
-    await _audioRequests.request(rate: request.speed);
+    if (!_replayGainFilter && _equalizer == null) {
+      await _player.setRate(request.speed);
+    } else {
+      await _audioRequests.request(rate: request.speed);
+    }
     return SetSpeedResponse();
   }
 
   @override
   Future<SetPitchResponse> setPitch(SetPitchRequest request) async {
-    await _audioRequests.request(pitch: request.pitch);
+    if (!_replayGainFilter && _equalizer == null) {
+      await _player.setPitch(request.pitch);
+      await verifyPlaybackAdjustments(_player);
+    } else {
+      await _audioRequests.request(pitch: request.pitch);
+    }
     return SetPitchResponse();
   }
 
@@ -865,7 +900,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// A source's first level arrives with its message, before mpv loads it.
   void _seedLevel(UriAudioSourceMessage source) {
     final db = source.replayGainDb;
-    if (db != null) _levels.seed(source.uri, db);
+    if (db != null && _replayGainFilter) _levels.seed(source.uri, db);
   }
 
   /// Converts an [AudioSourceMessage] into a [Media] for playback

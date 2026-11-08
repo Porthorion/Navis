@@ -62,20 +62,28 @@ const replayGainMaxBoostDb = 12.0;
 const replayGainBoostMarginDb = 1.0;
 
 /// Whether the player can turn songs up. mpv has the float `@navis_rg` filter
-/// stage on every desktop platform; Android has the boost stage of its EQ
-/// processor, which exists only while [androidProcessor] says the processor
-/// pipeline is installed (it is gone after a rebuild without it).
+/// stage on Linux and Windows (macOS is off until [navisReplayGainInPipeline]
+/// is); Android has the boost stage of its EQ processor, which exists only
+/// while [androidProcessor] says the processor pipeline is installed (it is
+/// gone after a rebuild without it).
 @visibleForTesting
 bool navisReplayGainBoostSupported({
   required bool usesMpv,
+  required bool isMacOS,
   bool androidProcessor = false,
-}) => usesMpv || androidProcessor;
+}) => (usesMpv && !isMacOS) || androidProcessor;
 
 /// Whether the backend applies ReplayGain inside its audio path, on each
 /// song's own samples (see the handler's `replayGainInPipeline`). True on mpv
-/// (Linux, Windows, macOS); false on Android and iOS until their backends
-/// implement it.
-bool navisReplayGainInPipeline({required bool usesMpv}) => usesMpv;
+/// except macOS; false on Android and iOS until their backends implement it.
+// ponytail: macOS stays on the old path until `af-command` and lavfi `volume`
+// are verified on libmpv 0.36 (design D5: run
+// `af-command navis_rg volume -4dB volume` on a Mac build); then drop isMacOS
+// here and in the media_kit adapter's `replayGainFilter` default.
+bool navisReplayGainInPipeline({
+  required bool usesMpv,
+  required bool isMacOS,
+}) => usesMpv && !isMacOS;
 
 /// The last stretch of a song, in wall-clock ms, in which the audio pipeline
 /// may already hold its successor's samples (Android's processor runs ahead of

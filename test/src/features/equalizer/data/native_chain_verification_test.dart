@@ -53,4 +53,16 @@ void main() {
       throwsStateError,
     );
   });
+  test(
+    'a chain with the ReplayGain stage alone has no tempo to find',
+    () async {
+      const rg = '@navis_rg:lavfi=[volume=-9.000dB:precision=float]';
+      when(() => native.getProperty('af')).thenAnswer((_) async => rg);
+      await verifyOwnedAudioChain(player, rg, 1);
+      // A leftover tempo stage is not the requested chain.
+      when(() => native.getProperty('af'))
+          .thenAnswer((_) async => '$rg,@navis_tempo:scaletempo:scale=1.0');
+      await expectLater(verifyOwnedAudioChain(player, rg, 1), throwsStateError);
+    },
+  );
 }

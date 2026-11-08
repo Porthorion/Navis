@@ -25,8 +25,12 @@ class ReplayGainLevels {
   double current = 0;
 
   /// Forgets the queue's levels, for a new queue. The loaded file keeps its
-  /// level until the next hook, as it is still playing.
-  void clear() => _byKey.clear();
+  /// level until the next hook, as it is still playing, and no live push can
+  /// move it meanwhile: its key is not in the new queue.
+  void clear() {
+    _byKey.clear();
+    _loadedKey = null;
+  }
 
   /// Records the level a source message carried for [uri].
   // ponytail: levels of removed songs stay until the next load; bounded by the
@@ -47,6 +51,9 @@ class ReplayGainLevels {
   }
 
   /// The `on_load` hook: the level of the file loaded from [path].
+  // ponytail: repeat-one's wrap and a jump to the entry already playing fire
+  // no `on_load`, so a non-live change (tag correction, Smart pair) waits for
+  // the next real load there; add a seek-time lookup if that is ever heard.
   double onLoad(String path) {
     final key = _loadedKey = replayGainBoostKey(path);
     return current = _byKey[key] ?? 0;

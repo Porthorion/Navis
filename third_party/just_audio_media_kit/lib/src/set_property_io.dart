@@ -10,6 +10,27 @@ Future<void> setProperty(Player player, String key, dynamic value) async {
   await (player.platform as NativePlayer).setProperty(key, value);
 }
 
+/// Reads the actual mpv properties because media_kit logs setter errors without
+/// throwing them. This prevents a failed filter change being shown as applied.
+Future<void> verifyPlaybackAdjustments(Player player) async {
+  final native = player.platform;
+  if (native is! NativePlayer) return;
+  final actualPitch = double.tryParse(await native.getProperty('speed'));
+  final filters = await native.getProperty('af');
+  final expectedRatio = player.state.rate / player.state.pitch;
+  final scale =
+      RegExp(r'scale[=:](?:%[0-9]+%)?"?([0-9.eE+\-]+)').firstMatch(filters);
+  final actualScale = scale == null ? null : double.tryParse(scale.group(1)!);
+  if (actualPitch == null ||
+      (actualPitch - player.state.pitch).abs() > 0.000001 ||
+      actualScale == null ||
+      (actualScale - expectedRatio).abs() >
+          0.000001 * expectedRatio.abs().clamp(1, double.infinity)) {
+    throw StateError(
+        'The audio backend did not apply the requested speed/pitch pair');
+  }
+}
+
 Future<void> verifyOwnedAudioChain(
     Player player, String expected, double pitch) async {
   final native = player.platform;
@@ -19,7 +40,7 @@ Future<void> verifyOwnedAudioChain(
   final expectedScale = RegExp(r'scale=([0-9.eE+\-]+)').firstMatch(expected);
   final actualScale = RegExp(r'scale[=:](?:%[0-9]+%)?"?([0-9.eE+\-]+)')
       .firstMatch(actualFilters);
-  final requested = double.parse(expectedScale!.group(1)!);
+  final requested = double.tryParse(expectedScale?.group(1) ?? '');
   final actual = double.tryParse(actualScale?.group(1) ?? '');
   final expectsGain = expected.contains('@navis_rg');
   const marker = '@navis_eq:lavfi=[';
@@ -30,8 +51,10 @@ Future<void> verifyOwnedAudioChain(
       : null;
   if (actualPitch == null ||
       (actualPitch - pitch).abs() > .000001 ||
-      actual == null ||
-      (actual - requested).abs() > .000001 ||
+      // No tempo expected (no EQ pipeline at 1x): none may be left over.
+      (requested == null
+          ? actualFilters.contains('navis_tempo')
+          : actual == null || (actual - requested).abs() > .000001) ||
       actualFilters.contains('navis_eq') != expectsEqualizer ||
       // The label only: the level changes under live updates between the
       // write and this read.

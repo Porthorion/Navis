@@ -57,8 +57,11 @@ class EqualizerChain {
   /// The whole `af` chain: the ReplayGain stage of [db] ahead of [filters].
   /// mpv runs filters in float, so a boost cannot clip before the output
   /// converts. The label is always present: `af-command` needs it to exist.
-  String withReplayGain(double db) =>
-      '@navis_rg:lavfi=[volume=${db.toStringAsFixed(3)}dB:precision=float],$filters';
+  String withReplayGain(double db) {
+    final stage =
+        '@navis_rg:lavfi=[volume=${db.toStringAsFixed(3)}dB:precision=float]';
+    return filters.isEmpty ? stage : '$stage,$filters';
+  }
 
   static String _biquad(EqualizerBiquad c) =>
       'biquad=b0=${c.b0}:b1=${c.b1}:b2=${c.b2}:a0=1:a1=${c.a1}:a2=${c.a2}:precision=f64:transform=tdii';
