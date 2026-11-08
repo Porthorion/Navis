@@ -15,6 +15,8 @@ import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:just_audio_media_kit/mediakit_player.dart' show MediaKitPlayer;
+import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/utils/notifications/notification_localizations.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
@@ -57,6 +59,7 @@ import 'package:navis/src/features/equalizer/data/eq_platform_support.dart';
 import 'package:navis/src/features/player/data/windows_smtc_bridge.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/diagnostics_build_gate.dart';
 import 'package:navis/src/utils/catalog_source.dart';
 import 'package:navis/src/utils/genre_key.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -288,6 +291,14 @@ class NavisAudioHandler extends BaseAudioHandler
   /// player's error code, which just_audio keeps on an idle player after
   /// another load, this lasts only until the next load or progress.
   bool _loadedSourceFailed = false;
+
+  /// The last queue apply returned normally, so a failure reported before
+  /// its load ends was not surfaced by the load itself.
+  bool _loadedSourceApplied = false;
+
+  /// A failure was reported after the load's source was applied and while
+  /// the load still ran; recovery skipped it, so the load end must act.
+  bool _failedAfterApply = false;
 
   /// Automatic failovers since playback last advanced for
   /// [NavisPlaybackTimeouts.healthyPlayback]; [_maxAutoFailovers] is the cap.
@@ -3388,7 +3399,7 @@ class NavisAudioHandler extends BaseAudioHandler
 
   @override
   Future<void> customAction(String name, [Map<String, dynamic>? extras]) {
-    if (kProfileMode &&
+    if (diagnosticsBuildEnabled &&
         const bool.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS') &&
         const String.fromEnvironment('NAVIS_SYNC_DIAGNOSTICS_MODE') ==
             'clone' &&

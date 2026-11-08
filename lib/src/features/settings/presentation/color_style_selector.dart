@@ -7,6 +7,7 @@ import 'package:navis/src/theme/navis_color_style_data.dart';
 import 'package:navis/src/theme/navis_style_schemes.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
+import 'package:navis/src/theme/motion_policy.dart';
 
 /// The colour a seed swatch shows under [style]: the accent the style will
 /// actually use, taken from its dark scheme where accents sit at their
@@ -179,7 +180,7 @@ class _ColorStyleTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
             AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
+              duration: MotionPolicy.of(context).surface,
               padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.all(

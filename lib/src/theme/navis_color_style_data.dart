@@ -392,6 +392,20 @@ class NavisColorStyleData extends ThemeExtension<NavisColorStyleData> {
     if (other is! NavisColorStyleData) {
       return this;
     }
-    return t < 0.5 ? this : other;
+    // Only the hue fades (it follows the album colour on every track change);
+    // the rest are discrete choices that cannot be blended, so they switch
+    // halfway.
+    final base = t < 0.5 ? this : other;
+    if (accentHue == other.accentHue) return base;
+    return base.copyWith(accentHue: _lerpHue(accentHue, other.accentHue, t));
+  }
+
+  /// Interpolates along the shortest arc of the hue circle, so 350 to 10
+  /// passes through 0 instead of sweeping through every hue in between.
+  static double _lerpHue(double a, double b, double t) {
+    if (t <= 0) return a;
+    if (t >= 1) return b;
+    final delta = (b - a + 540) % 360 - 180;
+    return (a + delta * t) % 360;
   }
 }

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart'
+    show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +11,7 @@ import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/integrations/domain/integration_artwork.dart';
 import 'package:navis/src/features/integrations/domain/integration_feature.dart';
+import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -121,6 +124,89 @@ final _coverColourFetchAllowedProvider = Provider<bool>(
   ),
 );
 
+/// The song that plays after the current one, using the order and repeat mode
+/// the player itself follows (the logical queue, wrapping only on repeat all).
+/// Null for radio, repeat one, the end of the queue, or a queue the snapshot
+/// has not caught up with, and for the last item of a shuffled repeat-all
+/// queue (the handler reshuffles there, so `ids.first` would be a wrong guess).
+String? _nextSongId(PlaybackSnapshot snapshot) {
+  final ids = snapshot.queueSongIds;
+  final index = snapshot.currentIndex;
+  if (snapshot.isRadioMode ||
+      index == null ||
+      index < 0 ||
+      index >= ids.length ||
+      ids[index] != snapshot.currentSongId ||
+      snapshot.repeatMode == AudioServiceRepeatMode.one) {
+    return null;
+  }
+  if (index + 1 < ids.length) return ids[index + 1];
+  if (snapshot.repeatMode != AudioServiceRepeatMode.all ||
+      (snapshot.shuffleMode == AudioServiceShuffleMode.all && ids.length > 1)) {
+    return null;
+  }
+  return ids.first;
+}
+
+/// Cover source of the next queue item, under the same enabled guard as
+/// [_dynamicAccentSourceProvider] and the same metered/offline rule as the
+/// audio handler's next-song prefetch. Null when there is nothing worth warming,
+/// including when the next cover is the current one (same album).
+final _dynamicAccentNextSourceProvider = Provider<String?>((ref) {
+  if (!ref.watch(dynamicAccentEnabledProvider)) {
+    return null;
+  }
+  final allowed = ref.watch(_coverColourFetchAllowedProvider);
+  if (!allowed) {
+    return null;
+  }
+  final nextId = ref.watch(
+    playerStateProvider.select(
+      (snapshot) => _nextSongId(snapshot)?.trim() ?? '',
+    ),
+  );
+  if (nextId.isEmpty) {
+    return null;
+  }
+  final coverArtId =
+      ref.watch(songByIdProvider(nextId)).asData?.value?.coverArt?.trim() ?? '';
+  if (coverArtId.isEmpty) {
+    return null;
+  }
+  final source = 'id:$coverArtId';
+  return source == ref.watch(_dynamicAccentSourceProvider) ? null : source;
+});
+
+/// Resolves the next queue item's album colour into
+/// [DynamicAccentColorCache] while the current track plays, so a normal track
+/// change finds it cached and the theme fade starts at once. Watched by the
+/// app root.
+///
+/// Bounded by design: only the single next item is ever requested, it starts
+/// only after the current track's own colour has resolved (so it never
+/// competes with it), and the cache shares any in-flight extraction, so
+/// rapid skipping cannot stack up work. Failures are ignored: the normal
+/// path still resolves on demand.
+final dynamicAccentNextPrefetchProvider = Provider<void>((ref) {
+  final source = ref.watch(_dynamicAccentNextSourceProvider);
+  if (source == null || ref.watch(dynamicAccentSeedColorProvider).isLoading) {
+    return;
+  }
+  final cache = ref.watch(dynamicAccentColorCacheProvider);
+  if (cache.peek(source) != null) {
+    return;
+  }
+  unawaited(
+    cache
+        .resolve(
+          source: source,
+          api: ref.watch(subsonicApiProvider),
+          cacheManager: ref.watch(coverArtCacheManagerProvider),
+        )
+        .then<void>((_) {}, onError: (Object _) {}),
+  );
+});
+
 /// A cover and the pixel size the screen shows it at.
 typedef ArtworkSeedRequest = ({String coverArtId, int size});
 
@@ -166,6 +252,12 @@ final effectiveColorSchemeSeedProvider = Provider<int?>((ref) {
 class DynamicAccentColorCache {
   final Map<String, int> _seedBySource = <String, int>{};
 
+  /// Extractions under way, so concurrent callers for one source (the current
+  /// track, a next-track prefetch and a skip onto it) share a single decode
+  /// and quantisation. An entry lives only until its extraction ends, so
+  /// failures and `null` results are never remembered.
+  final Map<String, Future<int?>> _inFlight = <String, Future<int?>>{};
+
   int? peek(String source) => _seedBySource[source];
 
   /// Source of a cover read at `ArtworkSeedRequest.size` pixels, the size the
@@ -186,6 +278,10 @@ class DynamicAccentColorCache {
     if (cached != null) {
       return cached;
     }
+    final pending = _inFlight[source];
+    if (pending != null) {
+      return await pending;
+    }
 
     final image = _toImageProvider(
       source: source,
@@ -196,19 +292,42 @@ class DynamicAccentColorCache {
       return null;
     }
 
+    final future = _extractAndStore(source, image);
+    _inFlight[source] = future;
     try {
-      final scheme = await artworkColorScheme(
-        provider: image,
-        brightness: Brightness.light,
-        dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
-      );
-      if (scheme == null) return null;
-      final seed = scheme.primary.toARGB32();
-      _seedBySource[source] = seed;
+      return await future;
+    } finally {
+      // The removed future is the one just awaited.
+      unawaited(_inFlight.remove(source));
+    }
+  }
+
+  Future<int?> _extractAndStore(
+    String source,
+    ImageProvider<Object> image,
+  ) async {
+    try {
+      final seed = await extractSeed(image);
+      if (seed != null) {
+        _seedBySource[source] = seed;
+      }
       return seed;
     } on Object {
       return null;
     }
+  }
+
+  /// Decodes [image] and returns the seed colour for it, or `null` when the
+  /// image has no usable colour. Overridden in tests.
+  @protected
+  @visibleForTesting
+  Future<int?> extractSeed(ImageProvider<Object> image) async {
+    final scheme = await artworkColorScheme(
+      provider: image,
+      brightness: Brightness.light,
+      dynamicSchemeVariant: DynamicSchemeVariant.fidelity,
+    );
+    return scheme?.primary.toARGB32();
   }
 
   ImageProvider<Object>? _toImageProvider({

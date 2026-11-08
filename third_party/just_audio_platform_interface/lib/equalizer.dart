@@ -57,6 +57,9 @@ class EqualizerStateMessage {
     this.boostRequestedDb = 0,
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
+    this.processedFrames,
+    this.levelDeltaDb,
+    this.resetCount,
   });
 
   final bool enabled;
@@ -73,6 +76,18 @@ class EqualizerStateMessage {
   final double boostAppliedDb;
   final int boostClipSamples;
 
+  /// Frames the backend's equalizer has processed since the player started
+  /// (Darwin only; null elsewhere). Grows while audio plays.
+  final int? processedFrames;
+
+  /// Output-minus-input level in dB over a recent window of played audio
+  /// (Darwin only; null elsewhere or before any audio has played).
+  final double? levelDeltaDb;
+
+  /// Times the equalizer dropped its filter history because playback started,
+  /// resumed or jumped (Darwin only; null elsewhere), for diagnostics.
+  final int? resetCount;
+
   static EqualizerStateMessage fromMap(Map<dynamic, dynamic> map) =>
       EqualizerStateMessage(
         enabled: map['enabled'] as bool,
@@ -84,6 +99,9 @@ class EqualizerStateMessage {
         boostRequestedDb: (map['boostRequestedDb'] as num?)?.toDouble() ?? 0,
         boostAppliedDb: (map['boostAppliedDb'] as num?)?.toDouble() ?? 0,
         boostClipSamples: (map['boostClipSamples'] as num?)?.toInt() ?? 0,
+        processedFrames: (map['processedFrames'] as num?)?.toInt(),
+        levelDeltaDb: (map['levelDeltaDb'] as num?)?.toDouble(),
+        resetCount: (map['resetCount'] as num?)?.toInt(),
       );
 }
 

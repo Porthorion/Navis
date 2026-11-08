@@ -1,3 +1,7 @@
+// Release scripts run on the Linux release host and use its GNU tool paths.
+@TestOn('linux')
+library;
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -80,7 +84,7 @@ echo "Signer #1 certificate SHA-256 digest: $cert"
 set -euo pipefail
 SCRIPT_DIR="$FIXTURE/tool"
 VERSION=v1.5.0 SEMVER=1.5.0 BUILD_NUMBER=10500 ASSET_PREFIX=navis
-BUILD_ANDROID=true
+BUILD_ANDROID=true BUILD_IOS=false BUILD_MACOS=false BUILD_LINUX=false BUILD_WINDOWS=false IOS_UPLOAD=false UPDATE_CHANNEL=stable
 DART_DEFINE_ARGS=(--dart-define=NAVIS_UPDATE_CHANNEL=stable '--dart-define-from-file=fixture with spaces.json')
 scan_release_artifact() { echo "scan:$(basename "$1")" >> "$FIXTURE/log"; }
 validate_apk_strings() { echo "strings:$(basename "$1")" >> "$FIXTURE/log"; }

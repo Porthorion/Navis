@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:navis/src/bootstrap/bundled_libmpv.dart';
 
 void main() {
@@ -37,5 +38,54 @@ void main() {
       ),
       isNull,
     );
+  });
+
+  group('desktopStreamTlsVerify', () {
+    test('Linux, Windows and macOS verify with the system store', () {
+      for (final platform in ['linux', 'windows', 'macos']) {
+        expect(
+          desktopStreamTlsVerify(
+            isLinux: platform == 'linux',
+            isWindows: platform == 'windows',
+            isMacOS: platform == 'macos',
+          ),
+          isTrue,
+          reason: platform,
+        );
+      }
+    });
+
+    test('other platforms leave verification to their own audio stack', () {
+      expect(
+        desktopStreamTlsVerify(
+          isLinux: false,
+          isWindows: false,
+          isMacOS: false,
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('configureDesktopStreamTls', () {
+    tearDown(() => JustAudioMediaKit.tlsVerify = false);
+
+    test('macOS hands verification to the adapter, with no CA file', () {
+      configureDesktopStreamTls(
+        isLinux: false,
+        isWindows: false,
+        isMacOS: true,
+      );
+      expect(JustAudioMediaKit.tlsVerify, isTrue);
+    });
+
+    test('Linux hands over verification', () {
+      configureDesktopStreamTls(
+        isLinux: true,
+        isWindows: false,
+        isMacOS: false,
+      );
+      expect(JustAudioMediaKit.tlsVerify, isTrue);
+    });
   });
 }

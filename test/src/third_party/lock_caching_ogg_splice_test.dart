@@ -137,6 +137,12 @@ void main() {
     return (bytes, error);
   }
 
+  /// The response stream can end before the cache sink is flushed, closed and
+  /// renamed; progress reaches 1.0 only after that, so tearDown cannot race it.
+  Future<void> published(LockCachingAudioSource s) => s.downloadProgressStream
+      .firstWhere((progress) => progress >= 1.0)
+      .timeout(const Duration(seconds: 15));
+
   Future<void> until(bool Function() condition) async {
     for (var i = 0; i < 400 && !condition(); i++) {
       await Future<void>.delayed(const Duration(milliseconds: 5));
@@ -696,9 +702,11 @@ void main() {
       final mp3 = Uint8List.fromList(List.generate(60000, (i) => i % 251));
       final (a, ra) = await _origin([mp3], [_Reply(mp3.length, _End.complete)]);
       addTearDown(() => a.close(force: true));
-      final (bytesA, errA) = await drain(source(a));
+      final sa = source(a);
+      final (bytesA, errA) = await drain(sa);
       expect(errA, isNull);
       expect(bytesA, mp3);
+      await published(sa);
 
       final (b, rb) = await _origin(
         [full],
@@ -715,6 +723,7 @@ void main() {
       final (bytesB, errB) = await drain(s);
       expect(errB, isNull);
       expect(bytesB, full);
+      await published(s);
       expect(ra, hasLength(1));
       expect(rb, hasLength(1));
     },

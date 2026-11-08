@@ -169,6 +169,56 @@ void main() {
     }
   }
 
+  for (final inFilesApp in [true, false]) {
+    testWidgets(
+      'settings ${inFilesApp ? 'show the Files app note instead of' : 'keep'} '
+      'the custom folder switch',
+      (tester) async {
+        setAdaptiveTestViewport(tester, const Size(390, 844));
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: withTestDatabase(
+              database,
+              overrides: [
+                downloadServiceProvider.overrideWithValue(
+                  _MockDownloadService(),
+                ),
+                downloadsInFilesAppProvider.overrideWithValue(inFilesApp),
+                downloadQueueProvider.overrideWithValue(
+                  const AsyncData(<DownloadQueueTableData>[]),
+                ),
+                permanentCachedTracksProvider.overrideWithValue(
+                  const AsyncData(<CachedTracksTableData>[]),
+                ),
+              ],
+            ),
+            child: MaterialApp(
+              theme: testTheme(),
+              localizationsDelegates: navisLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const DownloadsScreen(),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Settings'));
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const ValueKey('downloadsFilesAppTile')),
+          inFilesApp ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.byKey(const ValueKey('downloadsCustomFolderSwitch')),
+          inFilesApp ? findsNothing : findsOneWidget,
+        );
+        if (inFilesApp) {
+          expect(find.textContaining('On My iPhone'), findsOneWidget);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final size in [
     const Size(390, 844),
     const Size(768, 1024),
@@ -494,6 +544,11 @@ void main() {
       final previous = FilePickerPlatform.instance;
       FilePickerPlatform.instance = picker;
       addTearDown(() => FilePickerPlatform.instance = previous);
+      // A macOS host asks the Runner's folder panel instead of file_picker.
+      const panel = MethodChannel('com.navis.app/directory_picker');
+      final messenger = tester.binding.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(panel, (_) async => '/music/navis');
+      addTearDown(() => messenger.setMockMethodCallHandler(panel, null));
       final service = _FolderService(database);
 
       await tester.pumpWidget(

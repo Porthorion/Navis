@@ -158,11 +158,18 @@ These concern local development, testing and diagnostics, which are intentionall
 - No TLS bypass anywhere.
 - Credential art is stripped before Android, MPRIS and SMTC see it.
 - Both loopback servers are token- or uuid-gated, and diagnostics is compiled out of release.
+  (Update, iOS I0: the diagnostics API is now also reachable in iOS simulator
+  *debug* builds, gated by `diagnosticsBuildEnabled`, so the simulator can run a
+  runtime loop. It is never reachable in release builds or in on-device debug
+  builds; physical iPhones need a profile build.)
 - SQL is all parameterised.
 - EQ and AutoEQ input is bounds-checked.
 - SAF and FileProvider are scoped.
 - The APK signature is checked before install.
 - libmpv and sqlite3 downloads are SHA-256 pinned, and the Gradle wrapper is pinned.
 - No git dependencies.
-- Release macOS is sandboxed.
+- Release macOS is sandboxed. (Correction, 2026-11-04: `tool/macos_notarize.sh`
+  re-signs without `--entitlements`, so notarized builds were never sandboxed;
+  the sandbox entitlement was removed from all macOS builds then. See
+  `docs/plans/macOS_Parity_Plan.md` M0.)
 

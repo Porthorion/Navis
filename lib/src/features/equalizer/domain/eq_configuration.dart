@@ -377,6 +377,9 @@ class EqApplicationState {
     this.boostRequestedDb = 0,
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
+    this.processedFrames,
+    this.levelDeltaDb,
+    this.resetCount,
   });
 
   final EqConfiguration desired;
@@ -392,4 +395,27 @@ class EqApplicationState {
   final double boostRequestedDb;
   final double boostAppliedDb;
   final int boostClipSamples;
+
+  /// Frames the native equalizer processed (iOS only), for diagnostics.
+  final int? processedFrames;
+
+  /// Output-minus-input level in dB over recently played audio (iOS only).
+  final double? levelDeltaDb;
+
+  /// Filter-history resets of the native equalizer (iOS only), for diagnostics.
+  final int? resetCount;
+
+  /// The `application` object of the diagnostics API's `/v1/equalizer`.
+  Map<String, Object?> toDiagnosticsJson() => {
+    'configuration': applied.toJson(),
+    'enabled': applied.enabled,
+    'sampleRate': sampleRate,
+    'responseSampleRate': responseSampleRate,
+    'headroomDb': headroomDb,
+    'reason': reason,
+    'pending': pending,
+    'processedFrames': processedFrames,
+    'levelDeltaDb': levelDeltaDb,
+    'resetCount': resetCount,
+  };
 }

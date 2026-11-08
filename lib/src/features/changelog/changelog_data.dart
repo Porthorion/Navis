@@ -156,6 +156,89 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'iOS: GitHub releases now include an unsigned IPA for AltStore and '
+        'SideStore, which tells you when a newer version is out and links to '
+        'its release page',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'iOS: a launch where the app cannot update its saved download '
+        'locations no longer re-downloads finished songs, and moving a '
+        'download between volumes no longer leaves a half-written file in '
+        'the Downloads folder',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Large text sizes: Now Playing, the mini player and Settings stay '
+        'usable at the largest accessibility size, with bigger buttons and '
+        'dropdowns that no longer overflow; the Appearance blinking icon stops '
+        'with Reduce Motion',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Turning crossfade, gapless, ReplayGain, speed or pitch off or on in '
+        'Settings now takes effect right away during playback',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'macOS: pausing from Control Center no longer shows the old '
+        'position for a moment',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'macOS: Control Center shows the right time when playing faster or '
+        'slower than normal',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'macOS: closing the window keeps music playing; click the Dock icon '
+        'to reopen. The Dock menu shows the current track with Play/Pause, '
+        'Next and Previous',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'macOS: a Controls menu in the menu bar plays, pauses and skips',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'macOS: Navis keeps you signed in across restarts',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'macOS: a song that fails to load no longer shows as playing',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'macOS: app updates now restore the previous version if the new one '
+        'fails to start',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'iOS: the equalizer now works, with the same presets, filters and '
+        'headroom protection as Android',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'iOS: downloads now appear in the Files app under On My iPhone › '
+        'Navis, and downloads stay out of iCloud and computer backups',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'iOS and macOS: Navis now explains why it asks for local network '
+        'access when your server is on your home network',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'macOS: the licences screen lists the bundled libmpv and FFmpeg '
+        'libraries',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'macOS: the equalizer and fast seeking now work, and stream '
+        "connections use the system's trusted certificates",
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Settings › Haptics turns vibration off entirely or for Player '
         'Gestures, Playback Buttons, Sliders & Rulers, Switches & Steppers, '
         'Lists & Menus or Likes & Alerts, so you can keep the ones you like',
@@ -302,6 +385,12 @@ const List<ChangelogVersion> changelogs = [
         'Windows, when an accessibility tool such as VoiceOver or Narrator '
         'is running',
         type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Dynamic Album Colour fades smoothly between albums instead of '
+        "stepping partway through, and the next track's colour is prepared "
+        'while the current one plays so the change starts sooner',
+        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Track Info shows where the song plays from and what the file is: '

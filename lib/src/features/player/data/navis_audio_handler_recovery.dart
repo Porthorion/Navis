@@ -394,9 +394,7 @@ extension _NavisRecovery on NavisAudioHandler {
 
   bool _shouldFastSeek(Duration target, String songId) {
     final item = _currentMediaItem;
-    if (kIsWeb ||
-        (defaultTargetPlatform != TargetPlatform.linux &&
-            defaultTargetPlatform != TargetPlatform.windows) ||
+    if (!navisFastSeekSupported() ||
         !_readRuntimeSettings().fastSeekingEnabled ||
         !_sourceResolver.supportsFastSeeking ||
         item == null ||
@@ -1805,6 +1803,7 @@ extension _NavisRecovery on NavisAudioHandler {
     Object? error,
     StackTrace? stackTrace,
   }) async {
+    if (_isLoading && _loadedSourceApplied) _failedAfterApply = true;
     if (_isLoading ||
         _pendingLogicalQueueSongIds != null ||
         _pendingSeek != null ||

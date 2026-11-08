@@ -19,6 +19,7 @@ void main() {
 
     setUp(() async {
       resetSecureStorageQueue();
+      resetUnclearableSecureKeys();
       storage = _Storage();
       when(() => storage.delete(key: any(named: 'key')))
           .thenAnswer((_) async {});
@@ -179,6 +180,153 @@ void main() {
       },
     );
 
+    group('a delete the keychain refuses', () {
+      const passwordKey = 'navis.auth.active_server.password';
+      const userInfoKey = 'navis.auth.active_server.user_info';
+      late Map<String, String> persisted;
+
+      setUp(() {
+        persisted = {passwordKey: 'old-secret', userInfoKey: 'old:proxy'};
+        when(() => storage.delete(key: any(named: 'key')))
+            .thenThrow(PlatformException(code: '-25244'));
+        when(
+          () => storage.write(
+            key: any(named: 'key'),
+            value: any(named: 'value'),
+          ),
+        ).thenAnswer((invocation) async {
+          persisted[invocation.namedArguments[#key]! as String] =
+              invocation.namedArguments[#value]! as String;
+        });
+        when(() => storage.read(key: any(named: 'key'))).thenAnswer(
+          (invocation) async =>
+              persisted[invocation.namedArguments[#key]! as String],
+        );
+      });
+
+      test('is overwritten with an empty value that reads as absent', () async {
+        await store.clearPassword();
+        await store.clearUserInfo();
+
+        expect(persisted, {passwordKey: '', userInfoKey: ''});
+        expect(await store.readPassword(), isNull);
+        expect(await store.readUserInfo(), isNull);
+
+        await store.saveUserInfo('new:proxy');
+        expect(await store.readUserInfo(), 'new:proxy');
+      });
+
+      test('is hidden by a cleared marker when the overwrite fails', () async {
+        var failWrites = true;
+        when(
+          () => storage.write(
+            key: any(named: 'key'),
+            value: any(named: 'value'),
+          ),
+        ).thenAnswer((invocation) async {
+          if (failWrites) throw PlatformException(code: '-25244');
+          persisted[invocation.namedArguments[#key]! as String] =
+              invocation.namedArguments[#value]! as String;
+        });
+
+        await store.clearPassword();
+        await store.clearUserInfo();
+
+        expect(persisted[userInfoKey], 'old:proxy');
+        expect(await store.readPassword(), isNull);
+        expect(await store.readUserInfo(), isNull);
+
+        // The marker lasts until a later write succeeds.
+        failWrites = false;
+        await store.saveUserInfo('new:proxy');
+        expect(await store.readUserInfo(), 'new:proxy');
+        expect(await store.readPassword(), isNull);
+      });
+    });
+
+    test(
+      'a read queued during a failed clear never returns the old value',
+      () async {
+        const userInfoKey = 'navis.auth.active_server.user_info';
+        final gate = Completer<void>();
+        when(() => storage.delete(key: userInfoKey))
+            .thenAnswer((_) => gate.future);
+        when(
+          () => storage.write(
+            key: userInfoKey,
+            value: any(named: 'value'),
+          ),
+        ).thenThrow(PlatformException(code: '-25244'));
+        when(() => storage.read(key: userInfoKey))
+            .thenAnswer((_) async => 'old:proxy');
+
+        final clear = store.clearUserInfo();
+        // The marker is not set yet, so this read passes the first check and
+        // queues behind the clear.
+        final read = store.readUserInfo();
+        gate.completeError(PlatformException(code: '-25244'));
+        await clear;
+
+        expect(await read, isNull);
+      },
+    );
+
+    for (final overwriteWorks in [true, false]) {
+      test('a save queued during a failed delete survives '
+          '(overwrite works: $overwriteWorks)', () async {
+        const key = 'navis.auth.active_server.user_info';
+        const deadline = Duration(seconds: 5);
+        final persisted = <String, String>{key: 'old:proxy'};
+        final gate = Completer<void>();
+        when(() => storage.delete(key: key)).thenAnswer((_) => gate.future);
+        when(
+          () => storage.write(
+            key: key,
+            value: any(named: 'value'),
+          ),
+        ).thenAnswer((invocation) async {
+          final value = invocation.namedArguments[#value]! as String;
+          if (value.isEmpty && !overwriteWorks) {
+            throw PlatformException(code: '-25244');
+          }
+          persisted[key] = value;
+        });
+        when(() => storage.read(key: key))
+            .thenAnswer((_) async => persisted[key]);
+
+        final delete = deleteSecureEntry(storage, key, deadline);
+        // Queued while the delete is in flight.
+        final save = writeSecureEntry(storage, key, 'new:proxy', deadline);
+        gate.completeError(PlatformException(code: '-25244'));
+        await Future.wait([
+          delete.then<void>((_) {}, onError: (Object _) {}),
+          save,
+        ]);
+
+        expect(await readSecureEntry(storage, key, deadline), 'new:proxy');
+      });
+    }
+
+    test('a successful delete stays a plain delete', () async {
+      await store.clearPassword();
+
+      verify(() => storage.delete(key: 'navis.auth.active_server.password'))
+          .called(1);
+      verifyNever(
+        () => storage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      );
+    });
+
+    test('an empty stored value reads as absent', () async {
+      when(() => storage.read(key: any(named: 'key')))
+          .thenAnswer((_) async => '');
+      expect(await store.readPassword(), isNull);
+      expect(await store.readUserInfo(), isNull);
+    });
+
     test('durable stores reject a save that stays memory-only', () async {
       when(
         () => storage.write(
@@ -265,6 +413,16 @@ void main() {
         ),
       ).called(3);
     });
+  });
+
+  test('the macOS service name stays pinned', () {
+    expect(
+      macOsLoginKeychain.accountName,
+      'com.navis.app.navis',
+      reason:
+          "Renaming the service name orphans every user's stored items "
+          'in the login keychain.',
+    );
   });
 
   test('clone diagnostics retries a failed shared backing read', () async {

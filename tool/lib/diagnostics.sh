@@ -4,6 +4,35 @@
 # Local helpers may override these defaults when their behavior differs.
 # Globals below are supplied by the caller, never initialized by this library.
 
+# diagnostics_device; the flutter device id for clone launches: macos on a Mac
+# host, linux elsewhere. NAVIS_DIAGNOSTICS_DEVICE=ios selects the booted iOS
+# simulator instead (its UDID, from `xcrun simctl list devices booted`).
+diagnostics_device() {
+  if [[ "${NAVIS_DIAGNOSTICS_DEVICE:-}" == ios ]]; then
+    local udid
+    udid="$(xcrun simctl list devices booted | sed -n 's/.*(\([0-9A-F-]\{36\}\)) (Booted).*/\1/p' | head -n 1)"
+    if [[ -z "$udid" ]]; then
+      echo "NAVIS_DIAGNOSTICS_DEVICE=ios needs a booted iOS simulator." >&2
+      # An unknown id makes `flutter run -d` exit at once, so launchers fail
+      # fast instead of letting flutter pick another device.
+      echo no-booted-ios-simulator
+      return 1
+    fi
+    echo "$udid"
+    return
+  fi
+  case "$(uname -s)" in
+    Darwin) echo macos ;;
+    *) echo linux ;;
+  esac
+}
+
+# diagnostics_build_mode; the flutter build flag: --debug on the iOS simulator
+# (it cannot run profile builds), --profile everywhere else.
+diagnostics_build_mode() {
+  if [[ "${NAVIS_DIAGNOSTICS_DEVICE:-}" == ios ]]; then echo --debug; else echo --profile; fi
+}
+
 # api <method> <route> [body]; uses BASE_URL and TOKEN, without a curl timeout.
 api() {
   local method="$1"
@@ -160,7 +189,7 @@ shutdown_app() {
 
 # start_fixture <fixture-password> [extra-server-args...]
 # Uses PROJECT_DIR, OUTPUT_ROOT, CREDENTIAL_FILE, FIXTURE_HANDSHAKE, FIXTURE_LOG;
-# sets FIXTURE_PID and FIXTURE_PORT. Auth lifecycle keeps its different startup local.
+# sets FIXTURE_PID, FIXTURE_HOST and FIXTURE_PORT. Auth lifecycle keeps its different startup local.
 start_fixture() {
   local password="$1"
   shift
@@ -182,6 +211,9 @@ start_fixture() {
   FIXTURE_PORT="$(python3 -c \
     'import json,sys; print(json.load(open(sys.argv[1]))["port"])' \
     "$FIXTURE_HANDSHAKE")"
+  FIXTURE_HOST="$(python3 -c \
+    'import json,sys; print(json.load(open(sys.argv[1])).get("host", "127.0.0.1"))' \
+    "$FIXTURE_HANDSHAKE")"
 }
 
 # Download launch_app <label>; uses DIAGNOSTICS_APP_NAME and PROFILE_DB,
@@ -199,7 +231,7 @@ launch_app() {
     "$PROJECT_DIR/pubspec.yaml" > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
   (
     cd "$PROJECT_DIR"
-    exec flutter run -d linux --profile \
+    exec flutter run -d "$(diagnostics_device)" "$(diagnostics_build_mode)" \
       --dart-define=NAVIS_UPDATE_CHANNEL=dev \
       --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
       --dart-define="NAVIS_APP_NAME=$DIAGNOSTICS_APP_NAME" \
@@ -216,6 +248,10 @@ launch_app() {
   while [[ ! -s "$HANDSHAKE" ]] && (( SECONDS < deadline )); do
     kill -0 "$FLUTTER_PID" >/dev/null 2>&1 ||
       fail "Navis exited before diagnostics startup"
+    # flutter run outlives an app that died before runApp (iOS: white screen).
+    [[ "${NAVIS_DIAGNOSTICS_DEVICE:-}" == ios ]] &&
+      grep -q 'Unhandled Exception' "$APP_LOG" 2>/dev/null &&
+      fail "Navis threw during startup"
     sleep 1
   done
   [[ -s "$HANDSHAKE" ]] || fail "timed out waiting for the diagnostics API"
@@ -231,6 +267,10 @@ launch_app() {
 # OUTPUT_ROOT, APP_LOG and optional NAVIS_DIAGNOSTICS_CREDENTIAL_PATH.
 # Sets FLUTTER_PID, PORT, TOKEN, APP_PID and BASE_URL; preserves the Pulse sink.
 launch_audio_app() {
+  if [[ "$(uname -s)" == Darwin || "${NAVIS_DIAGNOSTICS_DEVICE:-}" == ios ]]; then
+    echo "Audio capture diagnostics need PulseAudio (Linux)." >&2
+    exit 69
+  fi
   rm -f "$HANDSHAKE"
   # Like presentation_diagnostics.sh: an optional mode-600 password file
   # signs the clone in where the system keyring holds no Navis password.
@@ -247,7 +287,7 @@ launch_audio_app() {
   # NAVIS_DIAGNOSTICS_RUN_ARGS: extra `flutter run` flags (for example
   # --no-enable-impeller under a virtual compositor), split on spaces.
   # shellcheck disable=SC2086
-  PULSE_SINK="$AUDIO_SINK" flutter run -d linux --profile ${NAVIS_DIAGNOSTICS_RUN_ARGS:-} \
+  PULSE_SINK="$AUDIO_SINK" flutter run -d "$(diagnostics_device)" --profile ${NAVIS_DIAGNOSTICS_RUN_ARGS:-} \
     --dart-define=NAVIS_UPDATE_CHANNEL=dev \
     --dart-define=NAVIS_APP_ID_SUFFIX=.dev \
     --dart-define="NAVIS_APP_NAME=$1" \
@@ -296,7 +336,7 @@ launch() {
   printf '%s\n' "$version" > "$OUTPUT_ROOT/support/changelog_seen_version.txt"
   (
     cd "$PROJECT_DIR"
-    flutter run -d linux --profile \
+    flutter run -d "$(diagnostics_device)" "$(diagnostics_build_mode)" \
       "$@" \
       >>"$APP_LOG" 2>&1
   ) &

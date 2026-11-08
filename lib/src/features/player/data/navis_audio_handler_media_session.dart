@@ -1143,6 +1143,9 @@ extension _NavisMediaSession on NavisAudioHandler {
         boostRequestedDb: native.boostRequestedDb,
         boostAppliedDb: native.boostAppliedDb,
         boostClipSamples: native.boostClipSamples,
+        processedFrames: native.processedFrames,
+        levelDeltaDb: native.levelDeltaDb,
+        resetCount: native.resetCount,
       ),
     );
   }

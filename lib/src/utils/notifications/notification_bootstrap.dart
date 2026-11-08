@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/notifications/notification_localizations.dart';
 
 /// Handles notification channel setup and runtime permission requests.
 class NotificationBootstrap {
@@ -10,7 +12,12 @@ class NotificationBootstrap {
       FlutterLocalNotificationsPlugin();
 
   /// Initializes local notifications and creates required Android channels.
-  static Future<void> initialize() async {
+  ///
+  /// Channel names come from [readLocalizations] (the in-app language override
+  /// when set, else the platform language), read only on Android.
+  static Future<void> initialize({
+    AppLocalizations Function()? readLocalizations,
+  }) async {
     if (defaultTargetPlatform != TargetPlatform.android) {
       if (kDebugMode) {
         AppLogger.info('Notification bootstrap skipped on non-Android target.');
@@ -34,23 +41,25 @@ class NotificationBootstrap {
         return;
       }
 
-      const playbackChannel = AndroidNotificationChannel(
+      final l10n =
+          (readLocalizations ?? () => resolveNotificationLocalizations(null))();
+      final playbackChannel = AndroidNotificationChannel(
         'playback',
-        'Playback',
-        description: 'Media playback controls and status',
+        l10n.notificationPlaybackChannelName,
+        description: l10n.notificationPlaybackChannelDescription,
         importance: Importance.low,
       );
 
-      const downloadsChannel = AndroidNotificationChannel(
+      final downloadsChannel = AndroidNotificationChannel(
         'downloads',
-        'Downloads',
-        description: 'Download queue and progress updates',
+        l10n.notificationDownloadsChannelName,
+        description: l10n.notificationDownloadsChannelDescription,
       );
 
-      const librarySyncChannel = AndroidNotificationChannel(
+      final librarySyncChannel = AndroidNotificationChannel(
         'library_sync_silent',
-        'Library Scan',
-        description: 'Library scan progress and completion updates',
+        l10n.notificationLibraryScanChannelName,
+        description: l10n.notificationLibraryScanChannelDescription,
         importance: Importance.low,
         playSound: false,
         enableVibration: false,

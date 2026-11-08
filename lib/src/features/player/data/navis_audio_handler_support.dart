@@ -6,6 +6,8 @@ bool get _isWindowsRuntime => !kIsWeb && Platform.isWindows;
 
 bool get _isLinuxRuntime => !kIsWeb && Platform.isLinux;
 
+bool get _isMacOSRuntime => !kIsWeb && Platform.isMacOS;
+
 bool get _isDesktopPlatform =>
     !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
 

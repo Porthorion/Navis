@@ -54,6 +54,29 @@ void main() {
   );
 
   test(
+    'on iOS the artwork root is excluded from backup when created',
+    () async {
+      final excluded = <String>[];
+      final artwork = PermanentArtworkStore(
+        readApplicationSupportDirectory: () async => support,
+        dio: dio,
+        isIOS: true,
+        excludeFromBackup: (path) async {
+          excluded.add(path);
+          return true;
+        },
+      );
+      final root = p.join(support.path, 'artwork', 'permanent');
+      expect(await artwork.storeBytes('album', body), isTrue);
+      expect(await artwork.storeBytes('album-2', body), isTrue);
+      expect(excluded, [root]);
+      await Directory(root).delete(recursive: true);
+      expect(await artwork.storeBytes('album-3', body), isTrue);
+      expect(excluded, [root, root]);
+    },
+  );
+
+  test(
     'stores validated external bytes under server key and prunes by that key',
     () async {
       final artwork = store();

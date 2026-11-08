@@ -665,6 +665,11 @@ def main():
         action="store_true",
         help="Give each extra song in downloads mode its own cover id.",
     )
+    parser.add_argument(
+        "--bind",
+        default="127.0.0.1",
+        help="Address to listen on (a LAN address exercises local-network access).",
+    )
     parser.add_argument("--annotation-log")
     parser.add_argument(
         "--phase-file",
@@ -721,11 +726,13 @@ def main():
         if not PARTIAL_ALBUM_FLAG:
             parser.error("--partial-album-flag is required for partial-album")
         _configure_partial_album_fixture()
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server = ThreadingHTTPServer((args.bind, 0), Handler)
     os.makedirs(os.path.dirname(os.path.realpath(args.handshake)), exist_ok=True)
     with open(args.handshake, "w", encoding="utf-8") as output:
         json.dump(
             {
+                # A wildcard bind is reachable, and best addressed, via loopback.
+                "host": "127.0.0.1" if args.bind in ("", "0.0.0.0", "::") else args.bind,
                 "port": server.server_port,
                 "indexesLastModified": INDEX_LAST_MODIFIED,
             },

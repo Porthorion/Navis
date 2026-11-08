@@ -196,4 +196,83 @@ void main() {
       expect(resolve(reserved: <String>{second}), endsWith('-3].flac'));
     });
   });
+
+  group('default root', () {
+    late Directory base;
+    late Directory support;
+    late Directory documents;
+    late List<String> excluded;
+
+    setUp(() async {
+      base = await Directory.systemTemp.createTemp('navis_default_root_');
+      support = await Directory(p.join(base.path, 'support')).create();
+      documents = Directory(p.join(base.path, 'documents'));
+      excluded = [];
+    });
+
+    tearDown(() => base.delete(recursive: true));
+
+    PermanentDownloadPathResolver build({
+      required bool isIOS,
+      bool customEnabled = false,
+      String? customPath,
+    }) => PermanentDownloadPathResolver(
+      readCustomDownloadFolderEnabled: () => customEnabled,
+      readCustomDownloadFolderPath: () => customPath,
+      readApplicationSupportDirectory: () async => support,
+      readApplicationDocumentsDirectory: () async => documents,
+      isIOS: isIOS,
+      excludeFromBackup: (path) async {
+        excluded.add(path);
+        return true;
+      },
+    );
+
+    test('Android and desktop keep audio/permanent in support', () async {
+      final root = await build(isIOS: false).resolveDefaultRoot();
+      expect(root.path, p.join(support.path, 'audio', 'permanent'));
+      expect(root.existsSync(), isTrue);
+      expect(documents.existsSync(), isFalse);
+      expect(excluded, isEmpty);
+    });
+
+    test('iOS uses Documents/Downloads, created even when Documents is '
+        'missing, and excludes it from backup', () async {
+      final resolver = build(isIOS: true);
+      final root = await resolver.resolveDefaultRoot();
+      expect(root.path, p.join(documents.path, 'Downloads'));
+      expect(root.existsSync(), isTrue);
+      expect(excluded, [root.path]);
+      // Idempotent: same path, one exclusion per process.
+      expect((await resolver.resolveDefaultRoot()).path, root.path);
+      expect(excluded, [root.path]);
+      // Clear-all recreates the folder; the attribute is lost, so reapply.
+      await root.delete(recursive: true);
+      await resolver.resolveDefaultRoot();
+      expect(excluded, [root.path, root.path]);
+    });
+
+    test('iOS ignores a persisted custom folder', () async {
+      final custom = await Directory(p.join(base.path, 'custom')).create();
+      final root =
+          await build(
+            isIOS: true,
+            customEnabled: true,
+            customPath: custom.path,
+          ).resolveRootFor(
+            customDownloadFolderEnabled: true,
+            customDownloadFolderPath: custom.path,
+          );
+      expect(root.path, p.join(documents.path, 'Downloads'));
+    });
+
+    test('Android and desktop still honour the custom folder', () async {
+      final custom = await Directory(p.join(base.path, 'custom')).create();
+      final root = await build(isIOS: false).resolveRootFor(
+        customDownloadFolderEnabled: true,
+        customDownloadFolderPath: custom.path,
+      );
+      expect(root.path, custom.path);
+    });
+  });
 }

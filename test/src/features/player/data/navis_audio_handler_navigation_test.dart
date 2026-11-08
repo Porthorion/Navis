@@ -16,6 +16,9 @@ import 'package:flutter/foundation.dart'
 import 'package:navis/src/features/player/domain/playback_adjustments.dart';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:audio_service_platform_interface/audio_service_platform_interface.dart'
+    show AudioServicePlatform;
+import 'package:audio_service_platform_interface/no_op_audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 
 import 'dart:async';
@@ -786,6 +789,16 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   /// Loads succeed and then fail at once, as a stream that drops.
   bool failAfterLoad = false;
+
+  /// The load is reported ready, and the native failure arrives only once
+  /// Play has been issued (libmpv opens a file after `open` returns, so a
+  /// 404 can land after the adapter's first ready). Only the first Play
+  /// fails that way; later loads of the song throw, as with a warm libmpv.
+  bool failOnPlay = false;
+
+  /// How many more Plays fail that way after the current one; the song's
+  /// loads keep succeeding until the last.
+  int failOnPlayRepeats = 0;
   StateError? loadErrorAfterApply;
 
   @override
@@ -1200,6 +1213,18 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     _positionUpdated = DateTime.now();
     isPlaying = true;
     emitPlayerEvent();
+    if (failOnPlay) {
+      failOnPlay = failOnPlayRepeats > 0;
+      if (failOnPlay) {
+        failOnPlayRepeats--;
+      } else {
+        failLoadSongId = attemptedSongId;
+      }
+      // The player keeps `playing`; only the processing state fails.
+      state = ProcessingState.idle;
+      errorCode = 0;
+      _events.add(playbackEvent);
+    }
     if (playCompletesOnPause) {
       _events.add(playbackEvent);
       await (_playing = Completer<void>()).future;
@@ -1266,6 +1291,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
     }
     // Like just_audio, only a prepared, non-empty load clears the idle
     // player's error.
+    final clearedError = errorCode != null;
     if (preload && sources.isNotEmpty) errorCode = null;
     if (source != null) attemptedSongId = _sourceId(source);
     if (source != null && hungLoadSongs.contains(_sourceId(source))) {
@@ -1317,6 +1343,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       if (rejectBridgeLoad) throw StateError('bridge load failed');
     }
     _indices.add(index);
+    // A reload after a failure reports its error-free state, as native does.
+    if (clearedError && errorCode == null) _events.add(playbackEvent);
     if (loadErrorAfterApply case final error?) {
       loadErrorAfterApply = null;
       state = ProcessingState.idle;
@@ -1636,9 +1664,21 @@ Future<void> settleQueue(NavisAudioHandler handler) async {
   expectNativeMirrorsQueue(handler, handler.debugActivePlayer);
 }
 
+/// The handler builds its system-art file cache only on Android, Linux and
+/// Windows (see the `_artCache` initializer), so macOS never publishes
+/// `artCacheFile` or a `content:` art URI.
+final String? _noSystemArtCacheOnMacOS = Platform.isMacOS
+    ? 'macOS builds no system artwork cache'
+    : null;
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  setUpAll(() => registerFallbackValue(const RadioFilters()));
+  setUpAll(() {
+    registerFallbackValue(const RadioFilters());
+    // Linux and Windows default to the no-op platform; other hosts would talk
+    // to unmocked audio_service plugin channels.
+    AudioServicePlatform.instance = NoOpAudioService();
+  });
 
   Future<(NavisAudioHandler, _ControllableAudioPlayer, NavisDatabase)>
   createHandler(
@@ -2887,6 +2927,86 @@ void main() {
         isNot(AudioProcessingState.buffering),
       );
     });
+
+    test(
+      'a stream that fails right after its load reported ready ends paused',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          remote: true,
+        );
+        player.failOnPlay = true;
+        await handler.replaceQueue(['song-0'], expandMatchFlows: false);
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(player.state, ProcessingState.idle);
+        expect(player.playing, isFalse);
+        expect(handler.snapshot.playing, isFalse);
+      },
+    );
+
+    test(
+      'a mid-queue stream that fails right after its load skips to the next',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          remote: true,
+        );
+        player.failOnPlay = true;
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.index, 1);
+        expect(player.playing, isTrue);
+      },
+    );
+
+    test('a paused load whose stream fails after apply never starts', () async {
+      final (handler, player, _) = await setup(
+        reconcile: () async => net(online: true),
+        remote: true,
+      );
+      player.failOnPlay = true;
+      await handler.replaceQueue(
+        ['song-0', 'song-1'],
+        autoPlay: false,
+        expandMatchFlows: false,
+      );
+      await pumpEventQueue(times: 100);
+      await settleQueue(handler);
+      expect(player.playedFrom, isEmpty);
+      expect(player.playing, isFalse);
+      expect(handler.snapshot.playing, isFalse);
+    });
+
+    test(
+      'a retry reload that also fails after apply skips without looping',
+      () async {
+        final (handler, player, _) = await setup(
+          reconcile: () async => net(online: true),
+          remote: true,
+        );
+        player
+          ..failOnPlay = true
+          ..failOnPlayRepeats = 1;
+        await handler.replaceQueue([
+          'song-0',
+          'song-1',
+        ], expandMatchFlows: false);
+        await pumpEventQueue(times: 100);
+        await settleQueue(handler);
+        expect(handler.snapshot.currentSongId, 'song-1');
+        expect(player.index, 1);
+        expect(player.playing, isTrue);
+        // Both failing Plays were song-0's; song-1 then played without one.
+        expect(player.failOnPlayRepeats, 0);
+        expect(player.playedFrom, hasLength(2));
+      },
+    );
 
     test('an error event that is not idle still counts as a failure', () async {
       var online = false;
@@ -5787,6 +5907,7 @@ void main() {
       expect(last.artUri?.scheme, 'content');
       expect(last.extras?['artCacheFile'], file.path);
     },
+    skip: _noSystemArtCacheOnMacOS,
   );
 
   test(
@@ -12206,6 +12327,7 @@ void main() {
             expect(handler.snapshot.currentSongId, 'song-1');
             expect(current(player).positionOffset, const Duration(seconds: 47));
           },
+          skip: _noSystemArtCacheOnMacOS,
         );
       }
 
