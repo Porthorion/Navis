@@ -24414,7 +24414,7 @@ void main() {
       });
     }
 
-    test('Play on a finished one-song queue restarts it (late echo)', () async {
+    test('Play on a finished one-song queue restarts it (late echo, behaviour pin)', () async {
       final (handler, player) = await finished(count: 1);
       player.exoEndedSeekLate = true;
       final seeksBefore = player.seekCalls;
