@@ -20,6 +20,7 @@ import json
 import math
 import os
 from pathlib import Path
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -29,6 +30,7 @@ from types import SimpleNamespace
 from urllib import request
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from auth_lifecycle_fixture_server import RESCAN_SONG_SECONDS  # noqa: E402
 from dev_sync_scenario import (  # noqa: E402
     _api,
     _clone_diagnostic_defines,
@@ -66,6 +68,8 @@ class Run:
         self.display_env = {}
         self.handshake = None
         self.app_log = None
+        # The fixture tone must never reach the desktop's speakers.
+        self.sink = f"navis_rescan_{os.getpid()}"
         self.samples = []
         self.set_phase("A")
 
@@ -103,6 +107,9 @@ class Run:
             fixture_credential=OUT / "fixture-credential",
         )
         check(defines.get("NAVIS_SYNC_DIAGNOSTICS_MODE") == "clone", "launch defines select clone mode")
+        # Pin mpv itself to the private sink, not just the process default:
+        # lib/main.dart applies this device only in clone mode.
+        defines["NAVIS_DIAGNOSTICS_AUDIO_DEVICE"] = f"pulse/{self.sink}"
         self.handshake_path.unlink(missing_ok=True)
         command = ["flutter", "run", "-d", "linux", "--profile"]
         command += [f"--dart-define={key}={value}" for key, value in defines.items()]
@@ -188,6 +195,59 @@ class Run:
             time.sleep(1)
         raise SystemExit(f"FAILED: {song_id} never played")
 
+    def wait_volume(self, label, expected, timeout=15):
+        """Poll the playback status until the applied volume is [expected]."""
+        deadline = time.monotonic() + timeout
+        volume = None
+        while time.monotonic() < deadline:
+            row = self.play_sample(label)
+            volume = row["volume"]
+            if math.isclose(volume, expected, abs_tol=0.002):
+                return row
+            time.sleep(0.5)
+        raise SystemExit(f"FAILED: {label} volume never reached {expected} (got {volume})")
+
+    def sink_inputs(self):
+        """The clone's PulseAudio playback streams."""
+        listing = subprocess.run(
+            ["pactl", "-f", "json", "list", "sink-inputs"],
+            capture_output=True, text=True, check=True)
+        pid = str(self.handshake["pid"])
+        return [
+            entry for entry in json.loads(listing.stdout)
+            if entry.get("properties", {}).get("application.process.id") == pid
+        ]
+
+    def route_audio(self):
+        """Move the clone's stream to the private sink and verify the route.
+
+        PipeWire can restore a stream's old route despite PULSE_SINK, so move
+        only streams owned by this diagnostics process to its disposable sink.
+        """
+        sinks = json.loads(subprocess.run(
+            ["pactl", "-f", "json", "list", "sinks"],
+            capture_output=True, text=True, check=True).stdout)
+        sink_index = next(s["index"] for s in sinks if s["name"] == self.sink)
+        deadline = time.monotonic() + 20
+        streams = []
+        while time.monotonic() < deadline and not streams:
+            streams = self.sink_inputs()
+            if not streams:
+                time.sleep(0.5)
+        check(bool(streams), "the clone opened an audio stream")
+        for stream in streams:
+            subprocess.run(["pactl", "move-sink-input", str(stream["index"]), self.sink], check=False)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            streams = self.sink_inputs()
+            if streams and all(stream.get("sink") == sink_index for stream in streams):
+                print("sink-input routed:", [(s["index"], self.sink) for s in streams], flush=True)
+                return
+            time.sleep(0.5)
+        raise SystemExit(
+            f"FAILED: the clone's audio stream is not on the null sink {self.sink} "
+            f"({[(s['index'], s.get('sink')) for s in streams]})")
+
     def screenshot(self, label):
         shot = self.post("/v1/presentation/screenshot", {"label": label})
         print(f"screenshot {label}: {OUT / shot['artifact']}", flush=True)
@@ -211,7 +271,9 @@ def main():
     try:
         run.display_env = display.__enter__()
         # The fixture tone must never reach the desktop's speakers.
-        sink = f"navis_rescan_{os.getpid()}"
+        if not shutil.which("pactl"):
+            raise SystemExit("FAILED: pactl is required to isolate the clone's audio on a null sink")
+        sink = run.sink
         sink_module = subprocess.run(
             ["pactl", "load-module", "module-null-sink", f"sink_name={sink}"],
             capture_output=True, text=True, check=True).stdout.strip()
@@ -244,6 +306,7 @@ def main():
         run.post("/v1/playback/volume", {"value": 1})
         run.post("/v1/playback/queue", {"songIds": PLAY_QUEUE})
         first = run.wait_song(PLAY_QUEUE[0])
+        run.route_audio()
         check(first["replayGain"]["db"] == -9.0, f"song 1 plays at its -9.0 dB gain ({first['replayGain']})")
         run.play_sample("before-sync")
 
@@ -264,13 +327,19 @@ def main():
         gain = run.sql("SELECT id, replay_gain_track_gain FROM songs WHERE id IN ('rs-s1','rs-s4') ORDER BY id")
         check(gain == [("rs-s1", -3.5), ("rs-s4", None)], f"ReplayGain retag landed {gain}")
         # (a) the DB has song 2's new gain; (b) song 1 keeps playing at its level.
-        before, after = run.samples[-1], run.play_sample("after-sync")
+        before = next(s for s in reversed(run.samples) if s["label"] == "before-sync")
+        after = run.play_sample("after-sync")
         time.sleep(4)
         later = run.play_sample("later")
         check(after["songId"] == later["songId"] == before["songId"] == PLAY_QUEUE[0], "song 1 kept playing through the sync")
         check(later["positionMs"] > after["positionMs"] > before["positionMs"], "song 1 position advanced (it was not restarted)")
         check(before["replayGain"] == after["replayGain"] == later["replayGain"], "song 1 ReplayGain decision unchanged by the sync")
         check(before["volume"] == after["volume"] == later["volume"], f"song 1 applied volume unchanged ({before['volume']})")
+        # mpv's volume is cubic, so the app scales it by 10^(cut dB / 60).
+        cut_db = before["replayGain"]["cutDb"]
+        check(cut_db == -9.0 and math.isclose(
+            before["volume"], before["userVolume"] * 10 ** (cut_db / 60), abs_tol=0.002),
+            f"song 1 volume is userVolume * 10^(-9.0/60) ({before['volume']})")
         check(run.sql("SELECT COUNT(*) FROM songs WHERE id IN ('rs-s5','rs-s7')")[0][0] == 0, "removed songs are gone")
         check(run.sql("SELECT COUNT(*) FROM albums WHERE id='rs-a7'")[0][0] == 0, "removed album is gone")
         check(run.sql("SELECT album_id FROM songs WHERE id='rs-s2'")[0][0] == "rs-a3", "moved song follows its album")
@@ -287,20 +356,20 @@ def main():
 
         print("== Playback: the retag is heard from the next song", flush=True)
         # (c) join song 2 naturally, then skip to song 3 (its gain was cleared).
-        run.post("/v1/playback/seek", {"positionMs": 87000})  # the fixture songs last 90 s
+        run.post("/v1/playback/seek", {"positionMs": (RESCAN_SONG_SECONDS - 3) * 1000})
         run.wait_song(PLAY_QUEUE[1], timeout=30)
-        time.sleep(1)
-        joined = run.play_sample("joined-song-2")
+        joined = run.wait_volume("joined-song-2", first["userVolume"] * 10 ** (-3.5 / 60))
         check(joined["songId"] == PLAY_QUEUE[1], "the natural join reached song 2")
         check(joined["replayGain"]["db"] == -3.5, f"song 2 uses the new -3.5 dB gain, not -7.0 ({joined['replayGain']})")
         check(math.isclose(joined["volume"], joined["userVolume"] * 10 ** (-3.5 / 60), abs_tol=0.002), f"song 2 volume follows -3.5 dB ({joined['volume']})")
         check(abs(joined["volume"] - joined["userVolume"] * 10 ** (-7.0 / 60)) > 0.004, "song 2 volume is not the stale -7.0 dB level")
         run.post("/v1/playback/next")
         run.wait_song(PLAY_QUEUE[2], timeout=30)
-        time.sleep(2)  # the gain fade settles
-        skipped = run.play_sample("skipped-song-3")
-        # Untagged songs take the Automatic level (the median tagged gain, -8.0 here).
+        skipped = run.wait_volume("skipped-song-3", first["userVolume"] * 10 ** (-8.0 / 60))
+        # Phase B's library has fewer than replayGainMinTaggedSongs (20), so
+        # Automatic takes the fixed -8.0 dB untagged fallback, not a median.
         check(skipped["songId"] == PLAY_QUEUE[2] and skipped["replayGain"]["source"] == "untagged", f"song 3 lost its gain ({skipped['replayGain']})")
+        check(skipped["replayGain"]["db"] == -8.0, f"song 3 takes the -8.0 dB untagged fallback ({skipped['replayGain']})")
         check(math.isclose(skipped["volume"], skipped["userVolume"] * 10 ** (skipped["replayGain"]["db"] / 60), abs_tol=0.002), f"song 3 volume follows its untagged level ({skipped['volume']})")
         run.post("/v1/playback/pause")
         json.dump(run.samples, open(OUT / "playback-samples.json", "w"), indent=1)

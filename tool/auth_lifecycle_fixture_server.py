@@ -295,7 +295,7 @@ RESCAN_INDEXES = {
     for index, phase in enumerate(sorted(RESCAN_SCANS))
 }
 RESCAN_ALBUM_COUNT = 100  # the bulk song path needs at least 96 pending albums
-# Long enough that a queued song keeps playing through a sync (phase C of
+# Long enough that a queued song keeps playing through a sync (phase B of
 # the playback check in rescan_snapshot_diagnostics.py).
 RESCAN_SONG_SECONDS = 90
 
