@@ -2635,18 +2635,23 @@ Only short viewports get compact-wide; a 16:9 tablet, or a car display of the
 same size, uses the standard rail. The top-inset proxy for car bars that do not
 report a bottom inset applies only to compact-wide.
 
-Foldable and tablet fixes (I27, 1.5.2): the Library scroll views carry
-`PageStorageKey`s, so a layout class change (fold, unfold, rotation across
-600/840 dp), which rebuilds the page subtree, restores each list's offset. A
-Now Playing pane beside the rail (`wideEmbeddedMode`, compact or standard
-width, not desktop runtime) sizes its cover and gaps with
-`NowPlayingPhoneLayout.compute` like the phone body, so the controls are never
-pushed off a short pane. The album page caps its cover hero at 45% of the
-viewport height outside phone form factors. Widgets that float at the right
-edge (artist/year/genre rails, the mini player's buttons, the Playlists
-button) clear a right system strip such as the iPhone Duo cover screen's, via
-`rightSystemInsetFor`; compact-wide pads its content by that inset already,
-so it returns 0 there.
+Foldable and tablet fixes (I27, 1.5.2): a layout class change (fold, unfold,
+rotation across 600/840 dp) rebuilds the Library page subtree. The plain
+scroll views (albums, liked, artists grid, playlists) carry `PageStorageKey`s
+and restore their offset; the positioned lists (artists, years) cannot use
+one, because it restores a pixel offset relative to the last jumped-to item,
+so the library `State` keeps their first visible index and passes it as
+`initialScrollIndex` (genres start at the top). A Now Playing pane beside the
+rail (`wideEmbeddedMode`, compact or standard width, not desktop runtime)
+keeps its own layout, label and scroll fallback but takes its cover size from
+`NowPlayingPhoneLayout.compute`, budgeted as a normal-tier body with the label
+and its roomier gaps reserved, so the controls are never pushed off a short
+pane. The album page caps its cover hero at 45% of the viewport height outside
+phone form factors. Widgets that float at the right edge (artist/year/genre
+rails, the mini player's buttons, the Playlists and Radio buttons) clear a
+right system strip such as the iPhone Duo cover screen's, via
+`rightSystemInsetFor`; compact-wide pads its content by that inset already, so
+it returns 0 there.
 
 Selected destinations use filled icons on the bar and rails. When the sidebar
 or rail cannot show the Library section links (phone bottom navigation, the

@@ -2210,18 +2210,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
             ? 4.0
             : 8.0;
         // Portrait phones size the cover, text and gaps from the body height
-        // (see NowPlayingPhoneLayout). So does a tablet pane beside the rail
-        // (embedded, compact or standard width): a short, wide pane such as
-        // 633x669 would otherwise push the controls off the bottom. Split and
-        // desktop layouts keep their own geometry.
-        final embeddedTabletPane =
-            widget.wideEmbeddedMode &&
-            !resolveAdaptiveContextFor(context).desktopRuntime &&
-            layoutMode != _NowPlayingLayoutMode.split;
+        // (see NowPlayingPhoneLayout); standard, split and embedded layouts
+        // keep their own geometry.
         final phoneLayout =
-            (layoutMode == _NowPlayingLayoutMode.compact &&
-                    !widget.wideEmbeddedMode) ||
-                embeddedTabletPane
+            layoutMode == _NowPlayingLayoutMode.compact &&
+                !widget.wideEmbeddedMode
             ? NowPlayingPhoneLayout.compute(
                 width: constraints.maxWidth,
                 height: constraints.maxHeight,
@@ -2230,18 +2223,58 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 isExternalSource: !isRadio && (song?.isExternal ?? false),
               )
             : null;
+        // A tablet pane beside the rail (embedded, compact or standard width)
+        // keeps its own layout but takes its cover size from the phone height
+        // budget: the cover gets only what is left after the title, seek bar,
+        // transport and actions, with the "Now Playing" label reserved. A
+        // short, wide pane such as 633x669 would otherwise push the controls
+        // off the bottom. Desktop and split layouts are unchanged.
+        final embeddedTabletPane =
+            widget.wideEmbeddedMode &&
+            !resolveAdaptiveContextFor(context).desktopRuntime &&
+            layoutMode != _NowPlayingLayoutMode.split;
+        // The pane shows the full metadata (info line, album) whatever its
+        // height, so budget it as a normal-tier phone body and take the
+        // shortfall off the cover, not the short tier that hides those blocks.
+        final embeddedArtBudget = embeddedTabletPane
+            ? () {
+                final scaler = MediaQuery.textScalerOf(context);
+                // The "Now Playing" label, and the roomier gaps of the embedded
+                // metadata pane than the phone body's minimum.
+                final room =
+                    constraints.maxHeight - (6 + scaler.scale(14) * 1.5) - 24;
+                final budgetHeight = math.max(
+                  room,
+                  NowPlayingPhoneLayout.shortBelow,
+                );
+                final art = NowPlayingPhoneLayout.compute(
+                  width: constraints.maxWidth,
+                  height: budgetHeight,
+                  textScaler: scaler,
+                  isRadio: isRadio,
+                  isExternalSource: !isRadio && (song?.isExternal ?? false),
+                ).artSize;
+                return math.max(
+                  NowPlayingPhoneLayout.artFloorMin,
+                  art - (budgetHeight - room),
+                );
+              }()
+            : null;
         final artMaxSize =
             phoneLayout?.artSize ??
             splitMetrics?.artSize ??
-            (layoutMode == _NowPlayingLayoutMode.standard
-                ? math.min(
-                    constraints.maxWidth - (horizontalPadding * 2),
-                    constraints.maxHeight * (tightHeight ? 0.48 : 0.54),
-                  )
-                : math.min(
-                    constraints.maxWidth - (horizontalPadding * 2),
-                    constraints.maxHeight * (tightHeight ? 0.52 : 0.62),
-                  ));
+            math.min(
+              embeddedArtBudget ?? double.infinity,
+              layoutMode == _NowPlayingLayoutMode.standard
+                  ? math.min(
+                      constraints.maxWidth - (horizontalPadding * 2),
+                      constraints.maxHeight * (tightHeight ? 0.48 : 0.54),
+                    )
+                  : math.min(
+                      constraints.maxWidth - (horizontalPadding * 2),
+                      constraints.maxHeight * (tightHeight ? 0.52 : 0.62),
+                    ),
+            );
         final availableContentHeight = math.max(
           0,
           constraints.maxHeight - topInset - artToMetaGap - metadataBottomGap,
@@ -2251,7 +2284,11 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
           artRegionHeight = 0;
         } else {
           final minMetadataHeight = compactSpacing ? 230.0 : 280.0;
-          final minArtHeight = compactSpacing ? 210.0 : 250.0;
+          // The budgeted cover may be smaller than the usual minimum region.
+          final minArtHeight = math.min(
+            compactSpacing ? 210.0 : 250.0,
+            embeddedArtBudget == null ? double.infinity : artMaxSize + 10,
+          );
           final targetArtShare = switch (layoutMode) {
             _NowPlayingLayoutMode.compact => 0.56,
             _NowPlayingLayoutMode.standard => 0.53,

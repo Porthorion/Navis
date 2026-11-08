@@ -331,6 +331,47 @@ void main() {
     expect(find.text('−6.2 dB · album (Smart)'), findsOneWidget);
   }, skip: !sqliteAvailable);
 
+  // I27: a tablet pane beside the rail budgets its cover by height; the
+  // desktop runtime keeps the original sizes, in the compact, standard and
+  // focus-player-sized embedded layouts (heights measured before the change).
+  for (final (name, size, desktopHeight, tabletHeight)
+      in <(String, Size, double, double)>[
+        ('compact', Size(700, 640), 345, 286),
+        ('standard', Size(800, 700), 354, 352),
+        ('focus player', Size(840, 400), 210, 130),
+      ]) {
+    for (final desktop in <bool>[true, false]) {
+      testWidgets(
+        'embedded $name cover on ${desktop ? 'desktop' : 'a tablet pane'}',
+        (tester) async {
+          setAdaptiveTestViewport(tester, size);
+          final container = _createContainer();
+          container.read(nowPlayingTestPlaybackProvider.notifier).state =
+              _songPlayback;
+          await _pumpNowPlaying(
+            tester,
+            container,
+            wideEmbeddedMode: true,
+            desktopRuntime: desktop,
+          );
+          final cover = find.byWidgetPredicate(
+            (widget) =>
+                widget is CoverArtImage &&
+                widget.shape == ArtworkShapeRole.nowPlaying,
+          );
+
+          expect(
+            tester.getSize(cover).height,
+            closeTo(desktop ? desktopHeight : tabletHeight, 0.5),
+          );
+          // The "Now Playing" label stays in the embedded pane.
+          expect(find.text('Now Playing'), findsOneWidget);
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+  }
+
   testWidgets('the cover follows Now Playing Art Shape', (tester) async {
     setAdaptiveTestViewport(tester, const Size(390, 844));
     final container = _createContainer();

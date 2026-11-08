@@ -187,6 +187,9 @@ Future<NavisDatabase> _seed() async {
             id: 'artist-$a',
             name: _artistNames[a],
             albumCount: const Value(3),
+            starred: a < 10
+                ? Value(DateTime(2026, 3, 1 + a))
+                : const Value.absent(),
           ),
         );
   }
@@ -201,6 +204,9 @@ Future<NavisDatabase> _seed() async {
             artistId: Value(album.artistId),
             artistName: Value(album.artist),
             year: Value(album.year),
+            starred: i < 10
+                ? Value(DateTime(2026, 1, 1 + i))
+                : const Value.absent(),
             songCount: const Value(12),
             coverArt: Value(album.coverArt),
             songsHydrated: const Value(true),
@@ -218,13 +224,14 @@ Future<NavisDatabase> _seed() async {
             artistId: const Value('artist-1'),
             artistName: const Value('Beach House'),
             albumName: const Value('Moon Album 1'),
+            starred: Value(DateTime(2026, 2, s)),
             track: Value(s),
             duration: const Value(210),
             coverArt: const Value('cover-1'),
           ),
         );
   }
-  for (var p = 0; p < 6; p++) {
+  for (var p = 0; p < 30; p++) {
     await db
         .into(db.playlistsTable)
         .insert(
@@ -240,8 +247,9 @@ Future<NavisDatabase> _seed() async {
 
 List<Override> _overrides(
   NavisDatabase db,
-  PlaybackSnapshot? playback,
-) => <Override>[
+  PlaybackSnapshot? playback, {
+  bool desktopRuntime = false,
+}) => <Override>[
   navisDatabaseProvider.overrideWithValue(db),
   downloadServiceProvider.overrideWith((ref) => _IdleDownloads()),
   coverArtCacheManagerProvider.overrideWithValue(_NoCacheManager()),
@@ -251,7 +259,7 @@ List<Override> _overrides(
   changelogToShowProvider.overrideWith((ref) async => null),
   integrationsNoticeVisibleProvider.overrideWithValue(false),
   initialSyncRequiredProvider.overrideWithValue(const AsyncData(false)),
-  desktopPresentationRuntimeProvider.overrideWithValue(false),
+  desktopPresentationRuntimeProvider.overrideWithValue(desktopRuntime),
   networkTypeProvider.overrideWithValue(NetworkType.wifi),
   desktopShortcutBindingsProvider.overrideWith(_StaticBindings.new),
   serverConfigStateProvider.overrideWithValue(
@@ -301,6 +309,7 @@ List<Override> _overrides(
   ),
   showPlaylistsPageProvider.overrideWithValue(true),
   showArtistsPageProvider.overrideWithValue(true),
+  showRadioPageProvider.overrideWithValue(true),
 ];
 
 void _setView(WidgetTester tester, _Viewport viewport) {
@@ -330,6 +339,7 @@ Future<ProviderContainer> _pumpApp(
   _Viewport viewport, {
   PlaybackSnapshot? playback = _playing,
   double textScale = 1,
+  bool desktopRuntime = false,
 }) async {
   _setView(tester, viewport);
   tester.platformDispatcher.textScaleFactorTestValue = textScale;
@@ -338,7 +348,9 @@ Future<ProviderContainer> _pumpApp(
     tester.platformDispatcher.clearTextScaleFactorTestValue();
   });
   final db = (await tester.runAsync(_seed))!;
-  final container = ProviderContainer(overrides: _overrides(db, playback));
+  final container = ProviderContainer(
+    overrides: _overrides(db, playback, desktopRuntime: desktopRuntime),
+  );
   addTearDown(() async {
     container.dispose();
     await db.close();
@@ -480,79 +492,97 @@ void main() {
   });
 
   group('A2 scroll offset survives a layout class change', () {
-    for (final section in <String>['albums', 'artists']) {
-      _testApp('library $section keeps its offset across a fold', (
-        tester,
-      ) async {
+    // Each keyed scroll view of the Library: a fold rebuilds its subtree.
+    for (final (name, section, mode) in <(String, String, String)>[
+      ('albums', 'albums', 'grid'),
+      ('artists grid', 'artists', 'grid'),
+      ('liked', 'liked', 'grid'),
+      ('playlists', 'playlists', 'grid'),
+    ]) {
+      _testApp('library $name keeps its offset across a fold', (tester) async {
         final container = await _pumpApp(tester, _duoFolded);
         await container
             .read(navisDatabaseProvider)
             .appSettingsDao
-            .updateArtistViewMode('grid');
+            .updateArtistViewMode(mode);
         await _go(tester, AppRoutes.librarySection(section));
-        _pageScrollable(tester).position.jumpTo(600);
+        final position = _pageScrollable(tester).position;
+        expect(position.maxScrollExtent, greaterThan(300), reason: name);
+        position.jumpTo(250);
         await _settle(tester, 4);
 
         await _resize(tester, _duoPortrait);
         expect(tester.takeException(), isNull);
-        expect(_pageScrollable(tester).position.pixels, closeTo(600, 1));
+        expect(_pageScrollable(tester).position.pixels, closeTo(250, 1));
 
         await _resize(tester, _duoFolded);
-        expect(_pageScrollable(tester).position.pixels, closeTo(600, 1));
+        expect(_pageScrollable(tester).position.pixels, closeTo(250, 1));
       });
     }
 
-    _testApp('library artists list keeps its place across a fold', (
-      tester,
-    ) async {
-      final container = await _pumpApp(tester, _duoFolded);
-      await container
-          .read(navisDatabaseProvider)
-          .appSettingsDao
-          .updateArtistViewMode('list');
-      await _go(tester, AppRoutes.librarySection('artists'));
-      for (var i = 0; i < 3; i++) {
-        await tester.dragFrom(const Offset(200, 380), const Offset(0, -150));
-        await _settle(tester, 2);
-      }
+    // Jumps into the middle of the list: near its end a taller pane
+    // legitimately shows earlier artists, and a PageStorageKey restored the
+    // wrong artist after a jump (Jon Hopkins became Massive Attack).
+    for (final jump in <double>[0.3, 0.5]) {
+      _testApp(
+        'library artists list keeps its artist after a rail jump $jump',
+        (tester) async {
+          final container = await _pumpApp(tester, _duoFolded);
+          await container
+              .read(navisDatabaseProvider)
+              .appSettingsDao
+              .updateArtistViewMode('list');
+          await _go(tester, AppRoutes.librarySection('artists'));
 
-      String firstVisibleArtist() {
-        final cards = find
-            .byType(ArtistCard)
-            .evaluate()
-            .map((e) => e.widget)
-            .cast<ArtistCard>();
-        final onScreen = cards.where(
-          (c) => tester.getRect(find.byWidget(c)).top >= 120,
-        );
-        return onScreen
-            .reduce(
-              (a, b) =>
-                  tester.getRect(find.byWidget(a)).top <=
-                      tester.getRect(find.byWidget(b)).top
-                  ? a
-                  : b,
-            )
-            .artist
-            .name;
-      }
+          // Jump with the alphabet rail, then drag a little.
+          final rail = tester.getRect(
+            find.byKey(const Key('artistAlphabetRail')),
+          );
+          await tester.tapAt(
+            Offset(rail.center.dx, rail.top + rail.height * jump),
+          );
+          await _settle(tester, 4);
+          await tester.dragFrom(const Offset(200, 380), const Offset(0, -130));
+          await _settle(tester, 4);
 
-      final before = firstVisibleArtist();
-      expect(before, isNot('Aphex Twin'));
-      await _resize(tester, _duoPortrait);
-      expect(tester.takeException(), isNull);
-      expect(firstVisibleArtist(), before);
-    });
+          String firstVisibleArtist() {
+            final cards = find
+                .byType(ArtistCard)
+                .evaluate()
+                .map((e) => e.widget)
+                .cast<ArtistCard>();
+            // The rail spans the list's height, 8 dp inside it.
+            final listTop =
+                tester
+                    .getRect(find.byKey(const Key('artistAlphabetRail')))
+                    .top -
+                8;
+            final onScreen = cards.where(
+              (c) => tester.getRect(find.byWidget(c)).top >= listTop - 1,
+            );
+            return onScreen
+                .reduce(
+                  (a, b) =>
+                      tester.getRect(find.byWidget(a)).top <=
+                          tester.getRect(find.byWidget(b)).top
+                      ? a
+                      : b,
+                )
+                .artist
+                .name;
+          }
 
-    _testApp('Home keeps its offset across a fold', (tester) async {
-      await _pumpApp(tester, _duoFolded);
-      _pageScrollable(tester).position.jumpTo(150);
-      await _settle(tester, 4);
+          final before = firstVisibleArtist();
+          expect(before, isNot('Aphex Twin'));
+          await _resize(tester, _duoPortrait);
+          expect(tester.takeException(), isNull);
+          expect(firstVisibleArtist(), before);
 
-      await _resize(tester, _duoPortrait);
-      expect(tester.takeException(), isNull);
-      expect(_pageScrollable(tester).position.pixels, closeTo(150, 1));
-    });
+          await _resize(tester, _duoFolded);
+          expect(firstVisibleArtist(), before);
+        },
+      );
+    }
   });
 
   group('A3/B2 Now Playing fits its pane', () {
@@ -649,6 +679,14 @@ void main() {
       expect(fab.right, lessThanOrEqualTo(stripLeft));
     });
 
+    _testApp('Radio button stays left of the strip', (tester) async {
+      await _pumpApp(tester, _duoFolded);
+      await _go(tester, AppRoutes.librarySection('radio'));
+
+      final fab = tester.getRect(find.byKey(const ValueKey('radioAddFab')));
+      expect(fab.right, lessThanOrEqualTo(stripLeft));
+    });
+
     _testApp('compact wide landscape phone keeps its single inset', (
       tester,
     ) async {
@@ -710,6 +748,18 @@ void main() {
         expect(hero.height, lessThanOrEqualTo(viewport.size.height * 0.45 + 1));
       });
     }
+
+    _testApp('desktop runtime keeps its own album header', (tester) async {
+      await _pumpApp(tester, (
+        size: const Size(1280, 800),
+        padding: EdgeInsets.zero,
+      ), desktopRuntime: true);
+      await _go(tester, AppRoutes.album('album-1'));
+
+      // The capped cover hero belongs to the mobile page only.
+      expect(find.byType(FlexibleSpaceBar), findsNothing);
+      expect(find.text('Moon Album 1'), findsWidgets);
+    });
 
     for (final (name, viewport, hero) in <(String, _Viewport, double)>[
       ('phone 393x852', _phone, 393),
