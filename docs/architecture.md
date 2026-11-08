@@ -4307,7 +4307,8 @@ next current song re-arms it with a fresh failure count; starting a mix again
 also re-arms it. When the park is on the last song of the whole queue and
 repeat is off, nothing can extend the mix, so it stops: Same Vibes shows
 "Same Vibes stopped." and Server Mix ends silently. A mid-mix Server Mix
-refill timeout (30 s) counts as a failure and retries quietly. Initial-refill
+refill timeout (30 s) counts as a failure and retries quietly; the timed-out
+fetch is abandoned, so its late answer queues nothing and counts nothing. Initial-refill
 failures, the initial-start timeout, terminal Last.fm errors (invalid key, rate
 limit) and a server that lacks the similarity endpoints still end the mix with
 their notice; a remote song without a library copy only parks Server Mix. The

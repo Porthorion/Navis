@@ -1184,6 +1184,96 @@ void main() {
       );
     });
 
+    group('a fetch that timed out mid-mix answers late', () {
+      late _MockSubsonicApiClient api;
+      late List<Completer<List<Song>>> gates;
+
+      /// A mix whose later fetches wait on [gates] in call order.
+      Future<ProviderContainer> start(Duration timeout) {
+        api = _MockSubsonicApiClient();
+        gates = <Completer<List<Song>>>[];
+        return startMix(api, (seed, fetch) {
+          final gate = Completer<List<Song>>();
+          gates.add(gate);
+          return gate.future;
+        }, refillTimeout: timeout);
+      }
+
+      Future<void> until(
+        ProviderContainer container,
+        bool Function() done,
+      ) async {
+        while (!done()) {
+          container.read(instantMixProvider);
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+      }
+
+      List<String> queued(ProviderContainer container) =>
+          (container.read(queueProvider.notifier)
+                  as RecordingRecommendationQueue)
+              .queuedSongs
+              .map((song) => song.id)
+              .toList();
+
+      test(
+        'its songs are not queued again after the retry queued them',
+        () async {
+          final container = await start(const Duration(milliseconds: 40));
+          await tick(container, length: 11, index: 8);
+          // The 3 s retry fetches the same songs and queues them.
+          await until(container, () => gates.length == 2);
+          gates[1].complete(songs(5, prefix: 'more'));
+          await until(container, () => queued(container).length == 10);
+          gates[0].complete(songs(5, prefix: 'more'));
+          await pumpEventQueue();
+          container.read(instantMixProvider);
+          await pumpEventQueue();
+          expect(queued(container), hasLength(10));
+          expect(queued(container).toSet(), hasLength(10));
+        },
+      );
+
+      test('it does not clear the flag of the retry that is running', () async {
+        final container = await start(const Duration(milliseconds: 800));
+        await tick(container, length: 11, index: 8);
+        await until(container, () => gates.length == 2);
+        expect(container.read(instantMixProvider).refilling, isTrue);
+        gates[0].complete(songs(5, prefix: 'more'));
+        await pumpEventQueue();
+        expect(
+          container.read(instantMixProvider).refilling,
+          isTrue,
+          reason: 'the retry fetch is still in flight',
+        );
+        gates[1].complete(const <Song>[]);
+        await pumpEventQueue();
+      });
+
+      test('an unexpected error it throws is not counted either', () async {
+        final container = await start(const Duration(milliseconds: 40));
+        await tick(container, length: 11, index: 8);
+        gates[0].completeError(StateError('late'));
+        await pumpEventQueue();
+        container.read(instantMixProvider);
+        await pumpEventQueue();
+        expect(container.read(recommendationSessionProvider).retryCount, 1);
+      });
+
+      test('its failure is not counted a second time', () async {
+        final container = await start(const Duration(milliseconds: 40));
+        await tick(container, length: 11, index: 8);
+        expect(container.read(recommendationSessionProvider).retryCount, 1);
+        gates[0].completeError(const SubsonicConnectionException('late'));
+        await pumpEventQueue();
+        container.read(instantMixProvider);
+        await pumpEventQueue();
+        final session = container.read(recommendationSessionProvider);
+        expect(session.retryCount, 1);
+        expect(session.stage, 'retryPending');
+      });
+    });
+
     test('the retry follows the song playing when it fires', () async {
       final api = _MockSubsonicApiClient();
       final seeds = <String>[];

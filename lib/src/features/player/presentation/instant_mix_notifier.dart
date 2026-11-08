@@ -57,6 +57,11 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   Timer? _retryTimer;
   int _transientFailures = 0;
 
+  /// Identifies the refill whose answer still counts. A new refill and a
+  /// timeout bump it, so a fetch that answers after being given up on queues
+  /// nothing, changes no state and counts no failure.
+  int _refillEpoch = 0;
+
   /// The seed a refill found nothing new for (or failed five times in a row
   /// on). Refills on that song return at once; the next current song re-arms
   /// the mix.
@@ -228,13 +233,21 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       AppLogger.debug('InstantMix: seed changed, refill re-armed');
     }
     _refillingSession = refillSession;
+    final epoch = ++_refillEpoch;
     state = state.copyWith(refilling: true, seedSongId: seedSongId);
 
     try {
-      await _doRefill(seedSongId, refillSession, isInitial: isInitial).timeout(
+      await _doRefill(
+        seedSongId,
+        refillSession,
+        epoch,
+        isInitial: isInitial,
+      ).timeout(
         _refillTimeout,
         onTimeout: () {
           if (!ref.mounted || !_isCurrent(refillSession)) return;
+          // Give up on this fetch: whatever it answers later is dropped.
+          _refillEpoch++;
           AppLogger.debug(
             'InstantMix: refill timed out after ${_refillTimeout.inSeconds}s '
             '— resetting',
@@ -251,6 +264,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       );
     } on Object catch (error, stackTrace) {
       if (!ref.mounted || !_isCurrent(refillSession)) return;
+      if (epoch != _refillEpoch) return;
       AppLogger.debug('InstantMix refill failed: $error\n$stackTrace');
       if (isInitial) {
         state = const InstantMixState(error: InstantMixError.networkError);
@@ -275,7 +289,8 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 
   Future<void> _doRefill(
     String seedSongId,
-    RecommendationSession session, {
+    RecommendationSession session,
+    int epoch, {
     bool isInitial = false,
   }) async {
     final coordinator = ref.read(recommendationSessionProvider.notifier);
@@ -289,6 +304,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       );
       if (!ref.mounted) return;
       if (!coordinator.owns(session)) return;
+      if (epoch != _refillEpoch) return;
       coordinator.report(
         session,
         stage: 'prepared',
@@ -328,10 +344,12 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         await ref.read(queueProvider.notifier).retainCurrentAsQueue(seedSongId);
         if (!ref.mounted) return;
         if (!coordinator.owns(session)) return;
+        if (epoch != _refillEpoch) return;
       }
       final queuedCount = await _queueMixSongs(batch.songs, session);
       if (!ref.mounted) return;
       if (!coordinator.owns(session)) return;
+      if (epoch != _refillEpoch) return;
       if (queuedCount <= 0) {
         if (previousQueue != null) {
           await _restorePreviousQueue(previousQueue, session);
@@ -352,11 +370,13 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       );
       coordinator.report(session, stage: 'active', insertedCount: queuedCount);
     } on SubsonicNotFoundException {
-      if (!ref.mounted || !_isCurrent(session)) return;
+      if (!ref.mounted || !_isCurrent(session) || epoch != _refillEpoch) {
+        return;
+      }
       state = const InstantMixState(error: InstantMixError.unsupported);
       _reportFailed(session, InstantMixError.unsupported);
     } on Object catch (error, stackTrace) {
-      if (!ref.mounted) return;
+      if (!ref.mounted || epoch != _refillEpoch) return;
       if (queueChangeAttempted && previousQueue != null) {
         await _restorePreviousQueue(previousQueue, session);
       }

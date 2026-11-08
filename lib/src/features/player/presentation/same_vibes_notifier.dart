@@ -652,9 +652,11 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
       if (parked &&
           ref.read(playerStateProvider).currentSongId?.trim() !=
               normalizedSeedSongId) {
-        scheduleMicrotask(
-          () => _onSnapshotChanged(null, ref.read(playerStateProvider)),
-        );
+        scheduleMicrotask(() {
+          if (ref.mounted) {
+            _onSnapshotChanged(null, ref.read(playerStateProvider));
+          }
+        });
       }
     } on Exception catch (error) {
       if (isInitial && initialQueueChangeAttempted) {
