@@ -314,6 +314,14 @@ static void testFreeAllOnlyAtTheCap(void) {
     NavisTapFormatsState s = state(t);
     check(s.unmatchedFrames == 1024, "and count as unmatched");
     check(s.formatReason && strstr(s.formatReason, "Too many") && s.pitchReason, "with the reason");
+    // A later prepare that finds its slot ends the cap failure: a later dry block no
+    // longer blames the cap.
+    check(prepare(t, 8000, 2), "a later prepare of a known format succeeds");
+    runBlock(t, &b, 8000, 2, 1024, false, 0, 0);
+    navis_tap_formats_note_dry(t, 1024);
+    s = state(t);
+    check(s.formatReason && !strstr(s.formatReason, "Too many"), "and the cap reason is not sticky");
+    check(navis_tap_formats_unprepare(t), "that pipeline ended");
     check(navis_tap_formats_unprepare(t) && navis_tap_formats_unprepare(t) && state(t).livePipelines == 0, "both ended");
     check(prepare(t, 44100, 2) && atomic_load(&g_destroys) == 16, "with nothing live it starts over");
     check(state(t).formatReason == NULL, "and the reason is gone");

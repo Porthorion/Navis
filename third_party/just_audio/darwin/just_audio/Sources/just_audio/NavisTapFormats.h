@@ -95,8 +95,10 @@ bool navis_tap_formats_unprepare(NavisTapFormats *t);
 /// frames * timescale / value, to within the CMTime rounding. With one slot
 /// that slot is used whenever its channel count matches. With several, the slot
 /// of that channel count whose rate is nearest to the block's is used, within 4
-/// % or inside the rounding interval; a block with an invalid range (not audio
-/// yet) or no such slot passes dry.
+/// % or inside the rounding interval (preferring the last used, then the latest
+/// prepared slot when several fit). A block with frames but no usable rate goes
+/// to the latest prepared slot if its channel count matches; otherwise, and when
+/// no slot fits, it passes dry and counts in `unmatchedFrames`.
 void navis_tap_formats_process(NavisTapFormats *t, bool startOfStream, uint32_t flushGeneration,
                                int64_t durationValue, int32_t timescale, float *const *channels,
                                int count, int frames);

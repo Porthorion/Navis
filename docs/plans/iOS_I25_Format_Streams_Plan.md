@@ -280,6 +280,17 @@ shows as a level change.
   slot; a seek re-prepares and reuses the slot (StartOfStream + flush reset
   once).
 
+## Known limits (accepted after the fix-round review, 2026-11-08)
+
+These are read from the code or seen in host probes only. None of them showed up on the simulator.
+
+- **Rate-less blocks after another pipeline's prepare.** A block with frames but no usable range goes to the latest prepared slot. If the playing pipeline sent such a block after a different-format pipeline had prepared, that block would be filtered on the new slot, and a StartOfStream on it would be latched there. On the simulator, rate-less blocks are only ever a pipeline's first block, after the previous pipeline's unprepare.
+- **Busy-drop start.** The pending start is kept per slot, not per pipeline. If two pipelines share a slot and the new one's start block is dropped, the old pipeline's tail takes the reset.
+- **Coarse clocks.** The `lastSlot` preference carries across pipelines when the rounding interval admits several rates. Device taps use timescale = source rate.
+- **Pitch rebuild.** A pitch stage rebuilt on a reused slot (only after an earlier failed build) can switch on mid-song for a pipeline still rendering on that slot.
+
+`overlapBlocks`, `clampedUnprepares` and `livePipelines` are the I5 device checks.
+
 ## Docs (same PR)
 
 - `docs/features/equalizer.md` iOS section: one tap, one stream per audio

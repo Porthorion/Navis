@@ -41,7 +41,7 @@ struct NavisTapFormats {
     int live;                             // guarded by lock
     uint64_t prepareCount, unprepareCount, clampedCount; // guarded by lock
     uint64_t retiredFrames, retiredResets, retiredPitchResets, retiredMismatches; // freed slots; guarded by lock
-    // The failure of the latest prepare that gave no slot (sticky), and the reason
+    // The failure of the latest prepare if it gave no slot, and the reason
     // shown now: set by that prepare, cleared when a block is processed by a slot,
     // set again by a block that passes unchanged. Plain atomics: the render thread writes them.
     _Atomic int failure, reason;
@@ -209,6 +209,7 @@ bool navis_tap_formats_prepare(NavisTapFormats *t, double rate, int channels, in
     Slot *found = slotFind(t, key, channels);
     if (found) { // reused untouched: no rebuild, no history reset
         atomic_store_explicit(&t->preparedSlot, found, memory_order_release);
+        atomic_store_explicit(&t->failure, REASON_NONE, memory_order_relaxed); // a later prepare succeeded
         bool rebuild = atomic_load_explicit(&found->pitch, memory_order_relaxed) == NULL;
         int32_t seeded = atomic_load_explicit(&t->pitchCents, memory_order_relaxed);
         pthread_mutex_unlock(&t->lock);
@@ -236,6 +237,7 @@ bool navis_tap_formats_prepare(NavisTapFormats *t, double rate, int channels, in
     found = slotFind(t, key, channels);
     if (found) { // another prepare of this format won while this one was building
         atomic_store_explicit(&t->preparedSlot, found, memory_order_release);
+        atomic_store_explicit(&t->failure, REASON_NONE, memory_order_relaxed); // a later prepare succeeded
         rebuild = atomic_load_explicit(&found->pitch, memory_order_relaxed) == NULL;
     } else if (!fresh) {
         prepareFailed(t, REASON_FORMAT);
@@ -258,6 +260,7 @@ bool navis_tap_formats_prepare(NavisTapFormats *t, double rate, int channels, in
             atomic_store_explicit(&t->slots[n], fresh, memory_order_release);
             atomic_store_explicit(&t->slotCount, n + 1, memory_order_release);
             atomic_store_explicit(&t->preparedSlot, fresh, memory_order_release);
+            atomic_store_explicit(&t->failure, REASON_NONE, memory_order_relaxed); // a later prepare succeeded
             fresh = NULL;
         }
     }
