@@ -53,8 +53,8 @@ enum ReplayGainSource { track, album, untagged }
   };
 }
 
-/// The most a song is ever turned up, in dB. It is mpv's own
-/// `volume-gain-max`, so every platform boosts by the same amount.
+/// The most a song is ever turned up, in dB: one cap for every platform
+/// (mpv's `@navis_rg` stage, Android's boost stage), so all boost alike.
 const replayGainMaxBoostDb = 12.0;
 
 /// How far under a song's peak ceiling its boost stops, in dB: a lossy copy

@@ -74,12 +74,17 @@ void main() {
     Map<String, double?> levels = const {_a: -9, _b: null},
     bool commandOk = true,
     bool? replayGainFilter,
+    double? sampleRate,
   }) async {
     final streams = _Streams();
     final playlist = Playlist([for (final uri in levels.keys) Media(uri)]);
     when(() => player.stream).thenReturn(streams);
     when(() => player.state).thenReturn(PlayerState(playlist: playlist));
-    when(() => streams.audioParams).thenAnswer((_) => const Stream.empty());
+    when(() => streams.audioParams).thenAnswer(
+      (_) => sampleRate == null
+          ? const Stream.empty()
+          : Stream.value(AudioParams(sampleRate: sampleRate.toInt())),
+    );
     when(() => streams.duration).thenAnswer((_) => const Stream.empty());
     when(() => streams.position).thenAnswer((_) => const Stream.empty());
     when(() => streams.buffering).thenAnswer((_) => const Stream.empty());
@@ -343,6 +348,53 @@ void main() {
       await mpv.setSpeed(SetSpeedRequest(speed: 1.25));
       verify(() => player.setRate(1.25)).called(1);
       expect(properties['af'], isNull);
+    });
+  });
+
+  group('audio edits (what the second review mutations delete)', () {
+    test('the next file loads with the edited speed, pitch and EQ', () async {
+      final mpv = await newAdapter(equalizer: _eq(), sampleRate: 44100);
+      await pumpEventQueue();
+      await mpv.setSpeed(SetSpeedRequest(speed: 1.25));
+      await mpv.setEqualizer(
+        EqualizerConfigurationMessage(
+          enabled: true,
+          preampDb: -1,
+          autoHeadroom: false,
+          filters: const [
+            EqualizerFilterMessage(
+              type: 'peaking',
+              frequencyHz: 1000,
+              gainDb: 3,
+              q: 1,
+              enabled: true,
+            ),
+          ],
+        ),
+      );
+      final next = mpv.replayGainFiltersForLoad(_b);
+      expect(next, startsWith('${_rg}0.000dB'));
+      expect(next, contains('scale=1.25'));
+      expect(next, contains('@navis_eq:lavfi=['));
+    });
+
+    test('a failed edit rolls back to a chain with the level', () async {
+      final mpv = await newAdapter(equalizer: _eq());
+      mpv.replayGainFiltersForLoad(_a);
+      var failed = false;
+      when(() => native.setProperty('af', any())).thenAnswer((call) async {
+        if (!failed) {
+          failed = true;
+          throw StateError('mpv rejected the chain');
+        }
+        properties['af'] = '${call.positionalArguments[1]}';
+      });
+      await expectLater(
+        mpv.setEqualizer(_eq(enabled: true)),
+        throwsA(isA<StateError>()),
+      );
+      expect(failed, isTrue);
+      expect(properties['af'], startsWith('$_rg-9.000dB'));
     });
   });
 

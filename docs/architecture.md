@@ -5152,8 +5152,8 @@ Desktop volume follows a parallel local-settings path:
    back and `replayGainDb` what the adapter meant the loaded file to play at.
 
    **In-pipeline contract (#392, phase 1).** The handler's
-   `replayGainInPipeline` capability (true on mpv; false on Android and iOS until
-   their backends ship) moves
+   `replayGainInPipeline` capability (true on mpv except macOS; false on macOS,
+   Android and iOS until their backends ship) moves
    ReplayGain onto each song's own samples. One signed dB per queue entry
    (`ReplayGainDecision.db`, cut and boost together) travels with the source:
    `IndexedAudioSource.replayGainDb`, filled by `_withReplayGain` wherever the

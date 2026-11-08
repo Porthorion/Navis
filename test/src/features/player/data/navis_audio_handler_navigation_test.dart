@@ -15970,7 +15970,11 @@ void main() {
     }
 
     test('mpv applies the gain in its filter chain, not the volume', () async {
-      final (handler, player) = await gained([-10.5], caps: mpv);
+      final (handler, player) = await gained(
+        [-10.5],
+        caps: mpv,
+        pipeline: true,
+      );
       await handler.setVolume(0.25);
       await handler.replaceQueue(['song-0'], expandMatchFlows: false);
       expect(handler.replayGainInPipeline, isTrue);
@@ -18852,6 +18856,33 @@ void main() {
           'song-0': -4.0,
           'song-1': -4.0,
         });
+      });
+
+      test('a reload after a settings change carries the new level', () async {
+        var mode = 'off';
+        final (handler, player) = await smart(
+          ['a', 'b', 'c'],
+          readMode: () => mode,
+          pipeline: true,
+        );
+        await handler.replaceQueue(ids(3), expandMatchFlows: false);
+        await pumpEventQueue();
+        expect(player.sequence.map((s) => s.replayGainDb), everyElement(0));
+        mode = 'track';
+        await handler.applyRuntimeSettings();
+        await pumpEventQueue();
+        // The tap lands while the player is loading: the handler reloads the
+        // same source objects, which must carry the pushed level, not the
+        // one they were inserted with.
+        final loads = player.sourceGains.where((g) => g.op == 'load').length;
+        player.state = ProcessingState.loading;
+        await handler.skipToNext();
+        await pumpEventQueue();
+        final reloaded = player.sourceGains
+            .where((g) => g.op == 'load')
+            .skip(loads);
+        expect(reloaded, hasLength(3));
+        expect(reloaded.map((g) => g.db), everyElement(-10));
       });
 
       test('duplicates of a song are two entries with the level', () async {

@@ -2,8 +2,11 @@ library just_audio_media_kit;
 
 import 'dart:ffi';
 
+import 'package:logging/logging.dart';
 import 'package:media_kit/ffi/ffi.dart';
 import 'package:media_kit/media_kit.dart';
+
+final _logger = Logger('set_property_io');
 
 Future<void> setProperty(Player player, String key, dynamic value) async {
   if (player.platform is! NativePlayer) return;
@@ -123,7 +126,10 @@ bool configureReplayGainFilter(
     // Synchronous libmpv calls only, as in [configureStartPosition].
     final path = _readString(native, 'path');
     if (path == null) return;
-    nativeSetPropertySync(player, 'af', filtersFor(path));
+    if (!nativeSetPropertySync(player, 'af', filtersFor(path))) {
+      // The file would play at the previous file's level; nothing else shows it.
+      _logger.warning('on_load af write rejected by mpv for $path');
+    }
   });
   return true;
 }
