@@ -105,6 +105,8 @@
   "hapticsListsAndMenusSubtitle": "Long-press menus, reordering, swiping a queue row away and pull to refresh.",
   "hapticsLikesAndAlertsTitle": "Likes & Alerts",
   "hapticsLikesAndAlertsSubtitle": "Likes, ratings, downloads, copying and actions that aren't available.",
+  "hapticsNotificationsTitle": "Notifications",
+  "hapticsNotificationsSubtitle": "Download finished or failed.",
   "hapticsLoadError": "Could Not Load Haptics Settings",
   "hapticsSaveError": "Couldn't save this change. Try again.",
   "settingsGroupConnection": "Connection",

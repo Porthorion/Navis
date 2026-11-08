@@ -1914,6 +1914,39 @@ void main() {
     return (handler, player, database);
   }
 
+  // Issue #383: a replacement that cancels the running edit before the edit
+  // reaches its requeue check must not leave that edit marked as waiting, or
+  // every later edit requeues itself forever on microtasks alone. That loop
+  // starves timers (even the test timeout), so on a regression this test
+  // hangs rather than fails: run it under a shell `timeout`.
+  group('queue edit cancelled by a replacement', () {
+    test('does not block a later edit', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-i383-');
+      final (handler, _, database) = await createHandler(directory, 8);
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final ids = List<String>.generate(8, (i) => 'song-$i');
+      await handler.replaceQueue(ids, expandMatchFlows: false);
+      await settleQueue(handler);
+
+      // The edit starts at once and waits for `_ready`; the replacement
+      // cancels it there.
+      final cancelled = handler.reorderQueue(5, 1);
+      final replaced = handler.replaceQueue(
+        ids.reversed.toList(),
+        expandMatchFlows: false,
+      );
+      await expectLater(cancelled, throwsA(isA<OperationCancelledException>()));
+      await replaced;
+
+      await handler.reorderQueue(3, 0);
+      expect(handler.snapshot.queueSongIds.first, 'song-4');
+    });
+  });
+
   group('idle playback recovery', () {
     NetworkReconciliation net({required bool online}) =>
         (connected: online, serverReachable: online);

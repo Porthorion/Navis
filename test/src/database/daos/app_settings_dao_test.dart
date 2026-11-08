@@ -60,7 +60,7 @@ void main() {
           for (final c in HapticCategory.values)
             dao.setHapticCategoryEnabled(c, enabled: false),
         ]);
-        expect((await dao.getSettings())!.hapticsDisabled, 63);
+        expect((await dao.getSettings())!.hapticsDisabled, 127);
       }, skip: !sqliteAvailable);
 
       test('the master keeps the category mask', () async {

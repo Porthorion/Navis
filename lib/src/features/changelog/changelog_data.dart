@@ -246,7 +246,8 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Settings › Haptics turns vibration off entirely or for Player '
         'Gestures, Playback Buttons, Sliders & Rulers, Switches & Steppers, '
-        'Lists & Menus or Likes & Alerts, so you can keep the ones you like',
+        'Lists & Menus, Likes & Alerts or Notifications (download finished or '
+        'failed), so you can keep the ones you like',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

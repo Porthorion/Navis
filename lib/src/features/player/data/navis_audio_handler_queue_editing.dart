@@ -216,6 +216,9 @@ extension _NavisQueueEditing on NavisAudioHandler {
         await _queueLane.enqueue((token) async {
           await _ready;
           if (prepareSources) await _prepareRestoredQueueInLane(token);
+          // A replacement cancelled this edit while it waited above; attempt()
+          // already settled it, so requeueing would leak its sequence.
+          if (token.isCancelled) return;
           final behindWaitingEdit = _requeuedQueueEdits.any(
             (earlier) => earlier < sequence,
           );
