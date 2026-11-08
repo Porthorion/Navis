@@ -62,12 +62,14 @@ static const int kBoostTickMs = 250;
     NSDictionary<NSString *, NSObject *> *_icyMetadata;
     NSNumber *_errorCode;
     NSString *_errorMessage;
+    BOOL _commandFlushed;             // Navis: a seek, skip or load flushed and is about to call enqueueFrom:
 #if TARGET_OS_IOS
     // Navis: nil unless the app sent an equalizerConfiguration (iOS only).
     NavisEqualizer *_equalizer;
     // Navis: the ReplayGain boost (I24), all on the main thread. The map is the boost of each
     // queued song by URI; the rest is the policy state of navis_boost_decide.
     NSDictionary<NSString *, NSNumber *> *_boostByUri;
+    NSDictionary<NSString *, NSNumber *> *_boostTagDurationMsByUri; // the song tags' durations, sent with the map
     BOOL _boostMapPositive;           // some song has a boost: only then the tick runs
     double _boostTargetDb;            // the target in force, dB
     BOOL _boostReportedGuarded;
@@ -302,7 +304,14 @@ static const int kBoostTickMs = 250;
         map[key] = @(db);
         positive = positive || db > 0;
     }
+    NSDictionary *rawDurations = [request[@"durationMsByUri"] isKindOfClass:[NSDictionary class]] ? request[@"durationMsByUri"] : @{};
+    NSMutableDictionary<NSString *, NSNumber *> *durations = [NSMutableDictionary dictionaryWithCapacity:rawDurations.count];
+    for (id key in rawDurations) {
+        id value = rawDurations[key];
+        if ([key isKindOfClass:[NSString class]] && [value isKindOfClass:[NSNumber class]] && [value doubleValue] > 0) durations[key] = value;
+    }
     _boostByUri = map;
+    _boostTagDurationMsByUri = durations;
     _boostMapPositive = positive;
     [self updateBoostObserver];
     [self refreshReplayGainBoost];
@@ -338,31 +347,39 @@ static const int kBoostTickMs = 250;
     return _loopMode == lmLoopAll && _order.count > 0 ? [_order[0] intValue] : -1;
 }
 
-/// Runs the decision for song `index` followed by `nextIndex` (-1: none) and hands the
-/// target to the tap when it changed. `timed` reads the song's position (the periodic and
-/// event refreshes); a jump has no position yet, so it is guarded and does not latch.
-- (void)applyBoostForIndex:(int)index next:(int)nextIndex timed:(BOOL)timed {
+/// The position of `source` for the guard in media ms, or NAN. A pending seek's target is the
+/// position; otherwise the source's own clock, which reads its `playerItem` and so is only right
+/// while that is the item being heard (not before a loop-all wrap has flipped it).
+- (double)boostPositionMsOfSource:(IndexedAudioSource *)source {
+    if (CMTIME_IS_VALID(_seekPos)) {
+        double seconds = CMTimeGetSeconds(_seekPos);
+        return isfinite(seconds) ? seconds * 1000 : NAN;
+    }
+    NSArray<AVPlayerItem *> *heard = _player.items;
+    if (heard.count == 0 || heard[0] != source.playerItem) return NAN;
+    return CMTimeGetSeconds(source.position) * 1000;
+}
+
+/// Runs the decision for song `index` followed by `nextIndex` (-1: none) and hands the target to the
+/// tap when it changed. `positionMs` is the position in the song (NAN: read the source's clock).
+/// `latch` stores the guard's latch; a jump (a seek, a queue edit) has no settled clock and never latches.
+- (void)applyBoostForIndex:(int)index next:(int)nextIndex position:(double)positionMs latch:(BOOL)latch {
     NavisBoostInput in = {
         .ownDb = [self boostOwnDbAtIndex:index],
         .nextDb = nextIndex >= 0 ? [self boostOwnDbAtIndex:nextIndex] : NAN,
-        .remainingMs = NAN, .durationMs = NAN, .speed = _speed,
+        .positionMs = NAN, .playerDurationMs = NAN, .tagDurationMs = NAN, .speed = _speed,
         .latched = _boostLatched, .held = _boostHeld, .previousDb = _boostTargetDb,
     };
-    NSArray<AVPlayerItem *> *heard = _player.items;
-    IndexedAudioSource *clock = timed && index >= 0 && index < (int)_indexedAudioSources.count ? _indexedAudioSources[index] : nil;
-    // The source reads its `playerItem`, which is not the item being heard until a loop-all wrap
-    // has flipped it, and a pending seek leaves its time stale: either would read the end of the
-    // song. Then the timing is unknown, which guards without latching.
-    if (clock && heard.count > 0 && heard[0] == clock.playerItem && CMTIME_IS_INVALID(_seekPos)) {
-        IndexedAudioSource *source = clock;
-        double duration = CMTimeGetSeconds(source.duration) * 1000;
-        double position = CMTimeGetSeconds(source.position) * 1000;
-        in.durationMs = duration;
-        in.remainingMs = duration - position;
+    if (index >= 0 && index < (int)_indexedAudioSources.count) {
+        IndexedAudioSource *source = _indexedAudioSources[index];
+        in.playerDurationMs = CMTimeGetSeconds(source.duration) * 1000;
+        NSString *uri = [self boostUriOfSource:source];
+        in.tagDurationMs = uri ? _boostTagDurationMsByUri[uri].doubleValue : NAN;
+        in.positionMs = isnan(positionMs) ? [self boostPositionMsOfSource:source] : positionMs;
     }
     NavisBoostOutput out;
     navis_boost_decide(&in, NAVIS_BOOST_GUARD_WINDOW_MS, &out);
-    if (timed) _boostLatched = out.latched;
+    if (latch) _boostLatched = out.latched;
     if (out.targetDb != _boostTargetDb || out.guarded != _boostReportedGuarded) {
         _boostTargetDb = out.targetDb;
         _boostReportedGuarded = out.guarded;
@@ -408,7 +425,7 @@ static const int kBoostTickMs = 250;
     NSArray<AVPlayerItem *> *items = _player.items;
     int index = items.count > 0 ? [self indexForItem:(IndexedPlayerItem *)items[0]] : -1;
     int next = items.count > 1 ? [self indexForItem:(IndexedPlayerItem *)items[1]] : -1;
-    [self applyBoostForIndex:index next:next timed:YES];
+    [self applyBoostForIndex:index next:next position:NAN latch:YES];
 #endif
 }
 
@@ -432,27 +449,29 @@ static const int kBoostTickMs = 250;
     if (!_equalizer) return;
     _boostItem = nil;
     [self noteBoostSongEvent];
-    [self applyBoostForIndex:-1 next:-1 timed:NO];
+    [self applyBoostForIndex:-1 next:-1 position:NAN latch:NO];
 #endif
 }
 
-/// A seek or skip is starting, before the flush: the boost the destination song may have for
-/// its first samples is stored now, so the reset at the next block snaps to it. A jump to
-/// another song is judged on that song and the one after it in play order; its position is
-/// not known yet, so it is held and guarded (never latched) until the hold ends.
-- (void)noteBoostSeekToIndex:(NSNumber *)newIndex {
+/// The playing song is about to change by a jump: a seek or skip, or a queue edit that removed the
+/// playing item (before the flush, so the first block after it plays at the destination's value). The
+/// destination is judged on its own and the song after it in play order, at `positionMs` (NAN:
+/// unknown, which guards without latching). A position and a known duration (the tag's, if the
+/// player has none yet) let a seek inside the playing song keep its own boost; the hold still keeps
+/// a rise back, and the decision never latches.
+- (void)noteBoostJumpToIndex:(int)destination positionMs:(double)positionMs {
 #if TARGET_OS_IOS
     if (!_equalizer || !_player) return;
-    int destination = (newIndex != nil && newIndex != (id)[NSNull null]) ? [newIndex intValue] : _index;
     [self noteBoostSongEvent];
-    int next = -1;
-    if (destination != _index) {
-        next = [self boostIndexAfter:destination];
-    } else {
-        NSArray<AVPlayerItem *> *items = _player.items;
-        next = items.count > 1 ? [self indexForItem:(IndexedPlayerItem *)items[1]] : -1;
-    }
-    [self applyBoostForIndex:destination next:next timed:NO];
+    [self applyBoostForIndex:destination next:[self boostIndexAfter:destination] position:positionMs latch:NO];
+#endif
+}
+
+- (void)noteBoostSeekToIndex:(NSNumber *)newIndex position:(CMTime)position {
+#if TARGET_OS_IOS
+    int destination = (newIndex != nil && newIndex != (id)[NSNull null]) ? [newIndex intValue] : _index;
+    double seconds = CMTIME_IS_NUMERIC(position) ? CMTimeGetSeconds(position) : NAN;
+    [self noteBoostJumpToIndex:destination positionMs:isfinite(seconds) ? seconds * 1000 : NAN];
 #endif
 }
 
@@ -804,6 +823,17 @@ static const int kBoostTickMs = 250;
     IndexedPlayerItem *oldItem = (IndexedPlayerItem *)_player.currentItem;
     IndexedPlayerItem *existingItem = nil;
     IndexedPlayerItem *newItem = _indexedAudioSources.count > 0 ? _indexedAudioSources[_index].playerItem : nil;
+#if TARGET_OS_IOS
+    // The playing item changes and no seek, skip or load flushed for it: a queue edit removed it (the
+    // next song takes over, neither a natural advance nor a seek). Decide the new song's boost and
+    // flush before the queue is rebuilt, so its first block does not ramp down from the old song's gain.
+    BOOL flushedByCommand = _commandFlushed;
+    _commandFlushed = NO;
+    if (_equalizer && oldItem && newItem && oldItem != newItem && !flushedByCommand) {
+        [self noteBoostJumpToIndex:_index positionMs:NAN];
+        [self noteEqualizerFlush];
+    }
+#endif
     NSArray *oldPlayerItems = [NSArray arrayWithArray:_player.items];
     // Navis: queued items that are already in the right order stay as they are.
     // Removing and re-inserting the prefetched next item (every append of a
@@ -923,6 +953,7 @@ static const int kBoostTickMs = 250;
 - (void)load:(NSDictionary *)source initialPosition:(CMTime)initialPosition initialIndex:(NSNumber *)initialIndex result:(FlutterResult)result {
     [self noteBoostLoad]; // before the flush
     [self noteEqualizerFlush];
+    _commandFlushed = YES; // enqueueFrom: below need not flush again
     if (_playing) {
         [_player pause];
     }
@@ -1539,7 +1570,7 @@ static const int kBoostTickMs = 250;
         return;
     }
     // A user seek or skip (also the first half of a jump to another item).
-    [self noteBoostSeekToIndex:newIndex]; // before the flush
+    [self noteBoostSeekToIndex:newIndex position:position]; // before the flush
     [self noteEqualizerFlush];
     int index = _index;
     if (newIndex != (id)[NSNull null]) {
@@ -1565,6 +1596,7 @@ static const int kBoostTickMs = 250;
             // The "currentItem" key observer will respect that a seek is already in progress
             _seekPos = position;
             [self updatePosition];
+            _commandFlushed = YES; // this jump flushed already
             [self enqueueFrom:index];
             IndexedAudioSource *source = _indexedAudioSources[_index];
             if (abs((int)(1000 * CMTimeGetSeconds(CMTimeSubtract(source.position, position)))) > 100) {
