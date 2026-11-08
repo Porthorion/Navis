@@ -15,6 +15,12 @@ void main() {
       tapPrepareCount: 1,
       flushCount: 2,
       transitionGapsMs: const [0.4, -0.2],
+      pitchCents: 500,
+      pitchActive: true,
+      pitchLatencyFrames: 4096,
+      pitchResetCount: 3,
+      pitchInputHz: 440,
+      pitchOutputHz: 587.5,
     );
     final json = state.toDiagnosticsJson();
     expect(json['sampleRate'], 44100);
@@ -26,6 +32,12 @@ void main() {
     expect(json['tapPrepareCount'], 1);
     expect(json['flushCount'], 2);
     expect(json['transitionGapsMs'], [0.4, -0.2]);
+    expect(json['pitchCents'], 500);
+    expect(json['pitchActive'], isTrue);
+    expect(json['pitchLatencyFrames'], 4096);
+    expect(json['pitchResetCount'], 3);
+    expect(json['pitchInputHz'], 440);
+    expect(json['pitchOutputHz'], 587.5);
     expect(json['enabled'], state.applied.enabled);
     expect(json['configuration'], state.applied.toJson());
   });
@@ -42,5 +54,9 @@ void main() {
     expect(json['tapPrepareCount'], isNull);
     expect(json['flushCount'], isNull);
     expect(json['transitionGapsMs'], isNull);
+    for (final key in ['pitchCents', 'pitchActive', 'pitchLatencyFrames', 'pitchResetCount', 'pitchInputHz', 'pitchOutputHz']) {
+      expect(json.containsKey(key), isTrue);
+      expect(json[key], isNull);
+    }
   });
 }

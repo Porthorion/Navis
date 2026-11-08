@@ -26,7 +26,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/services.dart' show MethodChannel;
+import 'package:flutter/services.dart' show MethodChannel, PlatformException;
 import 'package:navis/src/features/player/data/playback_art_cache.dart';
 import 'package:navis/src/features/player/data/android_system_art.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -713,6 +713,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   double appliedSpeed = 1;
   double appliedPitch = 1;
   bool failPitchOnce = false;
+  // Thrown by every setPitch while set (the iOS native player without a tap).
+  Object? pitchError;
+  int pitchCalls = 0;
   bool failPlay = false;
   bool ignorePlay = false;
   bool playRequested = false;
@@ -1037,6 +1040,8 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   @override
   Future<void> setPitch(double value) async {
+    pitchCalls++;
+    if (pitchError != null) throw pitchError!;
     if (failPitchOnce) {
       failPitchOnce = false;
       throw StateError('pitch failed');
@@ -1714,7 +1719,7 @@ void main() {
     String Function()? readReplayGainMode,
     double replayGainUntaggedDb = replayGainFallbackUntaggedDb,
     double Function()? readReplayGainUntaggedDb,
-    PlaybackAdjustmentCapabilities adjustmentCapabilities =
+    PlaybackAdjustmentCapabilities? adjustmentCapabilities =
         PlaybackAdjustmentCapabilities.android,
     EqCapabilities? equalizerCapabilities,
     _ControllableAudioPlayer? initialPlayer,
@@ -9025,6 +9030,83 @@ void main() {
       await subscription.cancel();
     },
   );
+
+  group('iOS independent pitch (I21)', () {
+    Future<(NavisAudioHandler, _ControllableAudioPlayer)> iosHandler({
+      bool? ios = true,
+      PlaybackAdjustmentCapabilities? injected,
+      EqCapabilities? equalizer = EqCapabilities.available,
+    }) async {
+      final directory = await Directory.systemTemp.createTemp('navis-ios-pitch-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        1,
+        iosRuntimeOverride: ios,
+        adjustmentCapabilities: injected,
+        equalizerCapabilities: equalizer,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      return (handler, player);
+    }
+
+    test('iOS with the equalizer pipeline on reports the iOS limits', () async {
+      final (handler, _) = await iosHandler();
+      expect(
+        handler.playbackAdjustmentCapabilities,
+        PlaybackAdjustmentCapabilities.ios,
+      );
+    });
+
+    test('iOS without the pipeline, and other platforms, report none', () async {
+      final (off, _) = await iosHandler(equalizer: EqCapabilities.unavailable);
+      expect(off.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+      final (notIos, _) = await iosHandler(ios: false);
+      expect(notIos.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+      final (unset, _) = await iosHandler(ios: null);
+      expect(unset.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+    });
+
+    test('locked to speed 1.25 sends pitch 1.25 and a speed change re-sends it', () async {
+      final (handler, player) = await iosHandler();
+      await handler.setPlaybackAdjustments(
+        const PlaybackAdjustments(speed: 1.25, lockPitchToSpeed: true),
+      );
+      expect(player.appliedSpeed, 1.25);
+      expect(player.appliedPitch, 1.25);
+      await handler.setPlaybackSpeed(1.5);
+      expect(player.appliedPitch, 1.5);
+    });
+
+    test('independent +5 semitones sends the pitch factor', () async {
+      final (handler, player) = await iosHandler();
+      await handler.setPlaybackAdjustments(
+        const PlaybackAdjustments(speed: 1.5, pitchSemitones: 5),
+      );
+      expect(player.appliedSpeed, 1.5);
+      expect(player.appliedPitch, closeTo(pow(2, 5 / 12), 1e-12));
+    });
+
+    test('pitch_unavailable downgrades the capabilities once and does not loop', () async {
+      final (handler, player) = await iosHandler();
+      player.pitchError = PlatformException(code: 'pitch_unavailable');
+      await expectLater(
+        handler.setPlaybackAdjustments(const PlaybackAdjustments(pitchSemitones: 2)),
+        throwsA(isA<PlatformException>()),
+      );
+      // One failing call; the rollback does not ask the player for pitch again.
+      expect(player.pitchCalls, 1);
+      expect(handler.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+      expect(handler.playbackAdjustments, const PlaybackAdjustments());
+      // Speed still works for the rest of the session without touching pitch.
+      await handler.setPlaybackSpeed(1.2);
+      expect(player.appliedSpeed, 1.2);
+      expect(player.pitchCalls, 1);
+    });
+  });
 
   test(
     'ignored seek during loading reloads the full queue at target',

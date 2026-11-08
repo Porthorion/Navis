@@ -31,6 +31,24 @@ void main() {
     expect(state.transitionGapsMs, [0.4, -0.2, 3.0]);
   });
 
+  test('fromMap reads the Darwin pitch stage fields', () {
+    final state = EqualizerStateMessage.fromMap({
+      'enabled': true,
+      'pitchCents': 500,
+      'pitchActive': true,
+      'pitchLatencyFrames': 4096,
+      'pitchResetCount': 2,
+      'pitchInputHz': 440,
+      'pitchOutputHz': 587.5,
+    });
+    expect(state.pitchCents, 500);
+    expect(state.pitchActive, isTrue);
+    expect(state.pitchLatencyFrames, 4096);
+    expect(state.pitchResetCount, 2);
+    expect(state.pitchInputHz, 440.0);
+    expect(state.pitchOutputHz, 587.5);
+  });
+
   test('fromMap leaves the counters null for backends without them', () {
     final state = EqualizerStateMessage.fromMap({'enabled': false});
     expect(state.processedFrames, isNull);
@@ -39,6 +57,12 @@ void main() {
     expect(state.tapPrepareCount, isNull);
     expect(state.flushCount, isNull);
     expect(state.transitionGapsMs, isNull);
+    expect(state.pitchCents, isNull);
+    expect(state.pitchActive, isNull);
+    expect(state.pitchLatencyFrames, isNull);
+    expect(state.pitchResetCount, isNull);
+    expect(state.pitchInputHz, isNull);
+    expect(state.pitchOutputHz, isNull);
   });
 
   test('fromMap accepts integral levelDeltaDb and 64-bit frame counts', () {
