@@ -20,14 +20,14 @@ bool configureStartPosition(
         Player player, Duration? Function(int index) startFor) =>
     false;
 
-bool configureReplayGainBoost(
-        Player player, double Function(int index, String path) gainFor) =>
+bool configureReplayGainFilter(
+        Player player, String Function(String path) filtersFor) =>
     false;
 
-bool writeFileLocalVolumeGain(Player player, double db) => false;
+bool nativeSetPropertySync(Player player, String name, String value) => false;
 
-double? nativeVolumeGain(Player player) => null;
+bool nativeCommandSync(Player player, String line) => false;
 
-int? nativePlaylistPosition(Player player) => null;
+String? nativeAudioFilters(Player player) => null;
 
 Future<Duration?> nativePosition(Player player) async => null;

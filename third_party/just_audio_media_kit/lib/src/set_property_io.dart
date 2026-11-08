@@ -2,8 +2,11 @@ library just_audio_media_kit;
 
 import 'dart:ffi';
 
+import 'package:logging/logging.dart';
 import 'package:media_kit/ffi/ffi.dart';
 import 'package:media_kit/media_kit.dart';
+
+final _logger = Logger('set_property_io');
 
 Future<void> setProperty(Player player, String key, dynamic value) async {
   if (player.platform is! NativePlayer) return;
@@ -40,8 +43,9 @@ Future<void> verifyOwnedAudioChain(
   final expectedScale = RegExp(r'scale=([0-9.eE+\-]+)').firstMatch(expected);
   final actualScale = RegExp(r'scale[=:](?:%[0-9]+%)?"?([0-9.eE+\-]+)')
       .firstMatch(actualFilters);
-  final requested = double.parse(expectedScale!.group(1)!);
+  final requested = double.tryParse(expectedScale?.group(1) ?? '');
   final actual = double.tryParse(actualScale?.group(1) ?? '');
+  final expectsGain = expected.contains('@navis_rg');
   const marker = '@navis_eq:lavfi=[';
   final equalizerStart = expected.indexOf(marker);
   final expectsEqualizer = equalizerStart >= 0;
@@ -50,9 +54,14 @@ Future<void> verifyOwnedAudioChain(
       : null;
   if (actualPitch == null ||
       (actualPitch - pitch).abs() > .000001 ||
-      actual == null ||
-      (actual - requested).abs() > .000001 ||
+      // No tempo expected (no EQ pipeline at 1x): none may be left over.
+      (requested == null
+          ? actualFilters.contains('navis_tempo')
+          : actual == null || (actual - requested).abs() > .000001) ||
       actualFilters.contains('navis_eq') != expectsEqualizer ||
+      // The label only: the level changes under live updates between the
+      // write and this read.
+      actualFilters.contains('navis_rg') != expectsGain ||
       (graph != null && !actualFilters.contains(graph))) {
     throw StateError(
         'The audio backend did not apply the requested filter chain');
@@ -105,57 +114,57 @@ bool configureStartPosition(
   return true;
 }
 
-/// Sets the file-local `volume-gain` (dB) of every playlist entry mpv is about
-/// to load, from [gainFor] (given its playlist index and `path`), so the gain
-/// ends with the file and cannot leak into the next one. Returns whether the
+/// Writes the global `af` of every playlist entry mpv is about to load from
+/// [filtersFor] (given its `path`), so the entry's chain, with its own
+/// ReplayGain level, is built from the first sample. Returns whether the
 /// backend supports it.
-bool configureReplayGainBoost(
-    Player player, double Function(int index, String path) gainFor) {
+bool configureReplayGainFilter(
+    Player player, String Function(String path) filtersFor) {
   final native = player.platform;
   if (native is! NativePlayer) return false;
   native.onLoadHooks.add(() async {
     // Synchronous libmpv calls only, as in [configureStartPosition].
-    final index = int.tryParse(_readString(native, 'playlist-pos') ?? '');
     final path = _readString(native, 'path');
-    if (index == null || path == null) return;
-    final name = 'file-local-options/volume-gain'.toNativeUtf8();
-    final value = gainFor(index, path).toStringAsFixed(3).toNativeUtf8();
-    native.mpv.mpv_set_property_string(native.ctx, name.cast(), value.cast());
-    calloc.free(name);
-    calloc.free(value);
+    if (path == null) return;
+    if (!nativeSetPropertySync(player, 'af', filtersFor(path))) {
+      // The file would play at the previous file's level; nothing else shows it.
+      _logger.warning('on_load af write rejected by mpv for $path');
+    }
   });
   return true;
 }
 
-/// Sets the loaded file's `volume-gain` (dB) with the same synchronous call
-/// the `on_load` hook uses, so a write cannot land on a later file the way an
-/// awaited property set can. Returns whether mpv accepted it (it refuses
-/// file-local options while nothing is playing).
-bool writeFileLocalVolumeGain(Player player, double db) {
+/// Writes [value] to the mpv property [name] with a synchronous libmpv call,
+/// so a write cannot land on a later file the way an awaited property set
+/// can. Returns whether mpv accepted it.
+bool nativeSetPropertySync(Player player, String name, String value) {
   final native = player.platform;
   if (native is! NativePlayer) return false;
-  final name = 'file-local-options/volume-gain'.toNativeUtf8();
-  final value = db.toStringAsFixed(3).toNativeUtf8();
+  final key = name.toNativeUtf8();
+  final text = value.toNativeUtf8();
   final result =
-      native.mpv.mpv_set_property_string(native.ctx, name.cast(), value.cast());
-  calloc.free(name);
-  calloc.free(value);
+      native.mpv.mpv_set_property_string(native.ctx, key.cast(), text.cast());
+  calloc.free(key);
+  calloc.free(text);
   return result >= 0;
 }
 
-/// mpv's own `volume-gain` (dB) right now, or null when unreadable.
-double? nativeVolumeGain(Player player) {
+/// Runs the mpv command [line] with a synchronous libmpv call. Returns
+/// whether mpv accepted it.
+bool nativeCommandSync(Player player, String line) {
   final native = player.platform;
-  if (native is! NativePlayer) return null;
-  return double.tryParse(_readString(native, 'volume-gain') ?? '');
+  if (native is! NativePlayer) return false;
+  final text = line.toNativeUtf8();
+  final result = native.mpv.mpv_command_string(native.ctx, text.cast());
+  calloc.free(text);
+  return result >= 0;
 }
 
-/// mpv's own playlist position, which (unlike media_kit's state) is never
-/// behind the file it is loading; null while nothing is loaded.
-int? nativePlaylistPosition(Player player) {
+/// mpv's own audio filter chain right now, or null when unreadable.
+String? nativeAudioFilters(Player player) {
   final native = player.platform;
   if (native is! NativePlayer) return null;
-  return int.tryParse(_readString(native, 'playlist-pos') ?? '');
+  return _readString(native, 'af');
 }
 
 /// mpv's current playback position, or null while no file is initialized.
