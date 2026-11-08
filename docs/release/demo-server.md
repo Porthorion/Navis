@@ -32,7 +32,8 @@ client -> Cloudflare -> tunnel -> proxy (NPMplus/nginx) -> 127.0.0.1:${DEMO_PORT
 | `nginx/http-zone.conf` | `limit_req_zone` for the proxy `http` context |
 | `nginx/demo-location.conf` | Server-level block for the proxy host's Advanced config |
 | `.env.example` | Placeholders for the host-only `.env` |
-| `selftest.sh` | End-to-end check on local docker (bootstrap, nginx, reset, rotation) |
+| `selftest.sh` | End-to-end check on local docker (bootstrap, nginx, reset, rotation); `DEMO_TEST_MUSIC=<dir>` also checks a built library |
+| `library/` | `build-library.sh`, `manifest.tsv` (sources, sha256, tags), `lyrics/*.lrc`, `LICENSES.md`, `Dockerfile` |
 
 ## Rebuild from scratch
 
@@ -42,8 +43,8 @@ client -> Cloudflare -> tunnel -> proxy (NPMplus/nginx) -> 127.0.0.1:${DEMO_PORT
 2. `cp .env.example .env`, fill in paths, a fixed `ND_PASSWORDENCRYPTIONKEY`
    (`openssl rand -hex 32`), the creds file path and the reviewer login. Keep
    `.env` mode 600.
-3. Library: see `deploy/demo-server/library` (to be filled by a later job).
-   Place the tagged files in `music/`.
+3. Library: `deploy/demo-server/library/build-library.sh <host dir>/music` (needs only
+   docker, curl, sha256sum; see `library/README.md`). Copy `library/` to the host first.
 4. `./bootstrap.sh`. It starts Navidrome in bootstrap mode, creates a random
    admin (login saved to `DEMO_ADMIN_CREDS_FILE`, mode 600), creates the
    non-admin reviewer, runs a full scan, exports `seed/navidrome.db` and starts
@@ -58,6 +59,16 @@ client -> Cloudflare -> tunnel -> proxy (NPMplus/nginx) -> 127.0.0.1:${DEMO_PORT
 
 Validate any change to these files with `deploy/demo-server/selftest.sh`
 (about two minutes; creates and removes its own containers and temp dir).
+
+## Library
+
+40 tracks, 6 albums (a two-disc album, a compilation, ReplayGain, synced lyrics, own covers).
+**Licence policy:** CC0 1.0 or public domain for both composition and recording only; no BY, NC
+or ND. Record each new track's source page, direct URL, licence and sha256 in `manifest.tsv`;
+`build-library.sh` regenerates `LICENSES.md` (copy it back into the repo). To rebuild, run
+`build-library.sh <dir>`: it re-downloads, verifies checksums and re-tags in place, then
+rescan (restart the stack with `DEMO_FORCE=1 ./bootstrap.sh` to refresh the seed).
+Local proof: `DEMO_TEST_MUSIC=<dir> deploy/demo-server/selftest.sh`.
 
 ## Rotate the reviewer password
 

@@ -2,6 +2,8 @@
 # End-to-end check of the demo stack on local docker: real compose.yaml,
 # bootstrap.sh, and nginx with the shipped location config in front.
 # Usage: deploy/demo-server/selftest.sh   (needs docker, ffmpeg, curl, jq, openssl)
+# Library mode: DEMO_TEST_MUSIC=<dir built by library/build-library.sh> selftest.sh
+#   scans that library (read-only) instead of three sine tracks and checks it.
 set -euo pipefail
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 docker info >/dev/null 2>&1 || { echo "docker unavailable" >&2; exit 2; }
@@ -21,7 +23,9 @@ check() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then pass "$name"; el
 
 mkdir -p "$T"/{data,seed,music/Test\ Artist/Test\ Album}
 cp "$SRC"/{compose.yaml,entrypoint.sh,bootstrap.sh} "$T"/
-for i in 1 2 3; do
+MUSIC="$T/music"; SONG=Sine
+if [[ -n "${DEMO_TEST_MUSIC:-}" ]]; then MUSIC="$(cd "$DEMO_TEST_MUSIC" && pwd)"; SONG=Daisy; fi
+for i in $([[ -n "${DEMO_TEST_MUSIC:-}" ]] || echo 1 2 3); do
   ffmpeg -loglevel error -f lavfi -i "sine=frequency=$((300 + i * 100)):duration=5" \
     -metadata title="Sine Song $i" -metadata artist="Test Artist" -metadata album="Test Album" \
     -metadata track="$i" "$T/music/Test Artist/Test Album/0$i.flac"
@@ -34,7 +38,7 @@ DEMO_GID=$(id -g)
 DEMO_PORT=$APP_PORT
 DEMO_DATA_DIR=$T/data
 DEMO_SEED_DIR=$T/seed
-DEMO_MUSIC_DIR=$T/music
+DEMO_MUSIC_DIR=$MUSIC
 ND_PASSWORDENCRYPTIONKEY=$(openssl rand -hex 16)
 DEMO_ADMIN_CREDS_FILE=$T/admin-credentials
 DEMO_REVIEWER_USER=reviewer
@@ -73,12 +77,29 @@ code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
 
 echo "== assertions"
 check "reviewer ping ok" test "$(rest ping | jq -r '."subsonic-response".status')" = ok
-SID="$(rest search3 'query=Sine' | jq -r '."subsonic-response".searchResult3.song[0].id // empty')"
+SID="$(rest search3 "query=$SONG" | jq -r '."subsonic-response".searchResult3.song[0].id // empty')"
 check "search3 finds a song" test -n "$SID"
 check "stream.view returns audio" test "$(curl -s -o /dev/null -w '%{content_type}' "$P/rest/stream.view?$Q&id=$SID")" = audio/flac
 check "stream.view honours Range (206)" test "$(code -H 'Range: bytes=0-99' "$P/rest/stream.view?$Q&id=$SID")" = 206
 check "getCoverArt answers 200" test "$(code "$P/rest/getCoverArt.view?$Q&id=$SID")" = 200
 check "download.view works" test "$(code "$P/rest/download.view?$Q&id=$SID")" = 200
+if [[ -n "${DEMO_TEST_MUSIC:-}" ]]; then
+  echo "== library"
+  ALB="$(rest getAlbumList2 'type=alphabeticalByName&size=50' | jq -c '."subsonic-response".albumList2.album')"
+  check "6 albums" test "$(jq length <<<"$ALB")" = 6
+  aid() { jq -r --arg n "$1" '.[] | select(.name==$n) | .id' <<<"$ALB"; }
+  songs() { rest getAlbum "id=$(aid "$1")" | jq -c '."subsonic-response".album'; }
+  check "compilation flagged" test "$(songs 'Public Domain Voices' | jq -r '.isCompilation')" = true
+  check "compilation keeps 3 track artists" test "$(songs 'Public Domain Voices' | jq '[.song[].artist] | unique | length')" = 3
+  check "Komiku has 2 discs" test "$(songs "It's time for adventure !" | jq '[.song[].discNumber] | unique | length')" = 2
+  check "Komiku has 12 songs" test "$(songs "It's time for adventure !" | jq '.song | length')" = 12
+  check "HYPER METAL has album ReplayGain" test "$(songs 'HYPER METAL !' | jq '.song[0].replayGain.albumGain')" != null
+  LY="$(rest getLyricsBySongId "id=$SID" | jq -c '."subsonic-response".lyricsList.structuredLyrics[0]')"
+  echo "   lyrics: $(jq -c '[.synced, (.line | length), .line[0], .line[-1]]' <<<"$LY")"
+  check "Daisy Bell lyrics are synced with 6 lines" test "$(jq -c '[.synced, (.line | length)]' <<<"$LY")" = '[true,6]'
+  CID="$(aid 'HYPER METAL !')"
+  check "getCoverArt returns our cover.jpg" cmp <(curl -s "$P/rest/getCoverArt.view?$Q&id=$CID") "$MUSIC/Loyalty Freak Music/HYPER METAL/cover.jpg"
+fi
 for path in app/ auth/login api/user ""; do
   check "/demo/$path is 404" test "$(code "$P/$path")" = 404
 done
