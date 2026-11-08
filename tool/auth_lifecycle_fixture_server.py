@@ -14,14 +14,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 
-def _wav_bytes() -> bytes:
+def _wav_bytes(seconds=4) -> bytes:
     output = io.BytesIO()
     with wave.open(output, "wb") as wav:
         wav.setnchannels(1)
         wav.setsampwidth(2)
         wav.setframerate(22050)
         frames = bytearray()
-        for index in range(22050 * 4):
+        for index in range(22050 * seconds):
             sample = int(5000 * math.sin(2 * math.pi * 440 * index / 22050))
             frames.extend(struct.pack("<h", sample))
         wav.writeframes(frames)
@@ -295,6 +295,9 @@ RESCAN_INDEXES = {
     for index, phase in enumerate(sorted(RESCAN_SCANS))
 }
 RESCAN_ALBUM_COUNT = 100  # the bulk song path needs at least 96 pending albums
+# Long enough that a queued song keeps playing through a sync (phase C of
+# the playback check in rescan_snapshot_diagnostics.py).
+RESCAN_SONG_SECONDS = 90
 
 
 def _rescan_phase():
@@ -334,6 +337,8 @@ def _rescan_library(phase):
             "artistId": artist,
             "artist": artists[artist]["name"],
             "track": track,
+            "duration": RESCAN_SONG_SECONDS,
+            "size": len(AUDIO),
         }
         if gain is not None:
             row["replayGain"] = {"trackGain": gain, "albumGain": gain, "trackPeak": 1.0, "albumPeak": 1.0}
@@ -682,7 +687,7 @@ def main():
     )
     args = parser.parse_args()
     global ANNOTATION_LOG, RESCAN_ENABLED, PHASE_FILE, REQUEST_LOG
-    global RESCAN_ALBUM_COUNT
+    global RESCAN_ALBUM_COUNT, AUDIO
     ANNOTATION_LOG = args.annotation_log
     REQUEST_LOG = os.path.realpath(args.request_log) if args.request_log else ""
     FAILURE_FLAG = os.path.realpath(args.failure_flag)
@@ -711,6 +716,7 @@ def main():
         RESCAN_ENABLED = True
         PHASE_FILE = os.path.realpath(args.phase_file)
         RESCAN_ALBUM_COUNT = max(20, args.rescan_albums)
+        AUDIO = _wav_bytes(RESCAN_SONG_SECONDS)
     if args.scenario == "partial-album":
         if not PARTIAL_ALBUM_FLAG:
             parser.error("--partial-album-flag is required for partial-album")

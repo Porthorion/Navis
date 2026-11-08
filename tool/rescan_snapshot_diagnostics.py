@@ -6,6 +6,8 @@ sync (phase A), then a server that retagged ReplayGain, removed songs and an
 album, moved and renamed a song and changed a genre behind a new completed
 scan (phase B). Check for updates must run one catalog snapshot, the library
 must match the server, and a restart plus a second check must not repeat it.
+While phase B syncs, a queue of three songs is playing: song 2's retag must
+reach it at the next song, never mid-song (the playback gain check).
 Then the automatic entry point (24 h throttle, large-deletion hold) and a
 metered network (no scan request, no bulk song request) are checked.
 
@@ -15,6 +17,7 @@ time. Output: build/rescan-snapshot-diagnostics/<stamp>-clone/.
 """
 
 import json
+import math
 import os
 from pathlib import Path
 import sqlite3
@@ -40,6 +43,9 @@ from playback_harness import Display  # noqa: E402
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 STAMP = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 OUT = PROJECT_ROOT / "build" / "rescan-snapshot-diagnostics" / f"{STAMP}-clone"
+# Queue played through the phase B sync: the first song keeps its gain, the
+# second is retagged -7.0 to -3.5, the third loses its gain.
+PLAY_QUEUE = ["rs-s3", "rs-s1", "rs-s4"]
 SCAN = {"A": "2026-11-07T04:00:00.000Z", "B": "2026-11-07T12:00:00.000Z", "C": "2026-11-07T18:00:00.000Z"}
 
 
@@ -60,6 +66,7 @@ class Run:
         self.display_env = {}
         self.handshake = None
         self.app_log = None
+        self.samples = []
         self.set_phase("A")
 
     def start_fixture(self):
@@ -159,6 +166,28 @@ class Run:
     def runs(self):
         return [r for r in self.get("/v1/sync/ledger")["durableRuns"] if r["targetKind"] == "catalog"]
 
+    def play_sample(self, label):
+        """One playback status read: the heard song, its ReplayGain decision
+        and the volume the player applies."""
+        status = self.get("/v1/playback/status")
+        row = {
+            "label": label, "songId": status["songId"], "playing": status["playing"],
+            "positionMs": status["positionMs"], "replayGain": status["replayGain"],
+            "volume": status["effectivePlayerVolume"], "userVolume": status["userVolume"],
+        }
+        self.samples.append(row)
+        print("playback sample:", row, flush=True)
+        return row
+
+    def wait_song(self, song_id, timeout=60):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            row = self.play_sample("wait")
+            if row["songId"] == song_id and row["playing"] and row["positionMs"] > 500:
+                return row
+            time.sleep(1)
+        raise SystemExit(f"FAILED: {song_id} never played")
+
     def screenshot(self, label):
         shot = self.post("/v1/presentation/screenshot", {"label": label})
         print(f"screenshot {label}: {OUT / shot['artifact']}", flush=True)
@@ -177,9 +206,16 @@ def snapshot_runs(runs):
 
 def main():
     run = Run()
+    sink_module = ""
     display = Display(OUT)  # headless KWin: the clone never opens a window on the desktop
     try:
         run.display_env = display.__enter__()
+        # The fixture tone must never reach the desktop's speakers.
+        sink = f"navis_rescan_{os.getpid()}"
+        sink_module = subprocess.run(
+            ["pactl", "load-module", "module-null-sink", f"sink_name={sink}"],
+            capture_output=True, text=True, check=True).stdout.strip()
+        run.display_env["PULSE_SINK"] = sink
         run.start_fixture()
         run.prepare_profile()
 
@@ -202,6 +238,15 @@ def main():
         time.sleep(3)
         run.screenshot("baseline-library")
 
+        print("== Playback: a queue of three songs starts before the server retags", flush=True)
+        # The clone starts with ReplayGain off and the volume at 0.
+        run.post("/v1/playback/replay-gain", {"mode": "track", "preamp": 0})
+        run.post("/v1/playback/volume", {"value": 1})
+        run.post("/v1/playback/queue", {"songIds": PLAY_QUEUE})
+        first = run.wait_song(PLAY_QUEUE[0])
+        check(first["replayGain"]["db"] == -9.0, f"song 1 plays at its -9.0 dB gain ({first['replayGain']})")
+        run.play_sample("before-sync")
+
         print("== Phase B: server retag + removals + new scan, then Check for updates", flush=True)
         run.set_phase("B")
         mark = run.request_mark()
@@ -218,6 +263,14 @@ def main():
         check(snap[-1]["intent"] == "manualCatalogCheck", "the snapshot keeps manual intent")
         gain = run.sql("SELECT id, replay_gain_track_gain FROM songs WHERE id IN ('rs-s1','rs-s4') ORDER BY id")
         check(gain == [("rs-s1", -3.5), ("rs-s4", None)], f"ReplayGain retag landed {gain}")
+        # (a) the DB has song 2's new gain; (b) song 1 keeps playing at its level.
+        before, after = run.samples[-1], run.play_sample("after-sync")
+        time.sleep(4)
+        later = run.play_sample("later")
+        check(after["songId"] == later["songId"] == before["songId"] == PLAY_QUEUE[0], "song 1 kept playing through the sync")
+        check(later["positionMs"] > after["positionMs"] > before["positionMs"], "song 1 position advanced (it was not restarted)")
+        check(before["replayGain"] == after["replayGain"] == later["replayGain"], "song 1 ReplayGain decision unchanged by the sync")
+        check(before["volume"] == after["volume"] == later["volume"], f"song 1 applied volume unchanged ({before['volume']})")
         check(run.sql("SELECT COUNT(*) FROM songs WHERE id IN ('rs-s5','rs-s7')")[0][0] == 0, "removed songs are gone")
         check(run.sql("SELECT COUNT(*) FROM albums WHERE id='rs-a7'")[0][0] == 0, "removed album is gone")
         check(run.sql("SELECT album_id FROM songs WHERE id='rs-s2'")[0][0] == "rs-a3", "moved song follows its album")
@@ -231,6 +284,26 @@ def main():
         run.post("/v1/presentation/navigate", {"location": "/settings/sync"})
         time.sleep(3)
         run.screenshot("after-snapshot-sync-settings")
+
+        print("== Playback: the retag is heard from the next song", flush=True)
+        # (c) join song 2 naturally, then skip to song 3 (its gain was cleared).
+        run.post("/v1/playback/seek", {"positionMs": 87000})  # the fixture songs last 90 s
+        run.wait_song(PLAY_QUEUE[1], timeout=30)
+        time.sleep(1)
+        joined = run.play_sample("joined-song-2")
+        check(joined["songId"] == PLAY_QUEUE[1], "the natural join reached song 2")
+        check(joined["replayGain"]["db"] == -3.5, f"song 2 uses the new -3.5 dB gain, not -7.0 ({joined['replayGain']})")
+        check(math.isclose(joined["volume"], joined["userVolume"] * 10 ** (-3.5 / 60), abs_tol=0.002), f"song 2 volume follows -3.5 dB ({joined['volume']})")
+        check(abs(joined["volume"] - joined["userVolume"] * 10 ** (-7.0 / 60)) > 0.004, "song 2 volume is not the stale -7.0 dB level")
+        run.post("/v1/playback/next")
+        run.wait_song(PLAY_QUEUE[2], timeout=30)
+        time.sleep(2)  # the gain fade settles
+        skipped = run.play_sample("skipped-song-3")
+        # Untagged songs take the Automatic level (the median tagged gain, -8.0 here).
+        check(skipped["songId"] == PLAY_QUEUE[2] and skipped["replayGain"]["source"] == "untagged", f"song 3 lost its gain ({skipped['replayGain']})")
+        check(math.isclose(skipped["volume"], skipped["userVolume"] * 10 ** (skipped["replayGain"]["db"] / 60), abs_tol=0.002), f"song 3 volume follows its untagged level ({skipped['volume']})")
+        run.post("/v1/playback/pause")
+        json.dump(run.samples, open(OUT / "playback-samples.json", "w"), indent=1)
 
         print("== Clean restart: state persists, the next check is not a snapshot", flush=True)
         run.stop_app()
@@ -439,6 +512,8 @@ def main():
     finally:
         run.stop_app()
         _stop(getattr(run, "fixture", None))
+        if sink_module:
+            subprocess.run(["pactl", "unload-module", sink_module], check=False)
         display.__exit__()
 
 
