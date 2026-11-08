@@ -12,6 +12,7 @@ import 'package:navis/src/features/player/presentation/queue_provider.dart';
 import 'package:navis/src/features/player/presentation/recommendation_session_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/song_id_utils.dart';
 
 /// Maximum duration a single refill fetch is allowed to run before it is
 /// cancelled and the refilling flag is reset.
@@ -31,10 +32,14 @@ const _kMinimumRefillInterval = Duration(milliseconds: 1200);
 /// session should persist across navigation until explicitly deactivated or
 /// the queue is cleared by the user.
 class InstantMixNotifier extends Notifier<InstantMixState> {
-  /// [now] lets tests step the refill backoff without waiting.
-  new({DateTime Function()? now}) : _now = now ?? DateTime.now;
+  /// [now] lets tests step the refill backoff without waiting, and
+  /// [refillTimeout] shortens the stall limit of a refill fetch.
+  new({DateTime Function()? now, Duration? refillTimeout})
+    : _now = now ?? DateTime.now,
+      _refillTimeout = refillTimeout ?? _kRefillTimeout;
 
   final DateTime Function() _now;
+  final Duration _refillTimeout;
 
   /// The session whose refill is running. It prevents overlapping refills of
   /// one session even before the Riverpod state update is observed, while a
@@ -227,13 +232,19 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
 
     try {
       await _doRefill(seedSongId, refillSession, isInitial: isInitial).timeout(
-        _kRefillTimeout,
+        _refillTimeout,
         onTimeout: () {
           if (!ref.mounted || !_isCurrent(refillSession)) return;
           AppLogger.debug(
-            'InstantMix: refill timed out after ${_kRefillTimeout.inSeconds}s '
+            'InstantMix: refill timed out after ${_refillTimeout.inSeconds}s '
             '— resetting',
           );
+          if (!isInitial) {
+            // A stalled server may recover: retry quietly like a failed
+            // connection, and keep the session.
+            _scheduleTransientRetry(seedSongId, 'timeout');
+            return;
+          }
           ref.read(recommendationSessionProvider.notifier).stop(refillSession);
           state = const InstantMixState(error: InstantMixError.networkError);
         },
@@ -285,10 +296,13 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         candidateCount: batch.songs.length,
       );
       // Mid-mix, an empty batch is a failed connection to retry or nothing
-      // new to wait out. A server without the endpoints still ends the mix.
+      // new to wait out. A server without the endpoints still ends the mix,
+      // but a remote song it cannot address (no library copy) only has
+      // nothing to mix from.
       if (batch.songs.isEmpty &&
           !isInitial &&
-          batch.issue != RecommendationIssue.unsupported) {
+          (batch.issue != RecommendationIssue.unsupported ||
+              !isServerAddressableSongId(seedSongId))) {
         if (batch.issue == RecommendationIssue.networkFailure) {
           _scheduleTransientRetry(seedSongId, 'networkFailure');
         } else {
@@ -387,6 +401,15 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
     AppLogger.debug(
       'InstantMix: seed spent, waiting for the next song seed=$seedSongId',
     );
+    // The user may have skipped while this refill ran (snapshots are ignored
+    // meanwhile), and steady playback sends no further one.
+    if (ref.read(playerStateProvider).currentSongId?.trim() != seedSongId) {
+      scheduleMicrotask(() {
+        if (ref.mounted) {
+          _onSnapshotChanged(null, ref.read(playerStateProvider));
+        }
+      });
+    }
   }
 
   void _scheduleTransientRetry(String seedSongId, String reason) {

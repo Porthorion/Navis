@@ -2685,6 +2685,7 @@ void main() {
       tracks: <LastFmTrackRecommendation>[],
     );
     Completer<List<Song>>? gate;
+    Exception? fallbackError;
     final fallbackSeeds = <String>[];
     const queue = <String>['q-0', 'q-1', 'q-2', 'q-3', 'q-4', 'q-5'];
 
@@ -2692,6 +2693,7 @@ void main() {
       fakeNow = DateTime(2026, 11, 8, 12);
       similarCalls = 0;
       gate = null;
+      fallbackError = null;
       fallbackSeeds.clear();
       lastFmResult = const LastFmTrackFetchResult(
         outcome: LastFmFetchOutcome.noResults,
@@ -2726,6 +2728,8 @@ void main() {
             (index) => Song(id: 'rec-$index', title: 'Rec $index'),
           );
         }
+        final error = fallbackError;
+        if (error != null) throw error;
         final pending = gate;
         if (pending != null) return pending.future;
         return const <Song>[];
@@ -2814,6 +2818,56 @@ void main() {
       });
     }
 
+    for (final entry
+        in <String, ({LastFmTrackFetchResult? lastFm, Exception? error})>{
+          'Last.fm answers with a parse error': (
+            lastFm: const LastFmTrackFetchResult(
+              outcome: LastFmFetchOutcome.parseError,
+              tracks: <LastFmTrackRecommendation>[],
+            ),
+            error: null,
+          ),
+          'the server fallback answers with an API error': (
+            lastFm: null,
+            error: const SubsonicGenericException(message: 'boom', code: 0),
+          ),
+        }.entries) {
+      test(
+        'a real failure retries instead of parking (${entry.key})',
+        () async {
+          lastFmResult = entry.value.lastFm ?? lastFmResult;
+          final (:container, :play) = await start();
+          fallbackError = entry.value.error;
+          await play(0, 1);
+          final session = container.read(recommendationSessionProvider);
+          expect(session.stage, 'retryPending');
+          expect(session.retryCount, 1);
+          // Not parked: another snapshot on the same song asks again.
+          await play(0, 2);
+          expect(similarCalls, 3);
+        },
+      );
+    }
+
+    test(
+      'a refill that parks clears the retry state of earlier failures',
+      () async {
+        final (:container, :play) = await start();
+        fallbackError = const SubsonicConnectionException('offline');
+        await play(0, 1);
+        expect(
+          container.read(recommendationSessionProvider).stage,
+          'retryPending',
+        );
+        fallbackError = null;
+        await play(0, 2);
+        final session = container.read(recommendationSessionProvider);
+        expect(similarCalls, 3);
+        expect(session.stage, 'active');
+        expect(session.retryCount, 0);
+      },
+    );
+
     test('a skip during a refill gives the new song its own try', () async {
       final (:container, :play) = await start();
       gate = Completer<List<Song>>();
@@ -2836,6 +2890,59 @@ void main() {
       await play(1, 3);
       expect(similarCalls, 3);
       expect(fallbackSeeds, ['seed-a', 'q-0', 'q-1']);
+    });
+
+    test('a skip during a parking refill still gives the new song its try without another snapshot', () async {
+      final (:container, :play) = await start();
+      gate = Completer<List<Song>>();
+      unawaited(play(0, 1, wait: false));
+      while (similarCalls < 2) {
+        container.read(sameVibesProvider);
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      await play(1, 2, wait: false);
+      gate!.complete(const <Song>[]);
+      gate = null;
+      while (container.read(sameVibesProvider).refilling) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      // Steady playback of q-1: no further snapshot. Old code had a 3 s retry
+      // timer that re-read the current song.
+      fakeNow = fakeNow.add(const Duration(minutes: 5));
+      await Future<void>.delayed(const Duration(seconds: 4));
+      container.read(sameVibesProvider);
+      await pumpEventQueue();
+      expect(similarCalls, 3, reason: 'q-1 never gets its refill');
+    });
+
+    test('a skip within the minimum refill interval of a park still gets its refill', () async {
+      final (:container, :play) = await start();
+      await play(0, 1);
+      expect(similarCalls, 2);
+      // Skip to q-1 without the clock moving past the minimum interval.
+      container
+          .read(recommendationSnapshotProvider.notifier)
+          .emitSnapshot(
+            snapshot(
+              queueSongIds: queue,
+              currentSongId: queue[1],
+              currentIndex: 1,
+            ).copyWith(position: const Duration(seconds: 2)),
+          );
+      container.read(sameVibesProvider);
+      await pumpEventQueue();
+      while (container.read(sameVibesProvider).refilling) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      fakeNow = fakeNow.add(const Duration(minutes: 5));
+      await Future<void>.delayed(const Duration(seconds: 4));
+      container.read(sameVibesProvider);
+      await pumpEventQueue();
+      expect(
+        similarCalls,
+        3,
+        reason: 'q-1 refill was dropped by the 1.2 s gate',
+      );
     });
 
     for (final repeatMode in <AudioServiceRepeatMode>[

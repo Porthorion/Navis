@@ -4306,9 +4306,14 @@ failed refills (`retryExhausted`) park the mix the same way, silently, and the
 next current song re-arms it with a fresh failure count; starting a mix again
 also re-arms it. When the park is on the last song of the whole queue and
 repeat is off, nothing can extend the mix, so it stops: Same Vibes shows
-"Same Vibes stopped." and Server Mix ends silently. Initial-refill failures,
-terminal Last.fm errors (invalid key, rate limit), an unsupported server and
-Server Mix's refill timeout still end the mix with their notice.
+"Same Vibes stopped." and Server Mix ends silently. A mid-mix Server Mix
+refill timeout (30 s) counts as a failure and retries quietly. Initial-refill
+failures, the initial-start timeout, terminal Last.fm errors (invalid key, rate
+limit) and a server that lacks the similarity endpoints still end the mix with
+their notice; a remote song without a library copy only parks Server Mix. The
+run-out check happens on the next playback snapshot on the parked last song
+(for example a pause), and a skip made while a refill runs is re-checked as
+soon as the refill parks.
 
 Personal Radio retries with the same backoff and stops refilling at
 `retryExhausted`; later playback snapshots, a cleared error notice or an

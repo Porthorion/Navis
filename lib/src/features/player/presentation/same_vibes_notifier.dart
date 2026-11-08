@@ -618,6 +618,8 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
           parked = true;
           _parkedSeedSongId = normalizedSeedSongId;
           _consecutiveTransientFailures = 0;
+          // The park is not a backoff: a skip right after it gets its refill.
+          _nextRefillAllowedAt = null;
           AppLogger.debug(
             'SameVibes diagnostics: seed spent, waiting for the next song '
             'seed=$normalizedSeedSongId',
@@ -645,6 +647,15 @@ class SameVibesNotifier extends Notifier<SameVibesState> {
             candidateCount: songsToQueue.length,
             insertedCount: totalQueued,
           );
+      // The user may have skipped while this refill ran (snapshots are
+      // ignored meanwhile), and steady playback sends no further one.
+      if (parked &&
+          ref.read(playerStateProvider).currentSongId?.trim() !=
+              normalizedSeedSongId) {
+        scheduleMicrotask(
+          () => _onSnapshotChanged(null, ref.read(playerStateProvider)),
+        );
+      }
     } on Exception catch (error) {
       if (isInitial && initialQueueChangeAttempted) {
         await _restorePreviousQueue(snapshot, session);
