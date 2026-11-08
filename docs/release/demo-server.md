@@ -78,6 +78,8 @@ client -> Cloudflare -> tunnel -> proxy (NPMplus/nginx) -> 127.0.0.1:${DEMO_PORT
    "Cron"`, `schedule: "0 0 4 * * *"` (six fields, seconds first),
    `schedule_timezone: "<host IANA zone>"`, `schedule_enabled: true`.
    `ListProcedures` reports `next_scheduled_run`; check it reads 04:00 local.
+   Don't run `bootstrap.sh` around 04:00: a restart during a bootstrap run
+   would start the public container on the shared data dir.
 7. Proxy: append `nginx/http-zone.conf` to the proxy's `custom_nginx/http.conf`
    (root-owned, same root-container trick; already included in the `http`
    context) and set the proxy host's `advanced_config` to

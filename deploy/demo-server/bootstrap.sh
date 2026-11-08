@@ -27,6 +27,10 @@ DEMO_REVIEWER_USER="${o_user:-${DEMO_REVIEWER_USER:-}}"; DEMO_REVIEWER_PASSWORD=
 : "${DEMO_DATA_DIR:?}" "${DEMO_SEED_DIR:?}" "${DEMO_MASTER_DIR:?}" "${DEMO_ADMIN_CREDS_FILE:?}" "${DEMO_UID:?}"
 [[ "$(id -u)" == "$DEMO_UID" ]] || { echo "[bootstrap] run as uid $DEMO_UID (owner of the data and seed dirs)" >&2; exit 1; }
 BOOT_PORT="${DEMO_BOOT_PORT:-4536}"
+[[ "$BOOT_PORT" != "${DEMO_PORT:-4535}" ]] || { echo "DEMO_BOOT_PORT must differ from DEMO_PORT" >&2; exit 1; }
+# One bootstrap at a time: the boot and public containers share DEMO_DATA_DIR.
+exec 9>"$DEMO_DATA_DIR/.bootstrap.lock"
+flock -n 9 || { echo "another bootstrap.sh run holds the lock" >&2; exit 1; }
 BASE="http://127.0.0.1:${BOOT_PORT}/demo"
 SEED="${DEMO_SEED_DIR}/navidrome.db"
 MASTER="${DEMO_MASTER_DIR}/navidrome.db"
@@ -187,9 +191,10 @@ bootstrap)
     '{userName:env.NU,name:env.NU,email:"",password:env.NP,isAdmin:false}')" "$token" >/dev/null
   scan_library "$admin_user" "$admin_pass"
   ( umask 077; printf 'user=%s\npassword=%s\n' "$admin_user" "$admin_pass" > "$tmp/creds" )
-  atomic_install "$tmp/creds" "$DEMO_ADMIN_CREDS_FILE"
   unset admin_pass token
   export_seed
+  # Only after the master holds this admin, so a failed export keeps the old creds valid.
+  atomic_install "$tmp/creds" "$DEMO_ADMIN_CREDS_FILE"
   ;;
 rotate-reviewer)
   : "${DEMO_REVIEWER_USER:?}" "${DEMO_REVIEWER_PASSWORD:?}"
