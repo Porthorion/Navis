@@ -109,7 +109,7 @@ Owner decisions (2026-11-07, I14 and I18 follow-ups):
   transport buttons for 1.5.2.
 
 Out of scope for 1.5.2 unless the owner decides otherwise: CarPlay (needs an
-Apple-granted entitlement), fast seeking (independent pitch moved in scope as I10, owner 2026-11-08; the equalizer as I9, owner 2026-11-07), notifications and background library sync.
+Apple-granted entitlement), fast seeking (independent pitch moved in scope as I21, owner 2026-11-08; the equalizer as I9, owner 2026-11-07), notifications and background library sync.
 
 Order: I0 → I1 with I2 and I3 alongside, I4 and I6 as small parallel PRs, I5
 when a build is ready for the owner's device, I7 once the paid programme

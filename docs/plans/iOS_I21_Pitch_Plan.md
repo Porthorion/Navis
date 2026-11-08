@@ -35,9 +35,14 @@ so find the functions by name.
   (0.43 s, accepted in I23) and gets a new AU at the new rate.
 - **Never touch a queued item's `audioMix` or other chain-rebuilding property
   after insert** (I23 finding 2: a late mix tears the chain down, ~0.5 s
-  stall). The pitch algorithm is set on the item **before** it is inserted
-  (`UriAudioSource`); lock-to-speed switching on already-queued items is a
-  user action and its cost is measured, not assumed.
+  stall). So items keep the fixed `TimeDomain` algorithm and lock-to-speed
+  never switches algorithms (decision below).
+- **Lock-to-speed = AU cents (decided 2026-11-08).** Dart already sends
+  `pitchFactor = speed` when `lockPitchToSpeed` is on
+  (`playback_adjustments.dart`), so the native side only ever sees a pitch
+  factor: `1200·log2(factor)` cents into the AU, TimeDomain on every item.
+  No `lockToSpeed` request field, no Varispeed, no `UriAudioSource` change.
+  Cost: the AU runs while locked at a speed other than 1×.
 - **Gap meter:** `transitionGapsMs` in `getEqualizerState` (diagnostics builds
   only, `map[@"diagnostics"]`) measures the silence between songs on the
   player clock; use it for the gapless criteria. It cannot see the AU's own
@@ -45,11 +50,10 @@ so find the functions by name.
 
 ## Decision
 
-**Bypass.** An `AUNewTimePitch` (rate 1) runs inside the existing I9
-`MTAudioProcessingTap` only while the pitch is not 0 and the pitch is not locked to
-the speed. At pitch 0 the tap passes the audio through untouched, so playback
-is exactly as it is today. Lock-to-speed uses AVPlayer's own
-`AVAudioTimePitchAlgorithmVarispeed` and leaves the AU off.
+**Bypass.** An `AUNewTimePitch` (rate 1) runs inside the shared tap only while
+the pitch is not 0 (including lock-to-speed at a speed other than 1×). At pitch
+0 the tap passes the audio through untouched, so playback is exactly as it is
+today.
 
 Prime/drain was rejected because the simulator probe showed that priming cannot
 be done:
@@ -71,11 +75,11 @@ Drain needs no code:
 
 While the pitch is not 0, the remaining artefacts are:
 
-- after each reset (start, seek, skip, load, sample-rate change) the stage
-  plays dry for one AU latency (4096 frames at 44.1/48 kHz, 8192 at 96 kHz;
-  about 85–93 ms) and then crossfades to wet, so the start repeats one latency
-  of audio rather than going silent;
-- the heard audio lags `currentTime` by the same amount;
+- after each reset (start, seek, skip, load, sample-rate change) the output is
+  wet from the first frame, so it starts with one AU latency of silence (4096
+  frames at 44.1/48 kHz, 8192 at 96 kHz; about 85–93 ms). Never dry-then-ramp
+  after a reset: that would play ~90 ms at the wrong pitch on every skip;
+- the heard audio lags `currentTime` by the same amount, consistently;
 - with the shared tap a natural item change is not a reset: the AU carries
   over, so there is no silence between songs; only the queue's final tail
   depends on AVPlayer rendering its post-end blocks (device check).
@@ -167,12 +171,18 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
      latency of audio.
    - **Not 0 → not 0:** call `set_cents` on the audio thread before the next
      render, with no reset.
-   - **Reset** when `reset` is true: `reset` and drop the AU's buffer, then
-     start again as 0 → not 0 (dry for one latency, then the ramp) if the
-     cents are not 0. `reset` is the return value of the existing
+   - The dry-then-ramp above is only for a **user change** from 0 to not 0
+     mid-play (no dropout).
+   - **Reset** when `reset` is true: reset the renderer (drop its buffer) and,
+     if the cents are not 0, output wet from the first frame (one latency of
+     silence, then pitched audio aligned at input − L). No ramp. `reset` is
+     the return value of the existing
      `navis_eq_stream_begin_block` (StartOfStream latched, or a new host flush
      generation), computed once per block in `tapProcess`; the stage keeps no
-     source-time state of its own. A source range re-base never resets.
+     source-time state of its own. Latch it in the stage
+     (`navis_pitch_stage_note_reset`) right after `begin_block`, before the
+     layout early-returns, so a reset on a block that fails the layout check is
+     not lost. A source range re-base never resets.
    - Process is called only for blocks with audio (`audioFrames > 0`);
      zero-duration blocks pass through untouched, as today.
    - The dry copy goes into scratch allocated in `_new` at `maxFrames` per
@@ -218,23 +228,12 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
      the snapshot, like `retiredResets`.
 4. **`AudioPlayer.m`:**
    - Add a `setPitch` branch next to `setSpeed` (:157).
-   - `- (void)setPitch:(float)pitch lockToSpeed:(BOOL)lock`:
-     - **locked:** `_pitchLocked = YES`, set
-       `AVAudioTimePitchAlgorithmVarispeed` on every item in `_player.items`
-       (current, next and the crossfade deck's own player), and send 0 cents
-       to the equalizer. Changing the algorithm on a queued item may rebuild
-       the chain like a late `audioMix` (I23 finding 2): measure it once on
-       the simulator (current item stall, `tapPrepareCount`); it is
-       acceptable for a user toggle, never for routine queue work;
-     - **unlocked:** `TimeDomain` and `1200·log2(pitch)` cents.
-     - Without `_equalizer`, pitch 1 unlocked is a no-op success. Anything else
-       returns `FlutterError` code `pitch_unavailable`.
-     - Validate a finite pitch in [0.25, 4].
+   - `- (void)setPitch:(float)pitch`: validate a finite pitch in [0.25, 4],
+     then send `1200·log2(pitch)` cents to the equalizer. Items keep
+     `TimeDomain`. Without `_equalizer`, pitch 1 is a no-op success; anything
+     else returns `FlutterError` code `pitch_unavailable`.
    - Return `{}` as `SetPitchResponse`.
-5. **`UriAudioSource.m:77`.** Items created later take the player's current
-   algorithm (Varispeed when locked, TimeDomain otherwise) instead of the fixed
-   TimeDomain. Pass it in the way `AudioPlayer` already reaches items (the
-   `playerItem2` path at :170 as well).
+5. (Dropped: no `UriAudioSource` change; items keep `TimeDomain`.)
 6. **Build files.** Link AudioToolbox next to MediaToolbox, iOS only
    (`just_audio.podspec:18`, `Package.swift:25`). Add the new `.c` files to the
    target sources.
@@ -258,14 +257,8 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
 
 ## Dart changes
 
-- **Vendored platform interface**
-  (`third_party/just_audio_platform_interface/lib/just_audio_platform_interface.dart:586`):
-  `SetPitchRequest` gains `bool lockToSpeed = false`. It is sent in the map only
-  when true, so other platforms ignore it.
-- **Vendored `just_audio.dart`:** `setPitch(double pitch, {bool lockToSpeed =
-  false})` stores the flag and re-sends it on platform reload (:1822).
-- **NAVIS_CHANGES.md:** an entry for the new request field and the Darwin
-  `setPitch`.
+- **Vendored just_audio Dart:** no change; `setPitch(double)` already exists.
+- **NAVIS_CHANGES.md:** an entry for the Darwin `setPitch`.
 - **`playback_adjustments.dart`:** add `PlaybackAdjustmentCapabilities.ios`
   with `pitchSupported: true`, `minimumPitchFactor: 0.25` and
   `maximumPitchFactor: 4` (±2400 cents, the `AUNewTimePitch` range). Speed
@@ -274,8 +267,9 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
   return `.ios` when `Platform.isIOS && _equalizerPipelineEnabled`. Use
   `_isIOSRuntime` if a seam exists, otherwise add one next to
   `_isAndroidRuntime` for tests.
-- **`navis_audio_handler_media_session.dart:888`:** pass `lockToSpeed:
-  values.lockPitchToSpeed` to `setPitch`.
+- **`navis_audio_handler_media_session.dart`:** already calls
+  `setPitch(values.pitchFactor)`, which is the speed when locked. Verify that
+  a speed change while locked re-sends the pitch; add it if not.
 - **`pitch_unavailable`:** map this native error to a capability downgrade (the
   handler emits the default capabilities for the rest of the session). Without
   it, every adjustment would roll back forever.
@@ -296,7 +290,7 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
      sample above the input's peak and no NaN.
    - Not 0 → 0: the ramp, then bit-exact.
    - Reset input: `reset = true` drops the delay line and restarts the
-     dry-then-ramp sequence; a long run of `reset = false` blocks (a natural
+     wet-from-reset sequence; a long run of `reset = false` blocks (a natural
      item change, a range re-base, pause/resume) never resets, and
      `pitchResetCount` counts only the `true` blocks.
    - The EQ side: `navis_eq_stream_begin_block` already has tests for
@@ -304,7 +298,10 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
      it returns is what `tapProcess` passes on (a C-level helper both use, if
      that is the smallest seam).
    - The tail: L post-end zero blocks bring out the delayed input exactly.
-   - Alignment: after a reset, output frame k equals input frame k − L.
+   - Alignment: after a reset, output frame k equals input frame k − L (wet
+     from the first frame, zeros for k < L).
+   - The 0 → not 0 user change: dry until L frames fed, then the ramp; this
+     path never runs after a reset.
 2. **AU test.** File `third_party/just_audio/darwin/test/navis_pitch_au_test.c`,
    Darwin only. In the same script, compile it only when `uname -s` is
    `Darwin` (link AudioToolbox); print `SKIPPED` elsewhere. Also run the script
@@ -322,7 +319,8 @@ All paths are under `third_party/just_audio/darwin/just_audio/Sources/just_audio
    - Handler tests: iOS with the pipeline on reports `.ios`; iOS with the
      pipeline off (the `_rebuildPlayerWithoutEqualizer` path) reports none;
      Android, macOS, Linux and Windows are unchanged.
-   - `setPitch` gets `lockToSpeed` from `lockPitchToSpeed`.
+   - Locked at speed 1.25: `setPitch(1.25)` is sent; a speed change while
+     locked re-sends it.
    - `pitch_unavailable` downgrades the capabilities and does not loop.
    - `EqualizerStateMessage.fromMap` reads the new pitch fields (including
      `pitchResetCount`), with null when they are absent.
@@ -351,11 +349,10 @@ Read `/v1/equalizer` (`pitchCents`, `pitchActive`, `pitchLatencyFrames`,
 | two-tone gapless at pitch 0 and at +5 st, proxied and downloaded | `transitionGapsMs` ~0 ms in both (the I23 result), `tapPrepareCount` and `pitchResetCount` unchanged across the natural item change, `pitchOutputHz` follows 440 → 660 × 2^(5/12) |
 | seek-to-audio time, pitch 0 and +5 st | within 20 ms of the I23 baseline (AU created in prepare); if worse, report the numbers, do not work around it |
 | speed 1.5 × pitch +5 st | output Hz ratio 1.335 in the tap; `currentTime` advances 1.5× |
-| lock to speed 1.25 | algorithm Varispeed, `pitchActive` false, `currentTime` advances 1.25× |
+| lock to speed 1.25 | `pitchCents` ≈ 386, `pitchActive` true, output/input Hz = 1.25 within 1%, `currentTime` advances 1.25×, `tapPrepareCount` unchanged by the toggle |
 | speed changed at runtime while pitch is set | pitch unchanged, no reset counted |
 | EQ toggled while pitch is set | pitch unchanged; EQ `levelDeltaDb` follows the toggle |
 | seek, skip, pause/resume at pitch +5 st | `pitchResetCount` +1 per seek or skip, +0 per pause/resume and per natural item change |
-| lock-to-speed toggled while playing | the measured stall and `tapPrepareCount` change, recorded |
 
 Device-only checks go to I5 (borrowed iPhone, with notice):
 
@@ -381,11 +378,8 @@ Device-only checks go to I5 (borrowed iPhone, with notice):
 - **Speed × pitch:** independent by construction (PreEffects tap, TimeDomain).
   The AU latency in wall time shrinks with speed (L / speed).
 - **Speed change at runtime:** never touches the stage.
-- **Lock mode:** Varispeed on every item. Switching `audioTimePitchAlgorithm`
-  on a playing item is unverified: it is a runtime check for the current item,
-  the crossfade deck and the next item. If the current item ignores the
-  switch, fall back to TimeDomain plus AU cents `1200·log2(speed)` for that
-  item only.
+- **Lock mode:** AU cents from the pitch factor Dart sends (= speed); no
+  algorithm switching.
 - **EQ toggled while pitch is set:** the EQ bypasses inside its own DSP; the
   pitch stage is independent.
 - **Pipeline rebuilt without EQ:** `_rebuildPlayerWithoutEqualizer` (an

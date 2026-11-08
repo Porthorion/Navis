@@ -364,7 +364,7 @@ Rejected alternatives:
 
 ## Effect on I21 (pitch, `AUNewTimePitch` in the same tap)
 
-See `origin/ios-i10-pitch-probe:docs/plans/iOS_I10_Pitch_Plan.md`. I23 must
+See [iOS_I21_Pitch_Plan.md](iOS_I21_Pitch_Plan.md). I23 must
 land first, and I21 builds on the shared tap.
 
 - **Gapless improves for pitch.**

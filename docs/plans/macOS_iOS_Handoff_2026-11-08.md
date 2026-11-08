@@ -21,7 +21,7 @@ Previous: [2026-11-07f](macOS_iOS_Handoff_2026-11-07f.md). Ledger:
 ## Next steps, in order
 
 1. **I21 pitch** (risky, 1.5.2): plan on branch `ios-i10-pitch-probe`
-   (`cbd554d7`, `docs/plans/iOS_I10_Pitch_Plan.md`, worktree
+   (`cbd554d7`, `docs/plans/iOS_I10_Pitch_Plan.md`, now `iOS_I21_Pitch_Plan.md`, worktree
    `.claude/worktrees/agent-afcd8b1080ce08476`). Before briefing Sonnet,
    update the plan to the merged I23 design: one shared tap per player and a
    flush counter (`noteFlush` at the top of `seek:index:` and in `load:`),
