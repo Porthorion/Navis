@@ -34,6 +34,23 @@ if navis_cc="$(command -v cc || command -v gcc || command -v clang)"; then
     "${navis_c_sources}/NavisEqualizerDsp.c" \
     -lm -o "${navis_c_out}/navis_pitch_stage_test"
   "${navis_c_out}/navis_pitch_stage_test"
+  # One tap stream per audio format (I25): the slot set around the stage, with a fake AU.
+  navis_tap_sources=("${navis_c_sources}/NavisTapFormats.c" "${navis_c_sources}/NavisPitchStage.c" "${navis_c_sources}/NavisEqualizerDsp.c")
+  "${navis_cc}" "${navis_c_flags[@]}" \
+    "${navis_darwin_source}/test/navis_tap_formats_test.c" "${navis_tap_sources[@]}" \
+    -lm -o "${navis_c_out}/navis_tap_formats_test"
+  "${navis_c_out}/navis_tap_formats_test"
+  # The render/control thread interleavings again under ThreadSanitizer (it cannot be combined with ASan).
+  if [[ "$(uname -s)" == Darwin ]] \
+      && "${navis_cc}" -fsanitize=thread "${navis_c_out}/probe.c" -o "${navis_c_out}/probe_tsan" >/dev/null 2>&1 \
+      && "${navis_c_out}/probe_tsan" >/dev/null 2>&1; then
+    "${navis_cc}" -std=c11 -O1 -g -fsanitize=thread -fno-omit-frame-pointer -Wall -Wextra -Werror -pthread -D_POSIX_C_SOURCE=200809L \
+      "${navis_darwin_source}/test/navis_tap_formats_test.c" "${navis_tap_sources[@]}" \
+      -lm -o "${navis_c_out}/navis_tap_formats_tsan_test"
+    "${navis_c_out}/navis_tap_formats_tsan_test" --concurrency
+  else
+    echo 'SKIPPED: the ThreadSanitizer run of the tap formats test needs macOS with a working -fsanitize=thread.'
+  fi
   # The real AUNewTimePitch behind the renderer: Darwin only (AudioToolbox).
   if [[ "$(uname -s)" == Darwin ]]; then
     "${navis_cc}" "${navis_c_flags[@]}" -DNAVIS_PITCH_AU_HOST_TEST \
