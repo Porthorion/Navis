@@ -44,6 +44,29 @@ class _DryingQueueController extends RecordingRecommendationQueue {
   }
 }
 
+/// Holds every recommendation append until [gate] completes, then asks
+/// [isCurrent] as the real queue does after its own awaits.
+class _GatedQueueController extends RecordingRecommendationQueue {
+  new() : super();
+
+  static Completer<void>? gate;
+
+  @override
+  Future<RecommendationQueueResult> appendRecommendationTracks(
+    List<Song> songs, {
+    bool expandMatchFlows = false,
+    bool Function()? isCurrent,
+  }) async {
+    final pending = gate;
+    if (pending != null) await pending.future;
+    return super.appendRecommendationTracks(
+      songs,
+      expandMatchFlows: expandMatchFlows,
+      isCurrent: isCurrent,
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -1249,6 +1272,58 @@ void main() {
         gates[1].complete(const <Song>[]);
         await pumpEventQueue();
       });
+
+      test(
+        'an append it already started is dropped when it is released late',
+        () async {
+          api = _MockSubsonicApiClient();
+          gates = <Completer<List<Song>>>[];
+          var fetches = 0;
+          when(
+            () => api.getSimilarSongs2(
+              any(),
+              count: any(named: 'count'),
+              cancelToken: any(named: 'cancelToken'),
+            ),
+          ).thenAnswer((_) {
+            fetches++;
+            return Future.value(
+              songs(5, prefix: fetches == 1 ? 'rec' : 'more'),
+            );
+          });
+          _GatedQueueController.gate = null;
+          addTearDown(() => _GatedQueueController.gate = null);
+          final container = build(
+            api,
+            queue: _GatedQueueController.new,
+            refillTimeout: const Duration(milliseconds: 40),
+          );
+          container
+              .read(recommendationSnapshotProvider.notifier)
+              .emitSnapshot(
+                snapshot(
+                  queueSongIds: const <String>['q-0'],
+                  currentSongId: 'q-0',
+                  currentIndex: 0,
+                ),
+              );
+          await container.read(instantMixProvider.notifier).activate('seed-a');
+          // The mid-mix append is held by the queue past the timeout.
+          _GatedQueueController.gate = Completer<void>();
+          await tick(container, length: 11, index: 8);
+          expect(container.read(recommendationSessionProvider).retryCount, 1);
+          _GatedQueueController.gate!.complete();
+          _GatedQueueController.gate = null;
+          await pumpEventQueue();
+          container.read(instantMixProvider);
+          await pumpEventQueue();
+          expect(
+            queued(container),
+            hasLength(5),
+            reason: 'only the first batch',
+          );
+        },
+      );
 
       test('an unexpected error it throws is not counted either', () async {
         final container = await start(const Duration(milliseconds: 40));

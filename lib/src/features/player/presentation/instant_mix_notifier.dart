@@ -264,7 +264,6 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
       );
     } on Object catch (error, stackTrace) {
       if (!ref.mounted || !_isCurrent(refillSession)) return;
-      if (epoch != _refillEpoch) return;
       AppLogger.debug('InstantMix refill failed: $error\n$stackTrace');
       if (isInitial) {
         state = const InstantMixState(error: InstantMixError.networkError);
@@ -346,7 +345,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
         if (!coordinator.owns(session)) return;
         if (epoch != _refillEpoch) return;
       }
-      final queuedCount = await _queueMixSongs(batch.songs, session);
+      final queuedCount = await _queueMixSongs(batch.songs, session, epoch);
       if (!ref.mounted) return;
       if (!coordinator.owns(session)) return;
       if (epoch != _refillEpoch) return;
@@ -493,6 +492,7 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
   Future<int> _queueMixSongs(
     List<Song> songs,
     RecommendationSession session,
+    int epoch,
   ) async {
     if (songs.isEmpty) {
       return 0;
@@ -507,8 +507,11 @@ class InstantMixNotifier extends Notifier<InstantMixState> {
           .appendRecommendationTracks(
             songs,
             expandMatchFlows: false,
+            // The queue checks this after its own awaits, so a refill that
+            // timed out meanwhile appends nothing.
             isCurrent: () =>
                 ref.mounted &&
+                epoch == _refillEpoch &&
                 ref.read(recommendationSessionProvider.notifier).owns(session),
           );
       final queuedCount = result.count;
