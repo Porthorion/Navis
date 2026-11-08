@@ -531,7 +531,17 @@ void main() {
     // lock for [hold], longer than the 5 s busy wait.
     void holdWriterLock(Database raw, Duration hold) {
       raw.execute('BEGIN IMMEDIATE');
-      unawaited(Future<void>.delayed(hold, () => raw.execute('ROLLBACK')));
+      unawaited(
+        Future<void>.delayed(hold, () {
+          // The test may end (and close the database) before the hold does,
+          // now that state reads no longer wait for a held writer lock.
+          try {
+            raw.execute('ROLLBACK');
+          } on StateError {
+            // Closed with the database: the lock is already gone.
+          }
+        }),
+      );
     }
 
     Future<void> expectBusyNotFailure(

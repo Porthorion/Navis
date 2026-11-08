@@ -869,7 +869,10 @@ class Runner:
             if elapsed_ms > 2000:
                 slow_log.append({'tS': round(began - started, 1),
                                  'route': route, 'ms': elapsed_ms,
-                                 'stage': stage})
+                                 # 'stage' is from the previous poll;
+                                 # 'replyStage' is this call's own reply.
+                                 'stage': stage,
+                                 'replyStage': (value or {}).get('stage')})
             return value
 
         while time.monotonic() - started < 900:
