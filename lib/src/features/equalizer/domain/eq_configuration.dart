@@ -374,8 +374,8 @@ class EqApplicationState {
     this.headroomDb = 0,
     this.reason,
     this.pending = false,
-    this.boostRequestedDb = 0,
-    this.boostAppliedDb = 0,
+    this.replayGainCurrentKey,
+    this.replayGainAppliedDb = 0,
     this.boostClipSamples = 0,
   });
 
@@ -387,9 +387,9 @@ class EqApplicationState {
   final String? reason;
   final bool pending;
 
-  /// The native ReplayGain boost stage (Android): what it was asked for, what
-  /// it applies, and the samples it had to clamp.
-  final double boostRequestedDb;
-  final double boostAppliedDb;
+  /// The native ReplayGain stage (Android): the source id it is processing,
+  /// the signed gain it applies, and the samples it had to clamp.
+  final String? replayGainCurrentKey;
+  final double replayGainAppliedDb;
   final int boostClipSamples;
 }

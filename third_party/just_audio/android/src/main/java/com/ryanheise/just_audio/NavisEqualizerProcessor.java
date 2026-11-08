@@ -21,8 +21,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * boundary, which on Media3 1.4.1 is the first {@link #onFlush} after the new
  * stream's offset event (a natural join drains A through every processor, then
  * flushes). Threads: the method-channel thread calls {@link #replaceLevels},
- * {@link #setLevels}, {@link #commitSources}, {@link #noteSource}, {@link #state}
- * and the legacy {@link #setBoost}; the ExoPlayer playback thread calls
+ * {@link #setLevels}, {@link #commitSources}, {@link #noteSource}, {@link #state};
+ * the ExoPlayer playback thread calls
  * {@link #noteStream}, {@link #streamOffsetChanged} and the processor callbacks.
  */
 final class NavisEqualizerProcessor extends BaseAudioProcessor {
@@ -32,11 +32,7 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
     private volatile EqualizerDsp.Bank applied;
     private EqualizerDsp.Bank outgoing;
     private int sampleRate, channels, fadeRemaining, fadeFrames;
-    // Legacy Dart-timed boost (setReplayGainBoost): added on top of the entry's level, which is 0
-    // while Dart sends no levels. Removed with phase 3b.
-    private volatile double requestedBoostDb;
-    private volatile boolean boostGuarded;
-    private volatile double appliedBoostDb;
+    private volatile double appliedDb;
     private volatile long boostClipSamples;
     private EqualizerDsp.GainRamp ramp = new EqualizerDsp.GainRamp(1);
 
@@ -90,21 +86,6 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         return state();
     }
 
-    /** Asks for [db] of boost. [guarded] marks a value lowered for the song that plays next. */
-    void setBoost(double db, boolean guarded) {
-        boostGuarded = guarded;
-        requestedBoostDb = db;
-    }
-
-    /** Drops the boost request to 0 before a command that can change the next song. */
-    void lowerBoost() {
-        requestedBoostDb = 0;
-    }
-
-    boolean boostGuarded() {
-        return boostGuarded;
-    }
-
     /** A new queue: [levels] are the only entries that are known. */
     void replaceLevels(Map<String, Double> next) {
         levels = Collections.unmodifiableMap(new HashMap<>(next));
@@ -156,8 +137,8 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         } else {
             hasPending = false;
             adopt(key);
-            ramp.snap(targetDb());
-            appliedBoostDb = ramp.db();
+            ramp.snap(currentDb);
+            appliedDb = ramp.db();
         }
     }
 
@@ -171,10 +152,6 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         return db == null ? 0 : db;
     }
 
-    private double targetDb() {
-        return currentDb + Math.max(0, requestedBoostDb);
-    }
-
     Map<String, Object> state() {
         Map<String, Object> result = new HashMap<>();
         EqualizerDsp.Bank actual = applied;
@@ -183,11 +160,8 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         result.put("headroomDb", actual == null ? 0.0 : actual.headroom);
         result.put("reason", actual == null ? null : actual.reason);
         result.put("pending", requested != actual);
-        result.put("boostRequestedDb", requestedBoostDb);
-        result.put("boostAppliedDb", appliedBoostDb);
         result.put("replayGainCurrentKey", currentKey);
-        result.put("replayGainAppliedDb", appliedBoostDb);
-        result.put("boostGuarded", boostGuarded);
+        result.put("replayGainAppliedDb", appliedDb);
         result.put("boostClipSamples", boostClipSamples);
         return result;
     }
@@ -226,8 +200,8 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         }
         inputSinceFlush = false;
         ramp = new EqualizerDsp.GainRamp(fadeFrames);
-        ramp.snap(targetDb());
-        appliedBoostDb = ramp.db();
+        ramp.snap(currentDb);
+        appliedDb = ramp.db();
     }
 
     @Override
@@ -242,7 +216,7 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         // A settings change re-reads the playing entry's level here, on the playback thread, so it
         // cannot land on the wrong side of a boundary.
         if (liveRefresh.getAndSet(false)) currentDb = levelOf(currentKey);
-        ramp.setTarget(targetDb());
+        ramp.setTarget(currentDb);
         long clipped = 0;
         ByteBuffer output = replaceOutputBuffer(input.remaining());
         while (input.remaining() >= channels * 2) {
@@ -265,7 +239,7 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
             if (fadeRemaining > 0 && --fadeRemaining == 0) outgoing = null;
         }
         output.flip();
-        appliedBoostDb = ramp.db();
+        appliedDb = ramp.db();
         if (clipped > 0) boostClipSamples += clipped;
     }
 
@@ -278,7 +252,7 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         outgoing = null;
         fadeRemaining = 0;
         ramp = new EqualizerDsp.GainRamp(1);
-        appliedBoostDb = 0;
+        appliedDb = 0;
         hasPending = false;
         inputSinceFlush = false;
     }

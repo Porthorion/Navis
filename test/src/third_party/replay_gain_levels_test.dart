@@ -91,6 +91,27 @@ void main() {
     test('without one the child\'s travels', () async {
       expect(await loadedGain(clip(childDb: -3)), -3);
     });
+
+    test('a push keys a clip by its child\'s id and URI', () async {
+      // Native tags the child item with the child's id, so a push under the
+      // clip's own id would never find a key.
+      final player = newPlayer();
+      final clipped = clip(childDb: -3);
+      final plain = song('p');
+      await player.setAudioSources([clipped, plain]);
+      await player.setReplayGainLevels(bySource: {clipped: -7, plain: -2});
+      final request = native.player.levels.single;
+      final loaded =
+          (native.player.loads.last.audioSourceMessage
+                  as platform.ConcatenatingAudioSourceMessage)
+              .children;
+      final child = (loaded.first as platform.ClippingAudioSourceMessage).child;
+      expect(request.byId[child.id], -7);
+      expect(request.byId[loaded.first.id], isNull);
+      expect(request.byId[loaded.last.id], -2);
+      expect(request.byId, hasLength(2));
+      expect(request.byUri[child.uri], -7);
+    });
   });
 }
 
