@@ -938,7 +938,16 @@ class LibrarySyncDao extends DatabaseAccessor<NavisDatabase>
 
   /// Reads state for an existing profile without racing its deletion between
   /// row creation and selection.
-  Future<LibrarySyncStateTableData> getOrCreateState(int serverId) {
+  ///
+  /// An existing row is returned by a plain read, which never waits for a
+  /// long writer transaction such as a catalog apply (it sees the state
+  /// committed before that transaction). Only a missing row is created
+  /// through a write transaction, and throws if the profile is gone.
+  Future<LibrarySyncStateTableData> getOrCreateState(int serverId) async {
+    final existing = await (select(
+      librarySyncStateTable,
+    )..where((table) => table.serverId.equals(serverId))).getSingleOrNull();
+    if (existing != null) return existing;
     return transaction(() async {
       final servers = attachedDatabase.serverConfigTable;
       await into(librarySyncStateTable).insertFromSelect(
