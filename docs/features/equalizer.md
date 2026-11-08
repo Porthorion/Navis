@@ -65,8 +65,11 @@ audio format (`NavisTapFormats.c`, I25). Prepare adds the format's slot or
 reuses the one it has; unprepare frees nothing, so a pause, seek or song change
 never rebuilds a stage. Each block picks the slot of its channel count whose rate
 is nearest to the block's own (frames over the source-range duration, within 4 %
-or inside the rounding of the range's clock); with only one slot that slot takes
-every block, and a block no slot matches plays unchanged and is counted. Slots
+or inside the rounding of the range's clock; when that admits several rates the
+slot that played the last block, then the slot of the latest prepare, wins); with
+only one slot that slot takes every block. A block with no usable rate (the first
+block of every pipeline) goes to the slot of the latest prepare, and a block no slot
+matches plays unchanged and is counted. Slots
 live until the player is disposed, up to 16 formats; a 17th format is started over
 (all slots freed) only when no pipeline is live, and otherwise that song plays
 unchanged with a `reason`. Edits and pitch reach every slot. Known limit: the
@@ -100,7 +103,9 @@ processed the last block of audio (the song playing, to about 0.1 s);
 `formatStreams` lists every format of the queue (`sampleRate`, `channels`,
 `processedFrames`, `levelDeltaDb`), and `unmatchedFrames` (audio no format took)
 and `overlapBlocks` (blocks passed dry because another render thread held their
-format) are 0 in a healthy run; `processedFrames` (frames processed by this
+format) are 0 in a healthy run, as is `clampedUnprepares`, an unprepare that matched
+no live pipeline (`livePipelines`, `prepareCalls` and `unprepareCalls` give the
+balance; starting over at the format cap is only safe while it holds); `processedFrames` (frames processed by this
 platform player, summed over its formats, which grows while
 audio plays and restarts from zero when the app swaps decks or rebuilds the
 player) and `levelDeltaDb` (output minus input level in dB over about the last

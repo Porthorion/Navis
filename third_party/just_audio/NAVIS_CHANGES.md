@@ -416,9 +416,15 @@ otherwise the block passes dry (`unmatchedFrames`, counted only for blocks with 
 valid range), and a slot in use by another render thread passes the later block
 dry (`overlapBlocks`). `NavisEqualizer.m` keeps the MediaToolbox glue, the item
 records and the meter, and its `NavisPitchFactory` wraps `NavisPitchAU`. The
-state adds `formatStreams`, `unmatchedFrames` and `overlapBlocks`; the other
+state adds `formatStreams`, `unmatchedFrames`, `overlapBlocks` and the balance of
+pipelines (`livePipelines`, `prepareCalls`, `unprepareCalls`, `clampedUnprepares`); the other
 fields describe the slot of the last audio block and the counters are sums over
 the slots. The layout checks in `tapProcess` now run before the reset decision.
+After review: a block with no usable rate goes to the slot of the latest prepare
+(its StartOfStream too), a coarse clock that admits several rates keeps the song on
+the last slot, a StartOfStream dropped on a busy slot waits in a per-slot flag, a
+reused slot without a pitch stage gets one built again, and reasons stay until a
+block is processed (a layout-failing block calls `navis_tap_formats_note_dry`).
 Deviations from the plan: `process` takes `(durationValue, timescale)` instead of
 `blockRate`, so the rounding interval is computed in the tested C; `unprepare`
 returns false for an unmatched call and the glue logs it.

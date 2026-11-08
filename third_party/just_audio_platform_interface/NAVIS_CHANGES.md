@@ -36,4 +36,6 @@ is unchanged.
 `EqualizerStateMessage` also carries the optional Darwin-only `formatStreams`
 (a list of the new `EqualizerFormatStreamMessage`: `sampleRate`, `channels`,
 `processedFrames`, `levelDeltaDb`), `unmatchedFrames` and `overlapBlocks` (I25):
-the tap keeps one equalizer stream per audio format of the queue.
+the tap keeps one equalizer stream per audio format of the queue; and
+`livePipelines`, `prepareCalls`, `unprepareCalls` and `clampedUnprepares`, the
+balance of the pipelines that prepared the tap.
