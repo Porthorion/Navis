@@ -857,9 +857,15 @@ extension _NavisMediaSession on NavisAudioHandler {
       final source = sequence[i];
       final item = _mediaItemOfSource(source);
       // The deck and the queue can disagree for a moment around an edit: an
-      // entry the queue does not name that way keeps the level it was loaded
+      // entry the queue does not name that way (song-id aliases count as the
+      // same song) keeps the level it was loaded
       // with, and the next push (after the edit settles) sets it.
-      if (albumIds != null && _queueItems[i].id != item?.id) continue;
+      if (albumIds != null &&
+          (item == null ||
+              _canonicalSongId(_queueItems[i].id) !=
+                  _canonicalSongId(item.id))) {
+        continue;
+      }
       // A non-live push does not reach the heard entry (native froze it), so
       // it must not replace the pair that entry's level was built from.
       final push = live || i != heard;

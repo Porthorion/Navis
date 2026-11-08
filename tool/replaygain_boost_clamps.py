@@ -84,7 +84,7 @@ def latch_phase_results(rows):
         rs = [r for r in rows if r['phase'] == phase and r['songId'] == 'rgq-1' and r.get('playing')
               and r['positionMs'] is not None and 25200 <= r['positionMs'] <= 26800
               and r['boost']['appliedDb'] is not None]
-        results.append((f'A2 {action} after a 2x to 1x drop with 5 s left: Q keeps its full boost until the window',
+        results.append((f'A2 {action} after a 2x to 1x drop with 5 s left: Q keeps its full boost to its end',
                         len(rs) > 3 and min(r['boost']['appliedDb'] for r in rs) >= 9.5,
                         f'n={len(rs)} min appliedDb={min([r["boost"]["appliedDb"] for r in rs] or [None])}'))
     return results

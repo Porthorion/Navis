@@ -318,8 +318,9 @@ def a1(root):
     # speaker: only playing rows more than 1 s from either end of the named song are held to the rule.
     heard = [r for r in a2 if r.get('playing')]
     over = [r for r in heard if over_own_gain(r)]
-    check("A2 the applied gain never exceeds the playing song's own mid-song", not over,
-          f'violations={len(over)} first={over[0]["songId"] + " " + str(over[0]["boost"]) if over else None}')
+    judged = [r for r in heard if r.get('durationMs') and r.get('positionMs') is not None]
+    check("A2 the applied gain never exceeds the playing song's own mid-song", len(judged) > 3 and not over,
+          f'judged={len(judged)} violations={len(over)} first={over[0]["songId"] + " " + str(over[0]["boost"]) if over else None}')
     late = [r for r in phase('a2-speed') if r['songId'] == 'rgq-1' and r['positionMs'] is not None
             and 25800 <= r['positionMs'] <= (r.get('durationMs') or 30000) - 1200]
     check('A2 a 2x to 1x change in the last 5 s keeps Q boosted', len(late) > 3

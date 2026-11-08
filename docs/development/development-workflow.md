@@ -177,7 +177,7 @@ Checks performed:
   files, uses the pinned Gradle distribution, one worker, in-process Kotlin and
   a bounded 2 GiB Gradle heap / 768 MiB metaspace / 256 MiB code cache. It selects
   both `JustAudioRepeat*Test` suites and `JustAudioReplayGainBoostTest` (the
-  Android ReplayGain boost stage and its native lowering) as JVM suites with no
+  Android ReplayGain stage and its per-entry gain switch) as JVM suites with no
   device or APK installation;
   timeout is ten minutes plus a ten-second kill grace, with no persistent daemon.
   Result XML must report nonzero executed tests and no failures in each suite;
