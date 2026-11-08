@@ -27,7 +27,45 @@ public final class EqualizerDspTest {
         return 10 * Math.log10(outputPower / inputPower);
     }
 
+    private static void boostRamp() {
+        int frames = 960; // 20 ms at 48 kHz
+        near(EqualizerDsp.BoostRamp.linear(0), 1, 0, "0 dB boost is the identity");
+        near(EqualizerDsp.BoostRamp.linear(6.0206), 2, 0.0001, "+6 dB doubles the amplitude");
+        near(EqualizerDsp.BoostRamp.linear(-3), 1, 0, "A negative request never cuts");
+        near(EqualizerDsp.BoostRamp.linear(30), EqualizerDsp.BoostRamp.linear(12), 0, "Boost is capped at 12 dB");
+        near(EqualizerDsp.BoostRamp.linear(Double.NaN), 1, 0, "NaN is no boost");
+        EqualizerDsp.BoostRamp ramp = new EqualizerDsp.BoostRamp(frames);
+        near(ramp.next(), 1, 0, "A fresh ramp is the identity");
+        double target = EqualizerDsp.BoostRamp.linear(10);
+        ramp.setTarget(10);
+        double previous = 1;
+        for (int i = 1; i <= frames; i++) {
+            double gain = ramp.next();
+            near(gain, 1 + (target - 1) * i / frames, 1e-9, "Linear gain ramp at frame " + i);
+            if (gain <= previous) throw new AssertionError("Ramp is not rising at frame " + i);
+            previous = gain;
+        }
+        near(previous, target, 0, "Ramp reaches the target in exactly fadeFrames");
+        near(ramp.next(), target, 0, "Ramp holds the target");
+        near(ramp.db(), 10, 1e-9, "Applied dB");
+        ramp.setTarget(10);
+        near(ramp.next(), target, 0, "Same target restarts nothing");
+        ramp.setTarget(0);
+        near(ramp.next(), target + (1 - target) / frames, 1e-9, "Lowering ramps down");
+        ramp.snap(4);
+        near(ramp.next(), EqualizerDsp.BoostRamp.linear(4), 0, "Snap jumps without a ramp");
+        ramp.setTarget(8);
+        for (int i = 0; i < frames / 2; i++) ramp.next();
+        double middle = ramp.next();
+        ramp.setTarget(2);
+        double after = ramp.next();
+        if (!(after < middle)) throw new AssertionError("A new target ramps from the current gain");
+        for (int i = 0; i < frames; i++) ramp.next();
+        near(ramp.next(), EqualizerDsp.BoostRamp.linear(2), 0, "Retargeted ramp ends on the new target");
+    }
+
     public static void main(String[] args) {
+        boostRamp();
         for (double sampleRate : new double[]{44100, 48000, 96000}) {
             for (double q : new double[]{0.1, 0.7, 1.41, 6, 20}) {
                 EqualizerDsp.Biquad peak = EqualizerDsp.coefficients(filter("peaking", 1234.5, 9.3, q), sampleRate);
@@ -60,6 +98,6 @@ public final class EqualizerDspTest {
         boolean invalid = false;
         try { filter("peaking", 1000, 25, 1); } catch (IllegalArgumentException expected) { invalid = true; }
         if (!invalid) throw new AssertionError("Invalid filter accepted");
-        System.out.println("Equalizer DSP: response, headroom, PCM, channel isolation, bypass, and limits passed.");
+        System.out.println("Equalizer DSP: response, headroom, PCM, channel isolation, bypass, boost ramp, and limits passed.");
     }
 }

@@ -271,3 +271,42 @@ or headers were set, so a Navis `content://` (Android SAF) download reached
 gain) to the platform, translating the boost of each queued source to the URI
 the platform loads it from. A backend without a boost stage throws
 `UnimplementedError`.
+
+Android `NavisEqualizerProcessor` carries the ReplayGain boost: a per-frame
+gain (`EqualizerDsp.BoostRamp`, 20 ms linear ramps, capped at 12 dB) applied
+after the EQ bank, outside its auto-headroom, and before the 16-bit clamp. The
+`setReplayGainBoost {currentDb, guarded}` channel method sets it (error
+`eq_unavailable` without a processor); `getEqualizerState` adds
+`boostRequestedDb`, `boostAppliedDb`, `boostGuarded` and `boostClipSamples`
+(samples that hit the clamp while boosting, cumulative for the processor's
+life). `AudioPlayer.java` lowers the requested boost to 0 on the main thread
+before `load`, a `seek` to another song and removing the playing song, and,
+while the last message was guarded, before any `concatenating*` edit,
+`setLoopMode`, `setShuffleMode` and `setShuffleOrder`. A flush snaps the applied
+boost to the requested one without clearing it. Dart's `setReplayGainBoost` no
+longer skips an unchanged message that has no per-URI map, because native
+lowering makes an equal value new again.
+
+`AudioPlayer.sequenceEditInFlight` exposes whether a playlist edit's platform
+call is still running, so a caller can tell that `sequence` is already the
+edited list while `currentIndex` still counts the old one.
+
+The Android bridge ignores a `setReplayGainBoost` value above 0 whose `index`
+is not `player.getCurrentMediaItemIndex()`, so a message that raced a song
+switch cannot raise the new song. A 0, or a message without an index, is
+applied as before. `AudioPlayer.setReplayGainBoost` passes `index` through.
+
+The Android bridge also keeps a native end-of-song latch
+(`AudioPlayer.applyBoost`), so a lost Dart-side latch cannot over-boost. Once a
+`guarded: true` value is applied, every later boost is clamped to
+`min(value, latch)` and applied as guarded, whatever flag Dart sends. The latch
+only goes down, a 0 is always applied (and does not clear it), and a value whose
+`index` is not the current one (a stale message) is applied if it is a 0 but
+never latches. The latch is cleared by `load`, by `onPositionDiscontinuity`
+with reason `AUTO_TRANSITION` or `SEEK` (a new play of the song) and by a
+discontinuity whose old and new media-item uids differ. `REMOVE` or `INTERNAL`
+around the same uid (a queue edit) keeps it. A paused deck latches too. Navis's
+Dart side latches only the heard deck, so a stale guard cannot be latched again
+for a prepared crossfade deck. A reused deck can still receive one guarded
+message for its old position while it is prepared; native clears it on the
+prepare's seek or load. `JustAudioReplayGainBoostTest` covers each rule.

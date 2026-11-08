@@ -4989,9 +4989,95 @@ Desktop volume follows a parallel local-settings path:
    the playing song) is tied to the playlist position it will load, so a join
    that arrives first is still a join; it starts at its own value. Gain writes
    are the same synchronous `mpv_set_property_string` the hook uses. The
-   crossfade deck gets its map after it loads and before `play()`. Android, iOS
-   and macOS (libmpv 0.36 has no `volume-gain`) report boost unsupported and
-   keep today's behaviour.
+   crossfade deck gets its map after it loads and before `play()`. A Next or a
+   jump to the song that follows, pressed in the last ~0.2 s of the playing one,
+   can race the natural join: the adapter then takes the join for the explicit
+   switch and the new song's full boost reaches up to 0.2 s of the old song's
+   queued tail. This is accepted; it needs an input inside a millisecond-wide
+   window and costs at most 0.2 s.
+   Android is the second stage: `NavisEqualizerProcessor` multiplies each frame
+   by a boost gain (`EqualizerDsp.BoostRamp`, 20 ms linear ramps) after the EQ
+   bank and before the 16-bit clamp. It sits outside `Bank`, whose automatic
+   headroom would cancel a boost, so it works with the EQ off and on. It exists
+   only while `_equalizerPipelineEnabled` is true; after
+   `_rebuildPlayerWithoutEqualizer` the capability is false and the boost is 0.
+   Samples that hit the clamp while boosting are counted. The status reports the
+   stage (`replayGainBoost`: `appliedDb`, `requestedDb`, `sentDb`, `guarded`,
+   `clipSamples`); the processor is read back when the status is asked for, not
+   polled during playback.
+   The stage runs ahead of the speaker (up to ~0.75 s of AudioTrack lead, more
+   with Bluetooth or HAL latency, which the 3 s window still covers), so the
+   guard keeps a song's boost no higher than the next song's in the song's last
+   3 s of wall-clock time (`guardedBoostDb`, `replayGainBoostGuarded`): the lower
+   of the two, which is valid for both songs. A per-deck latch keeps that value
+   from ever rising, and a latched song stays guarded until another source
+   starts playing: the latch lives for the playing `IndexedAudioSource` object,
+   not for a song id or an index, so a duplicate entry of the same song is a new
+   play while a removal above the playing song, a loop or shuffle change, a
+   settings pass or a speed change keep the latch and can only lower it. A wrap
+   of one source onto itself (repeat-one, or loop-all over one entry) and a
+   seek or a queue load reset it. The wrap rule (`_isBoostLoopBack`) needs an
+   auto-advance whose previous and current source are the same object, that
+   object to be the latched playing source, and no queue edit in flight:
+   just_audio maps each pairwise auto-advance event against the sequence at its
+   delivery, so around an edit a stale index can name one neighbour twice, and
+   that must not reset the latch. For the same reason no song start is decided
+   while an edit is in flight (the published song can flip to its neighbour and
+   back during one). Native keeps its own latch (`AudioPlayer.applyBoost`):
+   once a guarded value is applied, later boosts for that item are clamped to
+   the lowest guarded value and applied as guarded whatever flag Dart sends; a 0
+   is always applied, and a stale-index message (computed for another song)
+   never latches. It is cleared by `load`, an auto-transition or seek
+   discontinuity, or a change of media-item uid, and kept by a queue edit around
+   the same item (REMOVE or INTERNAL with the same uid), so a lost Dart latch
+   cannot over-boost. Only the heard deck latches in Dart: the refresh
+   that follows a cross-fade hand-over also reaches the paused outgoing deck,
+   and a latch written there would start the next song on that deck at the old
+   song's lower value (a mid-fade refresh would then latch it natively). The
+   outgoing deck is the heard one until the swap, so its tail is still
+   latched, and the incoming deck is latched by the first guarded tick after
+   it becomes heard; a guarded send that reaches it earlier, while it plays
+   its fade-in, is held by the native latch. The tick re-resolves the playing
+   source once the edit is done and resets only when the same new source shows
+   on two ticks in a row, because a natural advance or a removal of the playing
+   song seen only during an edit leaves no event behind and the gap between an
+   edit's reply and its index event can show a neighbour once. A latched song
+   stays guarded after the window closes, so a speed drop cannot widen it back
+   over samples already ahead. Songs shorter than 4 s, and songs whose timing
+   is unknown, are guarded from their start. Position and duration
+   are song time (the fork adds a transcode's start offset). The next song comes
+   from the deck's own play order (`_nextEffectiveIndexOf`, so repeat-one and
+   repeat-all wrap), and the guard is evaluated per deck, so a crossfade's
+   outgoing deck is guarded too. Rolling-cache sources carry no tag, so a
+   song is found by the id in its stream URL (`_mediaItemOfSource`).
+   just_audio publishes an edited `sequence` before the platform replies while
+   `currentIndex` still counts the old list, so the value is computed only when
+   no edit is in flight (`AudioPlayer.sequenceEditInFlight`) and the heard
+   deck's source is the song the index listener published; otherwise nothing
+   is sent. Skipping is safe: a value already in the processor was computed for
+   the playing song, native lowers it before any command that switches songs,
+   and a value that is never sent cannot raise anything. The position tick (`_tickReplayGainBoost`, also with crossfade off)
+   sends a change and re-sends a guarded value every tick. Every message carries
+   the queue index it was computed for and the native bridge ignores a non-zero
+   value whose index is not the current one (a 0 is always applied), so a message
+   that raced a seek, a jump, Play on a completed queue or a resume after an
+   insert cannot put the old song's boost on the new song. After a seek the heard
+   deck's boost may only go strictly down for a second (an equal value still goes
+   out when only the guard flag flips to guarded), because the discontinuity (and any
+   tick before the index event) still describes the old song at the old index.
+   Before any command that can change which song plays next, the native bridge
+   lowers the requested boost to 0 on the main thread (`load`, `seek` to another
+   song, removing the playing song) and, while the last message was guarded,
+   before any queue edit, loop-mode or shuffle change. The index event, a queue
+   load, the loop/shuffle streams and settings or speed changes raise it again;
+   after a native lowering that no event follows (queue edits made by the
+   rolling-window code, such as releasing the tail or trimming played songs),
+   the guarded re-send undoes it within a tick. An Android message without a
+   per-URI map is never deduplicated. A Dart UI-isolate stall over ~1.75 s inside
+   the window of a boosted song followed by a lower-boost song can clip the next
+   song's head by the difference; the clip counter measures it. iOS and macOS
+   (libmpv 0.36 has no `volume-gain`) report boost unsupported and keep today's
+   behaviour.
    A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
    (`replayGainUntaggedDb`, -15..0 dB in 0.1 dB steps, set on the pitch/speed

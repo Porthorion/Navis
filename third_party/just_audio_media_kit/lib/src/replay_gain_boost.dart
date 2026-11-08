@@ -30,6 +30,11 @@ double hookBoost({
 /// later natural join look explicit.
 const replayGainBoostSwitchLifetime = Duration(seconds: 5);
 
+Duration Function() _stopwatchClock() {
+  final watch = Stopwatch()..start();
+  return () => watch.elapsed;
+}
+
 /// The ReplayGain boost of one mpv instance: what each queued URI gets and
 /// what the loaded file has now. Pure bookkeeping; the player writes the
 /// returned values to mpv's `file-local-options/volume-gain`.
@@ -39,10 +44,12 @@ const replayGainBoostSwitchLifetime = Duration(seconds: 5);
 /// down until it has been heard ([held]); a raise waits for
 /// [replayGainBoostRaiseAfter] of its own playback.
 class ReplayGainBoostState {
-  ReplayGainBoostState({DateTime Function()? clock})
-      : _clock = clock ?? DateTime.now;
+  /// [clock] reads elapsed time on a monotonic clock; the default is a
+  /// [Stopwatch], which a wall-clock step cannot move.
+  ReplayGainBoostState({Duration Function()? clock})
+      : _clock = clock ?? _stopwatchClock();
 
-  final DateTime Function() _clock;
+  final Duration Function() _clock;
   Map<String, double> _byKey = const <String, double>{};
 
   /// The gain, in dB, written for the loaded file.
@@ -55,7 +62,7 @@ class ReplayGainBoostState {
 
   /// The playlist position a switch command (load, jump, removing the playing
   /// entry) will load next. Only the hook for that position is explicit.
-  ({int position, DateTime at})? _expected;
+  ({int position, Duration at})? _expected;
 
   /// The key of the file the `on_load` hook last gave a gain: the file mpv is
   /// decoding, which is not the player's current entry while the end of the
@@ -66,9 +73,6 @@ class ReplayGainBoostState {
   /// [position] has been sent.
   void expectSwitch(int position) =>
       _expected = (position: position, at: _clock());
-
-  /// The command turned out to load nothing.
-  void cancelSwitch() => _expected = null;
 
   /// Replaces the map. Returns the gain to write now for the loaded file, or
   /// null when nothing changes.
@@ -95,7 +99,7 @@ class ReplayGainBoostState {
     final target = _byKey[_loadedKey] ?? 0;
     final expected = _expected;
     final fresh = expected != null &&
-        _clock().difference(expected.at) < replayGainBoostSwitchLifetime;
+        _clock() - expected.at < replayGainBoostSwitchLifetime;
     if (expected != null && !fresh) _expected = null;
     final explicit = expected != null && fresh && expected.position == position;
     if (explicit) _expected = null;

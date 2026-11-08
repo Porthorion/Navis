@@ -339,6 +339,11 @@ extension _NavisMediaSession on NavisAudioHandler {
         .listen((discontinuity) {
           if (!identical(_player, wiredPlayer)) return;
           _recordAnomalyDiscontinuity(discontinuity);
+          if (discontinuity.reason == PositionDiscontinuityReason.seek) {
+            _holdBoostAfterSeek();
+          } else if (_isBoostLoopBack(discontinuity)) {
+            _resetBoostGuard();
+          }
           _onPositionDiscontinuity(discontinuity);
         });
 
@@ -443,6 +448,11 @@ extension _NavisMediaSession on NavisAudioHandler {
       }
       _captureTranscodeEndOccurrence(indexEvent: true);
       _updateScrobbleSession(item, currentIndex: resolved.currentIndex);
+      // just_audio emits the index again on every playback event, and an edit
+      // above the song only shifts it: only another playing source is a song
+      // start that forgets the guard (see [_observeBoostSource]). A seek and a
+      // loop back of the same source reset it on their own discontinuity.
+      _observeBoostSource(index);
       _applyReplayGainVolume();
       _broadcastPlaybackState();
       _emitSnapshot();
@@ -458,6 +468,7 @@ extension _NavisMediaSession on NavisAudioHandler {
         .distinct()
         .listen((_) {
           if (!identical(_player, wiredPlayer)) return;
+          _refreshBoostGuard();
           _broadcastPlaybackState();
           unawaited(
             _persistSafely(
@@ -469,6 +480,7 @@ extension _NavisMediaSession on NavisAudioHandler {
 
     _loopModeSubscription = _player.loopModeStream.distinct().listen((_) {
       if (!identical(_player, wiredPlayer)) return;
+      _refreshBoostGuard();
       _broadcastPlaybackState();
       unawaited(
         _persistSafely(
@@ -557,6 +569,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           if (!identical(_player, wiredPlayer)) return;
           _syncLockCacheDownloadPriority();
           _syncSidecarChain();
+          _tickReplayGainBoost();
           _checkCrossfadeTrigger(position);
         });
   }
@@ -679,6 +692,16 @@ extension _NavisMediaSession on NavisAudioHandler {
       ? _adjustmentCapabilities == PlaybackAdjustmentCapabilities.mediaKit
       : JustAudioMediaKit.isRegistered;
 
+  /// Whether the player is Android's ExoPlayer bridge (same injection rule).
+  bool get _usesAndroidNative => _adjustmentCapabilities != null
+      ? _adjustmentCapabilities == PlaybackAdjustmentCapabilities.android
+      : _isAndroidRuntime;
+
+  /// Whether the boost stage is Android's EQ processor, which is told one
+  /// value for the playing song instead of a per-file map.
+  bool get _usesAndroidBoost =>
+      replayGainBoostSupported && !_usesMpv && _usesAndroidNative;
+
   /// The player volume for [item]: the user volume (ducked or not) scaled by
   /// its ReplayGain cut, which only ever turns the song down. Turning a song
   /// up is the platform's boost stage ([_applyReplayGainBoost]), which a
@@ -716,15 +739,16 @@ extension _NavisMediaSession on NavisAudioHandler {
   /// heard freezes a Smart decision: the idle deck's current song may be
   /// stale, and a freeze there would outlive the prune at the next song start.
   Future<void> _sendReplayGainBoostTo(AudioPlayer player) async {
+    if (_usesAndroidBoost) return _sendAndroidBoostTo(player);
     final current = player.currentIndex;
     final bySource = <IndexedAudioSource, double>{};
     final sequence = player.sequence;
     for (var i = 0; i < sequence.length; i++) {
-      final tag = sequence[i].tag;
-      if (tag is! MediaItem) continue;
+      final item = _mediaItemOfSource(sequence[i]);
+      if (item == null) continue;
       bySource[sequence[i]] =
           _replayGainDecisionFor(
-            tag,
+            item,
             freeze: identical(player, _player) && i == current,
           )?.boostDb ??
           0;
@@ -734,6 +758,252 @@ extension _NavisMediaSession on NavisAudioHandler {
       bySource: bySource,
     );
   }
+
+  /// The queue entry [source] plays. Rolling-cache sources on Android carry no
+  /// tag, so they are found by the song id in their stream URL.
+  MediaItem? _mediaItemOfSource(IndexedAudioSource source) {
+    final tag = source.tag;
+    if (tag is MediaItem) return tag;
+    final songId = navisNativeSourceSongId(source);
+    if (songId == null) return null;
+    return _queueItems.where((item) => item.id == songId).firstOrNull;
+  }
+
+  /// Tells [deck]'s processor the boost for its playing song, guarded as
+  /// [_androidBoostFor] says, and the index it was computed for (the native
+  /// side ignores a non-zero value for another index). [boost] is that value
+  /// when the caller has it. While a seek may still be in flight the heard
+  /// deck's value may only go down: native already lowered it to 0, so an equal
+  /// value would raise it again.
+  Future<void> _sendAndroidBoostTo(
+    AudioPlayer deck, {
+    ({double db, bool guarded})? boost,
+  }) async {
+    final value = boost ?? _androidBoostFor(deck);
+    if (value == null) return;
+    final last = _sentBoost[deck];
+    final until = _boostLowerOnlyUntil;
+    // A flag that only flips to guarded restricts, so an equal value may go
+    // through: native lowers before queue edits only while it knows it is
+    // guarded.
+    final onlyGuards = last != null && value.guarded && !last.guarded;
+    if (identical(deck, _player) &&
+        until != null &&
+        _boostClock.elapsed < until &&
+        last != null &&
+        value.db >= last.db &&
+        !(onlyGuards && value.db == last.db)) {
+      return;
+    }
+    _sentBoost[deck] = value;
+    if (identical(deck, _player)) _boostGuardedNow = value.guarded;
+    await deck.setReplayGainBoost(
+      currentDb: value.db,
+      guarded: value.guarded,
+      index: deck.currentIndex,
+    );
+  }
+
+  /// The boost [deck]'s processor may apply to its playing song now, and
+  /// whether that is a value lowered for the song that follows.
+  ///
+  /// The processor runs ahead of the speaker, so in the last
+  /// [replayGainBoostGuardWindowMs] of a song the next song's first samples
+  /// can already reach it: the boost is then the lower of the two (see
+  /// [guardedBoostDb]). The native bridge lowers it to 0 before any command
+  /// that changes which song plays next, and the events that follow call this
+  /// again. A song with no boost needs no guard.
+  ///
+  /// just_audio publishes an edited [AudioPlayer.sequence] before the platform
+  /// replies, while [AudioPlayer.currentIndex] still counts the old list, so
+  /// `sequence[currentIndex]` can be another song. While an edit is in flight,
+  /// or when the heard deck's source is not the song the index listener
+  /// published, the answer is null: nothing is sent. That is safe: a value
+  /// already in the processor was computed for the playing song, native lowers
+  /// it before any command that switches songs (and before edits while
+  /// guarded), and a value that was never sent cannot raise anything.
+  ({double db, bool guarded})? _androidBoostFor(AudioPlayer deck) {
+    if (deck.sequenceEditInFlight) return null;
+    final sequence = deck.sequence;
+    final current = deck.currentIndex;
+    if (current == null || current >= sequence.length) {
+      return (db: 0, guarded: false);
+    }
+    final heard = identical(deck, _player);
+    final currentItem = _mediaItemOfSource(sequence[current]);
+    if (heard && currentItem?.id != _currentMediaItem?.id) return null;
+    double boostAt(int index) {
+      final item = _mediaItemOfSource(sequence[index]);
+      if (item == null) return 0;
+      return _replayGainDecisionFor(
+            item,
+            freeze: heard && index == current,
+          )?.boostDb ??
+          0;
+    }
+
+    final ownDb = boostAt(current);
+    if (ownDb <= 0) return (db: 0, guarded: false);
+    final next = _nextEffectiveIndexOf(deck);
+    // [deck.position] and [deck.duration] are in song time, offset streams
+    // included. The smaller remaining time wins: an early guard only
+    // under-boosts.
+    final tagDuration = currentItem?.duration;
+    final deckDuration = deck.duration;
+    final durations = <Duration>[
+      if (tagDuration != null && tagDuration > Duration.zero) tagDuration,
+      if (deckDuration != null && deckDuration > Duration.zero) deckDuration,
+    ];
+    final duration = durations.isEmpty
+        ? null
+        : durations.reduce((a, b) => a < b ? a : b);
+    final remaining = duration == null
+        ? null
+        : (duration - deck.position).inMilliseconds;
+    final speed = deck.speed;
+    final latched = _boostLatch[deck];
+    final guarded = replayGainBoostGuarded(
+      remainingMs: remaining,
+      speed: speed,
+      songDurationMs: duration?.inMilliseconds,
+      latched: latched != null,
+    );
+    final value = guardedBoostDb(
+      ownDb: ownDb,
+      nextDb: next == null ? null : (next == current ? ownDb : boostAt(next)),
+      remainingMs: remaining,
+      speed: speed,
+      songDurationMs: duration?.inMilliseconds,
+      latchedDb: latched,
+    );
+    // Only the heard deck latches. A cross-fade's outgoing deck is the heard one
+    // until the swap; after it, the refresh that also reaches the paused
+    // outgoing deck would otherwise write that song's end guard for it, and the
+    // fade that reuses the deck would start the next song at the old value.
+    if (guarded && heard) _boostLatch[deck] = value;
+    return (db: value, guarded: guarded);
+  }
+
+  /// The source at [index] of the heard deck's queue as it is now, or null.
+  IndexedAudioSource? _boostSourceAt(int? index) {
+    final sequence = _player.sequence;
+    return index == null || index < 0 || index >= sequence.length
+        ? null
+        : sequence[index];
+  }
+
+  /// Whether [discontinuity] is the latched source wrapping onto itself
+  /// (repeat-one, or loop-all over a single entry): an auto-advance whose
+  /// previous and current event name the same source, and that source is the
+  /// one the latch was made for. Both events are resolved against the queue as
+  /// it is now, while just_audio maps each against the queue at its delivery, so
+  /// an event carrying a stale index around a queue edit can name one neighbour
+  /// twice. That never counts: not while an edit is in flight, and not for any
+  /// source but the latched one.
+  bool _isBoostLoopBack(PositionDiscontinuity discontinuity) {
+    if (discontinuity.reason != PositionDiscontinuityReason.autoAdvance ||
+        _player.sequenceEditInFlight) {
+      return false;
+    }
+    final before = _boostSourceAt(discontinuity.previousEvent.currentIndex);
+    final after = _boostSourceAt(discontinuity.event.currentIndex);
+    return before != null &&
+        identical(before, after) &&
+        identical(before, _boostSourceSeen);
+  }
+
+  /// The latch lives for one playing source, not for a song id or an index:
+  /// two copies of a song are two sources (a duplicate entry is a new play),
+  /// and a removal above the playing song keeps its source. Decides a song
+  /// start from the source at [index] unless an edit is in flight (the
+  /// published song can flip to its neighbour and back during one). A source
+  /// that cannot be resolved changes nothing.
+  void _observeBoostSource(int? index) {
+    if (_player.sequenceEditInFlight) return;
+    final source = _boostSourceAt(index);
+    if (source == null || identical(source, _boostSourceSeen)) return;
+    _boostSourceSeen = source;
+    _boostSourcePending = null;
+    _resetBoostGuard();
+  }
+
+  /// A song start or removal seen only during an edit leaves no event behind,
+  /// so the tick re-resolves the playing source. It resets only when the same
+  /// new source shows on two ticks in a row, after the edit: the gap between
+  /// an edit's reply and its index event can still show a neighbour once.
+  void _confirmBoostSource() {
+    if (_player.sequenceEditInFlight) return;
+    final source = _boostSourceAt(_player.currentIndex);
+    if (source == null || identical(source, _boostSourceSeen)) {
+      _boostSourcePending = null;
+    } else if (identical(source, _boostSourcePending)) {
+      _observeBoostSource(_player.currentIndex);
+    } else {
+      _boostSourcePending = source;
+    }
+  }
+
+  /// Forgets the boost guard's latch and the post-seek hold: a song start, a
+  /// seek or a settings change makes the lowest value of the old window stale.
+  void _resetBoostGuard() {
+    _boostLatch = Expando<double>();
+    _boostLowerOnlyUntil = null;
+  }
+
+  /// Tells the decks again, for an event that changes the window or what plays
+  /// next without a song start (speed, loop, shuffle). The latch stays: inside
+  /// the window the value only goes down, and the min with the new next song
+  /// can still lower it.
+  void _refreshBoostGuard() {
+    if (!_usesAndroidBoost) return;
+    _applyReplayGainBoost();
+  }
+
+  /// A seek: forget the old window, and let the boost only go down for a
+  /// second. The seek may switch songs, and the discontinuity (like any tick
+  /// before the index event) still describes the old song at its old index.
+  void _holdBoostAfterSeek() {
+    if (!_usesAndroidBoost) return;
+    _resetBoostGuard();
+    _boostLowerOnlyUntil = _boostClock.elapsed + const Duration(seconds: 1);
+  }
+
+  /// The guard on the position tick: the boost depends on how close the song
+  /// is to its end, so the tick re-evaluates it and sends a change. A guarded
+  /// value is sent again on every tick, because a native queue edit lowers the
+  /// processor without telling Dart.
+  void _tickReplayGainBoost() {
+    if (!_usesAndroidBoost ||
+        _isLoading ||
+        _pendingLogicalQueueSongIds != null) {
+      return;
+    }
+    try {
+      _confirmBoostSource();
+      final boost = _androidBoostFor(_player);
+      if (boost != null && (boost.guarded || _sentBoost[_player] != boost)) {
+        unawaited(
+          _sendAndroidBoostTo(_player, boost: boost).catchError((Object error) {
+            AppLogger.debug('ReplayGain boost could not be applied: $error');
+          }),
+        );
+      }
+    } on Object catch (error) {
+      // The tick shares its subscription with the cross-fade trigger.
+      AppLogger.debug('ReplayGain boost tick failed: $error');
+    }
+  }
+
+  /// The boost stage as the status reports it, or null without one.
+  Map<String, Object?>? get _replayGainBoostStatus => _usesAndroidBoost
+      ? <String, Object?>{
+          'requestedDb': equalizerState.boostRequestedDb,
+          'appliedDb': equalizerState.boostAppliedDb,
+          'guarded': _boostGuardedNow,
+          'sentDb': _sentBoost[_player]?.db,
+          'clipSamples': equalizerState.boostClipSamples,
+        }
+      : null;
 
   /// What ReplayGain does to the current song, or null for radio. Read by
   /// diagnostics (`replayGain`) and the Now Playing page.
@@ -866,6 +1136,9 @@ extension _NavisMediaSession on NavisAudioHandler {
         headroomDb: native.headroomDb,
         reason: native.reason,
         pending: native.pending,
+        boostRequestedDb: native.boostRequestedDb,
+        boostAppliedDb: native.boostAppliedDb,
+        boostClipSamples: native.boostClipSamples,
       ),
     );
   }
@@ -947,6 +1220,7 @@ extension _NavisMediaSession on NavisAudioHandler {
           (player) => _applyAdjustmentsToPlayer(player, values),
         );
         _appliedAdjustments = values;
+        _refreshBoostGuard();
         if (!_adjustmentController.isClosed) _adjustmentController.add(values);
         _broadcastPlaybackState();
       } on Object {

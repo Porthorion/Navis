@@ -3425,6 +3425,13 @@ class SyncDiagnosticsServer {
         final handler = await _waitForPlaybackHandler();
         await handler.waitUntilReady();
         final activity = _container.read(rollingCacheActivityProvider);
+        // The Android boost stage's applied gain and clamp counter live in the
+        // native processor: read them now instead of polling during playback.
+        try {
+          await handler.refreshEqualizerState();
+        } on Object {
+          // The status is still worth reading without the stage's numbers.
+        }
         final status = handler.collectPlaybackDiagnostics();
         final uiSnapshot = _container.read(playerStateProvider);
         status['uiPlayback'] = <String, Object?>{
