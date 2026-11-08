@@ -1,0 +1,50 @@
+# Demo Navidrome for App Review. See docs/release/demo-server.md.
+# Pinned: bump tag and digest together (docs "Bump the Navidrome version").
+services:
+  navidrome:
+    image: deluan/navidrome:0.64.2@sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    user: "${DEMO_UID}:${DEMO_GID}"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${DEMO_PORT:-4535}:4533"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:4533/demo/ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    volumes:
+      - ${DEMO_DATA_DIR}:/data
+      - ${DEMO_SEED_DIR}:/seed:ro
+      - ${DEMO_MUSIC_DIR}:/music:ro
+      - ./entrypoint.sh:/entrypoint.sh:ro
+    environment:
+      DEMO_BOOTSTRAP: ${DEMO_BOOTSTRAP:-0}
+      ND_BASEURL: /demo
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      ND_LOGLEVEL: warn
+      ND_PASSWORDENCRYPTIONKEY: ${ND_PASSWORDENCRYPTIONKEY}
+      # Features off: sharing, user editing, uploads, transcoding config, plugins.
+      ND_ENABLESHARING: "false"
+      ND_ENABLEUSEREDITING: "false"
+      ND_ENABLEARTWORKUPLOAD: "false"
+      ND_ENABLETRANSCODINGCONFIG: "false"
+      ND_PLUGINS_ENABLED: "false"
+      # No outbound services: external lookups, scrobblers, telemetry.
+      ND_ENABLEEXTERNALSERVICES: "false"
+      ND_AGENTS: ""
+      ND_LASTFM_ENABLED: "false"
+      ND_LISTENBRAINZ_ENABLED: "false"
+      ND_DEEZER_ENABLED: "false"
+      ND_ENABLEINSIGHTSCOLLECTOR: "false"
+      # Downloads stay on (the app downloads songs).
+      ND_ENABLEDOWNLOADS: "true"
