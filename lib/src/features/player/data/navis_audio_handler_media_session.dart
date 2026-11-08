@@ -1146,6 +1146,9 @@ extension _NavisMediaSession on NavisAudioHandler {
         processedFrames: native.processedFrames,
         levelDeltaDb: native.levelDeltaDb,
         resetCount: native.resetCount,
+        tapPrepareCount: native.tapPrepareCount,
+        flushCount: native.flushCount,
+        transitionGapsMs: native.transitionGapsMs,
       ),
     );
   }

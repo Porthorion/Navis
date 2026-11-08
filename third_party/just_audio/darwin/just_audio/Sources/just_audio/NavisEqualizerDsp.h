@@ -75,7 +75,7 @@ NavisEqBank *navis_eq_bank_new(const NavisEqConfig *config, int sampleRate, int 
 void navis_eq_bank_free(NavisEqBank *bank);
 double navis_eq_bank_process(NavisEqBank *bank, double value, int channel);
 
-/// One decoded audio stream (one AVPlayerItem tap). Threading contract:
+/// One decoded audio stream (one prepare of the player's tap). Threading contract:
 /// - request/sweep/state/free: one non-audio thread at a time (callers
 ///   serialise);
 /// - process: the audio thread only, never concurrently with free.
@@ -88,7 +88,7 @@ typedef struct {
     double headroomDb;
     const char *reason;
     uint64_t processedFrames;
-    uint64_t resetCount; // filter-history resets (start, resume, seek)
+    uint64_t resetCount; // filter histories dropped (seek, skip; a new stream starts empty)
     double levelDeltaDb; // 10 log10(out/in) over a recent window; valid if hasLevel
 } NavisEqStreamState;
 
@@ -105,18 +105,20 @@ int navis_eq_stream_sample_rate(const NavisEqStream *stream);
 /// Banks still allocated (applied, requested, fading and not-yet-freed retired
 /// ones). Bounded regardless of how many edits arrive.
 int navis_eq_stream_bank_count(const NavisEqStream *stream);
-/// Audio thread only: forget the filter history, as after a seek or when
-/// playback resumes (MTAudioProcessingTap StartOfStream); like Android's onFlush.
+/// Audio thread only: forget the filter history, like Android's onFlush.
 void navis_eq_stream_reset_history(NavisEqStream *stream);
-/// Audio thread only. Tells the stream where a block of `frames` frames starts
-/// in the source timeline (seconds) and returns true when that is not where
-/// the previous block ended, i.e. a seek or resume. The expected end is
-/// `start + frames / sampleRate` (not the reported duration, which is rounded
-/// separately), compared with a tolerance that covers rounding of both ends to
-/// the coarsest CMTime timescale (600). Blocks with no source frames (the tap
-/// is called with an empty range while paused or seeking) are ignored. Call it
-/// for every block, including ones that cannot be processed.
-bool navis_eq_stream_source_block(NavisEqStream *stream, double startSeconds, int frames);
+/// Audio thread only, once per tap block before processing it. Forgets the
+/// filter history (and counts a reset) when the block is the first after
+/// prepare (`startOfStream`, latched until a block with audio arrives) or the
+/// host flush generation changed since the last block with audio (seek, skip),
+/// once per event even when both coincide. A stream that has not seen a block
+/// with audio yet has an empty history: it consumes the event and counts nothing. A block with `frames` <= 0 (the tap
+/// is called with an empty range while paused or seeking) never resets and
+/// keeps the pending event for the next audio block. The source time range is
+/// deliberately not an input: with one tap shared by the whole queue it
+/// re-bases mid-song at every queue insert without any jump in the audio.
+/// Returns true when it dropped a history.
+bool navis_eq_stream_begin_block(NavisEqStream *stream, bool startOfStream, uint32_t flushGeneration, int frames);
 /// In-place, non-interleaved float channels. A channel count that differs from
 /// the stream's passes through untouched.
 void navis_eq_stream_process(NavisEqStream *stream, float *const *channels, int channelCount, int frames);

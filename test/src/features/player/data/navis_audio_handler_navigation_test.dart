@@ -763,6 +763,9 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   Completer<void>? afterAppendEntered;
   String? attemptedSongId;
   int lastSetAudioSourcesCount = 0;
+
+  /// Source count of every setAudioSources call, in order.
+  final List<int> setAudioSourcesCounts = <int>[];
   int maxConcurrentMutations = 0;
   int _activeMutations = 0;
 
@@ -1319,6 +1322,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
         : initialPosition ?? Duration.zero;
     _sources = List<AudioSource>.of(sources);
     lastSetAudioSourcesCount = sources.length;
+    setAudioSourcesCounts.add(sources.length);
     index = sources.isEmpty ? null : initialIndex ?? 0;
     state = sources.isEmpty || !preload
         ? ProcessingState.idle
@@ -1699,6 +1703,7 @@ void main() {
     int savedQueueIndex = -1,
     NavisQueueWindow queueWindow = const NavisQueueWindow(),
     bool? desktopRuntimeOverride,
+    bool? iosRuntimeOverride,
     NavisPlaybackTimeouts timeouts = const NavisPlaybackTimeouts(),
     List<_ControllableAudioPlayer>? rebuiltPlayers,
     List<_ControllableAudioPlayer>? players,
@@ -1866,6 +1871,7 @@ void main() {
       queueWindow: queueWindow,
       timeouts: timeouts,
       desktopRuntimeOverride: desktopRuntimeOverride,
+      iosRuntimeOverride: iosRuntimeOverride,
       shuffleRandom: Random(7),
       playerFactory: rebuiltPlayers == null && players == null
           ? null
@@ -9056,6 +9062,92 @@ void main() {
       expect(player.audioSources.length, 3);
     },
   );
+
+  group('iOS queue start (gapless)', () {
+    // AVQueuePlayer joins songs gaplessly only when the queue did not start
+    // with a single item, so on iOS the first load carries the start song and
+    // the one after it. Phase 2 then fills in the rest around them.
+    Future<(NavisAudioHandler, _ControllableAudioPlayer, List<SongsTableData>)>
+    replaceFour({
+      required bool ios,
+      required int startIndex,
+      required Directory directory,
+    }) async {
+      final (handler, player, database) = await createHandler(
+        directory,
+        4,
+        iosRuntimeOverride: ios,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        await directory.delete(recursive: true);
+      });
+      final songs = await database.libraryDao.getSongsByIds(<String>[
+        'song-0',
+        'song-1',
+        'song-2',
+        'song-3',
+      ]);
+      await handler.replaceQueueWithData(songs, startIndex: startIndex);
+      return (handler, player, songs);
+    }
+
+    const allSongs = <String>['song-0', 'song-1', 'song-2', 'song-3'];
+
+    test('the first load holds the start song and the next one', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-ios-');
+      final (handler, player, _) = await replaceFour(
+        ios: true,
+        startIndex: 0,
+        directory: directory,
+      );
+      expect(player.setAudioSourcesCounts.first, 2);
+      expect(player.setAudioSourcesCounts, hasLength(1));
+      expect(player.sourceIds, allSongs);
+      expect(handler.queue.value.map((item) => item.id), allSongs);
+      expect(player.currentIndex, 0);
+    });
+
+    test(
+      'a start in the middle loads it with the next, then both sides',
+      () async {
+        final directory = await Directory.systemTemp.createTemp('navis-ios-');
+        final (handler, player, _) = await replaceFour(
+          ios: true,
+          startIndex: 2,
+          directory: directory,
+        );
+        expect(player.setAudioSourcesCounts.first, 2);
+        expect(player.sourceIds, allSongs);
+        expect(handler.queue.value.map((item) => item.id), allSongs);
+        expect(player.currentIndex, 2);
+      },
+    );
+
+    test('the last song has no next one to load with it', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-ios-');
+      final (_, player, _) = await replaceFour(
+        ios: true,
+        startIndex: 3,
+        directory: directory,
+      );
+      expect(player.setAudioSourcesCounts.first, 1);
+      expect(player.sourceIds, allSongs);
+    });
+
+    test('other platforms keep loading only the start song first', () async {
+      final directory = await Directory.systemTemp.createTemp('navis-ios-');
+      final (handler, player, _) = await replaceFour(
+        ios: false,
+        startIndex: 0,
+        directory: directory,
+      );
+      expect(player.setAudioSourcesCounts.first, 1);
+      expect(player.sourceIds, allSongs);
+      expect(handler.queue.value.map((item) => item.id), allSongs);
+    });
+  });
 
   test('large queue fill applies sources in batches, in order', () async {
     final directory = await Directory.systemTemp.createTemp('navis-nav-test-');

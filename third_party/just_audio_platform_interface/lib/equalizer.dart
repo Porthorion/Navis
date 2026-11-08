@@ -60,6 +60,9 @@ class EqualizerStateMessage {
     this.processedFrames,
     this.levelDeltaDb,
     this.resetCount,
+    this.tapPrepareCount,
+    this.flushCount,
+    this.transitionGapsMs,
   });
 
   final bool enabled;
@@ -88,6 +91,18 @@ class EqualizerStateMessage {
   /// resumed or jumped (Darwin only; null elsewhere), for diagnostics.
   final int? resetCount;
 
+  /// Times the player's shared tap was prepared (Darwin only), for diagnostics:
+  /// one per queue unless the audio format changed.
+  final int? tapPrepareCount;
+
+  /// Seeks and skips the player told the equalizer about (Darwin only,
+  /// diagnostics); each one drops the filter history once.
+  final int? flushCount;
+
+  /// The last silences between songs in milliseconds, measured on the player's
+  /// clock (Darwin only, diagnostics): about 0 when playback is gapless.
+  final List<double>? transitionGapsMs;
+
   static EqualizerStateMessage fromMap(Map<dynamic, dynamic> map) =>
       EqualizerStateMessage(
         enabled: map['enabled'] as bool,
@@ -102,6 +117,11 @@ class EqualizerStateMessage {
         processedFrames: (map['processedFrames'] as num?)?.toInt(),
         levelDeltaDb: (map['levelDeltaDb'] as num?)?.toDouble(),
         resetCount: (map['resetCount'] as num?)?.toInt(),
+        tapPrepareCount: (map['tapPrepareCount'] as num?)?.toInt(),
+        flushCount: (map['flushCount'] as num?)?.toInt(),
+        transitionGapsMs: (map['transitionGapsMs'] as List<dynamic>?)
+            ?.map((gap) => (gap as num).toDouble())
+            .toList(growable: false),
       );
 }
 

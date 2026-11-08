@@ -231,14 +231,30 @@
     result([FlutterError errorWithCode:@"eq_unavailable" message:@"No EQ processor was installed for this player" details:nil]);
 }
 
-// Only the head of the queue gets a tap: attaching loads the asset's tracks,
-// which must not hit the network for every queued song.
-- (void)attachEqualizerToQueueHead {
+// Every queued item gets the equalizer's shared tap in the same run-loop turn
+// as its insert (see enqueueFrom:). Attaching is synchronous and loads no
+// tracks, so covering the whole queue costs nothing; an item that is already
+// queued is never re-mixed.
+- (void)attachEqualizerToQueue {
 #if TARGET_OS_IOS
-    NSArray<AVPlayerItem *> *items = _player.items;
-    for (NSUInteger i = 0; _equalizer && i < items.count && i < TREADMILL_SIZE; i++) {
-        [_equalizer attachToItem:items[i]];
+    for (AVPlayerItem *item in _player.items) {
+        [_equalizer attachToItem:item];
     }
+#endif
+}
+
+// Navis: a seek, skip or new load; the equalizer drops its filter history at
+// the next block of audio.
+- (void)noteEqualizerFlush {
+#if TARGET_OS_IOS
+    [_equalizer noteFlush];
+#endif
+}
+
+// Navis: the transition gap meter samples only while playing.
+- (void)noteEqualizerPlaying:(BOOL)playing {
+#if TARGET_OS_IOS
+    [_equalizer setPlaying:playing];
 #endif
 }
 
@@ -564,13 +580,32 @@
     IndexedPlayerItem *existingItem = nil;
     IndexedPlayerItem *newItem = _indexedAudioSources.count > 0 ? _indexedAudioSources[_index].playerItem : nil;
     NSArray *oldPlayerItems = [NSArray arrayWithArray:_player.items];
+    // Navis: queued items that are already in the right order stay as they are.
+    // Removing and re-inserting the prefetched next item (every append of a
+    // queue fill does) restarts its audio pipeline, which breaks the gapless
+    // join to it. Only while the playing item stays first and not looping.
+    NSMutableSet<AVPlayerItem *> *kept = [NSMutableSet set];
+    if (_loopMode == lmLoopOff && newItem && oldPlayerItems.count > 0 && oldPlayerItems[0] == newItem) {
+        BOOL inOrder = NO;
+        NSUInteger matched = 0;
+        for (int i = 0; i < [_order count]; i++) {
+            int si = [_order[i] intValue];
+            if (si == _index) inOrder = YES;
+            if (!inOrder) continue;
+            AVPlayerItem *wanted = _indexedAudioSources[si].playerItem;
+            if (matched >= oldPlayerItems.count || oldPlayerItems[matched] != wanted) break;
+            [kept addObject:wanted];
+            matched++;
+        }
+    }
     // In the first pass, preserve the old and new items.
-    // TODO: preserve as much of the treadmill as possible
     for (int i = 0; i < oldPlayerItems.count; i++) {
         if (oldPlayerItems[i] == newItem) {
             // Preserve and tag new item if it is already in the queue.
             existingItem = oldPlayerItems[i];
             //NSLog(@"Preserving existing item %d", [self indexForItem:existingItem]);
+        } else if ([kept containsObject:oldPlayerItems[i]]) {
+            // Navis: already queued in the right order.
         } else if (oldPlayerItems[i] == oldItem) {
             //NSLog(@"Preserving old item %d", [self indexForItem:oldItem]);
             // Temporarily preserve old item, just to avoid jumping to
@@ -598,7 +633,8 @@
         for (int i = 0; i < [_order count]; i++) {
             int si = [_order[i] intValue];
             if (si == _index) include = YES;
-            if (include && _indexedAudioSources[si].playerItem != existingItem) {
+            if (include && _indexedAudioSources[si].playerItem != existingItem
+                && ![kept containsObject:_indexedAudioSources[si].playerItem]) {
                 if (_indexedAudioSources[si].lazyLoading && _player.items.count >= TREADMILL_SIZE) {
                     // Enqueue up until the first lazy item that does not fit on the treadmill.
                     _enqueuedAll = NO;
@@ -636,7 +672,7 @@
 
     /* NSLog(@"after reorder: _player.items.count: ", _player.items.count); */
     /* [self dumpQueue]; */
-    [self attachEqualizerToQueueHead];
+    [self attachEqualizerToQueue];
 
     if (_processingState != psLoading && oldItem != newItem) {
         // || !_player.currentItem.playbackLikelyToKeepUp;
@@ -657,6 +693,7 @@
 }
 
 - (void)load:(NSDictionary *)source initialPosition:(CMTime)initialPosition initialIndex:(NSNumber *)initialIndex result:(FlutterResult)result {
+    [self noteEqualizerFlush];
     if (_playing) {
         [_player pause];
     }
@@ -959,8 +996,6 @@
         }
     } else if ([keyPath isEqualToString:@"currentItem"] && _player.currentItem) {
         //NSLog(@"currentItem -> [%d]", [self indexForItem:_player.currentItem]);
-        // Navis: the queue advanced; the new head and its successor need a tap.
-        [self attachEqualizerToQueueHead];
         IndexedPlayerItem *playerItem = (IndexedPlayerItem *)change[NSKeyValueChangeNewKey];
         //IndexedPlayerItem *oldPlayerItem = (IndexedPlayerItem *)change[NSKeyValueChangeOldKey];
         if (playerItem.status == AVPlayerItemStatusFailed) {
@@ -1101,6 +1136,7 @@
         _playResult = result;
     }
     _playing = YES;
+    [self noteEqualizerPlaying:YES];
     _player.rate = _speed;
     [self updatePosition];
     if (@available(macOS 10.12, iOS 10.0, *)) {}
@@ -1115,6 +1151,7 @@
 - (void)pause {
     if (!_playing) return;
     _playing = NO;
+    [self noteEqualizerPlaying:NO];
     [_player pause];
     [self updatePosition];
     [self broadcastPlaybackEvent];
@@ -1267,6 +1304,8 @@
         }
         return;
     }
+    // A user seek or skip (also the first half of a jump to another item).
+    [self noteEqualizerFlush];
     int index = _index;
     if (newIndex != (id)[NSNull null]) {
         index = [newIndex intValue];

@@ -237,70 +237,81 @@ static void testDiscontinuity(void) {
     navis_eq_stream_free(reference);
 }
 
-// Block start times as the tap reports them: CMTime values with a timescale,
-// each start rounded on its own (the duration is not used).
-static double cmtime(double seconds, int timescale) { return floor(seconds * timescale + 0.5) / timescale; }
+// A tap block as the audio thread sees it: the decision, then the processing.
+static bool block(NavisEqStream *s, bool startOfStream, uint32_t generation, int frames) {
+    bool reset = navis_eq_stream_begin_block(s, startOfStream, generation, frames);
+    if (frames > 0) {
+        float samples[4096] = {0};
+        float *ch[2] = {samples, samples};
+        navis_eq_stream_process(s, ch, 2, frames);
+    }
+    return reset;
+}
 
-static void testContinuity(void) {
-    const int timescales[] = {44100, 48000, 600, 1000, 96000, 22050};
-    const int rates[] = {44100, 48000, 96000};
-    const int sizes[] = {1, 441, 882, 883, 1024, 4096};
+// The history resets on a host flush generation, once per event, and on nothing
+// else: with one tap shared by the whole queue the source time range re-bases
+// mid-song at every queue insert, which is not a jump in the audio, so the
+// range is not an input to the rule. StartOfStream is the same event for a
+// stream that is new, whose history is empty, so it drops (and counts) nothing.
+static void testFlushRule(void) {
     NavisEqConfig c = config(true, false, 0, NULL, 0);
-    for (int t = 0; t < 6; t++) {
-        for (int r = 0; r < 3; r++) {
-            NavisEqStream *s = navis_eq_stream_new(&c, rates[r], 2);
-            long frames = 123457; // not aligned to the timescale
-            int falsePositives = 0;
-            for (int i = 0; i < 4000; i++) {
-                int n = sizes[i % 6];
-                if (navis_eq_stream_source_block(s, cmtime((double)frames / rates[r], timescales[t]), n)) falsePositives++;
-                frames += n;
-            }
-            // The first block has nothing to compare with.
-            near(falsePositives, 0, 0, "contiguous blocks give no reset");
-            int jumps = 0;
-            jumps += navis_eq_stream_source_block(s, cmtime((double)frames / rates[r] + 0.020, timescales[t]), 1024); // 20 ms ahead
-            frames += 1024 + (long)(0.020 * rates[r]);
-            near(navis_eq_stream_source_block(s, cmtime((double)frames / rates[r], timescales[t]), 1024), 0, 0, "contiguous after a jump");
-            frames += 1024;
-            jumps += navis_eq_stream_source_block(s, cmtime((double)(frames - 3 * rates[r]) / rates[r], timescales[t]), 1024); // seek back 3 s
-            near(jumps, 2, 0, "a 20 ms jump and a backwards seek give exactly one reset each");
-            navis_eq_stream_free(s);
-        }
-    }
-    // Pause and seek: the tap is called with empty source ranges (no frames,
-    // position stuck) while nothing plays. They are neither a jump nor a new
-    // expected end; the first real block after them is what gets compared.
-    {
-        NavisEqStream *p = navis_eq_stream_new(&c, 48000, 2);
-        double t = 4.0;
-        int resets = 0;
-        for (int i = 0; i < 10; i++, t += 4096.0 / 48000) resets += navis_eq_stream_source_block(p, cmtime(t, 48000), 4096);
-        near(resets, 0, 0, "steady playback before the pause");
-        for (int i = 0; i < 25; i++) resets += navis_eq_stream_source_block(p, cmtime(t - 4096.0 / 48000, 48000), 0); // paused
-        near(resets, 0, 0, "empty source ranges are not jumps");
-        resets += navis_eq_stream_source_block(p, cmtime(t - 0.021, 48000), 4096); // resume re-reads 21 ms
-        near(resets, 1, 0, "the resume is one reset");
-        t = t - 0.021 + 4096.0 / 48000;
-        resets += navis_eq_stream_source_block(p, cmtime(t, 48000), 4096);
-        navis_eq_stream_source_block(p, 60.0, 0); // seek: empty range at the target
-        navis_eq_stream_source_block(p, 60.0, 0);
-        resets += navis_eq_stream_source_block(p, 60.064, 4096);
-        near(resets, 2, 0, "the seek is one reset");
-        resets += navis_eq_stream_source_block(p, 60.064 + 4096.0 / 48000, 4096);
-        near(resets, 2, 0, "contiguous after the seek");
-        navis_eq_stream_free(p);
-    }
-    // resetCount counts resets.
-    NavisEqStream *s = navis_eq_stream_new(&c, 44100, 2);
+    NavisEqStream *s = navis_eq_stream_new(&c, 48000, 2);
     NavisEqStreamState st;
     navis_eq_stream_state(s, &st);
     near((double)st.resetCount, 0, 0, "no resets yet");
-    navis_eq_stream_reset_history(s);
-    navis_eq_stream_reset_history(s);
+
+    check(!block(s, true, 0, 4096), "StartOfStream on a new stream has no history to drop");
+    for (int i = 0; i < 4000; i++) check(!block(s, false, 0, 1 + i % 4096), "steady playback never resets");
     navis_eq_stream_state(s, &st);
-    near((double)st.resetCount, 2, 0, "resetCount counts resets");
+    near((double)st.resetCount, 0, 0, "no reset over the start and 4000 blocks");
+
+    // A flush generation bump resets once, on the next audio block.
+    check(block(s, false, 1, 4096), "a generation bump resets");
+    check(!block(s, false, 1, 4096), "the same generation does not reset again");
+    check(block(s, false, 3, 4096), "two bumps between blocks reset once");
+    check(!block(s, false, 3, 4096), "and not again");
+
+    // Blocks without audio (paused, seek in progress) pass through and keep the
+    // pending flush and start for the next audio block.
+    for (int i = 0; i < 25; i++) check(!block(s, false, 4, 0), "an empty block never resets");
+    check(block(s, false, 4, 1024), "the flush waited for audio");
+    check(!block(s, true, 4, 0), "StartOfStream on an empty block does not reset yet");
+    check(block(s, false, 4, 1024), "the latched StartOfStream resets a stream that has played");
+    check(!block(s, false, 4, 1024), "and only once");
+
+    // A start and a flush on the same block are one reset.
+    navis_eq_stream_state(s, &st);
+    uint64_t before = st.resetCount;
+    check(block(s, true, 9, 512), "start plus flush resets");
+    navis_eq_stream_state(s, &st);
+    near((double)(st.resetCount - before), 1, 0, "start plus flush is one reset");
     navis_eq_stream_free(s);
+
+    // A stream prepared after flushes (format change) starts clean: no reset counted.
+    s = navis_eq_stream_new(&c, 44100, 2);
+    check(!block(s, true, 7, 512), "a new stream after flushes has nothing to drop");
+    navis_eq_stream_state(s, &st);
+    near((double)st.resetCount, 0, 0, "a new stream's first block is not a reset");
+    check(!block(s, false, 7, 512), "then steady");
+    check(block(s, false, 8, 512), "and a later flush resets it");
+    navis_eq_stream_free(s);
+
+    // The reset really forgets the history: an impulse after it matches a fresh stream.
+    NavisEqFilter fs[] = {filter(NAVIS_EQ_LOW_PASS, 200, 0, 0.7)};
+    NavisEqConfig lp = config(true, false, 0, fs, 1);
+    NavisEqStream *a = navis_eq_stream_new(&lp, 48000, 1), *fresh = navis_eq_stream_new(&lp, 48000, 1);
+    float loud[256], x[256], y[256];
+    float *lc[1] = {loud}, *xc[1] = {x}, *yc[1] = {y};
+    for (int i = 0; i < 256; i++) loud[i] = (float)sin(i * 0.3);
+    navis_eq_stream_begin_block(a, true, 0, 256);
+    navis_eq_stream_process(a, lc, 1, 256);
+    for (int i = 0; i < 256; i++) x[i] = y[i] = i == 0 ? 1.0f : 0.0f;
+    check(navis_eq_stream_begin_block(a, false, 1, 256), "flush before the impulse");
+    navis_eq_stream_process(a, xc, 1, 256);
+    navis_eq_stream_process(fresh, yc, 1, 256);
+    for (int i = 0; i < 256; i++) near(x[i], y[i], 1e-7, "impulse after a flush matches a fresh stream");
+    navis_eq_stream_free(a);
+    navis_eq_stream_free(fresh);
 }
 
 typedef struct {
@@ -400,7 +411,7 @@ int main(void) {
     testDspMirror();
     testStream();
     testDiscontinuity();
-    testContinuity();
+    testFlushRule();
     testThreadedEdits();
     puts("Navis Darwin equalizer DSP: response, headroom, bypass, limits, stream swap/crossfade, levels and threaded edits passed.");
     return 0;

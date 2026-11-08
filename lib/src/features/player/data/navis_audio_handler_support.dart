@@ -6,6 +6,8 @@ bool get _isWindowsRuntime => !kIsWeb && Platform.isWindows;
 
 bool get _isLinuxRuntime => !kIsWeb && Platform.isLinux;
 
+bool get _isIosPlatform => !kIsWeb && Platform.isIOS;
+
 bool get _isMacOSRuntime => !kIsWeb && Platform.isMacOS;
 
 bool get _isDesktopPlatform =>
@@ -26,6 +28,10 @@ class _PreparedQueueItem {
   final ResolvedPlaybackSource source;
   final MediaItem mediaItem;
   AudioSource audioSource;
+
+  /// The song after this one when phase 1 of a queue replacement loaded both
+  /// into the native player (iOS gapless start); phase 2 skips it.
+  _PreparedQueueItem? gaplessNext;
 }
 
 class CrossfadeTransitionMetric {
