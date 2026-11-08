@@ -14,8 +14,9 @@ A flutter plugin for playing audio.
   s.source           = { :path => '.' }
   s.source_files = 'just_audio/Sources/just_audio/**/*.{h,m,c}'
   s.public_header_files = 'just_audio/Sources/just_audio/include/**/*.h'
-  # Navis: the iOS equalizer uses an MTAudioProcessingTap (compiled out on macOS).
-  s.ios.frameworks = 'MediaToolbox'
+  # Navis: the iOS equalizer uses an MTAudioProcessingTap and its pitch stage an
+  # AUNewTimePitch (both compiled out on macOS).
+  s.ios.frameworks = 'MediaToolbox', 'AudioToolbox'
   s.ios.dependency 'Flutter'
   s.osx.dependency 'FlutterMacOS'
   s.ios.deployment_target = '12.0'

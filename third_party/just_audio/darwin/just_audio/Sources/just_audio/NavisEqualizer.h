@@ -19,6 +19,12 @@
 /// and skips noted since the tap was created) and
 /// transitionGapsMs (the last 8 gaps between songs, in ms; diagnostics).
 - (NSDictionary *)state;
+/// Independent pitch in cents (+-2400), applied to the player's one tap; 0 is a
+/// bit-exact bypass. Main thread. Safe before the tap exists (it is seeded).
+/// The state adds pitchCents, pitchActive, pitchLatencyFrames, pitchResetCount
+/// and pitchInputHz/pitchOutputHz (diagnostics), and pitchReason when the tap
+/// cannot pitch its audio.
+- (void)setPitchCents:(float)cents;
 /// Gives the item its audio mix (the shared tap, track 1) synchronously.
 /// Idempotent. Call it for every item in the same run-loop turn as the insert
 /// into the queue, never later: changing the mix of a queued item stalls playback.

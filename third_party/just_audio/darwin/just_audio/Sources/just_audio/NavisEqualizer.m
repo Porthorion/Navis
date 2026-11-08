@@ -3,6 +3,8 @@
 #if TARGET_OS_IOS
 
 #import "NavisEqualizerDsp.h"
+#import "NavisPitchAU.h"
+#import "NavisPitchStage.h"
 #import <MediaToolbox/MediaToolbox.h>
 #import <QuartzCore/QuartzCore.h>
 #import <pthread.h>
@@ -29,15 +31,27 @@ typedef struct NavisTapContext {
     // Bumped by the host (main thread) for a seek or skip; the render thread
     // resets the filter history when it sees a new value (see begin_block).
     _Atomic uint32_t flushGeneration;
+    // Independent pitch (I21): the stage rides on the same prepare/unprepare as
+    // the stream (it exists only with one) and is handed to the audio thread the
+    // same way. The stage never owns the AU; both are freed together.
+    _Atomic int32_t pitchCents;        // requested; read at prepare to seed a new stage
+    _Atomic(NavisPitchStage *) pitch;
+    NavisPitchAU *pitchAU;             // guarded by lock
+    bool hasPitchSnapshot;             // guarded by lock
+    NavisPitchState pitchSnapshot;     // guarded by lock
+    uint64_t retiredPitchResets;       // resets of stages already freed; guarded by lock
+    const char *pitchReason;           // why a prepared tap has no pitch; guarded by lock
     atomic_int refs;                   // owner (the equalizer) + the tap
 } NavisTapContext;
 
-static NavisTapContext *contextNew(const NavisEqConfig *config) {
+static NavisTapContext *contextNew(const NavisEqConfig *config, int32_t pitchCents) {
     NavisTapContext *c = calloc(1, sizeof(NavisTapContext));
     pthread_mutex_init(&c->lock, NULL);
     c->config = *config;
     atomic_init(&c->stream, NULL);
     atomic_init(&c->flushGeneration, 0);
+    atomic_init(&c->pitchCents, pitchCents);
+    atomic_init(&c->pitch, NULL);
     atomic_init(&c->refs, 1);
     return c;
 }
@@ -47,6 +61,8 @@ static void contextRetain(NavisTapContext *c) { atomic_fetch_add(&c->refs, 1); }
 static void contextRelease(NavisTapContext *c) {
     if (atomic_fetch_sub(&c->refs, 1) != 1) return;
     navis_eq_stream_free(atomic_load(&c->stream));
+    navis_pitch_stage_free(atomic_load(&c->pitch));
+    navis_pitch_au_free(c->pitchAU);
     pthread_mutex_destroy(&c->lock);
     free(c);
 }
@@ -58,6 +74,20 @@ static void tapInit(MTAudioProcessingTapRef tap, void *clientInfo, void **tapSto
 
 static void tapFinalize(MTAudioProcessingTapRef tap) {
     contextRelease(MTAudioProcessingTapGetStorage(tap));
+}
+
+// Under c->lock, with process stopped (prepare or unprepare): keeps the stage's
+// numbers for the state and frees the stage, then its AU.
+static void retirePitch(NavisTapContext *c) {
+    NavisPitchStage *stage = atomic_exchange(&c->pitch, NULL);
+    if (stage) {
+        navis_pitch_stage_state(stage, &c->pitchSnapshot);
+        c->hasPitchSnapshot = true;
+        c->retiredPitchResets += c->pitchSnapshot.resetCount;
+        navis_pitch_stage_free(stage);
+    }
+    navis_pitch_au_free(c->pitchAU);
+    c->pitchAU = NULL;
 }
 
 // Not realtime: allocation and locking are fine here.
@@ -75,8 +105,11 @@ static void tapPrepare(MTAudioProcessingTapRef tap, CMItemCount maxFrames,
         c->retiredResets += st.resetCount;
         navis_eq_stream_free(old);
     }
+    retirePitch(c);
     c->hasSnapshot = false;
+    c->hasPitchSnapshot = false;
     c->formatReason = NULL;
+    c->pitchReason = NULL;
     c->prepareCount++;
     BOOL planarFloat = format->mFormatID == kAudioFormatLinearPCM
         && (format->mFormatFlags & kAudioFormatFlagIsFloat)
@@ -86,7 +119,29 @@ static void tapPrepare(MTAudioProcessingTapRef tap, CMItemCount maxFrames,
     NavisEqStream *stream = planarFloat
         ? navis_eq_stream_new(&c->config, (int)lround(format->mSampleRate), (int)format->mChannelsPerFrame)
         : NULL;
-    if (!stream) c->formatReason = "EQ cannot process this audio format; it plays unchanged.";
+    if (!stream) {
+        c->formatReason = "EQ cannot process this audio format; it plays unchanged.";
+        c->pitchReason = "Pitch cannot be applied to this audio format; it plays at its original pitch.";
+    }
+    // The AU and the stage are made here whenever there is a stream, even at
+    // 0 cents, so turning pitch on later never allocates. A stage seeded with
+    // non-zero cents is wet from its first frame.
+    if (stream) {
+        int32_t cents = atomic_load_explicit(&c->pitchCents, memory_order_relaxed);
+        c->pitchAU = navis_pitch_au_new(format->mSampleRate, (int)format->mChannelsPerFrame, (int)maxFrames);
+        NavisPitchStage *pitch = NULL;
+        if (c->pitchAU) {
+            NavisPitchRenderer renderer = navis_pitch_au_renderer(c->pitchAU);
+            pitch = navis_pitch_stage_new(&renderer, (int)format->mChannelsPerFrame, (int)maxFrames,
+                                          format->mSampleRate, (float)cents);
+        }
+        if (!pitch) {
+            navis_pitch_au_free(c->pitchAU);
+            c->pitchAU = NULL;
+            c->pitchReason = "Pitch cannot be applied to this song; it plays at its original pitch.";
+        }
+        atomic_store_explicit(&c->pitch, pitch, memory_order_release);
+    }
     atomic_store_explicit(&c->stream, stream, memory_order_release);
     pthread_mutex_unlock(&c->lock);
 }
@@ -108,6 +163,7 @@ static void tapUnprepare(MTAudioProcessingTapRef tap) {
         c->retiredResets += c->snapshot.resetCount;
         navis_eq_stream_free(stream);
     }
+    retirePitch(c);
     pthread_mutex_unlock(&c->lock);
 }
 
@@ -135,8 +191,12 @@ static void tapProcess(MTAudioProcessingTapRef tap, CMItemCount numberFrames,
     // processed still consumes the event.
     int audioFrames = CMTIMERANGE_IS_VALID(sourceRange) && CMTimeGetSeconds(sourceRange.duration) > 0
         ? (int)*numberFramesOut : 0;
-    navis_eq_stream_begin_block(stream, (*flagsOut & kMTAudioProcessingTapFlag_StartOfStream) != 0,
-                                atomic_load_explicit(&c->flushGeneration, memory_order_relaxed), audioFrames);
+    bool reset = navis_eq_stream_begin_block(stream, (*flagsOut & kMTAudioProcessingTapFlag_StartOfStream) != 0,
+                                             atomic_load_explicit(&c->flushGeneration, memory_order_relaxed), audioFrames);
+    // The pitch stage resets on exactly the EQ's decision; latched here, before
+    // the layout checks, so a block that cannot be processed does not lose it.
+    NavisPitchStage *pitch = atomic_load_explicit(&c->pitch, memory_order_acquire);
+    if (pitch && reset) navis_pitch_stage_note_reset(pitch);
     UInt32 count = bufferList->mNumberBuffers;
     if (count == 0 || count > NAVIS_EQ_MAX_CHANNELS) return;
     float *channels[NAVIS_EQ_MAX_CHANNELS];
@@ -145,6 +205,8 @@ static void tapProcess(MTAudioProcessingTapRef tap, CMItemCount numberFrames,
             || bufferList->mBuffers[i].mDataByteSize < *numberFramesOut * sizeof(float)) return;
         channels[i] = bufferList->mBuffers[i].mData;
     }
+    // Pitch first, then the EQ (as on Android); empty blocks pass through.
+    if (pitch && audioFrames > 0) navis_pitch_stage_process(pitch, channels, (int)count, (int)*numberFramesOut);
     navis_eq_stream_process(stream, channels, (int)count, (int)*numberFramesOut);
 }
 
@@ -220,6 +282,7 @@ typedef NS_ENUM(NSInteger, NavisEqItemStatus) {
 // prerolls rebuilds the pipeline and stalls playback for about 0.5 s.
 @implementation NavisEqualizer {
     NavisEqConfig _config;
+    int32_t _pitchCents;            // requested pitch; seeds the tap, which is created on first use
     NavisTapContext *_context;      // created with the tap; this object holds one reference
     MTAudioProcessingTapRef _tap;
     NSMapTable<AVPlayerItem *, NavisEqItemRecord *> *_records;
@@ -270,6 +333,21 @@ static const NSUInteger kMeterSamples = 5; // medians over this many samples abs
         }
     }
     return [self state];
+}
+
+- (void)setPitchCents:(float)cents {
+    if (_disposed) return;
+    int32_t clamped = (int32_t)lroundf(fmaxf(-NAVIS_PITCH_MAX_CENTS, fminf(NAVIS_PITCH_MAX_CENTS, cents)));
+    _pitchCents = clamped;
+    NavisTapContext *c = _context;
+    if (!c) return;
+    pthread_mutex_lock(&c->lock);
+    atomic_store_explicit(&c->pitchCents, clamped, memory_order_relaxed);
+    // A prepared stage picks the change up at its next block; an unprepared tap
+    // seeds its next stage from pitchCents.
+    NavisPitchStage *stage = atomic_load(&c->pitch);
+    if (stage) navis_pitch_stage_request(stage, (float)clamped);
+    pthread_mutex_unlock(&c->lock);
 }
 
 static NSDictionary *stateDictionary(NSString *reason, BOOL enabled, id sampleRate, double headroom,
@@ -335,10 +413,41 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
         pthread_mutex_unlock(&_context->lock);
         flushes = (long long)atomic_load(&_context->flushGeneration);
     }
+    [self addPitchStateTo:result];
     result[@"tapPrepareCount"] = @(prepares);
     result[@"flushCount"] = @(flushes);
     result[@"transitionGapsMs"] = [_gapsMs copy];
     return result;
+}
+
+/// pitchCents is the request; the rest is the live stage or what it last reported.
+- (void)addPitchStateTo:(NSMutableDictionary *)result {
+    NavisPitchState st = {0};
+    uint64_t resets = 0;
+    const char *reason = NULL;
+    NavisTapContext *c = _disposed ? NULL : _context;
+    st.cents = _pitchCents;
+    if (c) {
+        pthread_mutex_lock(&c->lock);
+        NavisPitchStage *stage = atomic_load(&c->pitch);
+        if (stage) {
+            navis_pitch_stage_state(stage, &st);
+        } else if (c->hasPitchSnapshot) {
+            st = c->pitchSnapshot;
+            st.active = NO;
+            st.cents = _pitchCents;
+        }
+        resets = c->retiredPitchResets + (stage ? st.resetCount : 0);
+        reason = c->pitchReason;
+        pthread_mutex_unlock(&c->lock);
+    }
+    result[@"pitchCents"] = @(st.cents);
+    result[@"pitchActive"] = @(st.active);
+    result[@"pitchLatencyFrames"] = @(st.latencyFrames);
+    result[@"pitchResetCount"] = @((long long)resets);
+    result[@"pitchInputHz"] = @(st.inputHz);
+    result[@"pitchOutputHz"] = @(st.outputHz);
+    if (reason) result[@"pitchReason"] = [NSString stringWithUTF8String:reason];
 }
 
 - (NSDictionary *)baseState {
@@ -391,7 +500,7 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
 /// Creates the player's one tap on first use. NO when MTAudioProcessingTapCreate fails.
 - (BOOL)ensureTap {
     if (_context) return YES;
-    NavisTapContext *context = contextNew(&_config);
+    NavisTapContext *context = contextNew(&_config, _pitchCents);
     MTAudioProcessingTapCallbacks callbacks = {
         .version = kMTAudioProcessingTapCallbacksVersion_0,
         .clientInfo = context,
