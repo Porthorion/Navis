@@ -15,7 +15,7 @@ for other foldables (Galaxy Z Fold, Pixel Fold).
     yet: the simulator can't be folded from scripts, because DeviceHub needs
     Accessibility and Screen Recording grants.
 - **Widget-test renders** of the full app at 466x678, 669x951 and 951x669
-  (local, `build/foldables-i27/renders/`):
+  (local only, `build/foldables-i27/renders/`, gitignored):
   - Fold changes keep the route, the Now Playing sheet, the queue and typed
     search text. **The list scroll offset resets to 0.**
 - **Shell modes today** (`resolveAdaptiveShellMode`,
@@ -38,9 +38,9 @@ Each one also affects tablets, iPads and rotation, not only foldables.
 
 | # | Defect | Cause | Fix |
 |---|---|---|---|
-| A1 | Artist letter tracking in grid mode throws `RenderSliverToBoxAdapter is not a subtype of RenderBox?` on every scroll, at any size. The active letter never updates. | **Proven by reading the code.** The section `GlobalKey` is on the `SliverToBoxAdapter` (`library_screen.dart:2323`), so `findRenderObject()` returns a sliver, and the cast at :2380 throws. | Put the key on the box child (the `Padding`). `Scrollable.ensureVisible` at :2544 keeps working with a box context. |
+| A1 | Artist letter tracking in grid mode throws `RenderSliverToBoxAdapter is not a subtype of RenderBox?` on every scroll, at any size. The active letter never updates. | **Proven by reading the code.** The section `GlobalKey` is on the `SliverToBoxAdapter` (`library_screen.dart:2323`), so `findRenderObject()` returns a sliver, and the cast at :2380 throws. | Put the key on the box child (the `Padding`). `Scrollable.ensureVisible` at :2549 keeps working with a box context. |
 | A2 | The scroll position is lost when the layout class changes (fold or unfold, tablet rotation across 600/840 dp). | **Likely, from reading the code; the first failing test proves it.** `tabletMode` (`library_screen.dart:605`) changes the widget tree, so the scroll view is recreated with offset 0. | `PageStorageKey`s on the library section scroll views (and Home, if the test shows the same thing), so a recreated scroll view restores its offset. No tree restructuring. |
-| A3 | Now Playing in a short, wide pane (unfolded landscape: a 633x669 content pane next to the rail) cuts the pause button off and hides the action row. | The split layout needs a content width of at least 790 (`_resolveSplitMetrics`), so this pane gets the stacked compact layout. Its artwork is sized by width, not by the height left over. | In the compact and standard layouts, bound the artwork by the height left after the title, seek bar, transport and action rows. Same widget and the existing metrics, with no new layout mode. |
+| A3 | Now Playing in a short, wide pane (unfolded landscape: a 633x669 content pane next to the rail) cuts the pause button off and hides the action row. | **From the code (corrected after review).** The split layout needs a content width of at least 790 (`_resolveSplitMetrics`), so the pane gets the compact mode, embedded next to the rail (`wideEmbeddedMode`). Only the non-embedded compact path budgets height for the controls (`NowPlayingPhoneLayout.compute`). The embedded compact path and the standard path size the art as `min(width, height x 0.62 / 0.54)`, with no room reserved for the controls (`now_playing_screen.dart:2222-2244`). | Give the embedded compact and standard paths the same height budget, reusing `NowPlayingPhoneLayout`'s reservations. The phone and split paths don't change. |
 | A4 | On the Duo cover, the artist alphabet rail, the mini player's heart button and the Playlists FAB sit under the 84 pt right system strip. Page bodies already avoid it. | Those widgets ignore the right padding. | Respect `MediaQuery.paddingOf(context).right` there. The background still extends edge to edge. |
 
 ## Foldable/tablet tuning
