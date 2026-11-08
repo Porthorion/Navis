@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter/foundation.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
@@ -69,6 +68,7 @@ class DownloadNotifier {
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.low,
+      enableVibration: channelId == 'downloads',
       priority: Priority.low,
       onlyAlertOnce: true,
       ongoing: true,
@@ -117,6 +117,7 @@ class DownloadNotifier {
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.defaultImportance,
+      enableVibration: channelId == 'downloads',
       priority: Priority.defaultPriority,
     );
 
@@ -148,6 +149,7 @@ class DownloadNotifier {
       icon: 'ic_stat_navis_light',
       color: Colors.white,
       importance: Importance.defaultImportance,
+      enableVibration: channelId == 'downloads',
       priority: Priority.defaultPriority,
     );
 
