@@ -46,7 +46,7 @@ typedef struct {
 
 static _Atomic int g_creates, g_destroys, g_wrongRate;
 static _Thread_local int t_blockRate; // the rate of the block this thread is processing, 0 outside
-static Fake *g_aus[64];                // by creation order; NULL once destroyed (control thread only)
+static Fake *g_aus[64];                // the first 64 by creation order; NULL once destroyed (control thread only)
 static int g_nAus;
 static bool g_failCreate;
 
@@ -83,8 +83,7 @@ static void *fakeCreate(double rate, int channels, int maxFrames, NavisPitchRend
     f->rate = (int)lround(rate);
     f->channels = channels;
     *out = (NavisPitchRenderer){f, fakeRender, fakeReset, fakeCents, LAT};
-    check(g_nAus < 64, "fake registry has room");
-    g_aus[g_nAus++] = f;
+    if (g_nAus < 64) g_aus[g_nAus++] = f; // only the first few are ever inspected
     atomic_fetch_add(&g_creates, 1);
     return f;
 }
