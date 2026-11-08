@@ -77,6 +77,7 @@ simulator or device yet; every runtime claim is *unverified*.
 | I18 | Accessibility pass on iOS: Dynamic Type at accessibility sizes on now playing, transport and settings; VoiceOver labels; Reduce Motion | low | **1.5.2** (shared widgets, so Android benefits too); merged 2026-11-07 in #355 (`a7740d09`; review fixes: the 1.6x title cap is phone-strip only, 1.5x on the 90 dp compact-wide strip, desktop/tablet uncapped; Now Playing switchers and art-swipe snap-back honour Reduce Motion; five Linux goldens regenerated for the 44 pt transport row): Now Playing transport and Instant Mix buttons 44 pt on rows 340 dp and wider, mini player strip buttons 44 pt, mini title capped at 1.6x text, settings dropdowns `isExpanded` and the playback autosave line wraps, Reduce Motion stops the Appearance blinking icon and jumps Settings scroll-to-top and the mini player seek-preview fade; tests `now_playing_accessibility_test.dart`, `settings_accessibility_test.dart`, mini player case in `app_shell_navigation_test.dart`; simulator evidence in `build/ios-diagnostics/i18-run/`. **Deferred:** 44 pt transport buttons below 340 dp row width (phones under about 388 dp keep 40 pt), the album link under the title (37 pt tall at 2x), Android's 48 dp target in the transport row and mini strip, a few unlocalised strings in Playback settings, VoiceOver device pass | – |
 | I19 | Background library sync and notifications on iOS (`BGTaskScheduler`, `UNUserNotificationCenter`) behind the existing Android-only seams | medium–high | **1.6** (iOS catching up with Android) | – |
 | I20 | CarPlay (the CarPlay note below); needs the paid programme and Apple's entitlement | high | **1.6** (parity with Android Auto); request the entitlement as soon as the paid programme exists (approval takes weeks) | – |
+| I26 | ReplayGain at the sample boundary on iOS: #392 phase 4. The cut and boost go in the shared tap, set per item and carried by the phase 1 `replayGainDb` source field. Every queued item already has the tap before preroll since I23. Same behaviour as Android in both directions (owner parity rule) | risky (playback) | **1.5.2** (owner D4, 2026-11-08: iOS now). Blocked until #392 phases 2 (mpv) and 3 (Android) land; phase 1 merged in #402. Builds on `dev` | #392 |
 
 ### Scope decision from I11 (owner, 2026-11-07)
 
@@ -100,6 +101,8 @@ Owner decisions (2026-11-07): distribution is TestFlight and the App Store.
 Testing is simulator-first; the iPhone is borrowed, so a device pass is
 requested only when the simulator cannot answer, with notice. CarPlay scope
 is open (the owner asked what it takes; see the CarPlay note below).
+
+Owner decision (2026-11-08): **iOS 1.5.2 ships from `dev`**: TestFlight and App Store builds come from `dev`, and iOS commits are not back-ported to `release/1.5`, which ships only desktop and Android 1.5.2.
 
 Owner decisions (2026-11-07, I14 and I18 follow-ups):
 
