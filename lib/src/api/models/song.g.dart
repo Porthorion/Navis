@@ -8,10 +8,10 @@ part of 'song.dart';
 
 _Song _$SongFromJson(Map<String, dynamic> json) => _Song(
   id: json['id'] as String,
-  title: json['title'] as String,
-  album: json['album'] as String?,
+  title: readDecodedString(json, 'title') as String,
+  album: readDecodedString(json, 'album') as String?,
   albumId: json['albumId'] as String?,
-  artist: json['artist'] as String?,
+  artist: readDecodedString(json, 'artist') as String?,
   artistId: json['artistId'] as String?,
   track: (json['track'] as num?)?.toInt(),
   discNumber: (json['discNumber'] as num?)?.toInt(),

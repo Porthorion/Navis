@@ -46,6 +46,7 @@ import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/entity_meta_line.dart';
 import 'package:navis/src/utils/external_url.dart';
+import 'package:navis/src/utils/html_entities.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -2097,13 +2098,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   String _stripHtml(String input) {
-    return input
-        .replaceAll(RegExp('<[^>]+>'), ' ')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&apos;', "'")
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
+    return decodeHtmlEntities(input.replaceAll(RegExp('<[^>]+>'), ' '))
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }

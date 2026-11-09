@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:navis/src/utils/genre_key.dart';
+import 'package:navis/src/utils/html_entities.dart';
 
 part 'song.freezed.dart';
 part 'song.g.dart';
@@ -9,10 +10,10 @@ abstract class Song with _$Song {
   @JsonSerializable(explicitToJson: true)
   const factory({
     required String id,
-    required String title,
-    String? album,
+    @JsonKey(readValue: readDecodedString) required String title,
+    @JsonKey(readValue: readDecodedString) String? album,
     String? albumId,
-    String? artist,
+    @JsonKey(readValue: readDecodedString) String? artist,
     String? artistId,
     int? track,
     int? discNumber,
@@ -53,11 +54,18 @@ Object? _readGenresJson(Map<dynamic, dynamic> json, String _) {
   // Accepts the server's `{name}` objects and plain strings, so a song
   // serialized by [Song.toJson] reads back unchanged.
   final names = list is List
-      ? resolveGenres(list.map((e) => (e is Map ? e['name'] : e)?.toString()))
+      ? resolveGenres(
+          list.map((e) {
+            final name = (e is Map ? e['name'] : e)?.toString();
+            return name == null ? null : decodeHtmlEntities(name);
+          }),
+        )
       : const <String>[];
   if (names.isNotEmpty) return names;
   final legacy = json['genre'];
-  return legacy is String ? resolveGenres([legacy]) : const <String>[];
+  return legacy is String
+      ? resolveGenres([decodeHtmlEntities(legacy)])
+      : const <String>[];
 }
 
 /// ReplayGain metadata from the OpenSubsonic API.
