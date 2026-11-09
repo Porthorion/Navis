@@ -328,6 +328,7 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
     ],
+    specialThanks: ['To Tas for the theming and color suggestions.'],
   ),
   ChangelogVersion(
     version: '1.5.1',
