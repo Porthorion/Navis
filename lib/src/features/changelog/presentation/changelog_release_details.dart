@@ -254,7 +254,8 @@ class _EntrySection extends StatelessWidget {
 }
 
 /// "N changes for other platforms": one quiet line that expands those entries
-/// in place, each labelled with its platforms. Nothing when there are none;
+/// in place, grouped under one small subheading per set of platforms (the
+/// release notes' groups and order). Nothing when there are none;
 /// [alwaysOpen] lists them without the line.
 class _OtherPlatforms extends StatelessWidget {
   const new({
@@ -273,6 +274,7 @@ class _OtherPlatforms extends StatelessWidget {
   Widget build(BuildContext context) {
     if (entries.isEmpty) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(top: NavisSpace.md),
       child: AnimatedSize(
@@ -305,12 +307,24 @@ class _OtherPlatforms extends StatelessWidget {
                 ),
               ),
             if (alwaysOpen || expanded)
-              for (final entry in entries)
-                ChangelogEntryTile(
-                  entry: entry,
-                  platformLabel: entry.platformsLabel,
-                  muted: true,
+              for (final (label, group) in groupByPlatforms(
+                entries,
+              )) ...<Widget>[
+                Padding(
+                  padding: const EdgeInsets.only(top: NavisSpace.sm),
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      label,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
                 ),
+                for (final entry in group)
+                  ChangelogEntryTile(entry: entry, muted: true),
+              ],
           ],
         ),
       ),

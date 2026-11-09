@@ -125,6 +125,30 @@ class ChangelogEntry {
   }
 }
 
+/// Groups the platform-limited [entries] by [ChangelogEntry.platformsLabel],
+/// keeping data order within a group. Groups run by their first platform,
+/// then fewer platforms first: Android, iOS, macOS, Desktop. The release
+/// notes and the in-app "other platforms" list share this.
+List<(String label, List<ChangelogEntry> entries)> groupByPlatforms(
+  Iterable<ChangelogEntry> entries,
+) {
+  final groups = <String, List<ChangelogEntry>>{};
+  for (final entry in entries.where((e) => e.platforms.isNotEmpty)) {
+    (groups[entry.platformsLabel!] ??= []).add(entry);
+  }
+  int order(ChangelogEntry entry) {
+    final indexes = entry.platforms.map((p) => p.index).toList()..sort();
+    return indexes.first * 10 + entry.platforms.length;
+  }
+
+  return <(String, List<ChangelogEntry>)>[
+    for (final label
+        in groups.keys.toList()
+          ..sort((a, b) => order(groups[a]!.first) - order(groups[b]!.first)))
+      (label, groups[label]!),
+  ];
+}
+
 /// A platform a changelog entry can be limited to.
 enum ChangelogPlatform(final String label) {
   android('Android'),
@@ -251,11 +275,13 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Songs from Deezer behave better next to your library: a Deezer copy '
-        'of a song you own links to it, so Search lists it once and shows '
-        "your file's quality, and Deezer songs can no longer be liked (their "
-        'heart is greyed out). Earlier likes move to your library copy when '
-        'there is one',
+        'Search results from Deezer that you already own are now matched to '
+        'the song in your library, even when Deezer has it as a single and '
+        'you have it on an album: Search lists it once and shows your own '
+        'file’s quality. Songs that are only on Deezer can’t be liked, '
+        'because they aren’t on your server, so their heart is greyed out; '
+        'anything you liked on a Deezer copy before moves to your library '
+        'copy',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -339,10 +365,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Fixed a crash on macOS, and frozen screen-reader output on '
-        'Windows, when an accessibility tool such as VoiceOver or Narrator '
-        'is running',
-        platforms: {ChangelogPlatform.macos, ChangelogPlatform.windows},
+        'Navis no longer crashes while VoiceOver or another accessibility '
+        'tool is running',
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Screen readers such as Narrator no longer freeze on Navis',
+        platforms: {ChangelogPlatform.windows},
         type: ChangelogEntryType.fix,
       ),
     ],
