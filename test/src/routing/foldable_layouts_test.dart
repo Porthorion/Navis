@@ -8,7 +8,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
-import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:flutter/rendering.dart' show RenderBox, RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -516,6 +516,10 @@ final _topResults = <SearchTopResult>[
 ];
 
 List<Override> _searchOverrides() => <Override>[
+  // Search matches stations; a failing fetch would leave a retry timer.
+  radioStationsProvider.overrideWith(
+    (ref) async => const <InternetRadioStation>[],
+  ),
   debouncedSearchProvider.overrideWith(
     (ref) => Stream.value(
       SearchResultsState(
@@ -581,6 +585,84 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(activeLetter(), isNot('A'));
+    });
+
+    _testApp('the rail names the letter of the top card, also after a resize', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _duoFolded);
+      final db = container.read(navisDatabaseProvider);
+      // Enough artists per letter for 3 -> 5 columns to move the content by
+      // more than a letter.
+      await db.appSettingsDao.updateArtistViewMode('grid');
+      await db.batch((batch) {
+        batch.insertAll(db.artistsTable, <ArtistsTableCompanion>[
+          for (final letter in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''))
+            for (var n = 0; n < 10; n++)
+              ArtistsTableCompanion.insert(
+                id: 'extra-$letter-$n',
+                name: '$letter band $n',
+                albumCount: const Value(1),
+              ),
+        ]);
+      });
+      await _go(tester, AppRoutes.librarySection('artists'));
+      await _settle(tester);
+
+      String? activeLetter() {
+        final finder = find.byKey(const Key('artistRailActiveLetter'));
+        return finder.evaluate().isEmpty
+            ? null
+            : tester.widget<Text>(finder).data;
+      }
+
+      // What the rail should show: the last section whose header box starts
+      // within 48 dp of the grid's top, read from the rendered headers (a
+      // section header is a one-character Text in a Padding).
+      String expectedLetter() {
+        final grid = find.byElementPredicate(
+          (e) => e == _pageScrollable(tester).context,
+        );
+        final gridTop = tester.getRect(grid).top;
+        final headers =
+            find
+                .descendant(
+                  of: grid,
+                  matching: find.byWidgetPredicate(
+                    (w) =>
+                        w is Text && RegExp(r'^[A-Z#]$').hasMatch(w.data ?? ''),
+                    skipOffstage: false,
+                  ),
+                  skipOffstage: false,
+                )
+                .evaluate()
+                .map(
+                  (e) => (
+                    (e.widget as Text).data!,
+                    ((e.renderObject!.parent! as RenderBox)
+                            .localToGlobal(Offset.zero)
+                            .dy -
+                        gridTop),
+                  ),
+                )
+                .where((h) => h.$2 <= 48)
+                .map((h) => h.$1)
+                .toList()
+              ..sort();
+        return headers.last;
+      }
+
+      // Small steps, so the rail is checked at many section boundaries.
+      for (var i = 0; i < 14; i++) {
+        await tester.dragFrom(const Offset(200, 500), const Offset(0, -130));
+        await _settle(tester, 2);
+        expect(activeLetter(), expectedLetter(), reason: 'folded, step $i');
+      }
+      expect(activeLetter(), isNot('A'));
+
+      await _resize(tester, _duoLandscapeStrip);
+      expect(tester.takeException(), isNull);
+      expect(activeLetter(), expectedLetter(), reason: 'after the resize');
     });
   });
 
@@ -1724,6 +1806,93 @@ void main() {
     }
   });
 
+  group('Search with the keyboard in the compact wide shell', () {
+    // The page sits above the mini player, so the shell takes that height off
+    // the keyboard inset: the page's own Scaffold must not count it twice.
+    for (final (playback, scale, offline)
+        in <(PlaybackSnapshot?, double, bool)>[
+          (_playing, 1, false),
+          (null, 1, false),
+          (_playing, 1.3, false),
+          (_playing, 1, true),
+          (null, 1.3, true),
+        ]) {
+      _testApp('iPhone SE landscape fits: playing=${playback != null} '
+          'text x$scale offline=$offline', (tester) async {
+        final container = await _pumpApp(
+          tester,
+          _phoneSE,
+          playback: playback,
+          textScale: scale,
+          extraOverrides: <Override>[
+            ..._searchOverrides(),
+            if (offline) searchIsOfflineProvider.overrideWithValue(true),
+          ],
+        );
+        await _go(tester, AppRoutes.search);
+        container.read(searchQueryProvider.notifier).submit('love');
+        await _settle(tester, 15);
+        expect(find.byType(ChoiceChip), findsWidgets);
+
+        tester.view.viewInsets = const FakeViewPadding(bottom: 205 * 3);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pump();
+        await _settle(tester, 10);
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(TextField), findsOne);
+        expect(find.byType(ChoiceChip), findsNothing);
+
+        // The filters make room for the results while the keyboard is up
+        // and come back when it closes.
+        tester.view.resetViewInsets();
+        await tester.pump();
+        await _settle(tester, 10);
+        expect(tester.takeException(), isNull);
+        expect(find.byType(ChoiceChip), findsWidgets);
+      });
+    }
+  });
+
+  group('Sheets on the page navigator with the keyboard (compact wide)', () {
+    // The sheet sits in the page's navigator, whose bottom edge is the mini
+    // player's top. Its field must end at the keyboard's top, not above it.
+    for (final keyboard in <double>[205, 120]) {
+      _testApp('a sheet field rides on the keyboard: ${keyboard.toInt()}', (
+        tester,
+      ) async {
+        await _pumpApp(tester, _phoneSE, extraOverrides: _searchOverrides());
+        await _go(tester, AppRoutes.search);
+
+        const fieldKey = Key('sheet-field');
+        showModalBottomSheet<void>(
+          context: tester.element(find.byType(TextField).first),
+          useRootNavigator: false,
+          isScrollControlled: true,
+          builder: (context) => Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: const TextField(key: fieldKey),
+          ),
+        );
+        await _settle(tester, 8);
+        expect(find.byKey(fieldKey), findsOne);
+
+        tester.view.viewInsets = FakeViewPadding(bottom: keyboard * 3);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pump();
+        await _settle(tester, 10);
+
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getRect(find.byKey(fieldKey)).bottom,
+          closeTo(375 - keyboard, 1),
+        );
+      });
+    }
+  });
+
   group('I29 navigation pill in the side status strip', () {
     const stripLeft = 466.0 - 84;
     const duoLeftStrip = (
@@ -1929,6 +2098,46 @@ void main() {
       });
     }
 
+    // The keyboard shrinks the body, and the mini player rides above it. The
+    // pill is part of that body, so it hides while it cannot fit beside the
+    // player and returns with the bar-sized keyboard gone.
+    for (final playback in <PlaybackSnapshot?>[_playing, null]) {
+      _testApp('the keyboard hides the pill on the Duo cover: '
+          'playing=${playback != null}', (tester) async {
+        final container = await _pumpApp(
+          tester,
+          _duoFolded,
+          playback: playback,
+          extraOverrides: _searchOverrides(),
+        );
+        await _go(tester, AppRoutes.search);
+        container.read(searchQueryProvider.notifier).submit('love');
+        await _settle(tester, 15);
+        expect(tile(3), findsOne);
+
+        tester.view.padding = const FakeViewPadding(right: 84 * 3);
+        tester.view.viewInsets = const FakeViewPadding(bottom: 303 * 3);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pump();
+        await _settle(tester, 10);
+
+        expect(tester.takeException(), isNull);
+        expect(tile(3), findsNothing);
+        expect(find.byType(NavigationBar), findsNothing);
+        if (playback != null) {
+          expect(
+            tester.getRect(_miniPlayerStrip()).bottom,
+            lessThanOrEqualTo(678 - 303),
+          );
+        }
+
+        tester.view.resetViewInsets();
+        await tester.pump();
+        await _settle(tester, 10);
+        expect(tile(3), findsOne);
+      });
+    }
+
     // Only the bottom inset differs between padding and viewPadding, and a
     // zero bottom can only make the strip fit, so the boundary is probed from
     // the bar side: 490 - 34 = 456 < 464 keeps the bar, 490 would fit.
@@ -1956,8 +2165,21 @@ void main() {
         await _settle(tester, 10);
 
         expect(tester.takeException(), isNull);
-        expect(tile(0).evaluate().length, pill ? 1 : 0);
+        // The mode is kept (no bar in the pill row). The pill itself hides
+        // under the keyboard, which leaves no room for it.
+        expect(tile(0), findsNothing);
         expect(find.byType(NavigationBar).evaluate().length, pill ? 0 : 1);
+
+        if (pill) {
+          tester.view.resetViewInsets();
+          tester.view.padding = const FakeViewPadding(
+            right: 84 * 3,
+            bottom: 34 * 3,
+          );
+          await tester.pump();
+          await _settle(tester, 10);
+          expect(tile(0), findsOne);
+        }
       });
     }
 

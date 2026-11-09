@@ -41,6 +41,11 @@ class SearchScreen extends ConsumerStatefulWidget {
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
 }
 
+/// Below this body height (a short window with the keyboard up) the filter
+/// chips and the offline banner give way to the results: the search bar and
+/// padding take about 150 px, and the results need a little more.
+const double _kSearchFiltersMinHeight = 200;
+
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
@@ -310,50 +315,56 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           compactHorizontalInset,
           16,
         ),
-        child: Column(
-          children: <Widget>[
-            if (compactWideLandscapeMode)
-              _SearchBar(
-                controller: _controller,
-                focusNode: _focusNode,
-                hint: l10n.searchHint,
-                onChanged: _onQueryChanged,
-                onSubmitted: _onSearchSubmitted,
-                onClear: hasQuery ? _clearSearch : null,
-              )
-            else
-              DesktopPanel(
-                child: _SearchBar(
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  hint: l10n.searchHint,
-                  onChanged: _onQueryChanged,
-                  onSubmitted: _onSearchSubmitted,
-                  onClear: hasQuery ? _clearSearch : null,
-                  desktopMode: true,
-                ),
-              ),
-            const SizedBox(height: 10),
-            if (hasQuery)
-              _SearchFilterChips(desktopMode: !compactWideLandscapeMode),
-            if (hasQuery)
-              _OfflineSearchBanner(desktopMode: !compactWideLandscapeMode),
-            Expanded(
-              child: compactWideLandscapeMode
-                  ? (hasQuery ? _buildResults() : _buildRecentSearches())
-                  : Card(
-                      margin: EdgeInsets.zero,
-                      clipBehavior: Clip.antiAlias,
-                      child: hasQuery
-                          ? _buildResults(desktopMode: true)
-                          : _buildRecentSearches(
-                              desktopMode: true,
-                              compactWideLandscapeMode:
-                                  compactWideLandscapeMode,
-                            ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final showFilters =
+                constraints.maxHeight >= _kSearchFiltersMinHeight;
+            return Column(
+              children: <Widget>[
+                if (compactWideLandscapeMode)
+                  _SearchBar(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    hint: l10n.searchHint,
+                    onChanged: _onQueryChanged,
+                    onSubmitted: _onSearchSubmitted,
+                    onClear: hasQuery ? _clearSearch : null,
+                  )
+                else
+                  DesktopPanel(
+                    child: _SearchBar(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      hint: l10n.searchHint,
+                      onChanged: _onQueryChanged,
+                      onSubmitted: _onSearchSubmitted,
+                      onClear: hasQuery ? _clearSearch : null,
+                      desktopMode: true,
                     ),
-            ),
-          ],
+                  ),
+                if (showFilters) const SizedBox(height: 10),
+                if (hasQuery && showFilters) ...<Widget>[
+                  _SearchFilterChips(desktopMode: !compactWideLandscapeMode),
+                  _OfflineSearchBanner(desktopMode: !compactWideLandscapeMode),
+                ],
+                Expanded(
+                  child: compactWideLandscapeMode
+                      ? (hasQuery ? _buildResults() : _buildRecentSearches())
+                      : Card(
+                          margin: EdgeInsets.zero,
+                          clipBehavior: Clip.antiAlias,
+                          child: hasQuery
+                              ? _buildResults(desktopMode: true)
+                              : _buildRecentSearches(
+                                  desktopMode: true,
+                                  compactWideLandscapeMode:
+                                      compactWideLandscapeMode,
+                                ),
+                        ),
+                ),
+              ],
+            );
+          },
         ),
       );
       return Scaffold(

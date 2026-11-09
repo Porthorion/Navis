@@ -104,6 +104,11 @@ class LibraryScreen extends ConsumerStatefulWidget {
   ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
 }
 
+/// A section of the artist grid is the active letter once its header is
+/// within this distance of the grid's top: under one grid row, so at most a
+/// partial row of the previous section shows above it.
+const double _kArtistGridActiveLetterOffset = 48;
+
 class _LibraryScreenState extends ConsumerState<LibraryScreen>
     with TickerProviderStateMixin {
   _AlbumSort _albumSort = _AlbumSort.recentlyAdded;
@@ -2353,51 +2358,63 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     return LayoutBuilder(
       builder: (context, constraints) {
         final inset = ContentLayout.padding(constraints.maxWidth);
-        return CustomScrollView(
-          key: const PageStorageKey<String>('library-artists-grid'),
-          controller: _artistsGridScrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: <Widget>[
-            for (final letter in letters) ...<Widget>[
-              SliverToBoxAdapter(
-                // The key sits on the box child: a sliver's render object is
-                // not a RenderBox, so the scroll tracking could not measure it.
-                child: Padding(
-                  key: _artistGridSectionKeys[letter],
-                  padding: EdgeInsets.fromLTRB(inset, 10, inset, 6),
-                  child: Text(
-                    letter,
-                    style: Theme.of(context).textTheme.titleMedium,
+        // A layout change (fold, column count) moves the sections without a
+        // scroll, so the active letter is recomputed on metrics changes too.
+        return NotificationListener<ScrollMetricsNotification>(
+          onNotification: (_) {
+            _onArtistsGridScrolled();
+            return false;
+          },
+          child: CustomScrollView(
+            key: const PageStorageKey<String>('library-artists-grid'),
+            controller: _artistsGridScrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: <Widget>[
+              for (final letter in letters) ...<Widget>[
+                SliverToBoxAdapter(
+                  // The key sits on the box child: a sliver's render object is
+                  // not a RenderBox, so the scroll tracking could not measure it.
+                  child: Padding(
+                    key: _artistGridSectionKeys[letter],
+                    padding: EdgeInsets.fromLTRB(inset, 10, inset, 6),
+                    child: Text(
+                      letter,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                   ),
                 ),
-              ),
-              ResponsiveContentSliverGrid(
-                itemCount: grouped[letter]?.length ?? 0,
-                artists: true,
-                trailingInset: 28 + sectionRailEndGap(context),
-                itemBuilder: (context, index) {
-                  final byLetter =
-                      grouped[letter] ?? const <ArtistsTableData>[];
-                  final artist = byLetter[index];
-                  return RepaintBoundary(
-                    child: ArtistCard.grid(
-                      key: ValueKey(artist.id),
-                      artist: artist,
-                      onTap: () =>
-                          NavService.openArtistDetail(context, ref, artist.id),
-                      onLongPress: () => _showArtistActions(context, artist.id),
-                      onSecondaryTapDown: (details) => _showArtistActions(
-                        context,
-                        artist.id,
-                        anchor: details.globalPosition,
+                ResponsiveContentSliverGrid(
+                  itemCount: grouped[letter]?.length ?? 0,
+                  artists: true,
+                  trailingInset: 28 + sectionRailEndGap(context),
+                  itemBuilder: (context, index) {
+                    final byLetter =
+                        grouped[letter] ?? const <ArtistsTableData>[];
+                    final artist = byLetter[index];
+                    return RepaintBoundary(
+                      child: ArtistCard.grid(
+                        key: ValueKey(artist.id),
+                        artist: artist,
+                        onTap: () => NavService.openArtistDetail(
+                          context,
+                          ref,
+                          artist.id,
+                        ),
+                        onLongPress: () =>
+                            _showArtistActions(context, artist.id),
+                        onSecondaryTapDown: (details) => _showArtistActions(
+                          context,
+                          artist.id,
+                          anchor: details.globalPosition,
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
+              ],
+              const SliverToBoxAdapter(child: SizedBox(height: 72)),
             ],
-            const SliverToBoxAdapter(child: SizedBox(height: 72)),
-          ],
+          ),
         );
       },
     );
@@ -2413,6 +2430,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       return;
     }
 
+    final viewport = _artistsGridScrollController
+        .position
+        .context
+        .notificationContext
+        ?.findRenderObject();
     String? nextActive;
     for (final entry in entries) {
       final context = entry.value.currentContext;
@@ -2423,8 +2445,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       if (box == null || !box.attached) {
         continue;
       }
-      final dy = box.localToGlobal(Offset.zero).dy;
-      if (dy <= 140) {
+      // Measured from the grid's own top: it sits at a different screen
+      // height on every layout.
+      final dy = box.localToGlobal(Offset.zero, ancestor: viewport).dy;
+      if (dy <= _kArtistGridActiveLetterOffset) {
         nextActive = entry.key;
       }
     }
