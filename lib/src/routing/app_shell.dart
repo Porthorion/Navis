@@ -123,6 +123,9 @@ class _AppShellState extends ConsumerState<AppShell> {
   static const int _kQueueCoverArtPrefetchSizePx = kCoverArtStandardSize;
   static const int _kQueueCoverArtPrefetchDedupeCap = 320;
   final ValueNotifier<double> _playerSheetProgress = ValueNotifier<double>(0);
+
+  /// Whether the last build used the bottom-navigation layout.
+  bool _bottomNavLayoutActive = false;
   final AppNoticeController _appNoticeController = AppNoticeController();
   final Set<String> _queueCoverArtPrefetchedKeys = <String>{};
   final ListQueue<String> _queueCoverArtPrefetchedOrder = ListQueue<String>();
@@ -1018,6 +1021,17 @@ class _AppShellState extends ConsumerState<AppShell> {
         : mediaViewPadding.bottom;
     final useStandardRailNavigation = adaptiveContext.useStandardRailNavigation;
     final useRailNavigation = adaptiveContext.useRailNavigation;
+    final ltr = Directionality.of(context) == TextDirection.ltr;
+    final bottomNavLayout = !useDesktopShell && !useRailNavigation;
+    if (bottomNavLayout && !_bottomNavLayoutActive) {
+      // The sheet mounts with this layout and reports its start value only
+      // after the frame, so seed it: the bar must not flash over an open
+      // player for one frame (or hide for one over a closed one). Nothing
+      // listens yet: the bar's reveal mounts with this layout, so this does
+      // not mark anything dirty during build.
+      _playerSheetProgress.value = showPlayer && isExpanded ? 1 : 0;
+    }
+    _bottomNavLayoutActive = bottomNavLayout;
     final isMiniPlayerMode =
         desktopRuntime &&
         ref.watch(
@@ -1657,14 +1671,14 @@ class _AppShellState extends ConsumerState<AppShell> {
                                       right: mediaPadding.right,
                                     )
                                   : EdgeInsets.zero,
-                              // The shell owns the horizontal safe area (a
-                              // right system strip, a notch) so no page has to.
-                              // Compact wide pads it above instead.
-                              child: SafeArea(
-                                top: false,
-                                bottom: false,
-                                left: !useCompactWideLandscape,
-                                right: !useCompactWideLandscape,
+                              // Each side of the Row takes its own system inset
+                              // (a notch, a status strip) so a page never sits
+                              // under one and the rail's background still runs
+                              // to the screen edge. Compact wide pads it here.
+                              child: ConsumedRightInset(
+                                inset: useCompactWideLandscape || !ltr
+                                    ? 0
+                                    : mediaPadding.right,
                                 child: Row(
                                   children: <Widget>[
                                     Material(
@@ -1672,8 +1686,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                           .colorScheme
                                           .surfaceContainerLow,
                                       child: SafeArea(
-                                        left: false,
-                                        right: false,
+                                        left: !useCompactWideLandscape && ltr,
+                                        right: !useCompactWideLandscape && !ltr,
                                         minimum: EdgeInsets.only(
                                           bottom: railBottomInset,
                                         ),
@@ -1754,9 +1768,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                                     ),
                                     Expanded(
                                       child: SafeArea(
-                                        left: false,
+                                        left: !useCompactWideLandscape && !ltr,
                                         top: false,
-                                        right: false,
+                                        right: !useCompactWideLandscape && ltr,
                                         bottom:
                                             !(useCompactWideLandscape &&
                                                 showPlayer),
@@ -1992,47 +2006,56 @@ class _AppShellState extends ConsumerState<AppShell> {
                               ),
                             )
                           else
-                            _BottomNavInsetPadding(
-                              child: Column(
-                                children: <Widget>[
-                                  Expanded(
-                                    // Pages clear a right system strip or a
-                                    // notch here, once; the player sheet
-                                    // below keeps the real padding and runs
-                                    // edge to edge.
-                                    child: SafeArea(
-                                      top: false,
-                                      bottom: false,
-                                      child: ShellOfflineBannerFrame(
-                                        child:
-                                            NotificationListener<
-                                              NavigationNotification
-                                            >(
-                                              // Absorb branch-level NavigationNotification so
-                                              // canHandlePop:false from the branch navigator
-                                              // never reaches the Router and sets
-                                              // setFrameworkHandlesBack(false) on Android 14+.
-                                              onNotification: (_) => true,
-                                              child:
-                                                  NavigatorPopHandler<Object?>(
-                                                    enabled: true,
-                                                    onPopWithResult: (result) {
-                                                      _handleShellBack();
-                                                    },
-                                                    child: navigationShell,
-                                                  ),
-                                            ),
+                            ConsumedRightInset(
+                              inset: mediaPadding.right,
+                              child: _BottomNavInsetPadding(
+                                child: Column(
+                                  children: <Widget>[
+                                    Expanded(
+                                      // Pages clear a right system strip or a
+                                      // notch here, once; the player sheet
+                                      // below keeps the real padding and runs
+                                      // edge to edge.
+                                      child: SafeArea(
+                                        top: false,
+                                        bottom: false,
+                                        child: ShellOfflineBannerFrame(
+                                          child:
+                                              NotificationListener<
+                                                NavigationNotification
+                                              >(
+                                                // Absorb branch-level NavigationNotification so
+                                                // canHandlePop:false from the branch navigator
+                                                // never reaches the Router and sets
+                                                // setFrameworkHandlesBack(false) on Android 14+.
+                                                onNotification: (_) => true,
+                                                child:
+                                                    NavigatorPopHandler<
+                                                      Object?
+                                                    >(
+                                                      enabled: true,
+                                                      onPopWithResult:
+                                                          (result) {
+                                                            _handleShellBack();
+                                                          },
+                                                      child: navigationShell,
+                                                    ),
+                                              ),
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  AnimatedContainer(
-                                    duration: const Duration(milliseconds: 260),
-                                    curve: Curves.easeOutCubic,
-                                    height: showPlayer
-                                        ? ExpandablePlayerSheet.miniPlayerHeight
-                                        : 0.0,
-                                  ),
-                                ],
+                                    AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 260,
+                                      ),
+                                      curve: Curves.easeOutCubic,
+                                      height: showPlayer
+                                          ? ExpandablePlayerSheet
+                                                .miniPlayerHeight
+                                          : 0.0,
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
                           if (!useDesktopShell && !useRailNavigation)

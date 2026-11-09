@@ -1,3 +1,4 @@
+import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/cover_art_viewer.dart';
 import 'package:flutter/services.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
@@ -284,6 +285,7 @@ Widget _buildApp({
   TextScaler? textScaler,
   ThemeData? theme,
   AppNoticeController? notices,
+  TextDirection? textDirection,
 }) {
   return ProviderScope(
     overrides: [
@@ -308,6 +310,9 @@ Widget _buildApp({
       supportedLocales: AppLocalizations.supportedLocales,
       builder: (context, child) {
         var app = child!;
+        if (textDirection != null) {
+          app = Directionality(textDirection: textDirection, child: app);
+        }
         if (textScaler != null) {
           app = MediaQuery(
             data: MediaQuery.of(context).copyWith(textScaler: textScaler),
@@ -352,6 +357,20 @@ const _mobileContext = AdaptiveContext(
   useStandardRailNavigation: false,
   useCompactWideLandscape: false,
   useRailNavigation: false,
+);
+
+// A tablet or unfolded foldable: not a phone form factor, mobile page body.
+const _tabletContext = AdaptiveContext(
+  desktopRuntime: false,
+  desktopWide: false,
+  desktopLayoutClass: DesktopLayoutClass.compactDesktop,
+  adaptiveLayoutClass: AdaptiveLayoutClass.tabletExpanded,
+  adaptiveShellMode: AdaptiveShellMode.standardRail,
+  isPhoneFormFactor: false,
+  useDesktopShell: false,
+  useStandardRailNavigation: true,
+  useCompactWideLandscape: false,
+  useRailNavigation: true,
 );
 
 const _desktopContext = AdaptiveContext(
@@ -501,10 +520,12 @@ Future<void> _pumpAlbumDetail(
   TextScaler? textScaler,
   ThemeData? theme,
   AppNoticeController? notices,
+  TextDirection? textDirection,
 }) async {
   await tester.pumpWidget(
     _buildApp(
       notices: notices,
+      textDirection: textDirection,
       child: AlbumDetailScreen(
         albumId: 'album-1',
         openingHeroTag: openingHeroTag,
@@ -1451,6 +1472,48 @@ void main() {
       expect(find.text('Song 1'), findsOneWidget);
       await _disposeApp(tester);
     });
+
+    for (final (direction, leading) in <(TextDirection, bool)>[
+      (TextDirection.ltr, true),
+      (TextDirection.rtl, false),
+    ]) {
+      testWidgets('tablet album Play keeps its 16 dp start inset: $direction', (
+        tester,
+      ) async {
+        setAdaptiveTestViewport(tester, const Size(951, 669));
+        await _pumpAlbumDetail(
+          tester,
+          database: database,
+          adaptiveContext: _tabletContext,
+          textDirection: direction,
+          album: _albumWithSongs(const <SongsTableData>[
+            SongsTableData(
+              id: 'rtl-song',
+              title: 'Song',
+              artistName: 'Artist',
+              albumName: 'Album',
+              duration: 100,
+              track: 1,
+              isExternal: false,
+              isProvisional: false,
+            ),
+          ]),
+        );
+        await tester.pump(const Duration(milliseconds: 300));
+
+        final play = tester.getRect(
+          find
+              .descendant(
+                of: find.byType(EntityActionBar),
+                matching: find.byType(IconButton),
+              )
+              .first,
+        );
+        final page = tester.getRect(find.byType(FlexibleSpaceBar));
+        expect(leading ? play.left - page.left : page.right - play.right, 16);
+        await _disposeApp(tester);
+      });
+    }
 
     testWidgets('mobile album keeps numbered controls beside 64 px tracks', (
       tester,

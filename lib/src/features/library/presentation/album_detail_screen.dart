@@ -1355,7 +1355,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             Padding(
                               // Play lines up with the 16 dp text above on wider screens; a
                               // phone's row is full at 4.
-                              padding: EdgeInsets.fromLTRB(
+                              padding: EdgeInsetsDirectional.fromSTEB(
                                 adaptiveContext.isPhoneFormFactor ? 4 : 16,
                                 0,
                                 4,

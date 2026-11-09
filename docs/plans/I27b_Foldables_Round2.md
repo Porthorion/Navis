@@ -37,3 +37,33 @@ Not changed: the compact-wide `Padding` path, round-1 `rightSystemInsetFor`
 calls (they return 0 under the shell now), the shell-mode thresholds, the
 desktop sidebar widths, and the double inset in compact-wide Now Playing
 (`now_playing_screen.dart`, follow-up on #410).
+
+## Review fixes
+
+A fresh review and the Duo runtime pass confirmed D1–D7. Follow-up commit:
+
+- **Play inset in RTL:** the album action row uses
+  `EdgeInsetsDirectional.fromSTEB`, so an RTL tablet insets the Play side.
+  Test: `library_detail_screens_test.dart`, LTR and RTL.
+- **Rail beside a left notch:** the outer `SafeArea` around the Row padded the
+  rail too, so the shell background showed left of it. The rail's own
+  `SafeArea` now takes its leading side only, and the pane's takes the pane
+  side only, so the rail background reaches the screen edge and a right strip
+  still adds nothing to the rail (270). RTL swaps the sides. The full app only
+  has an English locale, so the RTL shell is not covered by a test.
+- **Bar flash:** on entering the bottom-navigation layout the shell seeds
+  `_playerSheetProgress` (1 with an open player, 0 otherwise) before the bar's
+  reveal mounts, so the bar is off screen on the first frame. Nothing listens
+  at that point, so it does not mark anything dirty during build.
+- **Alphabet rail gutter:** on the folded cover the rail ended flush with the
+  status strip. `SafeArea` removes the inset from `padding` and `viewPadding`,
+  so nothing in `MediaQuery` tells a page it sits beside one. The shell now
+  provides `ConsumedRightInset` (in `desktop_layout.dart`) around the page area
+  and the rail adds the 12 dp page margin as a gap when it is set. Ordinary
+  phones and the compact wide shell see no inset and keep the rail where it
+  was. The Playlists and Radio buttons (16 dp margin) and the sort control
+  already leave more than 12 dp, so they are unchanged (guarded by a test).
+- **Tests tightened:** each D1 test now measures a widget that ran under the
+  strip on the original code (artist heart buttons and rows, playlist rows,
+  album cards, the Liked strip) and fails there; the D4 text scale and D5
+  593/666/671 dp cases are labelled regression guards.

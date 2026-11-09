@@ -385,9 +385,14 @@ class _SectionRail extends StatelessWidget {
       ),
     );
     // The rail floats at the right edge: stay clear of a system strip there
-    // (the iPhone Duo cover screen); the page behind still runs edge to edge.
+    // (the iPhone Duo cover screen). Beside one the shell already cleared, keep
+    // the page's 12 dp side margin as a gap before it.
     return Padding(
-      padding: EdgeInsets.only(right: rightSystemInsetFor(context)),
+      padding: EdgeInsets.only(
+        right:
+            rightSystemInsetFor(context) +
+            (ConsumedRightInset.of(context) ? 12 : 0),
+      ),
       child: rail,
     );
   }
