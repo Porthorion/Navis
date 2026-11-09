@@ -140,6 +140,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Turning crossfade, gapless, ReplayGain, speed or pitch off or on in '
+        'Settings now takes effect right away during playback',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Songs already in your queue pick up changed ReplayGain after a sync, '
         'from the next song on. The song that is playing keeps its level',
         type: ChangelogEntryType.improvement,
