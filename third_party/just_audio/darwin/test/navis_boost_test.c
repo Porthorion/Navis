@@ -1,5 +1,5 @@
 // Host-side tests for NavisBoost.c (iOS ReplayGain boost, I24): the pure timing
-// decision (a C port of Dart's guardedBoostDb plus the hold) and the click-free
+// decision (the last-seconds guard, latch and hold) and the click-free
 // gain ramp. Run by tool/equalizer_native_test.sh under ASan/UBSan.
 #include "../just_audio/Sources/just_audio/NavisBoost.h"
 

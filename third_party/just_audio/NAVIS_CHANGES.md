@@ -271,11 +271,8 @@ or headers were set, so a Navis `content://` (Android SAF) download reached
 gain) to the platform, translating the boost of each queued source to the URI
 the platform loads it from. A backend without a boost stage throws
 `UnimplementedError`; the Android bridge no longer implements it (its stage is
-`setReplayGainLevels`), and mpv's adapter is moving to the same levels path.
-
-`AudioPlayer.sequenceEditInFlight` exposes whether a playlist edit's platform
-call is still running, so a caller can tell that `sequence` is already the
-edited list while `currentIndex` still counts the old one.
+`setReplayGainLevels`), and neither does mpv's adapter, which uses the same
+levels path.
 
 ## iOS ReplayGain boost (I24)
 

@@ -866,22 +866,6 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Stream<LoopMode> get loopModeStream => _loopModes.stream;
 
-  /// A queue edit whose platform call has not completed (just_audio's
-  /// `sequenceEditInFlight`), and the stale-index state it leaves.
-  bool editInFlight = false;
-
-  bool throwOnEditCheck = false;
-
-  @override
-  bool get sequenceEditInFlight {
-    if (throwOnEditCheck) throw StateError('boost state could not be read');
-    return editInFlight;
-  }
-
-  /// Drops source [at] as just_audio does: the sequence is the edited list at
-  /// once and the index stays the old one until the platform replies.
-  void removeSourceKeepingIndex(int at) => _sources.removeAt(at);
-
   /// What the native processor reports back (Android EQ state and boost).
   EqualizerStateMessage nativeEqualizerState = const EqualizerStateMessage(
     enabled: false,
@@ -1029,9 +1013,7 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
       <
         ({
           double currentDb,
-          bool guarded,
           bool playing,
-          int? index,
           Map<String?, double> bySongId,
           Map<String?, int> durationMsBySongId,
         })
@@ -1040,16 +1022,12 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Future<void> setReplayGainBoost({
     required double currentDb,
-    bool guarded = false,
-    int? index,
     Map<IndexedAudioSource, double> bySource = const {},
     Map<IndexedAudioSource, int> durationMsBySource = const {},
   }) async {
     boostMessages.add((
       currentDb: currentDb,
-      guarded: guarded,
       playing: isPlaying,
-      index: index,
       bySongId: {
         for (final entry in bySource.entries)
           navisNativeSourceSongId(entry.key): entry.value,
@@ -16640,8 +16618,6 @@ void main() {
             final sent = player.boostMessages.last;
             expect(sent.currentDb, 6);
             expect(sent.bySongId, {'song-0': 6.0, 'song-1': 0.0});
-            expect(sent.index, isNull, reason: 'native knows the playing item');
-            expect(sent.guarded, isFalse, reason: 'native owns the guard');
             expect(
               sent.durationMsBySongId,
               {'song-0': 200000, 'song-1': 200000},
@@ -16666,8 +16642,6 @@ void main() {
           await settleQueue(handler);
           final sent = player.boostMessages.last;
           expect(sent.currentDb, 3);
-          expect(sent.guarded, isFalse);
-          expect(sent.index, isNull);
           expect(
             player.boostMessages.where(
               (message) =>

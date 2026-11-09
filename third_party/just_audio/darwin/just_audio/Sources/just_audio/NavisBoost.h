@@ -38,9 +38,9 @@ typedef struct {
     bool latched;       // guarded with known timing: store as the next input's `latched` until the next song event
 } NavisBoostOutput;
 
-/// Main thread, no side effects. A port of Dart's guardedBoostDb: the song's duration is the smaller
-/// of the player's and the tag's that are known (AVPlayer's can be wrong for a VBR MP3 without a
-/// Xing header or a stream; Android's rule), so the smaller remaining time wins. In the last
+/// Main thread, no side effects. The song's duration is the smaller of the player's and the tag's
+/// that are known (AVPlayer's can be wrong for a VBR MP3 without a Xing header or a stream),
+/// so the smaller remaining time wins. In the last
 /// `windowMs` of wall-clock time (media time over speed), for songs shorter than
 /// the window plus 1 s and when the timing is unknown, the target is the lower of
 /// the two songs' boosts; once guarded by the clock a song stays guarded and its target only
