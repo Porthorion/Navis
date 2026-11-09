@@ -276,7 +276,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'A song from Deezer that you already own now links to the song in '
-        'your library once you play, queue or like it, even when Deezer has '
+        'your library once you play, queue or download it, even when Deezer has '
         'it as a single and you have it on an album: Search lists it once and '
         'shows your own file’s quality. Songs that are only on Deezer can’t '
         'be liked, because they aren’t on your server, so their heart is '
