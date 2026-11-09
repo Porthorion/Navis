@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:navis/src/api/models/album.dart';
+import 'package:navis/src/utils/html_entities.dart';
 
 part 'artist.freezed.dart';
 part 'artist.g.dart';
@@ -8,7 +9,7 @@ part 'artist.g.dart';
 abstract class Artist with _$Artist {
   const factory({
     required String id,
-    required String name,
+    @JsonKey(readValue: readDecodedString) required String name,
     int? albumCount,
     String? coverArt,
     DateTime? starred,

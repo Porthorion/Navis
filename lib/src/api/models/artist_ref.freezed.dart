@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ArtistRef {
 
- String get id; String get name;
+ String get id;@JsonKey(readValue: readDecodedString) String get name;
 /// Create a copy of ArtistRef
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -54,7 +54,7 @@ abstract mixin class $ArtistRefCopyWith<$Res>  {
   factory $ArtistRefCopyWith(ArtistRef value, $Res Function(ArtistRef) _then) = _$ArtistRefCopyWithImpl;
 @useResult
 $Res call({
- String id, String name
+ String id,@JsonKey(readValue: readDecodedString) String name
 });
 
 
@@ -160,7 +160,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(readValue: readDecodedString)  String name)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ArtistRef() when $default != null:
 return $default(_that.id,_that.name);case _:
@@ -181,7 +181,7 @@ return $default(_that.id,_that.name);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(readValue: readDecodedString)  String name)  $default,) {final _that = this;
 switch (_that) {
 case _ArtistRef():
 return $default(_that.id,_that.name);case _:
@@ -201,7 +201,7 @@ return $default(_that.id,_that.name);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(readValue: readDecodedString)  String name)?  $default,) {final _that = this;
 switch (_that) {
 case _ArtistRef() when $default != null:
 return $default(_that.id,_that.name);case _:
@@ -216,11 +216,11 @@ return $default(_that.id,_that.name);case _:
 @JsonSerializable()
 
 class _ArtistRef implements ArtistRef {
-  const _ArtistRef({required this.id, required this.name});
+  const _ArtistRef({required this.id, @JsonKey(readValue: readDecodedString) required this.name});
   factory _ArtistRef.fromJson(Map<String, dynamic> json) => _$ArtistRefFromJson(json);
 
 @override final  String id;
-@override final  String name;
+@override@JsonKey(readValue: readDecodedString) final  String name;
 
 /// Create a copy of ArtistRef
 /// with the given fields replaced by the non-null parameter values.
@@ -257,7 +257,7 @@ abstract mixin class _$ArtistRefCopyWith<$Res> implements $ArtistRefCopyWith<$Re
   factory _$ArtistRefCopyWith(_ArtistRef value, $Res Function(_ArtistRef) _then) = __$ArtistRefCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name
+ String id,@JsonKey(readValue: readDecodedString) String name
 });
 
 

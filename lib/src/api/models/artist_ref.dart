@@ -9,13 +9,17 @@
 library;
 
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:navis/src/utils/html_entities.dart';
 
 part 'artist_ref.freezed.dart';
 part 'artist_ref.g.dart';
 
 @freezed
 abstract class ArtistRef with _$ArtistRef {
-  const factory({required String id, required String name}) = _ArtistRef;
+  const factory({
+    required String id,
+    @JsonKey(readValue: readDecodedString) required String name,
+  }) = _ArtistRef;
 
   factory fromJson(Map<String, dynamic> json) => _$ArtistRefFromJson(json);
 }

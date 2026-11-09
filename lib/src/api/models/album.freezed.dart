@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Album {
 
- String get id; String get name; String? get artist; String? get artistId;/// OpenSubsonic extension: multiple album artists with individual IDs.
+ String get id;@JsonKey(readValue: readDecodedString) String get name;@JsonKey(readValue: readDecodedString) String? get artist; String? get artistId;/// OpenSubsonic extension: multiple album artists with individual IDs.
 /// Falls back to the legacy [artist]/[artistId] pair on standard Subsonic.
  List<ArtistRef> get artists; int? get songCount; int? get duration; int? get year; String? get coverArt; DateTime? get starred; int? get userRating; int? get playCount; bool? get isExternal;/// OpenSubsonic extension: MusicBrainz release ID for the album.
 /// Absent on standard Subsonic responses.
@@ -60,7 +60,7 @@ abstract mixin class $AlbumCopyWith<$Res>  {
   factory $AlbumCopyWith(Album value, $Res Function(Album) _then) = _$AlbumCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, String? artist, String? artistId, List<ArtistRef> artists, int? songCount, int? duration, int? year, String? coverArt, DateTime? starred, int? userRating, int? playCount, bool? isExternal, String? musicBrainzId, DateTime? created, List<Song> songs
+ String id,@JsonKey(readValue: readDecodedString) String name,@JsonKey(readValue: readDecodedString) String? artist, String? artistId, List<ArtistRef> artists, int? songCount, int? duration, int? year, String? coverArt, DateTime? starred, int? userRating, int? playCount, bool? isExternal, String? musicBrainzId, DateTime? created, List<Song> songs
 });
 
 
@@ -180,7 +180,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  bool? isExternal,  String? musicBrainzId,  DateTime? created,  List<Song> songs)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(readValue: readDecodedString)  String name, @JsonKey(readValue: readDecodedString)  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  bool? isExternal,  String? musicBrainzId,  DateTime? created,  List<Song> songs)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Album() when $default != null:
 return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_that.songCount,_that.duration,_that.year,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.isExternal,_that.musicBrainzId,_that.created,_that.songs);case _:
@@ -201,7 +201,7 @@ return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  bool? isExternal,  String? musicBrainzId,  DateTime? created,  List<Song> songs)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(readValue: readDecodedString)  String name, @JsonKey(readValue: readDecodedString)  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  bool? isExternal,  String? musicBrainzId,  DateTime? created,  List<Song> songs)  $default,) {final _that = this;
 switch (_that) {
 case _Album():
 return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_that.songCount,_that.duration,_that.year,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.isExternal,_that.musicBrainzId,_that.created,_that.songs);case _:
@@ -221,7 +221,7 @@ return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  bool? isExternal,  String? musicBrainzId,  DateTime? created,  List<Song> songs)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(readValue: readDecodedString)  String name, @JsonKey(readValue: readDecodedString)  String? artist,  String? artistId,  List<ArtistRef> artists,  int? songCount,  int? duration,  int? year,  String? coverArt,  DateTime? starred,  int? userRating,  int? playCount,  bool? isExternal,  String? musicBrainzId,  DateTime? created,  List<Song> songs)?  $default,) {final _that = this;
 switch (_that) {
 case _Album() when $default != null:
 return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_that.songCount,_that.duration,_that.year,_that.coverArt,_that.starred,_that.userRating,_that.playCount,_that.isExternal,_that.musicBrainzId,_that.created,_that.songs);case _:
@@ -236,12 +236,12 @@ return $default(_that.id,_that.name,_that.artist,_that.artistId,_that.artists,_t
 
 @JsonSerializable(explicitToJson: true)
 class _Album implements Album {
-  const _Album({required this.id, required this.name, this.artist, this.artistId,  List<ArtistRef> artists = const <ArtistRef>[], this.songCount, this.duration, this.year, this.coverArt, this.starred, this.userRating, this.playCount, this.isExternal, this.musicBrainzId, this.created,  List<Song> songs = const <Song>[]}): _artists = artists,_songs = songs;
+  const _Album({required this.id, @JsonKey(readValue: readDecodedString) required this.name, @JsonKey(readValue: readDecodedString) this.artist, this.artistId,  List<ArtistRef> artists = const <ArtistRef>[], this.songCount, this.duration, this.year, this.coverArt, this.starred, this.userRating, this.playCount, this.isExternal, this.musicBrainzId, this.created,  List<Song> songs = const <Song>[]}): _artists = artists,_songs = songs;
   factory _Album.fromJson(Map<String, dynamic> json) => _$AlbumFromJson(json);
 
 @override final  String id;
-@override final  String name;
-@override final  String? artist;
+@override@JsonKey(readValue: readDecodedString) final  String name;
+@override@JsonKey(readValue: readDecodedString) final  String? artist;
 @override final  String? artistId;
 /// OpenSubsonic extension: multiple album artists with individual IDs.
 /// Falls back to the legacy [artist]/[artistId] pair on standard Subsonic.
@@ -311,7 +311,7 @@ abstract mixin class _$AlbumCopyWith<$Res> implements $AlbumCopyWith<$Res> {
   factory _$AlbumCopyWith(_Album value, $Res Function(_Album) _then) = __$AlbumCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, String? artist, String? artistId, List<ArtistRef> artists, int? songCount, int? duration, int? year, String? coverArt, DateTime? starred, int? userRating, int? playCount, bool? isExternal, String? musicBrainzId, DateTime? created, List<Song> songs
+ String id,@JsonKey(readValue: readDecodedString) String name,@JsonKey(readValue: readDecodedString) String? artist, String? artistId, List<ArtistRef> artists, int? songCount, int? duration, int? year, String? coverArt, DateTime? starred, int? userRating, int? playCount, bool? isExternal, String? musicBrainzId, DateTime? created, List<Song> songs
 });
 
 
