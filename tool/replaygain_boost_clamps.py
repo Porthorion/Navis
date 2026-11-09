@@ -1,4 +1,4 @@
-"""Pure-Python rules of the ReplayGain boost runtime checks (clamps, edit landing, the A2 latch phases): the
+"""Pure-Python rules of the ReplayGain boost runtime checks (clamps, edit landing, the A2 edit phases): the
 self-test runs without numpy."""
 
 
@@ -61,19 +61,19 @@ def over_own_gain(r, slack=0.3, edge_ms=1000):
     return r['boost']['appliedDb'] > ((r.get('decision') or {}).get('db') or 0) + slack
 
 
-LATCH_ACTIONS = [f'remove-above-{n}' for n in range(1, 6)] + ['insert-above', 'loop', 'shuffle']
+EDIT_ACTIONS = [f'remove-above-{n}' for n in range(1, 6)] + ['insert-above', 'loop', 'shuffle']
 MOVED = {'insert-above': (1, 2), **{f'remove-above-{n}': (1, 0) for n in range(1, 6)}}
 CHANGED = {'loop': 'repeat', 'shuffle': 'shuffle'}
 
 
-def latch_phase_results(rows):
-    """(label, ok, detail) per A2 latch phase: the edit landed (an index change, or a loop or shuffle value
+def edit_phase_results(rows):
+    """(label, ok, detail) per A2 edit phase: the edit landed (an index change, or a loop or shuffle value
     change), and Q keeps its full boost in 25.2-26.8 s (there is no guard any more: the processor changes
     gain only at Q's own boundary). Each run asserts on its own: a pooled minimum would hide one bad run
     among five good ones, and a no-op edit must fail."""
     results = []
-    for action in LATCH_ACTIONS:
-        phase = f'a2-latch-{action}'
+    for action in EDIT_ACTIONS:
+        phase = f'a2-edit-{action}'
         if action in MOVED:
             before, after = MOVED[action]
             results.append((f'A2 {action}: the edit landed (Q moved from queue index {before} to {after})',

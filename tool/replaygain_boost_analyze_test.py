@@ -65,35 +65,35 @@ def main():
     stream[[r['positionMs'] for r in stream].index(25500)]['positionMs'] = None
     assert unexpected(stream) == {('lossy-opus', 'rgl-1'): 10}, 'a clamp without a position fails cleanly'
     # A phase passes only when its queue edit landed: the index change must be in its rows.
-    def edit_rows(indices, phase='a2-latch-remove-above-1'):
+    def edit_rows(indices, phase='a2-edit-remove-above-1'):
         return [{'phase': phase, 'songId': 'rgq-1', 'index': i} for i in indices]
-    assert clamps.edit_landed(edit_rows([1, 1, 1, 0, 0]), 'a2-latch-remove-above-1', 'rgq-1', 1, 0), 'a landed edit'
-    assert not clamps.edit_landed(edit_rows([1, 1, 1, 1, 1]), 'a2-latch-remove-above-1', 'rgq-1', 1, 0), \
+    assert clamps.edit_landed(edit_rows([1, 1, 1, 0, 0]), 'a2-edit-remove-above-1', 'rgq-1', 1, 0), 'a landed edit'
+    assert not clamps.edit_landed(edit_rows([1, 1, 1, 1, 1]), 'a2-edit-remove-above-1', 'rgq-1', 1, 0), \
         'an edit that never landed (a doctored capture pinned to index 1) must not count'
-    assert not clamps.edit_landed(edit_rows([0, 0, 1, 1]), 'a2-latch-remove-above-1', 'rgq-1', 1, 0), \
+    assert not clamps.edit_landed(edit_rows([0, 0, 1, 1]), 'a2-edit-remove-above-1', 'rgq-1', 1, 0), \
         'the index change must come after the start'
-    assert clamps.edit_landed(edit_rows([1, 1, 2, 2], 'a2-latch-insert-above'), 'a2-latch-insert-above', 'rgq-1', 1, 2)
-    assert not clamps.edit_landed(edit_rows([1, 1, 1], 'a2-latch-insert-above'), 'a2-latch-insert-above', 'rgq-1', 1, 2)
-    assert not clamps.edit_landed(edit_rows([1, 0]), 'a2-latch-insert-above', 'rgq-1', 1, 0), 'another phase does not count'
-    # The A2 latch phases as the analyzer runs them: a capture whose edits never landed must fail every landing
+    assert clamps.edit_landed(edit_rows([1, 1, 2, 2], 'a2-edit-insert-above'), 'a2-edit-insert-above', 'rgq-1', 1, 2)
+    assert not clamps.edit_landed(edit_rows([1, 1, 1], 'a2-edit-insert-above'), 'a2-edit-insert-above', 'rgq-1', 1, 2)
+    assert not clamps.edit_landed(edit_rows([1, 0]), 'a2-edit-insert-above', 'rgq-1', 1, 0), 'another phase does not count'
+    # The A2 edit phases as the analyzer runs them: a capture whose edits never landed must fail every landing
     # check, a healthy one none, so the wiring of `edit_landed` cannot be bypassed without this test noticing.
     def capture(landed, hold=True):
         # `hold` False models the old guard, which the processor no longer has: Q's gain falls to 0 before its end
         out = []
-        for action in clamps.LATCH_ACTIONS:
+        for action in clamps.EDIT_ACTIONS:
             moved = clamps.MOVED.get(action)
             for n, pos in enumerate(range(25200, 26900, 100)):
                 after = landed and n >= 8
-                out.append({'phase': f'a2-latch-{action}', 'songId': 'rgq-1', 'playing': True, 'positionMs': pos,
+                out.append({'phase': f'a2-edit-{action}', 'songId': 'rgq-1', 'playing': True, 'positionMs': pos,
                             'index': (moved[1] if after else moved[0]) if moved else 1,
                             'repeat': 'all' if action == 'loop' and after else 'none',
                             'shuffle': action == 'shuffle' and after,
                             'boost': {'currentKey': 'rgq-1', 'appliedDb': 10.0 if hold else 0.0, 'clipSamples': 0}})
         return out
-    healthy = clamps.latch_phase_results(capture(True))
-    doctored = clamps.latch_phase_results(capture(False))
+    healthy = clamps.edit_phase_results(capture(True))
+    doctored = clamps.edit_phase_results(capture(False))
     assert len(healthy) == len(doctored) == 16 and all(ok for _, ok, _ in healthy), 'a landed run passes all 16 checks'
-    guarded = clamps.latch_phase_results(capture(True, hold=False))
+    guarded = clamps.edit_phase_results(capture(True, hold=False))
     assert not any(ok for label, ok, _ in guarded if 'full boost' in label), 'a Q whose gain drops before its end fails all 8'
     assert all(ok for label, ok, _ in guarded if 'landed' in label), 'the landing checks do not look at the gain'
     landing = [ok for label, ok, _ in doctored if 'landed' in label]
