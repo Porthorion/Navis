@@ -149,6 +149,36 @@ const _phoneLandscape = (
   size: Size(844, 390),
   padding: EdgeInsets.fromLTRB(47, 0, 47, 21),
 );
+// Short landscape phones (I28): iPhone SE, a notched iPhone mini/X, and the
+// Duo cover rotated with the status strip on a long edge.
+const _phoneSE = (size: Size(667, 375), padding: EdgeInsets.zero);
+const _phoneMiniNotch = (
+  size: Size(812, 375),
+  padding: EdgeInsets.fromLTRB(44, 0, 44, 21),
+);
+const _phoneLandscapeLarge = (
+  size: Size(932, 430),
+  padding: EdgeInsets.fromLTRB(59, 0, 59, 21),
+);
+const _duoCoverLandscapeBottomStrip = (
+  size: Size(678, 466),
+  padding: EdgeInsets.only(bottom: 118),
+);
+const _duoCoverLandscapeTopStrip = (
+  size: Size(678, 466),
+  padding: EdgeInsets.only(top: 84, bottom: 34),
+);
+// A narrow portrait phone: the Now Playing transport row is 302 dp wide.
+const _phoneNarrowPortrait = (
+  size: Size(350, 740),
+  padding: EdgeInsets.only(top: 47, bottom: 34),
+);
+// On the rail-fit boundary: 500 - 34 - 44 = 422 < 436 with the home indicator,
+// 456 without it (the keyboard drops padding.bottom, not viewPadding.bottom).
+const _phoneBoundary = (
+  size: Size(700, 500),
+  padding: EdgeInsets.only(bottom: 34),
+);
 // iPad landscape with the rail: the Now Playing pane is 706 and 862 wide.
 const _ipadLandscape = (
   size: Size(1024, 768),
@@ -713,9 +743,7 @@ void main() {
       final container = await _pumpApp(tester, _phoneLandscape);
       await _openNowPlaying(tester, container);
 
-      // Unchanged by I27: this size already reports a 6 px row overflow that
-      // belongs to the compact wide landscape shell, so it is cleared here.
-      tester.takeException();
+      expect(tester.takeException(), isNull);
       expect(find.byIcon(Icons.pause), findsOneWidget);
     });
   });
@@ -1456,6 +1484,218 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(container.read(playerOverlayStackProvider).isNotEmpty, isTrue);
     });
+  });
+
+  group('I28 short landscape phones use the compact wide shell', () {
+    const shortViewports = <(String, _Viewport)>[
+      ('iPhone SE 667x375', _phoneSE),
+      ('iPhone 812x375 notch', _phoneMiniNotch),
+      ('Duo cover 678x466 strip at the bottom', _duoCoverLandscapeBottomStrip),
+      ('Duo cover 678x466 strip at the top', _duoCoverLandscapeTopStrip),
+    ];
+
+    for (final (name, viewport) in shortViewports) {
+      _testApp('compact rail replaces the bottom bar: $name', (tester) async {
+        await _pumpApp(tester, viewport);
+
+        expect(tester.takeException(), isNull);
+        for (var i = 0; i < 4; i++) {
+          expect(
+            find.byKey(ValueKey<String>('compactRailNavTile-$i')),
+            findsOne,
+          );
+        }
+        expect(find.byType(NavigationBar), findsNothing);
+      });
+    }
+
+    _testApp('the keyboard keeps the compact rail on the mode boundary', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _phoneBoundary);
+      expect(
+        find.byKey(const ValueKey<String>('compactRailNavTile-0')),
+        findsOne,
+      );
+
+      // The keyboard zeroes padding.bottom; viewPadding.bottom stays 34.
+      tester.view.padding = FakeViewPadding.zero;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 200 * 3);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pump();
+      await _settle(tester, 10);
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const ValueKey<String>('compactRailNavTile-0')),
+        findsOne,
+      );
+      expect(find.byType(NavigationBar), findsNothing);
+    });
+
+    _testApp('narrow portrait Now Playing transport fits (350x740)', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _phoneNarrowPortrait);
+      await _openNowPlaying(tester, container);
+
+      expect(tester.takeException(), isNull);
+      _expectNowPlayingControlsFit(tester, _phoneNarrowPortrait);
+    });
+
+    for (final (name, viewport, scale) in <(String, _Viewport, double)>[
+      ('844x390', _phoneLandscape, 1),
+      ('932x430', _phoneLandscapeLarge, 1),
+      ('812x375', _phoneMiniNotch, 1),
+      ('667x375', _phoneSE, 1),
+      ('678x466 strip bottom', _duoCoverLandscapeBottomStrip, 1),
+      ('678x466 strip top', _duoCoverLandscapeTopStrip, 1),
+      ('667x375 text 1.3', _phoneSE, 1.3),
+    ]) {
+      _testApp('Now Playing fits: $name', (tester) async {
+        final container = await _pumpApp(tester, viewport, textScale: scale);
+        await _openNowPlaying(tester, container);
+
+        expect(tester.takeException(), isNull);
+        _expectNowPlayingControlsFit(tester, viewport);
+      });
+    }
+
+    _testApp('car Now Playing counts the side inset once (812x375)', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _phoneMiniNotch);
+      await _openNowPlaying(tester, container);
+
+      // The shell pads the pane by the 44 dp notch; the page adds only 20/12.
+      final page = tester.getRect(
+        find.byKey(const ValueKey<String>('compact-wide-player-page')),
+      );
+      final row = tester.getRect(
+        find
+            .descendant(
+              of: find.byKey(
+                const ValueKey<String>('compact-wide-player-page'),
+              ),
+              matching: find.byType(Row),
+            )
+            .first,
+      );
+      expect(row.left - page.left, 20);
+      expect(page.right - row.right, 12);
+      expect(page.right, 812 - 44);
+    });
+
+    for (final (name, viewport, scale) in <(String, _Viewport, double)>[
+      ('667x375', _phoneSE, 1),
+      ('812x375 notch', _phoneMiniNotch, 1),
+      ('678x466 strip bottom', _duoCoverLandscapeBottomStrip, 1),
+      ('678x466 strip top', _duoCoverLandscapeTopStrip, 1),
+      ('667x375 text 1.3', _phoneSE, 1.3),
+    ]) {
+      for (final (page, location) in <(String, String)>[
+        ('home', AppRoutes.home),
+        ('albums', AppRoutes.librarySection('albums')),
+        ('artists', AppRoutes.librarySection('artists')),
+        ('search', AppRoutes.search),
+        ('settings', AppRoutes.settings),
+        ('album detail', AppRoutes.album('album-1')),
+      ]) {
+        _testApp('$page clears the strips: $name', (tester) async {
+          await _pumpApp(tester, viewport, textScale: scale);
+          await _go(tester, location);
+
+          expect(tester.takeException(), isNull);
+          // Nothing tappable sits under a status strip.
+          final tappables = find.byWidgetPredicate(
+            (w) => w is IconButton || w is ListTile || w is Tab,
+          );
+          for (final element in tappables.evaluate()) {
+            final rect = tester.getRect(find.byWidget(element.widget));
+            if (rect.bottom <= 0 || rect.top >= viewport.size.height) continue;
+            expect(
+              rect.top,
+              greaterThanOrEqualTo(viewport.padding.top),
+              reason: '${element.widget.runtimeType} $rect',
+            );
+          }
+          final skip = tester.getRect(find.byIcon(Icons.skip_next_rounded));
+          expect(
+            skip.bottom,
+            lessThanOrEqualTo(viewport.size.height - viewport.padding.bottom),
+            reason: 'mini player skip $skip',
+          );
+        });
+      }
+    }
+
+    // Rotation or a fold swaps the bottom-nav and compact-wide branches.
+    for (final (name, portrait, landscape) in <(String, _Viewport, _Viewport)>[
+      (
+        'phone 375x667 and 667x375',
+        (size: const Size(375, 667), padding: EdgeInsets.zero),
+        _phoneSE,
+      ),
+      (
+        'Duo cover 466x678 and 678x466',
+        _duoFolded,
+        _duoCoverLandscapeBottomStrip,
+      ),
+    ]) {
+      for (final queue in <bool>[false, true]) {
+        _testApp('rotating keeps state, ${queue ? 'queue' : 'player'} open: '
+            '$name', (tester) async {
+          final container = await _pumpApp(tester, portrait);
+          await _go(tester, AppRoutes.librarySection('playlists'));
+          final location = GoRouter.of(
+            tester.element(find.byType(Scaffold).first),
+          ).routeInformationProvider.value.uri.toString();
+          final overlay = container.read(playerOverlayStackProvider.notifier);
+          queue ? overlay.showQueue() : overlay.expand();
+          await _settle(tester, 20);
+
+          for (final viewport in <_Viewport>[landscape, portrait, landscape]) {
+            await _resize(tester, viewport);
+            expect(tester.takeException(), isNull, reason: '$viewport');
+            final stack = container.read(playerOverlayStackProvider);
+            expect(stack.isNotEmpty, true);
+            if (viewport == landscape) {
+              // Compact wide offers the queue as an in-pane panel instead.
+              expect(stack, <PlayerOverlayRoute>[
+                PlayerOverlayRoute.nowPlaying,
+              ]);
+            }
+            expect(
+              GoRouter.of(tester.element(find.byType(Scaffold).first))
+                  .routeInformationProvider
+                  .value
+                  .uri
+                  .toString(),
+              location,
+            );
+          }
+        });
+      }
+
+      _testApp('rotating keeps the page scroll offset: $name', (tester) async {
+        final container = await _pumpApp(tester, portrait);
+        await container
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .updateArtistViewMode('grid');
+        await _go(tester, AppRoutes.librarySection('albums'));
+        final position = _pageScrollable(tester).position;
+        expect(position.maxScrollExtent, greaterThan(300));
+        position.jumpTo(250);
+        await _settle(tester, 4);
+
+        await _resize(tester, landscape);
+        expect(tester.takeException(), isNull);
+        expect(_pageScrollable(tester).position.pixels, closeTo(250, 1));
+        await _resize(tester, portrait);
+        expect(_pageScrollable(tester).position.pixels, closeTo(250, 1));
+      });
+    }
   });
 
   group('B1 album detail hero on tablet layouts', () {

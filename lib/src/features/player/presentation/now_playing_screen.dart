@@ -1887,14 +1887,29 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
           // in compact-wide mode so the overlay panels can be truly
           // full-screen, making this the only place the insets are applied.
           final mediaPadding = MediaQuery.paddingOf(context);
+          // The app shell's compact wide layout pads its pane by the left and
+          // right insets already (it does not remove them from MediaQuery),
+          // so this page adds them only where it is its own host (the desktop
+          // mini player, which has none).
+          final shellOwnsSideInsets = resolveAdaptiveContextFor(context)
+              .useCompactWideLandscape;
+          final sideInset = shellOwnsSideInsets
+              ? EdgeInsets.zero
+              : EdgeInsets.only(
+                  left: mediaPadding.left,
+                  right: mediaPadding.right,
+                );
           // Left padding is deliberately larger to give the album art some
           // breathing room from the navigation rail.
           final compactPadding = EdgeInsets.fromLTRB(
-            20 + mediaPadding.left,
+            20 + sideInset.left,
             (constraints.maxHeight < 520 ? 8 : 12) + mediaPadding.top,
-            12 + mediaPadding.right,
+            12 + sideInset.right,
             10 + mediaPadding.bottom,
           );
+          // Short phone windows have no room for the format pills.
+          final showInfoPanel =
+              !(shellOwnsSideInsets && constraints.maxHeight < 400);
           const gap = 10.0;
           final artPaneWidth = (constraints.maxWidth * 0.44).clamp(
             220.0,
@@ -1984,17 +1999,19 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                     ),
                   ),
                   if (!isRadio) ...<Widget>[
-                    SizedBox(height: vSpacing * 0.4),
-                    _NowPlayingInfoPanel(
-                      key: ValueKey<String>(
-                        'compact-wide-info-$nowPlayingVisualKey',
+                    if (showInfoPanel) ...<Widget>[
+                      SizedBox(height: vSpacing * 0.4),
+                      _NowPlayingInfoPanel(
+                        key: ValueKey<String>(
+                          'compact-wide-info-$nowPlayingVisualKey',
+                        ),
+                        song: song,
+                        album: albumDetails,
+                        playback: playback,
+                        currentMediaItem: currentMediaItem,
+                        playbackSpeed: playbackSpeed,
                       ),
-                      song: song,
-                      album: albumDetails,
-                      playback: playback,
-                      currentMediaItem: currentMediaItem,
-                      playbackSpeed: playbackSpeed,
-                    ),
+                    ],
                     SizedBox(height: vSpacing),
                     _SeekBar(playback: playback),
                     SizedBox(height: vSpacing * 0.6),
