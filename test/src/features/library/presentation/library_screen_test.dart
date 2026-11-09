@@ -1350,7 +1350,12 @@ void main() {
           }
 
           await tester.fling(
-            find.byType(Scrollable).last,
+            // Not the tab bar: it scrolls when its labels do not fit.
+            find
+                .byWidgetPredicate(
+                  (w) => w is Scrollable && w.axis == Axis.vertical,
+                )
+                .last,
             const Offset(0, 400),
             1000,
           );

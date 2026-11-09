@@ -646,31 +646,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         const TextStyle();
     final textDirection = Directionality.of(context);
     final textScaler = MediaQuery.textScalerOf(context);
-    var estimatedLabelsWidth = 0.0;
+    var widestLabel = 0.0;
     for (final label in tabLabels) {
       final painter = TextPainter(
         text: TextSpan(text: label, style: labelStyle),
         textDirection: textDirection,
         textScaler: textScaler,
       )..layout();
-      estimatedLabelsWidth += painter.width;
+      widestLabel = math.max(widestLabel, painter.width);
     }
     final horizontalLabelPadding = tabletMode ? 40.0 : 32.0;
-    final estimatedTabBarWidth =
-        estimatedLabelsWidth + (tabCount * horizontalLabelPadding) + 16;
-    final availableTabWidth = MediaQuery.sizeOf(context).width;
-    final useScrollableTabs = estimatedTabBarWidth > availableTabWidth;
-    final tabBar = TabBar(
-      controller: tabController,
-      isScrollable: useScrollableTabs,
-      tabAlignment: useScrollableTabs ? TabAlignment.start : TabAlignment.fill,
-      labelPadding: tabletMode
-          ? const EdgeInsets.symmetric(horizontal: 20)
-          : null,
-      tabs: <Widget>[
-        for (final section in visibleSections) _tabForSection(l10n, section),
-      ],
-    );
+    // A bar that is not scrollable gives every tab an equal share, so the
+    // widest label decides whether they all fit. [width] is the page's own
+    // width, not the screen's: beside a rail the page is much narrower.
+    TabBar tabBarFor(double width) {
+      final useScrollableTabs =
+          (widestLabel + horizontalLabelPadding + 4) * tabCount > width;
+      return TabBar(
+        controller: tabController,
+        isScrollable: useScrollableTabs,
+        tabAlignment: useScrollableTabs
+            ? TabAlignment.start
+            : TabAlignment.fill,
+        labelPadding: tabletMode
+            ? const EdgeInsets.symmetric(horizontal: 20)
+            : null,
+        tabs: <Widget>[
+          for (final section in visibleSections) _tabForSection(l10n, section),
+        ],
+      );
+    }
+
     final bodyContent = Stack(
       children: <Widget>[
         Column(
@@ -836,13 +842,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
 
     if (tabletMode) {
-      return Scaffold(
-        appBar: AppBar(title: Text(l10n.libraryTitle), bottom: tabBar),
-        body: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(),
-            child: bodyContent,
+      return LayoutBuilder(
+        builder: (context, constraints) => Scaffold(
+          appBar: AppBar(
+            title: Text(l10n.libraryTitle),
+            bottom: tabBarFor(constraints.maxWidth),
+          ),
+          body: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(),
+              child: bodyContent,
+            ),
           ),
         ),
       );
@@ -850,14 +861,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
     final portraitPhone =
         MediaQuery.orientationOf(context) == Orientation.portrait;
-    return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: portraitPhone ? 12 : null,
-        automaticallyImplyLeading: !portraitPhone,
-        title: portraitPhone ? null : Text(l10n.libraryTitle),
-        bottom: tabBar,
+    return LayoutBuilder(
+      builder: (context, constraints) => Scaffold(
+        appBar: AppBar(
+          toolbarHeight: portraitPhone ? 12 : null,
+          automaticallyImplyLeading: !portraitPhone,
+          title: portraitPhone ? null : Text(l10n.libraryTitle),
+          bottom: tabBarFor(constraints.maxWidth),
+        ),
+        body: bodyContent,
       ),
-      body: bodyContent,
     );
   }
 
@@ -1153,7 +1166,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       itemScrollController: _artistsItemScrollController,
                       itemPositionsListener: _artistsItemPositionsListener,
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.only(bottom: 16, right: 28),
+                      padding: EdgeInsets.only(
+                        bottom: 16,
+                        right: 28 + sectionRailEndGap(context),
+                      ),
                       itemBuilder: (context, index) {
                         final item = _artistListItems[index];
                         if (item.artist == null) {
@@ -1602,7 +1618,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         itemScrollController: _yearItemScrollController,
                         itemPositionsListener: _yearItemPositionsListener,
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(12, 0, 52, 12),
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          0,
+                          52 + sectionRailEndGap(context),
+                          12,
+                        ),
                         itemBuilder: (context, index) {
                           final item = _yearListItems[index];
                           if (item.isHeader) {
@@ -2353,7 +2374,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               ResponsiveContentSliverGrid(
                 itemCount: grouped[letter]?.length ?? 0,
                 artists: true,
-                trailingInset: 28,
+                trailingInset: 28 + sectionRailEndGap(context),
                 itemBuilder: (context, index) {
                   final byLetter =
                       grouped[letter] ?? const <ArtistsTableData>[];
