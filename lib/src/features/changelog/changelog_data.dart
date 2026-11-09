@@ -177,89 +177,16 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
-        'No more click at the start of a song after a boosted Opus '
-        'song',
-        platforms: {ChangelogPlatform.android},
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Foldables and tablets: the artist letter bar follows your scroll in '
-        'the grid, Library keeps your place when the screen folds, unfolds or '
-        'rotates, and Now Playing next to the rail fits its controls on '
-        'shorter screens. Album covers on tablets leave room for the songs, '
-        'and on the folded iPhone Duo the letter bar, the mini player buttons '
-        'and the new playlist button stay clear of the system strip on the '
-        'right',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Turning crossfade, gapless, ReplayGain, speed or pitch off or on in '
-        'Settings now takes effect right away during playback',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Songs already in your queue pick up changed ReplayGain after a sync, '
-        'from the next song on. The song that is playing keeps its level',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Same Vibes and Instant Mix no longer stop adding songs after the '
-        'first batch. When a song has nothing new to suggest, the mix waits '
-        'for the next song and tries again. If it runs out on the last song, '
-        'Same Vibes tells you it stopped',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Tag changes on the server now reach Navis after the server rescans '
-        'its library, without Repair Library: ReplayGain, titles, genres and '
-        'removed songs. Check for updates picks them up whenever the server '
-        'has scanned since the last time, and automatic sync does it at most '
-        'once a day on Wi-Fi (a rescan during the check gets up to three '
-        'quicker retries first). A large removal waits for your confirmation '
-        'in Settings › Sync (Apply Library Repair) instead of deleting '
-        'anything by itself. If your server has scanned since Navis last '
-        'checked, Navis runs one full song check at its next Wi-Fi sync after '
-        'this update. It never runs on mobile data without your one-time '
-        'permission',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Settings › Haptics turns vibration off entirely or for Player '
-        'Gestures, Playback Buttons, Sliders & Rulers, Switches & Steppers, '
-        'Lists & Menus, Likes & Alerts or Notifications (download finished or '
-        'failed), so you can keep the ones you like',
+        'Volume normalization (ReplayGain) has a new Smart mode, the default '
+        "for new installs: it keeps an album's own balance when you play it "
+        'in order and levels songs one by one for shuffles and mixes. Songs '
+        'without ReplayGain tags are now levelled too, with a level you '
+        'choose in 0.1 dB steps. Your current choice stays as it is',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'On Now Playing, the quality and ReplayGain lines now react to a hold '
-        'anywhere on them, not only on the text, and holding ReplayGain '
-        'scrolls Playback settings to the ReplayGain section. On desktop, '
-        'click or hold those two details to open them too',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Album pages no longer show "Could not load" when Navis '
-        'is open but another window has focus',
-        platforms: {
-          ChangelogPlatform.macos,
-          ChangelogPlatform.windows,
-          ChangelogPlatform.linux,
-        },
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Now Playing can show how much volume normalization (ReplayGain) is '
-        'turning the current song up or down; hold it to open Playback '
-        'settings. Those settings now explain each mode and the pre-amp, say '
-        'what normalization does on your device, and show how many of your '
-        'songs have ReplayGain data',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Volume normalization (ReplayGain) now '
-        'turns quiet songs up when their tags show room, stopping 1 dB '
-        'below the song\'s peak so nothing distorts. Songs without '
-        'ReplayGain data are only ever turned down',
+        'Volume normalization now turns quiet songs up when their tags show '
+        "room, stopping 1 dB below the song's peak so nothing distorts",
         platforms: {
           ChangelogPlatform.android,
           ChangelogPlatform.windows,
@@ -268,125 +195,120 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Volume normalization has a new Smart mode, now the default for new '
-        'installs. It keeps an album\'s own loudness balance when you play '
-        'the album in order, and levels songs one by one for shuffles and '
-        'mixes. Your current choice stays as it is',
+        'Now Playing shows how much ReplayGain is turning the song up or '
+        'down; hold it (or click it on desktop) to open Playback settings, '
+        'which now explain each mode and count your songs with ReplayGain '
+        'data',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Playing a Deezer copy of a single you already have now links it to '
-        'your library song, so Search no longer lists the song twice. Titles '
-        'with curly quotes or long dashes match too',
+        'Track Info shows where a song plays from and what the file is: '
+        'downloaded, server stream, transcoded or remote, with its format, '
+        'bitrate, sample rate and size. Hold the quality line in Now Playing '
+        'or use the info button on desktop',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Turning crossfade, gapless, ReplayGain, speed or pitch on or off '
+        'takes effect right away during playback, and songs already in your '
+        'queue pick up changed ReplayGain after a sync',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Songs from Deezer now show the greyed-out heart in Search and in '
-        'Artist top tracks on desktop, the same as everywhere else',
-        type: ChangelogEntryType.fix,
+        'Settings › Haptics turns vibration off entirely or per kind, such '
+        'as Player Gestures, Sliders & Rulers or Notifications, so you can '
+        'keep the ones you like',
+        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Songs from Deezer can no longer be liked (their heart is greyed '
-        'out); likes of them that were never sent to your server move to '
-        'your library copy when there is one. Liked songs now download from '
-        'your library, and a failed download can be long-pressed to copy its '
-        'error details',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Volume normalization (ReplayGain) now evens out loudness between '
-        'songs, including songs without ReplayGain tags. It was applying '
-        'too much on desktop and ignoring untagged songs. New installs start '
-        'with it on; choose the level for untagged songs in Playback settings',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The ReplayGain level for untagged songs now moves in 0.1 dB steps, '
-        'with the same ticks and haptics as the speed and pitch rulers',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Downloads at a chosen quality, such as on mobile data, no longer '
-        'fail partway through',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The Downloads queue buttons (Pause, Retry, Clear) now match in '
-        'style and size instead of wrapping onto several lines on phones',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Search no longer lists a song twice when a Deezer copy of it matches '
-        'a song in your library, and its quality now shows your file',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Recently Added on Home now shows the play button on hover, like '
-        'the other album shelves',
-        platforms: {
-          ChangelogPlatform.macos,
-          ChangelogPlatform.windows,
-          ChangelogPlatform.linux,
-        },
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Taps and gestures now feel like what they do on Android: switches '
-        'click on and off, Play and Pause differ, pull to refresh ticks as you '
-        'pull, firms at the trigger point and confirms when it finishes, and '
-        'liking, skipping, reordering, swiping a queue row away, dragging an '
-        'equalizer band and long presses each have their own feel. Your '
-        'phone\'s touch feedback setting still applies',
+        'Taps and gestures now feel like what they do: switches click, Play '
+        'and Pause differ, pull to refresh ticks and confirms, and liking, '
+        'skipping, reordering and long presses each have their own feel. '
+        "Your phone's touch feedback setting still applies",
         platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Tag changes on the server, such as ReplayGain, titles, genres and '
+        'removed songs, now reach Navis after the server rescans, without '
+        'Repair Library. Automatic sync checks at most once a day on Wi-Fi, '
+        'never on mobile data without your permission, and a large removal '
+        'waits for your confirmation in Settings › Sync',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Same Vibes and Instant Mix keep adding songs instead of stopping '
+        'after the first batch. If Same Vibes runs out on the last song, it '
+        'tells you',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Search puts the most popular matches first and shows Top Results '
+        '(Deezer; switch in Integrations): the best match as a large card '
+        'with Play, Shuffle or Like, and its artist, album or top song as '
+        'tiles',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Songs from Deezer behave better next to your library: a Deezer copy '
+        'of a song you own links to it, so Search lists it once and shows '
+        "your file's quality, and Deezer songs can no longer be liked (their "
+        'heart is greyed out). Earlier likes move to your library copy when '
+        'there is one',
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Albums and downloads can be added to a playlist from their menu',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Search puts the most popular matches first and shows Top Results '
-        '(Deezer; switch in Integrations)',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Search Top Results show the best match as a large card with Play, '
-        'Shuffle or Like, and its artist, album or top song as tiles; '
-        'tapping anywhere on a card opens it',
+        'Turning on Auto-Download Liked asks first, showing how many songs '
+        'and roughly how much space it will use, and queues a large library '
+        'in one step without queueing a song twice',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Turning on Auto-Download Liked now asks first, showing how many '
-        'songs and roughly how much space it will download',
-        type: ChangelogEntryType.improvement,
-      ),
-      ChangelogEntry(
-        'Auto-Download Liked queues a large liked library in one step, '
-        'and no longer risks queueing a song twice',
+        'Downloads are steadier: downloads at a chosen quality no longer fail '
+        'partway, liked songs download from your library, the queue buttons '
+        'no longer wrap on phones, and a failed download can be long-pressed '
+        'to copy its error details',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Synced lyrics no longer jump around at the start of a song: '
-        'the current line now stays in one place from the first line on',
+        'Synced lyrics no longer jump around at the start of a song',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Choosing a custom downloads folder (and importing/exporting '
-        'EQ presets) works again',
-        platforms: {ChangelogPlatform.macos},
+        'No more click at the start of a song after a boosted Opus song',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Short desktop windows show more of the page: the player bar and '
-        'the album, playlist and artist headers are smaller below 760 px '
-        'high (and a little smaller below 960 px), and the header now '
-        'scrolls away with the track list. Taller windows look as before',
+        'Foldables and tablets fit better: the artist letter bar follows your '
+        'scroll, Library keeps your place when the screen folds, unfolds or '
+        'rotates, Now Playing fits shorter screens, and on the folded iPhone '
+        'Duo the letter bar, mini player buttons and new playlist button '
+        'clear the system strip',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Short windows show more of the page: the player bar and the album, '
+        'playlist and artist headers shrink below 760 px high, and the header '
+        'scrolls away with the track list. Album pages no longer show "Could '
+        'not load" while another window has focus, and Recently Added on '
+        'Home shows its play button on hover',
         platforms: {
           ChangelogPlatform.macos,
           ChangelogPlatform.windows,
           ChangelogPlatform.linux,
         },
         type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Choosing a custom downloads folder (and importing/exporting EQ '
+        'presets) works again',
+        platforms: {ChangelogPlatform.macos},
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Fixed a crash on macOS, and frozen screen-reader output on '
@@ -394,14 +316,6 @@ const List<ChangelogVersion> changelogs = [
         'is running',
         platforms: {ChangelogPlatform.macos, ChangelogPlatform.windows},
         type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Track Info shows where the song plays from and what the file is: '
-        'downloaded, server stream, transcoded or remote, with its format, '
-        'bitrate, sample rate and size. Open it with the info button on '
-        'desktop, by pressing and holding the quality line in Now Playing, '
-        'or from Track Info in its settings',
-        type: ChangelogEntryType.newFeature,
       ),
     ],
   ),
