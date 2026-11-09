@@ -333,6 +333,12 @@ ReplayGain, volume, mute, ducking, and crossfade deck gains remain separate.
 The Android processor also applies ReplayGain (one signed level per queue entry,
 cuts and boosts), after the EQ bank and outside its preamp and automatic
 headroom, so quiet songs are turned up with the EQ off or on. The iOS tap does the same ([iOS](#ios)).
+The level switches to the next song at the first flush after Media3 reports the new
+stream, or, when Media3 reports it late (opus: the new song's first decoded buffer is
+the one that crosses the old song's last input), after the renderer hands that first
+buffer over (`NavisAudioRenderer.processOutputBuffer`), so a boosted song's gain no
+longer reaches the next song's first samples in that case. A join with no flush before
+the new song's first buffer (a reused opus codec) can still leak that one buffer. A seek or disable drops the announced streams.
 Android puts the app-owned processor after Media3's Sonic processing, delegates
 its duration accounting, prevents encoded passthrough/offload, and crossfades
 configuration banks over 20 ms at audio-block boundaries. Each channel owns its

@@ -19,11 +19,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * ({@code levels}). The renderer ({@link NavisAudioRenderer}) tells this stage which
  * entry the next samples belong to; the key becomes current at the A/B sample
  * boundary, which on Media3 1.4.1 is the first {@link #onFlush} after the new
- * stream's offset event (a natural join drains A through every processor, then
- * flushes). Threads: the method-channel thread calls {@link #replaceLevels},
+ * stream's offset event, or after the renderer hands over the new stream's first output buffer when
+ * Media3 reports the stream late ({@link #outputBuffer}; opus). A natural join drains A through every
+ * processor, then flushes. Threads: the method-channel thread calls {@link #replaceLevels},
  * {@link #setLevels}, {@link #commitSources}, {@link #noteSource}, {@link #state};
  * the ExoPlayer playback thread calls
- * {@link #noteStream}, {@link #streamOffsetChanged} and the processor callbacks.
+ * {@link #noteStream}, {@link #streamOffsetChanged}, {@link #outputBuffer},
+ * {@link #dropPendingStreams} and the processor callbacks.
  */
 final class NavisEqualizerProcessor extends BaseAudioProcessor {
     private final Object configurationLock = new Object();
@@ -45,8 +47,13 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
     private volatile double currentDb;
     // Playback thread only. offsetUs -> key of the streams Media3 announced, and the key that
     // takes over at the next flush.
-    private final Map<Long, String> streamKeys = new LinkedHashMap<Long, String>() {
-        @Override protected boolean removeEldestEntry(Map.Entry<Long, String> eldest) {
+    private static final class Stream {
+        final String key;
+        final long thresholdUs; // the outgoing stream's last queued input, C.TIME_UNSET if none
+        Stream(String key, long thresholdUs) { this.key = key; this.thresholdUs = thresholdUs; }
+    }
+    private final Map<Long, Stream> streamKeys = new LinkedHashMap<Long, Stream>() {
+        @Override protected boolean removeEldestEntry(Map.Entry<Long, Stream> eldest) {
             return size() > 8;
         }
     };
@@ -117,9 +124,33 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
         if (replace) replaceLevels(seeds); else setLevels(seeds, false);
     }
 
-    /** Playback thread, before a stream's samples: [key] (null if untagged) plays from [offsetUs]. */
-    void noteStream(long offsetUs, String key) {
-        streamKeys.put(offsetUs, key);
+    /**
+     * Playback thread, before a stream's samples: [key] (null if untagged) plays from [offsetUs];
+     * [thresholdUs] is Media3's last queued input of the stream before it (C.TIME_UNSET if none).
+     */
+    void noteStream(long offsetUs, String key, long thresholdUs) {
+        streamKeys.put(offsetUs, new Stream(key, thresholdUs));
+    }
+
+    /**
+     * Playback thread, just before the sink gets an output buffer. Media3 reports a stream's offset
+     * only after the buffer that crosses the previous stream's last input; for opus that crossing
+     * buffer is the new song's first, so the offset event would come after it. A buffer past the
+     * threshold and at or after the offset is the new stream's: signal it now (the oldest pending
+     * stream only, as Media3 applies them in order). Input already queued still defers to the flush.
+     */
+    void outputBuffer(long ptsUs) {
+        if (streamKeys.isEmpty()) return;
+        Map.Entry<Long, Stream> head = streamKeys.entrySet().iterator().next();
+        long threshold = head.getValue().thresholdUs;
+        if (threshold != C.TIME_UNSET && ptsUs > threshold && ptsUs >= head.getKey()) {
+            streamOffsetChanged(head.getKey());
+        }
+    }
+
+    /** Playback thread: Media3 dropped its pending stream changes (seek, disable); so do we. */
+    void dropPendingStreams() {
+        streamKeys.clear();
     }
 
     /**
@@ -133,11 +164,12 @@ final class NavisEqualizerProcessor extends BaseAudioProcessor {
      * shorter than the drain (about 60 ms same format, 480 ms on a format change) takes its
      * successor's gain; (2) at speed != 1 a seek within Sonic's latency (about 20 ms) of an entry's
      * end applies the next entry's gain to that tail, because this stage sits after Sonic and has
-     * seen no input yet. Upgrade: Media3 1.11 {@code flush(StreamMetadata)} carries the period.
+     * seen no input yet; (3) an H-crossing join with no flush before H's first buffer (a reused
+     * opus codec) still leaks that one buffer under the old gain. Upgrade: Media3 1.11 {@code flush(StreamMetadata)} carries the period.
      */
     void streamOffsetChanged(long offsetUs) {
         if (!streamKeys.containsKey(offsetUs)) return;
-        String key = streamKeys.remove(offsetUs);
+        String key = streamKeys.remove(offsetUs).key;
         if (inputSinceFlush) {
             pendingKey = key;
             hasPending = true;

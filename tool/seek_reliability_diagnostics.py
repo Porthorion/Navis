@@ -127,6 +127,21 @@ class TranscodeLibrary:
             self.songs[song_id]['album'] = 'ReplayGain Levels'
             self.songs[song_id]['replayGain'] = {'trackGain': gain, 'trackPeak': peak}
             ids.append(song_id)
+        # Gapless-tagged originals of L and H (#392): the joins that run through the trimming processor.
+        for ext, codec in (('mp3', ['libmp3lame', '-b:a', '192k']), ('m4a', ['aac', '-b:a', '192k', '-movflags', '+faststart'])):
+            for kind in ('l', 'h'):
+                song_id = f'rg{kind}-{ext}'
+                peak = self.REPLAY_GAIN_LEVELS[f'rg{kind}-1'][2]
+                path = self.cache_dir / f'rg-{kind}-{seconds}-gapless.{ext}'
+                if not path.exists():
+                    subprocess.run(['ffmpeg', '-y', '-hide_banner', '-loglevel', 'error', '-f', 'lavfi',
+                                    '-i', f'sine=f=440:d={seconds}:r=44100', '-af', f'volume={peak * 8}', '-ac', '1',
+                                    '-c:a', *codec, str(path)], check=True)
+                self._add_song(song_id, f'Gapless {kind.upper()} {ext}', artist_id, album_id, len(ids) + 1, seconds,
+                               f'mbid-{song_id}', media=path)
+                self.songs[song_id].update(album='ReplayGain Levels', suffix=ext, contentType='audio/mpeg' if ext == 'mp3' else 'audio/mp4',
+                                           replayGain={'trackGain': self.REPLAY_GAIN_LEVELS[f'rg{kind}-1'][1], 'trackPeak': peak})
+                ids.append(song_id)
         self.album_songs[album_id] = ids
         self.albums[album_id] = {
             'id': album_id, 'name': 'ReplayGain Levels', 'artist': 'ReplayGain Levels', 'artistId': artist_id,
