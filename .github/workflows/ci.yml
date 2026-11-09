@@ -97,6 +97,11 @@ jobs:
           source tool/lib/check_test_log.sh
           flutter test --total-shards 4 --shard-index ${{ matrix.shard }} 2>&1 | tee "$RUNNER_TEMP/test.log"
           assert_no_test_failures "$RUNNER_TEMP/test.log"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures-${{ matrix.shard }}
+          path: test/**/failures/
 
   native:
     runs-on: ubuntu-latest

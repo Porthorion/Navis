@@ -1576,12 +1576,14 @@ void main() {
       expect(playButton(tester).left - pane.left, 16);
     });
 
-    _testApp('D6 phone album Play keeps its 4 dp inset', (tester) async {
+    _testApp('D6 phone album Play lines up with the text inset', (
+      tester,
+    ) async {
       await _pumpApp(tester, _phone);
       await _go(tester, AppRoutes.album('album-1'));
 
       expect(tester.takeException(), isNull);
-      expect(playButton(tester).left, 4);
+      expect(playButton(tester).left, 16);
     });
 
     _testApp('D7 folding with Now Playing open does not throw', (tester) async {
