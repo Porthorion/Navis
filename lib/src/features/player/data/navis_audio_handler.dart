@@ -395,32 +395,9 @@ class NavisAudioHandler extends BaseAudioHandler
   final Map<String, ({String? prev, String? next})> _pushedSmartNeighbours =
       <String, ({String? prev, String? next})>{};
 
-  /// Android's ReplayGain boost guard: the lowest boost the heard deck was
-  /// given since its song's last-seconds window opened (see [guardedBoostDb]).
-  /// Only the heard deck is latched, so an inactive cross-fade deck never holds
-  /// a stale guard. A fresh Expando forgets it; that happens at a song start,
-  /// a seek, a queue load and a settings or speed change.
-  Expando<double> _boostLatch = Expando<double>();
-
-  /// The last boost message each deck was sent, so the position tick only
-  /// sends a change.
-  final Expando<({double db, bool guarded})> _sentBoost =
-      Expando<({double db, bool guarded})>();
-
-  /// Whether the active deck's last boost message was a guarded one.
-  bool _boostGuardedNow = false;
-
-  /// The playing source the boost guard last decided a song start for: the
-  /// latch lives for one source, whatever its index or song id. The pending one
-  /// is a different source seen once by the tick after an edit.
-  IndexedAudioSource? _boostSourceSeen;
-  IndexedAudioSource? _boostSourcePending;
-
-  /// After a seek, until this time on [_boostClock], the heard deck's boost
-  /// may only go down: the seek may switch songs, and the old song's value must
-  /// not reach the new song's head before the index event says so.
-  Duration? _boostLowerOnlyUntil;
-  final Stopwatch _boostClock = Stopwatch()..start();
+  /// A live ReplayGain settings change that a load or a cross-fade held back;
+  /// the next volume write that goes through sends it.
+  bool _replayGainLivePending = false;
 
   /// The ReplayGain mode of the last settings pass, so only a change of it
   /// drops the frozen Smart decisions.
@@ -822,14 +799,17 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Whether the backend applies each song's ReplayGain on that song's own
   /// samples (the level travels with the source and later updates are
   /// [setReplayGainLevels] pushes), so the player volume carries none of it.
-  /// True on Linux and Windows mpv; false on macOS, Android and iOS until their
-  /// backends ship.
+  /// True on Linux and Windows mpv. On Android it follows the EQ processor,
+  /// which both decks are built with (every player build sets
+  /// [_equalizerPipelineEnabled]), so a rebuild without the processor drops it
+  /// for the new players. False on macOS and iOS until their backends ship.
   @override
   bool get replayGainInPipeline =>
       _replayGainInPipelineOverride ??
       navisReplayGainInPipeline(
         usesMpv: _usesMpv,
         isMacOS: !kIsWeb && Platform.isMacOS,
+        androidProcessor: _usesAndroidNative && _equalizerPipelineEnabled,
       );
 
   @override
@@ -2579,8 +2559,6 @@ class NavisAudioHandler extends BaseAudioHandler
       _appliedReplayGainMode = runtime.replayGainMode;
       _smartNeighbours.clear();
     }
-    // The boost guard's latch stays: inside the window a settings pass (or the
-    // speed it puts back) may only lower the boost until the next song starts.
     // The only live push: a settings change may move the playing song too.
     _applyReplayGainVolume(live: true);
 
@@ -3277,16 +3255,7 @@ class NavisAudioHandler extends BaseAudioHandler
   Future<void> debugRebuildPlayerWithoutEqualizer() =>
       _rebuildPlayerWithoutEqualizer();
 
-  /// One position tick of the Android boost guard, without waiting for the timer.
-  @visibleForTesting
-  void debugTickReplayGainBoost() => _tickReplayGainBoost();
-
-  /// The index [deck] plays after its current song, as the boost guard reads it.
-  @visibleForTesting
-  int? debugNextEffectiveIndexOf(AudioPlayer deck) =>
-      _nextEffectiveIndexOf(deck);
-
-  /// Sends [deck] its ReplayGain boost as the handler does.
+  /// Sends [deck] its ReplayGain levels as the handler does.
   @visibleForTesting
   Future<void> debugSendReplayGainBoostTo(AudioPlayer deck) =>
       _sendReplayGainLevelsTo(deck);

@@ -54,8 +54,8 @@ class EqualizerStateMessage {
     this.headroomDb = 0,
     this.reason,
     this.pending = false,
-    this.boostRequestedDb = 0,
-    this.boostAppliedDb = 0,
+    this.replayGainCurrentKey,
+    this.replayGainAppliedDb = 0,
     this.boostClipSamples = 0,
   });
 
@@ -66,11 +66,11 @@ class EqualizerStateMessage {
   final String? reason;
   final bool pending;
 
-  /// The ReplayGain boost the app asked the processor for and the gain it
-  /// applies now (dB), and how many samples hit the 16-bit clamp while a
-  /// boost was on. Only the Android processor has a boost stage.
-  final double boostRequestedDb;
-  final double boostAppliedDb;
+  /// The ReplayGain stage of the Android processor: the source id whose
+  /// samples it is processing, the signed gain (dB) it applies now, and how
+  /// many samples hit the 16-bit clamp while boosting.
+  final String? replayGainCurrentKey;
+  final double replayGainAppliedDb;
   final int boostClipSamples;
 
   static EqualizerStateMessage fromMap(Map<dynamic, dynamic> map) =>
@@ -81,8 +81,9 @@ class EqualizerStateMessage {
         headroomDb: (map['headroomDb'] as num?)?.toDouble() ?? 0,
         reason: map['reason'] as String?,
         pending: map['pending'] as bool? ?? false,
-        boostRequestedDb: (map['boostRequestedDb'] as num?)?.toDouble() ?? 0,
-        boostAppliedDb: (map['boostAppliedDb'] as num?)?.toDouble() ?? 0,
+        replayGainCurrentKey: map['replayGainCurrentKey'] as String?,
+        replayGainAppliedDb:
+            (map['replayGainAppliedDb'] as num?)?.toDouble() ?? 0,
         boostClipSamples: (map['boostClipSamples'] as num?)?.toInt() ?? 0,
       );
 }
