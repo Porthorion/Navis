@@ -1,13 +1,16 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
+import 'package:drift/drift.dart'
+    show DatabaseConnection, Value, driftRuntimeOptions;
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:meta/meta.dart';
 import 'package:navis/src/api/models/models.dart';
 import 'package:navis/src/api/subsonic_api_client.dart';
 import 'package:navis/src/api/subsonic_auth_interceptor.dart';
+import 'package:navis/src/database/daos/library_dao.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/auth/domain/server_reachability.dart';
 import 'package:navis/src/features/auth/presentation/server_reachability_provider.dart';
@@ -234,6 +237,40 @@ ProviderSubscription<AsyncValue<SearchResultsState?>> _listenToSearch(
   );
 }
 
+/// A local artist search that waits on [gate], to hold the provider build
+/// between its debounce and its next `ref` use while a newer query arrives.
+class _GatedLibraryDao extends LibraryDao {
+  new(super.attachedDatabase, this.gate);
+
+  final Completer<void> gate;
+
+  @override
+  Future<List<ArtistsTableData>> searchArtistsLocal(
+    String query, {
+    int limit = 20,
+  }) async {
+    await gate.future;
+    return await super.searchArtistsLocal(query, limit: limit);
+  }
+}
+
+class _GatedDatabase extends NavisDatabase {
+  new(this.gate)
+    : super(
+        DatabaseConnection(
+          NativeDatabase.memory(),
+          closeStreamsSynchronously: true,
+        ),
+      );
+
+  final Completer<void> gate;
+
+  @override
+  // Swaps in the gated DAO; the generated database declares it as a field.
+  // ignore: overridden_fields
+  late final LibraryDao libraryDao = _GatedLibraryDao(this, gate);
+}
+
 void main() {
   test('checking keeps search online until an outage is confirmed', () {
     final container = ProviderContainer(
@@ -250,6 +287,33 @@ void main() {
     addTearDown(container.dispose);
     expect(container.read(searchIsOfflineProvider), isFalse);
   });
+
+  test(
+    'typing on while the local search runs throws no disposed-ref error',
+    () async {
+      if (!sqliteAvailable) return;
+
+      final gate = Completer<void>();
+      final database = _GatedDatabase(gate);
+      addTearDown(database.close);
+      final container = _createContainer(database);
+      addTearDown(container.dispose);
+
+      final errors = <Object>[];
+      await runZonedGuarded(() async {
+        container.listen(debouncedSearchProvider, (_, _) {});
+        container.read(searchQueryProvider.notifier).submit('lov');
+        // Past the 300 ms debounce, so the first build waits on the gate.
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        container.read(searchQueryProvider.notifier).submit('love');
+        await Future<void>.delayed(Duration.zero);
+        gate.complete();
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      }, (error, _) => errors.add(error));
+
+      expect(errors, isEmpty);
+    },
+  );
 
   group('debouncedSearchProvider', () {
     group('Deezer ranking', () {

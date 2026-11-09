@@ -2660,6 +2660,13 @@ car Now Playing adds none of its own (the desktop Mini Player, which reuses
 that layout, still does), hides the format pills below 400 dp high, and the
 compact mini player strip grows by the real bottom inset (a home indicator or a
 Duo strip) with its content above it.
+The shell does not resize for the keyboard there, so the page keeps the full
+`viewInsets.bottom` while its bottom edge already sits above the mini player;
+`_ConsumedBottomInset` (`app_shell_support_widgets.dart`) takes that height off
+the inset (0 while Now Playing is expanded), so a page `Scaffold` or sheet does
+not count it twice. Search drops its filter chips and offline banner below
+200 dp of body height (`_kSearchFiltersMinHeight`) so the bar and results fit
+a short window with the keyboard up.
 
 `sideStripNav` keeps everything in the bottom-navigation branch (the I27b
 `SafeArea` and `ConsumedRightInset`, the full-width mini player, the player
@@ -2672,7 +2679,11 @@ locale does not move hardware), `kSideStripStatusReserve` (168 dp) below the top
 so it clears the camera, clock and wifi icons. It reuses `_BottomNavReveal` (it
 hides and ignores pointers while Now Playing opens) and `_CompactIconRail`, so
 the `compactRailNavTile-$i` keys, tooltips, semantics and the diagnostics
-`/v1/presentation/tab` path are the same as in compact-wide. OS-level taps in
+`/v1/presentation/tab` path are the same as in compact-wide. The pill sits in a `LayoutBuilder` over the body, which the keyboard
+shrinks (this shell resizes for it, unlike compact-wide), and is not built
+while `kSideStripStatusReserve + kSideStripPillHeight` does not fit above the
+mini player: like a phone's bottom bar, it goes under the keyboard, and it
+returns when the keyboard closes. OS-level taps in
 the strip below 160 dp reach Flutter and do not trigger scroll-to-top (checked
 on the iPhone Duo simulator).
 
@@ -2693,6 +2704,13 @@ rails, the mini player's buttons, the Playlists and Radio buttons) clear a
 right system strip such as the iPhone Duo cover screen's, via
 `rightSystemInsetFor`; compact-wide pads its content by that inset already, so
 it returns 0 there.
+The Library artists grid highlights the letter whose section header is within
+`_kArtistGridActiveLetterOffset` (48 dp) of the grid's own top, measured with
+`localToGlobal(ancestor: <viewport>)` because the grid starts at a different
+screen height on every layout, and recomputes on `ScrollMetricsNotification` so
+a fold or column change without a scroll keeps the rail on the shown letter.
+The grid keeps its pixel offset across a layout change, so a different column
+count shows different artists; the rail follows what is shown.
 
 Round 2 (I27b): the shell owns the horizontal safe area. The phone
 bottom-navigation branch and the standard rail branch wrap the page content in
