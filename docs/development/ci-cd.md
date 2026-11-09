@@ -13,6 +13,8 @@ Releases are built and published locally with `tool/release.sh`; `tool/check.sh`
 - `ios`: on `macos-latest` (free for this public repository), bootstrap then `flutter build ios --simulator --debug` with a 30-minute deadline. It proves the iOS project, its SwiftPM plugins and the vendored Darwin audio code compile. The simulator build is used because it needs no signing or provisioning and is the same build the simulator runtime loop runs; a device or release build (`--release --no-codesign`) adds only the device slice and ahead-of-time compile, which only a local release build exercises today. It runs no tests and uses no secrets.
 - `ci`: waits for all five and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
 
+The `static`, `test`, `native` and `ios` jobs cache `.dart_tool/hooks_runner/shared/sqlite3/build`, (one entry per job, keyed on `pubspec.lock`). With a warm cache the `sqlite3` package's build hook reuses its prebuilt library after checking its hash, so a GitHub release-download outage does not fail the job; a cold cache (new key) still downloads.
+
 Windows media-session changes additionally require the Windows-only isolated
 GMTC validation command described in `docs/development/development-workflow.md`:
 `tool/windows_smtc_diagnostics.ps1`. It runs after Linux smoke and focused

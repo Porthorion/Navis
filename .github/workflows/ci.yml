@@ -52,6 +52,15 @@ jobs:
           flutter-version: 3.47.5
           cache: true
 
+      # The sqlite3 package's build hook downloads a prebuilt library on every
+      # run; a cached copy avoids refetching it, including on GitHub outages.
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .dart_tool/hooks_runner/shared/sqlite3/build
+          key: sqlite3-hook-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            sqlite3-hook-${{ runner.os }}-${{ github.job }}-
+
       # Local release/packaging and Python tooling stays in tool/check.sh.
       # Native JVM checks have their own Android SDK job below.
       - run: ./tool/bootstrap.sh
@@ -82,6 +91,15 @@ jobs:
           flutter-version: 3.47.5
           cache: true
 
+      # The sqlite3 package's build hook downloads a prebuilt library on every
+      # run; a cached copy avoids refetching it, including on GitHub outages.
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .dart_tool/hooks_runner/shared/sqlite3/build
+          key: sqlite3-hook-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            sqlite3-hook-${{ runner.os }}-${{ github.job }}-
+
       - run: ./tool/bootstrap.sh
       # No secrets: the Last.fm key comes from optional --dart-define values,
       # and builds without one fall back to a user-supplied key.
@@ -111,6 +129,14 @@ jobs:
           channel: stable
           flutter-version: 3.47.5
           cache: true
+      # The sqlite3 package's build hook downloads a prebuilt library on every
+      # run; a cached copy avoids refetching it, including on GitHub outages.
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .dart_tool/hooks_runner/shared/sqlite3/build
+          key: sqlite3-hook-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            sqlite3-hook-${{ runner.os }}-${{ github.job }}-
       - run: flutter precache --android
       - run: ./tool/bootstrap.sh
       - run: ./tool/equalizer_native_test.sh
@@ -131,6 +157,12 @@ jobs:
           channel: stable
           flutter-version: 3.47.5
           cache: true
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .dart_tool/hooks_runner/shared/sqlite3/build
+          key: sqlite3-hook-${{ runner.os }}-${{ github.job }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            sqlite3-hook-${{ runner.os }}-${{ github.job }}-
       - run: ./tool/bootstrap.sh
       # The pitch stage test also runs in the Linux native job; here the real
       # AUNewTimePitch test runs too (macOS only), without the Java part.
