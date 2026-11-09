@@ -1515,6 +1515,55 @@ void main() {
       });
     }
 
+    testWidgets(
+      'phone album Play inset follows the content width at 375 and 360 wide',
+      (tester) async {
+        for (final (size, inset) in <(Size, double)>[
+          (const Size(375, 812), 16),
+          (const Size(360, 780), 4),
+        ]) {
+          setAdaptiveTestViewport(tester, size);
+          await _pumpAlbumDetail(
+            tester,
+            database: database,
+            adaptiveContext: _mobileContext,
+            textScaler: TextScaler.noScaling,
+            album: _albumWithSongs(const <SongsTableData>[
+              SongsTableData(
+                id: 'phone-song',
+                title: 'Phone song',
+                artistName: 'Artist 1',
+                albumName: 'Album 1',
+                duration: 180,
+                track: 1,
+                isExternal: false,
+                isProvisional: false,
+              ),
+            ]),
+          );
+          await tester.pump(const Duration(milliseconds: 300));
+
+          final play = tester.getRect(
+            find
+                .descendant(
+                  of: find.byType(EntityActionBar),
+                  matching: find.byType(IconButton),
+                )
+                .first,
+          );
+          final summary = tester.getRect(find.textContaining('2025'));
+          final contentLeft = summary.left - 16;
+          expect(play.left - contentLeft, inset, reason: 'Play inset at $size');
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: 'The Play row must not overflow at $size',
+          );
+          await _disposeApp(tester);
+        }
+      },
+    );
+
     testWidgets('mobile album keeps numbered controls beside 64 px tracks', (
       tester,
     ) async {
