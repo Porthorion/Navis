@@ -10992,6 +10992,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Hold for track info'**
   String get nowPlayingHoldForTrackInfo;
+
+  /// No description provided for @nowPlayingHoldForQueue.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold for the queue'**
+  String get nowPlayingHoldForQueue;
+
+  /// No description provided for @nowPlayingHoldForSpeedPitch.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold for Speed & Pitch'**
+  String get nowPlayingHoldForSpeedPitch;
 }
 
 class _AppLocalizationsDelegate

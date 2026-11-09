@@ -6867,4 +6867,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get nowPlayingHoldForTrackInfo => 'Hold for track info';
+
+  @override
+  String get nowPlayingHoldForQueue => 'Hold for the queue';
+
+  @override
+  String get nowPlayingHoldForSpeedPitch => 'Hold for Speed & Pitch';
 }

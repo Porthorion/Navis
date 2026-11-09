@@ -22,6 +22,7 @@ import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/media_info.dart';
 import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
+import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/replay_gain_untagged_provider.dart';
 import 'package:navis/src/features/settings/presentation/playback_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -92,6 +93,8 @@ void main() {
     WidgetTester tester, {
     bool realPlaybackSettings = false,
     bool withSheet = true,
+    bool wideEmbeddedMode = false,
+    bool compactWide = false,
     Size size = const Size(390, 844),
     VoidCallback? onCollapse,
   }) async {
@@ -128,7 +131,11 @@ void main() {
                     miniPlayer: const SizedBox(height: 64),
                     fullPlayer: NowPlayingScreen(onCollapse: () {}),
                   )
-                : NowPlayingScreen(onCollapse: () {}),
+                : NowPlayingScreen(
+                    onCollapse: () {},
+                    wideEmbeddedMode: wideEmbeddedMode,
+                    compactWideLandscapeMode: compactWide,
+                  ),
           ),
         ),
         GoRoute(
@@ -187,6 +194,23 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Cycles to the page whose icon is [icon].
+  Future<void> showPageWithIcon(WidgetTester tester, IconData icon) async {
+    for (var i = 0; i < 8; i++) {
+      if (tester.widget<Icon>(_infoIcon).icon == icon) return;
+      await tester.tap(_infoText);
+      await tester.pumpAndSettle();
+    }
+    fail('no page with icon $icon');
+  }
+
+  bool queueOpen() => container
+      .read(playerOverlayStackProvider)
+      .contains(PlayerOverlayRoute.queue);
+  bool speedPanelOpen() => find
+      .byKey(const ValueKey('playbackAdjustmentQuickPanel'))
+      .evaluate()
+      .isNotEmpty;
   bool settingsOpen() => find.text(_settingsStub).evaluate().isNotEmpty;
   bool mediaInfoOpen() =>
       find.byKey(const ValueKey('mediaInfoSheet')).evaluate().isNotEmpty;
@@ -274,6 +298,136 @@ void main() {
     final rect = tester.getRect(title);
     expect(rect.top, inInclusiveRange(0, 844 - rect.height));
   }, skip: !sqliteAvailable);
+
+  group('holding the Speed & Pitch and Queue chips', () {
+    testWidgets('holding Speed & Pitch opens the speed and pitch panel', (
+      tester,
+    ) async {
+      await pumpSheet(tester);
+      await showPageWithIcon(tester, Icons.speed_outlined);
+      expect(speedPanelOpen(), isFalse);
+      await tester.longPress(_infoText);
+      await tester.pumpAndSettle();
+      expect(speedPanelOpen(), isTrue);
+    }, skip: !sqliteAvailable);
+
+    testWidgets('holding Queue opens the queue', (tester) async {
+      await pumpSheet(tester);
+      await showPageWithIcon(tester, Icons.queue_music_outlined);
+      expect(queueOpen(), isFalse);
+      await tester.longPress(_infoText);
+      await tester.pumpAndSettle();
+      expect(queueOpen(), isTrue);
+    }, skip: !sqliteAvailable);
+
+    testWidgets('an empty queue has nothing to open', (tester) async {
+      await pumpSheet(tester);
+      await showPageWithIcon(tester, Icons.queue_music_outlined);
+      emitNowPlayingPlayback(
+        container,
+        const PlaybackSnapshot(
+          queueSongIds: <String>[],
+          currentSongId: 's1',
+          currentIndex: null,
+          playing: false,
+          processingState: AudioProcessingState.idle,
+          position: Duration.zero,
+          duration: Duration.zero,
+          bufferedPosition: Duration.zero,
+          shuffleMode: AudioServiceShuffleMode.none,
+          repeatMode: AudioServiceRepeatMode.none,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.longPress(_infoText);
+      await tester.pumpAndSettle();
+      expect(queueOpen(), isFalse);
+    }, skip: !sqliteAvailable);
+
+    testWidgets('the desktop cells open them (hold the queue, tap speed)', (
+      tester,
+    ) async {
+      await pumpSheet(tester, withSheet: false, size: const Size(1000, 900));
+      await tester.longPress(find.text('Playing 1 of 1'));
+      await tester.pumpAndSettle();
+      expect(queueOpen(), isTrue);
+      expect(speedPanelOpen(), isFalse);
+      await tester.tap(find.text('Speed & Pitch'));
+      await tester.pumpAndSettle();
+      expect(speedPanelOpen(), isTrue);
+    }, skip: !sqliteAvailable);
+  });
+
+  group(
+    'in the embedded wide layouts the holds open what the buttons open',
+    () {
+      final embeddedQueue = find.byKey(
+        const ValueKey('right-pane-panel-queue'),
+      );
+
+      testWidgets(
+        'split: holding the Queue cell opens the embedded queue panel '
+        'like the Queue button',
+        (tester) async {
+          await pumpSheet(
+            tester,
+            withSheet: false,
+            wideEmbeddedMode: true,
+            size: const Size(1400, 900),
+          );
+          await tester.longPress(find.text('Playing 1 of 1'));
+          await tester.pumpAndSettle();
+          expect(embeddedQueue, findsOneWidget);
+          expect(queueOpen(), isFalse);
+        },
+        skip: !sqliteAvailable,
+      );
+
+      testWidgets('split: the Queue button opens the same panel', (
+        tester,
+      ) async {
+        await pumpSheet(
+          tester,
+          withSheet: false,
+          wideEmbeddedMode: true,
+          size: const Size(1400, 900),
+        );
+        await tester.tap(find.byTooltip('Queue').first);
+        await tester.pumpAndSettle();
+        expect(embeddedQueue, findsOneWidget);
+        expect(queueOpen(), isFalse);
+      }, skip: !sqliteAvailable);
+
+      testWidgets('split: holding Speed & Pitch opens the quick panel the '
+          'speed control opens', (tester) async {
+        await pumpSheet(
+          tester,
+          withSheet: false,
+          wideEmbeddedMode: true,
+          size: const Size(1400, 900),
+        );
+        await tester.longPress(find.text('Speed & Pitch'));
+        await tester.pumpAndSettle();
+        expect(speedPanelOpen(), isTrue);
+      }, skip: !sqliteAvailable);
+
+      testWidgets('compact wide: holding the Queue line opens the compact '
+          'queue panel', (tester) async {
+        await pumpSheet(
+          tester,
+          withSheet: false,
+          wideEmbeddedMode: true,
+          compactWide: true,
+          size: const Size(800, 400),
+        );
+        await showPageWithIcon(tester, Icons.queue_music_outlined);
+        await tester.longPress(_infoText);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('compact-wide-queue')), findsWidgets);
+        expect(queueOpen(), isFalse);
+      }, skip: !sqliteAvailable);
+    },
+  );
 
   group('the chip keeps its other gestures', () {
     testWidgets('a tap still pages and a hold does not also page', (
