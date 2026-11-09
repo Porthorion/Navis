@@ -38,6 +38,10 @@ class SearchTopResultsSection extends StatelessWidget {
 
   static const double _gap = 12;
 
+  /// Narrower than this the hero (two flex shares) cannot hold its art, a
+  /// one-line title and its actions. Measured: see the I27b foldable tests.
+  static const double _rowLayoutMinWidth = 560;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -66,38 +70,43 @@ class SearchTopResultsSection extends StatelessWidget {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-          child: desktopMode
-              ? IntrinsicHeight(
-                  child: Row(
+          // The row is picked by the section's own width: a tablet pane
+          // beside a rail is desktopMode but too narrow for it.
+          child: LayoutBuilder(
+            builder: (context, constraints) =>
+                desktopMode && constraints.maxWidth >= _rowLayoutMinWidth
+                ? IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Expanded(flex: 2, child: hero),
+                        for (final tile in tiles) ...<Widget>[
+                          const SizedBox(width: _gap),
+                          Expanded(child: tile),
+                        ],
+                      ],
+                    ),
+                  )
+                : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: <Widget>[
-                      Expanded(flex: 2, child: hero),
-                      for (final tile in tiles) ...<Widget>[
-                        const SizedBox(width: _gap),
-                        Expanded(child: tile),
+                      hero,
+                      if (topResults.length > 1) ...<Widget>[
+                        const SizedBox(height: _gap),
+                        IntrinsicHeight(
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: <Widget>[
+                              Expanded(child: tiles[0]),
+                              const SizedBox(width: _gap),
+                              Expanded(child: tiles[1]),
+                            ],
+                          ),
+                        ),
                       ],
                     ],
                   ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    hero,
-                    if (topResults.length > 1) ...<Widget>[
-                      const SizedBox(height: _gap),
-                      IntrinsicHeight(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: <Widget>[
-                            Expanded(child: tiles[0]),
-                            const SizedBox(width: _gap),
-                            Expanded(child: tiles[1]),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+          ),
         ),
       ],
     );

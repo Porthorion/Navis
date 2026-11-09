@@ -432,3 +432,27 @@ double rightSystemInsetFor(BuildContext context) =>
     resolveAdaptiveContextFor(context).useCompactWideLandscape
     ? 0
     : MediaQuery.paddingOf(context).right;
+
+/// The right system inset the shell's `SafeArea` consumed for the page below
+/// (it removes the inset from `MediaQuery` too, so nothing else tells a page
+/// it sits beside one). A control hugging the page's right edge is then flush
+/// with the system strip, so it keeps a gap there.
+class ConsumedRightInset extends InheritedWidget {
+  const new({required this.inset, required super.child, super.key});
+
+  final double inset;
+
+  /// True beside a system strip the shell already cleared; false on an
+  /// ordinary phone, unscoped, and under the compact wide shell (which pads
+  /// its content itself and leaves `MediaQuery` untouched).
+  static bool of(BuildContext context) =>
+      (context
+              .dependOnInheritedWidgetOfExactType<ConsumedRightInset>()
+              ?.inset ??
+          0) >
+      0;
+
+  @override
+  bool updateShouldNotify(ConsumedRightInset oldWidget) =>
+      inset != oldWidget.inset;
+}

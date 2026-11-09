@@ -216,6 +216,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Foldables and tablets: pages no longer run under the system strip at '
+        'the right edge of the iPhone Duo, the side rail keeps its normal '
+        'width when unfolded, Library tabs fit or scroll instead of being cut '
+        'off, Top Results in Search are no longer squeezed, and folding the '
+        'screen with Now Playing open no longer throws an error',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Settings › Haptics turns vibration off entirely or per kind, such '
         'as Player Gestures, Sliders & Rulers or Notifications, so you can '
         'keep the ones you like',

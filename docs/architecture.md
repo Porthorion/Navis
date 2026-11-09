@@ -2663,6 +2663,21 @@ right system strip such as the iPhone Duo cover screen's, via
 `rightSystemInsetFor`; compact-wide pads its content by that inset already, so
 it returns 0 there.
 
+Round 2 (I27b): the shell owns the horizontal safe area. The phone
+bottom-navigation branch and the standard rail branch wrap the page content in
+`SafeArea(top: false, bottom: false)`, so a right system strip or a notch
+never sits under a page, and `SafeArea` removes the consumed padding from
+`MediaQuery` for the pages (the in-page `rightSystemInsetFor` calls return 0
+there). The player sheet, the bottom bar and the compact-wide `Padding` path
+are outside it. The rail's own `SafeArea` takes no left or right inset. The
+rail-mode Now Playing overlay is clipped to the pane (`ClipRect`), because its
+collapsed slide is a paint transform. The Library tab bar fits or scrolls by
+the page's own width (the widest label times the tab count). Search Top Results
+use the three-across row only in a section at least 560 dp wide, and the album
+hero takes its width from the page, not the screen. `ExpandablePlayerSheet`
+sets an expanded start value before it listens, so mounting expanded reports
+its progress after the frame instead of during build.
+
 Selected destinations use filled icons on the bar and rails. When the sidebar
 or rail cannot show the Library section links (phone bottom navigation, the
 compact rail, icon-only or auto-hiding desktop sidebars, or a rail too short

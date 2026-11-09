@@ -94,11 +94,14 @@ class _ExpandablePlayerSheetState extends State<ExpandablePlayerSheet>
     );
 
     _controller.addStatusListener(_onAnimationStatusChanged);
-    _controller.addListener(_notifyProgressChanged);
-
+    // Set the start value before listening: reporting it here would run
+    // onProgressChanged during the parent's build, and a listener elsewhere in
+    // the tree would throw markNeedsBuild during build. The post-frame
+    // callback below reports it.
     if (widget.isExpanded) {
       _controller.value = 1;
     }
+    _controller.addListener(_notifyProgressChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {

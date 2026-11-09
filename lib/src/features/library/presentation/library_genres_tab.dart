@@ -299,7 +299,9 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
         // Wide panes show uniform cards in the same grid geometry as the
         // album and artist grids; phones keep the list.
         final inset = ContentLayout.padding(constraints.maxWidth);
-        final railInset = _sort == GenreSortOrder.name ? 28.0 : 0.0;
+        final railInset = _sort == GenreSortOrder.name
+            ? 28.0 + sectionRailEndGap(context)
+            : 0.0;
         final wide = constraints.maxWidth >= kAdaptiveMediumWidth;
         final grid = wide
             ? ContentLayout.genres(
@@ -328,7 +330,9 @@ class _LibraryGenresTabState extends ConsumerState<_LibraryGenresTab>
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.only(
                 bottom: 16,
-                right: _letterStart.isEmpty ? 0 : 28,
+                right: _letterStart.isEmpty
+                    ? 0
+                    : 28 + sectionRailEndGap(context),
               ),
               itemBuilder: (context, index) {
                 final item = _items[index];
