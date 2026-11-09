@@ -1,5 +1,7 @@
-// ponytail: stored names are not rewritten; the next full sync (server rescan
-// or repair) corrects them. For a forced repair, bump
+// ponytail: stored names are not rewritten; a full repair corrects them (a
+// normal sync can carry encoded song titles forward when the album matches).
+// JSON re-read from local stores decodes again, which only alters names that
+// still hold entity text after one decode. For a forced repair, bump
 // `currentLibrarySyncModelVersion` and the genres-pending gate.
 final RegExp _entity = RegExp(r'&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);');
 
@@ -25,7 +27,10 @@ String decodeHtmlEntities(String s) {
     final code = body.startsWith('#x')
         ? int.tryParse(body.substring(2), radix: 16)
         : int.tryParse(body.substring(1));
-    if (code == null || code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF)) {
+    if (code == null ||
+        code < 0x20 ||
+        code > 0x10FFFF ||
+        (code >= 0xD800 && code <= 0xDFFF)) {
       return m[0]!;
     }
     return String.fromCharCode(code);
