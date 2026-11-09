@@ -308,6 +308,7 @@ class _NowPlayingInfoPanel extends ConsumerStatefulWidget {
     required this.playback,
     required this.currentMediaItem,
     required this.playbackSpeed,
+    this.onOpenQueue,
   });
 
   final SongsTableData? song;
@@ -315,6 +316,10 @@ class _NowPlayingInfoPanel extends ConsumerStatefulWidget {
   final PlaybackSnapshot playback;
   final MediaItem? currentMediaItem;
   final double playbackSpeed;
+
+  /// What the Queue line opens: the screen's embedded queue panel, as the
+  /// Queue button does there; null opens the shell queue.
+  final VoidCallback? onOpenQueue;
 
   @override
   ConsumerState<_NowPlayingInfoPanel> createState() =>
@@ -361,6 +366,8 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
       ref,
       page,
       canOpenTrackInfo: currentSongId != null && !widget.playback.isRadioMode,
+      hasQueue: widget.playback.hasQueue && !widget.playback.isRadioMode,
+      onOpenQueue: widget.onOpenQueue,
     );
     // The hold is the whole chip's, like the tap: a hold anywhere on it never
     // pages.
@@ -442,12 +449,7 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
                                 },
                               )
                             : _withHoldHint(
-                                page.isQualityPage
-                                    ? l10n.nowPlayingHoldForTrackInfo
-                                    : l10n.nowPlayingHoldForReplayGainSettings,
-                                page.isQualityPage
-                                    ? l10n.mediaInfoTrackInfoAction
-                                    : l10n.nowPlayingReplayGainSettingsAction,
+                                _infoPageHold(l10n, page),
                                 open,
                                 _NowPlayingInfoValue(
                                   page: page,
@@ -500,13 +502,17 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
   }
 }
 
-/// What the Quality line (track info) and the ReplayGain line (its settings
-/// section) open; null for the other pages.
+/// What the Quality line (track info), the ReplayGain line (its settings
+/// section), the Queue line (the queue) and the Speed & Pitch line (its panel)
+/// open; null for the other pages, and for a line with nothing to open (a
+/// radio station, an empty queue).
 Future<void> Function()? _infoPageOpen(
   BuildContext context,
   WidgetRef ref,
   _NowPlayingInfoPage page, {
   required bool canOpenTrackInfo,
+  required bool hasQueue,
+  VoidCallback? onOpenQueue,
 }) {
   if (page.isQualityPage) {
     return canOpenTrackInfo ? () => showMediaInfo(context) : null;
@@ -514,22 +520,56 @@ Future<void> Function()? _infoPageOpen(
   if (page.isReplayGainPage) {
     return () async => NavService.openPlaybackReplayGainSettings(context, ref);
   }
+  if (page.isQueuePage) {
+    if (!hasQueue) return null;
+    return onOpenQueue != null
+        ? () async => onOpenQueue()
+        : () async => NavService.showQueue(context, ref);
+  }
+  if (page.isSpeedPitchPage) {
+    return hasQueue ? () => showPlaybackAdjustmentQuickPanel(context) : null;
+  }
   return null;
+}
+
+/// The screen-reader hint and action label of a held line.
+({String hint, String action}) _infoPageHold(
+  AppLocalizations l10n,
+  _NowPlayingInfoPage page,
+) {
+  if (page.isQualityPage) {
+    return (
+      hint: l10n.nowPlayingHoldForTrackInfo,
+      action: l10n.mediaInfoTrackInfoAction,
+    );
+  }
+  if (page.isQueuePage) {
+    return (hint: l10n.nowPlayingHoldForQueue, action: l10n.nowPlayingQueue);
+  }
+  if (page.isSpeedPitchPage) {
+    return (
+      hint: l10n.nowPlayingHoldForSpeedPitch,
+      action: l10n.playbackSpeedPitchTitle,
+    );
+  }
+  return (
+    hint: l10n.nowPlayingHoldForReplayGainSettings,
+    action: l10n.nowPlayingReplayGainSettingsAction,
+  );
 }
 
 /// Gives a line that opens something on long press a screen-reader hint and
 /// action (a tooltip would never show: the long press opens it).
 Widget _withHoldHint(
-  String hint,
-  String actionLabel,
+  ({String hint, String action}) label,
   Future<void> Function()? open,
   Widget child,
 ) {
   if (open == null) return child;
   return Semantics(
-    hint: hint,
+    hint: label.hint,
     customSemanticsActions: <CustomSemanticsAction, VoidCallback>{
-      CustomSemanticsAction(label: actionLabel): () => unawaited(open()),
+      CustomSemanticsAction(label: label.action): () => unawaited(open()),
     },
     child: child,
   );
@@ -545,6 +585,8 @@ class _NowPlayingInfoPage {
     this.isRatingPage = false,
     this.isQualityPage = false,
     this.isReplayGainPage = false,
+    this.isQueuePage = false,
+    this.isSpeedPitchPage = false,
   });
 
   final IconData icon;
@@ -559,6 +601,12 @@ class _NowPlayingInfoPage {
 
   /// What ReplayGain applies to the song; holding it opens Playback settings.
   final bool isReplayGainPage;
+
+  /// "Playing X of Y"; holding it opens the queue.
+  final bool isQueuePage;
+
+  /// The speed and pitch summary; holding it opens the Speed & Pitch panel.
+  final bool isSpeedPitchPage;
 }
 
 /// Whether the untagged ReplayGain level follows the library (Automatic).
@@ -606,6 +654,7 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
       icon: Icons.queue_music_outlined,
       semanticLabel: l10n.queueTitle,
       value: _formatQueuePosition(l10n, playback),
+      isQueuePage: true,
     ),
     _NowPlayingInfoPage(
       icon: Icons.calendar_today_outlined,
@@ -619,6 +668,7 @@ List<_NowPlayingInfoPage> _buildNowPlayingInfoPages({
         l10n,
         adjustments ?? PlaybackAdjustments(speed: playbackSpeed),
       ),
+      isSpeedPitchPage: true,
     ),
     _NowPlayingInfoPage(
       icon: Icons.star_border,
@@ -637,6 +687,7 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
     required this.playback,
     required this.currentMediaItem,
     required this.playbackSpeed,
+    this.onOpenQueue,
   });
 
   final SongsTableData? song;
@@ -644,6 +695,10 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
   final PlaybackSnapshot playback;
   final MediaItem? currentMediaItem;
   final double playbackSpeed;
+
+  /// What the Queue line opens: the screen's embedded queue panel, as the
+  /// Queue button does there; null opens the shell queue.
+  final VoidCallback? onOpenQueue;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -689,6 +744,8 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
         ref,
         page,
         canOpenTrackInfo: currentSongId != null && !playback.isRadioMode,
+        hasQueue: playback.hasQueue && !playback.isRadioMode,
+        onOpenQueue: onOpenQueue,
       ),
     );
 
@@ -806,12 +863,7 @@ class _NowPlayingInfoGridCell extends StatelessWidget {
     final open = this.open;
     if (open == null) return cell;
     return _withHoldHint(
-      page.isQualityPage
-          ? l10n.nowPlayingHoldForTrackInfo
-          : l10n.nowPlayingHoldForReplayGainSettings,
-      page.isQualityPage
-          ? l10n.mediaInfoTrackInfoAction
-          : l10n.nowPlayingReplayGainSettingsAction,
+      _infoPageHold(l10n, page),
       open,
       InkWell(
         borderRadius: NavisShapeData.of(context).smAll,

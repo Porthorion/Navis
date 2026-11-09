@@ -2010,6 +2010,7 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                         playback: playback,
                         currentMediaItem: currentMediaItem,
                         playbackSpeed: playbackSpeed,
+                        onOpenQueue: _showQueuePanel,
                       ),
                     ],
                     SizedBox(height: vSpacing),
@@ -2390,6 +2391,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
                 playback: playback,
                 currentMediaItem: currentMediaItem,
                 playbackSpeed: playbackSpeed,
+                onOpenQueue: supportsSplitPanelOverlay
+                    ? openWidePanelAction(_WideNowPlayingPanel.queue)
+                    : null,
               );
         final seekBar = isRadio ? null : _SeekBar(playback: playback);
 
@@ -2649,6 +2653,9 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
               playback: playback,
               currentMediaItem: currentMediaItem,
               playbackSpeed: playbackSpeed,
+              onOpenQueue: supportsSplitPanelOverlay
+                  ? openWidePanelAction(_WideNowPlayingPanel.queue)
+                  : null,
             ),
           ),
         );

@@ -3208,5 +3208,7 @@
   "mediaInfoTrackInfoAction": "Track info",
   "mediaInfoTrackInfoRow": "Track Info",
   "mediaInfoTrackInfoRowHint": "Source, quality and file details",
-  "nowPlayingHoldForTrackInfo": "Hold for track info"
+  "nowPlayingHoldForTrackInfo": "Hold for track info",
+  "nowPlayingHoldForQueue": "Hold for the queue",
+  "nowPlayingHoldForSpeedPitch": "Hold for Speed & Pitch"
 }
