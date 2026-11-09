@@ -401,9 +401,10 @@ const List<ChangelogVersion> changelogs = [
         'Foldables and tablets fit better: the artist letter bar follows your '
         'scroll, Library keeps your place when the screen folds, unfolds or '
         'rotates, Now Playing fits shorter screens, album covers on tablets '
-        'leave room for the songs, and on the folded iPhone '
-        'Duo the letter bar, mini player buttons and new playlist button '
-        'clear the system strip',
+        'leave room for the songs, Library tabs and Top Results in Search '
+        'no longer get cut off or squeezed, the side rail keeps its normal '
+        'width when unfolded, and on the iPhone Duo every page stays clear of '
+        'the system strip on the right',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
