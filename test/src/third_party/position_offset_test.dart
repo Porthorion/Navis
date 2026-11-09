@@ -240,7 +240,10 @@ void main() {
 
         // ExoPlayer reports almost nothing during steady playback: one event
         // after the load, then one after the native loop.
+        // (1 ms, not 0: an older stamp for the position play() already
+        // stamped is deliberately ignored, see the I32d group.)
         native.player.emit(
+          position: const Duration(milliseconds: 1),
           duration: duration,
           at: DateTime.now().subtract(const Duration(seconds: 60)),
         );
@@ -383,6 +386,60 @@ void main() {
       expect(player.currentIndex, 1);
     },
   );
+
+  group('stale native position stamp (I32d)', () {
+    final stale = DateTime.now().subtract(const Duration(seconds: 5));
+
+    Future<AudioPlayer> playingAt(Duration position) async {
+      final player = newPlayer();
+      await player.setAudioSource(plainSource());
+      native.player.emit(position: position, at: stale);
+      await pumpEventQueue();
+      unawaited(player.play());
+      await player.playingStream.firstWhere((playing) => playing);
+      return player;
+    }
+
+    test('an in-flight event with the same position and an older stamp '
+        'does not rewind the stamp', () async {
+      final player = await playingAt(Duration.zero);
+      native.player.emit(
+        position: Duration.zero,
+        buffered: const Duration(seconds: 3),
+        at: stale,
+      );
+      await pumpEventQueue();
+      expect(player.position, lessThan(const Duration(milliseconds: 500)));
+      expect(player.bufferedPosition, const Duration(seconds: 3));
+    });
+
+    test('a different position with an older stamp is taken as sent', () async {
+      final player = await playingAt(Duration.zero);
+      native.player.emit(position: const Duration(seconds: 3), at: stale);
+      await pumpEventQueue();
+      expect(player.playbackEvent.updateTime, stale);
+      expect(player.position, greaterThan(const Duration(seconds: 7)));
+    });
+
+    test('an item change at the same position is taken as sent', () async {
+      final player = newPlayer();
+      await player.setAudioSources([plainSource(), plainSource()]);
+      native.player.emit(position: Duration.zero, index: 0);
+      await pumpEventQueue();
+      native.player.emit(position: Duration.zero, index: 1, at: stale);
+      await pumpEventQueue();
+      expect(player.currentIndex, 1);
+      expect(player.playbackEvent.updateTime, stale);
+    });
+
+    test('a newer stamp for the same position is taken as sent', () async {
+      final player = await playingAt(Duration.zero);
+      final later = DateTime.now().add(const Duration(seconds: 1));
+      native.player.emit(position: Duration.zero, at: later);
+      await pumpEventQueue();
+      expect(player.playbackEvent.updateTime, later);
+    });
+  });
 
   test('a zero offset leaves positions and seeks untouched', () async {
     final player = newPlayer();
