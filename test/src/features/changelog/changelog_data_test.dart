@@ -85,6 +85,17 @@ void main() {
       expect(entry.appliesTo(ChangelogPlatform.macos), isFalse);
     });
 
+    test('groupByPlatforms orders groups and keeps data order inside', () {
+      const mac1 = ChangelogEntry('m1', platforms: {ChangelogPlatform.macos});
+      const mac2 = ChangelogEntry('m2', platforms: {ChangelogPlatform.macos});
+      const desktop = ChangelogEntry('d', platforms: ChangelogPlatform.desktop);
+      const droid = ChangelogEntry('a', platforms: {ChangelogPlatform.android});
+      const everyone = ChangelogEntry('all');
+      final groups = groupByPlatforms([desktop, mac1, everyone, droid, mac2]);
+      expect(groups.map((g) => g.$1), ['Android', 'macOS', 'Desktop']);
+      expect(groups[1].$2, [mac1, mac2]);
+    });
+
     test('labels read naturally and ignore set order', () {
       String? label(Set<ChangelogPlatform> p) =>
           ChangelogEntry('a', platforms: p).platformsLabel;

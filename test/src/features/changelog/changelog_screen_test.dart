@@ -436,7 +436,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('iPhone only fix'), findsOneWidget);
       expect(find.text('Android only tweak'), findsOneWidget);
-      // Each expanded entry carries its platform label.
+      // Entries sit under one heading per platform set.
       expect(find.text('iOS'), findsOneWidget);
       expect(find.text('Android and iOS'), findsOneWidget);
       expect(find.text('Hide changes for other platforms'), findsOneWidget);
@@ -446,6 +446,50 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('iPhone only fix'), findsNothing);
+    });
+
+    testWidgets('other-platform entries are grouped under platform headings', (
+      tester,
+    ) async {
+      const version = ChangelogVersion(
+        version: '9.8.0',
+        released: '2026-07-02',
+        entries: <ChangelogEntry>[
+          ChangelogEntry('Everywhere fix', type: ChangelogEntryType.fix),
+          ChangelogEntry(
+            'Desktop tweak',
+            platforms: {
+              ChangelogPlatform.macos,
+              ChangelogPlatform.windows,
+              ChangelogPlatform.linux,
+            },
+          ),
+          ChangelogEntry('Mac one', platforms: _mac),
+          ChangelogEntry('Android one', platforms: _android),
+          ChangelogEntry('Mac two', platforms: _mac),
+        ],
+      );
+      await _pump(
+        tester,
+        initialVersion: '9.8.0',
+        size: const Size(390, 3000),
+        versions: const [version],
+        platform: ChangelogPlatform.ios,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey<String>('changelogToggleOtherPlatforms')),
+      );
+      await tester.pumpAndSettle();
+
+      double top(String text) => tester.getTopLeft(find.text(text)).dy;
+      final order = ['Android', 'Android one', 'macOS', 'Mac one', 'Mac two']
+        ..addAll(['Desktop', 'Desktop tweak']);
+      for (final text in order) {
+        expect(find.text(text), findsOneWidget);
+      }
+      for (var i = 1; i < order.length; i++) {
+        expect(top(order[i]), greaterThan(top(order[i - 1])), reason: order[i]);
+      }
     });
 
     testWidgets('a shared entry names its platforms, a solo one does not', (
@@ -570,7 +614,8 @@ void main() {
 
       expect(find.text('Mac window fix'), findsOneWidget);
       expect(find.text('Mac menu tweak'), findsOneWidget);
-      expect(find.text('macOS'), findsNWidgets(2));
+      // Both entries share one macOS heading.
+      expect(find.text('macOS'), findsOneWidget);
       expect(
         find.byKey(const ValueKey<String>('changelogToggleOtherPlatforms')),
         findsNothing,
