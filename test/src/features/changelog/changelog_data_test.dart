@@ -15,6 +15,21 @@ int _compare(String a, String b) {
   return 0;
 }
 
+const _platformName = '(?:Android|iOS|macOS|Windows|Linux|Desktop)';
+const _leadName = '(?:Android|iOS|macOS|Windows|Linux|desktop|iPhone|iPad|Mac)';
+
+/// "iOS:" and "Android, iOS and Linux:" prefixes, or "On desktop," lead-ins.
+/// "Android Auto:" and "On Android Auto," name a feature, so only a platform
+/// followed by a separator counts.
+final _prefix = RegExp('^$_platformName(?:(?:,| and| &) $_platformName)*:');
+final _onLeadIn = RegExp(
+  '^On $_leadName(?:(?:,| and| &) $_leadName)*,',
+  caseSensitive: false,
+);
+
+bool _hasPlatformLeadIn(String text) =>
+    _prefix.hasMatch(text) || _onLeadIn.hasMatch(text);
+
 void main() {
   group('ChangelogVersion', () {
     test('every x.y.0 release is major', () {
@@ -50,23 +65,94 @@ void main() {
         '1.4',
       );
     });
+  });
 
-    test('counts entries by type', () {
-      const version = ChangelogVersion(
-        version: '1.0.0',
-        entries: [
-          ChangelogEntry('a', type: ChangelogEntryType.fix),
-          ChangelogEntry('b', type: ChangelogEntryType.fix),
-          ChangelogEntry('c'),
-        ],
+  group('ChangelogEntry platforms', () {
+    test('no platforms means every platform', () {
+      const entry = ChangelogEntry('a');
+      for (final platform in ChangelogPlatform.values) {
+        expect(entry.appliesTo(platform), isTrue);
+      }
+      expect(entry.platformsLabel, isNull);
+    });
+
+    test('a tagged entry applies only to its platforms', () {
+      const entry = ChangelogEntry(
+        'a',
+        platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
       );
-      expect(version.countOf(ChangelogEntryType.fix), 2);
-      expect(version.countOf(ChangelogEntryType.improvement), 1);
-      expect(version.countOf(ChangelogEntryType.newFeature), 0);
+      expect(entry.appliesTo(ChangelogPlatform.ios), isTrue);
+      expect(entry.appliesTo(ChangelogPlatform.macos), isFalse);
+    });
+
+    test('labels read naturally and ignore set order', () {
+      String? label(Set<ChangelogPlatform> p) =>
+          ChangelogEntry('a', platforms: p).platformsLabel;
+      expect(label({ChangelogPlatform.macos}), 'macOS');
+      expect(
+        label({ChangelogPlatform.ios, ChangelogPlatform.android}),
+        'Android and iOS',
+      );
+      expect(
+        label({ChangelogPlatform.linux, ChangelogPlatform.windows}),
+        'Windows and Linux',
+      );
+      expect(
+        label({
+          ChangelogPlatform.android,
+          ChangelogPlatform.ios,
+          ChangelogPlatform.linux,
+        }),
+        'Android, iOS and Linux',
+      );
+      expect(
+        label({
+          ChangelogPlatform.linux,
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+        }),
+        'Desktop',
+      );
     });
   });
 
   group('changelogs', () {
+    test('no entry text starts with a platform prefix or "On X," lead-in', () {
+      for (final version in changelogs) {
+        for (final entry in version.entries) {
+          expect(
+            _hasPlatformLeadIn(entry.text),
+            isFalse,
+            reason:
+                '${version.version}: set `platforms` instead of a prefix: '
+                '${entry.text}',
+          );
+        }
+      }
+    });
+
+    test('the lead-in check spares feature names such as Android Auto', () {
+      for (final text in <String>[
+        'iOS: a',
+        'Android and iOS: a',
+        'On desktop, a',
+        'On iPhone and iPad, a',
+        'On Android, Windows and Linux, a',
+        'On macOS, a',
+      ]) {
+        expect(_hasPlatformLeadIn(text), isTrue, reason: text);
+      }
+      for (final text in <String>[
+        'Android Auto now a',
+        'On Android Auto, a',
+        'Fixed Windows media controls',
+        'Desktop Lyrics now keeps the current track visible',
+        'On the Queue page, a',
+      ]) {
+        expect(_hasPlatformLeadIn(text), isFalse, reason: text);
+      }
+    });
+
     test('versions are valid, unique and newest first', () {
       final versions = changelogs.map((c) => c.version).toList();
       expect(versions.toSet().length, versions.length);

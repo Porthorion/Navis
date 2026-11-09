@@ -2118,6 +2118,13 @@
     }
   },
   "changelogShowFewerFixes": "Show Fewer Fixes",
+  "changelogOtherPlatforms": "{count, plural, =1{1 change for other platforms} other{{count} changes for other platforms}}",
+  "@changelogOtherPlatforms": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "changelogHideOtherPlatforms": "Hide changes for other platforms",
   "changelogEarlierReleases": "Earlier Releases",
   "changelogReleases": "Releases",
   "changelogPartOf": "Part of {version}",
