@@ -270,46 +270,12 @@ or headers were set, so a Navis `content://` (Android SAF) download reached
 `AudioPlayer.setReplayGainBoost` passes Navis's ReplayGain boost (positive
 gain) to the platform, translating the boost of each queued source to the URI
 the platform loads it from. A backend without a boost stage throws
-`UnimplementedError`.
-
-Android `NavisEqualizerProcessor` carries the ReplayGain boost: a per-frame
-gain (`EqualizerDsp.BoostRamp`, 20 ms linear ramps, capped at 12 dB) applied
-after the EQ bank, outside its auto-headroom, and before the 16-bit clamp. The
-`setReplayGainBoost {currentDb, guarded}` channel method sets it (error
-`eq_unavailable` without a processor); `getEqualizerState` adds
-`boostRequestedDb`, `boostAppliedDb`, `boostGuarded` and `boostClipSamples`
-(samples that hit the clamp while boosting, cumulative for the processor's
-life). `AudioPlayer.java` lowers the requested boost to 0 on the main thread
-before `load`, a `seek` to another song and removing the playing song, and,
-while the last message was guarded, before any `concatenating*` edit,
-`setLoopMode`, `setShuffleMode` and `setShuffleOrder`. A flush snaps the applied
-boost to the requested one without clearing it. Dart's `setReplayGainBoost` no
-longer skips an unchanged message that has no per-URI map, because native
-lowering makes an equal value new again.
+`UnimplementedError`; the Android bridge no longer implements it (its stage is
+`setReplayGainLevels`), and mpv's adapter is moving to the same levels path.
 
 `AudioPlayer.sequenceEditInFlight` exposes whether a playlist edit's platform
 call is still running, so a caller can tell that `sequence` is already the
 edited list while `currentIndex` still counts the old one.
-
-The Android bridge ignores a `setReplayGainBoost` value above 0 whose `index`
-is not `player.getCurrentMediaItemIndex()`, so a message that raced a song
-switch cannot raise the new song. A 0, or a message without an index, is
-applied as before. `AudioPlayer.setReplayGainBoost` passes `index` through.
-
-The Android bridge also keeps a native end-of-song latch
-(`AudioPlayer.applyBoost`), so a lost Dart-side latch cannot over-boost. Once a
-`guarded: true` value is applied, every later boost is clamped to
-`min(value, latch)` and applied as guarded, whatever flag Dart sends. The latch
-only goes down, a 0 is always applied (and does not clear it), and a value whose
-`index` is not the current one (a stale message) is applied if it is a 0 but
-never latches. The latch is cleared by `load`, by `onPositionDiscontinuity`
-with reason `AUTO_TRANSITION` or `SEEK` (a new play of the song) and by a
-discontinuity whose old and new media-item uids differ. `REMOVE` or `INTERNAL`
-around the same uid (a queue edit) keeps it. A paused deck latches too. Navis's
-Dart side latches only the heard deck, so a stale guard cannot be latched again
-for a prepared crossfade deck. A reused deck can still receive one guarded
-message for its old position while it is prepared; native clears it on the
-prepare's seek or load. `JustAudioReplayGainBoostTest` covers each rule.
 
 ## iOS ReplayGain boost (I24)
 
@@ -317,7 +283,7 @@ The Darwin `AudioPlayer` answers `setReplayGainBoost` (iOS only; it returns
 `boost_unavailable` without a tap and `FlutterMethodNotImplemented` on macOS). It
 keeps the `byUri` map (clamped to 0..12 dB; the key is `UriAudioSource.uri`, or a
 `ClippingAudioSource`'s child) and decides the target on the main thread with
-`navis_boost_decide` (`NavisBoost.c`, a port of Dart's `guardedBoostDb`): the song's
+`navis_boost_decide` (`NavisBoost.c`): the song's
 own boost, or in the last 3 s of wall-clock time (and for songs shorter than 4 s or of
 unknown length) the lower of its and the next item's (`_player.items[1]`), latched
 until the next song event. A drop applies at once; a rise waits `kBoostRaiseAfterMs`
@@ -461,3 +427,28 @@ first level with its `load`/`insert` message. `AudioPlayer.setReplayGainLevels`
 sends later updates (`byId`, `byUri`, `live`) and skips an identical non-live
 request, until a load, insert or removal (stamped sources change what native
 holds). A clipping source's own level wins over its child's.
+
+ReplayGain in the Android audio processor (#392 phase 3a). `NavisEqualizerProcessor`
+applies one signed dB per queue entry (`levels` by just_audio source id,
+`EqualizerDsp.GainRamp`: cuts allowed, +12 dB max, 20 ms ramps). The first value
+of an entry comes from its source message (`replayGainDb` on a progressive or
+DASH message, noted while decoding and published on `load` (replaces) and
+`concatenatingInsertAll` (merges)); `setReplayGainLevels` (`byId`, `live`)
+merges later values. An unknown or untagged (HLS) key plays at 0 dB.
+`NavisAudioRenderer` (a `MediaCodecAudioRenderer` subclass, built in the
+factory only when the processor exists) reads the entry's tag in
+`onStreamChanged` and marks it in `onOutputStreamOffsetUsChanged`. The key
+becomes current at the first `onFlush` after that offset event (a join is two or
+three flushes; at speed 1.5 the outgoing song's Sonic tail still arrives after
+the event), or at the event itself when no input arrived since the last flush
+(first song, explicit skip). A flush with no new key (a seek in the song) keeps
+the frozen gain; only a `live` update changes it mid-song, with a ramp.
+`getEqualizerState` adds `replayGainCurrentKey`, `replayGainAppliedDb` and
+`boostClipSamples` (samples that hit the clamp while boosting, cumulative for
+the processor's life).
+
+Phase 3b removed the Dart-timed Android boost: the `setReplayGainBoost` channel
+case, the native end-of-song latch (`applyBoost`), `lowerBoost` and its call
+sites, `NavisEqualizerProcessor.setBoost` and the `boostRequestedDb`,
+`boostAppliedDb` and `boostGuarded` state keys. `setReplayGainLevels` keys a
+clipping source by its child's id and URI, because native tags the child item.

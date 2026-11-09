@@ -15,7 +15,7 @@
 # d6  the same Q/H joins on songs streamed from a loopback Navidrome-like server (no downloaded
 #     files, a fresh profile signed in to the fixture), first from the stream and then, the
 #     files being in the rolling cache by then, from the cache
-# a1  Android emulator (tool/replaygain_boost_android.py): the processor's applied boost, guard
+# a1  Android emulator (tool/replaygain_boost_android.py): the processor's applied gain, current key
 #     and clamped-sample counter over gapless joins, an EQ, repeat-one switched off and shuffle
 #     toggled in the last 3 s, a cross-fade and lossy streams; no display or null sink needed
 #

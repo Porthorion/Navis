@@ -1381,14 +1381,18 @@ class AudioPlayer {
     final byId = <String, double>{};
     final byUri = <String, double>{};
     for (final entry in bySource.entries) {
+      // A clipping wrapper is keyed by its child: native tags the child item.
       final message = entry.key._toMessage();
-      byId[message.id] = entry.value;
-      final uri = switch (message) {
-        UriAudioSourceMessage(:final uri) => uri,
-        ClippingAudioSourceMessage(:final child) => child.uri,
-        _ => null,
-      };
-      if (uri != null) byUri[uri] = entry.value;
+      switch (message) {
+        case ClippingAudioSourceMessage(:final child):
+          byId[child.id] = entry.value;
+          byUri[child.uri] = entry.value;
+        case UriAudioSourceMessage(:final uri):
+          byId[message.id] = entry.value;
+          byUri[uri] = entry.value;
+        default:
+          byId[message.id] = entry.value;
+      }
     }
     final request =
         SetReplayGainLevelsRequest(byId: byId, byUri: byUri, live: live);

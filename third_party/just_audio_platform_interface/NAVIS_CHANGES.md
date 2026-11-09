@@ -18,9 +18,10 @@ policy. It defaults to false; other platform adapters ignore the option.
 switch gain per file. The default throws `UnimplementedError`, which the app
 reads as "no boost stage here".
 
-`EqualizerStateMessage` adds `boostRequestedDb`, `boostAppliedDb`,
-`boostClipSamples` (all default 0) and `boostGuarded` (default false), read from
-the Android processor's or the iOS tap's state.
+`EqualizerStateMessage` adds `replayGainCurrentKey`, `replayGainAppliedDb` and
+`boostClipSamples` (default null/0/0), read from the Android processor's state.
+It also adds `boostRequestedDb`, `boostAppliedDb` (default 0) and `boostGuarded`
+(default false), read from the iOS tap's state.
 
 `SetReplayGainBoostRequest.index` is the queue index the boost was computed for;
 a backend that knows which song it plays ignores a non-zero value for another

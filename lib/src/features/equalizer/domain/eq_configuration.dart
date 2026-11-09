@@ -374,6 +374,8 @@ class EqApplicationState {
     this.headroomDb = 0,
     this.reason,
     this.pending = false,
+    this.replayGainCurrentKey,
+    this.replayGainAppliedDb = 0,
     this.boostRequestedDb = 0,
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
@@ -409,9 +411,13 @@ class EqApplicationState {
   final String? reason;
   final bool pending;
 
-  /// The native ReplayGain boost stage (Android, iOS): what it was asked for,
-  /// what it applies, the samples it had to clamp (Android) or that went beyond
-  /// full scale (iOS), and whether the value is lowered for the next song.
+  /// The native ReplayGain stage. Android: the source id it is processing and
+  /// the signed gain it applies. iOS boost: what it was asked for ([boostRequestedDb]),
+  /// what it applies ([boostAppliedDb]) and whether the value is lowered for the
+  /// next song ([boostGuarded]). [boostClipSamples] counts the samples Android
+  /// clamped or that went beyond full scale on iOS.
+  final String? replayGainCurrentKey;
+  final double replayGainAppliedDb;
   final double boostRequestedDb;
   final double boostAppliedDb;
   final int boostClipSamples;

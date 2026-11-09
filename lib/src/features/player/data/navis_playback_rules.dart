@@ -76,7 +76,9 @@ bool navisReplayGainBoostSupported({
 
 /// Whether the backend applies ReplayGain inside its audio path, on each
 /// song's own samples (see the handler's `replayGainInPipeline`). True on mpv
-/// except macOS; false on Android and iOS until their backends implement it.
+/// except macOS, and on Android while [androidProcessor] says the EQ processor
+/// pipeline is installed (without it the Dart cut through the player volume
+/// stays); false on iOS until its backend implements it.
 // ponytail: macOS stays on the old path until `af-command` and lavfi `volume`
 // are verified on libmpv 0.36 (design D5: run
 // `af-command navis_rg volume -4dB volume` on a Mac build); then drop isMacOS
@@ -84,57 +86,8 @@ bool navisReplayGainBoostSupported({
 bool navisReplayGainInPipeline({
   required bool usesMpv,
   required bool isMacOS,
-}) => usesMpv && !isMacOS;
-
-/// The last stretch of a song, in wall-clock ms, in which the audio pipeline
-/// may already hold its successor's samples (Android's processor runs ahead of
-/// the AudioTrack by up to ~0.75 s plus the Dart tick).
-const replayGainBoostGuardWindowMs = 3000;
-
-/// Whether a boost computed for the playing song may already reach the next
-/// song's samples. True in the last [windowMs] of wall-clock time (media time
-/// divided by [speed]), for songs shorter than the window plus 1 s (guarded
-/// from their start), when the timing is unknown, and once a [latched] value
-/// exists: a song stays guarded until its next start or seek, so a speed drop
-/// cannot widen the window back over samples already ahead of the speaker.
-bool replayGainBoostGuarded({
-  required int? remainingMs,
-  required double speed,
-  required int? songDurationMs,
-  bool latched = false,
-  int windowMs = replayGainBoostGuardWindowMs,
-}) {
-  if (latched || remainingMs == null || songDurationMs == null) return true;
-  if (songDurationMs < windowMs + 1000) return true;
-  return remainingMs / (speed > 0 ? speed : 1) <= windowMs;
-}
-
-/// The boost the audio stage may apply to the playing song. Outside the guard
-/// window it is [ownDb]. Inside, it is the lower of [ownDb] and the next
-/// song's [nextDb] (null: no next song), and never above [latchedDb], so the
-/// value only goes down until the next song starts. The lower of two valid
-/// boosts is valid for both songs, which is what a gapless join needs.
-double guardedBoostDb({
-  required double ownDb,
-  double? nextDb,
-  required int? remainingMs,
-  required double speed,
-  required int? songDurationMs,
-  double? latchedDb,
-  int windowMs = replayGainBoostGuardWindowMs,
-}) {
-  if (!replayGainBoostGuarded(
-    remainingMs: remainingMs,
-    speed: speed,
-    songDurationMs: songDurationMs,
-    latched: latchedDb != null,
-    windowMs: windowMs,
-  )) {
-    return ownDb;
-  }
-  final db = math.min(ownDb, nextDb ?? ownDb);
-  return latchedDb == null ? db : math.min(db, latchedDb);
-}
+  bool androidProcessor = false,
+}) => (usesMpv && !isMacOS) || androidProcessor;
 
 /// How much ReplayGain turns one song down ([cutDb], 0 or less) or up
 /// ([boostDb], 0 or more).

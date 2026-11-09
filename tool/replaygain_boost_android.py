@@ -7,7 +7,7 @@ sidecar under its own application id, serves the Q/H fixture songs (TranscodeLib
 Navidrome-like transcoding stream) over `adb reverse`, and samples `/v1/playback/status` while it
 drives joins, an EQ, repeat-one switched off and shuffle toggled inside the last 3 s, a
 cross-fade and a lossy stream. The processor reports what it applied (`replayGainBoost`): the
-applied boost, the guard and the samples it had to clamp. Never touches another application id.
+current key, the applied gain (`appliedDb`, signed) and the samples it had to clamp (`clipSamples`). Never touches another application id.
 """
 from __future__ import annotations
 
@@ -271,8 +271,7 @@ class Run:
         self.queue([Q1, H1, Q2, H2])
         for _ in range(3):
             self.join(seconds_after=5, from_ms=24000)
-        # A speed change in the middle of the fade to Q2: its deck was Q1's, and the hand-over refresh
-        # wrote Q1's end guard for it while it sat paused.
+        # A speed change in the middle of the fade to Q2: Q2 must still be boosted all song.
         self.phase = 'crossfade-speed'
         self.queue([Q1, H1, Q2, H2])
         self.play_from(24000)
@@ -319,9 +318,7 @@ class Run:
         poller.start()
         self.post('/v1/playback/queue-edit', {'op': 'remove', 'index': 0})
         replied[0] = time.time()
-        time.sleep(.5)
-        self.nudge()
-        time.sleep(.1)
+        time.sleep(.6)
         stop.set()
         poller.join(2)
         order = ('before-reply' if seen[0] is not None and seen[0] <= replied[0]
@@ -331,19 +328,9 @@ class Run:
                                         'order': order}) + '\n')
         self.ordering.flush()
 
-    def nudge(self):
-        """A speed change (1.01, then back) about 0.5 s after an edit, so Dart re-sends its boost after the edit:
-        with the Dart latch disabled (a throwaway build), `requestedDb` staying at the guarded value then shows
-        that the native latch survived the edit."""
-        if not getattr(self.args, 'nudge_after_edits', False):
-            return
-        self.post('/v1/playback/adjustments', {'speed': 1.01})
-        time.sleep(.3)
-        self.post('/v1/playback/adjustments', {'speed': 1})
-
     def a2(self):
-        """A2: song switches and queue edits around a boosted Q: nothing may reach the processor
-        above the playing song's own boost, whichever command moved the index."""
+        """A2: song switches and queue edits around a boosted Q: the processor may never apply more than
+        the playing song's own gain, whichever command moved the index."""
         long_queue = [H1, H2, H1, Q1, H2, Q2, H1]
         self.phase = 'a2-skip'
         self.queue([Q1, H1, Q2, H2], repeat='all')
@@ -418,8 +405,8 @@ class Run:
         time.sleep(4)
 
         # Z1: a 2x to 1x drop with 5 s of Q left (inside the window at 2x, outside it at 1x), then an
-        # action that changes the index, the loop mode or the play order. Q's next song is H, so any
-        # value above 0 sent before the song changes is the old song's own boost on H's samples.
+        # action that changes the index, the loop mode or the play order. Q's next song is H, so the
+        # processor must keep Q's gain until the boundary and apply H's own from its first sample.
         # The remove-above case is repeated 5 times, each with an ordering probe: does the native
         # index event (the status's currentIndex) land before or after the edit's reply?
         actions = [f'remove-above-{n}' for n in range(1, 6)] + ['insert-above', 'loop', 'shuffle']
@@ -439,7 +426,6 @@ class Run:
                 self.post('/v1/playback/queue-edit', {'op': 'add', 'songIds': [H2]})
                 self.post('/v1/playback/queue-edit', {'op': 'move', 'from': 3, 'to': 0})
                 time.sleep(.5)
-                self.nudge()
             elif action == 'loop':
                 self.post('/v1/playback/repeat', {'mode': 'all'})
             else:
@@ -449,17 +435,13 @@ class Run:
             self.post('/v1/playback/shuffle', {'enabled': False})
         self.post('/v1/playback/adjustments', {'speed': 1})
 
-        # A duplicate entry of Q: the second copy is a new play, not guarded from its start.
+        # A duplicate entry of Q: the second copy is a new play, boosted from its start.
         self.phase = 'a2-duplicate'
         self.queue([Q1, Q1, H1])
         self.play_from(26000)
-        if getattr(self.args, 'nudge_after_edits', False):
-            self.wait(lambda: self.status().get('currentIndex') == 1, 15, .1, 'the second copy of Q')
-            time.sleep(.5)
-            self.nudge()
         time.sleep(9)
 
-        # Repeat-one wraps Q onto itself; repeat off in the second pass must not leave Q guarded.
+        # Repeat-one wraps Q onto itself; repeat off in the second pass must leave Q boosted.
         self.phase = 'a2-repeat-one-wrap'
         self.queue([Q1, H1], repeat='one')
         self.play_from(26500)
@@ -483,8 +465,6 @@ def main():
     parser.add_argument('--serial', required=True)
     parser.add_argument('--output', required=True, type=Path)
     parser.add_argument('--reuse-apk', action='store_true', help='install output/app.apk instead of building')
-    parser.add_argument('--nudge-after-edits', action='store_true',
-                        help='change the speed 0.5 s after each A2 edit (for a throwaway build with the Dart latch off)')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     Run(args).run()

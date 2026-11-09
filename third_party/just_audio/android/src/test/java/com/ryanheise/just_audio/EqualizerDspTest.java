@@ -29,14 +29,15 @@ public final class EqualizerDspTest {
 
     private static void boostRamp() {
         int frames = 960; // 20 ms at 48 kHz
-        near(EqualizerDsp.BoostRamp.linear(0), 1, 0, "0 dB boost is the identity");
-        near(EqualizerDsp.BoostRamp.linear(6.0206), 2, 0.0001, "+6 dB doubles the amplitude");
-        near(EqualizerDsp.BoostRamp.linear(-3), 1, 0, "A negative request never cuts");
-        near(EqualizerDsp.BoostRamp.linear(30), EqualizerDsp.BoostRamp.linear(12), 0, "Boost is capped at 12 dB");
-        near(EqualizerDsp.BoostRamp.linear(Double.NaN), 1, 0, "NaN is no boost");
-        EqualizerDsp.BoostRamp ramp = new EqualizerDsp.BoostRamp(frames);
+        near(EqualizerDsp.GainRamp.linear(0), 1, 0, "0 dB boost is the identity");
+        near(EqualizerDsp.GainRamp.linear(6.0206), 2, 0.0001, "+6 dB doubles the amplitude");
+        near(EqualizerDsp.GainRamp.linear(-9), 0.35481, 0.00001, "A cut of 9 dB scales by 0.355");
+        near(EqualizerDsp.GainRamp.linear(-6.0206), 0.5, 0.0001, "-6 dB halves the amplitude");
+        near(EqualizerDsp.GainRamp.linear(30), EqualizerDsp.GainRamp.linear(12), 0, "Boost is capped at 12 dB");
+        near(EqualizerDsp.GainRamp.linear(Double.NaN), 1, 0, "NaN is no boost");
+        EqualizerDsp.GainRamp ramp = new EqualizerDsp.GainRamp(frames);
         near(ramp.next(), 1, 0, "A fresh ramp is the identity");
-        double target = EqualizerDsp.BoostRamp.linear(10);
+        double target = EqualizerDsp.GainRamp.linear(10);
         ramp.setTarget(10);
         double previous = 1;
         for (int i = 1; i <= frames; i++) {
@@ -52,8 +53,13 @@ public final class EqualizerDspTest {
         near(ramp.next(), target, 0, "Same target restarts nothing");
         ramp.setTarget(0);
         near(ramp.next(), target + (1 - target) / frames, 1e-9, "Lowering ramps down");
+        ramp.snap(-6.0206);
+        ramp.setTarget(-12.0412);
+        for (int i = 0; i < frames; i++) ramp.next();
+        near(ramp.next(), 0.25, 0.0001, "A cut ramps down to its target");
+        near(ramp.db(), -12.0412, 0.001, "Applied dB of a cut");
         ramp.snap(4);
-        near(ramp.next(), EqualizerDsp.BoostRamp.linear(4), 0, "Snap jumps without a ramp");
+        near(ramp.next(), EqualizerDsp.GainRamp.linear(4), 0, "Snap jumps without a ramp");
         ramp.setTarget(8);
         for (int i = 0; i < frames / 2; i++) ramp.next();
         double middle = ramp.next();
@@ -61,7 +67,7 @@ public final class EqualizerDspTest {
         double after = ramp.next();
         if (!(after < middle)) throw new AssertionError("A new target ramps from the current gain");
         for (int i = 0; i < frames; i++) ramp.next();
-        near(ramp.next(), EqualizerDsp.BoostRamp.linear(2), 0, "Retargeted ramp ends on the new target");
+        near(ramp.next(), EqualizerDsp.GainRamp.linear(2), 0, "Retargeted ramp ends on the new target");
     }
 
     public static void main(String[] args) {

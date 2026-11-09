@@ -94,6 +94,8 @@ class EqualizerStateMessage {
     this.headroomDb = 0,
     this.reason,
     this.pending = false,
+    this.replayGainCurrentKey,
+    this.replayGainAppliedDb = 0,
     this.boostRequestedDb = 0,
     this.boostAppliedDb = 0,
     this.boostClipSamples = 0,
@@ -128,11 +130,16 @@ class EqualizerStateMessage {
   final String? reason;
   final bool pending;
 
-  /// The ReplayGain boost the app asked the processor for and the gain it
-  /// applies now (dB), and how many samples hit the 16-bit clamp (Android) or
-  /// went beyond full scale (iOS) while a boost was on. Only the Android
-  /// processor and the iOS tap have a boost stage. [boostGuarded] (iOS) says
-  /// the value is lowered for the song that follows.
+  /// The ReplayGain stage of the Android processor: the source id whose
+  /// samples it is processing, the signed gain (dB) it applies now, and how
+  /// many samples hit the 16-bit clamp while boosting.
+  ///
+  /// The iOS tap's boost stage reports [boostRequestedDb] (what the app asked
+  /// for), [boostAppliedDb] (the gain it applies now) and [boostGuarded] (the
+  /// value is lowered for the song that follows); [boostClipSamples] counts
+  /// samples that went beyond full scale there.
+  final String? replayGainCurrentKey;
+  final double replayGainAppliedDb;
   final double boostRequestedDb;
   final double boostAppliedDb;
   final int boostClipSamples;
@@ -206,6 +213,9 @@ class EqualizerStateMessage {
         headroomDb: (map['headroomDb'] as num?)?.toDouble() ?? 0,
         reason: map['reason'] as String?,
         pending: map['pending'] as bool? ?? false,
+        replayGainCurrentKey: map['replayGainCurrentKey'] as String?,
+        replayGainAppliedDb:
+            (map['replayGainAppliedDb'] as num?)?.toDouble() ?? 0,
         boostRequestedDb: (map['boostRequestedDb'] as num?)?.toDouble() ?? 0,
         boostAppliedDb: (map['boostAppliedDb'] as num?)?.toDouble() ?? 0,
         boostClipSamples: (map['boostClipSamples'] as num?)?.toInt() ?? 0,
