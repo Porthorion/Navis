@@ -93,7 +93,8 @@ class EqualizerStateMessage {
 ///
 /// [currentDb] is the boost of the song that is playing now. [byUri] holds the
 /// boost of every queued song by its source URI, for backends that switch
-/// gain per file (the iOS backend). Both are 0 or more.
+/// gain per file without an in-pipeline stage (an iOS-style tap). Both are 0
+/// or more.
 class SetReplayGainBoostRequest {
   const SetReplayGainBoostRequest({
     required this.currentDb,

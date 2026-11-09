@@ -271,7 +271,8 @@ or headers were set, so a Navis `content://` (Android SAF) download reached
 gain) to the platform, translating the boost of each queued source to the URI
 the platform loads it from. A backend without a boost stage throws
 `UnimplementedError`; the Android bridge no longer implements it (its stage is
-`setReplayGainLevels`), and mpv's adapter is moving to the same levels path.
+`setReplayGainLevels`), and neither does mpv's adapter, which uses the same
+levels path.
 
 `IndexedAudioSource.replayGainDb` (signed dB, null by default) is carried by
 the progressive, DASH, HLS and stream source messages (and a clipping source's

@@ -5044,11 +5044,14 @@ Desktop volume follows a parallel local-settings path:
    request is skipped; a backend that does not know it ignores it).
    `_applyReplayGainBoost` makes that push on every deck
    (`_sendReplayGainLevelsTo`, `_pushReplayGainLevels`), re-pushed on a loop or
-   shuffle change (Smart wrap neighbours) and after any load, insert or removal
-   (`AudioPlayer._broadcastSequence`: stamped sources change what native holds).
-   `live` is true only from `applyRuntimeSettings`: the heard entry's level is
-   frozen at its start and only a settings change moves it mid-song; a tag
-   refresh or index event never does.
+   shuffle change (Smart wrap neighbours), on index events and after queue
+   edits (`navis_audio_handler_media_session.dart`, `_queue_editing.dart`;
+   `AudioPlayer._broadcastSequence` clears the skip memo, since stamped sources
+   change what native holds). Only a settings change (`applyRuntimeSettings`)
+   pushes `live`: the heard entry's level is frozen at its start and only that
+   moves it mid-song. A live change held back during a cross-fade or load
+   (`_replayGainLivePending`) goes out live with the next push; a tag refresh
+   never does.
 
    - Desktop mpv (Linux, Windows): `MediaKitPlayer._applyAudio` composes `af`
      as `@navis_rg:lavfi=[volume=<dB>dB:precision=float],@navis_tempo...,
@@ -5069,7 +5072,7 @@ Desktop volume follows a parallel local-settings path:
      clamp, so it works with the EQ off and on. `NavisAudioRenderer` reads the
      entry's source-id tag in `onStreamChanged` and marks the sample boundary in
      `onOutputStreamOffsetUsChanged`; the key becomes current at the first
-     flush after that event, and a flush with no new key (a seek) keeps the
+     flush after that event (at once if no input is queued), and a flush with no new key (a seek) keeps the
      frozen gain. An unknown or untagged key plays at 0 dB. Samples that hit the
      clamp while boosting are counted. `replayGainInPipeline` follows the EQ
      processor (`_equalizerPipelineEnabled`, set by every player build, so both
@@ -5084,8 +5087,8 @@ Desktop volume follows a parallel local-settings path:
      unsupported and the Dart cut applies through `setVolume` (late by the IPC
      time; ExoPlayer and AVPlayer volume is linear, `10^(dB/20)`, mpv's is
      cubic, `10^(dB/60)`). The older per-URI boost message
-     (`AudioPlayer.setReplayGainBoost`, `byUri`) is still the contract of the
-     iOS backend.
+     (`AudioPlayer.setReplayGainBoost`, `byUri`) is kept for a backend that
+     boosts per file but has no in-pipeline stage (dev's iOS tap).
 
    Smart picks its album or track gain from the play-order neighbours and is
    frozen per heard song (below). A push, and a source stamped for a list that
