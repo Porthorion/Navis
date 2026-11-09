@@ -103,7 +103,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   // Scroll-driven animation for the mobile header.
   final ScrollController _scrollController = ScrollController();
   double _headerProgress = 0; // 0 = art fully visible, 1 = fully collapsed
-  double _screenWidth = 0;
+  double _heroExtent = 0;
 
   @override
   void initState() {
@@ -249,7 +249,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   void _onScroll() {
-    final maxScroll = max(1, _screenWidth - kToolbarHeight);
+    final maxScroll = max(1, _heroExtent - kToolbarHeight);
     final newProgress = (_scrollController.offset / maxScroll).clamp(0.0, 1.0);
     if ((newProgress - _headerProgress).abs() > 0.001) {
       setState(() => _headerProgress = newProgress);
@@ -1079,15 +1079,23 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 );
               }
 
-              final screenWidth = MediaQuery.of(context).size.width;
+              final screenSize = MediaQuery.sizeOf(context);
+              final screenWidth = screenSize.width;
+              // The hero is a square the width of the screen. On a tablet or
+              // an unfolded foldable that is taller than the songs' first
+              // screen, so it is capped at 45% of the height there. Phones
+              // keep the square.
+              final heroExtent = adaptiveContext.isPhoneFormFactor
+                  ? screenWidth
+                  : min(screenWidth, screenSize.height * 0.45);
               final theme = Theme.of(context);
               final mobileColors = theme.colorScheme;
               final mobileTextTheme = theme.textTheme;
               final isLightTheme = theme.brightness == Brightness.light;
               final flatArtworkText = NavisColorStyleData.of(context)
                   .flatArtworkText;
-              // Keep _screenWidth in sync so the scroll listener can compute progress.
-              _screenWidth = screenWidth;
+              // Keep _heroExtent in sync so the scroll listener can compute progress.
+              _heroExtent = heroExtent;
 
               // Album name opacity fades out as the header collapses (gone by 90% scroll).
               final gradientScrollFade = ((0.9 - _headerProgress) / 0.3).clamp(
@@ -1111,7 +1119,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                     automaticallyImplyLeading: false,
                     pinned: true,
                     toolbarHeight: kToolbarHeight,
-                    expandedHeight: screenWidth,
+                    expandedHeight: heroExtent,
                     backgroundColor: Color.lerp(
                       Colors.transparent,
                       mobileColors.surfaceContainerHighest,

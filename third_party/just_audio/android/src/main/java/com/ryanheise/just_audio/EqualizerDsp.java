@@ -161,23 +161,23 @@ final class EqualizerDsp {
     }
 
     /**
-     * The ReplayGain boost gain, one value per frame. It lives outside {@link Bank}
-     * because the bank's auto-headroom would cancel a boost.
+     * The ReplayGain gain (a cut or a boost), one value per frame. It lives outside
+     * {@link Bank} because the bank's auto-headroom would cancel a boost.
      */
-    static final class BoostRamp {
+    static final class GainRamp {
         /** The most a song is ever turned up, in dB (Dart's replayGainMaxBoostDb). */
         static final double MAX_DB = 12;
         private final int rampFrames;
         private double gain = 1, target = 1, step;
         private int remaining;
 
-        BoostRamp(int rampFrames) {
+        GainRamp(int rampFrames) {
             this.rampFrames = Math.max(1, rampFrames);
         }
 
-        /** The amplitude for [db]: never a cut, never beyond {@link #MAX_DB}, NaN is none. */
+        /** The amplitude for [db]: a cut is allowed, never beyond {@link #MAX_DB} up, NaN is none. */
         static double linear(double db) {
-            if (!(db > 0)) return 1;
+            if (Double.isNaN(db)) return 1;
             return Math.pow(10, Math.min(db, MAX_DB) / 20);
         }
 

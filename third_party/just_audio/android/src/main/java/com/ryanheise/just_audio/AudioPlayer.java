@@ -434,14 +434,6 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     @Override
     public void onPositionDiscontinuity(PositionInfo oldPosition, PositionInfo newPosition, int reason) {
         cancelRepeatIfItemChanged();
-        // A new play of the song ends the latch. A REMOVE or INTERNAL discontinuity around the
-        // same item (a queue edit) keeps it; a different item does not.
-        if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION
-                || reason == Player.DISCONTINUITY_REASON_SEEK
-                || (oldPosition != null && newPosition != null
-                        && !java.util.Objects.equals(oldPosition.windowUid, newPosition.windowUid))) {
-            boostLatched = false;
-        }
         updatePosition();
         switch (reason) {
         case Player.DISCONTINUITY_REASON_AUTO_TRANSITION:
@@ -628,31 +620,28 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                     result.success(navisEqualizer.state());
                 }
                 break;
-            case "setReplayGainBoost":
-                if (navisEqualizer == null) {
-                    result.error("eq_unavailable", "No EQ processor was installed for this player", null);
-                } else {
-                    double boostDb = call.<Number>argument("currentDb").doubleValue();
-                    Integer boostIndex = call.<Integer>argument("index");
-                    // A value is only right for the song it was computed for. One that
-                    // raced a song switch must not reach the new song: ignore a non-zero
-                    // value whose index is not the current one. A 0 is always applied,
-                    // but a stale one must not latch the new song at 0.
-                    boolean stale = boostIndex != null
-                            && boostIndex != player.getCurrentMediaItemIndex();
-                    if (boostDb > 0 && stale) {
-                        result.success(new HashMap<String, Object>());
-                    } else {
-                        applyBoost(boostDb, Boolean.TRUE.equals(call.<Boolean>argument("guarded")), !stale);
-                        result.success(new HashMap<String, Object>());
+            case "setReplayGainLevels":
+                // The in-pipeline ReplayGain stage (#392). A player without one has nothing to update.
+                if (navisEqualizer != null) {
+                    Map<String, Double> byId = new HashMap<>();
+                    Map<?, ?> rawLevels = call.argument("byId");
+                    if (rawLevels != null) {
+                        for (Map.Entry<?, ?> entry : rawLevels.entrySet()) {
+                            if (entry.getKey() instanceof String && entry.getValue() instanceof Number) {
+                                byId.put((String) entry.getKey(), ((Number) entry.getValue()).doubleValue());
+                            }
+                        }
                     }
+                    navisEqualizer.setLevels(byId, Boolean.TRUE.equals(call.<Boolean>argument("live")));
                 }
+                result.success(new HashMap<String, Object>());
                 break;
             case "load":
                 Long initialPosition = getLong(call.argument("initialPosition"));
                 Integer initialIndex = call.argument("initialIndex");
                 Map<?, ?> audioSourceMap = call.argument("audioSource");
                 MediaSource[] children = getAudioSourcesArray(audioSourceMap.get("children"));
+                commitReplayGainLevels(true);
                 ShuffleOrder shuffleOrder = decodeShuffleOrder(mapGet(audioSourceMap, "shuffleOrder"));
                 load(Arrays.asList(children), shuffleOrder,
                         initialPosition == null ? C.TIME_UNSET : initialPosition / 1000,
@@ -682,17 +671,14 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 result.success(new HashMap<String, Object>());
                 break;
             case "setLoopMode":
-                lowerBoost(true);
                 setLoopMode((Integer) call.argument("loopMode"));
                 result.success(new HashMap<String, Object>());
                 break;
             case "setShuffleMode":
-                lowerBoost(true);
                 setShuffleModeEnabled((Integer) call.argument("shuffleMode") == 1);
                 result.success(new HashMap<String, Object>());
                 break;
             case "setShuffleOrder":
-                lowerBoost(true);
                 setShuffleOrder(call.argument("audioSource"));
                 result.success(new HashMap<String, Object>());
                 break;
@@ -711,27 +697,20 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 seek(position == null ? C.TIME_UNSET : position / 1000, index, result);
                 break;
             case "concatenatingInsertAll":
-                lowerBoost(true);
+                List<MediaSource> inserted = getAudioSources(call.argument("children"));
+                commitReplayGainLevels(false);
                 if (((String)call.argument("id")).length() == 0) {
-                    player.addMediaSources(call.argument("index"), getAudioSources(call.argument("children"))); 
+                    player.addMediaSources(call.argument("index"), inserted); 
                     player.setShuffleOrder(decodeShuffleOrder(call.argument("shuffleOrder")));
                     result.success(new HashMap<String, Object>());
                 } else {
                     concatenating(call.argument("id"))
-                        .addMediaSources(call.argument("index"), getAudioSources(call.argument("children")), handler, () -> result.success(new HashMap<String, Object>()));
+                        .addMediaSources(call.argument("index"), inserted, handler, () -> result.success(new HashMap<String, Object>()));
                     concatenating(call.argument("id"))
                         .setShuffleOrder(decodeShuffleOrder(call.argument("shuffleOrder")));
                 }
                 break;
             case "concatenatingRemoveRange":
-                {
-                    // Removing the playing song switches songs; any other edit only
-                    // matters while the boost is lowered for the song that follows.
-                    boolean coversCurrent = ((String) call.argument("id")).length() != 0
-                            || (player.getCurrentMediaItemIndex() >= (Integer) call.argument("startIndex")
-                                    && player.getCurrentMediaItemIndex() < (Integer) call.argument("endIndex"));
-                    lowerBoost(!coversCurrent);
-                }
                 if (((String)call.argument("id")).length() == 0) {
                     player.removeMediaItems(call.argument("startIndex"), call.argument("endIndex"));
                     player.setShuffleOrder(decodeShuffleOrder(call.argument("shuffleOrder")));
@@ -744,7 +723,6 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
                 }
                 break;
             case "concatenatingMove":
-                lowerBoost(true);
                 if (((String)call.argument("id")).length() == 0) {
                     player.moveMediaItem(call.argument("currentIndex"), call.argument("newIndex"));
                     player.setShuffleOrder(decodeShuffleOrder(call.argument("shuffleOrder")));
@@ -827,6 +805,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
     private MediaSource getAudioSource(final Object json) {
         Map<?, ?> map = (Map<?, ?>)json;
         String id = (String)map.get("id");
+        noteReplayGainLevel(map); // every message seeds, also a cached id that skips the decode
         MediaSource mediaSource = mediaSources.get(id);
         if (mediaSource == null) {
             mediaSource = decodeAudioSource(map);
@@ -927,6 +906,15 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         }
     }
 
+    /** An entry's first ReplayGain level travels in its source message; it is known before its first sample. */
+    private void noteReplayGainLevel(Map<?, ?> sourceMessage) {
+        if (navisEqualizer != null) navisEqualizer.noteSource(sourceMessage);
+    }
+
+    private void commitReplayGainLevels(boolean replace) {
+        if (navisEqualizer != null) navisEqualizer.commitSources(replace);
+    }
+
     private MediaSource[] getAudioSourcesArray(final Object json) {
         List<MediaSource> mediaSources = getAudioSources(json);
         MediaSource[] mediaSourcesArray = new MediaSource[mediaSources.size()];
@@ -993,44 +981,7 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         return new DefaultDataSource.Factory(context, httpDataSourceFactory);
     }
 
-    /**
-     * Drops the ReplayGain boost to 0 on this thread, before the ExoPlayer call that follows.
-     * A boost is only right for the song it was computed for. Dart re-raises it after the
-     * index or queue event, and the main thread keeps that raise behind this lowering.
-     * [onlyWhenGuarded] limits it to edits that can change the next song while the
-     * boost is the lowered end-of-song value.
-     */
-    private void lowerBoost(boolean onlyWhenGuarded) {
-        if (navisEqualizer != null && (!onlyWhenGuarded || navisEqualizer.boostGuarded())) {
-            navisEqualizer.lowerBoost();
-        }
-    }
-
-    /**
-     * Native end-of-song latch: once a guarded value is applied, every later boost for the
-     * same playing item is clamped to it, whatever guarded flag Dart sends, so a Dart-side
-     * latch that was lost cannot over-boost. 0 is always applied. A value computed for
-     * another index (a stale message that raced a song switch) never latches.
-     */
-    private boolean boostLatched;
-    private double boostLatchDb;
-
-    private void applyBoost(double boostDb, boolean guarded, boolean mayLatch) {
-        double applied = boostDb;
-        if (boostDb > 0 && boostLatched) {
-            applied = Math.min(boostDb, boostLatchDb);
-            guarded = true;
-        }
-        if (guarded && mayLatch) {
-            boostLatchDb = boostLatched ? Math.min(boostLatchDb, applied) : applied;
-            boostLatched = true;
-        }
-        navisEqualizer.setBoost(applied, guarded);
-    }
-
     private void load(final List<MediaSource> mediaSources, ShuffleOrder shuffleOrder, final long initialPosition, final Integer initialIndex, final Result result) {
-        lowerBoost(false);
-        boostLatched = false;
         repeatPauseUid = null;
         repeatAtEndUid = null;
         cancelPendingRepeat();
@@ -1063,6 +1014,25 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         if (player == null) {
             RenderersFactory renderersFactory = (eventHandler, videoListener, audioListener, textOutput, metadataOutput) -> {
                 Renderer[] defaultRenderers = new DefaultRenderersFactory(context) {
+                    @Override
+                    protected void buildAudioRenderers(Context ctx, int extensionRendererMode,
+                            androidx.media3.exoplayer.mediacodec.MediaCodecSelector selector,
+                            boolean enableDecoderFallback, AudioSink sink, Handler handler,
+                            androidx.media3.exoplayer.audio.AudioRendererEventListener listener,
+                            ArrayList<Renderer> out) {
+                        super.buildAudioRenderers(ctx, extensionRendererMode, selector, enableDecoderFallback,
+                                sink, handler, listener, out);
+                        if (navisEqualizer == null) return;
+                        // The processor needs to know which entry a stream belongs to (ReplayGain).
+                        for (int i = 0; i < out.size(); i++) {
+                            if (out.get(i).getClass() == androidx.media3.exoplayer.audio.MediaCodecAudioRenderer.class) {
+                                out.set(i, new NavisAudioRenderer(ctx, getCodecAdapterFactory(), selector,
+                                        enableDecoderFallback, handler, listener, sink, navisEqualizer));
+                                break;
+                            }
+                        }
+                    }
+
                     @Override
                     protected AudioSink buildAudioSink(Context sinkContext, boolean enableFloatOutput,
                             boolean enableAudioTrackPlaybackParams) {
@@ -1361,7 +1331,6 @@ public class AudioPlayer implements MethodCallHandler, Player.Listener, Metadata
         seekResult = result;
         try {
             int windowIndex = index != null ? index : player.getCurrentMediaItemIndex();
-            if (windowIndex != player.getCurrentMediaItemIndex()) lowerBoost(false);
             player.seekTo(windowIndex, position);
             if (resumeBoundary && playRequested) player.setPlayWhenReady(true);
             updateLoopPolicy();

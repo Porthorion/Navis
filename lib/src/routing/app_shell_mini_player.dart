@@ -978,9 +978,11 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
                       Padding(
-                        padding: const EdgeInsets.only(
+                        padding: EdgeInsets.only(
                           left: 12,
-                          right: 4,
+                          // The strip's background runs edge to edge; its
+                          // buttons stay clear of a right system strip.
+                          right: 4 + rightSystemInsetFor(context),
                           top: 7,
                           bottom: 6,
                         ),
