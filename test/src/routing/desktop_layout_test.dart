@@ -304,6 +304,22 @@ void main() {
       expect(resolve(const Size(466, 497), strip), bottomNav);
     });
 
+    test('sideStripOf picks the physical side with the larger inset', () {
+      expect(sideStripOf(const EdgeInsets.only(right: 84)), (
+        onRight: true,
+        inset: 84.0,
+      ));
+      expect(sideStripOf(const EdgeInsets.only(left: 84)), (
+        onRight: false,
+        inset: 84.0,
+      ));
+      expect(sideStripOf(const EdgeInsets.fromLTRB(60, 0, 48, 0)), (
+        onRight: false,
+        inset: 60.0,
+      ));
+      expect(sideStripOf(EdgeInsets.zero), (onRight: true, inset: 0.0));
+    });
+
     test('a desktop runtime keeps the standard rail', () {
       expect(
         resolve(

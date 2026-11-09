@@ -1762,6 +1762,23 @@ void main() {
       }
     });
 
+    _testApp('at the smallest strip (48 dp) the tiles are still 44 dp', (
+      tester,
+    ) async {
+      await _pumpApp(tester, (
+        size: const Size(466, 678),
+        padding: const EdgeInsets.fromLTRB(0, 0, 48, 34),
+      ));
+
+      expect(find.byType(NavigationBar), findsNothing);
+      for (var i = 0; i < 4; i++) {
+        final rect = tester.getRect(tile(i));
+        expect(rect.width, greaterThanOrEqualTo(44), reason: '$i $rect');
+        expect(rect.height, greaterThanOrEqualTo(44), reason: '$i $rect');
+        expect(rect.right, lessThanOrEqualTo(466), reason: '$i $rect');
+      }
+    });
+
     _testApp('tapping each tile switches the tab; Home re-tap scrolls up', (
       tester,
     ) async {
@@ -1851,73 +1868,98 @@ void main() {
       }
     });
 
-    // The full app only has an English locale: the mode and the physical
-    // side are checked from the pieces, as for the I27b rail.
-    _testApp('right to left: the strip is hardware, the pill stays right', (
-      tester,
-    ) async {
-      AdaptiveContext? resolved;
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.rtl,
-          child: MediaQuery(
-            data: const MediaQueryData(
-              size: Size(466, 678),
-              padding: EdgeInsets.fromLTRB(0, 0, 84, 34),
-              viewPadding: EdgeInsets.fromLTRB(0, 0, 84, 34),
-            ),
-            child: Builder(
-              builder: (context) {
-                resolved = resolveAdaptiveContextFor(
-                  context,
-                  desktopRuntimeOverride: false,
-                );
-                final inset = MediaQuery.viewPaddingOf(context);
-                return Align(
-                  alignment: Alignment.topLeft,
-                  child: SizedBox(
-                    width: 466,
-                    height: 678,
-                    child: Stack(
-                      children: <Widget>[
-                        Positioned(
-                          top: 168,
-                          left: inset.left > inset.right ? 0 : null,
-                          right: inset.right >= inset.left ? 0 : null,
-                          width: 84,
-                          child: const SizedBox(key: Key('pill'), height: 216),
-                        ),
-                      ],
+    // The full app only has an English locale: the shell's own side choice
+    // (sideStripOf) is placed in a right-to-left stack, for both strips.
+    for (final (name, insets, expectedLeft) in <(String, EdgeInsets, double)>[
+      ('right strip', const EdgeInsets.fromLTRB(0, 0, 84, 34), 466 - 84),
+      ('left strip', const EdgeInsets.fromLTRB(84, 0, 0, 34), 0),
+    ]) {
+      _testApp('right to left: the strip is hardware, $name', (tester) async {
+        AdaptiveContext? resolved;
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.rtl,
+            child: MediaQuery(
+              data: MediaQueryData(
+                size: const Size(466, 678),
+                padding: insets,
+                viewPadding: insets,
+              ),
+              child: Builder(
+                builder: (context) {
+                  resolved = resolveAdaptiveContextFor(
+                    context,
+                    desktopRuntimeOverride: false,
+                  );
+                  final (:onRight, :inset) = sideStripOf(
+                    MediaQuery.viewPaddingOf(context),
+                  );
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: SizedBox(
+                      width: 466,
+                      height: 678,
+                      child: Stack(
+                        children: <Widget>[
+                          Positioned(
+                            top: 168,
+                            left: onRight ? null : 0,
+                            right: onRight ? 0 : null,
+                            width: inset,
+                            child: const SizedBox(
+                              key: Key('pill'),
+                              height: 216,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
-        ),
-      );
+        );
 
-      expect(resolved!.adaptiveShellMode, AdaptiveShellMode.sideStripNav);
-      expect(tester.getRect(find.byKey(const Key('pill'))).left, 466 - 84);
-    });
+        expect(resolved!.adaptiveShellMode, AdaptiveShellMode.sideStripNav);
+        expect(
+          tester.getRect(find.byKey(const Key('pill'))).left,
+          expectedLeft,
+        );
+      });
+    }
 
-    _testApp('the keyboard keeps the pill (viewPadding decides)', (
-      tester,
-    ) async {
-      await _pumpApp(tester, _duoFolded);
-      await _go(tester, AppRoutes.search);
+    // Only the bottom inset differs between padding and viewPadding, and a
+    // zero bottom can only make the strip fit, so the boundary is probed from
+    // the bar side: 490 - 34 = 456 < 464 keeps the bar, 490 would fit.
+    for (final (name, height, pill) in <(String, double, bool)>[
+      ('keeps the bar just below the fit', 490, false),
+      ('keeps the pill just at the fit', 498, true),
+    ]) {
+      _testApp('the keyboard $name (viewPadding decides)', (tester) async {
+        await _pumpApp(tester, (
+          size: Size(466, height),
+          padding: const EdgeInsets.fromLTRB(0, 0, 84, 34),
+        ));
+        await _go(tester, AppRoutes.search);
+        expect(tile(0).evaluate().length, pill ? 1 : 0);
 
-      // The keyboard zeroes padding.bottom; viewPadding.bottom stays 34.
-      tester.view.padding = const FakeViewPadding(right: 84 * 3);
-      tester.view.viewInsets = const FakeViewPadding(bottom: 250 * 3);
-      addTearDown(tester.view.resetViewInsets);
-      await tester.pump();
-      await _settle(tester, 10);
+        // The keyboard zeroes padding.bottom; viewPadding stays (r84, b34).
+        tester.view.padding = const FakeViewPadding(right: 84 * 3);
+        tester.view.viewPadding = const FakeViewPadding(
+          right: 84 * 3,
+          bottom: 34 * 3,
+        );
+        tester.view.viewInsets = const FakeViewPadding(bottom: 250 * 3);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pump();
+        await _settle(tester, 10);
 
-      expect(tester.takeException(), isNull);
-      expect(tile(0), findsOne);
-      expect(find.byType(NavigationBar), findsNothing);
-    });
+        expect(tester.takeException(), isNull);
+        expect(tile(0).evaluate().length, pill ? 1 : 0);
+        expect(find.byType(NavigationBar).evaluate().length, pill ? 0 : 1);
+      });
+    }
 
     for (final withPlayer in <bool>[false, true]) {
       _testApp('fold and unfold keep tab and scroll, Now Playing '

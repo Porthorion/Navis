@@ -1024,10 +1024,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     // The bottom-nav shell with the bar replaced by a pill in a side strip.
     final useSideStripNav =
         adaptiveContext.adaptiveShellMode == AdaptiveShellMode.sideStripNav;
-    final stripOnRight = mediaViewPadding.right >= mediaViewPadding.left;
-    final sideStripInset = stripOnRight
-        ? mediaViewPadding.right
-        : mediaViewPadding.left;
+    final (onRight: stripOnRight, inset: sideStripInset) = sideStripOf(
+      mediaViewPadding,
+    );
     final ltr = Directionality.of(context) == TextDirection.ltr;
     final bottomNavLayout = !useDesktopShell && !useRailNavigation;
     if (bottomNavLayout && !_bottomNavLayoutActive) {
@@ -2209,7 +2208,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                           .surfaceContainerHigh,
                                       shape: const StadiumBorder(),
                                       child: SizedBox(
-                                        width: math.min(56, sideStripInset - 8),
+                                        width: math.min(56, sideStripInset - 4),
                                         height: kSideStripPillHeight,
                                         child: Padding(
                                           padding: const EdgeInsets.symmetric(
