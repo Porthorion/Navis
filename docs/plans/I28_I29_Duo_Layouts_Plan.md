@@ -1,10 +1,10 @@
 # I28 / I29 plan: short-landscape compact shell, side-strip navigation
 
-Base: `origin/fix/i27b-foldables` @ `5f362518` (PR #431, adds the shell
+Base: `origin/release/1.5` (includes PR #431 as `9be1c045`, which adds the shell
 `SafeArea`, `ConsumedRightInset`, `SideInsetsConsumed`). Target: `release/1.5`
 (1.5.2), shared Dart. **Order: I28 first, I29 planned against I28 merged.**
 Both edit `resolveAdaptiveShellMode` and `app_shell.dart` (hot files), so one
-at a time, one PR each. Line numbers are at `5f362518`.
+at a time, one PR each. Line numbers are at `9be1c045`.
 
 **Owner constraint (2026-11-09): reuse, don't rebuild.** No new screens or
 parallel layouts for one device; extend the existing shell modes and layouts.
@@ -81,7 +81,7 @@ Worked sizes (padding as the device reports it):
 | Split/freeform phone window 560x400 | bottom nav | bottom nav (width < 600) |
 | 700x520 freeform | bottom nav | bottom nav (rail fits, < 840) |
 | Desktop (any) | standardRail | unchanged (early return :284) |
-| AAOS head unit ≈800x480 dp | bottom nav | compact wide (intended car layout; one line in the PR) |
+| AAOS head unit ≈800x480 dp | bottom nav | bottom nav with zero insets (`480-44 = 436`, not `< 436`); compact wide only if the head reports a vertical inset (e.g. a 24 dp status bar). Not changed here. |
 
 **Keyboard stability:** `padding.bottom` drops to 0 while the keyboard is open,
 which raises `estimatedRailHeight`. With the width gate gone a window near the
@@ -113,14 +113,7 @@ fallback (`:424`) gets `mediaQuery.viewPadding` too, for the same answer.
    (44 pt notch) that is 88 pt lost. Under `useCompactWideLandscape` take left/right
    as `20` / `12` without `mediaPadding`; keep top/bottom. Desktop mini player keeps
    its current padding (zero insets there anyway).
-5. **Volume (owner question Q1):** the image shows a volume slider. The reusable control
-   is `_NowPlayingEmbeddedVolumeControl` (`now_playing_screen.dart:786`, behind
-   `showEmbeddedVolumeBelowActions`, used by the desktop mini player). It sets *app
-   gain* (`playbackVolumeProvider`), not system volume, and phone Now Playing has no
-   slider today. Default if not answered: **no slider** (hardware keys). If yes: pass
-   `showEmbeddedVolumeBelowActions: !desktopRuntime && height >= 420` from the shell's
-   compact-wide `NowPlayingScreen` (`app_shell.dart:1903-1925`) only, so AAOS heads
-   (which also take this branch) get it too; say so.
+5. **Volume:** owner answered Q1 (2026-11-09): **no in-app slider**. Nothing to build.
 
 Not new: the rail, mini player, sheet, queue panel, compact pages, back handling.
 
@@ -301,7 +294,7 @@ Not new: Now Playing, queue, alphabet rail, page insets, back navigation.
 
 ### Failing tests first
 
-`desktop_layout_test.dart`: 466x678 0/0/84/34 → `sideStripNav`; 466x678 with
+`desktop_layout_test.dart` (this flips I28's `466x678 (0/0/84/34) → phone bottom nav` row; update it): 466x678 0/0/84/34 → `sideStripNav`; 466x678 with
 left 84 → `sideStripNav`; 466x678 with right 47 → `phoneBottomNav`; 393x852
 (top 59, bottom 34) → `phoneBottomNav`; 375x667 → `phoneBottomNav`; 466x440 with
 right 84 (too short) → `phoneBottomNav`; 669x951 (Duo unfolded) → `phoneBottomNav`;
@@ -368,7 +361,6 @@ Sonnet `high` build after step 0 is recorded; fresh Sonnet `high` review.
 
 ## Owner questions
 
-- **Q1 (I28):** show an in-app volume slider (app gain, not system volume) in the
-  landscape car player on phones, as in the image? Default: no.
+- **Q1 (I28), answered 2026-11-09:** no in-app volume slider.
 - **Q2 (I29, only if step 0 fails):** pill inside the page beside the strip
   (content 60 pt narrower, 80 pt taller) or keep the bottom bar on the cover?
