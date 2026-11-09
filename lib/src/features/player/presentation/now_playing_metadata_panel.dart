@@ -308,6 +308,7 @@ class _NowPlayingInfoPanel extends ConsumerStatefulWidget {
     required this.playback,
     required this.currentMediaItem,
     required this.playbackSpeed,
+    this.onOpenQueue,
   });
 
   final SongsTableData? song;
@@ -315,6 +316,10 @@ class _NowPlayingInfoPanel extends ConsumerStatefulWidget {
   final PlaybackSnapshot playback;
   final MediaItem? currentMediaItem;
   final double playbackSpeed;
+
+  /// What the Queue line opens: the screen's embedded queue panel, as the
+  /// Queue button does there; null opens the shell queue.
+  final VoidCallback? onOpenQueue;
 
   @override
   ConsumerState<_NowPlayingInfoPanel> createState() =>
@@ -362,6 +367,7 @@ class _NowPlayingInfoPanelState extends ConsumerState<_NowPlayingInfoPanel> {
       page,
       canOpenTrackInfo: currentSongId != null && !widget.playback.isRadioMode,
       hasQueue: widget.playback.hasQueue && !widget.playback.isRadioMode,
+      onOpenQueue: widget.onOpenQueue,
     );
     // The hold is the whole chip's, like the tap: a hold anywhere on it never
     // pages.
@@ -506,6 +512,7 @@ Future<void> Function()? _infoPageOpen(
   _NowPlayingInfoPage page, {
   required bool canOpenTrackInfo,
   required bool hasQueue,
+  VoidCallback? onOpenQueue,
 }) {
   if (page.isQualityPage) {
     return canOpenTrackInfo ? () => showMediaInfo(context) : null;
@@ -514,7 +521,10 @@ Future<void> Function()? _infoPageOpen(
     return () async => NavService.openPlaybackReplayGainSettings(context, ref);
   }
   if (page.isQueuePage) {
-    return hasQueue ? () async => NavService.showQueue(context, ref) : null;
+    if (!hasQueue) return null;
+    return onOpenQueue != null
+        ? () async => onOpenQueue()
+        : () async => NavService.showQueue(context, ref);
   }
   if (page.isSpeedPitchPage) {
     return hasQueue ? () => showPlaybackAdjustmentQuickPanel(context) : null;
@@ -677,6 +687,7 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
     required this.playback,
     required this.currentMediaItem,
     required this.playbackSpeed,
+    this.onOpenQueue,
   });
 
   final SongsTableData? song;
@@ -684,6 +695,10 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
   final PlaybackSnapshot playback;
   final MediaItem? currentMediaItem;
   final double playbackSpeed;
+
+  /// What the Queue line opens: the screen's embedded queue panel, as the
+  /// Queue button does there; null opens the shell queue.
+  final VoidCallback? onOpenQueue;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -730,6 +745,7 @@ class _NowPlayingInfoGrid extends ConsumerWidget {
         page,
         canOpenTrackInfo: currentSongId != null && !playback.isRadioMode,
         hasQueue: playback.hasQueue && !playback.isRadioMode,
+        onOpenQueue: onOpenQueue,
       ),
     );
 

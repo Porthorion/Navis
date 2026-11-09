@@ -93,6 +93,8 @@ void main() {
     WidgetTester tester, {
     bool realPlaybackSettings = false,
     bool withSheet = true,
+    bool wideEmbeddedMode = false,
+    bool compactWide = false,
     Size size = const Size(390, 844),
     VoidCallback? onCollapse,
   }) async {
@@ -129,7 +131,11 @@ void main() {
                     miniPlayer: const SizedBox(height: 64),
                     fullPlayer: NowPlayingScreen(onCollapse: () {}),
                   )
-                : NowPlayingScreen(onCollapse: () {}),
+                : NowPlayingScreen(
+                    onCollapse: () {},
+                    wideEmbeddedMode: wideEmbeddedMode,
+                    compactWideLandscapeMode: compactWide,
+                  ),
           ),
         ),
         GoRoute(
@@ -351,6 +357,77 @@ void main() {
       expect(speedPanelOpen(), isTrue);
     }, skip: !sqliteAvailable);
   });
+
+  group(
+    'in the embedded wide layouts the holds open what the buttons open',
+    () {
+      final embeddedQueue = find.byKey(
+        const ValueKey('right-pane-panel-queue'),
+      );
+
+      testWidgets(
+        'split: holding the Queue cell opens the embedded queue panel '
+        'like the Queue button',
+        (tester) async {
+          await pumpSheet(
+            tester,
+            withSheet: false,
+            wideEmbeddedMode: true,
+            size: const Size(1400, 900),
+          );
+          await tester.longPress(find.text('Playing 1 of 1'));
+          await tester.pumpAndSettle();
+          expect(embeddedQueue, findsOneWidget);
+          expect(queueOpen(), isFalse);
+        },
+        skip: !sqliteAvailable,
+      );
+
+      testWidgets('split: the Queue button opens the same panel', (
+        tester,
+      ) async {
+        await pumpSheet(
+          tester,
+          withSheet: false,
+          wideEmbeddedMode: true,
+          size: const Size(1400, 900),
+        );
+        await tester.tap(find.byTooltip('Queue').first);
+        await tester.pumpAndSettle();
+        expect(embeddedQueue, findsOneWidget);
+        expect(queueOpen(), isFalse);
+      }, skip: !sqliteAvailable);
+
+      testWidgets('split: holding Speed & Pitch opens the quick panel the '
+          'speed control opens', (tester) async {
+        await pumpSheet(
+          tester,
+          withSheet: false,
+          wideEmbeddedMode: true,
+          size: const Size(1400, 900),
+        );
+        await tester.longPress(find.text('Speed & Pitch'));
+        await tester.pumpAndSettle();
+        expect(speedPanelOpen(), isTrue);
+      }, skip: !sqliteAvailable);
+
+      testWidgets('compact wide: holding the Queue line opens the compact '
+          'queue panel', (tester) async {
+        await pumpSheet(
+          tester,
+          withSheet: false,
+          wideEmbeddedMode: true,
+          compactWide: true,
+          size: const Size(800, 400),
+        );
+        await showPageWithIcon(tester, Icons.queue_music_outlined);
+        await tester.longPress(_infoText);
+        await tester.pumpAndSettle();
+        expect(find.byKey(const ValueKey('compact-wide-queue')), findsWidgets);
+        expect(queueOpen(), isFalse);
+      }, skip: !sqliteAvailable);
+    },
+  );
 
   group('the chip keeps its other gestures', () {
     testWidgets('a tap still pages and a hold does not also page', (
