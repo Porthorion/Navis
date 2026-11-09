@@ -55,15 +55,23 @@ IconData highlightIcon(ChangelogHighlightIcon icon) {
 }
 
 /// Curated highlights, or up to three new-feature entries when a release has
-/// none. Fallback titles are full entry texts, so callers must truncate.
-List<ChangelogHighlight> effectiveHighlights(ChangelogVersion version) {
+/// none (only those relevant on [platform]). Fallback titles are full entry
+/// texts, so callers must truncate.
+List<ChangelogHighlight> effectiveHighlights(
+  ChangelogVersion version,
+  ChangelogPlatform platform,
+) {
   if (version.highlights.isNotEmpty) {
     return version.highlights;
   }
   return <ChangelogHighlight>[
     for (final entry
         in version.entries
-            .where((entry) => entry.type == ChangelogEntryType.newFeature)
+            .where(
+              (entry) =>
+                  entry.type == ChangelogEntryType.newFeature &&
+                  entry.appliesTo(platform),
+            )
             .take(3))
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.sparkle,

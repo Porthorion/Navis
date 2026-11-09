@@ -4,16 +4,44 @@ import 'package:navis/src/theme/navis_tokens.dart';
 
 /// One changelog entry as a plain paragraph. Entries sit under a heading
 /// that names their type, so the row itself carries no label or marker.
+///
+/// An entry that is not for everyone names its platforms in a small line
+/// above it ([platformLabel]); [muted] quiets entries for other platforms.
 class ChangelogEntryTile extends StatelessWidget {
-  const new({required this.entry, super.key});
+  const new({
+    required this.entry,
+    this.platformLabel,
+    this.muted = false,
+    super.key,
+  });
 
   final ChangelogEntry entry;
+  final String? platformLabel;
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final quiet = theme.colorScheme.onSurfaceVariant;
+    final label = platformLabel;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: NavisSpace.xs),
-      child: Text(entry.text, style: Theme.of(context).textTheme.bodyMedium),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          if (label != null)
+            Text(
+              label,
+              style: theme.textTheme.labelSmall?.copyWith(color: quiet),
+            ),
+          Text(
+            entry.text,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: muted ? quiet : null,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -61,6 +61,7 @@ class _ChangelogDiscoveryCardState
     }
 
     final l10n = AppLocalizations.of(context)!;
+    final platform = ref.watch(changelogPlatformProvider);
     final featured = discovery.featured;
     final current = discovery.current;
 
@@ -75,11 +76,11 @@ class _ChangelogDiscoveryCardState
               featured.displayVersion,
               codename,
             );
-      subtitle = _highlightLine(l10n, featured);
+      subtitle = _highlightLine(l10n, featured, platform);
       cover = featured;
     } else {
       title = l10n.changelogDiscoveryUpdatedTo(releaseProductName(current));
-      subtitle = l10n.changelogChangeCount(current.entries.length);
+      subtitle = l10n.changelogChangeCount(current.countFor(platform));
       cover = null;
     }
 
@@ -102,10 +103,14 @@ class _ChangelogDiscoveryCardState
 
   /// "Equalizer, AutoEQ, Speed and pitch and 2 more". Without curated
   /// highlights, the release's size instead.
-  String _highlightLine(AppLocalizations l10n, ChangelogVersion version) {
+  String _highlightLine(
+    AppLocalizations l10n,
+    ChangelogVersion version,
+    ChangelogPlatform platform,
+  ) {
     final highlights = version.highlights;
     if (highlights.isEmpty) {
-      return l10n.changelogChangeCount(version.entries.length);
+      return l10n.changelogChangeCount(version.countFor(platform));
     }
     const named = ChangelogDiscoveryCard.namedHighlights;
     final list = highlights.take(named).map((h) => h.title).join(', ');

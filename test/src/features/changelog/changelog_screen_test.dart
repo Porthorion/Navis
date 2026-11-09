@@ -3,6 +3,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
+import 'package:navis/src/features/changelog/changelog_provider.dart';
+import 'package:navis/src/features/changelog/presentation/changelog_discovery_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_release_cover.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
@@ -13,6 +15,35 @@ import 'package:navis/src/theme/navis_theme.dart';
 const _seed = Color(0xFF6750A4);
 
 final _overrides = [coverArtShapeProvider.overrideWithValue('rounded')];
+
+const _android = {ChangelogPlatform.android};
+const _ios = {ChangelogPlatform.ios};
+const _mac = {ChangelogPlatform.macos};
+
+/// One release whose entries are tagged by platform.
+const _platformVersion = ChangelogVersion(
+  version: '9.7.0',
+  released: '2026-07-01',
+  entries: <ChangelogEntry>[
+    ChangelogEntry('Everywhere fix', type: ChangelogEntryType.fix),
+    ChangelogEntry(
+      'Mac only fix',
+      type: ChangelogEntryType.fix,
+      platforms: _mac,
+    ),
+    ChangelogEntry(
+      'iPhone only fix',
+      type: ChangelogEntryType.fix,
+      platforms: _ios,
+    ),
+    ChangelogEntry(
+      'Pair feature',
+      type: ChangelogEntryType.newFeature,
+      platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
+    ),
+    ChangelogEntry('Android only tweak', platforms: _android),
+  ],
+);
 
 List<ChangelogEntry> _entries(ChangelogEntryType type, int count, String p) =>
     <ChangelogEntry>[
@@ -78,6 +109,8 @@ Future<void> _pump(
   Size size = const Size(390, 844),
   bool desktop = false,
   Brightness brightness = Brightness.light,
+  List<ChangelogVersion>? versions,
+  ChangelogPlatform platform = ChangelogPlatform.android,
 }) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = size;
@@ -86,7 +119,7 @@ Future<void> _pump(
     tester.view.resetDevicePixelRatio();
   });
   Widget screen = ChangelogScreen(
-    versions: _versions,
+    versions: versions ?? _versions,
     initialVersion: initialVersion,
   );
   if (desktop) {
@@ -101,7 +134,10 @@ Future<void> _pump(
   }
   await tester.pumpWidget(
     ProviderScope(
-      overrides: _overrides,
+      overrides: [
+        ..._overrides,
+        changelogPlatformProvider.overrideWithValue(platform),
+      ],
       child: MaterialApp(
         theme: brightness == Brightness.light
             ? buildLightTheme(_seed)
@@ -319,6 +355,104 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('9.9'), findsOneWidget);
+  });
+
+  group('platform entries', () {
+    Future<void> pumpPlatform(
+      WidgetTester tester,
+      ChangelogPlatform platform,
+    ) => _pump(
+      tester,
+      initialVersion: '9.7.0',
+      size: const Size(390, 3000),
+      versions: const [_platformVersion],
+      platform: platform,
+    );
+
+    testWidgets('shows all-platform and current-platform entries only', (
+      tester,
+    ) async {
+      await pumpPlatform(tester, ChangelogPlatform.android);
+
+      expect(find.text('Everywhere fix'), findsOneWidget);
+      // A release without highlights also lists its new features up top.
+      expect(find.text('Pair feature'), findsNWidgets(2));
+      expect(find.text('Android only tweak'), findsOneWidget);
+      expect(find.text('Mac only fix'), findsNothing);
+      expect(find.text('iPhone only fix'), findsNothing);
+      expect(find.text('2 changes for other platforms'), findsOneWidget);
+    });
+
+    testWidgets('other platforms collapse behind one line and expand', (
+      tester,
+    ) async {
+      await pumpPlatform(tester, ChangelogPlatform.macos);
+
+      expect(find.text('Mac only fix'), findsOneWidget);
+      expect(find.text('Android only tweak'), findsNothing);
+      expect(find.text('3 changes for other platforms'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('changelogToggleOtherPlatforms')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('iPhone only fix'), findsOneWidget);
+      expect(find.text('Android only tweak'), findsOneWidget);
+      // Each expanded entry carries its platform label.
+      expect(find.text('iOS'), findsOneWidget);
+      expect(find.text('Android and iOS'), findsOneWidget);
+      expect(find.text('Hide changes for other platforms'), findsOneWidget);
+
+      await tester.tap(
+        find.byKey(const ValueKey<String>('changelogToggleOtherPlatforms')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('iPhone only fix'), findsNothing);
+    });
+
+    testWidgets('a shared entry names its platforms, a solo one does not', (
+      tester,
+    ) async {
+      await pumpPlatform(tester, ChangelogPlatform.android);
+
+      expect(find.text('Android and iOS'), findsOneWidget);
+      expect(find.text('Android'), findsNothing);
+    });
+
+    testWidgets('no other-platform line when every entry applies', (
+      tester,
+    ) async {
+      await _pump(tester, initialVersion: '9.9.0', size: const Size(390, 3000));
+
+      expect(find.textContaining('for other platforms'), findsNothing);
+    });
+
+    testWidgets('the Home card counts only entries for this platform', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            changelogPlatformProvider.overrideWithValue(
+              ChangelogPlatform.windows,
+            ),
+            changelogToShowProvider.overrideWith(
+              (ref) async =>
+                  const ChangelogDiscovery(current: _platformVersion),
+            ),
+          ],
+          child: MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const Scaffold(body: ChangelogDiscoveryCard()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Only "Everywhere fix" applies on Windows.
+      expect(find.text('1 change'), findsOneWidget);
+    });
   });
 }
 

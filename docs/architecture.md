@@ -1780,8 +1780,15 @@ through `release_notes_markdown.dart`.
   load, it draws a typographic cover: the version set large on `primary`.
 - Highlight icons are a `ChangelogHighlightIcon` enum, mapped to Material
   icons in `changelog_style.dart`, so the data file needs no Flutter import.
+- `ChangelogEntry.platforms` (a set of `ChangelogPlatform`; empty means all)
+  limits an entry to some platforms, and `appliesTo` is the one relevance
+  check. The app (`changelogPlatformProvider`, overridable in tests) lists
+  relevant entries, folds the rest behind "N changes for other platforms",
+  and counts only relevant ones on the Home card; the release notes group
+  platform entries under `####` platform headings in each section.
 - `changelog_data_test.dart` enforces valid, descending versions and dates,
-  3–5 highlights for majors from 1.2.0 on, and that icon files exist.
+  3–5 highlights for majors from 1.2.0 on, that icon files exist and that no
+  entry text starts with a platform prefix.
 
 **Home card (`ChangelogDiscoveryCard`, drawn in `HomeNoticeCard`).** It is
 inline and non-blocking (design-ux-audit D5). `changelogToShowProvider` calls

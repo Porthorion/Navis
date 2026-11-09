@@ -41,6 +41,59 @@ void main() {
     expect(markdown, endsWith('- To a tester.'));
   });
 
+  test('groups platform entries under sub-headings in each section', () {
+    const version = ChangelogVersion(
+      version: '9.9.2',
+      entries: [
+        ChangelogEntry(
+          'Mac fix',
+          type: ChangelogEntryType.fix,
+          platforms: {ChangelogPlatform.macos},
+        ),
+        ChangelogEntry(
+          'Phone fix',
+          type: ChangelogEntryType.fix,
+          platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
+        ),
+        ChangelogEntry('Everywhere fix', type: ChangelogEntryType.fix),
+        ChangelogEntry(
+          'Desktop fix',
+          type: ChangelogEntryType.fix,
+          platforms: {
+            ChangelogPlatform.macos,
+            ChangelogPlatform.windows,
+            ChangelogPlatform.linux,
+          },
+        ),
+        ChangelogEntry(
+          'Another mac fix',
+          type: ChangelogEntryType.fix,
+          platforms: {ChangelogPlatform.macos},
+        ),
+      ],
+    );
+
+    expect(renderReleaseNotes(version), '''
+## What's New in Navis v9.9.2
+
+### Fixed
+
+- Everywhere fix
+
+#### Android and iOS
+
+- Phone fix
+
+#### macOS
+
+- Mac fix
+- Another mac fix
+
+#### Desktop
+
+- Desktop fix''');
+  });
+
   test('omits empty sections for a plain patch', () {
     const version = ChangelogVersion(
       version: '9.9.1',
