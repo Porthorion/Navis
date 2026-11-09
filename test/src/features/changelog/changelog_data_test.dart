@@ -15,6 +15,21 @@ int _compare(String a, String b) {
   return 0;
 }
 
+const _platformName = '(?:Android|iOS|macOS|Windows|Linux|Desktop)';
+const _leadName = '(?:Android|iOS|macOS|Windows|Linux|desktop|iPhone|iPad|Mac)';
+
+/// "iOS:" and "Android, iOS and Linux:" prefixes, or "On desktop," lead-ins.
+/// "Android Auto:" and "On Android Auto," name a feature, so only a platform
+/// followed by a separator counts.
+final _prefix = RegExp('^$_platformName(?:(?:,| and| &) $_platformName)*:');
+final _onLeadIn = RegExp(
+  '^On $_leadName(?:(?:,| and| &) $_leadName)*,',
+  caseSensitive: false,
+);
+
+bool _hasPlatformLeadIn(String text) =>
+    _prefix.hasMatch(text) || _onLeadIn.hasMatch(text);
+
 void main() {
   group('ChangelogVersion', () {
     test('every x.y.0 release is major', () {
@@ -102,19 +117,39 @@ void main() {
   });
 
   group('changelogs', () {
-    test('no entry text starts with a platform prefix', () {
-      const name = '(?:Android|iOS|macOS|Windows|Linux|Desktop)';
-      // "Android Auto:" names a feature, so only "<platform>(, | and )...:"
-      // counts as a prefix.
-      final prefix = RegExp('^$name(?:(?:,| and| &) $name)*:');
+    test('no entry text starts with a platform prefix or "On X," lead-in', () {
       for (final version in changelogs) {
         for (final entry in version.entries) {
           expect(
-            entry.text,
-            isNot(matches(prefix)),
-            reason: '${version.version}: set `platforms` instead of a prefix',
+            _hasPlatformLeadIn(entry.text),
+            isFalse,
+            reason:
+                '${version.version}: set `platforms` instead of a prefix: '
+                '${entry.text}',
           );
         }
+      }
+    });
+
+    test('the lead-in check spares feature names such as Android Auto', () {
+      for (final text in <String>[
+        'iOS: a',
+        'Android and iOS: a',
+        'On desktop, a',
+        'On iPhone and iPad, a',
+        'On Android, Windows and Linux, a',
+        'On macOS, a',
+      ]) {
+        expect(_hasPlatformLeadIn(text), isTrue, reason: text);
+      }
+      for (final text in <String>[
+        'Android Auto now a',
+        'On Android Auto, a',
+        'Fixed Windows media controls',
+        'Desktop Lyrics now keeps the current track visible',
+        'On the Queue page, a',
+      ]) {
+        expect(_hasPlatformLeadIn(text), isFalse, reason: text);
       }
     });
 

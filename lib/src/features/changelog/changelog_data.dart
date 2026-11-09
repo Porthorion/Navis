@@ -323,6 +323,11 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Recently Added on Home now shows the play button on hover, like '
         'the other album shelves',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -332,6 +337,7 @@ const List<ChangelogVersion> changelogs = [
         'liking, skipping, reordering, swiping a queue row away, dragging an '
         'equalizer band and long presses each have their own feel. Your '
         'phone\'s touch feedback setting still applies',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1050,10 +1056,12 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Downloaded songs in a custom Android folder now play when Android Auto starts Navis before the phone screen is opened',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Seeking from the Windows media controls lands at the chosen position instead of jumping to the end of the song',
+        platforms: {ChangelogPlatform.windows},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1075,6 +1083,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'The Equalizer page no longer cuts off the preamp level or fixed values in mid-sized desktop windows',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1160,6 +1173,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'The desktop lyrics view now closes when you navigate, press Escape or playback stops, instead of covering the next page',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1189,6 +1207,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'The equalizer is now available on Windows, and Windows playback runs on a current mpv and FFmpeg instead of a 2023 build',
+        platforms: {ChangelogPlatform.windows},
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -1275,6 +1294,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Choosing a custom Downloads folder no longer freezes the app on Android: the folder is scanned in the background, your existing files are adopted as they are without being rewritten, and files with Arabic, Japanese, Chinese or accented names are now recognised',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1384,6 +1404,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'The compact desktop Mini Player menu now shows whether Shuffle and Repeat are on and adds Speed & Pitch and Equalizer',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1427,6 +1452,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'The desktop player keeps elapsed and total playback times visible in small windows and with enlarged text, including a time preview while seeking',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
       ),
       ChangelogEntry(
         'Radio stations now use compact cards that adapt to the available width instead of stretching across wide windows',
@@ -1551,6 +1581,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Permanent downloads in Android custom folders now survive server removals and identity relinking instead of being mistaken for missing files',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1903,14 +1934,21 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Fixed Windows media controls so system playback, seeking, shuffle, and repeat reliably follow Navis playback',
+        platforms: {ChangelogPlatform.windows},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Fixed desktop More and right-click menus failing to open until after navigation',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Fixed Android Auto opening from a cold phone start and made media browse refreshes reliable',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -2032,6 +2070,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'The Android exit prompt is now ready for translation',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2040,6 +2079,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Compact desktop album pages now keep tracks visible alongside album actions',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2079,10 +2123,20 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Privacy information now uses a clearer responsive desktop reading layout',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Match Flow now uses the full desktop workspace with New Flow in the header',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2153,6 +2207,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Older partial library migrations no longer prevent Android playback startup',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -2169,10 +2224,20 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Artist Top Tracks More now uses the same focused desktop menu as right-click',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Album-track More and right-click actions now use one focused desktop menu',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2181,10 +2246,20 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Download Quality now uses a focused dialog on desktop while keeping the mobile sheet',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Add to playlist now uses a focused dialog on desktop while keeping the mobile sheet',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2198,6 +2273,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Weekly playlist track actions now use the same anchored menu from the desktop More button and right-click',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2321,6 +2401,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Home now uses a calmer continuous desktop workspace while keeping album cards easy to scan',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2391,6 +2476,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Playlist track actions now use the same compact desktop menu for right-click and More, while phone keeps its touch sheet',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(

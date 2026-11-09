@@ -1,5 +1,7 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
+import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_release_cover.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_style.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -8,7 +10,7 @@ import 'package:navis/src/theme/navis_tokens.dart';
 /// A release in a list, styled like a library row: a cover for major
 /// releases (patches leave the slot empty so they sit under their major),
 /// the release's name and its date and size.
-class ChangelogReleaseRow extends StatelessWidget {
+class ChangelogReleaseRow extends ConsumerWidget {
   const new({
     required this.version,
     required this.onTap,
@@ -29,7 +31,7 @@ class ChangelogReleaseRow extends StatelessWidget {
   static const double _leading = 48;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final major = version.isMajor;
@@ -75,6 +77,7 @@ class ChangelogReleaseRow extends StatelessWidget {
                       releaseMeta(
                         context,
                         version,
+                        ref.watch(changelogPlatformProvider),
                         withProductName: label == null,
                       ),
                       maxLines: 1,

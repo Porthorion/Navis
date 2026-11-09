@@ -64,6 +64,12 @@ class _ChangelogDiscoveryCardState
     final platform = ref.watch(changelogPlatformProvider);
     final featured = discovery.featured;
     final current = discovery.current;
+    // Nothing for this platform and nothing curated: no "0 changes" card.
+    final announced = featured ?? current;
+    final curated = featured != null && featured.highlights.isNotEmpty;
+    if (!curated && announced.countFor(platform) == 0) {
+      return const SizedBox.shrink();
+    }
 
     final String title;
     final String subtitle;

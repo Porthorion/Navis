@@ -7,7 +7,9 @@ import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_discovery_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_release_cover.dart';
+import 'package:navis/src/features/changelog/presentation/changelog_release_details.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_screen.dart';
+import 'package:navis/src/features/changelog/presentation/changelog_style.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/theme/navis_theme.dart';
@@ -19,6 +21,42 @@ final _overrides = [coverArtShapeProvider.overrideWithValue('rounded')];
 const _android = {ChangelogPlatform.android};
 const _ios = {ChangelogPlatform.ios};
 const _mac = {ChangelogPlatform.macos};
+
+/// A release with nothing for anyone but macOS.
+const _macOnlyVersion = ChangelogVersion(
+  version: '9.6.0',
+  released: '2026-06-01',
+  entries: <ChangelogEntry>[
+    ChangelogEntry(
+      'Mac window fix',
+      type: ChangelogEntryType.fix,
+      platforms: _mac,
+    ),
+    ChangelogEntry('Mac menu tweak', platforms: _mac),
+  ],
+);
+
+Future<void> _pumpCard(
+  WidgetTester tester,
+  ChangelogDiscovery discovery,
+  ChangelogPlatform platform,
+) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        ..._overrides,
+        changelogPlatformProvider.overrideWithValue(platform),
+        changelogToShowProvider.overrideWith((ref) async => discovery),
+      ],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const Scaffold(body: ChangelogDiscoveryCard()),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
 
 /// One release whose entries are tagged by platform.
 const _platformVersion = ChangelogVersion(
@@ -452,6 +490,203 @@ void main() {
 
       // Only "Everywhere fix" applies on Windows.
       expect(find.text('1 change'), findsOneWidget);
+    });
+
+    testWidgets('the release header and rows count only relevant entries', (
+      tester,
+    ) async {
+      await pumpPlatform(tester, ChangelogPlatform.android);
+
+      // Everywhere fix, Pair feature and Android only tweak of five.
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const ValueKey<String>('changelogReleaseHeader-9.7.0'),
+          ),
+          matching: find.textContaining('• 3 changes'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('5 changes'), findsNothing);
+    });
+
+    testWidgets('the Home card is hidden when nothing is relevant', (
+      tester,
+    ) async {
+      await _pumpCard(
+        tester,
+        const ChangelogDiscovery(current: _macOnlyVersion),
+        ChangelogPlatform.windows,
+      );
+      expect(find.byType(ChangelogDiscoveryCard), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
+        findsNothing,
+      );
+      expect(find.textContaining('0 changes'), findsNothing);
+
+      // Same for a featured major without highlights.
+      await _pumpCard(
+        tester,
+        const ChangelogDiscovery(
+          current: _macOnlyVersion,
+          featured: _macOnlyVersion,
+        ),
+        ChangelogPlatform.windows,
+      );
+      expect(
+        find.byKey(const ValueKey<String>('changelogDiscoveryOpen')),
+        findsNothing,
+      );
+
+      // It still shows on the platform the changes are for.
+      await _pumpCard(
+        tester,
+        const ChangelogDiscovery(current: _macOnlyVersion),
+        ChangelogPlatform.macos,
+      );
+      expect(find.text('2 changes'), findsOneWidget);
+    });
+
+    testWidgets('a featured release with highlights still shows with none '
+        'relevant', (tester) async {
+      await _pumpCard(
+        tester,
+        ChangelogDiscovery(current: _versions[1], featured: _versions[1]),
+        ChangelogPlatform.windows,
+      );
+      expect(find.text('Equalizer, Speed and pitch, AutoEQ'), findsOneWidget);
+    });
+
+    testWidgets('with nothing relevant the other platforms list is open, '
+        'without a toggle', (tester) async {
+      await _pump(
+        tester,
+        initialVersion: '9.6.0',
+        size: const Size(390, 3000),
+        versions: const [_macOnlyVersion],
+        platform: ChangelogPlatform.windows,
+      );
+
+      expect(find.text('Mac window fix'), findsOneWidget);
+      expect(find.text('Mac menu tweak'), findsOneWidget);
+      expect(find.text('macOS'), findsNWidgets(2));
+      expect(
+        find.byKey(const ValueKey<String>('changelogToggleOtherPlatforms')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('the other platforms line announces its expanded state', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await pumpPlatform(tester, ChangelogPlatform.macos);
+      final toggle = find.byKey(
+        const ValueKey<String>('changelogToggleOtherPlatforms'),
+      );
+
+      expect(
+        tester.getSemantics(toggle),
+        matchesSemantics(
+          isButton: true,
+          isEnabled: true,
+          isFocusable: true,
+          hasEnabledState: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+          hasExpandedState: true,
+          isExpanded: false,
+          label: '3 changes for other platforms',
+        ),
+      );
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getSemantics(toggle),
+        matchesSemantics(
+          isButton: true,
+          isEnabled: true,
+          isFocusable: true,
+          hasEnabledState: true,
+          hasTapAction: true,
+          hasFocusAction: true,
+          hasExpandedState: true,
+          isExpanded: true,
+          label: 'Hide changes for other platforms',
+        ),
+      );
+      handle.dispose();
+    });
+
+    testWidgets('the other platforms list collapses again on another release', (
+      tester,
+    ) async {
+      const other = ChangelogVersion(
+        version: '9.7.1',
+        entries: <ChangelogEntry>[
+          ChangelogEntry('Everywhere patch', type: ChangelogEntryType.fix),
+          ChangelogEntry(
+            'iPhone patch',
+            type: ChangelogEntryType.fix,
+            platforms: _ios,
+          ),
+        ],
+      );
+      Future<void> pumpDetails(ChangelogVersion version) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              changelogPlatformProvider.overrideWithValue(
+                ChangelogPlatform.android,
+              ),
+            ],
+            child: MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: SingleChildScrollView(
+                  child: ChangelogReleaseDetails(version: version),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await pumpDetails(_platformVersion);
+      await tester.tap(
+        find.byKey(const ValueKey<String>('changelogToggleOtherPlatforms')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Mac only fix'), findsOneWidget);
+
+      await pumpDetails(other);
+      expect(find.text('iPhone patch'), findsNothing);
+      expect(find.text('1 change for other platforms'), findsOneWidget);
+    });
+  });
+
+  group('effectiveHighlights', () {
+    test('curated highlights win and are not filtered', () {
+      final highlights = effectiveHighlights(
+        _versions[1],
+        ChangelogPlatform.windows,
+      );
+      expect(highlights.map((h) => h.title), [
+        'Equalizer',
+        'Speed and pitch',
+        'AutoEQ',
+      ]);
+    });
+
+    test('the fallback keeps only new features relevant on the platform', () {
+      List<String> titles(ChangelogPlatform p) =>
+          effectiveHighlights(_platformVersion, p).map((h) => h.title).toList();
+
+      expect(titles(ChangelogPlatform.android), ['Pair feature']);
+      expect(titles(ChangelogPlatform.macos), isEmpty);
     });
   });
 }

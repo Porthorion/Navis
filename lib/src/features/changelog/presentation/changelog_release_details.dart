@@ -150,6 +150,8 @@ class _ChangelogReleaseDetailsState
                   (selected == null || entry.type == selected))
                 entry,
           ],
+          // With nothing relevant the list is the page: open, no toggle.
+          alwaysOpen: relevant.isEmpty,
           expanded: _showOtherPlatforms,
           onToggle: () =>
               setState(() => _showOtherPlatforms = !_showOtherPlatforms),
@@ -252,15 +254,18 @@ class _EntrySection extends StatelessWidget {
 }
 
 /// "N changes for other platforms": one quiet line that expands those entries
-/// in place, each labelled with its platforms. Nothing when there are none.
+/// in place, each labelled with its platforms. Nothing when there are none;
+/// [alwaysOpen] lists them without the line.
 class _OtherPlatforms extends StatelessWidget {
   const new({
     required this.entries,
+    required this.alwaysOpen,
     required this.expanded,
     required this.onToggle,
   });
 
   final List<ChangelogEntry> entries;
+  final bool alwaysOpen;
   final bool expanded;
   final VoidCallback onToggle;
 
@@ -276,19 +281,30 @@ class _OtherPlatforms extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            TextButton(
-              key: const ValueKey<String>('changelogToggleOtherPlatforms'),
-              onPressed: onToggle,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: NavisSpace.xs),
+            if (!alwaysOpen)
+              // The button announces whether the list is open.
+              MergeSemantics(
+                child: Semantics(
+                  expanded: expanded,
+                  child: TextButton(
+                    key: const ValueKey<String>(
+                      'changelogToggleOtherPlatforms',
+                    ),
+                    onPressed: onToggle,
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: NavisSpace.xs,
+                      ),
+                    ),
+                    child: Text(
+                      expanded
+                          ? l10n.changelogHideOtherPlatforms
+                          : l10n.changelogOtherPlatforms(entries.length),
+                    ),
+                  ),
+                ),
               ),
-              child: Text(
-                expanded
-                    ? l10n.changelogHideOtherPlatforms
-                    : l10n.changelogOtherPlatforms(entries.length),
-              ),
-            ),
-            if (expanded)
+            if (alwaysOpen || expanded)
               for (final entry in entries)
                 ChangelogEntryTile(
                   entry: entry,

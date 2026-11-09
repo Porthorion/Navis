@@ -99,12 +99,14 @@ String releaseProductName(ChangelogVersion version) =>
 String releaseTitle(ChangelogVersion version) =>
     version.codename ?? releaseProductName(version);
 
-/// "Sep 30, 2026 • 90 changes", the album-style summary line. When
-/// [withProductName] is set and the release has a codename, "Navis 1.4"
-/// leads so the row still says which version it is.
+/// "Sep 30, 2026 • 90 changes", the album-style summary line, counting only
+/// the changes relevant on [platform]. When [withProductName] is set and the
+/// release has a codename, "Navis 1.4" leads so the row still says which
+/// version it is.
 String releaseMeta(
   BuildContext context,
-  ChangelogVersion version, {
+  ChangelogVersion version,
+  ChangelogPlatform platform, {
   bool withProductName = false,
 }) {
   final l10n = AppLocalizations.of(context)!;
@@ -112,6 +114,6 @@ String releaseMeta(
     if (withProductName && version.codename != null)
       releaseProductName(version),
     ?formatReleaseDate(context, version),
-    l10n.changelogChangeCount(version.entries.length),
+    l10n.changelogChangeCount(version.countFor(platform)),
   ].join(' • ');
 }

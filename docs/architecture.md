@@ -1783,12 +1783,15 @@ through `release_notes_markdown.dart`.
 - `ChangelogEntry.platforms` (a set of `ChangelogPlatform`; empty means all)
   limits an entry to some platforms, and `appliesTo` is the one relevance
   check. The app (`changelogPlatformProvider`, overridable in tests) lists
-  relevant entries, folds the rest behind "N changes for other platforms",
-  and counts only relevant ones on the Home card; the release notes group
+  relevant entries, folds the rest behind "N changes for other platforms"
+  (open, with no toggle, when nothing is relevant) and counts only relevant
+  ones everywhere: the Home card, the release header and the release rows
+  (`releaseMeta` takes the platform). The Home card is hidden when a release
+  has no relevant entries and no curated highlights. The release notes group
   platform entries under `####` platform headings in each section.
 - `changelog_data_test.dart` enforces valid, descending versions and dates,
   3–5 highlights for majors from 1.2.0 on, that icon files exist and that no
-  entry text starts with a platform prefix.
+  entry text starts with a platform prefix or an "On desktop," lead-in.
 
 **Home card (`ChangelogDiscoveryCard`, drawn in `HomeNoticeCard`).** It is
 inline and non-blocking (design-ux-audit D5). `changelogToShowProvider` calls

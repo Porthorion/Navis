@@ -94,6 +94,62 @@ void main() {
 - Desktop fix''');
   });
 
+  test('platform groups follow platform order, whatever the entry order', () {
+    const version = ChangelogVersion(
+      version: '9.9.3',
+      entries: [
+        ChangelogEntry(
+          'Windows and Linux fix',
+          type: ChangelogEntryType.fix,
+          platforms: {ChangelogPlatform.windows, ChangelogPlatform.linux},
+        ),
+        ChangelogEntry(
+          'Desktop fix',
+          type: ChangelogEntryType.fix,
+          platforms: ChangelogPlatform.desktop,
+        ),
+        ChangelogEntry(
+          'Mac fix',
+          type: ChangelogEntryType.fix,
+          platforms: {ChangelogPlatform.macos},
+        ),
+        ChangelogEntry(
+          'Mixed fix',
+          type: ChangelogEntryType.fix,
+          platforms: {
+            ChangelogPlatform.linux,
+            ChangelogPlatform.ios,
+            ChangelogPlatform.android,
+          },
+        ),
+        ChangelogEntry('Everywhere fix', type: ChangelogEntryType.fix),
+      ],
+    );
+
+    expect(renderReleaseNotes(version), '''
+## What's New in Navis v9.9.3
+
+### Fixed
+
+- Everywhere fix
+
+#### Android, iOS and Linux
+
+- Mixed fix
+
+#### macOS
+
+- Mac fix
+
+#### Desktop
+
+- Desktop fix
+
+#### Windows and Linux
+
+- Windows and Linux fix''');
+  });
+
   test('omits empty sections for a plain patch', () {
     const version = ChangelogVersion(
       version: '9.9.1',
