@@ -295,6 +295,14 @@ class Run:
             self.play_from(2000)
             time.sleep(12)
             self.join(seconds_after=4)
+        # Gapless-tagged originals: the only joins through Media3's TrimmingAudioProcessor (#392).
+        self.post('/v1/playback/quality', {'wifi': {}, 'cellular': {}})
+        for ext in ('mp3', 'm4a'):
+            self.phase = f'gapless-{ext}'
+            self.queue([f'rgl-{ext}', f'rgh-{ext}'])
+            self.play_from(2000)
+            time.sleep(12)
+            self.join(seconds_after=4)
         self.a2()
         self.phase = 'done'
         (self.out / 'a1-final.json').write_text(json.dumps(self.status(), indent=2))

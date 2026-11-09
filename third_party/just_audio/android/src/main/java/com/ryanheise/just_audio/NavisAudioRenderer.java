@@ -2,8 +2,10 @@ package com.ryanheise.just_audio;
 
 import android.content.Context;
 import android.os.Handler;
+import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.Timeline;
+import androidx.media3.decoder.DecoderInputBuffer;
 import androidx.media3.exoplayer.ExoPlaybackException;
 import androidx.media3.exoplayer.audio.AudioRendererEventListener;
 import androidx.media3.exoplayer.audio.AudioSink;
@@ -11,6 +13,7 @@ import androidx.media3.exoplayer.audio.MediaCodecAudioRenderer;
 import androidx.media3.exoplayer.mediacodec.MediaCodecAdapter;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 import androidx.media3.exoplayer.source.MediaSource;
+import java.nio.ByteBuffer;
 
 /**
  * Tells {@link NavisEqualizerProcessor} which queue entry the next samples belong to (ReplayGain
@@ -23,6 +26,9 @@ import androidx.media3.exoplayer.source.MediaSource;
  */
 final class NavisAudioRenderer extends MediaCodecAudioRenderer {
     private final NavisEqualizerProcessor processor;
+    // Media3's own threshold (its largestQueuedPresentationTimeUs is private): the last input queued
+    // to the codec, the point after which an output buffer belongs to the next stream.
+    private long largestQueuedUs = C.TIME_UNSET;
 
     NavisAudioRenderer(Context context, MediaCodecAdapter.Factory codecAdapterFactory,
             MediaCodecSelector selector, boolean enableDecoderFallback, Handler handler,
@@ -48,7 +54,7 @@ final class NavisAudioRenderer extends MediaCodecAudioRenderer {
         } catch (RuntimeException e) {
             // An entry that cannot be resolved plays at 0 dB rather than at the outgoing entry's gain.
         }
-        processor.noteStream(offsetUs, key);
+        processor.noteStream(offsetUs, key, largestQueuedUs);
         super.onStreamChanged(formats, startPositionUs, offsetUs, mediaPeriodId);
     }
 
@@ -56,5 +62,45 @@ final class NavisAudioRenderer extends MediaCodecAudioRenderer {
     protected void onOutputStreamOffsetUsChanged(long outputStreamOffsetUs) {
         super.onOutputStreamOffsetUsChanged(outputStreamOffsetUs);
         processor.streamOffsetChanged(outputStreamOffsetUs);
+    }
+
+    @Override
+    protected void onQueueInputBuffer(DecoderInputBuffer buffer) throws ExoPlaybackException {
+        largestQueuedUs = Math.max(largestQueuedUs, buffer.timeUs);
+        super.onQueueInputBuffer(buffer);
+    }
+
+    @Override
+    protected void resetCodecStateForFlush() {
+        super.resetCodecStateForFlush();
+        largestQueuedUs = C.TIME_UNSET;
+    }
+
+    /**
+     * Media3 hands a buffer to the sink first and only then applies a pending stream change, so on
+     * a codec whose last output of the old song stays below the threshold (opus) the new song's first
+     * buffer would be written under the old gain. Tell the processor before the sink sees it.
+     */
+    @Override
+    protected boolean processOutputBuffer(long positionUs, long elapsedRealtimeUs, MediaCodecAdapter codec,
+            ByteBuffer buffer, int bufferIndex, int bufferFlags, int sampleCount,
+            long bufferPresentationTimeUs, boolean isDecodeOnlyBuffer, boolean isLastBuffer, Format format)
+            throws ExoPlaybackException {
+        processor.outputBuffer(bufferPresentationTimeUs);
+        return super.processOutputBuffer(positionUs, elapsedRealtimeUs, codec, buffer, bufferIndex, bufferFlags,
+                sampleCount, bufferPresentationTimeUs, isDecodeOnlyBuffer, isLastBuffer, format);
+    }
+
+    // Media3 discards its pending stream changes here, so the processor must too.
+    @Override
+    protected void onPositionReset(long positionUs, boolean joining) throws ExoPlaybackException {
+        processor.dropPendingStreams();
+        super.onPositionReset(positionUs, joining);
+    }
+
+    @Override
+    protected void onDisabled() {
+        processor.dropPendingStreams();
+        super.onDisabled();
     }
 }
