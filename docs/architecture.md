@@ -4484,9 +4484,8 @@ mutating GETs such as scrobbles and playlist edits are never replayed.
 
 Both the native audio-service probe and Dart's `defersBackgroundSync` policy
 reserve priority for playing/loading/buffering. A paused queue remains visible
-and published while allowing background sync. Independent paused wake-lock
-release is unavailable in the current plugin; see the
-[1.5.1 follow-ups](plans/idle-robustness-followups.md).
+and published while allowing background sync. The playback wakelock is held
+only while playing (see Silent playback recovery below, #457).
 
 ## Data Flow
 

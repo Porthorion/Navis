@@ -59,9 +59,13 @@ public class NavisAudioService extends AudioService {
             }
             PowerManager.WakeLock lock = (PowerManager.WakeLock) wakeLockField.get(this);
             if (lock != null && lock.isHeld()) lock.release();
-        } catch (ReflectiveOperationException | RuntimeException error) {
+        } catch (ReflectiveOperationException | ClassCastException error) {
+            // A dependency upgrade changed the field: stop trying, keep playing.
             wakeLockUnavailable = true;
             Log.w("NavisAudioService", "Wakelock release unavailable");
+        } catch (RuntimeException error) {
+            // A one-off release failure; the next paused state retries.
+            Log.w("NavisAudioService", "Wakelock release failed");
         }
     }
 
