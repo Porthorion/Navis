@@ -385,6 +385,13 @@ class SettingsRepository {
       nightScheduleEnabled: row.nightScheduleEnabled,
       nightScheduleStartMinutes: row.nightScheduleStartMinutes,
       nightScheduleEndMinutes: row.nightScheduleEndMinutes,
+      autoThemeSource: row.autoThemeSource,
+      autoDarkStartMinutes: row.autoDarkStartMinutes,
+      autoDarkEndMinutes: row.autoDarkEndMinutes,
+      autoLooksEnabled: row.autoLooksEnabled,
+      autoLightLookId: row.autoLightLookId,
+      autoDarkLookId: row.autoDarkLookId,
+      autoLooksAppliedMode: row.autoLooksAppliedMode,
       flatSurfaces: row.flatSurfaces,
       flatAreas: FlatAreas.fromBits(row.flatAreas),
       hapticsPrefs: HapticsPrefs.fromColumns(

@@ -6648,8 +6648,44 @@ abstract class AppLocalizations {
   /// No description provided for @appearanceOledForAutoSub.
   ///
   /// In en, this message translates to:
-  /// **'In Auto, use pure black instead of Dark when your device is in dark mode.'**
+  /// **'In Auto, use pure black instead of Dark whenever the dark theme is on.'**
   String get appearanceOledForAutoSub;
+
+  /// No description provided for @appearanceAutoSourceDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow Device'**
+  String get appearanceAutoSourceDevice;
+
+  /// No description provided for @appearanceAutoSourceSchedule.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled'**
+  String get appearanceAutoSourceSchedule;
+
+  /// No description provided for @appearanceAutoDarkWindow.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark from {start} to {end}, light the rest of the day.'**
+  String appearanceAutoDarkWindow(Object start, Object end);
+
+  /// No description provided for @appearanceAutoDarkNever.
+  ///
+  /// In en, this message translates to:
+  /// **'Start and end are the same, so it is never dark.'**
+  String get appearanceAutoDarkNever;
+
+  /// No description provided for @appearanceAutoDarkStartsAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark starts at {time}'**
+  String appearanceAutoDarkStartsAt(Object time);
+
+  /// No description provided for @appearanceAutoDarkEndsAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark ends at {time}'**
+  String appearanceAutoDarkEndsAt(Object time);
 
   /// No description provided for @appearanceNightScheduleLabel.
   ///

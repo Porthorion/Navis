@@ -4234,7 +4234,32 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get appearanceOledForAutoSub =>
-      'In Auto, use pure black instead of Dark when your device is in dark mode.';
+      'In Auto, use pure black instead of Dark whenever the dark theme is on.';
+
+  @override
+  String get appearanceAutoSourceDevice => 'Follow Device';
+
+  @override
+  String get appearanceAutoSourceSchedule => 'Scheduled';
+
+  @override
+  String appearanceAutoDarkWindow(Object start, Object end) {
+    return 'Dark from $start to $end, light the rest of the day.';
+  }
+
+  @override
+  String get appearanceAutoDarkNever =>
+      'Start and end are the same, so it is never dark.';
+
+  @override
+  String appearanceAutoDarkStartsAt(Object time) {
+    return 'Dark starts at $time';
+  }
+
+  @override
+  String appearanceAutoDarkEndsAt(Object time) {
+    return 'Dark ends at $time';
+  }
 
   @override
   String get appearanceNightScheduleLabel => 'Night Schedule';
