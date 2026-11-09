@@ -178,6 +178,194 @@ void main() {
     },
   );
 
+  group('scroll anchor', () {
+    Future<ScrollController> pumpGrids(
+      WidgetTester tester, {
+      required Size size,
+      required List<int> sections,
+    }) async {
+      setAdaptiveTestViewport(tester, size);
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      final anchor = GridScrollAnchor();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            gridArtworkSizeProvider.overrideWithValue(GridArtworkSize.auto),
+          ],
+          child: MaterialApp(
+            theme: testTheme(),
+            home: Scaffold(
+              body: CustomScrollView(
+                key: const PageStorageKey<String>('anchored'),
+                controller: controller,
+                slivers: [
+                  for (var s = 0; s < sections.length; s++) ...[
+                    SliverToBoxAdapter(
+                      child: SizedBox(key: ValueKey('header$s'), height: 60),
+                    ),
+                    ResponsiveContentSliverGrid(
+                      itemCount: sections[s],
+                      anchor: anchor,
+                      anchorId: s,
+                      itemBuilder: (_, index) => ColoredBox(
+                        key: ValueKey(s * 1000 + index),
+                        color: Colors.blue,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      return controller;
+    }
+
+    // Columns and row stride the album grid has at a viewport [width].
+    (int, double) geometry(double width) {
+      final pane = width - 2 * ContentLayout.padding(width);
+      final grid = ContentLayout.albums(pane, GridArtworkSize.auto);
+      return (grid.columns, grid.extent + grid.gap);
+    }
+
+    double viewportTop(WidgetTester tester) =>
+        tester.getTopLeft(find.byType(CustomScrollView)).dy;
+
+    void expectInFirstRow(WidgetTester tester, int key, double width) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget);
+      final top = tester.getTopLeft(find.byKey(ValueKey(key))).dy;
+      expect(top, greaterThanOrEqualTo(viewportTop(tester) - 1));
+      expect(top, lessThan(viewportTop(tester) + geometry(width).$2));
+    }
+
+    testWidgets('header plus grid keeps item 40 in the first row across '
+        '1040→2000', (tester) async {
+      final controller = await pumpGrids(
+        tester,
+        size: const Size(1040, 800),
+        sections: [240],
+      );
+      final (columns, stride) = geometry(1040);
+      controller.jumpTo(60 + (40 ~/ columns) * stride);
+      await tester.pumpAndSettle();
+      expectInFirstRow(tester, 40, 1040);
+
+      tester.view.physicalSize = const Size(2000, 800);
+      await tester.pumpAndSettle();
+      expect(geometry(2000).$1, isNot(columns));
+      expectInFirstRow(tester, 40, 2000);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('same column count with a wider tile keeps the leading item', (
+      tester,
+    ) async {
+      final controller = await pumpGrids(
+        tester,
+        size: const Size(1040, 800),
+        sections: [240],
+      );
+      final (columns, stride) = geometry(1040);
+      controller.jumpTo(60 + (200 ~/ columns) * stride);
+      await tester.pumpAndSettle();
+      expectInFirstRow(tester, 200, 1040);
+
+      tester.view.physicalSize = const Size(1100, 800);
+      await tester.pumpAndSettle();
+      expect(geometry(1100).$1, columns);
+      expect(geometry(1100).$2, greaterThan(stride));
+      expectInFirstRow(tester, 200, 1100);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('at top, a resize keeps the header visible (pixels stay 0)', (
+      tester,
+    ) async {
+      final controller = await pumpGrids(
+        tester,
+        size: const Size(1040, 800),
+        sections: [240],
+      );
+      expect(controller.offset, 0);
+
+      tester.view.physicalSize = const Size(2000, 800);
+      await tester.pumpAndSettle();
+      expect(controller.offset, 0);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('header0'))).dy,
+        closeTo(viewportTop(tester), 0.5),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a half-hidden header keeps its offset across a resize', (
+      tester,
+    ) async {
+      final controller = await pumpGrids(
+        tester,
+        size: const Size(1040, 800),
+        sections: [240],
+      );
+      controller.jumpTo(25);
+      await tester.pumpAndSettle();
+
+      tester.view.physicalSize = const Size(2000, 800);
+      await tester.pumpAndSettle();
+      expect(controller.offset, closeTo(25, 0.5));
+    });
+
+    testWidgets('a resize while the user scrolls does not jump the view', (
+      tester,
+    ) async {
+      final controller = await pumpGrids(
+        tester,
+        size: const Size(1040, 800),
+        sections: [240],
+      );
+      final (columns, stride) = geometry(1040);
+      controller.jumpTo(60 + (40 ~/ columns) * stride);
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.startGesture(const Offset(300, 400));
+      await gesture.moveBy(const Offset(0, -37));
+      await tester.pump();
+      final dragged = controller.offset;
+      tester.view.physicalSize = const Size(2000, 800);
+      await tester.pump();
+      await tester.pump();
+      expect(controller.offset, dragged);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('two sections with the edge on the second header keep that '
+        "header's first item", (tester) async {
+      final controller = await pumpGrids(
+        tester,
+        size: const Size(1040, 800),
+        sections: [60, 60],
+      );
+      // Put the second header exactly at the top edge.
+      final (columns, stride) = geometry(1040);
+      final rows = (60 + columns - 1) ~/ columns;
+      controller.jumpTo(60 + rows * stride - 12 + 24);
+      await tester.pumpAndSettle();
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('header1'))).dy,
+        closeTo(viewportTop(tester), 0.5),
+      );
+
+      tester.view.physicalSize = const Size(2000, 800);
+      await tester.pumpAndSettle();
+      expectInFirstRow(tester, 1000, 2000);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   testWidgets('shelf arrows respond to resize and preserve manual position', (
     tester,
   ) async {
