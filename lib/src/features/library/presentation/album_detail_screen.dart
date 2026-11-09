@@ -1356,9 +1356,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                               // 16 lines Play up with the text; narrower phones
                               // keep 4 so the row fits.
                               padding: EdgeInsetsDirectional.fromSTEB(
-                                constraints.maxWidth >= 375
-                                    ? 16
-                                    : 4,
+                                constraints.maxWidth >= 375 ? 16 : 4,
                                 0,
                                 4,
                                 8,

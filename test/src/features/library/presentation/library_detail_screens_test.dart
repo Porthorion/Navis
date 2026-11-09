@@ -1553,11 +1553,7 @@ void main() {
           );
           final summary = tester.getRect(find.textContaining('2025'));
           final contentLeft = summary.left - 16;
-          expect(
-            play.left - contentLeft,
-            inset,
-            reason: 'Play inset at $size',
-          );
+          expect(play.left - contentLeft, inset, reason: 'Play inset at $size');
           expect(
             tester.takeException(),
             isNull,
