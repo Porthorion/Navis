@@ -143,7 +143,9 @@ class _TransportControls extends ConsumerWidget {
     // stay in the settings sheet). The desktop volume slider keeps priority
     // when both cannot fit.
     const transportQuickActionsRelaxedWidth = 360.0;
-    final transportQuickActionsMinWidth = compact ? 296.0 : 440.0;
+    // The compact row needs 312 dp with both quick actions even when tight
+    // (measured at 299 and 305 dp: it overflowed by 13 and 7.2 dp).
+    final transportQuickActionsMinWidth = compact ? 312.0 : 440.0;
     const transportQuickActionsExtraWidth = 112.0;
 
     final row = LayoutBuilder(

@@ -2639,11 +2639,21 @@ the tracks. Phone and tablet layouts ignore the height band.
   whatever the aspect ratio
 - **Phones in landscape, ≥ 840 dp wide** → standard rail when the rail fits the
   height, otherwise the compact icon rail (compact-wide)
+- **Phones in landscape, 600–839 dp wide** → the compact icon rail when the
+  rail does not fit the height (`height - safe.vertical < 480`), otherwise the
+  bottom navigation bar; below 600 dp wide always the bottom bar
 - **All other cases** → bottom navigation bar
 
 Only short viewports get compact-wide; a 16:9 tablet, or a car display of the
 same size, uses the standard rail. The top-inset proxy for car bars that do not
-report a bottom inset applies only to compact-wide.
+report a bottom inset applies only to compact-wide. The shell and
+`resolveAdaptiveContextFor` pass `viewPadding` (not `padding`) to the resolver,
+so an open keyboard, which zeroes the bottom padding, cannot flip the mode.
+In compact-wide the shell pads its pane by the left and right insets, so the
+car Now Playing adds none of its own (the desktop Mini Player, which reuses
+that layout, still does), hides the format pills below 400 dp high, and the
+compact mini player strip grows by the real bottom inset (a home indicator or a
+Duo strip) with its content above it.
 
 Foldable and tablet fixes (I27, 1.5.2): a layout class change (fold, unfold,
 rotation across 600/840 dp) rebuilds the Library page subtree. The plain

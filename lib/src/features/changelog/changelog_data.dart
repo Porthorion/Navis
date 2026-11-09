@@ -295,6 +295,15 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Phones held sideways use the compact side rail from 600 px wide up, '
+        'so a small iPhone, a folded Pixel Fold or the rotated iPhone Duo '
+        'cover screen keep more of the page; Now Playing in that layout hides '
+        'the format pills on short screens and the player bar stays above the '
+        'system strip',
+        platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Short windows show more of the page: the player bar and the album, '
         'playlist and artist headers shrink below 760 px high, and the header '
         'scrolls away with the track list',

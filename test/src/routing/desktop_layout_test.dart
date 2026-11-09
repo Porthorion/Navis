@@ -116,6 +116,79 @@ void main() {
     );
   });
 
+  group('I28 short landscape phones use the compact wide shell', () {
+    const compact = AdaptiveShellMode.compactWideLandscape;
+    const bottomNav = AdaptiveShellMode.phoneBottomNav;
+    const rail = AdaptiveShellMode.standardRail;
+
+    // (size, padding as the device reports it, expected mode)
+    const cases = <(Size, EdgeInsets, AdaptiveShellMode)>[
+      // Short and at least 600 wide: compact wide, whatever the width.
+      (Size(667, 375), EdgeInsets.zero, compact), // iPhone SE
+      (Size(812, 375), EdgeInsets.fromLTRB(44, 0, 44, 21), compact),
+      (Size(780, 360), EdgeInsets.only(left: 48), compact), // 3-button nav
+      (Size(678, 466), EdgeInsets.only(bottom: 118), compact), // strip bottom
+      (Size(678, 466), EdgeInsets.only(top: 84, bottom: 34), compact),
+      (Size(797, 411), EdgeInsets.zero, compact), // Pixel Fold folded
+      (Size(844, 390), EdgeInsets.fromLTRB(47, 0, 47, 21), compact),
+      (Size(932, 430), EdgeInsets.fromLTRB(59, 0, 59, 21), compact),
+      (Size(900, 420), EdgeInsets.zero, compact),
+      // Too narrow for the rail, or the rail fits: bottom navigation.
+      (Size(560, 400), EdgeInsets.zero, bottomNav),
+      (Size(700, 520), EdgeInsets.zero, bottomNav),
+      (Size(375, 667), EdgeInsets.zero, bottomNav),
+      (Size(466, 678), EdgeInsets.fromLTRB(0, 0, 84, 34), bottomNav),
+      // Tall enough for the standard rail.
+      (Size(900, 620), EdgeInsets.zero, rail),
+      (Size(1280, 720), EdgeInsets.zero, rail),
+      (Size(1366, 955), EdgeInsets.zero, rail),
+    ];
+
+    test('resolves the mode matrix by size and insets', () {
+      for (final (size, padding, expected) in cases) {
+        expect(
+          resolveAdaptiveShellMode(
+            desktopRuntime: false,
+            viewportSize: size,
+            safePadding: padding,
+          ),
+          expected,
+          reason: '$size $padding',
+        );
+      }
+    });
+
+    testWidgets('the keyboard does not flip the mode (viewPadding decides)', (
+      tester,
+    ) async {
+      // 700x500 sits on the rail-fit boundary: 500 - 34 - 44 = 422 < 436, but
+      // with the home indicator dropped by the keyboard it would be 456.
+      for (final size in const <Size>[Size(678, 466), Size(700, 500)]) {
+        AdaptiveContext? resolved;
+        await tester.pumpWidget(
+          MediaQuery(
+            data: MediaQueryData(
+              size: size,
+              padding: EdgeInsets.zero,
+              viewPadding: const EdgeInsets.only(bottom: 34),
+              viewInsets: const EdgeInsets.only(bottom: 200),
+            ),
+            child: Builder(
+              builder: (context) {
+                resolved = resolveAdaptiveContextFor(
+                  context,
+                  desktopRuntimeOverride: false,
+                );
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        );
+        expect(resolved!.useCompactWideLandscape, isTrue, reason: '$size');
+      }
+    });
+  });
+
   test('resolveAdaptiveShellMode keeps medium tablet on bottom nav', () {
     expect(
       resolveAdaptiveShellMode(

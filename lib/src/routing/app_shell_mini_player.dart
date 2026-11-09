@@ -710,6 +710,7 @@ class _MiniPlayerStrip extends ConsumerStatefulWidget {
     required this.onTap,
     this.flattenWideStyle = false,
     this.compactWideLandscapeMode = false,
+    this.bottomInset = 0,
     this.enableVerticalExpandGesture = true,
     this.songTitle,
     this.songArtist,
@@ -724,6 +725,10 @@ class _MiniPlayerStrip extends ConsumerStatefulWidget {
   final VoidCallback onTap;
   final bool flattenWideStyle;
   final bool compactWideLandscapeMode;
+
+  /// A system inset (home indicator, status strip) below the compact wide
+  /// strip; its content stays above it and the background runs through it.
+  final double bottomInset;
   final bool enableVerticalExpandGesture;
   final String? songTitle;
   final String? songArtist;
@@ -860,7 +865,12 @@ class _MiniPlayerStripState extends ConsumerState<_MiniPlayerStrip> {
             onTap: onTap,
             child: compactWideLandscapeMode
                 ? Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      10,
+                      10,
+                      10 + widget.bottomInset,
+                    ),
                     child: Row(
                       children: <Widget>[
                         _miniPlayerArtwork(

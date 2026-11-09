@@ -679,7 +679,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (resolveAdaptiveContext(
       desktopRuntime: ref.read(desktopPresentationRuntimeProvider),
       viewportSize: MediaQuery.sizeOf(context),
-      safePadding: MediaQuery.paddingOf(context),
+      safePadding: MediaQuery.viewPaddingOf(context),
     ).useCompactWideLandscape) {
       return;
     }
@@ -994,7 +994,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     final adaptiveContext = resolveAdaptiveContext(
       desktopRuntime: desktopRuntime,
       viewportSize: mediaSize,
-      safePadding: mediaPadding,
+      safePadding: mediaViewPadding,
     );
     final adaptiveHeightClass = resolveDesktopHeightClass(mediaSize.height);
     final adaptiveInputPolicy = resolveAdaptiveInputPolicy(
@@ -1098,12 +1098,18 @@ class _AppShellState extends ConsumerState<AppShell> {
         !isPhoneFormFactor;
     final allowScrollableRail = !isPhoneFormFactor && !useCompactWideLandscape;
     final useWideMiniPlayerStyle = screenWidth >= 960;
+    // The compact wide strip also grows by the real bottom inset (a home
+    // indicator, a Duo status strip) so its content stays above it.
+    final compactMiniPlayerBottomInset = useCompactWideLandscape
+        ? mediaViewPadding.bottom
+        : 0.0;
     // On AAOS (compactWideLandscape) increase to ~15% of height for a
     // car-friendly strip that is easy to read and tap while driving.
     // The strip renders inside a SizedBox of this height so all internal
-    // components must fit comfortably within it.
+    // components must fit comfortably within it; the inset above is added.
     final compactBottomMiniPlayerHeight = useCompactWideLandscape
-        ? (screenHeight * 0.15).clamp(90.0, 112.0)
+        ? (screenHeight * 0.15).clamp(90.0, 112.0) +
+              compactMiniPlayerBottomInset
         : (screenHeight * 0.18).clamp(80.0, 140.0);
     if (!adaptiveInputPolicy.enableDesktopCommandShortcuts &&
         _showQuickSearchOverlay) {
@@ -1869,6 +1875,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                       true,
                                                                   compactWideLandscapeMode:
                                                                       true,
+                                                                  bottomInset:
+                                                                      compactMiniPlayerBottomInset,
                                                                   enableVerticalExpandGesture:
                                                                       false,
                                                                   songTitle:
