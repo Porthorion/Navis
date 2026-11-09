@@ -10,6 +10,11 @@
 /// release:
 /// give it 3–5 [ChangelogVersion.highlights] and, optionally, a
 /// [ChangelogVersion.codename] and [ChangelogVersion.iconAsset].
+///
+/// An entry that applies to some platforms only sets
+/// [ChangelogEntry.platforms]; never start its text with a platform prefix
+/// such as "iOS:". The app shows other platforms' entries collapsed and the
+/// release notes group them under the platform's name.
 class ChangelogVersion {
   const new({
     required this.version,
@@ -79,15 +84,57 @@ class ChangelogVersion {
   DateTime? get releasedDate =>
       released == null ? null : DateTime.tryParse(released!);
 
-  int countOf(ChangelogEntryType type) =>
-      entries.where((entry) => entry.type == type).length;
+  /// How many entries are relevant on [platform].
+  int countFor(ChangelogPlatform platform) =>
+      entries.where((entry) => entry.appliesTo(platform)).length;
 }
 
 class ChangelogEntry {
-  const new(this.text, {this.type = ChangelogEntryType.improvement});
+  const new(
+    this.text, {
+    this.type = ChangelogEntryType.improvement,
+    this.platforms = const <ChangelogPlatform>{},
+  });
 
   final String text;
   final ChangelogEntryType type;
+
+  /// The platforms this change applies to; empty means all of them.
+  final Set<ChangelogPlatform> platforms;
+
+  /// Whether this change is relevant on [platform]. The one place that
+  /// decides relevance: the app, its counts and the release notes use it.
+  bool appliesTo(ChangelogPlatform platform) =>
+      platforms.isEmpty || platforms.contains(platform);
+
+  /// "macOS", "Android and iOS", "Desktop" for the three desktop platforms,
+  /// or null when the entry applies everywhere.
+  String? get platformsLabel {
+    if (platforms.isEmpty) return null;
+    final sorted = platforms.toList()..sort((a, b) => a.index - b.index);
+    if (sorted.length == 3 &&
+        sorted.every(
+          (platform) => ChangelogPlatform.desktop.contains(platform),
+        )) {
+      return 'Desktop';
+    }
+    final labels = sorted.map((platform) => platform.label).toList();
+    if (labels.length == 1) return labels.first;
+    return '${labels.sublist(0, labels.length - 1).join(', ')} and '
+        '${labels.last}';
+  }
+}
+
+/// A platform a changelog entry can be limited to.
+enum ChangelogPlatform(final String label) {
+  android('Android'),
+  ios('iOS'),
+  macos('macOS'),
+  windows('Windows'),
+  linux('Linux');
+
+  /// The desktop platforms.
+  static const Set<ChangelogPlatform> desktop = {macos, windows, linux};
 }
 
 enum ChangelogEntryType { fix, improvement, newFeature }
@@ -130,8 +177,42 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
-        'Android: no more click at the start of a song after a boosted Opus '
-        'song',
+        'Volume normalization (ReplayGain) has a new Smart mode, the default '
+        "for new installs: it keeps an album's own balance when you play it "
+        'in order and levels songs one by one for shuffles and mixes. Songs '
+        'without ReplayGain tags are now levelled too, with a level you '
+        'choose in 0.1 dB steps. Your current choice stays as it is',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Volume normalization now turns quiet songs up when their tags show '
+        "room, stopping 1 dB below the song's peak so nothing distorts. Songs "
+        'without ReplayGain data are only ever turned down',
+        platforms: {
+          ChangelogPlatform.android,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Now Playing shows how much ReplayGain is turning the song up or '
+        'down; hold it (or click it on desktop) to open Playback settings, '
+        'which now explain each mode and count your songs with ReplayGain '
+        'data',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Track Info shows where a song plays from and what the file is: '
+        'downloaded, server stream, transcoded or remote, with its format, '
+        'bitrate, sample rate and size. Hold the quality line in Now Playing '
+        'or use the info button on desktop',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
+        'Turning crossfade, gapless, ReplayGain, speed or pitch on or off '
+        'takes effect right away during playback, and songs already in your '
+        'queue pick up changed ReplayGain after a sync, from the next song on',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -143,202 +224,116 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Foldables and tablets: the artist letter bar follows your scroll in '
-        'the grid, Library keeps your place when the screen folds, unfolds or '
-        'rotates, and Now Playing next to the rail fits its controls on '
-        'shorter screens. Album covers on tablets leave room for the songs, '
-        'and on the folded iPhone Duo the letter bar, the mini player buttons '
-        'and the new playlist button stay clear of the system strip on the '
-        'right',
-        type: ChangelogEntryType.fix,
+        'Settings › Haptics turns vibration off entirely or per kind, such '
+        'as Player Gestures, Sliders & Rulers or Notifications, so you can '
+        'keep the ones you like',
+        type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Turning crossfade, gapless, ReplayGain, speed or pitch off or on in '
-        'Settings now takes effect right away during playback',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Songs already in your queue pick up changed ReplayGain after a sync, '
-        'from the next song on. The song that is playing keeps its level',
+        'Taps and gestures now feel like what they do: switches click, Play '
+        'and Pause differ, pull to refresh ticks and confirms, and liking, '
+        'skipping, reordering and long presses each have their own feel. '
+        "Your phone's touch feedback setting still applies",
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Same Vibes and Instant Mix no longer stop adding songs after the '
-        'first batch. When a song has nothing new to suggest, the mix waits '
-        'for the next song and tries again. If it runs out on the last song, '
-        'Same Vibes tells you it stopped',
+        'Tag changes on the server, such as ReplayGain, titles, genres and '
+        'removed songs, now reach Navis after the server rescans, without '
+        'Repair Library. Automatic sync checks at most once a day on Wi-Fi, '
+        'never on mobile data without your permission, and a large removal '
+        'waits for your confirmation in Settings › Sync',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Tag changes on the server now reach Navis after the server rescans '
-        'its library, without Repair Library: ReplayGain, titles, genres and '
-        'removed songs. Check for updates picks them up whenever the server '
-        'has scanned since the last time, and automatic sync does it at most '
-        'once a day on Wi-Fi (a rescan during the check gets up to three '
-        'quicker retries first). A large removal waits for your confirmation '
-        'in Settings › Sync (Apply Library Repair) instead of deleting '
-        'anything by itself. If your server has scanned since Navis last '
-        'checked, Navis runs one full song check at its next Wi-Fi sync after '
-        'this update. It never runs on mobile data without your one-time '
-        'permission',
+        'Same Vibes and Instant Mix keep adding songs instead of stopping '
+        'after the first batch. If Same Vibes runs out on the last song, it '
+        'tells you',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Settings › Haptics turns vibration off entirely or for Player '
-        'Gestures, Playback Buttons, Sliders & Rulers, Switches & Steppers, '
-        'Lists & Menus, Likes & Alerts or Notifications (download finished or '
-        'failed), so you can keep the ones you like',
+        'Search puts the most popular matches first and shows Top Results '
+        '(Deezer; switch in Integrations): the best match as a large card '
+        'with Play, Shuffle or Like, and its artist, album or top song as '
+        'tiles',
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'On Now Playing, the quality and ReplayGain lines now react to a hold '
-        'anywhere on them, not only on the text, and holding ReplayGain '
-        'scrolls Playback settings to the ReplayGain section. On desktop, '
-        'click or hold those two details to open them too',
+        'Songs from Deezer behave better next to your library: a Deezer copy '
+        'of a song you own links to it, so Search lists it once and shows '
+        "your file's quality, and Deezer songs can no longer be liked (their "
+        'heart is greyed out). Earlier likes move to your library copy when '
+        'there is one',
         type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'On desktop, album pages no longer show "Could not load" when Navis '
-        'is open but another window has focus',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Now Playing can show how much volume normalization (ReplayGain) is '
-        'turning the current song up or down; hold it to open Playback '
-        'settings. Those settings now explain each mode and the pre-amp, say '
-        'what normalization does on your device, and show how many of your '
-        'songs have ReplayGain data',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'On Android, Windows and Linux, volume normalization (ReplayGain) now '
-        'turns quiet songs up when their tags show room, stopping 1 dB '
-        'below the song\'s peak so nothing distorts. Songs without '
-        'ReplayGain data are only ever turned down',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Volume normalization has a new Smart mode, now the default for new '
-        'installs. It keeps an album\'s own loudness balance when you play '
-        'the album in order, and levels songs one by one for shuffles and '
-        'mixes. Your current choice stays as it is',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Playing a Deezer copy of a single you already have now links it to '
-        'your library song, so Search no longer lists the song twice. Titles '
-        'with curly quotes or long dashes match too',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Songs from Deezer now show the greyed-out heart in Search and in '
-        'Artist top tracks on desktop, the same as everywhere else',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Songs from Deezer can no longer be liked (their heart is greyed '
-        'out); likes of them that were never sent to your server move to '
-        'your library copy when there is one. Liked songs now download from '
-        'your library, and a failed download can be long-pressed to copy its '
-        'error details',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Volume normalization (ReplayGain) now evens out loudness between '
-        'songs, including songs without ReplayGain tags. It was applying '
-        'too much on desktop and ignoring untagged songs. New installs start '
-        'with it on; choose the level for untagged songs in Playback settings',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The ReplayGain level for untagged songs now moves in 0.1 dB steps, '
-        'with the same ticks and haptics as the speed and pitch rulers',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Downloads at a chosen quality, such as on mobile data, no longer '
-        'fail partway through',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'The Downloads queue buttons (Pause, Retry, Clear) now match in '
-        'style and size instead of wrapping onto several lines on phones',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Search no longer lists a song twice when a Deezer copy of it matches '
-        'a song in your library, and its quality now shows your file',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Recently Added on Home now shows the play button on hover, like '
-        'the other album shelves',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Taps and gestures now feel like what they do on Android: switches '
-        'click on and off, Play and Pause differ, pull to refresh ticks as you '
-        'pull, firms at the trigger point and confirms when it finishes, and '
-        'liking, skipping, reordering, swiping a queue row away, dragging an '
-        'equalizer band and long presses each have their own feel. Your '
-        'phone\'s touch feedback setting still applies',
-        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Albums and downloads can be added to a playlist from their menu',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Search puts the most popular matches first and shows Top Results '
-        '(Deezer; switch in Integrations)',
-        type: ChangelogEntryType.newFeature,
-      ),
-      ChangelogEntry(
-        'Search Top Results show the best match as a large card with Play, '
-        'Shuffle or Like, and its artist, album or top song as tiles; '
-        'tapping anywhere on a card opens it',
+        'Turning on Auto-Download Liked asks first, showing how many songs '
+        'and roughly how much space it will use, and queues a large library '
+        'in one step without queueing a song twice',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Turning on Auto-Download Liked now asks first, showing how many '
-        'songs and roughly how much space it will download',
+        'Downloads are steadier: downloads at a chosen quality no longer fail '
+        'partway, liked songs download from your library, the queue buttons '
+        'no longer wrap on phones, and a failed download can be long-pressed '
+        'to copy its error details',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Synced lyrics no longer jump around at the start of a song',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'No more click at the start of a song after a boosted Opus song',
+        platforms: {ChangelogPlatform.android},
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Foldables and tablets fit better: the artist letter bar follows your '
+        'scroll, Library keeps your place when the screen folds, unfolds or '
+        'rotates, Now Playing fits shorter screens, album covers on tablets '
+        'leave room for the songs, and on the folded iPhone '
+        'Duo the letter bar, mini player buttons and new playlist button '
+        'clear the system strip',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
+        'Short windows show more of the page: the player bar and the album, '
+        'playlist and artist headers shrink below 760 px high, and the header '
+        'scrolls away with the track list',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Auto-Download Liked queues a large liked library in one step, '
-        'and no longer risks queueing a song twice',
+        'Album pages no longer show "Could not load" while another window has '
+        'focus, and Recently Added on Home shows its play button on hover',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Synced lyrics no longer jump around at the start of a song: '
-        'the current line now stays in one place from the first line on',
+        'Choosing a custom downloads folder (and importing/exporting EQ '
+        'presets) works again',
+        platforms: {ChangelogPlatform.macos},
         type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'macOS: choosing a custom downloads folder (and importing/exporting '
-        'EQ presets) works again',
-        type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Short desktop windows show more of the page: the player bar and '
-        'the album, playlist and artist headers are smaller below 760 px '
-        'high (and a little smaller below 960 px), and the header now '
-        'scrolls away with the track list. Taller windows look as before',
-        type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Fixed a crash on macOS, and frozen screen-reader output on '
         'Windows, when an accessibility tool such as VoiceOver or Narrator '
         'is running',
+        platforms: {ChangelogPlatform.macos, ChangelogPlatform.windows},
         type: ChangelogEntryType.fix,
-      ),
-      ChangelogEntry(
-        'Track Info shows where the song plays from and what the file is: '
-        'downloaded, server stream, transcoded or remote, with its format, '
-        'bitrate, sample rate and size. Open it with the info button on '
-        'desktop, by pressing and holding the quality line in Now Playing, '
-        'or from Track Info in its settings',
-        type: ChangelogEntryType.newFeature,
       ),
     ],
   ),
@@ -380,21 +375,28 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Android: Repeat All and Repeat One no longer restart or rewind '
+        'Repeat All and Repeat One no longer restart or rewind '
         'streamed songs just before they end, seeking past a partial '
         'download keeps playing on slow connections, and a song queued '
         'twice downloads only once',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Android: album art shows again on Bluetooth and car displays, '
+        'Album art shows again on Bluetooth and car displays, '
         'missing since 1.4.0',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Desktop: skipping from the middle of a song no longer jumps '
+        'Skipping from the middle of a song no longer jumps '
         'back to the previous song, and quick search keeps its filter '
         'chips on one line',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -408,10 +410,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Android and iOS: the in-app volume slider is gone, so playback '
+        'The in-app volume slider is gone, so playback '
         'can no longer stay quietly turned down; use your phone’s '
         'volume buttons. The player settings sheet now fits its '
         'content. Desktop keeps its volume controls',
+        platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -438,11 +441,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Linux: in-app updates install Debian and Fedora packages after '
+        'In-app updates install Debian and Fedora packages after '
         'a system authentication prompt, and AUR and other '
         'package-managed installs show instructions. This works from '
         'the first update after 1.5.1, so update from 1.5.0 manually or '
         'through your package manager',
+        platforms: {ChangelogPlatform.linux},
         type: ChangelogEntryType.fix,
       ),
     ],
@@ -574,6 +578,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Linux downloads now come as .deb, .rpm and a portable archive, and work on older distributions such as Ubuntu 22.04',
+        platforms: {ChangelogPlatform.linux},
         type: ChangelogEntryType.newFeature,
       ),
 
@@ -655,9 +660,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Windows uses a Navis-built playback engine with complete corresponding source provided alongside the download, and Linux playback and the equalizer work without installing a separate audio library',
+        platforms: {ChangelogPlatform.windows, ChangelogPlatform.linux},
       ),
       ChangelogEntry(
         'Android downloads are now available per device architecture, and updates choose the matching APK automatically',
+        platforms: {ChangelogPlatform.android},
       ),
       ChangelogEntry(
         "Desktop library data moves out of Documents into Navis's app data folder, and Android keeps Navis data out of system backups",
@@ -739,7 +746,8 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'On Android, skipping songs on a slow connection no longer leaves earlier songs downloading in the background',
+        'Skipping songs on a slow connection no longer leaves earlier songs downloading in the background',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
 
@@ -754,6 +762,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android background sync follows the same freshness rules as foreground sync, waits while music is playing, stays visible after a quick pause and resume, and no longer repeats its battery tip every time you open Navis after you choose Later',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -885,7 +894,8 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        "On Android, if you chose a custom download folder in a version before 1.2.8, updating no longer moves the downloads in it into Navis's own storage: they stay in that folder, and choosing it again lets Navis pick them back up",
+        "If you chose a custom download folder in a version before 1.2.8, updating no longer moves the downloads in it into Navis's own storage: they stay in that folder, and choosing it again lets Navis pick them back up",
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -978,10 +988,12 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Downloaded songs in a custom Android folder now play when Android Auto starts Navis before the phone screen is opened',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Seeking from the Windows media controls lands at the chosen position instead of jumping to the end of the song',
+        platforms: {ChangelogPlatform.windows},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -994,14 +1006,29 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'When a song fails to stream on desktop, Navis no longer writes your server sign-in details to the terminal or system log',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'The Equalizer page no longer cuts off the preamp level or fixed values in mid-sized desktop windows',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'On desktop, the sidebar no longer shows a Library section such as Radio as selected while you are on an album or artist page',
+        'The sidebar no longer shows a Library section such as Radio as selected while you are on an album or artist page',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1021,7 +1048,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'On desktop, notices such as "Your library is ready" now appear above the player bar instead of covering page titles and buttons',
+        'Notices such as "Your library is ready" now appear above the player bar instead of covering page titles and buttons',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1033,11 +1065,17 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        "On Linux and Windows, Navis now checks your server's HTTPS certificate before streaming, so your sign-in details in the stream address cannot be read by someone intercepting the connection",
+        "Navis now checks your server's HTTPS certificate before streaming, so your sign-in details in the stream address cannot be read by someone intercepting the connection",
+        platforms: {ChangelogPlatform.windows, ChangelogPlatform.linux},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'On desktop, a song that fails to stream is no longer handed to yt-dlp when it is installed, so your server sign-in details are not passed to another program or sent to your server a second time',
+        'A song that fails to stream is no longer handed to yt-dlp when it is installed, so your server sign-in details are not passed to another program or sent to your server a second time',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1046,6 +1084,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         "Desktop now has Back and Forward: buttons at the top of the sidebar, Alt+Left/Right (Cmd+[ and Cmd+] on macOS) and the mouse side buttons. They remember each tab's pages, work from the moment Navis opens, and never jump you to a different tab's copy of a page",
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -1062,6 +1105,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'The desktop lyrics view now closes when you navigate, press Escape or playback stops, instead of covering the next page',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1077,7 +1125,8 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'On iPhone and iPad, swiping from the left edge goes back from detail pages',
+        'Swiping from the left edge goes back from detail pages',
+        platforms: {ChangelogPlatform.ios},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1090,6 +1139,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'The equalizer is now available on Windows, and Windows playback runs on a current mpv and FFmpeg instead of a 2023 build',
+        platforms: {ChangelogPlatform.windows},
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -1121,7 +1171,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'On desktop, seeking in a streamed song that had finished caching no longer empties the rest of the queue; playback continues from the cached file with every queued song kept',
+        'Seeking in a streamed song that had finished caching no longer empties the rest of the queue; playback continues from the cached file with every queued song kept',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1149,7 +1204,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'On desktop, album and artist shelves and the You Might Like cover strip can be scrolled by dragging with the mouse',
+        'Album and artist shelves and the You Might Like cover strip can be scrolled by dragging with the mouse',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1166,6 +1226,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Choosing a custom Downloads folder no longer freezes the app on Android: the folder is scanned in the background, your existing files are adopted as they are without being rewritten, and files with Arabic, Japanese, Chinese or accented names are now recognised',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1174,6 +1235,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Reopening Navis on Android brings back your saved queue in Queue and Now Playing straight away, paused where you left it, instead of showing an empty queue until you press Play. If Navis starts offline or before you are signed in, the queue comes back as soon as it can play',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1264,11 +1326,21 @@ const List<ChangelogVersion> changelogs = [
         'The Speed & Pitch panel is quicker to use: one-tap speeds from 0.5× to 2×, a compact preset dropdown with a menu to save, update, rename or delete presets, hold-to-repeat − and + buttons, haptic ticks on every ruler line as you drag (stronger at each 0.10 and at 1.00×), supported ranges shown only at a limit, and pitch controls hidden where the audio backend cannot change pitch',
       ),
       ChangelogEntry(
-        'On desktop, Ctrl+. and Ctrl+, (Cmd on macOS) change playback speed by 0.10× and Ctrl+0 resets it, with a brief confirmation; all three can be reassigned in Desktop Shortcuts',
+        'Ctrl+. and Ctrl+, (Cmd on macOS) change playback speed by 0.10× and Ctrl+0 resets it, with a brief confirmation; all three can be reassigned in Desktop Shortcuts',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'The compact desktop Mini Player menu now shows whether Shuffle and Repeat are on and adds Speed & Pitch and Equalizer',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1288,6 +1360,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Desktop albums open and close with a fast fade that respects reduced motion, and the Liked Albums Next arrow keeps its accessible label without hover text',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
       ),
       ChangelogEntry(
         'Album and artist grids fit more columns on wide screens without oversized artwork; choose Auto, Small, Medium or Large artwork in Appearance, and album pages load enough items to fill the available view',
@@ -1307,12 +1384,22 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'The desktop player keeps elapsed and total playback times visible in small windows and with enlarged text, including a time preview while seeking',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
       ),
       ChangelogEntry(
         'Radio stations now use compact cards that adapt to the available width instead of stretching across wide windows',
       ),
       ChangelogEntry(
         'Desktop player action tooltips no longer corrupt accessibility state or flood logs with repeated Flutter semantics assertions while browsing',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1421,10 +1508,12 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android background sync correctly reads Wi-Fi metering when the app is closed',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Permanent downloads in Android custom folders now survive server removals and identity relinking instead of being mistaken for missing files',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1461,6 +1550,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android Auto Instant Radio now uses the same personal radio as Home',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1476,7 +1566,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'On desktop, album cards show a Play button on hover, song-row actions stay quiet until you point at or focus a row (liked and downloaded songs keep their icons), and album track lists no longer repeat the album name in every row. A failed library sync now shows a calm, dismissible notice instead of a bright red bar. Now Playing on phones shows dots under the details line so it is clear that tapping it reveals more, and the artist and album links are quieter',
+        'Album cards show a Play button on hover, song-row actions stay quiet until you point at or focus a row (liked and downloaded songs keep their icons), and album track lists no longer repeat the album name in every row. A failed library sync now shows a calm, dismissible notice instead of a bright red bar. Now Playing on phones shows dots under the details line so it is clear that tapping it reveals more, and the artist and album links are quieter',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1497,6 +1592,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Song tables on desktop now line up Artist, Album and Time exactly under their headings, and desktop pages use the full window width on wide displays',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1639,6 +1739,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Linux desktop development builds now install a resolvable application launcher',
+        platforms: {ChangelogPlatform.linux},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1671,6 +1772,7 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       ChangelogEntry(
         'Android custom download folders now work through the system folder picker, with safe import, offline playback, rescans, and preservation of unrelated files',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
     ],
@@ -1707,14 +1809,29 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Desktop View now saves its size before the app closes',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Desktop Home song rows now offer direct actions instead of misleading navigation arrows',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop song lists now share responsive Like, Download, and More controls, while remote-only songs remain read-only',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1749,18 +1866,30 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Fixed Windows media controls so system playback, seeking, shuffle, and repeat reliably follow Navis playback',
+        platforms: {ChangelogPlatform.windows},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Fixed desktop More and right-click menus failing to open until after navigation',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Fixed Android Auto opening from a cold phone start and made media browse refreshes reliable',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Desktop Lyrics now keeps the current track visible',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1873,6 +2002,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'The Android exit prompt is now ready for translation',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1881,6 +2011,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Compact desktop album pages now keep tracks visible alongside album actions',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1893,42 +2028,92 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Desktop quick-search and Home action labels are now ready for translation',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop Playlist Detail now uses a full-width workspace header',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop About now uses a responsive overview for usage, links, and updates',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Privacy information now uses a clearer responsive desktop reading layout',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Match Flow now uses the full desktop workspace with New Flow in the header',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop Appearance settings now use a focused workspace with a direct return to Settings',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop Keyboard Shortcuts now uses a focused workspace with a direct return to Settings',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop Window settings now use a focused workspace with a direct return to Settings',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop Cache Settings now keeps storage controls focused with a direct return to Settings',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop Configuration actions now stay reachable at larger system text sizes',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1937,6 +2122,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Desktop Configuration now keeps independent external services side by side on wide windows',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1949,6 +2139,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Older partial library migrations no longer prevent Android playback startup',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -1965,10 +2156,20 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Artist Top Tracks More now uses the same focused desktop menu as right-click',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Album-track More and right-click actions now use one focused desktop menu',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -1977,18 +2178,38 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Download Quality now uses a focused dialog on desktop while keeping the mobile sheet',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Add to playlist now uses a focused dialog on desktop while keeping the mobile sheet',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop playlist ownership actions now open a focused anchored menu from More or right-click',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Weekly playlist track actions now use the same anchored menu from the desktop More button and right-click',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2001,18 +2222,38 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Desktop Sync Settings now uses a continuous workspace with a clear return to Settings',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop Configuration now keeps connection and external service settings in one clearer workspace',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop Playback settings now has a clear return to Settings and a more focused reading width',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop About now has a direct return to Settings while keeping its app and data overview focused',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2025,6 +2266,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Desktop weekly playlists keep their Back button without repeating the page title',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2069,22 +2315,47 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Desktop Search now uses an integrated command strip and continuous results workspace',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop Library is now a continuous workspace, and collapsed navigation stays available as an icon rail',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Home now uses a calmer continuous desktop workspace while keeping album cards easy to scan',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop Downloads now keeps its Back action, tabs, and search together in one compact workspace strip',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
         'Desktop Settings now uses a focused preference list with clearer group hierarchy',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2137,6 +2408,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Playlist track actions now use the same compact desktop menu for right-click and More, while phone keeps its touch sheet',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2169,6 +2445,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android background-sync reliability work now has a documented closure plan for truthful scheduling, worker failures, live network policy, and device certification',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
       ),
     ],
@@ -2187,6 +2464,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android can now recover eligible automatic library checks through the system scheduler after the app process exits, with Sync Settings showing the requested cadence and safe outcome',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2390,10 +2668,20 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Desktop and Mini Player layouts now stay balanced at unusual aspect ratios, with centered compact metadata and a firm 560×360 Mini Player minimum',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Desktop now stays in a consistent workspace down to 800×600, with its volume-ready bottom player always present and no phone-layout fallbacks',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2406,6 +2694,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Desktop clients now reopen at your previous Navis volume, including mute, and Unmute restores the last audible level',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2472,6 +2765,11 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       ChangelogEntry(
         'Seeking on desktop no longer hangs while a track is still caching; playback stays on a seekable stream while the rolling cache fills in the background',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -2494,6 +2792,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Desktop playback is more responsive; streamed tracks now fill the rolling cache on Linux, Windows, and macOS',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2516,6 +2819,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android Auto now opens with Liked, Recent, Playlists, and Library, with reliable search, queue order, resume, downloads, and genre browsing',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
       ),
     ],
@@ -2622,6 +2926,7 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       ChangelogEntry(
         'Android stable releases now clean stale build outputs and verify APK contents before publishing so self-updates install the current app code',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -2758,6 +3063,11 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Desktop You Might Like panels now show complete scrollable song lists for albums and weekly recommendations instead of short previews',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2792,6 +3102,7 @@ const List<ChangelogVersion> changelogs = [
     entries: [
       ChangelogEntry(
         'Android releases are now prepared for Google Play, with Android self-updates removed, Play release tooling added, privacy information added, and release safety checks documented',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
@@ -2836,6 +3147,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android Auto browsing and real-car validation are more robust, with clearer media IDs, safer playback rules, diagnostic tooling, and dedicated test coverage',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2916,6 +3228,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android Auto media browsing and projection support are more reliable, and cover art loading now prioritizes visible items for smoother scrolling',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
       ),
       // Fixes
@@ -2962,10 +3275,12 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         "Android Auto: Search tab for finding music directly from your car's head unit",
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Android Auto: Instant Mix and Instant Radio controls added to the More tab, with an Instant Mix button in the player controls',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.newFeature,
       ),
       // Changes / improvements
@@ -2975,6 +3290,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android Auto browse tree redesigned — Home, Recent, Playlists, and More tabs replace the previous flat layout; albums are shown at the root level',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
@@ -2992,10 +3308,12 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android Auto album art now loads reliably — fixed a race condition that caused cover art to fail downloading',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Android Auto Instant Mix now correctly applies your album queue preference and shows accurate on/off state',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
     ],
@@ -3036,6 +3354,7 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Android Auto home screen now shows album art behind the media controls',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -3063,10 +3382,12 @@ const List<ChangelogVersion> changelogs = [
       // New
       ChangelogEntry(
         "Android Auto support — browse artists, albums, playlists, favourites, and podcasts directly from your car's head unit",
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
         'Android Auto now playing screen adapts to car displays — large album art, oversized transport controls, and a seek bar sized for in-car interaction',
+        platforms: {ChangelogPlatform.android},
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(

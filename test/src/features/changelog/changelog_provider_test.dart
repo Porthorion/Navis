@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
 import 'package:navis/src/features/changelog/changelog_provider.dart';
@@ -82,5 +83,21 @@ void main() {
     )!;
     expect(discovery.current.version, '1.3.1');
     expect(discovery.featured, isNull);
+  });
+
+  test('the running platform maps to a changelog platform', () {
+    expect(
+      <TargetPlatform, ChangelogPlatform>{
+        for (final p in TargetPlatform.values) p: changelogPlatformFor(p),
+      },
+      <TargetPlatform, ChangelogPlatform>{
+        TargetPlatform.android: ChangelogPlatform.android,
+        TargetPlatform.iOS: ChangelogPlatform.ios,
+        TargetPlatform.macOS: ChangelogPlatform.macos,
+        TargetPlatform.windows: ChangelogPlatform.windows,
+        TargetPlatform.linux: ChangelogPlatform.linux,
+        TargetPlatform.fuchsia: ChangelogPlatform.android,
+      },
+    );
   });
 }

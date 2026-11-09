@@ -41,8 +41,24 @@ String renderReleaseNotes(ChangelogVersion version) {
       ..writeln()
       ..writeln('### $heading')
       ..writeln();
-    for (final entry in entries) {
+    // All-platform entries first, then one group per set of platforms.
+    for (final entry in entries.where((e) => e.platforms.isEmpty)) {
       buf.writeln('- ${entry.text}');
+    }
+    final groups = <String, List<ChangelogEntry>>{};
+    for (final entry in entries.where((e) => e.platforms.isNotEmpty)) {
+      (groups[entry.platformsLabel!] ??= []).add(entry);
+    }
+    final labels = groups.keys.toList()
+      ..sort((a, b) => _order(groups[a]!.first) - _order(groups[b]!.first));
+    for (final label in labels) {
+      buf
+        ..writeln()
+        ..writeln('#### $label')
+        ..writeln();
+      for (final entry in groups[label]!) {
+        buf.writeln('- ${entry.text}');
+      }
     }
   }
 
@@ -57,4 +73,10 @@ String renderReleaseNotes(ChangelogVersion version) {
   }
 
   return buf.toString().trimRight();
+}
+
+/// Orders platform groups by their first platform, then fewer platforms first.
+int _order(ChangelogEntry entry) {
+  final indexes = entry.platforms.map((p) => p.index).toList()..sort();
+  return indexes.first * 10 + entry.platforms.length;
 }

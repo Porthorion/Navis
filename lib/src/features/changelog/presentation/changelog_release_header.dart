@@ -1,19 +1,21 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
+import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_release_cover.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_style.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// The top of a release, laid out like an album page: the cover beside the
 /// release's name, version and date. Patches have no cover.
-class ChangelogReleaseHeader extends StatelessWidget {
+class ChangelogReleaseHeader extends ConsumerWidget {
   const new({required this.version, super.key, this.desktop = false});
 
   final ChangelogVersion version;
   final bool desktop;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final textTheme = theme.textTheme;
     final colorScheme = theme.colorScheme;
@@ -57,7 +59,7 @@ class ChangelogReleaseHeader extends StatelessWidget {
           ),
         const SizedBox(height: 2),
         Text(
-          releaseMeta(context, version),
+          releaseMeta(context, version, ref.watch(changelogPlatformProvider)),
           style: textTheme.bodyMedium?.copyWith(
             color: colorScheme.onSurfaceVariant,
           ),

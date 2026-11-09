@@ -52,7 +52,13 @@ why.
 
 For user-facing behavior, also update
 `lib/src/features/changelog/changelog_data.dart`; the release-notes tool
-reads it, so there is no second copy to keep in sync. For a material removed,
+reads it, so there is no second copy to keep in sync. An entry that applies
+to some platforms only sets `platforms` (for example
+`platforms: {ChangelogPlatform.ios}`); never start its text with a platform
+prefix such as "iOS:". The app collapses other platforms' entries behind one
+line and the release notes group them under the platform's name; every
+count in the app covers relevant entries only. A test rejects platform
+prefixes and "On desktop," lead-ins. For a material removed,
 replaced, or
 deprecated capability, add or update a record in
 [history/removed-features.md](../history/removed-features.md). Normal edits do
