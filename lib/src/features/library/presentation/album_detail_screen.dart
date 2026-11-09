@@ -1353,10 +1353,12 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             //   Left  — play (icon), shuffle (icon), Rate (text)
                             //   Right — like (icon), 3-dot context menu
                             Padding(
-                              // Play lines up with the 16 dp text above on wider screens; a
-                              // phone's row is full at 4.
+                              // 16 lines Play up with the text; narrower phones
+                              // keep 4 so the row fits.
                               padding: EdgeInsetsDirectional.fromSTEB(
-                                adaptiveContext.isPhoneFormFactor ? 4 : 16,
+                                MediaQuery.sizeOf(context).width >= 375
+                                    ? 16
+                                    : 4,
                                 0,
                                 4,
                                 8,
