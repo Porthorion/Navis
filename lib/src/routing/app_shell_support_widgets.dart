@@ -243,6 +243,31 @@ class _BottomNavInsetPadding extends StatelessWidget {
   }
 }
 
+/// Takes [reserve] off the keyboard inset that [MediaQuery] reports below it.
+/// The compact wide shell does not resize for the keyboard, yet it lays the
+/// page out [reserve] above the screen bottom (the mini player strip). Left
+/// as reported, the page's own `Scaffold` would subtract that height from
+/// its body a second time.
+class _ConsumedBottomInset extends StatelessWidget {
+  const new({required this.reserve, required this.child});
+
+  final double reserve;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    return MediaQuery(
+      data: media.copyWith(
+        viewInsets: media.viewInsets.copyWith(
+          bottom: math.max(0, media.viewInsets.bottom - reserve),
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
 /// Drops the left and right system padding from [MediaQuery] below it. Placed
 /// under a rail-layout `SafeArea`, which consumes only its own side: the other
 /// side's inset belongs to the neighbouring `SafeArea`, and the page or rail

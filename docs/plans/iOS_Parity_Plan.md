@@ -82,6 +82,7 @@ simulator or device yet; every runtime claim is *unverified*.
 | I19 | Background library sync and notifications on iOS (`BGTaskScheduler`, `UNUserNotificationCenter`) behind the existing Android-only seams | medium–high | **1.6** (iOS catching up with Android) | – |
 | I20 | CarPlay (the CarPlay note below); needs the paid programme and Apple's entitlement | high | **1.6** (parity with Android Auto); request the entitlement as soon as the paid programme exists (approval takes weeks) | – |
 | I30 | Big Now Playing on unfolded foldables and tablets (owner 2026-11-09, idea 2): a full-screen Now Playing sized to the screen, minimisable back to the normal rail layout; needs a design pass | medium (UI) | **1.6** (owner) | – |
+| I31 | Follow-ups from the I28/I29 runtime passes: F1 Search overflow with the keyboard on short landscape screens (shell double-counted the mini player reserve), F2 `UnmountedRefException` while typing in Search, F3 Duo cover pill steps aside for the keyboard, F4 Library artists alphabet rail highlight. [Plan](Followups_2026-11-09_Plan.md) | risky (shell inset) | **1.5.2**, **merged** #449 (`af6d60b6`, `release/1.5`), forwarded to `dev`; runtime pass on SE and Duo all four | – |
 
 ### Scope decision from I11 (owner, 2026-11-07)
 

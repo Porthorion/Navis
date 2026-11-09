@@ -1830,8 +1830,14 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                             bottom: isExpanded
                                                                 ? 0
                                                                 : compactBottomMiniPlayerHeight,
-                                                            child:
-                                                                navigationShell,
+                                                            child: _ConsumedBottomInset(
+                                                              reserve:
+                                                                  isExpanded
+                                                                  ? 0
+                                                                  : compactBottomMiniPlayerHeight,
+                                                              child:
+                                                                  navigationShell,
+                                                            ),
                                                           ),
                                                           Positioned.fill(
                                                             child: ExpandablePlayerSheet(
@@ -2177,42 +2183,73 @@ class _AppShellState extends ConsumerState<AppShell> {
                             // The strip is hardware: the pill sits on the
                             // side that has the inset, whatever the text
                             // direction, below the status icons.
-                            Positioned(
-                              top:
-                                  mediaViewPadding.top +
-                                  kSideStripStatusReserve,
-                              left: stripOnRight ? null : 0,
-                              right: stripOnRight ? 0 : null,
-                              width: sideStripInset,
-                              child: FocusTraversalOrder(
-                                order: const NumericFocusOrder(30),
-                                child: _BottomNavReveal(
-                                  progress: _playerSheetProgress,
-                                  enabled: showPlayer,
-                                  child: Center(
-                                    child: Material(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .surfaceContainerHigh,
-                                      shape: const StadiumBorder(),
+                            Positioned.fill(
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  // The keyboard shrinks this body and the mini
+                                  // player rides above it, like on a phone,
+                                  // where the keyboard covers the bar. The pill
+                                  // goes while it cannot fit beside the player.
+                                  final pillTop =
+                                      mediaViewPadding.top +
+                                      kSideStripStatusReserve;
+                                  final free =
+                                      constraints.maxHeight -
+                                      (showPlayer
+                                          ? ExpandablePlayerSheet
+                                                .miniPlayerHeight
+                                          : 0);
+                                  if (pillTop + kSideStripPillHeight > free) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Align(
+                                    alignment: stripOnRight
+                                        ? Alignment.topRight
+                                        : Alignment.topLeft,
+                                    child: Padding(
+                                      padding: EdgeInsets.only(top: pillTop),
                                       child: SizedBox(
-                                        width: math.min(56, sideStripInset - 4),
-                                        height: kSideStripPillHeight,
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 4,
-                                          ),
-                                          child: _CompactIconRail(
-                                            destinations: railDestinations,
-                                            selectedIndex: selectedIndex,
-                                            onDestinationSelected:
-                                                onDestinationSelected,
+                                        width: sideStripInset,
+                                        child: FocusTraversalOrder(
+                                          order: const NumericFocusOrder(30),
+                                          child: _BottomNavReveal(
+                                            progress: _playerSheetProgress,
+                                            enabled: showPlayer,
+                                            child: Center(
+                                              child: Material(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .surfaceContainerHigh,
+                                                shape: const StadiumBorder(),
+                                                child: SizedBox(
+                                                  width: math.min(
+                                                    56,
+                                                    sideStripInset - 4,
+                                                  ),
+                                                  height: kSideStripPillHeight,
+                                                  child: Padding(
+                                                    padding:
+                                                        const EdgeInsets.symmetric(
+                                                          vertical: 4,
+                                                        ),
+                                                    child: _CompactIconRail(
+                                                      destinations:
+                                                          railDestinations,
+                                                      selectedIndex:
+                                                          selectedIndex,
+                                                      onDestinationSelected:
+                                                          onDestinationSelected,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ),
+                                  );
+                                },
                               ),
                             ),
                           if (showPlayer &&

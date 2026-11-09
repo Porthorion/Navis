@@ -148,6 +148,7 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
       rankSearchResult(await _searchLocal(ref, query, filter), query),
       filter,
     );
+    if (!ref.mounted) return;
     // Genre names live only in the local index and show under All only.
     final genres = filter == null && ref.watch(showGenresPageProvider)
         ? await ref
@@ -155,6 +156,7 @@ final debouncedSearchProvider = StreamProvider.autoDispose<SearchResultsState?>(
               .libraryDao
               .searchGenres(query, limit: 5)
         : const <GenreSummary>[];
+    if (!ref.mounted) return;
 
     if (isOffline || filter?.isCollection == true) {
       // Playlists and radio are matched in memory by
