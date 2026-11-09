@@ -2,8 +2,10 @@ package com.ryanheise.audioservice;
 
 import android.content.ComponentName;
 import android.content.Intent;
+import android.os.PowerManager;
 import android.util.Log;
 import java.lang.reflect.Field;
+import java.util.List;
 
 /** Repairs the listener when Android recreates the service around a live engine. */
 public class NavisAudioService extends AudioService {
@@ -29,6 +31,41 @@ public class NavisAudioService extends AudioService {
         } catch (ReflectiveOperationException | RuntimeException error) {
             Log.w("NavisAudioService", "Media listener recovery unavailable");
             return false;
+        }
+    }
+
+    /**
+     * audio_service 0.18.19 acquires its wakelock on play but releases it on
+     * pause only when androidStopForegroundOnPause is true. Navis keeps the
+     * notification while paused, so release the lock on every not-playing state.
+     */
+    @Override
+    void setState(List<MediaControl> controls, long actionBits, int[] compactActionIndices, AudioProcessingState processingState, boolean playing, long position, long bufferedPosition, float speed, long updateTime, Integer errorCode, String errorMessage, int repeatMode, int shuffleMode, boolean captioningEnabled, Long queueIndex) {
+        super.setState(controls, actionBits, compactActionIndices, processingState, playing, position, bufferedPosition, speed, updateTime, errorCode, errorMessage, repeatMode, shuffleMode, captioningEnabled, queueIndex);
+        if (shouldReleaseWakeLock(playing)) releaseWakeLock();
+    }
+
+    public static boolean shouldReleaseWakeLock(boolean playing) { return !playing; }
+
+    private static Field wakeLockField;
+    private static boolean wakeLockUnavailable;
+
+    private synchronized void releaseWakeLock() {
+        if (wakeLockUnavailable) return;
+        try {
+            if (wakeLockField == null) {
+                wakeLockField = AudioService.class.getDeclaredField("wakeLock");
+                wakeLockField.setAccessible(true);
+            }
+            PowerManager.WakeLock lock = (PowerManager.WakeLock) wakeLockField.get(this);
+            if (lock != null && lock.isHeld()) lock.release();
+        } catch (ReflectiveOperationException | ClassCastException error) {
+            // A dependency upgrade changed the field: stop trying, keep playing.
+            wakeLockUnavailable = true;
+            Log.w("NavisAudioService", "Wakelock release unavailable");
+        } catch (RuntimeException error) {
+            // A one-off release failure; the next paused state retries.
+            Log.w("NavisAudioService", "Wakelock release failed");
         }
     }
 

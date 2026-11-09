@@ -280,12 +280,14 @@ and backoff rather than resetting all subsystems.
 
 ## Paused playback wake-lock limitation (finding 9)
 
-Paused queues now permit sync, but audio_service's pause wake-lock release is
-coupled to foreground demotion. `androidStopForegroundOnPause: false` preserves
-the existing media-service lifetime. Its wake lock and release method are
-private; no supported independent release exists without changing/vendoring
-that plugin. Do not use reflection or alter service retention to release it.
-Evaluate an upstream fix or a separately reviewed dependency patch in 1.5.1.
+Resolved in 1.5.2 by #457. Holding the lock while paused kept the CPU awake for
+hours (15% of the owner's daily battery). `NavisAudioService` overrides the
+package-private `setState` and releases the private `wakeLock` after every
+not-playing state. This supersedes the earlier "no reflection" note: the
+dependency is pinned in pubspec.lock, `@Override` fails the build on signature
+drift, a JVM contract test pins the field, proguard keeps `com.ryanheise.**`,
+and a field mismatch disables the release with one warning instead of failing.
+Service retention (`androidStopForegroundOnPause: false`) is unchanged.
 
 ## Acceptance
 
@@ -303,8 +305,6 @@ of startup details.
   song, so the visible effect is small. Fix by carrying a seek made during the
   reload into the held recovery record. Found in the batch-2 round-5 review on
   2026-10-15.
-- Paused-playback wake-lock (finding 9): evaluate an upstream fix or a
-  separately reviewed dependency patch for audio_service's pause wake-lock
-  release being coupled to foreground demotion.
+- Paused-playback wake-lock (finding 9): resolved in 1.5.2 by #457.
 - Cross-engine keystore serialization (finding 11): the foreground app and the
   headless worker writing the same Android keystore still need native work.
