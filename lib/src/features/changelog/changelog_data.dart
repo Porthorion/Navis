@@ -201,6 +201,12 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Auto theme can now follow a schedule instead of your device: in '
+        'Settings › Appearance, choose Scheduled under Auto and set when '
+        'dark starts and ends. Outside that window the app is light',
+        type: ChangelogEntryType.newFeature,
+      ),
+      ChangelogEntry(
         'Volume normalization (ReplayGain) has a new Smart mode, the default '
         "for new installs: it keeps an album's own balance when you play it "
         'in order and levels songs one by one for shuffles and mixes. Songs '

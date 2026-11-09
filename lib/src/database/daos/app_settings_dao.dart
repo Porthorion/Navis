@@ -5,6 +5,7 @@ import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:drift/drift.dart';
 import 'package:meta/meta.dart' show visibleForTesting;
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
+import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/database/tables/app_settings_table.dart';
@@ -816,6 +817,28 @@ class AppSettingsDao extends DatabaseAccessor<NavisDatabase>
         nightScheduleEndMinutes: endMinutes == null
             ? const Value.absent()
             : Value(endMinutes.clamp(0, 1439)),
+      ),
+    );
+  }
+
+  /// Targeted update for scheduled Auto: what Auto follows and its dark window.
+  /// An unknown [source] is ignored; minutes clamp to 0-1439.
+  Future<void> updateAutoTheme({
+    String? source,
+    int? darkStartMinutes,
+    int? darkEndMinutes,
+  }) {
+    return _writeSettings(
+      AppSettingsTableCompanion(
+        autoThemeSource: AutoThemeSource.isValid(source)
+            ? Value(source!)
+            : const Value.absent(),
+        autoDarkStartMinutes: darkStartMinutes == null
+            ? const Value.absent()
+            : Value(darkStartMinutes.clamp(0, 1439)),
+        autoDarkEndMinutes: darkEndMinutes == null
+            ? const Value.absent()
+            : Value(darkEndMinutes.clamp(0, 1439)),
       ),
     );
   }

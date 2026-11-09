@@ -66,6 +66,9 @@ void main() {
     bool nightScheduleEnabled = false,
     int? nightStartMinutes,
     int? nightEndMinutes,
+    String? autoThemeSource,
+    int? autoDarkStartMinutes,
+    int? autoDarkEndMinutes,
     Set<SetupHighlight> highlights = const <SetupHighlight>{},
     bool clearWhenSeen = false,
     bool settle = true,
@@ -100,6 +103,9 @@ void main() {
       nightScheduleEnabled: nightScheduleEnabled,
       nightScheduleStartMinutes: nightStartMinutes,
       nightScheduleEndMinutes: nightEndMinutes,
+      autoThemeSource: autoThemeSource,
+      autoDarkStartMinutes: autoDarkStartMinutes,
+      autoDarkEndMinutes: autoDarkEndMinutes,
     );
     final container = ProviderContainer(
       overrides: withTestDatabase(
@@ -783,6 +789,82 @@ void main() {
         container.read(navisDatabaseProvider).appSettingsDao.getSettings,
       );
       expect(settings?.oledForAuto, isTrue);
+    });
+
+    testWidgets('Auto source choice is hidden outside Auto', (tester) async {
+      await pumpAppearance(tester);
+      expect(find.text(l10n.appearanceAutoSourceDevice), findsNothing);
+      expect(find.text(l10n.appearanceAutoSourceSchedule), findsNothing);
+    });
+
+    testWidgets('Auto source defaults to Follow Device without a window', (
+      tester,
+    ) async {
+      await pumpAppearance(tester, themeMode: 'system');
+      final choice = tester.widget<SegmentedButton<String>>(
+        find.byKey(const ValueKey<String>('autoThemeSourceChoice')),
+      );
+      expect(choice.selected, {'device'});
+      expect(find.byType(ActionChip), findsNothing);
+    });
+
+    testWidgets('choosing Scheduled saves the source', (tester) async {
+      final container = await pumpAppearance(tester, themeMode: 'system');
+      await tester.tap(find.text(l10n.appearanceAutoSourceSchedule));
+      await tester.pump(const Duration(milliseconds: 100));
+      final settings = await tester.runAsync(
+        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+      );
+      expect(settings?.autoThemeSource, 'schedule');
+      expect(settings?.themeMode, 'dark', reason: 'only the source changes');
+    });
+
+    testWidgets('Scheduled shows the dark window and its pickers', (
+      tester,
+    ) async {
+      final container = await pumpAppearance(
+        tester,
+        themeMode: 'system',
+        autoThemeSource: 'schedule',
+      );
+      expect(find.byType(ActionChip), findsNWidgets(2));
+      expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
+      expect(find.textContaining('Dark from'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^Dark starts at ')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^Dark ends at ')), findsOneWidget);
+      await tester.tap(find.byType(ActionChip).first);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(TimePickerDialog), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.keyboard_outlined));
+      await tester.pump(const Duration(milliseconds: 100));
+      final fields = find.descendant(
+        of: find.byType(TimePickerDialog),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(fields.at(0), '9'); // 12-hour picker, PM kept
+      await tester.enterText(fields.at(1), '15');
+      await tester.tap(find.text('OK'));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      final settings = await tester.runAsync(
+        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+      );
+      expect(settings?.autoDarkStartMinutes, 21 * 60 + 15);
+      expect(settings?.autoDarkEndMinutes, 420);
+    });
+
+    testWidgets('equal dark times say it is never dark', (tester) async {
+      await pumpAppearance(
+        tester,
+        themeMode: 'system',
+        autoThemeSource: 'schedule',
+        autoDarkStartMinutes: 600,
+        autoDarkEndMinutes: 600,
+      );
+      expect(find.text(l10n.appearanceAutoDarkNever), findsOneWidget);
+      expect(find.textContaining('Dark from'), findsNothing);
     });
 
     testWidgets('Night schedule switch saves', (tester) async {

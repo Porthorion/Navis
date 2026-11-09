@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/common_widgets/navis_switch.dart';
+import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/features/settings/domain/color_namer.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
@@ -92,8 +93,15 @@ class _AppearanceSettingsScreenState
     final previewSeed = resolveColorSchemeSeedColor(
       ref.watch(effectiveColorSchemeSeedProvider),
     );
+    final autoSource = ref.watch(autoThemeSourceProvider);
     final previewBrightness = switch (currentMode) {
       'light' => Brightness.light,
+      // The window is read at build time: no boundary timer is needed for a
+      // preview that rebuilds with the page.
+      'system' when autoSource == AutoThemeSource.schedule =>
+        ref.watch(autoDarkScheduleProvider).isActiveAt(ref.watch(nowProvider)())
+            ? Brightness.dark
+            : Brightness.light,
       'system' => MediaQuery.platformBrightnessOf(context),
       _ => Brightness.dark,
     };
@@ -250,6 +258,22 @@ class _AppearanceSettingsScreenState
                 ...options.buildAll(const <AppearanceOptionKind>[
                   AppearanceOptionKind.oledForAuto,
                 ]),
+                AutoThemeSourceOption(
+                  visible: currentMode == 'system',
+                  source: autoSource,
+                  window: ref.watch(autoDarkScheduleProvider),
+                  onSourceChanged: (source) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateAutoTheme(source: source);
+                  },
+                  onWindowChanged: (window) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateAutoTheme(
+                      darkStartMinutes: window.startMinutes,
+                      darkEndMinutes: window.endMinutes,
+                    );
+                  },
+                ),
                 const Divider(height: 32),
 
                 // ── Color ───────────────────────────────────────────────

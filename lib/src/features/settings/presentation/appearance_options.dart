@@ -11,6 +11,7 @@ import 'package:navis/src/features/onboarding/presentation/setup_highlights_prov
 import 'package:navis/src/features/settings/presentation/appearance_layout.dart';
 import 'package:navis/src/features/settings/presentation/color_style_selector.dart';
 import 'package:navis/src/features/settings/presentation/color_tuning_panel.dart';
+import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
@@ -213,6 +214,133 @@ class OledForAutoOption extends StatelessWidget {
     );
   }
 }
+
+/// "Auto follows": the device or a daily dark window, revealed under the OLED
+/// switch while [visible] (Auto). Scheduled shows the window with the same
+/// time pickers as Night Schedule. Settings only: setup keeps following the
+/// device.
+class AutoThemeSourceOption extends StatelessWidget {
+  const new({
+    required this.visible,
+    required this.source,
+    required this.window,
+    required this.onSourceChanged,
+    required this.onWindowChanged,
+    super.key,
+  });
+
+  final bool visible;
+
+  /// An [AutoThemeSource] value.
+  final String source;
+
+  /// The dark window; equal start and end mean never dark.
+  final NightSchedule window;
+  final ValueChanged<String> onSourceChanged;
+  final ValueChanged<NightSchedule> onWindowChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final inset = AppearanceLayout.subOptionInsetOf(context);
+    final gutter = AppearanceLayout.gutterOf(context);
+    final scheduled = source == AutoThemeSource.schedule;
+    final start = _formatMinutes(context, window.startMinutes);
+    final end = _formatMinutes(context, window.endMinutes);
+
+    Future<void> pick({required bool isStart}) async {
+      final current = isStart ? window.startMinutes : window.endMinutes;
+      final picked = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay(hour: current ~/ 60, minute: current % 60),
+      );
+      if (picked == null) return;
+      final minutes = picked.hour * 60 + picked.minute;
+      onWindowChanged(
+        NightSchedule(
+          enabled: true,
+          startMinutes: isStart ? minutes : window.startMinutes,
+          endMinutes: isStart ? window.endMinutes : minutes,
+        ),
+      );
+    }
+
+    return AppearanceSubOptionReveal(
+      visible: visible,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Padding(
+            padding: EdgeInsetsDirectional.fromSTEB(
+              inset,
+              NavisSpace.xs,
+              gutter,
+              NavisSpace.xs,
+            ),
+            child: SegmentedButton<String>(
+              key: const ValueKey<String>('autoThemeSourceChoice'),
+              segments: <ButtonSegment<String>>[
+                ButtonSegment<String>(
+                  value: AutoThemeSource.device,
+                  label: Text(l10n.appearanceAutoSourceDevice, maxLines: 1),
+                  icon: const Icon(Icons.settings_brightness),
+                ),
+                ButtonSegment<String>(
+                  value: AutoThemeSource.schedule,
+                  label: Text(l10n.appearanceAutoSourceSchedule, maxLines: 1),
+                  icon: const Icon(Icons.dark_mode_outlined),
+                ),
+              ],
+              selected: <String>{source},
+              onSelectionChanged: (selection) {
+                if (selection.isNotEmpty) onSourceChanged(selection.first);
+              },
+              expandedInsets: EdgeInsets.zero,
+              showSelectedIcon: false,
+            ),
+          ),
+          AppearanceSubOptionReveal(
+            visible: scheduled,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                _ScheduleWindowRow(
+                  startLabel: start,
+                  endLabel: end,
+                  startSemantics: l10n.appearanceAutoDarkStartsAt(start),
+                  endSemantics: l10n.appearanceAutoDarkEndsAt(end),
+                  onPickStart: () => pick(isStart: true),
+                  onPickEnd: () => pick(isStart: false),
+                ),
+                Padding(
+                  padding: EdgeInsetsDirectional.fromSTEB(
+                    inset,
+                    0,
+                    gutter,
+                    NavisSpace.xs,
+                  ),
+                  child: Text(
+                    window.startMinutes == window.endMinutes
+                        ? l10n.appearanceAutoDarkNever
+                        : l10n.appearanceAutoDarkWindow(start, end),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatMinutes(BuildContext context, int minutes) =>
+    MaterialLocalizations.of(context).formatTimeOfDay(
+      TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
+      alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+    );
 
 /// Flat Surfaces switch. Shared by Appearance settings and setup.
 class FlatSurfacesOption extends StatelessWidget {
@@ -451,12 +579,7 @@ class NightScheduleSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final localizations = MaterialLocalizations.of(context);
-    final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
-    String format(int minutes) => localizations.formatTimeOfDay(
-      TimeOfDay(hour: minutes ~/ 60, minute: minutes % 60),
-      alwaysUse24HourFormat: use24Hour,
-    );
+    String format(int minutes) => _formatMinutes(context, minutes);
     final sameTimes = schedule.startMinutes == schedule.endMinutes;
     final alreadyNight = userStyle == NavisColorStyle.night;
     final showActiveNote = schedule.isActiveAt(now) && !alreadyNight;

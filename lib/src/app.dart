@@ -12,6 +12,7 @@ import 'package:navis/src/common_widgets/navis_icon.dart';
 import 'package:navis/src/features/auth/presentation/server_config_provider.dart';
 import 'package:navis/src/features/player/presentation/media_info.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
+import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
@@ -88,6 +89,9 @@ class _NavisAppState extends ConsumerState<NavisApp>
 
   @override
   void didChangePlatformBrightness() {
+    ref
+        .read(platformBrightnessProvider.notifier)
+        .set(WidgetsBinding.instance.platformDispatcher.platformBrightness);
     setState(() {});
   }
 
@@ -95,7 +99,9 @@ class _NavisAppState extends ConsumerState<NavisApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Android may delay the schedule timer while suspended.
     if (state == AppLifecycleState.resumed) {
-      ref.invalidate(effectiveColorStyleProvider);
+      ref
+        ..invalidate(effectiveColorStyleProvider)
+        ..invalidate(effectiveDarkProvider);
     }
   }
 
@@ -128,7 +134,15 @@ class _NavisAppState extends ConsumerState<NavisApp>
         : kThemeAnimationDuration;
     final localeCode = ref.watch(appLocaleProvider);
     final seedColor = resolveColorSchemeSeedColor(colorSeed);
-    final resolvedThemeMode = resolveThemeMode(themeModeName);
+    // Scheduled Auto picks light or dark itself; following the device keeps the
+    // system mode.
+    final scheduledDark =
+        ref.watch(autoThemeSourceProvider) == AutoThemeSource.schedule
+        ? ref.watch(effectiveDarkProvider)
+        : null;
+    final resolvedThemeMode = scheduledDark == null
+        ? resolveThemeMode(themeModeName)
+        : (scheduledDark ? ThemeMode.dark : ThemeMode.light);
     final isOled =
         themeModeName == 'oled' || (themeModeName == 'system' && oledForAuto);
     final appLocale = localeCode == null || localeCode.trim().isEmpty

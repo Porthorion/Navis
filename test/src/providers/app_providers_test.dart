@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show Brightness, PlatformDispatcher;
 
 import 'package:audio_service/audio_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -789,6 +790,192 @@ void main() {
         const NightSchedule(enabled: true, startMinutes: 1200, endMinutes: 480),
       );
       expect(container.read(colorStyleProvider), NavisColorStyle.immersive);
+    });
+  });
+
+  group('effectiveDarkProvider', () {
+    // 20:00 to 07:00, crossing midnight.
+    const window = NightSchedule(
+      enabled: true,
+      startMinutes: 1200,
+      endMinutes: 420,
+    );
+
+    ProviderContainer build({
+      String mode = 'system',
+      String source = 'schedule',
+      NightSchedule dark = window,
+      Brightness brightness = Brightness.light,
+      required DateTime Function() now,
+    }) {
+      final container = ProviderContainer(
+        overrides: [
+          themeModeProvider.overrideWithValue(mode),
+          autoThemeSourceProvider.overrideWithValue(source),
+          autoDarkScheduleProvider.overrideWithValue(dark),
+          nowProvider.overrideWithValue(now),
+        ],
+      );
+      addTearDown(container.dispose);
+      container
+        ..read(platformBrightnessProvider.notifier).set(brightness)
+        ..listen(effectiveDarkProvider, (_, _) {});
+      return container;
+    }
+
+    test('the auto settings default to following the device', () async {
+      final settings = StreamController<AppSettingsModel>();
+      final container = ProviderContainer(
+        overrides: [appSettingsProvider.overrideWith((ref) => settings.stream)],
+      );
+      addTearDown(() async {
+        container.dispose();
+        await settings.close();
+      });
+      container
+        ..listen(autoThemeSourceProvider, (_, _) {})
+        ..listen(autoDarkScheduleProvider, (_, _) {});
+      expect(container.read(autoThemeSourceProvider), 'device');
+      expect(
+        container.read(autoDarkScheduleProvider),
+        const NightSchedule(enabled: true, startMinutes: 1200, endMinutes: 420),
+      );
+      settings.add(
+        const AppSettingsModel.defaults().copyWith(
+          autoThemeSource: 'schedule',
+          autoDarkStartMinutes: 1260,
+          autoDarkEndMinutes: 360,
+        ),
+      );
+      await container.pump();
+      expect(container.read(autoThemeSourceProvider), 'schedule');
+      expect(
+        container.read(autoDarkScheduleProvider),
+        const NightSchedule(enabled: true, startMinutes: 1260, endMinutes: 360),
+      );
+    });
+
+    test('the platform brightness is seeded from the platform', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      expect(
+        container.read(platformBrightnessProvider),
+        PlatformDispatcher.instance.platformBrightness,
+      );
+    });
+
+    test('is null unless the theme mode is Auto', () {
+      for (final mode in ['light', 'dark', 'oled']) {
+        final container = build(
+          mode: mode,
+          now: () => DateTime(2026, 10, 8, 23),
+        );
+        expect(container.read(effectiveDarkProvider), isNull, reason: mode);
+      }
+    });
+
+    test('device source follows the platform brightness', () {
+      final container = build(
+        source: 'device',
+        now: () => DateTime(2026, 10, 8, 23),
+      );
+      expect(container.read(effectiveDarkProvider), isFalse);
+      container.read(platformBrightnessProvider.notifier).set(Brightness.dark);
+      expect(container.read(effectiveDarkProvider), isTrue);
+    });
+
+    test('schedule source ignores the platform brightness', () {
+      final container = build(
+        brightness: Brightness.dark,
+        now: () => DateTime(2026, 10, 8, 12),
+      );
+      expect(container.read(effectiveDarkProvider), isFalse);
+    });
+
+    for (final (hour, minute, dark) in <(int, int, bool)>[
+      (12, 0, false),
+      (19, 59, false),
+      (20, 0, true),
+      (23, 30, true),
+      (3, 0, true),
+      (6, 59, true),
+      (7, 0, false),
+    ]) {
+      test('a window across midnight at $hour:$minute is dark: $dark', () {
+        final container = build(now: () => DateTime(2026, 10, 8, hour, minute));
+        expect(container.read(effectiveDarkProvider), dark);
+      });
+    }
+
+    test('equal start and end times are never dark', () {
+      final container = build(
+        dark: const NightSchedule(
+          enabled: true,
+          startMinutes: 600,
+          endMinutes: 600,
+        ),
+        now: () => DateTime(2026, 10, 8, 10),
+      );
+      expect(container.read(effectiveDarkProvider), isFalse);
+    });
+
+    test('a same-day window is dark only inside it', () {
+      const day = NightSchedule(
+        enabled: true,
+        startMinutes: 480,
+        endMinutes: 1020,
+      );
+      expect(
+        build(
+          dark: day,
+          now: () => DateTime(2026, 10, 8, 12),
+        ).read(effectiveDarkProvider),
+        isTrue,
+      );
+      expect(
+        build(
+          dark: day,
+          now: () => DateTime(2026, 10, 8, 18),
+        ).read(effectiveDarkProvider),
+        isFalse,
+      );
+    });
+
+    test('switches exactly at the boundaries and cancels its timer', () {
+      fakeAsync((async) {
+        final initial = DateTime(2026, 10, 8, 19, 59, 59);
+        final container = build(now: () => initial.add(async.elapsed));
+        final values = <bool?>[];
+        container.listen(effectiveDarkProvider, (_, next) => values.add(next));
+        expect(container.read(effectiveDarkProvider), isFalse);
+        expect(async.nonPeriodicTimerCount, 1);
+        async.elapse(const Duration(seconds: 1));
+        expect(values, [true]);
+        expect(async.nonPeriodicTimerCount, 1);
+        // The recheck cap keeps the timer within fifteen minutes.
+        async.elapse(const Duration(hours: 11));
+        expect(values, [true, false]);
+        container.dispose();
+        expect(async.nonPeriodicTimerCount, 0);
+      });
+    });
+
+    test('device source and non-Auto modes arm no timer', () {
+      fakeAsync((async) {
+        build(source: 'device', now: () => DateTime(2026, 10, 8, 12));
+        build(mode: 'dark', now: () => DateTime(2026, 10, 8, 12));
+        expect(async.nonPeriodicTimerCount, 0);
+      });
+    });
+
+    test('re-evaluates the wall clock when invalidated on resume', () {
+      var now = DateTime(2026, 10, 8, 12);
+      final container = build(now: () => now);
+      expect(container.read(effectiveDarkProvider), isFalse);
+      now = DateTime(2026, 10, 8, 22);
+      expect(container.read(effectiveDarkProvider), isFalse);
+      container.invalidate(effectiveDarkProvider);
+      expect(container.read(effectiveDarkProvider), isTrue);
     });
   });
 

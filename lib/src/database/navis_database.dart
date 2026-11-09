@@ -1,3 +1,4 @@
+import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/tables/annotation_dispatch_lease_table.dart';
 
@@ -280,7 +281,7 @@ class NavisDatabase extends _$NavisDatabase {
   /// How long a write waits for another connection's writer lock.
   static const defaultBusyLimit = Duration(seconds: 5);
 
-  static const currentSchemaVersion = 112;
+  static const currentSchemaVersion = 113;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -412,6 +413,7 @@ class NavisDatabase extends _$NavisDatabase {
       from109To110,
       from110To111,
       from111To112,
+      from112To113,
     ];
     for (var version = from; version < to; version++) {
       await steps[version - firstStepFrom](migrator);
@@ -470,6 +472,25 @@ class NavisDatabase extends _$NavisDatabase {
         appSettingsTable,
         appSettingsTable.hapticsDisabled,
       );
+    }
+  }
+
+  /// Scheduled Auto theme and per-mode Auto Looks: seven columns, all with
+  /// defaults that keep today's behaviour (Auto follows the device, no Looks).
+  Future<void> from112To113(Migrator migrator) async {
+    final table = appSettingsTable;
+    for (final (name, column) in <(String, GeneratedColumn<Object>)>[
+      ('auto_theme_source', table.autoThemeSource),
+      ('auto_dark_start_minutes', table.autoDarkStartMinutes),
+      ('auto_dark_end_minutes', table.autoDarkEndMinutes),
+      ('auto_looks_enabled', table.autoLooksEnabled),
+      ('auto_light_look_id', table.autoLightLookId),
+      ('auto_dark_look_id', table.autoDarkLookId),
+      ('auto_looks_applied_mode', table.autoLooksAppliedMode),
+    ]) {
+      if (!await _columnExists('app_settings', name)) {
+        await migrator.addColumn(table, column);
+      }
     }
   }
 
@@ -1957,6 +1978,15 @@ FROM scrobble_queue;
           NightSchedule.defaultStartMinutes,
         ),
         nightScheduleEndMinutes: const Value(NightSchedule.defaultEndMinutes),
+        autoThemeSource: const Value(AutoThemeSource.device),
+        autoDarkStartMinutes: const Value(
+          AutoThemeSource.defaultDarkStartMinutes,
+        ),
+        autoDarkEndMinutes: const Value(AutoThemeSource.defaultDarkEndMinutes),
+        autoLooksEnabled: const Value(false),
+        autoLightLookId: const Value(null),
+        autoDarkLookId: const Value(null),
+        autoLooksAppliedMode: const Value(null),
         flatSurfaces: const Value(false),
         flatAreas: const Value(7),
         colorVividness: const Value(0),

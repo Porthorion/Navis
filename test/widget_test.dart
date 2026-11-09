@@ -118,6 +118,110 @@ void main() {
     },
   );
 
+  group('Scheduled Auto', () {
+    Future<MaterialApp Function()> pumpScheduled(
+      WidgetTester tester, {
+      required String source,
+      required bool oled,
+      required DateTime Function() now,
+    }) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _noDbOverrides(
+            extras: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(null),
+              ),
+              themeModeProvider.overrideWithValue('system'),
+              oledForAutoProvider.overrideWithValue(oled),
+              autoThemeSourceProvider.overrideWithValue(source),
+              nowProvider.overrideWithValue(now),
+            ],
+          ),
+          child: testNavisApp,
+        ),
+      );
+      await tester.pump();
+      return () => tester.widget<MaterialApp>(find.byType(MaterialApp));
+    }
+
+    testWidgets('the schedule picks light outside the window', (tester) async {
+      // Platform is light too, so also assert the explicit mode.
+      final app = await pumpScheduled(
+        tester,
+        source: 'schedule',
+        oled: true,
+        now: () => DateTime(2026, 10, 8, 12),
+      );
+      expect(app().themeMode, ThemeMode.light);
+      expect(app().theme, isNotNull);
+      expect(app().darkTheme, isNull);
+    });
+
+    testWidgets('the schedule picks OLED dark inside the window even on a '
+        'light device', (tester) async {
+      final app = await pumpScheduled(
+        tester,
+        source: 'schedule',
+        oled: true,
+        now: () => DateTime(2026, 10, 8, 23),
+      );
+      expect(app().themeMode, ThemeMode.dark);
+      expect(app().theme, isNull);
+      expect(
+        app().darkTheme!.colorScheme,
+        buildOledTheme(defaultColorSchemeSeedColor).colorScheme,
+      );
+    });
+
+    testWidgets('the schedule picks regular dark without OLED', (tester) async {
+      final app = await pumpScheduled(
+        tester,
+        source: 'schedule',
+        oled: false,
+        now: () => DateTime(2026, 10, 8, 23),
+      );
+      expect(app().themeMode, ThemeMode.dark);
+      expect(
+        app().darkTheme!.colorScheme,
+        buildDarkTheme(defaultColorSchemeSeedColor).colorScheme,
+      );
+    });
+
+    testWidgets('the schedule ignores a dark device outside the window', (
+      tester,
+    ) async {
+      final app = await pumpScheduled(
+        tester,
+        source: 'schedule',
+        oled: true,
+        now: () => DateTime(2026, 10, 8, 12),
+      );
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pump();
+      expect(app().themeMode, ThemeMode.light);
+      expect(app().darkTheme, isNull);
+    });
+
+    testWidgets('the device source stays on the system mode', (tester) async {
+      final app = await pumpScheduled(
+        tester,
+        source: 'device',
+        oled: true,
+        // Inside the default window, but the device source ignores it.
+        now: () => DateTime(2026, 10, 8, 23),
+      );
+      expect(app().themeMode, ThemeMode.system);
+      expect(app().darkTheme, isNull);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pump();
+      expect(app().themeMode, ThemeMode.system);
+      expect(app().darkTheme, isNotNull);
+    });
+  });
+
   testWidgets('the app root keeps media info prefetched', (tester) async {
     var built = 0;
     await tester.pumpWidget(
