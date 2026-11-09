@@ -418,6 +418,13 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'On the folded iPhone Duo cover screen the navigation now sits in the '
+        'side strip, below the status icons, so the page and the player bar '
+        'use the full height down to the home indicator',
+        platforms: {ChangelogPlatform.ios},
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Short windows show more of the page: the player bar and the album, '
         'playlist and artist headers shrink below 760 px high, and the header '
         'scrolls away with the track list',

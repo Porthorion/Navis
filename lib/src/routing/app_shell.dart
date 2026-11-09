@@ -1024,6 +1024,12 @@ class _AppShellState extends ConsumerState<AppShell> {
         : mediaViewPadding.bottom;
     final useStandardRailNavigation = adaptiveContext.useStandardRailNavigation;
     final useRailNavigation = adaptiveContext.useRailNavigation;
+    // The bottom-nav shell with the bar replaced by a pill in a side strip.
+    final useSideStripNav =
+        adaptiveContext.adaptiveShellMode == AdaptiveShellMode.sideStripNav;
+    final (onRight: stripOnRight, inset: sideStripInset) = sideStripOf(
+      mediaViewPadding,
+    );
     final ltr = Directionality.of(context) == TextDirection.ltr;
     final bottomNavLayout = !useDesktopShell && !useRailNavigation;
     if (bottomNavLayout && !_bottomNavLayoutActive) {
@@ -2167,6 +2173,48 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 ),
                               ),
                             ),
+                          if (useSideStripNav)
+                            // The strip is hardware: the pill sits on the
+                            // side that has the inset, whatever the text
+                            // direction, below the status icons.
+                            Positioned(
+                              top:
+                                  mediaViewPadding.top +
+                                  kSideStripStatusReserve,
+                              left: stripOnRight ? null : 0,
+                              right: stripOnRight ? 0 : null,
+                              width: sideStripInset,
+                              child: FocusTraversalOrder(
+                                order: const NumericFocusOrder(30),
+                                child: _BottomNavReveal(
+                                  progress: _playerSheetProgress,
+                                  enabled: showPlayer,
+                                  child: Center(
+                                    child: Material(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .surfaceContainerHigh,
+                                      shape: const StadiumBorder(),
+                                      child: SizedBox(
+                                        width: math.min(56, sideStripInset - 4),
+                                        height: kSideStripPillHeight,
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 4,
+                                          ),
+                                          child: _CompactIconRail(
+                                            destinations: railDestinations,
+                                            selectedIndex: selectedIndex,
+                                            onDestinationSelected:
+                                                onDestinationSelected,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           if (showPlayer &&
                               !useDesktopShell &&
                               showQueueOverlay &&
@@ -2221,7 +2269,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ),
                     ),
                   ),
-                  bottomNavigationBar: useDesktopShell || useRailNavigation
+                  bottomNavigationBar:
+                      useDesktopShell || useRailNavigation || useSideStripNav
                       ? null
                       : _BottomNavReveal(
                           progress: _playerSheetProgress,

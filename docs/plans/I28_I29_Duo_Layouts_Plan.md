@@ -206,6 +206,8 @@ player sheet). Sonnet `high` build from this plan; fresh Sonnet `high` review.
 
 ### Step 0: prove the OS delivers taps in the strip (before any build)
 
+**Result (2026-11-09, Duo simulator, `agent-device press`, points):** strip taps at x 424, y 160/300/500/620 reached Flutter at the exact positions; y 90/130 open an iOS system overlay and do not reach the app; no strip tap scrolled to top. Built in the strip, reserve 168 kept. Evidence: `build/i29-step0/`.
+
 The strip is the iOS status bar on the Duo cover; iOS may route touches there to
 the status bar (Flutter turns status-bar taps into scroll-to-top) instead of the app.
 
