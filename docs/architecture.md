@@ -4484,9 +4484,8 @@ mutating GETs such as scrobbles and playlist edits are never replayed.
 
 Both the native audio-service probe and Dart's `defersBackgroundSync` policy
 reserve priority for playing/loading/buffering. A paused queue remains visible
-and published while allowing background sync. Independent paused wake-lock
-release is unavailable in the current plugin; see the
-[1.5.1 follow-ups](plans/idle-robustness-followups.md).
+and published while allowing background sync. The playback wakelock is held
+only while playing (see Silent playback recovery below, #457).
 
 ## Data Flow
 
@@ -4498,9 +4497,13 @@ binding, and the service redirects its hard-coded foreground start, to this
 component. MediaBrowser discovery, notification controls and Android Auto still
 use the plugin's media session. After `super.onCreate()`, the subclass restores
 a missing static listener only if the plugin retains its handler interface.
-One guarded reflection method owns the two private field accesses; a JVM
-contract test checks their names, static modifiers and listener types. Its
-custom action forces the Dart projection to republish metadata, the windowed
+One guarded reflection method owns the two private listener accesses; a JVM
+contract test checks their names, static modifiers and listener types. The `setState`
+override releases the plugin's partial wakelock (one more guarded reflective
+read of its `wakeLock` field) whenever playback is not playing, because the
+plugin releases it on pause only when `androidStopForegroundOnPause` is true;
+the lock is held only while playing. The
+recovery custom action forces the Dart projection to republish metadata, the windowed
 queue and playback state even when their identities have not changed. No plugin
 removal or engine reattachment occurs.
 
