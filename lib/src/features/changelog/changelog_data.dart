@@ -383,6 +383,12 @@ const List<ChangelogVersion> changelogs = [
         platforms: {ChangelogPlatform.windows},
         type: ChangelogEntryType.fix,
       ),
+      ChangelogEntry(
+        'Navis no longer keeps your phone awake after you pause, which used '
+        'battery in the background for hours',
+        platforms: {ChangelogPlatform.android},
+        type: ChangelogEntryType.fix,
+      ),
     ],
     specialThanks: ['To Tas for the theming and color suggestions.'],
   ),

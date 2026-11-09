@@ -2,6 +2,8 @@ package com.navis.app.navis
 
 import com.ryanheise.audioservice.AudioService
 import com.ryanheise.audioservice.AudioServicePlugin
+import android.os.PowerManager
+import com.ryanheise.audioservice.NavisAudioService
 import java.lang.reflect.Modifier
 import org.junit.Assert.*
 import org.junit.Test
@@ -21,5 +23,13 @@ class NavisAudioServiceRecoveryTest {
         assertTrue(AudioService::class.java.isAssignableFrom(service))
         service.getDeclaredMethod("onCreate")
         service.getDeclaredMethod("restoreListener")
+    }
+
+    @Test fun wakeLockContractAndPauseDecision() {
+        val lock = AudioService::class.java.getDeclaredField("wakeLock")
+        assertEquals(PowerManager.WakeLock::class.java, lock.type)
+        assertTrue(NavisAudioService::class.java.declaredMethods.any { it.name == "setState" })
+        assertTrue(NavisAudioService.shouldReleaseWakeLock(false))
+        assertFalse(NavisAudioService.shouldReleaseWakeLock(true))
     }
 }
