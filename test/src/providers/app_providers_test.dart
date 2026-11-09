@@ -3173,6 +3173,31 @@ void main() {
       expect(seen.last, isFalse);
     });
 
+    // #407: the replay-gain route and the Settings screen save, then call
+    // applyRuntimeSettings() before the settings stream emits the new row.
+    test('a ReplayGain save-then-apply ends on the saved values', () async {
+      final handler = _FakePlaybackHandler();
+      addTearDown(handler.dispose);
+      final container = await start(handler);
+      final seen = <(String?, double?)>[];
+      handler.runtimeSettingsObservers.add(() {
+        final s = container.read(appSettingsProvider).asData?.value;
+        seen.add((s?.replayGainMode, s?.replayGainPreamp));
+      });
+
+      await settings.saveSettings(
+        const AppSettingsModel.defaults().copyWith(
+          crossfadeEnabled: true,
+          replayGainMode: 'track',
+          replayGainPreamp: 3,
+        ),
+      );
+      await handler.applyRuntimeSettings();
+      await pumpEventQueue();
+
+      expect(seen.last, ('track', 3.0));
+    });
+
     test('a desktop volume save does not re-apply', () async {
       final handler = _FakePlaybackHandler();
       addTearDown(handler.dispose);
