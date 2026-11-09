@@ -301,7 +301,7 @@ AdaptiveShellMode resolveAdaptiveShellMode({
         : AdaptiveShellMode.phoneBottomNav;
   }
 
-  if (!isLandscape || adaptiveClass != AdaptiveLayoutClass.tabletExpanded) {
+  if (!isLandscape) {
     return AdaptiveShellMode.phoneBottomNav;
   }
 
@@ -319,11 +319,18 @@ AdaptiveShellMode resolveAdaptiveShellMode({
       (reservedMiniPlayerHeight + railMiniPlayerGap) +
       railCutoffSlack;
 
+  // Too short for the standard rail: the compact icon rail, as long as the
+  // window is at least medium wide (a squarish split window keeps the bottom
+  // bar). Callers pass viewPadding so an open keyboard cannot flip the mode.
   if (estimatedRailHeight < minPhoneRailHeight) {
-    return AdaptiveShellMode.compactWideLandscape;
+    return width >= kAdaptiveMediumWidth
+        ? AdaptiveShellMode.compactWideLandscape
+        : AdaptiveShellMode.phoneBottomNav;
   }
 
-  return AdaptiveShellMode.standardRail;
+  return adaptiveClass == AdaptiveLayoutClass.tabletExpanded
+      ? AdaptiveShellMode.standardRail
+      : AdaptiveShellMode.phoneBottomNav;
 }
 
 AdaptiveContext resolveAdaptiveContext({
@@ -421,7 +428,7 @@ AdaptiveContext resolveAdaptiveContextFor(
   return resolveAdaptiveContext(
     desktopRuntime: desktopRuntime,
     viewportSize: mediaQuery.size,
-    safePadding: mediaQuery.padding,
+    safePadding: mediaQuery.viewPadding,
   );
 }
 
