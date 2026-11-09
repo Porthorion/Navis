@@ -467,6 +467,73 @@ class JustAudioReplayGainBoostTest {
         assertGain("a seek after read-ahead keeps L", p.constant(tone), lDb)
     }
 
+    // ---- the renderer's threshold bookkeeping (Media3's own largestQueuedPresentationTimeUs is private)
+
+    private val rendererClass get() = Class.forName("com.ryanheise.just_audio.NavisAudioRenderer")
+    private val timeUnset = Long.MIN_VALUE + 1
+
+    private fun bareRenderer(p: Processor): Any = unsafe.allocateInstance(rendererClass).also {
+        put(it, "processor", p.raw)
+        put(it, "largestQueuedUs", timeUnset)
+    }
+
+    /** Runs a renderer override on a bare instance; only what it does around super counts. */
+    private fun invokeBare(renderer: Any, name: String, vararg args: Any?) {
+        val method = rendererClass.declaredMethods.first { it.name == name }.apply { isAccessible = true }
+        try {
+            method.invoke(renderer, *args)
+        } catch (expected: InvocationTargetException) {
+            // super cannot run without a real renderer
+        }
+    }
+
+    private fun queueInput(renderer: Any, timeUs: Long) {
+        val buffer = Class.forName("androidx.media3.decoder.DecoderInputBuffer")
+            .getDeclaredMethod("newNoDataInstance").invoke(null)
+        buffer.javaClass.getField("timeUs").setLong(buffer, timeUs)
+        invokeBare(renderer, "onQueueInputBuffer", buffer)
+    }
+
+    private fun largestQueued(renderer: Any): Long =
+        rendererClass.getDeclaredField("largestQueuedUs").apply { isAccessible = true }.getLong(renderer)
+
+    @Test fun queuedInputRaisesTheTrackedLargestTimeAndAFlushResetsIt() {
+        val renderer = bareRenderer(Processor())
+        queueInput(renderer, 500L)
+        queueInput(renderer, 300L) // an out-of-order earlier buffer never lowers it
+        assertEquals(500L, largestQueued(renderer))
+        invokeBare(renderer, "resetCodecStateForFlush")
+        assertEquals(timeUnset, largestQueued(renderer))
+    }
+
+    @Test fun theRendererPassesTheLargestQueuedTimeAsTheStreamThreshold() {
+        val p = Processor()
+        p.replaceLevels(mapOf("l" to lDb))
+        p.stream(aOffset, "l")
+        p.offset(aOffset)
+        p.constant(tone, frames = 960)
+        val renderer = bareRenderer(p)
+        queueInput(renderer, thresholdUs)
+        val periodId = Class.forName("androidx.media3.exoplayer.source.MediaSource\$MediaPeriodId")
+            .getConstructor(Any::class.java).newInstance("period")
+        val formats = java.lang.reflect.Array.newInstance(Class.forName("androidx.media3.common.Format"), 0)
+        invokeBare(renderer, "onStreamChanged", formats, 0L, joinUs, periodId)
+        p.outputBuffer(thresholdUs) // L's last input: not past the threshold
+        p.flush()
+        assertGain("a buffer at the threshold is still L", p.constant(tone), lDb)
+        p.outputBuffer(joinUs) // past it: the stream is signalled (the unresolved tag plays at 0 dB)
+        p.flush()
+        assertGain("a buffer past the threshold is the new stream", p.constant(tone), 0.0)
+    }
+
+    @Test fun theRendererDropsThePendingStreamsWhenDisabled() {
+        val p = playingLWithHAnnounced()
+        invokeBare(bareRenderer(p), "onDisabled")
+        p.outputBuffer(joinUs + 5_000)
+        p.flush()
+        assertGain("a disabled renderer keeps L", p.constant(tone), lDb)
+    }
+
     @Test fun anOtherCodecJoinStillWaitsForTheFlush() {
         val p = playingLWithHAnnounced()
         p.outputBuffer(thresholdUs) // L's last buffer: pts == threshold, not past it

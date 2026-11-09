@@ -213,8 +213,9 @@ headroom, so quiet songs are turned up with the EQ off or on.
 The level switches to the next song at the first flush after Media3 reports the new
 stream, or, when Media3 reports it late (opus: the new song's first decoded buffer is
 the one that crosses the old song's last input), after the renderer hands that first
-buffer over (`NavisAudioRenderer.processOutputBuffer`), so a boosted song's gain never
-reaches the next song's first samples. A seek or disable drops the announced streams.
+buffer over (`NavisAudioRenderer.processOutputBuffer`), so a boosted song's gain no
+longer reaches the next song's first samples in that case. A join with no flush before
+the new song's first buffer (a reused opus codec) can still leak that one buffer. A seek or disable drops the announced streams.
 Android puts the app-owned processor after Media3's Sonic processing, delegates
 its duration accounting, prevents encoded passthrough/offload, and crossfades
 configuration banks over 20 ms at audio-block boundaries. Each channel owns its

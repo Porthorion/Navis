@@ -72,8 +72,8 @@ final class NavisAudioRenderer extends MediaCodecAudioRenderer {
 
     @Override
     protected void resetCodecStateForFlush() {
-        super.resetCodecStateForFlush();
         largestQueuedUs = C.TIME_UNSET;
+        super.resetCodecStateForFlush();
     }
 
     /**
