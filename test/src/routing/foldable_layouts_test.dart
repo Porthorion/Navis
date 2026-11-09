@@ -8,7 +8,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
-import 'package:flutter/rendering.dart' show RenderParagraph;
+import 'package:flutter/rendering.dart' show RenderBox, RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -616,45 +616,53 @@ void main() {
             : tester.widget<Text>(finder).data;
       }
 
-      // The first card with more than a sliver in the grid's viewport.
-      String topCardLetter() {
-        final gridTop = tester
-            .getRect(
-              find.byElementPredicate(
-                (e) => e == _pageScrollable(tester).context,
-              ),
-            )
-            .top;
-        final cards =
+      // What the rail should show: the last section whose header box starts
+      // within 48 dp of the grid's top, read from the rendered headers (a
+      // section header is a one-character Text in a Padding).
+      String expectedLetter() {
+        final grid = find.byElementPredicate(
+          (e) => e == _pageScrollable(tester).context,
+        );
+        final gridTop = tester.getRect(grid).top;
+        final headers =
             find
-                .byType(ArtistCard)
-                .hitTestable()
-                .evaluate()
-                .map((e) => e.widget as ArtistCard)
-                .where(
-                  (c) => tester.getRect(find.byWidget(c)).bottom > gridTop + 40,
+                .descendant(
+                  of: grid,
+                  matching: find.byWidgetPredicate(
+                    (w) =>
+                        w is Text && RegExp(r'^[A-Z#]$').hasMatch(w.data ?? ''),
+                    skipOffstage: false,
+                  ),
+                  skipOffstage: false,
                 )
+                .evaluate()
+                .map(
+                  (e) => (
+                    (e.widget as Text).data!,
+                    ((e.renderObject!.parent! as RenderBox)
+                            .localToGlobal(Offset.zero)
+                            .dy -
+                        gridTop),
+                  ),
+                )
+                .where((h) => h.$2 <= 48)
+                .map((h) => h.$1)
                 .toList()
-              ..sort(
-                (a, b) => tester
-                    .getRect(find.byWidget(a))
-                    .top
-                    .compareTo(tester.getRect(find.byWidget(b)).top),
-              );
-        final initial = cards.first.artist.name.substring(0, 1).toUpperCase();
-        return RegExp('[A-Z]').hasMatch(initial) ? initial : '#';
+              ..sort();
+        return headers.last;
       }
 
-      for (var i = 0; i < 4; i++) {
-        await tester.dragFrom(const Offset(200, 500), const Offset(0, -300));
+      // Small steps, so the rail is checked at many section boundaries.
+      for (var i = 0; i < 14; i++) {
+        await tester.dragFrom(const Offset(200, 500), const Offset(0, -130));
         await _settle(tester, 2);
+        expect(activeLetter(), expectedLetter(), reason: 'folded, step $i');
       }
-      expect(topCardLetter(), isNot('A'));
-      expect(activeLetter(), topCardLetter(), reason: 'folded');
+      expect(activeLetter(), isNot('A'));
 
       await _resize(tester, _duoLandscapeStrip);
       expect(tester.takeException(), isNull);
-      expect(activeLetter(), topCardLetter(), reason: 'after the resize');
+      expect(activeLetter(), expectedLetter(), reason: 'after the resize');
     });
   });
 
@@ -1842,6 +1850,45 @@ void main() {
         await _settle(tester, 10);
         expect(tester.takeException(), isNull);
         expect(find.byType(ChoiceChip), findsWidgets);
+      });
+    }
+  });
+
+  group('Sheets on the page navigator with the keyboard (compact wide)', () {
+    // The sheet sits in the page's navigator, whose bottom edge is the mini
+    // player's top. Its field must end at the keyboard's top, not above it.
+    for (final keyboard in <double>[205, 120]) {
+      _testApp('a sheet field rides on the keyboard: ${keyboard.toInt()}', (
+        tester,
+      ) async {
+        await _pumpApp(tester, _phoneSE, extraOverrides: _searchOverrides());
+        await _go(tester, AppRoutes.search);
+
+        const fieldKey = Key('sheet-field');
+        showModalBottomSheet<void>(
+          context: tester.element(find.byType(TextField).first),
+          useRootNavigator: false,
+          isScrollControlled: true,
+          builder: (context) => Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(context).bottom,
+            ),
+            child: const TextField(key: fieldKey),
+          ),
+        );
+        await _settle(tester, 8);
+        expect(find.byKey(fieldKey), findsOne);
+
+        tester.view.viewInsets = FakeViewPadding(bottom: keyboard * 3);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pump();
+        await _settle(tester, 10);
+
+        expect(tester.takeException(), isNull);
+        expect(
+          tester.getRect(find.byKey(fieldKey)).bottom,
+          closeTo(375 - keyboard, 1),
+        );
       });
     }
   });

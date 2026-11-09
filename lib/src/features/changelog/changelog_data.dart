@@ -321,9 +321,8 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Search fits short landscape screens with the keyboard open, no longer '
-        'crashes while you type, and the artist letter bar in Library shows '
-        'the letter you are looking at',
+        'Search fits short landscape screens with the keyboard open, and the '
+        'artist letter bar in Library shows the letter you are looking at',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(

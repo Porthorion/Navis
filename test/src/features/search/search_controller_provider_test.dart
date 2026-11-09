@@ -237,25 +237,41 @@ ProviderSubscription<AsyncValue<SearchResultsState?>> _listenToSearch(
   );
 }
 
-/// A local artist search that waits on [gate], to hold the provider build
-/// between its debounce and its next `ref` use while a newer query arrives.
+/// A local search that waits on [artistsGate] (artists) or [genresGate]
+/// (genres), to hold the provider build between its debounce and its next
+/// `ref` use while a newer query arrives.
 class _GatedLibraryDao extends LibraryDao {
-  new(super.attachedDatabase, this.gate);
+  new(super.attachedDatabase, this.artistsGate, this.genresGate);
 
-  final Completer<void> gate;
+  final Completer<void> artistsGate;
+  final Completer<void> genresGate;
 
   @override
   Future<List<ArtistsTableData>> searchArtistsLocal(
     String query, {
     int limit = 20,
   }) async {
-    await gate.future;
+    await artistsGate.future;
     return await super.searchArtistsLocal(query, limit: limit);
+  }
+
+  @override
+  Future<List<GenreSummary>> searchGenres(
+    String query, {
+    int limit = 10,
+    bool downloadedOnly = false,
+  }) async {
+    await genresGate.future;
+    return await super.searchGenres(
+      query,
+      limit: limit,
+      downloadedOnly: downloadedOnly,
+    );
   }
 }
 
 class _GatedDatabase extends NavisDatabase {
-  new(this.gate)
+  new(this.artistsGate, this.genresGate)
     : super(
         DatabaseConnection(
           NativeDatabase.memory(),
@@ -263,12 +279,17 @@ class _GatedDatabase extends NavisDatabase {
         ),
       );
 
-  final Completer<void> gate;
+  final Completer<void> artistsGate;
+  final Completer<void> genresGate;
 
   @override
   // Swaps in the gated DAO; the generated database declares it as a field.
   // ignore: overridden_fields
-  late final LibraryDao libraryDao = _GatedLibraryDao(this, gate);
+  late final LibraryDao libraryDao = _GatedLibraryDao(
+    this,
+    artistsGate,
+    genresGate,
+  );
 }
 
 void main() {
@@ -288,30 +309,52 @@ void main() {
     expect(container.read(searchIsOfflineProvider), isFalse);
   });
 
+  // Types "lov", lets its build reach the gated search, types on, then opens
+  // the gate. A build that used its disposed `Ref` afterwards reports it here.
+  Future<List<Object>> typeOnWhileBlocked({required bool onGenres}) async {
+    final artistsGate = Completer<void>();
+    final genresGate = Completer<void>();
+    final database = _GatedDatabase(artistsGate, genresGate);
+    addTearDown(database.close);
+    final container = _createContainer(
+      database,
+      overrides: <Override>[showGenresPageProvider.overrideWithValue(true)],
+    );
+    addTearDown(container.dispose);
+    if (onGenres) {
+      artistsGate.complete();
+    }
+
+    final errors = <Object>[];
+    await runZonedGuarded(() async {
+      container.listen(debouncedSearchProvider, (_, _) {});
+      container.read(searchQueryProvider.notifier).submit('lov');
+      // Past the 300 ms debounce, so the first build waits on its gate.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      container.read(searchQueryProvider.notifier).submit('love');
+      await Future<void>.delayed(Duration.zero);
+      if (!artistsGate.isCompleted) {
+        artistsGate.complete();
+      }
+      genresGate.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }, (error, _) => errors.add(error));
+    return errors;
+  }
+
   test(
     'typing on while the local search runs throws no disposed-ref error',
     () async {
       if (!sqliteAvailable) return;
+      expect(await typeOnWhileBlocked(onGenres: false), isEmpty);
+    },
+  );
 
-      final gate = Completer<void>();
-      final database = _GatedDatabase(gate);
-      addTearDown(database.close);
-      final container = _createContainer(database);
-      addTearDown(container.dispose);
-
-      final errors = <Object>[];
-      await runZonedGuarded(() async {
-        container.listen(debouncedSearchProvider, (_, _) {});
-        container.read(searchQueryProvider.notifier).submit('lov');
-        // Past the 300 ms debounce, so the first build waits on the gate.
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-        container.read(searchQueryProvider.notifier).submit('love');
-        await Future<void>.delayed(Duration.zero);
-        gate.complete();
-        await Future<void>.delayed(const Duration(milliseconds: 500));
-      }, (error, _) => errors.add(error));
-
-      expect(errors, isEmpty);
+  test(
+    'typing on while the genre search runs throws no disposed-ref error',
+    () async {
+      if (!sqliteAvailable) return;
+      expect(await typeOnWhileBlocked(onGenres: true), isEmpty);
     },
   );
 
