@@ -369,6 +369,47 @@ void main() {
       expect((await dao.getSettings())!.flatAreas, 7);
     }, skip: !sqliteAvailable);
 
+    test(
+      'Auto theme settings default, update independently and clamp',
+      () async {
+        final dao = database.appSettingsDao;
+        final initial = (await dao.getSettings())!;
+        expect(initial.autoThemeSource, 'device');
+        expect(initial.autoDarkStartMinutes, 1200);
+        expect(initial.autoDarkEndMinutes, 420);
+        expect(initial.autoLooksEnabled, isFalse);
+        expect(initial.autoLightLookId, isNull);
+        expect(initial.autoDarkLookId, isNull);
+        expect(initial.autoLooksAppliedMode, isNull);
+
+        await dao.updateAutoTheme(source: 'schedule');
+        var saved = (await dao.getSettings())!;
+        expect(saved.autoThemeSource, 'schedule');
+        expect(saved.autoDarkStartMinutes, 1200);
+        expect(saved.autoDarkEndMinutes, 420);
+        expect(saved.themeMode, initial.themeMode);
+        expect(saved.nightScheduleStartMinutes, 1320);
+
+        await dao.updateAutoTheme(darkStartMinutes: -5);
+        saved = (await dao.getSettings())!;
+        expect(saved.autoDarkStartMinutes, 0);
+        expect(saved.autoDarkEndMinutes, 420);
+        await dao.updateAutoTheme(darkEndMinutes: 1500);
+        saved = (await dao.getSettings())!;
+        expect(saved.autoDarkStartMinutes, 0);
+        expect(saved.autoDarkEndMinutes, 1439);
+        expect(saved.autoThemeSource, 'schedule');
+
+        // An unknown source is ignored rather than stored.
+        await dao.updateAutoTheme(source: 'sunset');
+        saved = (await dao.getSettings())!;
+        expect(saved.autoThemeSource, 'schedule');
+        await dao.updateAutoTheme(source: 'device');
+        expect((await dao.getSettings())!.autoThemeSource, 'device');
+      },
+      skip: !sqliteAvailable,
+    );
+
     test('appearance settings default and update independently', () async {
       final initial = (await database.appSettingsDao.getSettings())!;
       expect(initial.oledForAuto, isFalse);

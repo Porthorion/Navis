@@ -127,6 +127,31 @@ class AppSettingsTable extends Table {
   IntColumn get nightScheduleEndMinutes =>
       integer().withDefault(const Constant(420))();
 
+  /// What Auto theme mode follows: 'device' or 'schedule'.
+  TextColumn get autoThemeSource =>
+      text().withDefault(const Constant('device'))();
+
+  /// Scheduled Auto: daily dark start in minutes after local midnight.
+  IntColumn get autoDarkStartMinutes =>
+      integer().withDefault(const Constant(1200))();
+
+  /// Scheduled Auto: daily dark end in minutes after local midnight.
+  IntColumn get autoDarkEndMinutes =>
+      integer().withDefault(const Constant(420))();
+
+  /// Auto uses a saved Look per mode (stored ahead of its settings).
+  BoolColumn get autoLooksEnabled =>
+      boolean().withDefault(const Constant(false))();
+
+  /// Look id applied when Auto turns light; null keeps the current look.
+  TextColumn get autoLightLookId => text().nullable()();
+
+  /// Look id applied when Auto turns dark; null keeps the current look.
+  TextColumn get autoDarkLookId => text().nullable()();
+
+  /// 'light' or 'dark': the mode whose Look was applied last; null if none.
+  TextColumn get autoLooksAppliedMode => text().nullable()();
+
   /// Disables surface glows, gradients and shadows when rendered.
   BoolColumn get flatSurfaces => boolean().withDefault(const Constant(false))();
 

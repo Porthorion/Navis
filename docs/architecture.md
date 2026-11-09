@@ -1056,6 +1056,24 @@ target-selection rules.
     style. Resume invalidation in `app.dart` remains in place. `app.dart`
     uses this effective style and selects OLED for Auto's dark theme when
     `oledForAuto` is enabled. `flatSurfacesProvider` drives Flat rendering.
+  - Schema 113 (`from112To113`, guarded by `_columnExists`) adds the Auto
+    theme settings: `auto_theme_source` (`'device'` default or `'schedule'`),
+    `auto_dark_start_minutes` (1200) and `auto_dark_end_minutes` (420), plus
+    four columns stored ahead of their UI (#461 presets per mode):
+    `auto_looks_enabled`, `auto_light_look_id`, `auto_dark_look_id` and
+    `auto_looks_applied_mode`. They are top-level settings, not Look fields:
+    `AppearanceSnapshot` and `applyAppearanceSnapshot` never carry them.
+    `updateAutoTheme` clamps minutes to 0–1439 and ignores an unknown source.
+    `effectiveDarkProvider` is null unless the theme mode is Auto; with the
+    device source it follows `platformBrightnessProvider` (seeded from the
+    platform, updated only by `didChangePlatformBrightness` in `app.dart`),
+    with Scheduled it is `NightSchedule.isActiveAt(now)` over the dark window
+    (`autoDarkScheduleProvider`) and shares the one-shot boundary timer, capped
+    at fifteen minutes, with `effectiveColorStyleProvider`; `app.dart`
+    invalidates both on resume. Scheduled passes `ThemeMode.light` or
+    `ThemeMode.dark` to `MaterialApp`; following the device keeps
+    `ThemeMode.system`. OLED for Auto applies whenever Auto is dark. Night
+    Schedule stays a colour-style overlay on top in both sources.
   - Schema 99 adds `flat_areas` (integer mask, default 7) and
     `album_art_colored_shade` (boolean, default false) in one guarded upgrade.
     `FlatAreas` is the immutable model value: bit 1 selects surfaces (panels,

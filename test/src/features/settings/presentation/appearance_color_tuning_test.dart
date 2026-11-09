@@ -459,6 +459,30 @@ void main() {
       });
     }
 
+    testWidgets('Scheduled Auto starts on the mode the schedule shows', (
+      tester,
+    ) async {
+      // The harness device is dark, but 23:00 is outside a 06:00-12:00 window.
+      await pumpScreen(
+        tester,
+        mode: 'system',
+        seed: (dao) => dao.updateAutoTheme(
+          source: 'schedule',
+          darkStartMinutes: 6 * 60,
+          darkEndMinutes: 12 * 60,
+        ),
+      );
+      await openPanel(tester);
+      final selected = tester
+          .widget<SegmentedButton<bool>>(key('mode'))
+          .selected
+          .single;
+      expect(selected, isFalse);
+      // The schedule's boundary timer must not outlive the test body.
+      await tester.pumpWidget(const SizedBox());
+      container.dispose();
+    });
+
     testWidgets('Light edits only Light brightness, and the caption says '
         'where it applies', (tester) async {
       await pumpScreen(tester);

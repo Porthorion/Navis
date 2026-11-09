@@ -573,6 +573,7 @@ void main() {
         'dynamicAlbumColor': false,
         'oledForAuto': false,
         'nightSchedule': {'enabled': false, 'start': 1320, 'end': 420},
+        'autoTheme': {'source': 'device', 'start': 1200, 'end': 420},
         'flatSurfaces': false,
         'flatAreas': 7,
         'colorVividness': 0,
@@ -717,6 +718,7 @@ void main() {
       'dynamicAlbumColor': true,
       'oledForAuto': true,
       'nightSchedule': {'enabled': true, 'start': 1200, 'end': 300},
+      'autoTheme': {'source': 'schedule', 'start': 1260, 'end': 360},
       'flatSurfaces': true,
       'flatAreas': 2,
       'colorVividness': -5,
@@ -766,6 +768,9 @@ void main() {
     expect(observed.body, changed.body);
     expect(persisted.colorStyle, 'immersive');
     expect(persisted.nightScheduleStartMinutes, 1200);
+    expect(persisted.autoThemeSource, 'schedule');
+    expect(persisted.autoDarkStartMinutes, 1260);
+    expect(persisted.autoDarkEndMinutes, 360);
     for (final invalid in <Map<String, Object?>>[
       {'themeMode': 'auto'},
       {'colorStyle': 'unknown'},
@@ -833,6 +838,26 @@ void main() {
       },
       {
         'nightSchedule': {'extra': true},
+      },
+      {'autoTheme': null},
+      {'autoTheme': {}},
+      {
+        'autoTheme': {'source': 'sunset'},
+      },
+      {
+        'autoTheme': {'source': 1},
+      },
+      {
+        'autoTheme': {'start': -1},
+      },
+      {
+        'autoTheme': {'end': 1440},
+      },
+      {
+        'autoTheme': {'start': 1.5},
+      },
+      {
+        'autoTheme': {'extra': true},
       },
     ]) {
       final result = await _request(

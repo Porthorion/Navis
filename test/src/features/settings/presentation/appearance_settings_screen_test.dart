@@ -12,6 +12,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -66,6 +67,10 @@ void main() {
     bool nightScheduleEnabled = false,
     int? nightStartMinutes,
     int? nightEndMinutes,
+    String? autoThemeSource,
+    int? autoDarkStartMinutes,
+    int? autoDarkEndMinutes,
+    DateTime Function()? now,
     Set<SetupHighlight> highlights = const <SetupHighlight>{},
     bool clearWhenSeen = false,
     bool settle = true,
@@ -100,12 +105,16 @@ void main() {
       nightScheduleEnabled: nightScheduleEnabled,
       nightScheduleStartMinutes: nightStartMinutes,
       nightScheduleEndMinutes: nightEndMinutes,
+      autoThemeSource: autoThemeSource,
+      autoDarkStartMinutes: autoDarkStartMinutes,
+      autoDarkEndMinutes: autoDarkEndMinutes,
     );
     final container = ProviderContainer(
       overrides: withTestDatabase(
         database,
         overrides: <Override>[
           appSettingsProvider.overrideWithValue(AsyncData(settings)),
+          if (now != null) nowProvider.overrideWithValue(now),
           // Schedule timing has provider coverage; this UI harness has no app
           // container lifecycle to own the production boundary timer.
           effectiveColorStyleProvider.overrideWithValue(
@@ -169,6 +178,13 @@ void main() {
       await tester.pump();
     }
     return container;
+  }
+
+  /// Scheduled Auto keeps a boundary timer in the container, and the test
+  /// framework checks for pending timers before the tear-downs run.
+  Future<void> releasePage(WidgetTester tester, ProviderContainer c) async {
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
   }
 
   /// The accent grid's custom-colour button.
@@ -783,6 +799,106 @@ void main() {
         container.read(navisDatabaseProvider).appSettingsDao.getSettings,
       );
       expect(settings?.oledForAuto, isTrue);
+    });
+
+    testWidgets('Auto source choice is hidden outside Auto', (tester) async {
+      await pumpAppearance(tester);
+      expect(find.text(l10n.appearanceAutoSourceDevice), findsNothing);
+      expect(find.text(l10n.appearanceAutoSourceSchedule), findsNothing);
+    });
+
+    testWidgets('Auto source defaults to Follow Device without a window', (
+      tester,
+    ) async {
+      await pumpAppearance(tester, themeMode: 'system');
+      final choice = tester.widget<SegmentedButton<String>>(
+        find.byKey(const ValueKey<String>('autoThemeSourceChoice')),
+      );
+      expect(choice.selected, {'device'});
+      expect(find.byType(ActionChip), findsNothing);
+    });
+
+    testWidgets('choosing Scheduled saves the source', (tester) async {
+      final container = await pumpAppearance(tester, themeMode: 'system');
+      await tester.tap(find.text(l10n.appearanceAutoSourceSchedule));
+      await tester.pump(const Duration(milliseconds: 100));
+      final settings = await tester.runAsync(
+        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+      );
+      expect(settings?.autoThemeSource, 'schedule');
+      expect(settings?.themeMode, 'dark', reason: 'only the source changes');
+    });
+
+    testWidgets('Scheduled shows the dark window and its pickers', (
+      tester,
+    ) async {
+      final container = await pumpAppearance(
+        tester,
+        themeMode: 'system',
+        autoThemeSource: 'schedule',
+      );
+      expect(find.byType(ActionChip), findsNWidgets(2));
+      expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
+      expect(find.textContaining('Dark from'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^Dark starts at ')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^Dark ends at ')), findsOneWidget);
+      await tester.tap(find.byType(ActionChip).first);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.byType(TimePickerDialog), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.keyboard_outlined));
+      await tester.pump(const Duration(milliseconds: 100));
+      final fields = find.descendant(
+        of: find.byType(TimePickerDialog),
+        matching: find.byType(TextField),
+      );
+      await tester.enterText(fields.at(0), '9'); // 12-hour picker, PM kept
+      await tester.enterText(fields.at(1), '15');
+      await tester.tap(find.text('OK'));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 50)),
+      );
+      final settings = await tester.runAsync(
+        container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+      );
+      expect(settings?.autoDarkStartMinutes, 21 * 60 + 15);
+      expect(settings?.autoDarkEndMinutes, 420);
+      await releasePage(tester, container);
+    });
+
+    testWidgets('the preview follows the schedule window as the clock moves', (
+      tester,
+    ) async {
+      var clock = DateTime(2026, 10, 8, 12);
+      final container = await pumpAppearance(
+        tester,
+        themeMode: 'system',
+        autoThemeSource: 'schedule',
+        now: () => clock,
+      );
+      Brightness shown() => tester
+          .widget<ColorStyleOption>(find.byType(ColorStyleOption))
+          .brightness;
+      expect(shown(), Brightness.light);
+      clock = DateTime(2026, 10, 8, 23);
+      // The provider's own boundary timer re-arms (at most) every 15 minutes.
+      await tester.pump(const Duration(minutes: 16));
+      expect(shown(), Brightness.dark);
+      expect(container.read(effectiveDarkProvider), isTrue);
+      await releasePage(tester, container);
+    });
+
+    testWidgets('equal dark times say it is never dark', (tester) async {
+      final container = await pumpAppearance(
+        tester,
+        themeMode: 'system',
+        autoThemeSource: 'schedule',
+        autoDarkStartMinutes: 600,
+        autoDarkEndMinutes: 600,
+      );
+      expect(find.text(l10n.appearanceAutoDarkNever), findsOneWidget);
+      expect(find.textContaining('Dark from'), findsNothing);
+      await releasePage(tester, container);
     });
 
     testWidgets('Night schedule switch saves', (tester) async {

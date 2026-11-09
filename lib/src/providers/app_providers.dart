@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' show Brightness, PlatformDispatcher;
 
 import 'package:audio_service/audio_service.dart' show MediaItem;
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -90,6 +91,7 @@ import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/album_title_shade.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
+import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
 import 'package:navis/src/features/settings/domain/update_info.dart';
@@ -3128,23 +3130,76 @@ final nightScheduleProvider = Provider<NightSchedule>((ref) {
 
 final nowProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
+/// Re-evaluates [ref] at the next [schedule] boundary, at most fifteen minutes
+/// out: suspended desktops may resume without advancing Dart timers, so the
+/// wall clock is rechecked even when the boundary was hours away.
+void _rearmAtNextBoundary(Ref ref, NightSchedule schedule, DateTime now) {
+  const recheckCap = Duration(minutes: 15);
+  final untilBoundary = schedule.nextBoundaryAfter(now).difference(now);
+  final timer = Timer(
+    untilBoundary < recheckCap ? untilBoundary : recheckCap,
+    ref.invalidateSelf,
+  );
+  ref.onDispose(timer.cancel);
+}
+
 /// Applies the scheduled Night style without changing the saved user style.
 final effectiveColorStyleProvider = Provider<NavisColorStyle>((ref) {
   final style = ref.watch(colorStyleProvider);
   final schedule = ref.watch(nightScheduleProvider);
   final now = ref.watch(nowProvider)();
-  if (schedule.enabled) {
-    final untilBoundary = schedule.nextBoundaryAfter(now).difference(now);
-    // Suspended desktops may resume without advancing Dart timers. Recheck the
-    // wall clock within fifteen minutes even when the boundary was hours away.
-    const recheckCap = Duration(minutes: 15);
-    final timer = Timer(
-      untilBoundary < recheckCap ? untilBoundary : recheckCap,
-      ref.invalidateSelf,
-    );
-    ref.onDispose(timer.cancel);
-  }
+  if (schedule.enabled) _rearmAtNextBoundary(ref, schedule, now);
   return schedule.isActiveAt(now) ? NavisColorStyle.night : style;
+});
+
+/// What Auto theme mode follows: 'device' or 'schedule'.
+final autoThemeSourceProvider = Provider<String>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return settings.autoThemeSource;
+});
+
+/// The Scheduled Auto dark window. Reuses [NightSchedule]'s window maths: it is
+/// always enabled, and equal start and end times are never dark.
+final autoDarkScheduleProvider = Provider<NightSchedule>((ref) {
+  final settings =
+      ref.watch(appSettingsProvider).asData?.value ??
+      const AppSettingsModel.defaults();
+  return NightSchedule(
+    enabled: true,
+    startMinutes: settings.autoDarkStartMinutes,
+    endMinutes: settings.autoDarkEndMinutes,
+  );
+});
+
+/// The device's light/dark setting. Seeded from the platform; the app root
+/// updates it from `didChangePlatformBrightness`, never during build.
+class PlatformBrightnessNotifier extends Notifier<Brightness> {
+  @override
+  Brightness build() => PlatformDispatcher.instance.platformBrightness;
+
+  // Called only from the app root's platform callback.
+  // ignore: use_setters_to_change_properties
+  void set(Brightness brightness) => state = brightness;
+}
+
+final platformBrightnessProvider =
+    NotifierProvider<PlatformBrightnessNotifier, Brightness>(
+      PlatformBrightnessNotifier.new,
+    );
+
+/// Whether Auto mode is dark right now; null while the theme mode is not Auto.
+/// Follows the device, or the dark window with a one-shot boundary timer.
+final effectiveDarkProvider = Provider<bool?>((ref) {
+  if (ref.watch(themeModeProvider) != 'system') return null;
+  if (ref.watch(autoThemeSourceProvider) != AutoThemeSource.schedule) {
+    return ref.watch(platformBrightnessProvider) == Brightness.dark;
+  }
+  final window = ref.watch(autoDarkScheduleProvider);
+  final now = ref.watch(nowProvider)();
+  _rearmAtNextBoundary(ref, window, now);
+  return window.isActiveAt(now);
 });
 
 /// Current color scheme seed color value (null = default white).

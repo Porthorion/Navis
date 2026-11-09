@@ -255,6 +255,128 @@ void main() {
     skip: !sqliteAvailable,
   );
 
+  group('112 to 113 scheduled Auto theme', () {
+    const columns = <String>[
+      'auto_theme_source',
+      'auto_dark_start_minutes',
+      'auto_dark_end_minutes',
+      'auto_looks_enabled',
+      'auto_light_look_id',
+      'auto_dark_look_id',
+      'auto_looks_applied_mode',
+    ];
+
+    // Rebuilds app_settings the way a real 112 profile has it: none of the
+    // seven Auto columns, and non-default values elsewhere.
+    void makeSchema112(Database raw) {
+      var create =
+          raw
+                  .select(
+                    "SELECT sql FROM sqlite_master "
+                    "WHERE type = 'table' AND name = 'app_settings'",
+                  )
+                  .single['sql']
+              as String;
+      create = create.replaceFirst('app_settings', 'app_settings_112');
+      for (final column in columns) {
+        final stripped = create.replaceFirst(
+          RegExp(
+            '\\s*,\\s*"$column"\\s+'
+            r'(?:[^,()]|\((?:[^()]|\([^()]*\))*\))*',
+          ),
+          '',
+        );
+        expect(stripped, isNot(create), reason: column);
+        create = stripped;
+      }
+      for (final column in columns) {
+        expect(create, isNot(contains('"$column"')));
+      }
+      final kept = raw
+          .select('PRAGMA table_info(app_settings)')
+          .map((row) => row['name'] as String)
+          .where((name) => !columns.contains(name))
+          .join(', ');
+      raw.execute(create);
+      raw.execute(
+        'INSERT INTO app_settings_112 ($kept) SELECT $kept FROM app_settings',
+      );
+      raw.execute('DROP TABLE app_settings');
+      raw.execute('ALTER TABLE app_settings_112 RENAME TO app_settings');
+      raw.execute("UPDATE app_settings SET theme_mode = 'system'");
+      raw.execute('PRAGMA user_version = 112');
+    }
+
+    Future<NavisDatabase> upgraded112() async {
+      final directory = await Directory.systemTemp.createTemp('navis_v113_');
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File(p.join(directory.path, 'fixture.sqlite'));
+      final seed = createTestDatabase(file: file);
+      await seed.appSettingsDao.getSettings();
+      await seed.close();
+      final raw = sqlite3.open(file.path);
+      try {
+        makeSchema112(raw);
+        expect(
+          raw
+              .select('PRAGMA table_info(app_settings)')
+              .where((row) => columns.contains(row['name'])),
+          isEmpty,
+        );
+      } finally {
+        raw.close();
+      }
+      final db = createTestDatabase(file: file);
+      addTearDown(db.close);
+      return db;
+    }
+
+    test('the schema version is 113', () {
+      expect(NavisDatabase.currentSchemaVersion, 113);
+    });
+
+    test('fresh profiles seed the Auto defaults', () async {
+      final db = createTestDatabase();
+      addTearDown(db.close);
+      final settings = (await db.appSettingsDao.getSettings())!;
+      expect(settings.autoThemeSource, 'device');
+      expect(settings.autoDarkStartMinutes, 1200);
+      expect(settings.autoDarkEndMinutes, 420);
+      expect(settings.autoLooksEnabled, isFalse);
+      expect(settings.autoLightLookId, isNull);
+      expect(settings.autoDarkLookId, isNull);
+      expect(settings.autoLooksAppliedMode, isNull);
+    });
+
+    test(
+      'adds all seven columns with defaults and keeps other values',
+      () async {
+        final db = await upgraded112();
+        final settings = (await db.appSettingsDao.getSettings())!;
+        expect(settings.autoThemeSource, 'device');
+        expect(settings.autoDarkStartMinutes, 1200);
+        expect(settings.autoDarkEndMinutes, 420);
+        expect(settings.autoLooksEnabled, isFalse);
+        expect(settings.autoLightLookId, isNull);
+        expect(settings.autoDarkLookId, isNull);
+        expect(settings.autoLooksAppliedMode, isNull);
+        expect(settings.themeMode, 'system');
+        expect(
+          (await db.customSelect('PRAGMA user_version').getSingle()).read<int>(
+            'user_version',
+          ),
+          NavisDatabase.currentSchemaVersion,
+        );
+        // Idempotent: running the step again changes nothing.
+        await db.appSettingsDao.updateAutoTheme(source: 'schedule');
+        await db.from112To113(Migrator(db));
+        final again = (await db.appSettingsDao.getSettings())!;
+        expect(again.autoThemeSource, 'schedule');
+        expect(again.themeMode, 'system');
+      },
+    );
+  }, skip: !sqliteAvailable);
+
   group('111 to 112 haptics', () {
     // Rebuilds app_settings the way a real 111 profile has it: neither
     // haptics column, and non-default values elsewhere.
@@ -322,8 +444,8 @@ void main() {
       return db;
     }
 
-    test('the schema version is 112', () {
-      expect(NavisDatabase.currentSchemaVersion, 112);
+    test('the schema version is at least 112', () {
+      expect(NavisDatabase.currentSchemaVersion, greaterThanOrEqualTo(112));
     });
 
     test(

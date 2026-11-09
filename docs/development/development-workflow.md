@@ -1176,6 +1176,10 @@ Omitted fields retain their values. The entire body is validated before any
 write; GET and POST return the resulting appearance values, including the
 complete schedule. Normal authentication and `allowsMutations` gating apply;
 unknown keys/types and primary certification are rejected.
+`autoTheme` accepts a nonempty object with any of `source` (`"device"` or
+`"schedule"`) and `start` and `end` (integer minutes 0–1439), the Scheduled
+Auto dark window; omitted fields retain their values, and GET and POST return
+the complete `autoTheme` object under the same validation and gating.
 The script verifies Small and enabled auto-advance persist across clean restart;
 desktop recommendations remain manual even with that touch preference enabled.
 Inspect the additional PNGs as well as the final pair; file validation alone

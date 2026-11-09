@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:navis/src/theme/color_adjustment.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
+import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/database/daos/app_settings_dao.dart';
@@ -57,6 +58,13 @@ class AppSettingsModel {
     this.nightScheduleEnabled = false,
     this.nightScheduleStartMinutes = NightSchedule.defaultStartMinutes,
     this.nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
+    this.autoThemeSource = AutoThemeSource.device,
+    this.autoDarkStartMinutes = AutoThemeSource.defaultDarkStartMinutes,
+    this.autoDarkEndMinutes = AutoThemeSource.defaultDarkEndMinutes,
+    this.autoLooksEnabled = false,
+    this.autoLightLookId,
+    this.autoDarkLookId,
+    this.autoLooksAppliedMode,
     this.flatSurfaces = false,
     this.flatAreas = const FlatAreas(),
     this.hapticsPrefs = const HapticsPrefs(),
@@ -155,6 +163,13 @@ class AppSettingsModel {
       nightScheduleEnabled = false,
       nightScheduleStartMinutes = NightSchedule.defaultStartMinutes,
       nightScheduleEndMinutes = NightSchedule.defaultEndMinutes,
+      autoThemeSource = AutoThemeSource.device,
+      autoDarkStartMinutes = AutoThemeSource.defaultDarkStartMinutes,
+      autoDarkEndMinutes = AutoThemeSource.defaultDarkEndMinutes,
+      autoLooksEnabled = false,
+      autoLightLookId = null,
+      autoDarkLookId = null,
+      autoLooksAppliedMode = null,
       flatSurfaces = false,
       flatAreas = const FlatAreas(),
       hapticsPrefs = const HapticsPrefs(),
@@ -253,6 +268,13 @@ class AppSettingsModel {
   final bool nightScheduleEnabled;
   final int nightScheduleStartMinutes;
   final int nightScheduleEndMinutes;
+  final String autoThemeSource;
+  final int autoDarkStartMinutes;
+  final int autoDarkEndMinutes;
+  final bool autoLooksEnabled;
+  final String? autoLightLookId;
+  final String? autoDarkLookId;
+  final String? autoLooksAppliedMode;
   final bool flatSurfaces;
   final FlatAreas flatAreas;
 
@@ -447,6 +469,9 @@ class AppSettingsModel {
     bool? nightScheduleEnabled,
     int? nightScheduleStartMinutes,
     int? nightScheduleEndMinutes,
+    String? autoThemeSource,
+    int? autoDarkStartMinutes,
+    int? autoDarkEndMinutes,
     bool? flatSurfaces,
     FlatAreas? flatAreas,
     HapticsPrefs? hapticsPrefs,
@@ -577,6 +602,13 @@ class AppSettingsModel {
           nightScheduleStartMinutes ?? this.nightScheduleStartMinutes,
       nightScheduleEndMinutes:
           nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
+      autoThemeSource: autoThemeSource ?? this.autoThemeSource,
+      autoDarkStartMinutes: autoDarkStartMinutes ?? this.autoDarkStartMinutes,
+      autoDarkEndMinutes: autoDarkEndMinutes ?? this.autoDarkEndMinutes,
+      autoLooksEnabled: autoLooksEnabled,
+      autoLightLookId: autoLightLookId,
+      autoDarkLookId: autoDarkLookId,
+      autoLooksAppliedMode: autoLooksAppliedMode,
       flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       flatAreas: flatAreas ?? this.flatAreas,
       hapticsPrefs: hapticsPrefs ?? this.hapticsPrefs,

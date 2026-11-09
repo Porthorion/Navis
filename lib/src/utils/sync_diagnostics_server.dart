@@ -1,5 +1,6 @@
 import 'package:navis/src/features/settings/presentation/appearance_preset_controller.dart';
 import 'package:navis/src/features/settings/domain/appearance_presets.dart';
+import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/features/settings/domain/night_schedule.dart';
 import 'package:navis/src/features/downloads/presentation/custom_download_folder_controller.dart';
 import 'package:navis/src/features/downloads/presentation/manual_download_matching_provider.dart';
@@ -862,6 +863,7 @@ class SyncDiagnosticsServer {
           final dynamicColor = body['dynamicAlbumColor'];
           final oled = body['oledForAuto'];
           final night = body['nightSchedule'];
+          final autoTheme = body['autoTheme'];
           final flat = body['flatSurfaces'];
           final flatAreas = body['flatAreas'];
           final colorVividness = body['colorVividness'];
@@ -948,6 +950,26 @@ class SyncDiagnosticsServer {
               }
             }
           }
+          if (body.containsKey('autoTheme')) {
+            if (autoTheme is! Map<String, dynamic> ||
+                autoTheme.isEmpty ||
+                autoTheme.keys.any(
+                  (key) => !const {'source', 'start', 'end'}.contains(key),
+                )) {
+              throw const FormatException();
+            }
+            if (autoTheme.containsKey('source') &&
+                !AutoThemeSource.isValid(autoTheme['source'])) {
+              throw const FormatException();
+            }
+            for (final key in ['start', 'end']) {
+              if (!autoTheme.containsKey(key)) continue;
+              final minutes = autoTheme[key];
+              if (minutes is! int || minutes < 0 || minutes > 1439) {
+                throw const FormatException();
+              }
+            }
+          }
           const shapes = ['square', 'rounded', 'circle'];
           if (body.keys.any(
                 (key) => !const {
@@ -957,6 +979,7 @@ class SyncDiagnosticsServer {
                   'dynamicAlbumColor',
                   'oledForAuto',
                   'nightSchedule',
+                  'autoTheme',
                   'flatSurfaces',
                   'flatAreas',
                   'colorVividness',
@@ -1008,6 +1031,13 @@ class SyncDiagnosticsServer {
               enabled: night['enabled'] as bool?,
               startMinutes: night['start'] as int?,
               endMinutes: night['end'] as int?,
+            );
+          }
+          if (autoTheme is Map<String, dynamic>) {
+            await dao.updateAutoTheme(
+              source: autoTheme['source'] as String?,
+              darkStartMinutes: autoTheme['start'] as int?,
+              darkEndMinutes: autoTheme['end'] as int?,
             );
           }
           if (flat is bool) await dao.updateFlatSurfaces(enabled: flat);
@@ -1088,6 +1118,15 @@ class SyncDiagnosticsServer {
             'end':
                 settings?.nightScheduleEndMinutes ??
                 NightSchedule.defaultEndMinutes,
+          },
+          'autoTheme': {
+            'source': settings?.autoThemeSource ?? AutoThemeSource.device,
+            'start':
+                settings?.autoDarkStartMinutes ??
+                AutoThemeSource.defaultDarkStartMinutes,
+            'end':
+                settings?.autoDarkEndMinutes ??
+                AutoThemeSource.defaultDarkEndMinutes,
           },
           'flatSurfaces': settings?.flatSurfaces ?? false,
           'flatAreas': settings?.flatAreas ?? 7,
