@@ -99,6 +99,10 @@ class _NavisAppState extends ConsumerState<NavisApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Android may delay the schedule timer while suspended.
     if (state == AppLifecycleState.resumed) {
+      // A brightness callback can be missed while suspended.
+      ref
+          .read(platformBrightnessProvider.notifier)
+          .set(WidgetsBinding.instance.platformDispatcher.platformBrightness);
       ref
         ..invalidate(effectiveColorStyleProvider)
         ..invalidate(effectiveDarkProvider);

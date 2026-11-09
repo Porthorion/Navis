@@ -12,6 +12,7 @@ import 'package:navis/src/features/settings/domain/app_settings.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
+import 'package:navis/src/features/settings/presentation/appearance_options.dart';
 import 'package:navis/src/features/settings/presentation/appearance_settings_screen.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
@@ -69,6 +70,7 @@ void main() {
     String? autoThemeSource,
     int? autoDarkStartMinutes,
     int? autoDarkEndMinutes,
+    DateTime Function()? now,
     Set<SetupHighlight> highlights = const <SetupHighlight>{},
     bool clearWhenSeen = false,
     bool settle = true,
@@ -112,6 +114,7 @@ void main() {
         database,
         overrides: <Override>[
           appSettingsProvider.overrideWithValue(AsyncData(settings)),
+          if (now != null) nowProvider.overrideWithValue(now),
           // Schedule timing has provider coverage; this UI harness has no app
           // container lifecycle to own the production boundary timer.
           effectiveColorStyleProvider.overrideWithValue(
@@ -175,6 +178,13 @@ void main() {
       await tester.pump();
     }
     return container;
+  }
+
+  /// Scheduled Auto keeps a boundary timer in the container, and the test
+  /// framework checks for pending timers before the tear-downs run.
+  Future<void> releasePage(WidgetTester tester, ProviderContainer c) async {
+    await tester.pumpWidget(const SizedBox());
+    c.dispose();
   }
 
   /// The accent grid's custom-colour button.
@@ -853,10 +863,33 @@ void main() {
       );
       expect(settings?.autoDarkStartMinutes, 21 * 60 + 15);
       expect(settings?.autoDarkEndMinutes, 420);
+      await releasePage(tester, container);
+    });
+
+    testWidgets('the preview follows the schedule window as the clock moves', (
+      tester,
+    ) async {
+      var clock = DateTime(2026, 10, 8, 12);
+      final container = await pumpAppearance(
+        tester,
+        themeMode: 'system',
+        autoThemeSource: 'schedule',
+        now: () => clock,
+      );
+      Brightness shown() => tester
+          .widget<ColorStyleOption>(find.byType(ColorStyleOption))
+          .brightness;
+      expect(shown(), Brightness.light);
+      clock = DateTime(2026, 10, 8, 23);
+      // The provider's own boundary timer re-arms (at most) every 15 minutes.
+      await tester.pump(const Duration(minutes: 16));
+      expect(shown(), Brightness.dark);
+      expect(container.read(effectiveDarkProvider), isTrue);
+      await releasePage(tester, container);
     });
 
     testWidgets('equal dark times say it is never dark', (tester) async {
-      await pumpAppearance(
+      final container = await pumpAppearance(
         tester,
         themeMode: 'system',
         autoThemeSource: 'schedule',
@@ -865,6 +898,7 @@ void main() {
       );
       expect(find.text(l10n.appearanceAutoDarkNever), findsOneWidget);
       expect(find.textContaining('Dark from'), findsNothing);
+      await releasePage(tester, container);
     });
 
     testWidgets('Night schedule switch saves', (tester) async {

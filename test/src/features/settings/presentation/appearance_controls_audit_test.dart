@@ -181,6 +181,13 @@ void main() {
     await settle(tester);
   }
 
+  /// Scheduled Auto keeps a boundary timer in the container, and the test
+  /// framework checks for pending timers before the tear-downs run.
+  Future<void> releasePage(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+  }
+
   Future<Map<String, Object?>> row(WidgetTester tester) async =>
       Map<String, Object?>.from(
         (await tester.runAsync(database.appSettingsDao.getSettings))!.toJson(),
@@ -1066,6 +1073,7 @@ void main() {
           );
           expect(looks().selectedLookId, looks().looks.single.id);
         }
+        await releasePage(tester);
       });
     }
   });

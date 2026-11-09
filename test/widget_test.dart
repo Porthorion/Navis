@@ -222,6 +222,68 @@ void main() {
     });
   });
 
+  testWidgets(
+    'the device brightness callback feeds platformBrightnessProvider',
+    (tester) async {
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _noDbOverrides(
+            extras: [
+              serverConfigStateProvider.overrideWithValue(
+                const AsyncData(null),
+              ),
+            ],
+          ),
+          child: testNavisApp,
+        ),
+      );
+      await tester.pump();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(MaterialApp)),
+      );
+      expect(container.read(platformBrightnessProvider), Brightness.light);
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      await tester.pump();
+      expect(container.read(platformBrightnessProvider), Brightness.dark);
+    },
+  );
+
+  testWidgets('resuming re-seeds the device brightness and the Auto window', (
+    tester,
+  ) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    var clock = DateTime(2026, 10, 8, 12);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: _noDbOverrides(
+          extras: [
+            serverConfigStateProvider.overrideWithValue(const AsyncData(null)),
+            themeModeProvider.overrideWithValue('system'),
+            autoThemeSourceProvider.overrideWithValue('schedule'),
+            nowProvider.overrideWithValue(() => clock),
+          ],
+        ),
+        child: testNavisApp,
+      ),
+    );
+    await tester.pump();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MaterialApp)),
+    );
+    expect(container.read(effectiveDarkProvider), isFalse);
+    // A callback missed while suspended leaves both stale.
+    container.read(platformBrightnessProvider.notifier).set(Brightness.light);
+    clock = DateTime(2026, 10, 8, 23);
+    expect(container.read(effectiveDarkProvider), isFalse);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(container.read(effectiveDarkProvider), isTrue);
+    expect(container.read(platformBrightnessProvider), Brightness.dark);
+  });
+
   testWidgets('the app root keeps media info prefetched', (tester) async {
     var built = 0;
     await tester.pumpWidget(

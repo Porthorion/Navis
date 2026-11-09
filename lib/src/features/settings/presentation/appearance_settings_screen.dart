@@ -5,7 +5,6 @@ import 'dart:math';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
 import 'package:navis/src/common_widgets/navis_slider.dart';
 import 'package:navis/src/common_widgets/navis_switch.dart';
-import 'package:navis/src/features/settings/domain/auto_theme.dart';
 import 'package:navis/src/features/settings/domain/color_namer.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
@@ -96,13 +95,11 @@ class _AppearanceSettingsScreenState
     final autoSource = ref.watch(autoThemeSourceProvider);
     final previewBrightness = switch (currentMode) {
       'light' => Brightness.light,
-      // The window is read at build time: no boundary timer is needed for a
-      // preview that rebuilds with the page.
-      'system' when autoSource == AutoThemeSource.schedule =>
-        ref.watch(autoDarkScheduleProvider).isActiveAt(ref.watch(nowProvider)())
-            ? Brightness.dark
-            : Brightness.light,
-      'system' => MediaQuery.platformBrightnessOf(context),
+      'system' => switch (ref.watch(effectiveDarkProvider)) {
+        true => Brightness.dark,
+        false => Brightness.light,
+        null => MediaQuery.platformBrightnessOf(context),
+      },
       _ => Brightness.dark,
     };
     final oledForAuto = ref.watch(oledForAutoProvider);
@@ -942,7 +939,11 @@ ColorTuningBasis _settingsTuningBasis(WidgetRef ref, Brightness platform) {
   final oledForAuto = ref.read(oledForAutoProvider);
   final brightness = switch (mode) {
     'light' => Brightness.light,
-    'system' => platform,
+    'system' => switch (ref.read(effectiveDarkProvider)) {
+      true => Brightness.dark,
+      false => Brightness.light,
+      null => platform,
+    },
     _ => Brightness.dark,
   };
   return ColorTuningBasis(
@@ -980,6 +981,7 @@ Future<void> _openColorTuning(BuildContext anchor, WidgetRef ref) async {
     ref.listenManual(effectiveColorStyleProvider, (_, _) => refresh()),
     ref.listenManual(themeModeProvider, (_, _) => refresh()),
     ref.listenManual(oledForAutoProvider, (_, _) => refresh()),
+    ref.listenManual(effectiveDarkProvider, (_, _) => refresh()),
   ];
   try {
     await showColorTuningPanel(
