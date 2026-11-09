@@ -287,6 +287,13 @@ class Run:
         self.phase = 'crossfade-teardown'
         self.restart(lambda db: db.execute('UPDATE app_settings SET crossfade_enabled=0'))
 
+        # Gapless-tagged originals: the only joins through Media3's TrimmingAudioProcessor (#392).
+        for ext in ('mp3', 'm4a'):
+            self.phase = f'gapless-{ext}'
+            self.queue([f'rgl-{ext}', f'rgh-{ext}'])
+            self.play_from(2000)
+            time.sleep(12)
+            self.join(seconds_after=4)
         for codec, quality in (('opus', {'maxBitRate': 96, 'format': 'opus'}),
                                ('mp3', {'maxBitRate': 128, 'format': 'mp3'})):
             self.phase = f'lossy-{codec}'

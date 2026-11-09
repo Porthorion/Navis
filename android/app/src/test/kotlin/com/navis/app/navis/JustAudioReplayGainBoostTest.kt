@@ -70,6 +70,7 @@ class JustAudioReplayGainBoostTest {
 
         // ---- the in-pipeline ReplayGain stage (#392 phase 3)
         private val long = Long::class.javaPrimitiveType!!
+        private val unset = Long.MIN_VALUE + 1 // C.TIME_UNSET
         fun setLevels(levels: Map<String, Double>, live: Boolean = false) {
             call("setLevels", Map::class.java, Boolean::class.javaPrimitiveType!!, args = arrayOf(levels, live))
         }
@@ -79,7 +80,13 @@ class JustAudioReplayGainBoostTest {
             call("commitSources", Boolean::class.javaPrimitiveType!!, args = arrayOf(replace))
         }
         /** The renderer's onStreamChanged: [offsetUs] belongs to the song tagged [key]. */
-        fun stream(offsetUs: Long, key: String?) { call("noteStream", long, String::class.java, args = arrayOf(offsetUs, key)) }
+        fun stream(offsetUs: Long, key: String?, thresholdUs: Long = unset) {
+            call("noteStream", long, String::class.java, long, args = arrayOf(offsetUs, key, thresholdUs))
+        }
+        /** The renderer's processOutputBuffer, just before the sink gets a buffer with [ptsUs]. */
+        fun outputBuffer(ptsUs: Long) { call("outputBuffer", long, args = arrayOf(ptsUs)) }
+        /** The renderer's onPositionReset / onDisabled: Media3 drops its pending stream changes. */
+        fun dropPendingStreams() { call("dropPendingStreams") }
         /** The renderer's onOutputStreamOffsetUsChanged. */
         fun offset(offsetUs: Long) { call("streamOffsetChanged", long, args = arrayOf(offsetUs)) }
         fun appliedDb(): Double = (state()["replayGainAppliedDb"] as Number).toDouble()
@@ -370,6 +377,220 @@ class JustAudioReplayGainBoostTest {
         p.offset(bOffset)
         p.flush() // the unresolved entry is key null: 0 dB, not a's -6
         assertGain("the new stream's key was noted first", p.constant(tone), 0.0)
+    }
+
+    // ---- an opus join (#392): Media3 reports the new stream only after H's first buffer reached the sink
+
+    private val lDb = 7.0
+    private val hDb = -3.0
+    private val joinUs = 1_000_030_006_500L
+    private val thresholdUs = joinUs - 13_000L // L's last queued input
+
+    /** A stage playing L (+7 dB) with H announced at [joinUs]; the sink has seen L input, so a switch must wait for a flush. */
+    private fun playingLWithHAnnounced(threshold: Long = thresholdUs): Processor {
+        val p = Processor()
+        p.replaceLevels(mapOf("l" to lDb, "h" to hDb))
+        p.stream(aOffset, "l")
+        p.offset(aOffset)
+        p.constant(tone, frames = 960) // L's samples: input since the last flush
+        p.stream(joinUs, "h", threshold)
+        return p
+    }
+
+    private fun assertHAtMinusThree(p: Processor) {
+        val out = p.run(ShortArray(648) { 29645 }) // H's first 648 frames, near full scale
+        assertTrue("H at -3 dB (20987), got ${out.toList().distinct().take(4)}",
+            out.all { Math.abs(it - 20987) <= 1 })
+        assertEquals(0L, (p.state()["boostClipSamples"] as Number).toLong())
+    }
+
+    @Test fun anOpusJoinSwitchesBeforeTheNewStreamsFirstBuffer() {
+        val p = playingLWithHAnnounced()
+        p.outputBuffer(joinUs - 40_000) // L's decoded tail
+        assertGain("L's tail", p.constant(tone, frames = 100), lDb)
+        p.outputBuffer(joinUs) // H's first buffer: the offset event has not come yet
+        p.flush() // the codec format flush before H's samples
+        assertEquals("h", p.currentKey())
+        assertHAtMinusThree(p)
+        p.offset(joinUs) // Media3's own, late event
+        p.flush()
+        assertEquals("h", p.currentKey())
+        assertGain("still H", p.constant(tone), hDb)
+    }
+
+    @Test fun theRendererSignalsANewStreamsBufferBeforeSuperHandsItToTheSink() {
+        val rendererClass = Class.forName("com.ryanheise.just_audio.NavisAudioRenderer")
+        val processBuffer = rendererClass.declaredMethods.first { it.name == "processOutputBuffer" }
+            .apply { isAccessible = true }
+        fun hand(p: Processor, ptsUs: Long) {
+            val renderer = unsafe.allocateInstance(rendererClass)
+            put(renderer, "processor", p.raw)
+            // positionUs, elapsedRealtimeUs, codec, buffer, index, flags, sampleCount, pts, decodeOnly, last, format
+            val args = processBuffer.parameterTypes.mapIndexed<Class<*>, Any?> { i, t ->
+                when {
+                    i == 7 -> ptsUs
+                    t == java.lang.Long.TYPE -> 0L
+                    t == Integer.TYPE -> 0
+                    t == java.lang.Boolean.TYPE -> false
+                    else -> null
+                }
+            }
+            try {
+                processBuffer.invoke(renderer, *args.toTypedArray())
+            } catch (expected: InvocationTargetException) {
+                // super cannot run without a real renderer: only the note made BEFORE it counts
+            }
+        }
+        val early = playingLWithHAnnounced()
+        hand(early, joinUs - 1)
+        early.flush()
+        assertGain("a buffer before H's start is still L", early.constant(tone), lDb)
+        val p = playingLWithHAnnounced()
+        hand(p, joinUs)
+        p.flush()
+        assertHAtMinusThree(p)
+    }
+
+    @Test fun theRendererDropsThePendingStreamsOnAPositionReset() {
+        val rendererClass = Class.forName("com.ryanheise.just_audio.NavisAudioRenderer")
+        val p = playingLWithHAnnounced()
+        val renderer = unsafe.allocateInstance(rendererClass)
+        put(renderer, "processor", p.raw)
+        val reset = rendererClass.declaredMethods.first { it.name == "onPositionReset" }.apply { isAccessible = true }
+        try {
+            reset.invoke(renderer, 0L, false)
+        } catch (expected: InvocationTargetException) {
+            // super cannot run without a real renderer
+        }
+        p.outputBuffer(joinUs + 5_000)
+        p.flush()
+        assertGain("a seek after read-ahead keeps L", p.constant(tone), lDb)
+    }
+
+    // ---- the renderer's threshold bookkeeping (Media3's own largestQueuedPresentationTimeUs is private)
+
+    private val rendererClass get() = Class.forName("com.ryanheise.just_audio.NavisAudioRenderer")
+    private val timeUnset = Long.MIN_VALUE + 1
+
+    private fun bareRenderer(p: Processor): Any = unsafe.allocateInstance(rendererClass).also {
+        put(it, "processor", p.raw)
+        put(it, "largestQueuedUs", timeUnset)
+    }
+
+    /** Runs a renderer override on a bare instance; only what it does around super counts. */
+    private fun invokeBare(renderer: Any, name: String, vararg args: Any?) {
+        val method = rendererClass.declaredMethods.first { it.name == name }.apply { isAccessible = true }
+        try {
+            method.invoke(renderer, *args)
+        } catch (expected: InvocationTargetException) {
+            // super cannot run without a real renderer
+        }
+    }
+
+    private fun queueInput(renderer: Any, timeUs: Long) {
+        val buffer = Class.forName("androidx.media3.decoder.DecoderInputBuffer")
+            .getDeclaredMethod("newNoDataInstance").invoke(null)
+        buffer.javaClass.getField("timeUs").setLong(buffer, timeUs)
+        invokeBare(renderer, "onQueueInputBuffer", buffer)
+    }
+
+    private fun largestQueued(renderer: Any): Long =
+        rendererClass.getDeclaredField("largestQueuedUs").apply { isAccessible = true }.getLong(renderer)
+
+    @Test fun queuedInputRaisesTheTrackedLargestTimeAndAFlushResetsIt() {
+        val renderer = bareRenderer(Processor())
+        queueInput(renderer, 500L)
+        queueInput(renderer, 300L) // an out-of-order earlier buffer never lowers it
+        assertEquals(500L, largestQueued(renderer))
+        invokeBare(renderer, "resetCodecStateForFlush")
+        assertEquals(timeUnset, largestQueued(renderer))
+    }
+
+    @Test fun theRendererPassesTheLargestQueuedTimeAsTheStreamThreshold() {
+        val p = Processor()
+        p.replaceLevels(mapOf("l" to lDb))
+        p.stream(aOffset, "l")
+        p.offset(aOffset)
+        p.constant(tone, frames = 960)
+        val renderer = bareRenderer(p)
+        queueInput(renderer, thresholdUs)
+        val periodId = Class.forName("androidx.media3.exoplayer.source.MediaSource\$MediaPeriodId")
+            .getConstructor(Any::class.java).newInstance("period")
+        val formats = java.lang.reflect.Array.newInstance(Class.forName("androidx.media3.common.Format"), 0)
+        invokeBare(renderer, "onStreamChanged", formats, 0L, joinUs, periodId)
+        p.outputBuffer(thresholdUs) // L's last input: not past the threshold
+        p.flush()
+        assertGain("a buffer at the threshold is still L", p.constant(tone), lDb)
+        p.outputBuffer(joinUs) // past it: the stream is signalled (the unresolved tag plays at 0 dB)
+        p.flush()
+        assertGain("a buffer past the threshold is the new stream", p.constant(tone), 0.0)
+    }
+
+    @Test fun theRendererDropsThePendingStreamsWhenDisabled() {
+        val p = playingLWithHAnnounced()
+        invokeBare(bareRenderer(p), "onDisabled")
+        p.outputBuffer(joinUs + 5_000)
+        p.flush()
+        assertGain("a disabled renderer keeps L", p.constant(tone), lDb)
+    }
+
+    @Test fun anOtherCodecJoinStillWaitsForTheFlush() {
+        val p = playingLWithHAnnounced()
+        p.outputBuffer(thresholdUs) // L's last buffer: pts == threshold, not past it
+        p.offset(joinUs) // Media3's event, before H's buffers
+        assertGain("L's last buffer", p.constant(tone, frames = 480), lDb)
+        p.flush()
+        assertGain("H", p.constant(tone), hDb)
+    }
+
+    @Test fun lsLastBufferRightAfterAFlushKeepsLsGain() {
+        val p = playingLWithHAnnounced()
+        p.flush() // e.g. a speed change
+        p.outputBuffer(thresholdUs)
+        assertGain("L", p.constant(tone), lDb)
+    }
+
+    @Test fun aSeekInsideTheSongDoesNotSwitch() {
+        val p = playingA()
+        p.flush()
+        p.outputBuffer(Long.MAX_VALUE / 2) // nothing announced
+        assertGain("still A", p.constant(tone), -6.0)
+        assertEquals("a", p.currentKey())
+    }
+
+    @Test fun aSeekAfterReadAheadDropsThePendingStream() {
+        val p = playingLWithHAnnounced()
+        p.dropPendingStreams()
+        p.flush()
+        p.outputBuffer(joinUs + 5_000)
+        assertGain("L", p.constant(tone), lDb)
+        p.offset(joinUs) // a stale event matches nothing either
+        p.flush()
+        assertGain("still L", p.constant(tone), lDb)
+    }
+
+    @Test fun anOverrunningLTailKeepsLsGain() {
+        // L's decoded tail runs past its declared end: every L buffer is at or before L's last input.
+        val p = playingLWithHAnnounced(threshold = joinUs + 20_000)
+        p.outputBuffer(joinUs + 10_000)
+        p.flush()
+        assertGain("L's overrun", p.constant(tone), lDb)
+        assertEquals("l", p.currentKey())
+    }
+
+    @Test fun anUnsetThresholdNeverSignalsEarly() {
+        val p = playingLWithHAnnounced(threshold = Long.MIN_VALUE + 1)
+        p.outputBuffer(joinUs + 100_000)
+        p.flush()
+        assertGain("L", p.constant(tone), lDb)
+    }
+
+    @Test fun aRepeatOneFileWrapViaTheBufferKeepsTheGain() {
+        val p = playingLWithHAnnounced()
+        p.stream(joinUs, "l", thresholdUs) // the wrap: a new stream of the same song
+        p.outputBuffer(joinUs)
+        p.flush()
+        assertGain("same gain, no ramp", p.run(ShortArray(10) { tone.toShort() }), lDb)
     }
 
     @Test fun theStageBeforeTheFirstConfigureHoldsTheKeyForTheFlush() {
