@@ -213,7 +213,8 @@ class _BottomNavInsetScope extends StatelessWidget {
   }
 }
 
-/// Height of the bottom navigation bar the body extends behind.
+/// Height of the bottom navigation bar the body extends behind, or the system
+/// bottom inset when the shell has no bar (the side-strip navigation).
 class _BottomNavInset extends InheritedWidget {
   const new({required this.inset, required super.child});
 

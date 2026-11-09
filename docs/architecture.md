@@ -2642,6 +2642,12 @@ the tracks. Phone and tablet layouts ignore the height band.
 - **Phones in landscape, 600–839 dp wide** → the compact icon rail when the
   rail does not fit the height (`height - safe.vertical < 480`), otherwise the
   bottom navigation bar; below 600 dp wide always the bottom bar
+- **Phones in portrait with a wide side system strip** (`max(viewPadding.left,
+  viewPadding.right) >= 48`, `kSideStripMinInset`, such as the folded iPhone Duo
+  cover) → `sideStripNav`: the bottom-bar shell without the bar, and the same
+  compact icon rail as a vertical pill inside the strip (see below). Needs
+  `height - viewPadding.bottom >= 464` (168 status reserve + 216 pill + 64 mini
+  player + 16)
 - **All other cases** → bottom navigation bar
 
 Only short viewports get compact-wide; a 16:9 tablet, or a car display of the
@@ -2654,6 +2660,21 @@ car Now Playing adds none of its own (the desktop Mini Player, which reuses
 that layout, still does), hides the format pills below 400 dp high, and the
 compact mini player strip grows by the real bottom inset (a home indicator or a
 Duo strip) with its content above it.
+
+`sideStripNav` keeps everything in the bottom-navigation branch (the I27b
+`SafeArea` and `ConsumedRightInset`, the full-width mini player, the player
+sheet, the queue overlay, the bar-flash seeding) and only sets
+`bottomNavigationBar` to null. `_BottomNavInset` then reports the system bottom
+inset instead of bar + inset, so the page area and the sheet stop above the home
+indicator. The pill is a `Positioned` entry of the shell stack, after the sheet
+and before the queue overlay, on the physical side that has the inset (an RTL
+locale does not move hardware), `kSideStripStatusReserve` (168 dp) below the top
+so it clears the camera, clock and wifi icons. It reuses `_BottomNavReveal` (it
+hides and ignores pointers while Now Playing opens) and `_CompactIconRail`, so
+the `compactRailNavTile-$i` keys, tooltips, semantics and the diagnostics
+`/v1/presentation/tab` path are the same as in compact-wide. OS-level taps in
+the strip below 160 dp reach Flutter and do not trigger scroll-to-top (checked
+on the iPhone Duo simulator).
 
 Foldable and tablet fixes (I27, 1.5.2): a layout class change (fold, unfold,
 rotation across 600/840 dp) rebuilds the Library page subtree. The plain

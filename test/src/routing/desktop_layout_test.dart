@@ -120,6 +120,7 @@ void main() {
     const compact = AdaptiveShellMode.compactWideLandscape;
     const bottomNav = AdaptiveShellMode.phoneBottomNav;
     const rail = AdaptiveShellMode.standardRail;
+    const sideStrip = AdaptiveShellMode.sideStripNav;
 
     // (size, padding as the device reports it, expected mode)
     const cases = <(Size, EdgeInsets, AdaptiveShellMode)>[
@@ -145,7 +146,8 @@ void main() {
       (Size(560, 400), EdgeInsets.zero, bottomNav),
       (Size(700, 520), EdgeInsets.zero, bottomNav),
       (Size(375, 667), EdgeInsets.zero, bottomNav),
-      (Size(466, 678), EdgeInsets.fromLTRB(0, 0, 84, 34), bottomNav),
+      // The folded Duo cover: the side strip now hosts the navigation (I29).
+      (Size(466, 678), EdgeInsets.fromLTRB(0, 0, 84, 34), sideStrip),
       // Tall enough for the standard rail.
       (Size(900, 620), EdgeInsets.zero, rail),
       (Size(1280, 720), EdgeInsets.zero, rail),
@@ -205,6 +207,155 @@ void main() {
         );
         expect(resolved!.useCompactWideLandscape, isTrue, reason: '$size');
       }
+    });
+  });
+
+  group('I29 a wide side strip hosts the navigation pill', () {
+    const sideStrip = AdaptiveShellMode.sideStripNav;
+    const bottomNav = AdaptiveShellMode.phoneBottomNav;
+
+    AdaptiveShellMode resolve(
+      Size size,
+      EdgeInsets padding, {
+      bool desktop = false,
+    }) => resolveAdaptiveShellMode(
+      desktopRuntime: desktop,
+      viewportSize: size,
+      safePadding: padding,
+    );
+
+    test('resolves the strip matrix by size and insets', () {
+      const cases = <(String, Size, EdgeInsets, AdaptiveShellMode)>[
+        (
+          'Duo cover, strip right',
+          Size(466, 678),
+          EdgeInsets.fromLTRB(0, 0, 84, 34),
+          sideStrip,
+        ),
+        (
+          'Duo cover, strip left',
+          Size(466, 678),
+          EdgeInsets.fromLTRB(84, 0, 0, 34),
+          sideStrip,
+        ),
+        (
+          'inset exactly 48',
+          Size(466, 678),
+          EdgeInsets.fromLTRB(0, 0, 48, 34),
+          sideStrip,
+        ),
+        (
+          'inset 47 is too narrow',
+          Size(466, 678),
+          EdgeInsets.fromLTRB(0, 0, 47, 34),
+          bottomNav,
+        ),
+        (
+          'iPhone 16',
+          Size(393, 852),
+          EdgeInsets.only(top: 59, bottom: 34),
+          bottomNav,
+        ),
+        ('iPhone SE', Size(375, 667), EdgeInsets.zero, bottomNav),
+        (
+          'too short landscape',
+          Size(466, 440),
+          EdgeInsets.fromLTRB(0, 0, 84, 0),
+          bottomNav,
+        ),
+        (
+          'too short portrait',
+          Size(400, 450),
+          EdgeInsets.fromLTRB(0, 0, 84, 34),
+          bottomNav,
+        ),
+        (
+          'Duo unfolded portrait',
+          Size(669, 951),
+          EdgeInsets.only(bottom: 34),
+          bottomNav,
+        ),
+        (
+          'Duo unfolded landscape strip',
+          Size(951, 669),
+          EdgeInsets.fromLTRB(0, 0, 84, 34),
+          AdaptiveShellMode.standardRail,
+        ),
+        (
+          'Duo cover rotated (I28)',
+          Size(678, 466),
+          EdgeInsets.fromLTRB(0, 0, 84, 34),
+          AdaptiveShellMode.compactWideLandscape,
+        ),
+      ];
+      for (final (name, size, padding, expected) in cases) {
+        expect(
+          resolve(size, padding),
+          expected,
+          reason: '$name $size $padding',
+        );
+      }
+    });
+
+    test('the height gate is reserve + pill + mini player + 16', () {
+      // 168 + 216 + 64 + 16 = 464 above the bottom inset.
+      const strip = EdgeInsets.fromLTRB(0, 0, 84, 34);
+      expect(resolve(const Size(466, 498), strip), sideStrip);
+      expect(resolve(const Size(466, 497), strip), bottomNav);
+    });
+
+    test('sideStripOf picks the physical side with the larger inset', () {
+      expect(sideStripOf(const EdgeInsets.only(right: 84)), (
+        onRight: true,
+        inset: 84.0,
+      ));
+      expect(sideStripOf(const EdgeInsets.only(left: 84)), (
+        onRight: false,
+        inset: 84.0,
+      ));
+      expect(sideStripOf(const EdgeInsets.fromLTRB(60, 0, 48, 0)), (
+        onRight: false,
+        inset: 60.0,
+      ));
+      expect(sideStripOf(EdgeInsets.zero), (onRight: true, inset: 0.0));
+    });
+
+    test('a desktop runtime keeps the standard rail', () {
+      expect(
+        resolve(
+          const Size(466, 678),
+          const EdgeInsets.fromLTRB(0, 0, 84, 34),
+          desktop: true,
+        ),
+        AdaptiveShellMode.standardRail,
+      );
+    });
+
+    testWidgets('the keyboard does not flip the mode (viewPadding decides)', (
+      tester,
+    ) async {
+      AdaptiveContext? resolved;
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(
+            size: Size(466, 678),
+            padding: EdgeInsets.zero,
+            viewPadding: EdgeInsets.fromLTRB(0, 0, 84, 34),
+            viewInsets: EdgeInsets.only(bottom: 250),
+          ),
+          child: Builder(
+            builder: (context) {
+              resolved = resolveAdaptiveContextFor(
+                context,
+                desktopRuntimeOverride: false,
+              );
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
+      expect(resolved!.adaptiveShellMode, sideStrip);
+      expect(resolved!.useRailNavigation, isFalse);
     });
   });
 
