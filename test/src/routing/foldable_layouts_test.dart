@@ -505,12 +505,14 @@ Rect _pageViewportRect(WidgetTester tester) => tester.getRect(
 
 /// The card [key] of type [card] sits in the first row the page list shows:
 /// its row starts at the top edge, or is cut off by it when nothing moved.
+/// With [atTop], it sits [top] below the edge (a letter header's padding).
 void _expectInFirstRow(
   WidgetTester tester,
   Type card,
   Key? key, {
   required String reason,
   bool atTop = false,
+  double top = 0,
 }) {
   final finder = find.byWidgetPredicate(
     (w) => w.runtimeType == card && w.key == key,
@@ -521,7 +523,7 @@ void _expectInFirstRow(
   expect(rect.bottom, greaterThan(viewport.top + 1), reason: reason);
   expect(rect.top, lessThan(viewport.top + rect.height), reason: reason);
   if (atTop) {
-    expect(rect.top - viewport.top, closeTo(0, 1), reason: reason);
+    expect(rect.top - viewport.top, closeTo(top, 1), reason: reason);
   }
 }
 
@@ -751,6 +753,18 @@ void main() {
         await _settle(tester, 4);
         final before = _firstVisibleCard(tester, card);
         expect(before, isNotNull);
+        // Where it sits now: an artist right under a letter header keeps that
+        // distance, a card cut off by the top edge moves to it.
+        final rawTop =
+            tester
+                .getTopLeft(
+                  find.byWidgetPredicate(
+                    (w) => w.runtimeType == card && w.key == before,
+                  ),
+                )
+                .dy -
+            _pageViewportRect(tester).top;
+        final topBefore = rawTop < 0 ? 0.0 : rawTop;
 
         await _resize(tester, _duoPortrait);
         expect(tester.takeException(), isNull);
@@ -760,6 +774,7 @@ void main() {
           before,
           reason: '$name, unfolded',
           atTop: true,
+          top: topBefore,
         );
 
         await _resize(tester, _duoFolded);
@@ -769,7 +784,34 @@ void main() {
           before,
           reason: '$name, folded again',
           atTop: true,
+          top: topBefore,
         );
+      });
+    }
+  });
+
+  group('I33 grids at the top stay at the top across a fold', () {
+    for (final (name, section) in <(String, String)>[
+      ('albums', 'albums'),
+      ('artists', 'artists'),
+    ]) {
+      _testApp('$name grid at the top keeps its header visible', (
+        tester,
+      ) async {
+        final container = await _pumpApp(tester, _duoFolded);
+        await container
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .updateArtistViewMode('grid');
+        await _go(tester, AppRoutes.librarySection(section));
+        expect(_pageScrollable(tester).position.pixels, 0);
+
+        await _resize(tester, _duoPortrait);
+        expect(tester.takeException(), isNull);
+        expect(_pageScrollable(tester).position.pixels, 0, reason: 'unfolded');
+
+        await _resize(tester, _duoFolded);
+        expect(_pageScrollable(tester).position.pixels, 0, reason: 'folded');
       });
     }
   });
@@ -1886,9 +1928,21 @@ void main() {
 
         await _resize(tester, landscape);
         expect(tester.takeException(), isNull);
-        _expectInFirstRow(tester, AlbumCard, before, reason: 'landscape');
+        _expectInFirstRow(
+          tester,
+          AlbumCard,
+          before,
+          reason: 'landscape',
+          atTop: true,
+        );
         await _resize(tester, portrait);
-        _expectInFirstRow(tester, AlbumCard, before, reason: 'portrait');
+        _expectInFirstRow(
+          tester,
+          AlbumCard,
+          before,
+          reason: 'portrait',
+          atTop: true,
+        );
       });
     }
   });
@@ -2297,7 +2351,13 @@ void main() {
           await _resize(tester, viewport);
           expect(tester.takeException(), isNull, reason: '$viewport');
           expect(location(tester), path, reason: '$viewport');
-          _expectInFirstRow(tester, AlbumCard, before, reason: '$viewport');
+          _expectInFirstRow(
+            tester,
+            AlbumCard,
+            before,
+            reason: '$viewport',
+            atTop: true,
+          );
           final stack = container.read(playerOverlayStackProvider);
           expect(stack.isNotEmpty, withPlayer, reason: '$viewport');
           if (viewport == _duoPortrait) {

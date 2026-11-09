@@ -281,6 +281,67 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('at top, a resize keeps the header visible (pixels stay 0)', (
+      tester,
+    ) async {
+      final controller = await pumpGrids(
+        tester,
+        size: const Size(1040, 800),
+        sections: [240],
+      );
+      expect(controller.offset, 0);
+
+      tester.view.physicalSize = const Size(2000, 800);
+      await tester.pumpAndSettle();
+      expect(controller.offset, 0);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('header0'))).dy,
+        closeTo(viewportTop(tester), 0.5),
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a half-hidden header keeps its offset across a resize', (
+      tester,
+    ) async {
+      final controller = await pumpGrids(
+        tester,
+        size: const Size(1040, 800),
+        sections: [240],
+      );
+      controller.jumpTo(25);
+      await tester.pumpAndSettle();
+
+      tester.view.physicalSize = const Size(2000, 800);
+      await tester.pumpAndSettle();
+      expect(controller.offset, closeTo(25, 0.5));
+    });
+
+    testWidgets('a resize while the user scrolls does not jump the view', (
+      tester,
+    ) async {
+      final controller = await pumpGrids(
+        tester,
+        size: const Size(1040, 800),
+        sections: [240],
+      );
+      final (columns, stride) = geometry(1040);
+      controller.jumpTo(60 + (40 ~/ columns) * stride);
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.startGesture(const Offset(300, 400));
+      await gesture.moveBy(const Offset(0, -37));
+      await tester.pump();
+      final dragged = controller.offset;
+      tester.view.physicalSize = const Size(2000, 800);
+      await tester.pump();
+      await tester.pump();
+      expect(controller.offset, dragged);
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('two sections with the edge on the second header keep that '
         "header's first item", (tester) async {
       final controller = await pumpGrids(

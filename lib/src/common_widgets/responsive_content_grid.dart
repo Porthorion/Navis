@@ -42,6 +42,9 @@ class GridScrollAnchor {
   int _index = 0;
   double _stride = 0;
   double _ownerStart = 0;
+  // How far the viewport top sits above the owner's first row (0 or negative):
+  // a half-hidden header stays as it was instead of jumping to the grid top.
+  double _lead = 0;
   int _columns = 1;
   int _itemCount = 0;
   bool _jumpPending = false;
@@ -97,8 +100,14 @@ class GridScrollAnchor {
         if (position == null || !position.hasPixels) {
           return;
         }
+        if (position.isScrollingNotifier.value) {
+          // The reader is scrolling (drag, fling, rail tap): a jump would cancel
+          // it. Track from where they end up instead.
+          _owner = null;
+          return;
+        }
         final row = math.min(_index, _itemCount - 1) ~/ _columns;
-        final target = (_ownerStart + row * _stride).clamp(
+        final target = (_ownerStart + row * _stride + _lead).clamp(
           position.minScrollExtent,
           position.maxScrollExtent,
         );
@@ -130,6 +139,11 @@ class GridScrollAnchor {
       if (!mine || row != _index ~/ columns) {
         _index = math.min(row * columns, itemCount - 1);
       }
+      final position = Scrollable.maybeOf(context)?.position;
+      final above = position != null && position.hasPixels
+          ? position.pixels - start
+          : 0.0;
+      _lead = constraints.scrollOffset > 0 || above > 0 ? 0 : above;
       _owner = id;
       _ownerStart = start;
       _columns = columns;
