@@ -341,10 +341,10 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
-        'Large text sizes: Now Playing, the mini player and Settings stay '
-        'usable at the largest accessibility size, with bigger buttons and '
-        'dropdowns that no longer overflow; the Appearance blinking icon stops '
-        'with Reduce Motion',
+        'Now Playing, the mini player and Settings stay usable at the largest '
+        'accessibility text size, with bigger buttons and dropdowns that no '
+        'longer overflow; the Appearance blinking icon stops with Reduce '
+        'Motion',
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
