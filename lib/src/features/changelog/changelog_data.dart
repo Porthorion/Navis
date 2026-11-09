@@ -130,6 +130,11 @@ const List<ChangelogVersion> changelogs = [
     version: '1.5.2',
     entries: [
       ChangelogEntry(
+        'Android: no more click at the start of a song after a boosted Opus '
+        'song',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Foldables and tablets: the artist letter bar follows your scroll in '
         'the grid, Library keeps your place when the screen folds, unfolds or '
         'rotates, and Now Playing next to the rail fits its controls on '

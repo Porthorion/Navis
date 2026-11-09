@@ -2,7 +2,7 @@
 
 Tracks completion of all phases and sub-tasks defined in [docs/project/development-plan.md](development-plan.md). Checkboxes are updated as work is completed.
 
-Last updated: 2026-11-08
+Last updated: 2026-11-09
 
 ---
 
@@ -14,6 +14,7 @@ Last updated: 2026-11-08
 - ACP status values: `backlog`, `ready`, `in_progress`, `blocked`, `done`.
 
 ## Current Focus
+- [x] Issue #392 (1.5.2), Android ReplayGain boost no longer leaks into the next song's first opus buffer: Media3 applies a stream change after handing the crossing buffer to the sink, and for opus that buffer is the new song's first, so `NavisAudioRenderer.processOutputBuffer` now tells `NavisEqualizerProcessor.outputBuffer` first (threshold = the last queued input, kept in `onQueueInputBuffer`/`resetCodecStateForFlush`), the processor switches the pending key for the flush that follows, and `onPositionReset`/`onDisabled` drop the announced streams; A1 gains unconditional `gapless-mp3` and `gapless-m4a` phases and the analyzer exempts L's own mid-song gapless clamps — 2026-11-09 (branch `fix/392-opus-join`; evidence: JustAudioReplayGainBoostTest `anOpusJoinSwitchesBeforeTheNewStreamsFirstBuffer` and friends, `replaygain_boost_analyze_test.py`; emulator A1 rerun pending)
 - [x] Playback settings apply after the settings stream updates (1.5.2), crossfade off kept crossfading — 2026-11-07, backported to release/1.5 for #407 2026-11-09 (branch `fix/runtime-settings-apply`; evidence: `flutter test test/src/providers/app_providers_test.dart`, group 'audio handler runtime settings'; failing first: `Expected: [false] Actual: []`)
 - [x] Item I27 (1.5.2, #410), foldable and tablet layout fixes: artist letter tracking no longer throws (section key on the box child), Library lists keep their offset across layout class changes (`PageStorageKey`s on the plain scroll views; the artists and years positioned lists restore by first visible index), Now Playing beside the rail takes its cover size from `NowPlayingPhoneLayout.compute` so controls fit a 633x669 pane, album hero capped at 45% of the height off phones, right system strip cleared by the artist/year/genre rails, mini player buttons and the Playlists and Radio buttons (`rightSystemInsetFor`) — 2026-11-09 (branch `fix/i27-foldables`; evidence: `test/src/routing/foldable_layouts_test.dart`, 33 tests, and the desktop cover pins in `now_playing_screen_adaptive_test.dart`; the golden and desktop-player failures in the touched files are identical on the unchanged release/1.5). Runtime checks still to do: iPhone Duo simulator folded and unfolded, Pixel Fold emulator (hinge)
 - [x] Haptics covers download notifications (1.5.2): `HapticCategory.notifications` (bit 64, Settings › Haptics › Notifications) picks the vibration-free `downloads_quiet` channel for download progress/complete/failed via `DownloadNotifier.channelId`; tests `haptics_prefs_test.dart`, `download_notifier_test.dart`; `./tool/check.sh` green — 2026-11-08

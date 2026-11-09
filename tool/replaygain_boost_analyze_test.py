@@ -53,6 +53,14 @@ def main():
     assert unexpected(stream), 'without a duration nothing is exempt'
     # L mid-song with L around it: reported, not failed.
     assert not unexpected(rows(25500)), 'a mid-song L clamp is exempt'
+    # Gapless phases: L's own song is exempt mid-song, its join and tail are not, H never is.
+    assert not unexpected(rows(25500, song='rgl-mp3', phase='gapless-mp3')), 'a mid-song gapless L clamp is exempt'
+    assert not unexpected(rows(25500, song='rgl-m4a', phase='gapless-m4a')), 'a mid-song gapless L clamp is exempt'
+    assert unexpected(rows(29900, song='rgl-mp3', phase='gapless-mp3')), 'an L-labelled join clamp in a gapless phase must fail'
+    assert unexpected(rows(1200, song='rgl-m4a', phase='gapless-m4a')), 'the first 1.5 s of gapless L are not mid-song'
+    assert unexpected(rows(25500, song='rgh-mp3', phase='gapless-mp3')), 'a gapless H clamp must fail'
+    assert unexpected(rows(25500, song='rgl-mp3', phase='joins')), 'gapless L outside a gapless phase must fail'
+    assert unexpected(rows(25500, song='rgl-mp3', phase='lossy-mp3')), 'only rgl-1 is L in a lossy phase'
     # Not in a lossy phase, or not L: always a failure.
     assert unexpected(rows(25500, phase='joins')), 'a lossless clamp must fail'
     assert unexpected(rows(25500, song='rgh-1')), 'a clamp on H must fail'

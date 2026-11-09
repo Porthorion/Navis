@@ -251,15 +251,17 @@ def a1(root):
               + (' (mid-song L, exempt)' if (phase_name, song) not in unexpected else ''))
     if not clamped:
         print('INFO A1 clamped samples: none in any phase')
-    check('A1 no clamped sample except L mid-song in a lossy phase (the L to H join included)', not unexpected,
+    check('A1 no clamped sample except L mid-song in a lossy or gapless phase (the L to H join included)', not unexpected,
           f'unexpected={unexpected}')
-    for codec in ('opus', 'mp3'):
-        rs = phase(f'lossy-{codec}')
-        lossy = [r for r in mid(rs, 4000, 25000) if r['songId'] == 'rgl-1']
-        check(f'A1 lossy {codec}: L is boosted ~7 dB', len(lossy) > 20
-              and 6.5 <= float(np.median([r['boost']['appliedDb'] for r in lossy])) <= 7.5,
-              f'n={len(lossy)} median={float(np.median([r["boost"]["appliedDb"] for r in lossy])) if lossy else None}')
-
+    for name, l_id, h_id in (('lossy-opus', 'rgl-1', 'rgh-1'), ('lossy-mp3', 'rgl-1', 'rgh-1'),
+                             ('gapless-mp3', 'rgl-mp3', 'rgh-mp3'), ('gapless-m4a', 'rgl-m4a', 'rgh-m4a')):
+        rs = phase(name)
+        l = [r['boost']['appliedDb'] for r in mid(rs, 4000, 25000) if r['songId'] == l_id]
+        check(f'A1 {name}: L is boosted ~7 dB', len(l) > 20 and 6.5 <= float(np.median(l)) <= 7.5,
+              f'n={len(l)} median={float(np.median(l)) if l else None}')
+        h = [r['boost']['appliedDb'] for r in mid(rs, 0, 4000) if r['songId'] == h_id]
+        check(f'A1 {name}: H plays unboosted (-3 dB) from its first samples', len(h) > 10
+              and all(-3.3 <= v <= -2.7 for v in h), f'n={len(h)} range={(min(h), max(h)) if h else None}')
 
     # A2: switches and queue edits around a boosted Q. The processor's applied gain may not exceed the
     # playing song's own (decision.db), whichever command moved the index.
