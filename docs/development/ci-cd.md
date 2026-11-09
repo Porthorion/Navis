@@ -11,6 +11,8 @@ Releases are built and published locally with `tool/release.sh`; `tool/check.sh`
   15-minute deadline and requires no emulator or secrets.
 - `ci`: waits for all three and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
 
+The `static`, `test` and `native` jobs cache `.dart_tool/hooks_runner/shared/sqlite3/build`, (one entry per job, keyed on `pubspec.lock`). With a warm cache the `sqlite3` package's build hook reuses its prebuilt library after checking its hash, so a GitHub release-download outage does not fail the job; a cold cache (new key) still downloads.
+
 Windows media-session changes additionally require the Windows-only isolated
 GMTC validation command described in `docs/development/development-workflow.md`:
 `tool/windows_smtc_diagnostics.ps1`. It runs after Linux smoke and focused
