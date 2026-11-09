@@ -275,13 +275,13 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
-        'Search results from Deezer that you already own are now matched to '
-        'the song in your library, even when Deezer has it as a single and '
-        'you have it on an album: Search lists it once and shows your own '
-        'file’s quality. Songs that are only on Deezer can’t be liked, '
-        'because they aren’t on your server, so their heart is greyed out; '
-        'anything you liked on a Deezer copy before moves to your library '
-        'copy',
+        'A song from Deezer that you already own now links to the song in '
+        'your library once you play, queue or like it, even when Deezer has '
+        'it as a single and you have it on an album: Search lists it once and '
+        'shows your own file’s quality. Songs that are only on Deezer can’t '
+        'be liked, because they aren’t on your server, so their heart is '
+        'greyed out; anything you liked on a Deezer copy before moves to your '
+        'library copy',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -371,7 +371,8 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Screen readers such as Narrator no longer freeze on Navis',
+        'Narrator and other screen readers no longer stop following the app '
+        'after you open a page with a slider',
         platforms: {ChangelogPlatform.windows},
         type: ChangelogEntryType.fix,
       ),
