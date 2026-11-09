@@ -42,6 +42,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/routing/app_shell.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
+import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/connectivity.dart';
 
@@ -1065,20 +1066,45 @@ void main() {
       );
     });
 
+    // Folding to the cover mounts the pill, unfolding the bar: neither may
+    // flash over an open player for the first frame.
     _testApp('mounting the sheet already open hides the bar on frame one', (
       tester,
     ) async {
       final container = await _pumpApp(tester, _duoLandscape);
       await _openNowPlaying(tester, container);
-      // Fold: exactly one frame builds the bottom-navigation shell.
-      _setView(tester, _duoFolded);
+      // Unfold to portrait: exactly one frame builds the bottom-bar shell.
+      _setView(tester, _duoPortrait);
       await tester.pump();
 
       expect(tester.takeException(), isNull);
       expect(
         tester.getRect(find.byType(NavigationBar)).top,
-        greaterThanOrEqualTo(678),
+        greaterThanOrEqualTo(951),
         reason: 'the bar must not flash over the open player',
+      );
+    });
+
+    _testApp('mounting the sheet already open hides the pill on frame one', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _duoLandscape);
+      await _openNowPlaying(tester, container);
+      // Fold: exactly one frame builds the side-strip shell.
+      _setView(tester, _duoFolded);
+      await tester.pump();
+
+      expect(tester.takeException(), isNull);
+      final tile = find.byKey(const ValueKey<String>('compactRailNavTile-0'));
+      expect(tile.hitTestable(), findsNothing);
+      expect(
+        tester
+            .widget<Opacity>(
+              find.ancestor(of: tile, matching: find.byType(Opacity)).first,
+            )
+            .opacity,
+        0,
+        reason: 'the pill must not flash over the open player',
       );
     });
 
@@ -1694,6 +1720,309 @@ void main() {
         expect(_pageScrollable(tester).position.pixels, closeTo(250, 1));
         await _resize(tester, portrait);
         expect(_pageScrollable(tester).position.pixels, closeTo(250, 1));
+      });
+    }
+  });
+
+  group('I29 navigation pill in the side status strip', () {
+    const stripLeft = 466.0 - 84;
+    const duoLeftStrip = (
+      size: Size(466, 678),
+      padding: EdgeInsets.fromLTRB(84, 0, 0, 34),
+    );
+
+    Finder tile(int i) => find.byKey(ValueKey<String>('compactRailNavTile-$i'));
+
+    String location(WidgetTester tester) =>
+        GoRouter.of(tester.element(find.byType(Scaffold).first))
+            .routeInformationProvider
+            .value
+            .uri
+            .toString();
+
+    Rect pageRect(WidgetTester tester) => tester.getRect(
+      find.byElementPredicate((e) => e == _pageScrollable(tester).context),
+    );
+
+    _testApp('the pill replaces the bottom bar inside the strip', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoFolded);
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(NavigationBar), findsNothing);
+      for (var i = 0; i < 4; i++) {
+        expect(tile(i), findsOne);
+        final rect = tester.getRect(tile(i));
+        expect(rect.left, greaterThanOrEqualTo(stripLeft), reason: '$i $rect');
+        expect(rect.right, lessThanOrEqualTo(466), reason: '$i $rect');
+        expect(rect.top, greaterThanOrEqualTo(168), reason: '$i $rect');
+        expect(rect.height, greaterThanOrEqualTo(44), reason: '$i $rect');
+        expect(rect.width, greaterThanOrEqualTo(44), reason: '$i $rect');
+      }
+    });
+
+    _testApp('at the smallest strip (48 dp) the tiles are still 44 dp', (
+      tester,
+    ) async {
+      await _pumpApp(tester, (
+        size: const Size(466, 678),
+        padding: const EdgeInsets.fromLTRB(0, 0, 48, 34),
+      ));
+
+      expect(find.byType(NavigationBar), findsNothing);
+      for (var i = 0; i < 4; i++) {
+        final rect = tester.getRect(tile(i));
+        expect(rect.width, greaterThanOrEqualTo(44), reason: '$i $rect');
+        expect(rect.height, greaterThanOrEqualTo(44), reason: '$i $rect');
+        expect(rect.right, lessThanOrEqualTo(466), reason: '$i $rect');
+      }
+    });
+
+    _testApp('tapping each tile switches the tab; Home re-tap scrolls up', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoFolded);
+      expect(location(tester), AppRoutes.home);
+
+      for (final (i, expected) in <(int, String)>[
+        (1, AppRoutes.library),
+        (2, AppRoutes.search),
+        (3, AppRoutes.settings),
+        (0, AppRoutes.home),
+      ]) {
+        await tester.tap(tile(i));
+        await _settle(tester, 15);
+        expect(location(tester), startsWith(expected), reason: 'tile $i');
+      }
+
+      final position = _pageScrollable(tester).position;
+      expect(position.maxScrollExtent, greaterThan(100));
+      position.jumpTo(100);
+      await _settle(tester, 2);
+      await tester.tap(tile(0));
+      await _settle(tester, 8);
+      expect(_pageScrollable(tester).position.pixels, 0);
+    });
+
+    _testApp('geometry: the page and the sheet stop above the home indicator', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoFolded);
+
+      expect(tester.getRect(_miniPlayerStrip()).bottom, 678 - 34);
+      expect(pageRect(tester).bottom, lessThanOrEqualTo(678 - 34 - 64));
+    });
+
+    _testApp('geometry without playback: the page runs to the inset', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoFolded, playback: null);
+
+      expect(find.byIcon(Icons.skip_next_rounded), findsNothing);
+      expect(pageRect(tester).bottom, 678 - 34);
+    });
+
+    _testApp('Now Playing hides the pill and it returns on collapse', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _duoFolded);
+      expect(tile(0).hitTestable(), findsOne);
+
+      await _openNowPlaying(tester, container);
+      expect(tester.takeException(), isNull);
+      expect(tile(0).hitTestable(), findsNothing);
+
+      container.read(playerOverlayStackProvider.notifier).collapse();
+      await _settle(tester, 20);
+      expect(tile(0).hitTestable(), findsOne);
+    });
+
+    _testApp('the queue overlay covers the pill', (tester) async {
+      final container = await _pumpApp(tester, _duoFolded);
+
+      container.read(playerOverlayStackProvider.notifier).showQueue();
+      await _settle(tester, 20);
+      expect(tester.takeException(), isNull);
+      expect(tile(0).hitTestable(), findsNothing);
+    });
+
+    _testApp('the alphabet rail keeps its gap left of the strip', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoFolded);
+      await _go(tester, AppRoutes.librarySection('artists'));
+
+      final rail = tester.getRect(find.byKey(const Key('artistAlphabetRail')));
+      expect(rail.right, stripLeft - 12);
+    });
+
+    _testApp('a left strip puts the pill on the left', (tester) async {
+      await _pumpApp(tester, duoLeftStrip);
+
+      expect(find.byType(NavigationBar), findsNothing);
+      for (var i = 0; i < 4; i++) {
+        final rect = tester.getRect(tile(i));
+        expect(rect.left, greaterThanOrEqualTo(0), reason: '$i $rect');
+        expect(rect.right, lessThanOrEqualTo(84), reason: '$i $rect');
+      }
+    });
+
+    // The full app only has an English locale: the shell's own side choice
+    // (sideStripOf) is placed in a right-to-left stack, for both strips.
+    for (final (name, insets, expectedLeft) in <(String, EdgeInsets, double)>[
+      ('right strip', const EdgeInsets.fromLTRB(0, 0, 84, 34), 466 - 84),
+      ('left strip', const EdgeInsets.fromLTRB(84, 0, 0, 34), 0),
+    ]) {
+      _testApp('right to left: the strip is hardware, $name', (tester) async {
+        AdaptiveContext? resolved;
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.rtl,
+            child: MediaQuery(
+              data: MediaQueryData(
+                size: const Size(466, 678),
+                padding: insets,
+                viewPadding: insets,
+              ),
+              child: Builder(
+                builder: (context) {
+                  resolved = resolveAdaptiveContextFor(
+                    context,
+                    desktopRuntimeOverride: false,
+                  );
+                  final (:onRight, :inset) = sideStripOf(
+                    MediaQuery.viewPaddingOf(context),
+                  );
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: SizedBox(
+                      width: 466,
+                      height: 678,
+                      child: Stack(
+                        children: <Widget>[
+                          Positioned(
+                            top: 168,
+                            left: onRight ? null : 0,
+                            right: onRight ? 0 : null,
+                            width: inset,
+                            child: const SizedBox(
+                              key: Key('pill'),
+                              height: 216,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+
+        expect(resolved!.adaptiveShellMode, AdaptiveShellMode.sideStripNav);
+        expect(
+          tester.getRect(find.byKey(const Key('pill'))).left,
+          expectedLeft,
+        );
+      });
+    }
+
+    // Only the bottom inset differs between padding and viewPadding, and a
+    // zero bottom can only make the strip fit, so the boundary is probed from
+    // the bar side: 490 - 34 = 456 < 464 keeps the bar, 490 would fit.
+    for (final (name, height, pill) in <(String, double, bool)>[
+      ('keeps the bar just below the fit', 490, false),
+      ('keeps the pill just at the fit', 498, true),
+    ]) {
+      _testApp('the keyboard $name (viewPadding decides)', (tester) async {
+        await _pumpApp(tester, (
+          size: Size(466, height),
+          padding: const EdgeInsets.fromLTRB(0, 0, 84, 34),
+        ));
+        await _go(tester, AppRoutes.search);
+        expect(tile(0).evaluate().length, pill ? 1 : 0);
+
+        // The keyboard zeroes padding.bottom; viewPadding stays (r84, b34).
+        tester.view.padding = const FakeViewPadding(right: 84 * 3);
+        tester.view.viewPadding = const FakeViewPadding(
+          right: 84 * 3,
+          bottom: 34 * 3,
+        );
+        tester.view.viewInsets = const FakeViewPadding(bottom: 250 * 3);
+        addTearDown(tester.view.resetViewInsets);
+        await tester.pump();
+        await _settle(tester, 10);
+
+        expect(tester.takeException(), isNull);
+        expect(tile(0).evaluate().length, pill ? 1 : 0);
+        expect(find.byType(NavigationBar).evaluate().length, pill ? 0 : 1);
+      });
+    }
+
+    for (final withPlayer in <bool>[false, true]) {
+      _testApp('fold and unfold keep tab and scroll, Now Playing '
+          '${withPlayer ? 'open' : 'closed'}', (tester) async {
+        final container = await _pumpApp(tester, _duoFolded);
+        await container
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .updateArtistViewMode('grid');
+        await _go(tester, AppRoutes.librarySection('albums'));
+        final position = _pageScrollable(tester).position;
+        expect(position.maxScrollExtent, greaterThan(300));
+        position.jumpTo(250);
+        await _settle(tester, 4);
+        final path = location(tester);
+        if (withPlayer) {
+          await _openNowPlaying(tester, container);
+        }
+
+        for (final viewport in <_Viewport>[
+          _duoPortrait,
+          _duoLandscapeStrip,
+          _duoFolded,
+        ]) {
+          await _resize(tester, viewport);
+          expect(tester.takeException(), isNull, reason: '$viewport');
+          expect(location(tester), path, reason: '$viewport');
+          expect(_pageScrollable(tester).position.pixels, closeTo(250, 1));
+          final stack = container.read(playerOverlayStackProvider);
+          expect(stack.isNotEmpty, withPlayer, reason: '$viewport');
+          if (viewport == _duoPortrait) {
+            // The bottom bar appears unfolded, hidden under an open player.
+            expect(find.byType(NavigationBar), findsOne);
+            expect(
+              find.byType(NavigationBar).hitTestable(),
+              withPlayer ? findsNothing : findsOne,
+            );
+          }
+        }
+      });
+    }
+
+    for (final (name, viewport) in <(String, _Viewport)>[
+      ('phone', _phone),
+      ('phone landscape', _phoneLandscape),
+      ('iPad split narrow', _ipadSplitNarrow),
+    ]) {
+      _testApp('guard: $name keeps its own navigation', (tester) async {
+        await _pumpApp(tester, viewport);
+
+        expect(
+          find.byType(NavigationBar).evaluate().length +
+              find
+                  .byKey(const ValueKey<String>('compactRailNavTile-0'))
+                  .evaluate()
+                  .length,
+          1,
+          reason: name,
+        );
+        // The pill starts below the status reserve only in the side strip.
+        if (viewport == _phone || viewport == _ipadSplitNarrow) {
+          expect(find.byType(NavigationBar), findsOne);
+        }
       });
     }
   });

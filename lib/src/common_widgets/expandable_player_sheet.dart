@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/src/common_widgets/navis_haptics.dart';
+import 'package:navis/src/routing/desktop_layout.dart' show kMiniPlayerHeight;
 import 'package:navis/src/theme/motion_policy.dart';
 import 'package:navis/src/features/settings/domain/haptics_prefs.dart';
 
@@ -57,7 +58,7 @@ class ExpandablePlayerSheet extends StatefulWidget {
   /// the sheet is allowed to cover when expanded.
   final double bottomInset;
 
-  static const miniPlayerHeight = 64.0;
+  static const miniPlayerHeight = kMiniPlayerHeight;
 
   /// Share of the travel over which the mini player rides the panel edge and
   /// fades. The shell eases the bottom navigation bar over the same range.

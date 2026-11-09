@@ -59,7 +59,16 @@ bool supportsMiniPlayer(Size viewportSize) {
 enum AdaptiveLayoutClass { phoneCompact, tabletMedium, tabletExpanded }
 
 /// Shell composition buckets for non-desktop adaptive UI.
-enum AdaptiveShellMode { phoneBottomNav, standardRail, compactWideLandscape }
+///
+/// [sideStripNav] is the bottom-navigation shell with the bar moved into a
+/// wide side system strip (the folded iPhone Duo cover), see
+/// [resolveAdaptiveShellMode].
+enum AdaptiveShellMode {
+  phoneBottomNav,
+  standardRail,
+  compactWideLandscape,
+  sideStripNav,
+}
 
 /// Shared adaptive context resolved once and consumed by shell composition.
 class AdaptiveContext {
@@ -276,6 +285,32 @@ AdaptiveLayoutClass resolveAdaptiveLayoutClass(double width) {
   return AdaptiveLayoutClass.phoneCompact;
 }
 
+/// Smallest side system inset that hosts the navigation pill: a 44 pt tap
+/// target plus 2 pt each side. Ordinary portrait phones have none.
+const double kSideStripMinInset = 48;
+
+/// Top of the side strip kept clear for the status icons (camera, clock, wifi
+/// end at about 151 pt on the Duo cover); the pill starts below it. Step 0 of
+/// I29 measured that OS-level taps from 160 pt down reach the app.
+const double kSideStripStatusReserve = 168;
+
+/// Height of the collapsed mini player strip on phone shells.
+const double kMiniPlayerHeight = 64;
+
+/// The physical side of a side system strip: the side with the larger inset
+/// (right on a tie), whatever the text direction, since the strip is hardware.
+({bool onRight, double inset}) sideStripOf(EdgeInsets viewPadding) {
+  final onRight = viewPadding.right >= viewPadding.left;
+  return (
+    onRight: onRight,
+    inset: onRight ? viewPadding.right : viewPadding.left,
+  );
+}
+
+/// Height of the navigation pill: four 52 dp tiles and 4 dp padding above
+/// and below, the same icon rail the compact wide shell uses.
+const double kSideStripPillHeight = 4 * 52 + 8;
+
 AdaptiveShellMode resolveAdaptiveShellMode({
   required bool desktopRuntime,
   required Size viewportSize,
@@ -302,7 +337,16 @@ AdaptiveShellMode resolveAdaptiveShellMode({
   }
 
   if (!isLandscape) {
-    return AdaptiveShellMode.phoneBottomNav;
+    // A wide side system strip (the folded Duo cover) hosts the navigation
+    // pill below its status icons, when the pill and a mini player fit the
+    // height. In landscape such an inset is a notch or a nav bar: no pill.
+    final stripInset = sideStripOf(safePadding).inset;
+    final stripFits =
+        height - safePadding.vertical >=
+        kSideStripStatusReserve + kSideStripPillHeight + kMiniPlayerHeight + 16;
+    return stripInset >= kSideStripMinInset && stripFits
+        ? AdaptiveShellMode.sideStripNav
+        : AdaptiveShellMode.phoneBottomNav;
   }
 
   const shellDestinationCount = 4;
