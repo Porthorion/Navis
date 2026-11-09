@@ -133,6 +133,14 @@ void main() {
       (Size(844, 390), EdgeInsets.fromLTRB(47, 0, 47, 21), compact),
       (Size(932, 430), EdgeInsets.fromLTRB(59, 0, 59, 21), compact),
       (Size(900, 420), EdgeInsets.zero, compact),
+      // Boundaries: the rail fits at 480 high, not at 479; 600 wide is the
+      // smallest compact wide window.
+      (Size(700, 479), EdgeInsets.zero, compact),
+      (Size(700, 480), EdgeInsets.zero, bottomNav),
+      (Size(600, 400), EdgeInsets.zero, compact),
+      (Size(599, 400), EdgeInsets.zero, bottomNav),
+      // An 800x480 car head unit with no insets: the rail fits.
+      (Size(800, 480), EdgeInsets.zero, bottomNav),
       // Too narrow for the rail, or the rail fits: bottom navigation.
       (Size(560, 400), EdgeInsets.zero, bottomNav),
       (Size(700, 520), EdgeInsets.zero, bottomNav),
@@ -156,6 +164,17 @@ void main() {
           reason: '$size $padding',
         );
       }
+    });
+
+    test('a desktop runtime always keeps the standard rail', () {
+      expect(
+        resolveAdaptiveShellMode(
+          desktopRuntime: true,
+          viewportSize: const Size(667, 375),
+          safePadding: EdgeInsets.zero,
+        ),
+        rail,
+      );
     });
 
     testWidgets('the keyboard does not flip the mode (viewPadding decides)', (

@@ -168,6 +168,17 @@ const _duoCoverLandscapeTopStrip = (
   size: Size(678, 466),
   padding: EdgeInsets.only(top: 84, bottom: 34),
 );
+// A narrow portrait phone: the Now Playing transport row is 302 dp wide.
+const _phoneNarrowPortrait = (
+  size: Size(350, 740),
+  padding: EdgeInsets.only(top: 47, bottom: 34),
+);
+// On the rail-fit boundary: 500 - 34 - 44 = 422 < 436 with the home indicator,
+// 456 without it (the keyboard drops padding.bottom, not viewPadding.bottom).
+const _phoneBoundary = (
+  size: Size(700, 500),
+  padding: EdgeInsets.only(bottom: 34),
+);
 // iPad landscape with the rail: the Now Playing pane is 706 and 862 wide.
 const _ipadLandscape = (
   size: Size(1024, 768),
@@ -1498,6 +1509,40 @@ void main() {
       });
     }
 
+    _testApp('the keyboard keeps the compact rail on the mode boundary', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _phoneBoundary);
+      expect(
+        find.byKey(const ValueKey<String>('compactRailNavTile-0')),
+        findsOne,
+      );
+
+      // The keyboard zeroes padding.bottom; viewPadding.bottom stays 34.
+      tester.view.padding = FakeViewPadding.zero;
+      tester.view.viewInsets = const FakeViewPadding(bottom: 200 * 3);
+      addTearDown(tester.view.resetViewInsets);
+      await tester.pump();
+      await _settle(tester, 10);
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const ValueKey<String>('compactRailNavTile-0')),
+        findsOne,
+      );
+      expect(find.byType(NavigationBar), findsNothing);
+    });
+
+    _testApp('narrow portrait Now Playing transport fits (350x740)', (
+      tester,
+    ) async {
+      final container = await _pumpApp(tester, _phoneNarrowPortrait);
+      await _openNowPlaying(tester, container);
+
+      expect(tester.takeException(), isNull);
+      _expectNowPlayingControlsFit(tester, _phoneNarrowPortrait);
+    });
+
     for (final (name, viewport, scale) in <(String, _Viewport, double)>[
       ('844x390', _phoneLandscape, 1),
       ('932x430', _phoneLandscapeLarge, 1),
@@ -1612,7 +1657,14 @@ void main() {
           for (final viewport in <_Viewport>[landscape, portrait, landscape]) {
             await _resize(tester, viewport);
             expect(tester.takeException(), isNull, reason: '$viewport');
-            expect(container.read(playerOverlayStackProvider).isNotEmpty, true);
+            final stack = container.read(playerOverlayStackProvider);
+            expect(stack.isNotEmpty, true);
+            if (viewport == landscape) {
+              // Compact wide offers the queue as an in-pane panel instead.
+              expect(stack, <PlayerOverlayRoute>[
+                PlayerOverlayRoute.nowPlaying,
+              ]);
+            }
             expect(
               GoRouter.of(tester.element(find.byType(Scaffold).first))
                   .routeInformationProvider

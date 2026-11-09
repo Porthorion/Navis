@@ -4897,7 +4897,9 @@ not 1× and tints its icon for pitch-only changes. Both quick buttons share
 `quickActionGlyphSlot`, so the transport row is symmetric and Play stays exactly
 centred; backends without EQ keep an invisible same-size slot. Compact rows
 narrower than 360 logical pixels switch to dense slots with no gaps, drop the
-quick buttons only below 296 (440 non-compact), and yield to the desktop volume
+quick buttons only below 312 (440 non-compact; the compact row needs 312 with
+both, so portrait phones 344–359 dp wide, whose row is the width minus 48, no
+longer overflow with them shown), and yield to the desktop volume
 slider; the desktop bar drops EQ first below its compact breakpoint.
 The transport is symmetric around Play on every platform: Equalizer, Instant
 Mix (or Same Vibes, via `togglePreferredMixMode`), Previous | Play | Next,

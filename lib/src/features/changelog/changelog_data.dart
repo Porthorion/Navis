@@ -295,11 +295,12 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
-        'Phones held sideways use the compact side rail from 600 px wide up, '
-        'so a small iPhone, a folded Pixel Fold or the rotated iPhone Duo '
-        'cover screen keep more of the page; Now Playing in that layout hides '
-        'the format pills on short screens and the player bar stays above the '
-        'system strip',
+        'Short landscape phone screens at least 600 px wide use the compact '
+        'side rail, so a small iPhone, a folded Pixel Fold or the rotated '
+        'iPhone Duo cover screen keep more of the page; Now Playing there '
+        'hides the format pills on short screens, the player bar stays above '
+        'the system strip, and the player controls no longer overflow on '
+        'narrow portrait phones',
         platforms: {ChangelogPlatform.android, ChangelogPlatform.ios},
         type: ChangelogEntryType.improvement,
       ),
