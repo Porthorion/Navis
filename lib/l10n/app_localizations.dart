@@ -7041,6 +7041,18 @@ abstract class AppLocalizations {
   /// **'Show Fewer Fixes'**
   String get changelogShowFewerFixes;
 
+  /// No description provided for @changelogOtherPlatforms.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 change for other platforms} other{{count} changes for other platforms}}'**
+  String changelogOtherPlatforms(int count);
+
+  /// No description provided for @changelogHideOtherPlatforms.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide changes for other platforms'**
+  String get changelogHideOtherPlatforms;
+
   /// No description provided for @changelogEarlierReleases.
   ///
   /// In en, this message translates to:

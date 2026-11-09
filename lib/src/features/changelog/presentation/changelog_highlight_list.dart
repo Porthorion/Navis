@@ -1,22 +1,27 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/src/common_widgets/navis_section_header.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
+import 'package:navis/src/features/changelog/changelog_provider.dart';
 import 'package:navis/src/features/changelog/presentation/changelog_style.dart';
 import 'package:navis/src/theme/navis_tokens.dart';
 
 /// A major release's highlights as plain rows, like a track list: a narrow
 /// icon column, then the title and one line. [columns] lays the same rows
 /// out side by side on wide screens.
-class ChangelogHighlightList extends StatelessWidget {
+class ChangelogHighlightList extends ConsumerWidget {
   const new({required this.version, super.key, this.columns = 1});
 
   final ChangelogVersion version;
   final int columns;
 
   @override
-  Widget build(BuildContext context) {
-    final highlights = effectiveHighlights(version);
+  Widget build(BuildContext context, WidgetRef ref) {
+    final highlights = effectiveHighlights(
+      version,
+      ref.watch(changelogPlatformProvider),
+    );
     if (highlights.isEmpty) {
       return const SizedBox.shrink();
     }

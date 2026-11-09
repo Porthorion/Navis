@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navis/src/utils/semver.dart';
 import 'package:navis/src/features/changelog/changelog_data.dart';
@@ -34,6 +35,22 @@ Future<void> _writeLastSeenVersion(String version) async {
     // Best-effort — ignore write errors.
   }
 }
+
+/// The changelog platform of [platform] (Fuchsia counts as Android).
+ChangelogPlatform changelogPlatformFor(TargetPlatform platform) =>
+    switch (platform) {
+      TargetPlatform.android ||
+      TargetPlatform.fuchsia => ChangelogPlatform.android,
+      TargetPlatform.iOS => ChangelogPlatform.ios,
+      TargetPlatform.macOS => ChangelogPlatform.macos,
+      TargetPlatform.windows => ChangelogPlatform.windows,
+      TargetPlatform.linux => ChangelogPlatform.linux,
+    };
+
+/// The platform the app runs on; tests override it.
+final changelogPlatformProvider = Provider<ChangelogPlatform>(
+  (ref) => changelogPlatformFor(defaultTargetPlatform),
+);
 
 /// What the Home "What's New" card shows after an update.
 class ChangelogDiscovery {

@@ -4495,6 +4495,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get changelogShowFewerFixes => 'Show Fewer Fixes';
 
   @override
+  String changelogOtherPlatforms(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count changes for other platforms',
+      one: '1 change for other platforms',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get changelogHideOtherPlatforms => 'Hide changes for other platforms';
+
+  @override
   String get changelogEarlierReleases => 'Earlier Releases';
 
   @override

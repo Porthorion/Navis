@@ -55,15 +55,23 @@ IconData highlightIcon(ChangelogHighlightIcon icon) {
 }
 
 /// Curated highlights, or up to three new-feature entries when a release has
-/// none. Fallback titles are full entry texts, so callers must truncate.
-List<ChangelogHighlight> effectiveHighlights(ChangelogVersion version) {
+/// none (only those relevant on [platform]). Fallback titles are full entry
+/// texts, so callers must truncate.
+List<ChangelogHighlight> effectiveHighlights(
+  ChangelogVersion version,
+  ChangelogPlatform platform,
+) {
   if (version.highlights.isNotEmpty) {
     return version.highlights;
   }
   return <ChangelogHighlight>[
     for (final entry
         in version.entries
-            .where((entry) => entry.type == ChangelogEntryType.newFeature)
+            .where(
+              (entry) =>
+                  entry.type == ChangelogEntryType.newFeature &&
+                  entry.appliesTo(platform),
+            )
             .take(3))
       ChangelogHighlight(
         icon: ChangelogHighlightIcon.sparkle,
@@ -91,12 +99,14 @@ String releaseProductName(ChangelogVersion version) =>
 String releaseTitle(ChangelogVersion version) =>
     version.codename ?? releaseProductName(version);
 
-/// "Sep 30, 2026 • 90 changes", the album-style summary line. When
-/// [withProductName] is set and the release has a codename, "Navis 1.4"
-/// leads so the row still says which version it is.
+/// "Sep 30, 2026 • 90 changes", the album-style summary line, counting only
+/// the changes relevant on [platform]. When [withProductName] is set and the
+/// release has a codename, "Navis 1.4" leads so the row still says which
+/// version it is.
 String releaseMeta(
   BuildContext context,
-  ChangelogVersion version, {
+  ChangelogVersion version,
+  ChangelogPlatform platform, {
   bool withProductName = false,
 }) {
   final l10n = AppLocalizations.of(context)!;
@@ -104,6 +114,6 @@ String releaseMeta(
     if (withProductName && version.codename != null)
       releaseProductName(version),
     ?formatReleaseDate(context, version),
-    l10n.changelogChangeCount(version.entries.length),
+    l10n.changelogChangeCount(version.countFor(platform)),
   ].join(' • ');
 }
