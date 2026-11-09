@@ -2639,11 +2639,21 @@ the tracks. Phone and tablet layouts ignore the height band.
   whatever the aspect ratio
 - **Phones in landscape, ≥ 840 dp wide** → standard rail when the rail fits the
   height, otherwise the compact icon rail (compact-wide)
+- **Phones in landscape, 600–839 dp wide** → the compact icon rail when the
+  rail does not fit the height (`height - safe.vertical < 480`), otherwise the
+  bottom navigation bar; below 600 dp wide always the bottom bar
 - **All other cases** → bottom navigation bar
 
 Only short viewports get compact-wide; a 16:9 tablet, or a car display of the
 same size, uses the standard rail. The top-inset proxy for car bars that do not
-report a bottom inset applies only to compact-wide.
+report a bottom inset applies only to compact-wide. The shell and
+`resolveAdaptiveContextFor` pass `viewPadding` (not `padding`) to the resolver,
+so an open keyboard, which zeroes the bottom padding, cannot flip the mode.
+In compact-wide the shell pads its pane by the left and right insets, so the
+car Now Playing adds none of its own (the desktop Mini Player, which reuses
+that layout, still does), hides the format pills below 400 dp high, and the
+compact mini player strip grows by the real bottom inset (a home indicator or a
+Duo strip) with its content above it.
 
 Foldable and tablet fixes (I27, 1.5.2): a layout class change (fold, unfold,
 rotation across 600/840 dp) rebuilds the Library page subtree. The plain
@@ -4887,7 +4897,9 @@ not 1× and tints its icon for pitch-only changes. Both quick buttons share
 `quickActionGlyphSlot`, so the transport row is symmetric and Play stays exactly
 centred; backends without EQ keep an invisible same-size slot. Compact rows
 narrower than 360 logical pixels switch to dense slots with no gaps, drop the
-quick buttons only below 296 (440 non-compact), and yield to the desktop volume
+quick buttons only below 312 (440 non-compact; the compact row needs 312 with
+both, so portrait phones 344–359 dp wide, whose row is the width minus 48, no
+longer overflow with them shown), and yield to the desktop volume
 slider; the desktop bar drops EQ first below its compact breakpoint.
 The transport is symmetric around Play on every platform: Equalizer, Instant
 Mix (or Same Vibes, via `togglePreferredMixMode`), Previous | Play | Next,
