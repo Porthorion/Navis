@@ -135,6 +135,14 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Foldables and tablets: pages no longer run under the system strip at '
+        'the right edge of the iPhone Duo, the side rail keeps its normal '
+        'width when unfolded, Library tabs fit or scroll instead of being cut '
+        'off, Top Results in Search are no longer squeezed, and folding the '
+        'screen with Now Playing open no longer throws an error',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Foldables and tablets: the artist letter bar follows your scroll in '
         'the grid, Library keeps your place when the screen folds, unfolds or '
         'rotates, and Now Playing next to the rail fits its controls on '

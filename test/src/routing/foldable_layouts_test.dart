@@ -8,6 +8,7 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:flutter/rendering.dart' show RenderParagraph;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -24,11 +25,16 @@ import 'package:navis/src/features/downloads/data/permanent_download_path_resolv
 import 'package:navis/src/features/home/presentation/home_providers.dart';
 import 'package:navis/src/features/integrations/presentation/integrations_notice_card.dart';
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
+import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
+import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
+import 'package:navis/src/features/search/domain/deezer_search_boost.dart';
+import 'package:navis/src/features/search/presentation/search_controller_provider.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
+import 'package:navis/src/features/player/presentation/now_playing_screen.dart';
 import 'package:navis/src/features/player/presentation/player_sheet_provider.dart';
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
@@ -121,6 +127,12 @@ const _duoPortrait = (
 const _duoLandscape = (
   size: Size(951, 669),
   padding: EdgeInsets.only(bottom: 21),
+);
+// Unfolded landscape with the status strip on the right (I27b): the rail was
+// 270 + 84 wide. The bottom inset is the measured home indicator band.
+const _duoLandscapeStrip = (
+  size: Size(951, 669),
+  padding: EdgeInsets.fromLTRB(0, 0, 84, 34),
 );
 const _phone = (
   size: Size(393, 852),
@@ -340,6 +352,7 @@ Future<ProviderContainer> _pumpApp(
   PlaybackSnapshot? playback = _playing,
   double textScale = 1,
   bool desktopRuntime = false,
+  List<Override> extraOverrides = const <Override>[],
 }) async {
   _setView(tester, viewport);
   tester.platformDispatcher.textScaleFactorTestValue = textScale;
@@ -349,7 +362,10 @@ Future<ProviderContainer> _pumpApp(
   });
   final db = (await tester.runAsync(_seed))!;
   final container = ProviderContainer(
-    overrides: _overrides(db, playback, desktopRuntime: desktopRuntime),
+    overrides: <Override>[
+      ..._overrides(db, playback, desktopRuntime: desktopRuntime),
+      ...extraOverrides,
+    ],
   );
   addTearDown(() async {
     container.dispose();
@@ -437,6 +453,66 @@ void _testApp(String name, Future<void> Function(WidgetTester tester) body) {
     }
   });
 }
+
+final _topResults = <SearchTopResult>[
+  const TopSongResult(
+    Song(
+      id: 'song-1',
+      title: 'Lovely',
+      artist: 'Bill Withers',
+      album: 'Menagerie',
+      duration: 235,
+    ),
+  ),
+  const TopAlbumResult(
+    Album(
+      id: 'album-1',
+      name: 'Moon Album 1',
+      artist: 'Beach House',
+      year: 2001,
+    ),
+  ),
+  const TopArtistResult(
+    Artist(id: 'artist-1', name: 'Beach House', albumCount: 3),
+  ),
+];
+
+List<Override> _searchOverrides() => <Override>[
+  debouncedSearchProvider.overrideWith(
+    (ref) => Stream.value(
+      SearchResultsState(
+        result: SearchResult3(
+          songs: <Song>[
+            for (var i = 0; i < 4; i++)
+              Song(
+                id: 'song-${i + 1}',
+                title: 'Lovely Moon $i',
+                artist: 'Beach House',
+                album: 'Moon Album 1',
+                duration: 200,
+              ),
+          ],
+        ),
+        isWaitingForApi: false,
+        isLocalOnly: false,
+        remoteSearchFailed: false,
+        topResults: _topResults,
+      ),
+    ),
+  ),
+];
+
+/// Lines a paragraph is laid out on: the distinct tops of its selection boxes.
+int _lineCount(RenderParagraph paragraph) => paragraph
+    .getBoxesForSelection(
+      TextSelection(
+        baseOffset: 0,
+        extentOffset: paragraph.text.toPlainText().length,
+      ),
+    )
+    .map((box) => box.top.round())
+    .toSet()
+    .length;
 
 void main() {
   group('A1 artist letter tracking', () {
@@ -711,6 +787,351 @@ void main() {
     });
   });
 
+  group('I27b', () {
+    const stripLeft = 466.0 - 84;
+    const paneRight = 951.0 - 84;
+
+    /// The right edge of the furthest widget a finder matches.
+    double maxRight(WidgetTester tester, Finder finder) {
+      // Hit-testable: a TabBarView also lays out its neighbouring pages.
+      final visible = finder.hitTestable();
+      expect(visible, findsWidgets);
+      return visible
+          .evaluate()
+          .map((e) => tester.getRect(find.byElementPredicate((x) => x == e)))
+          .map((r) => r.right)
+          .reduce((a, b) => a > b ? a : b);
+    }
+
+    void expectLeftOfStrip(WidgetTester tester, Finder finder, String name) {
+      expect(
+        maxRight(tester, finder),
+        lessThanOrEqualTo(stripLeft),
+        reason: name,
+      );
+    }
+
+    final radioStations = <InternetRadioStation>[
+      for (var i = 0; i < 4; i++)
+        InternetRadioStation(
+          id: 'st-$i',
+          name: 'Late Night Station $i',
+          streamUrl: 'https://radio.example.com/$i',
+        ),
+    ];
+
+    // D1: the shell owns the horizontal safe area, so no page has to.
+    for (final (name, section) in <(String, String)>[
+      ('albums', 'albums'),
+      ('artists', 'artists'),
+      ('liked', 'liked'),
+      ('playlists', 'playlists'),
+    ]) {
+      _testApp('D1 library $name clears the strip on the Duo cover', (
+        tester,
+      ) async {
+        final container = await _pumpApp(tester, _duoFolded);
+        await container
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .updateArtistViewMode('grid');
+        await _go(tester, AppRoutes.librarySection(section));
+
+        expect(tester.takeException(), isNull);
+        final cards = switch (section) {
+          'albums' => find.byType(AlbumCard),
+          // Liked leads with a strip of albums that scrolls sideways.
+          'liked' => find.byWidgetPredicate(
+            (w) => w is ListView && w.scrollDirection == Axis.horizontal,
+          ),
+          'artists' => find.byType(ArtistCard),
+          _ => find.textContaining('Playlist number'),
+        };
+        expectLeftOfStrip(tester, cards, section);
+        if (section == 'albums') {
+          expectLeftOfStrip(
+            tester,
+            find.byKey(const ValueKey<String>('libraryAlbumSortControl')),
+            'albums sort control',
+          );
+        }
+      });
+    }
+
+    _testApp('D1 radio clears the strip on the Duo cover', (tester) async {
+      await _pumpApp(
+        tester,
+        _duoFolded,
+        extraOverrides: <Override>[
+          radioStationsProvider.overrideWith((ref) async => radioStations),
+        ],
+      );
+      await _go(tester, AppRoutes.librarySection('radio'));
+
+      expect(tester.takeException(), isNull);
+      expectLeftOfStrip(tester, find.byType(TextField), 'filter field');
+      expectLeftOfStrip(
+        tester,
+        find.byKey(const ValueKey<String>('radioStation-st-0')),
+        'station card',
+      );
+      expectLeftOfStrip(
+        tester,
+        find.byIcon(Icons.play_arrow_rounded),
+        'station play button',
+      );
+    });
+
+    _testApp('D1 search clears the strip on the Duo cover', (tester) async {
+      final container = await _pumpApp(
+        tester,
+        _duoFolded,
+        extraOverrides: _searchOverrides(),
+      );
+      await _go(tester, AppRoutes.search);
+      container.read(searchQueryProvider.notifier).submit('love');
+      await _settle(tester, 15);
+
+      expect(tester.takeException(), isNull);
+      expectLeftOfStrip(
+        tester,
+        find.byKey(const ValueKey<String>('search-top-result-0')),
+        'top result',
+      );
+      expectLeftOfStrip(tester, find.byType(ChoiceChip), 'filter chips');
+      expectLeftOfStrip(tester, find.byType(TextField), 'search field');
+    });
+
+    for (final (name, route) in <(String, String)>[
+      ('home', AppRoutes.home),
+      ('settings', AppRoutes.settings),
+    ]) {
+      _testApp('D1 $name still clears the strip (regression)', (tester) async {
+        await _pumpApp(tester, _duoFolded);
+        await _go(tester, route);
+
+        expect(tester.takeException(), isNull);
+        final texts = find.byType(Text);
+        expectLeftOfStrip(tester, texts, name);
+      });
+    }
+
+    _testApp('D1 library albums stay left of the strip in the rail pane', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoLandscapeStrip);
+      await _go(tester, AppRoutes.librarySection('albums'));
+
+      expect(tester.takeException(), isNull);
+      expect(
+        maxRight(tester, find.byType(AlbumCard)),
+        lessThanOrEqualTo(paneRight),
+      );
+      expect(
+        maxRight(
+          tester,
+          find.byKey(const ValueKey<String>('libraryAlbumSortControl')),
+        ),
+        lessThanOrEqualTo(paneRight),
+      );
+    });
+
+    // D2: the rail no longer takes the right strip as its own left padding.
+    _testApp('D2 rail is 270 wide beside a right strip', (tester) async {
+      await _pumpApp(tester, _duoLandscapeStrip);
+
+      final railColor = Theme.of(tester.element(find.byType(Scaffold).first))
+          .colorScheme
+          .surfaceContainerLow;
+      final rail = tester.getRect(
+        find
+            .ancestor(
+              of: find.text('Home').first,
+              matching: find.byWidgetPredicate(
+                (w) => w is Material && w.color == railColor,
+              ),
+            )
+            .first,
+      );
+      expect(rail.left, 0);
+      expect(rail.width, 270);
+    });
+
+    // D3: a collapsed Now Playing overlay is clipped to the pane.
+    _testApp('D3 collapsed Now Playing does not paint into the bottom inset', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoLandscapeStrip);
+
+      final clip = find.ancestor(
+        of: find.byType(NowPlayingScreen),
+        matching: find.byType(ClipRect),
+      );
+      final bottoms = clip
+          .evaluate()
+          .map((e) => tester.getRect(find.byElementPredicate((x) => x == e)))
+          .map((r) => r.bottom);
+      expect(bottoms, contains(669 - 34));
+    });
+  });
+
+  group('I27b tabs, search and album', () {
+    /// Every tab label of the Library is on one line, not squeezed.
+    void expectTabsUnclipped(WidgetTester tester) {
+      final tabs = find.byType(Tab);
+      expect(tabs, findsWidgets);
+      for (final element in tabs.evaluate()) {
+        final text = find.descendant(
+          of: find.byElementPredicate((e) => e == element),
+          matching: find.byType(Text),
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(text.first);
+        final label = (text.evaluate().first.widget as Text).data;
+        expect(_lineCount(paragraph), 1, reason: '$label wraps');
+        expect(paragraph.didExceedMaxLines, isFalse, reason: '$label');
+        // A label that does not fit is faded out, not wrapped.
+        expect(
+          paragraph.getMaxIntrinsicWidth(double.infinity),
+          lessThanOrEqualTo(paragraph.size.width + 0.5),
+          reason: '$label is clipped',
+        );
+      }
+    }
+
+    bool? scrollable(WidgetTester tester) =>
+        tester.widget<TabBar>(find.byType(TabBar).first).isScrollable;
+
+    _testApp('D4 Library tab labels fit beside the rail', (tester) async {
+      await _pumpApp(tester, _duoLandscapeStrip);
+      await _go(tester, AppRoutes.librarySection('albums'));
+
+      expect(tester.takeException(), isNull);
+      expectTabsUnclipped(tester);
+    });
+
+    _testApp('D4 larger text scrolls the tabs instead of clipping', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoLandscapeStrip, textScale: 1.6);
+      await _go(tester, AppRoutes.librarySection('albums'));
+
+      expect(tester.takeException(), isNull);
+      expectTabsUnclipped(tester);
+      expect(scrollable(tester), isTrue);
+    });
+
+    // The bar fits or scrolls by the page's own width, so no size clips a
+    // label. (The test font is wider than a real one: only the absence of
+    // clipping is asserted, not which mode a size picks.)
+    for (final (name, viewport) in <(String, _Viewport)>[
+      ('phone 393x852', _phone),
+      ('Duo folded', _duoFolded),
+      ('Duo portrait 669', _duoPortrait),
+      ('iPad landscape 1024', _ipadLandscape),
+    ]) {
+      _testApp('D4 tabs are not clipped: $name', (tester) async {
+        await _pumpApp(tester, viewport);
+        await _go(tester, AppRoutes.librarySection('albums'));
+
+        expect(tester.takeException(), isNull);
+        expectTabsUnclipped(tester);
+      });
+    }
+
+    // The Top Results section is 509 dp wide beside the rail on the Duo with
+    // its right strip, 593 without it, 666 on a 1024 iPad and 671 in the
+    // narrowest desktop window: the row layout starts at 560.
+    for (final (name, viewport, desktop, row)
+        in <(String, _Viewport, bool, bool)>[
+          (
+            'Duo landscape with the strip (509 dp)',
+            _duoLandscapeStrip,
+            false,
+            false,
+          ),
+          ('Duo landscape (593 dp)', _duoLandscape, false, true),
+          ('iPad landscape 1024 (666 dp)', _ipadLandscape, false, true),
+          (
+            'narrowest desktop window (671 dp)',
+            (size: const Size(800, 600), padding: EdgeInsets.zero),
+            true,
+            true,
+          ),
+        ]) {
+      _testApp('D5 Top Results fit: $name', (tester) async {
+        final container = await _pumpApp(
+          tester,
+          viewport,
+          desktopRuntime: desktop,
+          extraOverrides: _searchOverrides(),
+        );
+        await _go(tester, AppRoutes.search);
+        container.read(searchQueryProvider.notifier).submit('love');
+        await _settle(tester, 15);
+
+        expect(tester.takeException(), isNull);
+        final hero = find.byKey(const ValueKey<String>('search-top-result-0'));
+        final tile = find.byKey(const ValueKey<String>('search-top-result-1'));
+        final title = tester.renderObject<RenderParagraph>(
+          find.descendant(of: hero, matching: find.text('Lovely')).first,
+        );
+        expect(_lineCount(title), 1);
+        // One row of three, or the hero over two tiles.
+        expect(tester.getTopLeft(hero).dy == tester.getTopLeft(tile).dy, row);
+      });
+    }
+
+    _testApp('D6 folded album title stays left of the strip', (tester) async {
+      await _pumpApp(tester, _duoFolded);
+      await _go(tester, AppRoutes.album('album-1'));
+
+      expect(tester.takeException(), isNull);
+      final title = find.descendant(
+        of: find.byType(FlexibleSpaceBar),
+        matching: find.text('Moon Album 1'),
+      );
+      expect(tester.getRect(title.first).right, lessThanOrEqualTo(382));
+      expect(tester.getRect(find.byType(FlexibleSpaceBar)).width, 382);
+    });
+
+    Rect playButton(WidgetTester tester) => tester.getRect(
+      find
+          .descendant(
+            of: find.byType(EntityActionBar),
+            matching: find.byType(IconButton),
+          )
+          .first,
+    );
+
+    _testApp('D6 unfolded album Play lines up with the text inset', (
+      tester,
+    ) async {
+      await _pumpApp(tester, _duoLandscapeStrip);
+      await _go(tester, AppRoutes.album('album-1'));
+
+      expect(tester.takeException(), isNull);
+      final pane = tester.getRect(find.byType(FlexibleSpaceBar));
+      expect(playButton(tester).left - pane.left, 16);
+    });
+
+    _testApp('D6 phone album Play keeps its 4 dp inset', (tester) async {
+      await _pumpApp(tester, _phone);
+      await _go(tester, AppRoutes.album('album-1'));
+
+      expect(tester.takeException(), isNull);
+      expect(playButton(tester).left, 4);
+    });
+
+    _testApp('D7 folding with Now Playing open does not throw', (tester) async {
+      final container = await _pumpApp(tester, _duoLandscape);
+      await _openNowPlaying(tester, container);
+      await _resize(tester, _duoFolded);
+
+      expect(tester.takeException(), isNull);
+      expect(container.read(playerOverlayStackProvider).isNotEmpty, isTrue);
+    });
+  });
+
   group('B1 album detail hero on tablet layouts', () {
     for (final (name, viewport) in <(String, _Viewport)>[
       ('unfolded portrait 669x951', _duoPortrait),
@@ -763,7 +1184,7 @@ void main() {
 
     for (final (name, viewport, hero) in <(String, _Viewport, double)>[
       ('phone 393x852', _phone, 393),
-      ('Duo folded 466x678', _duoFolded, 466),
+      ('Duo folded 466x678 (382 beside the strip)', _duoFolded, 382),
     ]) {
       _testApp('phones keep the square hero: $name', (tester) async {
         await _pumpApp(tester, viewport);

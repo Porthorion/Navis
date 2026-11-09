@@ -765,6 +765,55 @@ void main() {
       });
     });
   });
+  testWidgets('mounting already expanded reports progress outside of build', (
+    tester,
+  ) async {
+    // The shell mounts a new sheet expanded when it folds from the rail layout
+    // while Now Playing is open; its progress notifier drives a rebuilding
+    // ValueListenableBuilder, which threw "markNeedsBuild during build".
+    final progress = ValueNotifier<double>(0);
+    final mounted = ValueNotifier<bool>(false);
+    addTearDown(progress.dispose);
+    addTearDown(mounted.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: testTheme(),
+        home: Scaffold(
+          // Siblings, like the shell's body and its bottom navigation: the
+          // listener is not inside the subtree that mounts the sheet.
+          body: Stack(
+            children: <Widget>[
+              ValueListenableBuilder<double>(
+                valueListenable: progress,
+                builder: (context, value, _) => Text('p=$value'),
+              ),
+              ValueListenableBuilder<bool>(
+                valueListenable: mounted,
+                builder: (context, showSheet, _) => showSheet
+                    ? ExpandablePlayerSheet(
+                        isExpanded: true,
+                        onExpand: () {},
+                        onCollapse: () {},
+                        onProgressChanged: (value) => progress.value = value,
+                        miniPlayer: const SizedBox(
+                          height: ExpandablePlayerSheet.miniPlayerHeight,
+                        ),
+                        fullPlayer: const SizedBox(),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    mounted.value = true;
+    await tester.pump();
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(progress.value, 1.0);
+  });
 }
 
 class _Rig {

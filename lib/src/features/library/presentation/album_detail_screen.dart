@@ -1079,23 +1079,13 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 );
               }
 
-              final screenSize = MediaQuery.sizeOf(context);
-              final screenWidth = screenSize.width;
-              // The hero is a square the width of the screen. On a tablet or
-              // an unfolded foldable that is taller than the songs' first
-              // screen, so it is capped at 45% of the height there. Phones
-              // keep the square.
-              final heroExtent = adaptiveContext.isPhoneFormFactor
-                  ? screenWidth
-                  : min(screenWidth, screenSize.height * 0.45);
+              final screenHeight = MediaQuery.sizeOf(context).height;
               final theme = Theme.of(context);
               final mobileColors = theme.colorScheme;
               final mobileTextTheme = theme.textTheme;
               final isLightTheme = theme.brightness == Brightness.light;
               final flatArtworkText = NavisColorStyleData.of(context)
                   .flatArtworkText;
-              // Keep _heroExtent in sync so the scroll listener can compute progress.
-              _heroExtent = heroExtent;
 
               // Album name opacity fades out as the header collapses (gone by 90% scroll).
               final gradientScrollFade = ((0.9 - _headerProgress) / 0.3).clamp(
@@ -1108,328 +1098,373 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                 1.0,
               );
 
-              return CustomScrollView(
-                controller: _scrollController,
-                slivers: <Widget>[
-                  // Full-bleed album art with scroll-driven collapsed toolbar.
-                  SliverAppBar(
-                    key: const ValueKey<String>(
-                      'albumDetailMobileExpandedArtAppBar',
-                    ),
-                    automaticallyImplyLeading: false,
-                    pinned: true,
-                    toolbarHeight: kToolbarHeight,
-                    expandedHeight: heroExtent,
-                    backgroundColor: Color.lerp(
-                      Colors.transparent,
-                      mobileColors.surfaceContainerHighest,
-                      _headerProgress,
-                    ),
-                    systemOverlayStyle: SystemUiOverlayStyle.light,
-                    leading: _buildAnimatedNavButton(
-                      icon: Icons.arrow_back,
-                      tooltip: MaterialLocalizations.of(context)
-                          .backButtonTooltip,
-                      onPressed: () =>
-                          NavService.back(context, fallback: AppRoutes.library),
-                    ),
-                    actions: <Widget>[
-                      _buildAnimatedNavButton(
-                        icon: Icons.refresh,
-                        tooltip: l10n.detailRefreshAction,
-                        isLoading: _isRefreshingAlbum,
-                        onPressed: _isRefreshingAlbum ? null : _refreshAlbum,
-                      ),
-                    ],
-                    title: Opacity(
-                      opacity: toolbarTitleOpacity,
-                      child: Text(
-                        details.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    flexibleSpace: FlexibleSpaceBar(
-                      collapseMode: CollapseMode.pin,
-                      background: Stack(
-                        fit: StackFit.expand,
-                        children: <Widget>[
-                          // Phone album pages deliberately render the artwork
-                          // as ordinary, already-composed content. Keeping a
-                          // matching Hero here would still launch an artwork
-                          // flight independently of the fade-only route.
-                          CoverArtImage(
-                            coverArtId: details.coverArt,
-                            revision: details.coverArtRevision ?? 0,
-                            size: kCoverArtStandardSize,
-                            width: double.infinity,
-                            height: double.infinity,
-                            isExternalSource: details.isExternal,
-                            remoteSourceIndicatorPolicy:
-                                RemoteSourceIndicatorPolicy.hidden,
-                            fit: BoxFit.cover,
-                            fadeInDuration: Duration.zero,
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  // The page can be narrower than the screen: the shell keeps it
+                  // clear of a system strip, so size the hero from its own width.
+                  final heroExtent = adaptiveContext.isPhoneFormFactor
+                      ? constraints.maxWidth
+                      : min(constraints.maxWidth, screenHeight * 0.45);
+                  // Keep _heroExtent in sync so the scroll listener can compute progress.
+                  _heroExtent = heroExtent;
+                  return CustomScrollView(
+                    controller: _scrollController,
+                    slivers: <Widget>[
+                      // Full-bleed album art with scroll-driven collapsed toolbar.
+                      SliverAppBar(
+                        key: const ValueKey<String>(
+                          'albumDetailMobileExpandedArtAppBar',
+                        ),
+                        automaticallyImplyLeading: false,
+                        pinned: true,
+                        toolbarHeight: kToolbarHeight,
+                        expandedHeight: heroExtent,
+                        backgroundColor: Color.lerp(
+                          Colors.transparent,
+                          mobileColors.surfaceContainerHighest,
+                          _headerProgress,
+                        ),
+                        systemOverlayStyle: SystemUiOverlayStyle.light,
+                        leading: _buildAnimatedNavButton(
+                          icon: Icons.arrow_back,
+                          tooltip: MaterialLocalizations.of(context)
+                              .backButtonTooltip,
+                          onPressed: () => NavService.back(
+                            context,
+                            fallback: AppRoutes.library,
                           ),
-                          // Centred tap target for the full-size art. It leaves
-                          // the back/refresh corners alone and, being tap-only,
-                          // does not claim vertical drags.
-                          Center(
-                            child: FractionallySizedBox(
-                              widthFactor: 0.6,
-                              heightFactor: 0.6,
-                              child: Semantics(
-                                button: true,
-                                label: l10n.albumDetailMenuShowAlbumArt,
-                                child: GestureDetector(
-                                  key: const ValueKey<String>(
-                                    'albumDetailMobileArtTapTarget',
-                                  ),
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: () => unawaited(
-                                    showCoverArtViewer(
-                                      context,
-                                      coverArtId: details.coverArt,
-                                      revision: details.coverArtRevision ?? 0,
-                                      heroTag: coverArtHeroTag,
-                                      previewSize: 200,
-                                      isExternalSource: details.isExternal,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
+                        ),
+                        actions: <Widget>[
+                          _buildAnimatedNavButton(
+                            icon: Icons.refresh,
+                            tooltip: l10n.detailRefreshAction,
+                            isLoading: _isRefreshingAlbum,
+                            onPressed: _isRefreshingAlbum
+                                ? null
+                                : _refreshAlbum,
                           ),
-                          // Flat text over artwork keeps the art unobstructed:
-                          // no fade and no overlaid title; the title sits
-                          // under the art in the content below.
-                          if (!flatArtworkText) ...<Widget>[
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: <Color>[
-                                        Colors.transparent,
-                                        Colors.transparent,
-                                        Theme.of(context)
-                                            .scaffoldBackgroundColor,
-                                      ],
-                                      stops: const <double>[0, 0.60, 0.85],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // The title scrolls out with the lower gradient.
-                            Positioned(
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              child: Opacity(
-                                opacity: gradientScrollFade,
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    16,
-                                    0,
-                                    16,
-                                    16,
-                                  ),
-                                  child: _buildMobileAlbumTitle(
-                                    title: details.name,
-                                    copyText: _copyText(details),
-                                    style: mobileTextTheme.displayMedium
-                                        ?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: isLightTheme
-                                              ? mobileColors.onSurface
-                                              : Colors.white,
-                                          shadows: isLightTheme
-                                              ? null
-                                              : <Shadow>[
-                                                  Shadow(
-                                                    color:
-                                                        NavisColorStyleData.of(
-                                                              context,
-                                                            ).artworkScrim
-                                                            .withValues(
-                                                              alpha: 0.55,
-                                                            ),
-                                                    blurRadius: 12,
-                                                    offset: const Offset(0, 2),
-                                                  ),
-                                                ],
-                                        ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
-                      ),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        if (flatArtworkText)
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                            child: _buildMobileAlbumTitle(
-                              title: details.name,
-                              copyText: _copyText(details),
-                              style: mobileTextTheme.displayMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: mobileColors.onSurface,
-                              ),
-                            ),
+                        title: Opacity(
+                          opacity: toolbarTitleOpacity,
+                          child: Text(
+                            details.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        // Artist names (each individually clickable)
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(
-                            16,
-                            flatArtworkText ? 8 : 16,
-                            16,
-                            2,
-                          ),
-                          child: Wrap(
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            runSpacing: 2,
+                        ),
+                        flexibleSpace: FlexibleSpaceBar(
+                          collapseMode: CollapseMode.pin,
+                          background: Stack(
+                            fit: StackFit.expand,
                             children: <Widget>[
-                              ..._buildArtistChips(
-                                context: context,
-                                artists: _resolveArtists(details),
-                                textStyle: mobileTextTheme.bodyLarge?.copyWith(
-                                  color: mobileColors.primary,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                dimStyle: mobileTextTheme.bodyLarge?.copyWith(
-                                  color: mobileColors.onSurfaceVariant,
+                              // Phone album pages deliberately render the artwork
+                              // as ordinary, already-composed content. Keeping a
+                              // matching Hero here would still launch an artwork
+                              // flight independently of the fade-only route.
+                              CoverArtImage(
+                                coverArtId: details.coverArt,
+                                revision: details.coverArtRevision ?? 0,
+                                size: kCoverArtStandardSize,
+                                width: double.infinity,
+                                height: double.infinity,
+                                isExternalSource: details.isExternal,
+                                remoteSourceIndicatorPolicy:
+                                    RemoteSourceIndicatorPolicy.hidden,
+                                fit: BoxFit.cover,
+                                fadeInDuration: Duration.zero,
+                              ),
+                              // Centred tap target for the full-size art. It leaves
+                              // the back/refresh corners alone and, being tap-only,
+                              // does not claim vertical drags.
+                              Center(
+                                child: FractionallySizedBox(
+                                  widthFactor: 0.6,
+                                  heightFactor: 0.6,
+                                  child: Semantics(
+                                    button: true,
+                                    label: l10n.albumDetailMenuShowAlbumArt,
+                                    child: GestureDetector(
+                                      key: const ValueKey<String>(
+                                        'albumDetailMobileArtTapTarget',
+                                      ),
+                                      behavior: HitTestBehavior.opaque,
+                                      onTap: () => unawaited(
+                                        showCoverArtViewer(
+                                          context,
+                                          coverArtId: details.coverArt,
+                                          revision:
+                                              details.coverArtRevision ?? 0,
+                                          heroTag: coverArtHeroTag,
+                                          previewSize: 200,
+                                          isExternalSource: details.isExternal,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                              if (details.isExternal) ...<Widget>[
-                                const SizedBox(width: 8),
-                                const RemoteSourceIndicator(
-                                  variant: RemoteSourceIndicatorVariant.chip,
+                              // Flat text over artwork keeps the art unobstructed:
+                              // no fade and no overlaid title; the title sits
+                              // under the art in the content below.
+                              if (!flatArtworkText) ...<Widget>[
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: <Color>[
+                                            Colors.transparent,
+                                            Colors.transparent,
+                                            Theme.of(context)
+                                                .scaffoldBackgroundColor,
+                                          ],
+                                          stops: const <double>[0, 0.60, 0.85],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                // The title scrolls out with the lower gradient.
+                                Positioned(
+                                  bottom: 0,
+                                  left: 0,
+                                  right: 0,
+                                  child: Opacity(
+                                    opacity: gradientScrollFade,
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        16,
+                                        0,
+                                        16,
+                                        16,
+                                      ),
+                                      child: _buildMobileAlbumTitle(
+                                        title: details.name,
+                                        copyText: _copyText(details),
+                                        style: mobileTextTheme.displayMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: isLightTheme
+                                                  ? mobileColors.onSurface
+                                                  : Colors.white,
+                                              shadows: isLightTheme
+                                                  ? null
+                                                  : <Shadow>[
+                                                      Shadow(
+                                                        color:
+                                                            NavisColorStyleData.of(
+                                                                  context,
+                                                                ).artworkScrim
+                                                                .withValues(
+                                                                  alpha: 0.55,
+                                                                ),
+                                                        blurRadius: 12,
+                                                        offset: const Offset(
+                                                          0,
+                                                          2,
+                                                        ),
+                                                      ),
+                                                    ],
+                                            ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ],
                             ],
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                          child: Text(
-                            entityCollectionSummary(
-                              l10n,
-                              year: details.year,
-                              songCount: songs.length,
-                              totalSeconds: _totalDurationSeconds(songs),
-                            ),
-                            style: mobileTextTheme.bodyMedium?.copyWith(
-                              color: mobileColors.onSurfaceVariant,
-                            ),
-                          ),
-                        ),
-                        _genreChips(songs, left: 16, right: 16, bottom: 8),
-                        // Action buttons:
-                        //   Left  — play (icon), shuffle (icon), Rate (text)
-                        //   Right — like (icon), 3-dot context menu
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: <Widget>[
-                              EntityActionBar(
-                                compact: true,
-                                onPlay: filteredSongs.isEmpty
-                                    ? null
-                                    : () => _queueAlbum(
-                                        filteredSongs,
-                                        shuffle: false,
+                      ),
+                      SliverToBoxAdapter(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: <Widget>[
+                            if (flatArtworkText)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  16,
+                                  16,
+                                  16,
+                                  0,
+                                ),
+                                child: _buildMobileAlbumTitle(
+                                  title: details.name,
+                                  copyText: _copyText(details),
+                                  style: mobileTextTheme.displayMedium
+                                      ?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: mobileColors.onSurface,
                                       ),
-                                onShuffle: filteredSongs.isEmpty
-                                    ? null
-                                    : () => _queueAlbum(
+                                ),
+                              ),
+                            // Artist names (each individually clickable)
+                            Padding(
+                              padding: EdgeInsets.fromLTRB(
+                                16,
+                                flatArtworkText ? 8 : 16,
+                                16,
+                                2,
+                              ),
+                              child: Wrap(
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                runSpacing: 2,
+                                children: <Widget>[
+                                  ..._buildArtistChips(
+                                    context: context,
+                                    artists: _resolveArtists(details),
+                                    textStyle: mobileTextTheme.bodyLarge
+                                        ?.copyWith(
+                                          color: mobileColors.primary,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                    dimStyle: mobileTextTheme.bodyLarge
+                                        ?.copyWith(
+                                          color: mobileColors.onSurfaceVariant,
+                                        ),
+                                  ),
+                                  if (details.isExternal) ...<Widget>[
+                                    const SizedBox(width: 8),
+                                    const RemoteSourceIndicator(
+                                      variant:
+                                          RemoteSourceIndicatorVariant.chip,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                              child: Text(
+                                entityCollectionSummary(
+                                  l10n,
+                                  year: details.year,
+                                  songCount: songs.length,
+                                  totalSeconds: _totalDurationSeconds(songs),
+                                ),
+                                style: mobileTextTheme.bodyMedium?.copyWith(
+                                  color: mobileColors.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                            _genreChips(songs, left: 16, right: 16, bottom: 8),
+                            // Action buttons:
+                            //   Left  — play (icon), shuffle (icon), Rate (text)
+                            //   Right — like (icon), 3-dot context menu
+                            Padding(
+                              // Play lines up with the 16 dp text above on wider screens; a
+                              // phone's row is full at 4.
+                              padding: EdgeInsets.fromLTRB(
+                                adaptiveContext.isPhoneFormFactor ? 4 : 16,
+                                0,
+                                4,
+                                8,
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: <Widget>[
+                                  EntityActionBar(
+                                    compact: true,
+                                    onPlay: filteredSongs.isEmpty
+                                        ? null
+                                        : () => _queueAlbum(
+                                            filteredSongs,
+                                            shuffle: false,
+                                          ),
+                                    onShuffle: filteredSongs.isEmpty
+                                        ? null
+                                        : () => _queueAlbum(
+                                            filteredSongs,
+                                            shuffle: true,
+                                          ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  _RatingButton(
+                                    rating: albumRating,
+                                    loading: _isUpdatingRating,
+                                    onChanged: (next) =>
+                                        unawaited(_updateAlbumRating(next)),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    tooltip: isStarred
+                                        ? l10n.actionLiked
+                                        : l10n.albumDetailStarAction,
+                                    icon: Icon(
+                                      isStarred
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                    ),
+                                    color: isStarred
+                                        ? mobileColors.primary
+                                        : null,
+                                    onPressed: _isStarring
+                                        ? null
+                                        : () =>
+                                              _toggleStar(isStarred: isStarred),
+                                  ),
+                                  _albumFilterButton(outlined: false),
+                                  IconButton(
+                                    tooltip: MaterialLocalizations.of(context)
+                                        .showMenuTooltip,
+                                    icon: const Icon(Icons.more_vert),
+                                    onPressed: () => unawaited(
+                                      _showMobileAlbumContextMenu(
+                                        details,
                                         filteredSongs,
-                                        shuffle: true,
+                                        albumRating,
+                                        coverArtHeroTag,
                                       ),
-                              ),
-                              const SizedBox(width: 4),
-                              _RatingButton(
-                                rating: albumRating,
-                                loading: _isUpdatingRating,
-                                onChanged: (next) =>
-                                    unawaited(_updateAlbumRating(next)),
-                              ),
-                              const Spacer(),
-                              IconButton(
-                                tooltip: isStarred
-                                    ? l10n.actionLiked
-                                    : l10n.albumDetailStarAction,
-                                icon: Icon(
-                                  isStarred
-                                      ? Icons.favorite
-                                      : Icons.favorite_border,
-                                ),
-                                color: isStarred ? mobileColors.primary : null,
-                                onPressed: _isStarring
-                                    ? null
-                                    : () => _toggleStar(isStarred: isStarred),
-                              ),
-                              _albumFilterButton(outlined: false),
-                              IconButton(
-                                tooltip: MaterialLocalizations.of(context)
-                                    .showMenuTooltip,
-                                icon: const Icon(Icons.more_vert),
-                                onPressed: () => unawaited(
-                                  _showMobileAlbumContextMenu(
-                                    details,
-                                    filteredSongs,
-                                    albumRating,
-                                    coverArtHeroTag,
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                        albumInfoAsync.when(
-                          data: (info) {
-                            if (info == null) {
-                              return const SizedBox.shrink();
-                            }
-                            final about = _aboutChildren(
-                              l10n,
-                              info,
-                              titleStyle: mobileTextTheme.titleSmall,
-                              notesStyle: mobileTextTheme.bodyMedium,
-                            );
-                            if (about == null) return const SizedBox.shrink();
-                            return Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                              child: Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: about,
+                            ),
+                            albumInfoAsync.when(
+                              data: (info) {
+                                if (info == null) {
+                                  return const SizedBox.shrink();
+                                }
+                                final about = _aboutChildren(
+                                  l10n,
+                                  info,
+                                  titleStyle: mobileTextTheme.titleSmall,
+                                  notesStyle: mobileTextTheme.bodyMedium,
+                                );
+                                if (about == null) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    12,
+                                    0,
+                                    12,
+                                    12,
                                   ),
-                                ),
-                              ),
-                            );
-                          },
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, _) => const SizedBox.shrink(),
+                                  child: Card(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: about,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                              loading: () => const SizedBox.shrink(),
+                              error: (_, _) => const SizedBox.shrink(),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                  tracksSliver,
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                ],
+                      ),
+                      tracksSliver,
+                      const SliverToBoxAdapter(child: SizedBox(height: 16)),
+                    ],
+                  );
+                },
               );
             },
             // A remote album is fetched before it is stored, so its page says
