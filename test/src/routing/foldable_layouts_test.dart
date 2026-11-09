@@ -481,6 +481,50 @@ void _expectNowPlayingControlsFit(WidgetTester tester, _Viewport viewport) {
 
 /// A widget test that tears the app down inside the test, so the timers of
 /// the shell are gone before the framework checks for pending ones.
+/// The key of the first card of type [card] the page list shows (possibly cut
+/// off at the top).
+Key? _firstVisibleCard(WidgetTester tester, Type card) {
+  final viewport = _pageViewportRect(tester);
+  final cards =
+      find
+          .byType(card)
+          .evaluate()
+          .map((e) => (e.widget.key, tester.getRect(find.byWidget(e.widget))))
+          .where((c) => c.$2.bottom > viewport.top + 1)
+          .toList()
+        ..sort((a, b) {
+          final byTop = a.$2.top.compareTo(b.$2.top);
+          return byTop != 0 ? byTop : a.$2.left.compareTo(b.$2.left);
+        });
+  return cards.first.$1;
+}
+
+Rect _pageViewportRect(WidgetTester tester) => tester.getRect(
+  find.byElementPredicate((e) => e == _pageScrollable(tester).context),
+);
+
+/// The card [key] of type [card] sits in the first row the page list shows:
+/// its row starts at the top edge, or is cut off by it when nothing moved.
+void _expectInFirstRow(
+  WidgetTester tester,
+  Type card,
+  Key? key, {
+  required String reason,
+  bool atTop = false,
+}) {
+  final finder = find.byWidgetPredicate(
+    (w) => w.runtimeType == card && w.key == key,
+  );
+  expect(finder, findsOneWidget, reason: reason);
+  final rect = tester.getRect(finder);
+  final viewport = _pageViewportRect(tester);
+  expect(rect.bottom, greaterThan(viewport.top + 1), reason: reason);
+  expect(rect.top, lessThan(viewport.top + rect.height), reason: reason);
+  if (atTop) {
+    expect(rect.top - viewport.top, closeTo(0, 1), reason: reason);
+  }
+}
+
 void _testApp(String name, Future<void> Function(WidgetTester tester) body) {
   testWidgets(name, (tester) async {
     try {
@@ -687,11 +731,53 @@ void main() {
     });
   });
 
+  group('I33 grids keep their first visible item across a fold', () {
+    for (final (name, section, card) in <(String, String, Type)>[
+      ('albums', 'albums', AlbumCard),
+      ('artists', 'artists', ArtistCard),
+    ]) {
+      _testApp('$name grid keeps its first visible $name across a fold', (
+        tester,
+      ) async {
+        final container = await _pumpApp(tester, _duoFolded);
+        await container
+            .read(navisDatabaseProvider)
+            .appSettingsDao
+            .updateArtistViewMode('grid');
+        await _go(tester, AppRoutes.librarySection(section));
+        final position = _pageScrollable(tester).position;
+        expect(position.maxScrollExtent, greaterThan(600), reason: name);
+        position.jumpTo(position.maxScrollExtent * 0.6);
+        await _settle(tester, 4);
+        final before = _firstVisibleCard(tester, card);
+        expect(before, isNotNull);
+
+        await _resize(tester, _duoPortrait);
+        expect(tester.takeException(), isNull);
+        _expectInFirstRow(
+          tester,
+          card,
+          before,
+          reason: '$name, unfolded',
+          atTop: true,
+        );
+
+        await _resize(tester, _duoFolded);
+        _expectInFirstRow(
+          tester,
+          card,
+          before,
+          reason: '$name, folded again',
+          atTop: true,
+        );
+      });
+    }
+  });
+
   group('A2 scroll offset survives a layout class change', () {
-    // Each keyed scroll view of the Library: a fold rebuilds its subtree.
+    // Each keyed scroll view of the Library: a fold rebuilds its subtree. The
+    // albums and artists grids keep their first visible item instead (I33).
     for (final (name, section, mode) in <(String, String, String)>[
-      ('albums', 'albums', 'grid'),
-      ('artists grid', 'artists', 'grid'),
       ('liked', 'liked', 'grid'),
       ('playlists', 'playlists', 'grid'),
     ]) {
@@ -1785,7 +1871,7 @@ void main() {
         });
       }
 
-      _testApp('rotating keeps the page scroll offset: $name', (tester) async {
+      _testApp('rotating keeps the first visible album: $name', (tester) async {
         final container = await _pumpApp(tester, portrait);
         await container
             .read(navisDatabaseProvider)
@@ -1796,12 +1882,13 @@ void main() {
         expect(position.maxScrollExtent, greaterThan(300));
         position.jumpTo(250);
         await _settle(tester, 4);
+        final before = _firstVisibleCard(tester, AlbumCard);
 
         await _resize(tester, landscape);
         expect(tester.takeException(), isNull);
-        expect(_pageScrollable(tester).position.pixels, closeTo(250, 1));
+        _expectInFirstRow(tester, AlbumCard, before, reason: 'landscape');
         await _resize(tester, portrait);
-        expect(_pageScrollable(tester).position.pixels, closeTo(250, 1));
+        _expectInFirstRow(tester, AlbumCard, before, reason: 'portrait');
       });
     }
   });
@@ -2184,7 +2271,7 @@ void main() {
     }
 
     for (final withPlayer in <bool>[false, true]) {
-      _testApp('fold and unfold keep tab and scroll, Now Playing '
+      _testApp('fold and unfold keep tab and first visible album, Now Playing '
           '${withPlayer ? 'open' : 'closed'}', (tester) async {
         final container = await _pumpApp(tester, _duoFolded);
         await container
@@ -2196,6 +2283,7 @@ void main() {
         expect(position.maxScrollExtent, greaterThan(300));
         position.jumpTo(250);
         await _settle(tester, 4);
+        final before = _firstVisibleCard(tester, AlbumCard);
         final path = location(tester);
         if (withPlayer) {
           await _openNowPlaying(tester, container);
@@ -2209,7 +2297,7 @@ void main() {
           await _resize(tester, viewport);
           expect(tester.takeException(), isNull, reason: '$viewport');
           expect(location(tester), path, reason: '$viewport');
-          expect(_pageScrollable(tester).position.pixels, closeTo(250, 1));
+          _expectInFirstRow(tester, AlbumCard, before, reason: '$viewport');
           final stack = container.read(playerOverlayStackProvider);
           expect(stack.isNotEmpty, withPlayer, reason: '$viewport');
           if (viewport == _duoPortrait) {

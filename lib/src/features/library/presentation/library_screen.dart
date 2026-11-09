@@ -134,6 +134,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   // last jumped-to item and land on a different one).
   int _artistsFirstIndex = 0;
   int _yearFirstIndex = 0;
+  // The two grids keep their PageStorageKey (it restores the pixels first);
+  // these anchors then put the leading item back in the first row when the
+  // column count or tile size changed.
+  final GridScrollAnchor _albumsGridAnchor = GridScrollAnchor();
+  final GridScrollAnchor _artistsGridAnchor = GridScrollAnchor();
   List<ArtistsTableData>? _cachedArtists;
   List<_ArtistListItem> _artistListItems = const <_ArtistListItem>[];
   Map<String, int> _artistLetterStartIndex = const <String, int>{};
@@ -1437,6 +1442,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       )
                     else
                       ResponsiveContentSliverGrid(
+                        anchor: _albumsGridAnchor,
                         itemCount: typeFiltered.length,
                         itemBuilder: (context, index) {
                           final album = typeFiltered[index];
@@ -2355,6 +2361,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         letter: _artistGridSectionKeys[letter] ?? GlobalKey(),
     };
 
+    _artistsGridAnchor
+      ..paused = _isArtistRailScrubbing
+      ..releaseWhere((letter) => !grouped.containsKey(letter));
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final inset = ContentLayout.padding(constraints.maxWidth);
@@ -2384,6 +2394,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   ),
                 ),
                 ResponsiveContentSliverGrid(
+                  anchor: _artistsGridAnchor,
+                  anchorId: letter,
                   itemCount: grouped[letter]?.length ?? 0,
                   artists: true,
                   trailingInset: 28 + sectionRailEndGap(context),

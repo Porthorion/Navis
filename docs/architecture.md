@@ -2696,7 +2696,12 @@ when the keyboard closes.
 Foldable and tablet fixes (I27, 1.5.2): a layout class change (fold, unfold,
 rotation across 600/840 dp) rebuilds the Library page subtree. The plain
 scroll views (albums, liked, artists grid, playlists) carry `PageStorageKey`s
-and restore their offset; the positioned lists (artists, years) cannot use
+and restore their offset. The albums and artists grids also pass a
+`GridScrollAnchor` (kept in the library `State`, written during layout) to
+`ResponsiveContentSliverGrid`: it tracks the first visible item, and when the
+column count or row height changes under a restored pixel offset (I33) it
+jumps once, post-frame, so that item leads the first row again. The positioned
+lists (artists, years) cannot use
 one, because it restores a pixel offset relative to the last jumped-to item,
 so the library `State` keeps their first visible index and passes it as
 `initialScrollIndex` (genres start at the top). A Now Playing pane beside the
