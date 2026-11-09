@@ -46,6 +46,7 @@ import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/common_widgets/entity_meta_line.dart';
 import 'package:navis/src/utils/external_url.dart';
+import 'package:navis/src/utils/html_entities.dart';
 import 'package:navis/src/routing/app_routes.dart';
 import 'package:navis/src/theme/artwork_shape.dart';
 import 'package:navis/src/theme/navis_shape_data.dart';
@@ -1353,10 +1354,10 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
                             //   Left  — play (icon), shuffle (icon), Rate (text)
                             //   Right — like (icon), 3-dot context menu
                             Padding(
-                              // Play lines up with the 16 dp text above on wider screens; a
-                              // phone's row is full at 4.
+                              // 16 lines Play up with the text; narrower phones
+                              // keep 4 so the row fits.
                               padding: EdgeInsetsDirectional.fromSTEB(
-                                adaptiveContext.isPhoneFormFactor ? 4 : 16,
+                                constraints.maxWidth >= 375 ? 16 : 4,
                                 0,
                                 4,
                                 8,
@@ -2097,13 +2098,7 @@ class _AlbumDetailScreenState extends ConsumerState<AlbumDetailScreen> {
   }
 
   String _stripHtml(String input) {
-    return input
-        .replaceAll(RegExp('<[^>]+>'), ' ')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&quot;', '"')
-        .replaceAll('&apos;', "'")
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
+    return decodeHtmlEntities(input.replaceAll(RegExp('<[^>]+>'), ' '))
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }

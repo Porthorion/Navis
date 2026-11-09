@@ -16,7 +16,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Song {
 
- String get id; String get title; String? get album; String? get albumId; String? get artist; String? get artistId; int? get track; int? get discNumber; int? get year; int? get duration; int? get bitRate;@JsonKey(readValue: _readSampleRateJson) int? get sampleRate; String? get contentType; String? get suffix; int? get size; String? get coverArt; DateTime? get starred; String? get musicBrainzId; int? get userRating; int? get playCount; DateTime? get created; bool? get isExternal; ReplayGain? get replayGain;/// The song's genres, resolved from the OpenSubsonic `genres` list or,
+ String get id;@JsonKey(readValue: readDecodedString) String get title;@JsonKey(readValue: readDecodedString) String? get album; String? get albumId;@JsonKey(readValue: readDecodedString) String? get artist; String? get artistId; int? get track; int? get discNumber; int? get year; int? get duration; int? get bitRate;@JsonKey(readValue: _readSampleRateJson) int? get sampleRate; String? get contentType; String? get suffix; int? get size; String? get coverArt; DateTime? get starred; String? get musicBrainzId; int? get userRating; int? get playCount; DateTime? get created; bool? get isExternal; ReplayGain? get replayGain;/// The song's genres, resolved from the OpenSubsonic `genres` list or,
 /// when that is missing or empty, the legacy `genre` string as one tag.
 /// Never split client-side; blank names and duplicates by merge key are
 /// dropped.
@@ -58,7 +58,7 @@ abstract mixin class $SongCopyWith<$Res>  {
   factory $SongCopyWith(Song value, $Res Function(Song) _then) = _$SongCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, String? album, String? albumId, String? artist, String? artistId, int? track, int? discNumber, int? year, int? duration, int? bitRate,@JsonKey(readValue: _readSampleRateJson) int? sampleRate, String? contentType, String? suffix, int? size, String? coverArt, DateTime? starred, String? musicBrainzId, int? userRating, int? playCount, DateTime? created, bool? isExternal, ReplayGain? replayGain,@JsonKey(readValue: _readGenresJson) List<String> genres
+ String id,@JsonKey(readValue: readDecodedString) String title,@JsonKey(readValue: readDecodedString) String? album, String? albumId,@JsonKey(readValue: readDecodedString) String? artist, String? artistId, int? track, int? discNumber, int? year, int? duration, int? bitRate,@JsonKey(readValue: _readSampleRateJson) int? sampleRate, String? contentType, String? suffix, int? size, String? coverArt, DateTime? starred, String? musicBrainzId, int? userRating, int? playCount, DateTime? created, bool? isExternal, ReplayGain? replayGain,@JsonKey(readValue: _readGenresJson) List<String> genres
 });
 
 
@@ -198,7 +198,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  String? album,  String? albumId,  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate, @JsonKey(readValue: _readSampleRateJson)  int? sampleRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  String? musicBrainzId,  int? userRating,  int? playCount,  DateTime? created,  bool? isExternal,  ReplayGain? replayGain, @JsonKey(readValue: _readGenresJson)  List<String> genres)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id, @JsonKey(readValue: readDecodedString)  String title, @JsonKey(readValue: readDecodedString)  String? album,  String? albumId, @JsonKey(readValue: readDecodedString)  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate, @JsonKey(readValue: _readSampleRateJson)  int? sampleRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  String? musicBrainzId,  int? userRating,  int? playCount,  DateTime? created,  bool? isExternal,  ReplayGain? replayGain, @JsonKey(readValue: _readGenresJson)  List<String> genres)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Song() when $default != null:
 return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_that.artistId,_that.track,_that.discNumber,_that.year,_that.duration,_that.bitRate,_that.sampleRate,_that.contentType,_that.suffix,_that.size,_that.coverArt,_that.starred,_that.musicBrainzId,_that.userRating,_that.playCount,_that.created,_that.isExternal,_that.replayGain,_that.genres);case _:
@@ -219,7 +219,7 @@ return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  String? album,  String? albumId,  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate, @JsonKey(readValue: _readSampleRateJson)  int? sampleRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  String? musicBrainzId,  int? userRating,  int? playCount,  DateTime? created,  bool? isExternal,  ReplayGain? replayGain, @JsonKey(readValue: _readGenresJson)  List<String> genres)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id, @JsonKey(readValue: readDecodedString)  String title, @JsonKey(readValue: readDecodedString)  String? album,  String? albumId, @JsonKey(readValue: readDecodedString)  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate, @JsonKey(readValue: _readSampleRateJson)  int? sampleRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  String? musicBrainzId,  int? userRating,  int? playCount,  DateTime? created,  bool? isExternal,  ReplayGain? replayGain, @JsonKey(readValue: _readGenresJson)  List<String> genres)  $default,) {final _that = this;
 switch (_that) {
 case _Song():
 return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_that.artistId,_that.track,_that.discNumber,_that.year,_that.duration,_that.bitRate,_that.sampleRate,_that.contentType,_that.suffix,_that.size,_that.coverArt,_that.starred,_that.musicBrainzId,_that.userRating,_that.playCount,_that.created,_that.isExternal,_that.replayGain,_that.genres);case _:
@@ -239,7 +239,7 @@ return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_tha
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  String? album,  String? albumId,  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate, @JsonKey(readValue: _readSampleRateJson)  int? sampleRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  String? musicBrainzId,  int? userRating,  int? playCount,  DateTime? created,  bool? isExternal,  ReplayGain? replayGain, @JsonKey(readValue: _readGenresJson)  List<String> genres)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id, @JsonKey(readValue: readDecodedString)  String title, @JsonKey(readValue: readDecodedString)  String? album,  String? albumId, @JsonKey(readValue: readDecodedString)  String? artist,  String? artistId,  int? track,  int? discNumber,  int? year,  int? duration,  int? bitRate, @JsonKey(readValue: _readSampleRateJson)  int? sampleRate,  String? contentType,  String? suffix,  int? size,  String? coverArt,  DateTime? starred,  String? musicBrainzId,  int? userRating,  int? playCount,  DateTime? created,  bool? isExternal,  ReplayGain? replayGain, @JsonKey(readValue: _readGenresJson)  List<String> genres)?  $default,) {final _that = this;
 switch (_that) {
 case _Song() when $default != null:
 return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_that.artistId,_that.track,_that.discNumber,_that.year,_that.duration,_that.bitRate,_that.sampleRate,_that.contentType,_that.suffix,_that.size,_that.coverArt,_that.starred,_that.musicBrainzId,_that.userRating,_that.playCount,_that.created,_that.isExternal,_that.replayGain,_that.genres);case _:
@@ -254,14 +254,14 @@ return $default(_that.id,_that.title,_that.album,_that.albumId,_that.artist,_tha
 
 @JsonSerializable(explicitToJson: true)
 class _Song implements Song {
-  const _Song({required this.id, required this.title, this.album, this.albumId, this.artist, this.artistId, this.track, this.discNumber, this.year, this.duration, this.bitRate, @JsonKey(readValue: _readSampleRateJson) this.sampleRate, this.contentType, this.suffix, this.size, this.coverArt, this.starred, this.musicBrainzId, this.userRating, this.playCount, this.created, this.isExternal, this.replayGain, @JsonKey(readValue: _readGenresJson)  List<String> genres = const <String>[]}): _genres = genres;
+  const _Song({required this.id, @JsonKey(readValue: readDecodedString) required this.title, @JsonKey(readValue: readDecodedString) this.album, this.albumId, @JsonKey(readValue: readDecodedString) this.artist, this.artistId, this.track, this.discNumber, this.year, this.duration, this.bitRate, @JsonKey(readValue: _readSampleRateJson) this.sampleRate, this.contentType, this.suffix, this.size, this.coverArt, this.starred, this.musicBrainzId, this.userRating, this.playCount, this.created, this.isExternal, this.replayGain, @JsonKey(readValue: _readGenresJson)  List<String> genres = const <String>[]}): _genres = genres;
   factory _Song.fromJson(Map<String, dynamic> json) => _$SongFromJson(json);
 
 @override final  String id;
-@override final  String title;
-@override final  String? album;
+@override@JsonKey(readValue: readDecodedString) final  String title;
+@override@JsonKey(readValue: readDecodedString) final  String? album;
 @override final  String? albumId;
-@override final  String? artist;
+@override@JsonKey(readValue: readDecodedString) final  String? artist;
 @override final  String? artistId;
 @override final  int? track;
 @override final  int? discNumber;
@@ -331,7 +331,7 @@ abstract mixin class _$SongCopyWith<$Res> implements $SongCopyWith<$Res> {
   factory _$SongCopyWith(_Song value, $Res Function(_Song) _then) = __$SongCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, String? album, String? albumId, String? artist, String? artistId, int? track, int? discNumber, int? year, int? duration, int? bitRate,@JsonKey(readValue: _readSampleRateJson) int? sampleRate, String? contentType, String? suffix, int? size, String? coverArt, DateTime? starred, String? musicBrainzId, int? userRating, int? playCount, DateTime? created, bool? isExternal, ReplayGain? replayGain,@JsonKey(readValue: _readGenresJson) List<String> genres
+ String id,@JsonKey(readValue: readDecodedString) String title,@JsonKey(readValue: readDecodedString) String? album, String? albumId,@JsonKey(readValue: readDecodedString) String? artist, String? artistId, int? track, int? discNumber, int? year, int? duration, int? bitRate,@JsonKey(readValue: _readSampleRateJson) int? sampleRate, String? contentType, String? suffix, int? size, String? coverArt, DateTime? starred, String? musicBrainzId, int? userRating, int? playCount, DateTime? created, bool? isExternal, ReplayGain? replayGain,@JsonKey(readValue: _readGenresJson) List<String> genres
 });
 
 

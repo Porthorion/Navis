@@ -8,7 +8,7 @@ part of 'artist.dart';
 
 _Artist _$ArtistFromJson(Map<String, dynamic> json) => _Artist(
   id: json['id'] as String,
-  name: json['name'] as String,
+  name: readDecodedString(json, 'name') as String,
   albumCount: (json['albumCount'] as num?)?.toInt(),
   coverArt: json['coverArt'] as String?,
   starred: json['starred'] == null

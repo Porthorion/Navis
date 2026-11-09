@@ -449,3 +449,10 @@ case, the native end-of-song latch (`applyBoost`), `lowerBoost` and its call
 sites, `NavisEqualizerProcessor.setBoost` and the `boostRequestedDb`,
 `boostAppliedDb` and `boostGuarded` state keys. `setReplayGainLevels` keys a
 clipping source by its child's id and URI, because native tags the child item.
+
+A native playback event whose `updatePosition` and `currentIndex` equal the
+current event's and whose `updateTime` is older keeps the current `updateTime`
+(everything else is taken from the event). `play()` and `pause()` stamp the
+frozen position locally; an event in flight from before that carried the
+load-time stamp, and the position then extrapolated by the whole buffering
+time until the next native event snapped it back (I32d, #152).

@@ -191,5 +191,58 @@ void main() {
         isNull,
       );
     });
+
+    test('names decode HTML entities, ids do not', () {
+      const raw = 'Come &amp; Get It (The Remixes)';
+      const clean = 'Come & Get It (The Remixes)';
+      final album = Album.fromJson(<String, dynamic>{
+        'id': 'a&amp;1',
+        'name': raw,
+        'artist': 'Tom &amp; Jerry',
+        'artists': <Object>[
+          <String, Object>{'id': 'r&amp;1', 'name': 'Tom &amp; Jerry'},
+        ],
+      });
+      expect(album.id, 'a&amp;1');
+      expect(album.name, clean);
+      expect(album.artist, 'Tom & Jerry');
+      expect(album.artists.single.id, 'r&amp;1');
+      expect(album.artists.single.name, 'Tom & Jerry');
+
+      final artist = Artist.fromJson(<String, dynamic>{
+        'id': 'ar&amp;1',
+        'name': 'Tom &amp; Jerry',
+      });
+      expect(artist.id, 'ar&amp;1');
+      expect(artist.name, 'Tom & Jerry');
+
+      final song = Song.fromJson(<String, dynamic>{
+        'id': 's&amp;1',
+        'title': raw,
+        'album': raw,
+        'artist': 'Tom &amp; Jerry',
+        'albumId': 'a&amp;1',
+        'coverArt': 'al-&amp;1',
+        'genres': <Object>[
+          <String, Object>{'name': 'R&amp;B'},
+        ],
+      });
+      expect(song.id, 's&amp;1');
+      expect(song.albumId, 'a&amp;1');
+      expect(song.coverArt, 'al-&amp;1');
+      expect(song.title, clean);
+      expect(song.album, clean);
+      expect(song.artist, 'Tom & Jerry');
+      expect(song.genres, <String>['R&B']);
+      expect(
+        Song.fromJson(<String, dynamic>{
+          'id': 's',
+          'title': 'T',
+          'genre': 'R&amp;B',
+        }).genres,
+        <String>['R&B'],
+      );
+      expect(Song.fromJson(song.toJson()), song);
+    });
   });
 }

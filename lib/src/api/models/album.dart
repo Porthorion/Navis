@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:navis/src/api/models/artist_ref.dart';
 import 'package:navis/src/api/models/song.dart';
+import 'package:navis/src/utils/html_entities.dart';
 
 part 'album.freezed.dart';
 part 'album.g.dart';
@@ -10,8 +11,8 @@ abstract class Album with _$Album {
   @JsonSerializable(explicitToJson: true)
   const factory({
     required String id,
-    required String name,
-    String? artist,
+    @JsonKey(readValue: readDecodedString) required String name,
+    @JsonKey(readValue: readDecodedString) String? artist,
     String? artistId,
 
     /// OpenSubsonic extension: multiple album artists with individual IDs.
