@@ -186,7 +186,8 @@ const List<ChangelogVersion> changelogs = [
       ),
       ChangelogEntry(
         'Volume normalization now turns quiet songs up when their tags show '
-        "room, stopping 1 dB below the song's peak so nothing distorts",
+        "room, stopping 1 dB below the song's peak so nothing distorts. Songs "
+        'without ReplayGain data are only ever turned down',
         platforms: {
           ChangelogPlatform.android,
           ChangelogPlatform.windows,
@@ -211,7 +212,7 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Turning crossfade, gapless, ReplayGain, speed or pitch on or off '
         'takes effect right away during playback, and songs already in your '
-        'queue pick up changed ReplayGain after a sync',
+        'queue pick up changed ReplayGain after a sync, from the next song on',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
@@ -286,7 +287,8 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Foldables and tablets fit better: the artist letter bar follows your '
         'scroll, Library keeps your place when the screen folds, unfolds or '
-        'rotates, Now Playing fits shorter screens, and on the folded iPhone '
+        'rotates, Now Playing fits shorter screens, album covers on tablets '
+        'leave room for the songs, and on the folded iPhone '
         'Duo the letter bar, mini player buttons and new playlist button '
         'clear the system strip',
         type: ChangelogEntryType.fix,
@@ -294,15 +296,23 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'Short windows show more of the page: the player bar and the album, '
         'playlist and artist headers shrink below 760 px high, and the header '
-        'scrolls away with the track list. Album pages no longer show "Could '
-        'not load" while another window has focus, and Recently Added on '
-        'Home shows its play button on hover',
+        'scrolls away with the track list',
         platforms: {
           ChangelogPlatform.macos,
           ChangelogPlatform.windows,
           ChangelogPlatform.linux,
         },
         type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
+        'Album pages no longer show "Could not load" while another window has '
+        'focus, and Recently Added on Home shows its play button on hover',
+        platforms: {
+          ChangelogPlatform.macos,
+          ChangelogPlatform.windows,
+          ChangelogPlatform.linux,
+        },
+        type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
         'Choosing a custom downloads folder (and importing/exporting EQ '
