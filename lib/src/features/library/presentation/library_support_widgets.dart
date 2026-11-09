@@ -385,18 +385,20 @@ class _SectionRail extends StatelessWidget {
       ),
     );
     // The rail floats at the right edge: stay clear of a system strip there
-    // (the iPhone Duo cover screen). Beside one the shell already cleared, keep
-    // the page's 12 dp side margin as a gap before it.
+    // (the iPhone Duo cover screen).
     return Padding(
-      padding: EdgeInsets.only(
-        right:
-            rightSystemInsetFor(context) +
-            (ConsumedRightInset.of(context) ? 12 : 0),
-      ),
+      padding: EdgeInsets.only(right: sectionRailEndGap(context)),
       child: rail,
     );
   }
 }
+
+/// Space between the right edge of the page and a [_SectionRail]: a system
+/// strip the rail must clear, and beside one the shell already cleared, the
+/// page's 12 dp side margin. Lists and grids that reserve end space for the
+/// rail add it to their reserve, so the rail never overlaps their content.
+double sectionRailEndGap(BuildContext context) =>
+    rightSystemInsetFor(context) + (ConsumedRightInset.of(context) ? 12 : 0);
 
 class _RailOverlay extends StatelessWidget {
   const new({required this.overlayKey, required this.label});

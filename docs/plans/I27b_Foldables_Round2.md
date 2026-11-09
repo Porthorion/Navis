@@ -67,3 +67,15 @@ A fresh review and the Duo runtime pass confirmed D1–D7. Follow-up commit:
   strip on the original code (artist heart buttons and rows, playlist rows,
   album cards, the Liked strip) and fails there; the D4 text scale and D5
   593/666/671 dp cases are labelled regression guards.
+- **Pane drops the rail-side inset:** with the outer `SafeArea` gone, each
+  `SafeArea` consumed only its own side, so the pane still saw the rail side's
+  inset in `MediaQuery.padding` (a left notch in LTR, a right strip in RTL) and
+  padded its content by it a second time. `SideInsetsConsumed` (under each
+  `SafeArea`, off for compact wide) drops both side paddings below it, so the
+  pane and rail content see zero. Tests: the LTR left notch is checked in the
+  full app; RTL is checked on the same composition built from its pieces,
+  because the app only has an English locale.
+- **Rail end space:** the alphabet rail's 12 dp gutter moved it inward but the
+  artists grid and list (and the years and genres rails) still reserved the old
+  end space, so the last column sat under the pill. `sectionRailEndGap` is now
+  the one source: the rail pads by it and every reserve adds it.

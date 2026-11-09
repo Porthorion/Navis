@@ -241,3 +241,26 @@ class _BottomNavInsetPadding extends StatelessWidget {
     );
   }
 }
+
+/// Drops the left and right system padding from [MediaQuery] below it. Placed
+/// under a rail-layout `SafeArea`, which consumes only its own side: the other
+/// side's inset belongs to the neighbouring `SafeArea`, and the page or rail
+/// content must not pad by it again.
+class SideInsetsConsumed extends StatelessWidget {
+  const new({required this.enabled, required this.child});
+
+  /// False under the compact wide shell, which pads by the inset itself and
+  /// leaves [MediaQuery] as the system reports it.
+  final bool enabled;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => enabled
+      ? MediaQuery.removePadding(
+          context: context,
+          removeLeft: true,
+          removeRight: true,
+          child: child,
+        )
+      : child;
+}

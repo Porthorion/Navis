@@ -27,6 +27,7 @@ import 'package:navis/src/features/integrations/presentation/integrations_notice
 import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
 import 'package:navis/src/common_widgets/artist_card.dart';
+import 'package:navis/src/common_widgets/cover_art_image.dart';
 import 'package:navis/src/common_widgets/entity_action_bar.dart';
 import 'package:navis/src/features/library/presentation/library_sync_provider.dart';
 import 'package:navis/src/features/onboarding/presentation/onboarding_provider.dart';
@@ -39,6 +40,7 @@ import 'package:navis/src/features/player/presentation/player_sheet_provider.dar
 import 'package:navis/src/features/player/presentation/scrobble_dispatch_provider.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_routes.dart';
+import 'package:navis/src/routing/app_shell.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
 import 'package:navis/src/routing/desktop_window_controller.dart';
 import 'package:navis/src/utils/connectivity.dart';
@@ -1094,6 +1096,54 @@ void main() {
       );
     });
 
+    // The rail keeps a gap before the strip, so the grid and the list must
+    // reserve that gap too: no avatar or name may sit under the rail.
+    for (final (name, viewport) in <(String, _Viewport)>[
+      ('Duo cover', _duoFolded),
+      ('unfolded landscape with the strip', _duoLandscapeStrip),
+    ]) {
+      for (final mode in <String>['grid', 'list']) {
+        _testApp('artists $mode content clears the alphabet rail: $name', (
+          tester,
+        ) async {
+          final container = await _pumpApp(tester, viewport);
+          await container
+              .read(navisDatabaseProvider)
+              .appSettingsDao
+              .updateArtistViewMode(mode);
+          await _go(tester, AppRoutes.librarySection('artists'));
+
+          final rail = tester.getRect(
+            find.byKey(const Key('artistAlphabetRail')),
+          );
+          final content = <Finder>[
+            find.descendant(
+              of: find.byType(ArtistCard),
+              matching: find.byType(CoverArtImage),
+            ),
+            find.descendant(
+              of: find.byType(ArtistCard),
+              matching: find.byType(Text),
+            ),
+          ];
+          for (final finder in content) {
+            final visible = finder.hitTestable();
+            expect(visible, findsWidgets);
+            for (final element in visible.evaluate()) {
+              final box = tester.getRect(
+                find.byElementPredicate((e) => e == element),
+              );
+              expect(
+                box.right,
+                lessThanOrEqualTo(rail.left),
+                reason: '$mode content $box under the rail $rail',
+              );
+            }
+          }
+        });
+      }
+    }
+
     _testApp('other right edge controls already leave a gap on the cover', (
       tester,
     ) async {
@@ -1125,6 +1175,118 @@ void main() {
             .right,
         lessThanOrEqualTo(stripLeft - gutter),
       );
+    });
+  });
+
+  group('I27b pane drops the rail-side inset', () {
+    for (final (name, viewport) in <(String, _Viewport)>[
+      (
+        'no inset',
+        (size: Size(951, 669), padding: EdgeInsets.only(bottom: 34)),
+      ),
+      ('left notch 48', _duoLandscapeNotch),
+    ]) {
+      _testApp('page content offset from the rail: $name', (tester) async {
+        await _pumpApp(tester, viewport);
+        await _go(tester, AppRoutes.settings);
+
+        expect(tester.takeException(), isNull);
+        final railColor = Theme.of(tester.element(find.byType(Scaffold).first))
+            .colorScheme
+            .surfaceContainerLow;
+        final rail = tester.getRect(
+          find
+              .ancestor(
+                of: find.text('Home').first,
+                matching: find.byWidgetPredicate(
+                  (w) => w is Material && w.color == railColor,
+                ),
+              )
+              .first,
+        );
+        // The pane's leftmost text, past the rail.
+        final texts = find
+            .byType(Text)
+            .hitTestable()
+            .evaluate()
+            .where(
+              (e) =>
+                  tester.getRect(find.byElementPredicate((x) => x == e)).left >
+                  rail.right,
+            );
+        final first = texts.reduce(
+          (a, b) =>
+              tester.getRect(find.byElementPredicate((x) => x == a)).left <=
+                  tester.getRect(find.byElementPredicate((x) => x == b)).left
+              ? a
+              : b,
+        );
+        final left = tester
+            .getRect(find.byElementPredicate((x) => x == first))
+            .left;
+        // The page's 16 dp margin, with no inset added by the rail's side.
+        expect(left - rail.right, 16);
+        final context = first;
+        expect(MediaQuery.paddingOf(context).left, 0);
+        expect(MediaQuery.paddingOf(context).right, 0);
+      });
+    }
+
+    // The full app only has an English locale, so the right-to-left shell
+    // cannot be pumped: the same composition is built from its pieces.
+    _testApp('right to left: each side takes only its own inset', (
+      tester,
+    ) async {
+      EdgeInsets? railPadding;
+      EdgeInsets? panePadding;
+      const insets = EdgeInsets.fromLTRB(0, 0, 84, 0);
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.rtl,
+          child: MediaQuery(
+            data: const MediaQueryData(size: Size(951, 669), padding: insets),
+            child: Row(
+              children: <Widget>[
+                // RTL: the rail is on the right, the pane on the left.
+                Expanded(
+                  child: SafeArea(
+                    left: true,
+                    right: false,
+                    child: SideInsetsConsumed(
+                      enabled: true,
+                      child: Builder(
+                        builder: (context) {
+                          panePadding = MediaQuery.paddingOf(context);
+                          return const SizedBox();
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: 270,
+                  child: SafeArea(
+                    left: false,
+                    right: true,
+                    child: SideInsetsConsumed(
+                      enabled: true,
+                      child: Builder(
+                        builder: (context) {
+                          railPadding = MediaQuery.paddingOf(context);
+                          return const SizedBox();
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      expect(railPadding, EdgeInsets.zero);
+      expect(panePadding, EdgeInsets.zero);
     });
   });
 

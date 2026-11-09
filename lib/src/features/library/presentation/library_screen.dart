@@ -1166,7 +1166,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       itemScrollController: _artistsItemScrollController,
                       itemPositionsListener: _artistsItemPositionsListener,
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.only(bottom: 16, right: 28),
+                      padding: EdgeInsets.only(
+                        bottom: 16,
+                        right: 28 + sectionRailEndGap(context),
+                      ),
                       itemBuilder: (context, index) {
                         final item = _artistListItems[index];
                         if (item.artist == null) {
@@ -1615,7 +1618,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                         itemScrollController: _yearItemScrollController,
                         itemPositionsListener: _yearItemPositionsListener,
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(12, 0, 52, 12),
+                        padding: EdgeInsets.fromLTRB(
+                          12,
+                          0,
+                          52 + sectionRailEndGap(context),
+                          12,
+                        ),
                         itemBuilder: (context, index) {
                           final item = _yearListItems[index];
                           if (item.isHeader) {
@@ -2366,7 +2374,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               ResponsiveContentSliverGrid(
                 itemCount: grouped[letter]?.length ?? 0,
                 artists: true,
-                trailingInset: 28,
+                trailingInset: 28 + sectionRailEndGap(context),
                 itemBuilder: (context, index) {
                   final byLetter =
                       grouped[letter] ?? const <ArtistsTableData>[];
