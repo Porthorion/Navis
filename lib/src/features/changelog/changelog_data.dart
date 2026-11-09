@@ -290,8 +290,8 @@ const List<ChangelogVersion> changelogs = [
         'rotates, Now Playing fits shorter screens, album covers on tablets '
         'leave room for the songs, Library tabs and Top Results in Search '
         'no longer get cut off or squeezed, the side rail keeps its normal '
-        'width, and on the iPhone Duo every page stays clear of the system '
-        'strip on the right',
+        'width when unfolded, and on the iPhone Duo every page stays clear of '
+        'the system strip on the right',
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
