@@ -15,15 +15,11 @@ policy. It defaults to false; other platform adapters ignore the option.
 
 `AudioPlayerPlatform.setReplayGainBoost` carries Navis's ReplayGain boost
 (positive gain): the playing song's boost and a per-URI map for backends that
-switch gain per file. The default throws `UnimplementedError`, which the app
-reads as "no boost stage here".
+switch gain per file (the iOS backend). The default throws
+`UnimplementedError`, which the app reads as "no boost stage here".
 
 `EqualizerStateMessage` adds `replayGainCurrentKey`, `replayGainAppliedDb` and
 `boostClipSamples` (default null/0/0), read from the Android processor's state.
-
-`SetReplayGainBoostRequest.index` is the queue index the boost was computed for;
-a backend that knows which song it plays ignores a non-zero value for another
-index.
 
 `UriAudioSourceMessage.replayGainDb` (progressive, DASH, HLS) is a song's
 signed in-pipeline ReplayGain. `AudioPlayerPlatform.setReplayGainLevels`

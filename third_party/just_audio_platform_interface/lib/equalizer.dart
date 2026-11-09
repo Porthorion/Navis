@@ -93,32 +93,18 @@ class EqualizerStateMessage {
 ///
 /// [currentDb] is the boost of the song that is playing now. [byUri] holds the
 /// boost of every queued song by its source URI, for backends that switch
-/// gain per file (desktop mpv). Both are 0 or more.
+/// gain per file (the iOS backend). Both are 0 or more.
 class SetReplayGainBoostRequest {
   const SetReplayGainBoostRequest({
     required this.currentDb,
-    this.guarded = false,
-    this.index,
     this.byUri = const <String, double>{},
   });
 
   final double currentDb;
-
-  /// Whether the caller wants [currentDb] to be a lowered value that may only
-  /// go down until the next song starts.
-  final bool guarded;
-
-  /// The queue index [currentDb] was computed for. A backend that can tell
-  /// which song it is playing ignores a non-zero value for another one: a
-  /// message that raced a song switch must not put the old song's boost on the
-  /// new song's samples.
-  final int? index;
   final Map<String, double> byUri;
 
   Map<String, Object?> toMap() => {
         'currentDb': currentDb,
-        'guarded': guarded,
-        'index': index,
         'byUri': byUri,
       };
 
@@ -126,13 +112,11 @@ class SetReplayGainBoostRequest {
   bool operator ==(Object other) =>
       other is SetReplayGainBoostRequest &&
       other.currentDb == currentDb &&
-      other.guarded == guarded &&
-      other.index == index &&
       other.byUri.length == byUri.length &&
       byUri.entries.every((entry) => other.byUri[entry.key] == entry.value);
 
   @override
-  int get hashCode => Object.hash(currentDb, guarded, index, byUri.length);
+  int get hashCode => Object.hash(currentDb, byUri.length);
 }
 
 /// An update of the in-pipeline ReplayGain of queued songs: one signed dB

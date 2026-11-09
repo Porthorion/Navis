@@ -847,22 +847,6 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
   @override
   Stream<LoopMode> get loopModeStream => _loopModes.stream;
 
-  /// A queue edit whose platform call has not completed (just_audio's
-  /// `sequenceEditInFlight`), and the stale-index state it leaves.
-  bool editInFlight = false;
-
-  bool throwOnEditCheck = false;
-
-  @override
-  bool get sequenceEditInFlight {
-    if (throwOnEditCheck) throw StateError('boost state could not be read');
-    return editInFlight;
-  }
-
-  /// Drops source [at] as just_audio does: the sequence is the edited list at
-  /// once and the index stays the old one until the platform replies.
-  void removeSourceKeepingIndex(int at) => _sources.removeAt(at);
-
   /// What the native processor reports back (Android EQ state and boost).
   EqualizerStateMessage nativeEqualizerState = const EqualizerStateMessage(
     enabled: false,
@@ -1007,28 +991,16 @@ class _ControllableAudioPlayer extends Fake implements AudioPlayer {
 
   /// Every ReplayGain boost message this deck received, oldest first.
   final boostMessages =
-      <
-        ({
-          double currentDb,
-          bool guarded,
-          bool playing,
-          int? index,
-          Map<String?, double> bySongId,
-        })
-      >[];
+      <({double currentDb, bool playing, Map<String?, double> bySongId})>[];
 
   @override
   Future<void> setReplayGainBoost({
     required double currentDb,
-    bool guarded = false,
-    int? index,
     Map<IndexedAudioSource, double> bySource = const {},
   }) async {
     boostMessages.add((
       currentDb: currentDb,
-      guarded: guarded,
       playing: isPlaying,
-      index: index,
       bySongId: {
         for (final entry in bySource.entries)
           navisNativeSourceSongId(entry.key): entry.value,

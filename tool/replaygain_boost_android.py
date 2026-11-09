@@ -411,7 +411,7 @@ class Run:
         # index event (the status's currentIndex) land before or after the edit's reply?
         actions = [f'remove-above-{n}' for n in range(1, 6)] + ['insert-above', 'loop', 'shuffle']
         for action in actions:
-            self.phase = f'a2-latch-{action}'
+            self.phase = f'a2-edit-{action}'
             self.post('/v1/playback/adjustments', {'speed': 2})
             self.queue([H2, Q1, H1])
             self.post('/v1/playback/queue-index', {'index': 1})

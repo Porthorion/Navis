@@ -11,7 +11,7 @@ import sys
 
 import numpy as np
 
-from replaygain_boost_clamps import latch_phase_results, over_own_gain, speed_changed_mid_fade, unexpected_clamps
+from replaygain_boost_clamps import edit_phase_results, over_own_gain, speed_changed_mid_fade, unexpected_clamps
 
 RATE = 44100
 WIN = RATE // 100  # 10 ms
@@ -287,7 +287,7 @@ def a1(root):
     else:
         check('A2 Play on the completed queue restarted at song 0 or replayed Q', False,
               f'Q end rows={len(done)} H restart rows={len(restarted)} Q again rows={len(again)}')
-    for label, ok_, detail in latch_phase_results(rows):
+    for label, ok_, detail in edit_phase_results(rows):
         check(label, ok_, detail)
     # A new play of the same song: a duplicate entry (index 1 of [Q, Q, H]) and the repeat pass of repeat-one.
     second = [r for r in phase('a2-duplicate') if r['songId'] == 'rgq-1' and r.get('index') == 1 and r.get('playing')

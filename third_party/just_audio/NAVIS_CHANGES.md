@@ -273,10 +273,6 @@ the platform loads it from. A backend without a boost stage throws
 `UnimplementedError`; the Android bridge no longer implements it (its stage is
 `setReplayGainLevels`), and mpv's adapter is moving to the same levels path.
 
-`AudioPlayer.sequenceEditInFlight` exposes whether a playlist edit's platform
-call is still running, so a caller can tell that `sequence` is already the
-edited list while `currentIndex` still counts the old one.
-
 `IndexedAudioSource.replayGainDb` (signed dB, null by default) is carried by
 the progressive, DASH, HLS and stream source messages (and a clipping source's
 child), so a backend that applies ReplayGain in its audio path has each song's

@@ -207,9 +207,9 @@ The authored preamp is never rewritten. This reduces overload risk; it is not a
 limiter and does not promise protection against every transient.
 
 ReplayGain, volume, mute, ducking, and crossfade deck gains remain separate.
-The Android processor also carries the ReplayGain boost (positive gain), after
-the EQ bank and outside its preamp and automatic headroom, so quiet songs are
-turned up with the EQ off or on.
+The Android processor also applies ReplayGain (one signed level per queue entry,
+cuts and boosts), after the EQ bank and outside its preamp and automatic
+headroom, so quiet songs are turned up with the EQ off or on.
 Android puts the app-owned processor after Media3's Sonic processing, delegates
 its duration accounting, prevents encoded passthrough/offload, and crossfades
 configuration banks over 20 ms at audio-block boundaries. Each channel owns its
