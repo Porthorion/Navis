@@ -1075,6 +1075,88 @@ class $AppSettingsTableTable extends AppSettingsTable
         requiredDuringInsert: false,
         defaultValue: const Constant(420),
       );
+  static const VerificationMeta _autoThemeSourceMeta = const VerificationMeta(
+    'autoThemeSource',
+  );
+  @override
+  late final GeneratedColumn<String> autoThemeSource = GeneratedColumn<String>(
+    'auto_theme_source',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('device'),
+  );
+  static const VerificationMeta _autoDarkStartMinutesMeta =
+      const VerificationMeta('autoDarkStartMinutes');
+  @override
+  late final GeneratedColumn<int> autoDarkStartMinutes = GeneratedColumn<int>(
+    'auto_dark_start_minutes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1200),
+  );
+  static const VerificationMeta _autoDarkEndMinutesMeta =
+      const VerificationMeta('autoDarkEndMinutes');
+  @override
+  late final GeneratedColumn<int> autoDarkEndMinutes = GeneratedColumn<int>(
+    'auto_dark_end_minutes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(420),
+  );
+  static const VerificationMeta _autoLooksEnabledMeta = const VerificationMeta(
+    'autoLooksEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> autoLooksEnabled = GeneratedColumn<bool>(
+    'auto_looks_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("auto_looks_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _autoLightLookIdMeta = const VerificationMeta(
+    'autoLightLookId',
+  );
+  @override
+  late final GeneratedColumn<String> autoLightLookId = GeneratedColumn<String>(
+    'auto_light_look_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _autoDarkLookIdMeta = const VerificationMeta(
+    'autoDarkLookId',
+  );
+  @override
+  late final GeneratedColumn<String> autoDarkLookId = GeneratedColumn<String>(
+    'auto_dark_look_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _autoLooksAppliedModeMeta =
+      const VerificationMeta('autoLooksAppliedMode');
+  @override
+  late final GeneratedColumn<String> autoLooksAppliedMode =
+      GeneratedColumn<String>(
+        'auto_looks_applied_mode',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _flatSurfacesMeta = const VerificationMeta(
     'flatSurfaces',
   );
@@ -2101,6 +2183,13 @@ class $AppSettingsTableTable extends AppSettingsTable
     nightScheduleEnabled,
     nightScheduleStartMinutes,
     nightScheduleEndMinutes,
+    autoThemeSource,
+    autoDarkStartMinutes,
+    autoDarkEndMinutes,
+    autoLooksEnabled,
+    autoLightLookId,
+    autoDarkLookId,
+    autoLooksAppliedMode,
     flatSurfaces,
     colorVividness,
     surfaceDepthLight,
@@ -2507,6 +2596,69 @@ class $AppSettingsTableTable extends AppSettingsTable
         nightScheduleEndMinutes.isAcceptableOrUnknown(
           data['night_schedule_end_minutes']!,
           _nightScheduleEndMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('auto_theme_source')) {
+      context.handle(
+        _autoThemeSourceMeta,
+        autoThemeSource.isAcceptableOrUnknown(
+          data['auto_theme_source']!,
+          _autoThemeSourceMeta,
+        ),
+      );
+    }
+    if (data.containsKey('auto_dark_start_minutes')) {
+      context.handle(
+        _autoDarkStartMinutesMeta,
+        autoDarkStartMinutes.isAcceptableOrUnknown(
+          data['auto_dark_start_minutes']!,
+          _autoDarkStartMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('auto_dark_end_minutes')) {
+      context.handle(
+        _autoDarkEndMinutesMeta,
+        autoDarkEndMinutes.isAcceptableOrUnknown(
+          data['auto_dark_end_minutes']!,
+          _autoDarkEndMinutesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('auto_looks_enabled')) {
+      context.handle(
+        _autoLooksEnabledMeta,
+        autoLooksEnabled.isAcceptableOrUnknown(
+          data['auto_looks_enabled']!,
+          _autoLooksEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('auto_light_look_id')) {
+      context.handle(
+        _autoLightLookIdMeta,
+        autoLightLookId.isAcceptableOrUnknown(
+          data['auto_light_look_id']!,
+          _autoLightLookIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('auto_dark_look_id')) {
+      context.handle(
+        _autoDarkLookIdMeta,
+        autoDarkLookId.isAcceptableOrUnknown(
+          data['auto_dark_look_id']!,
+          _autoDarkLookIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('auto_looks_applied_mode')) {
+      context.handle(
+        _autoLooksAppliedModeMeta,
+        autoLooksAppliedMode.isAcceptableOrUnknown(
+          data['auto_looks_applied_mode']!,
+          _autoLooksAppliedModeMeta,
         ),
       );
     }
@@ -3359,6 +3511,34 @@ class $AppSettingsTableTable extends AppSettingsTable
         DriftSqlType.int,
         data['${effectivePrefix}night_schedule_end_minutes'],
       )!,
+      autoThemeSource: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}auto_theme_source'],
+      )!,
+      autoDarkStartMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}auto_dark_start_minutes'],
+      )!,
+      autoDarkEndMinutes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}auto_dark_end_minutes'],
+      )!,
+      autoLooksEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}auto_looks_enabled'],
+      )!,
+      autoLightLookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}auto_light_look_id'],
+      ),
+      autoDarkLookId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}auto_dark_look_id'],
+      ),
+      autoLooksAppliedMode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}auto_looks_applied_mode'],
+      ),
       flatSurfaces: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}flat_surfaces'],
@@ -3765,6 +3945,27 @@ class AppSettingsTableData extends DataClass
   /// Daily Night end in minutes after local midnight.
   final int nightScheduleEndMinutes;
 
+  /// What Auto theme mode follows: 'device' or 'schedule'.
+  final String autoThemeSource;
+
+  /// Scheduled Auto: daily dark start in minutes after local midnight.
+  final int autoDarkStartMinutes;
+
+  /// Scheduled Auto: daily dark end in minutes after local midnight.
+  final int autoDarkEndMinutes;
+
+  /// Auto uses a saved Look per mode (stored ahead of its settings).
+  final bool autoLooksEnabled;
+
+  /// Look id applied when Auto turns light; null keeps the current look.
+  final String? autoLightLookId;
+
+  /// Look id applied when Auto turns dark; null keeps the current look.
+  final String? autoDarkLookId;
+
+  /// 'light' or 'dark': the mode whose Look was applied last; null if none.
+  final String? autoLooksAppliedMode;
+
   /// Disables surface glows, gradients and shadows when rendered.
   final bool flatSurfaces;
   final int colorVividness;
@@ -4036,6 +4237,13 @@ class AppSettingsTableData extends DataClass
     required this.nightScheduleEnabled,
     required this.nightScheduleStartMinutes,
     required this.nightScheduleEndMinutes,
+    required this.autoThemeSource,
+    required this.autoDarkStartMinutes,
+    required this.autoDarkEndMinutes,
+    required this.autoLooksEnabled,
+    this.autoLightLookId,
+    this.autoDarkLookId,
+    this.autoLooksAppliedMode,
     required this.flatSurfaces,
     required this.colorVividness,
     required this.surfaceDepthLight,
@@ -4177,6 +4385,19 @@ class AppSettingsTableData extends DataClass
       nightScheduleStartMinutes,
     );
     map['night_schedule_end_minutes'] = Variable<int>(nightScheduleEndMinutes);
+    map['auto_theme_source'] = Variable<String>(autoThemeSource);
+    map['auto_dark_start_minutes'] = Variable<int>(autoDarkStartMinutes);
+    map['auto_dark_end_minutes'] = Variable<int>(autoDarkEndMinutes);
+    map['auto_looks_enabled'] = Variable<bool>(autoLooksEnabled);
+    if (!nullToAbsent || autoLightLookId != null) {
+      map['auto_light_look_id'] = Variable<String>(autoLightLookId);
+    }
+    if (!nullToAbsent || autoDarkLookId != null) {
+      map['auto_dark_look_id'] = Variable<String>(autoDarkLookId);
+    }
+    if (!nullToAbsent || autoLooksAppliedMode != null) {
+      map['auto_looks_applied_mode'] = Variable<String>(autoLooksAppliedMode);
+    }
     map['flat_surfaces'] = Variable<bool>(flatSurfaces);
     map['color_vividness'] = Variable<int>(colorVividness);
     map['surface_depth_light'] = Variable<int>(surfaceDepthLight);
@@ -4371,6 +4592,19 @@ class AppSettingsTableData extends DataClass
       nightScheduleEnabled: Value(nightScheduleEnabled),
       nightScheduleStartMinutes: Value(nightScheduleStartMinutes),
       nightScheduleEndMinutes: Value(nightScheduleEndMinutes),
+      autoThemeSource: Value(autoThemeSource),
+      autoDarkStartMinutes: Value(autoDarkStartMinutes),
+      autoDarkEndMinutes: Value(autoDarkEndMinutes),
+      autoLooksEnabled: Value(autoLooksEnabled),
+      autoLightLookId: autoLightLookId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(autoLightLookId),
+      autoDarkLookId: autoDarkLookId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(autoDarkLookId),
+      autoLooksAppliedMode: autoLooksAppliedMode == null && nullToAbsent
+          ? const Value.absent()
+          : Value(autoLooksAppliedMode),
       flatSurfaces: Value(flatSurfaces),
       colorVividness: Value(colorVividness),
       surfaceDepthLight: Value(surfaceDepthLight),
@@ -4562,6 +4796,17 @@ class AppSettingsTableData extends DataClass
       ),
       nightScheduleEndMinutes: serializer.fromJson<int>(
         json['nightScheduleEndMinutes'],
+      ),
+      autoThemeSource: serializer.fromJson<String>(json['autoThemeSource']),
+      autoDarkStartMinutes: serializer.fromJson<int>(
+        json['autoDarkStartMinutes'],
+      ),
+      autoDarkEndMinutes: serializer.fromJson<int>(json['autoDarkEndMinutes']),
+      autoLooksEnabled: serializer.fromJson<bool>(json['autoLooksEnabled']),
+      autoLightLookId: serializer.fromJson<String?>(json['autoLightLookId']),
+      autoDarkLookId: serializer.fromJson<String?>(json['autoDarkLookId']),
+      autoLooksAppliedMode: serializer.fromJson<String?>(
+        json['autoLooksAppliedMode'],
       ),
       flatSurfaces: serializer.fromJson<bool>(json['flatSurfaces']),
       colorVividness: serializer.fromJson<int>(json['colorVividness']),
@@ -4776,6 +5021,13 @@ class AppSettingsTableData extends DataClass
       'nightScheduleEndMinutes': serializer.toJson<int>(
         nightScheduleEndMinutes,
       ),
+      'autoThemeSource': serializer.toJson<String>(autoThemeSource),
+      'autoDarkStartMinutes': serializer.toJson<int>(autoDarkStartMinutes),
+      'autoDarkEndMinutes': serializer.toJson<int>(autoDarkEndMinutes),
+      'autoLooksEnabled': serializer.toJson<bool>(autoLooksEnabled),
+      'autoLightLookId': serializer.toJson<String?>(autoLightLookId),
+      'autoDarkLookId': serializer.toJson<String?>(autoDarkLookId),
+      'autoLooksAppliedMode': serializer.toJson<String?>(autoLooksAppliedMode),
       'flatSurfaces': serializer.toJson<bool>(flatSurfaces),
       'colorVividness': serializer.toJson<int>(colorVividness),
       'surfaceDepthLight': serializer.toJson<int>(surfaceDepthLight),
@@ -4931,6 +5183,13 @@ class AppSettingsTableData extends DataClass
     bool? nightScheduleEnabled,
     int? nightScheduleStartMinutes,
     int? nightScheduleEndMinutes,
+    String? autoThemeSource,
+    int? autoDarkStartMinutes,
+    int? autoDarkEndMinutes,
+    bool? autoLooksEnabled,
+    Value<String?> autoLightLookId = const Value.absent(),
+    Value<String?> autoDarkLookId = const Value.absent(),
+    Value<String?> autoLooksAppliedMode = const Value.absent(),
     bool? flatSurfaces,
     int? colorVividness,
     int? surfaceDepthLight,
@@ -5064,6 +5323,19 @@ class AppSettingsTableData extends DataClass
         nightScheduleStartMinutes ?? this.nightScheduleStartMinutes,
     nightScheduleEndMinutes:
         nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
+    autoThemeSource: autoThemeSource ?? this.autoThemeSource,
+    autoDarkStartMinutes: autoDarkStartMinutes ?? this.autoDarkStartMinutes,
+    autoDarkEndMinutes: autoDarkEndMinutes ?? this.autoDarkEndMinutes,
+    autoLooksEnabled: autoLooksEnabled ?? this.autoLooksEnabled,
+    autoLightLookId: autoLightLookId.present
+        ? autoLightLookId.value
+        : this.autoLightLookId,
+    autoDarkLookId: autoDarkLookId.present
+        ? autoDarkLookId.value
+        : this.autoDarkLookId,
+    autoLooksAppliedMode: autoLooksAppliedMode.present
+        ? autoLooksAppliedMode.value
+        : this.autoLooksAppliedMode,
     flatSurfaces: flatSurfaces ?? this.flatSurfaces,
     colorVividness: colorVividness ?? this.colorVividness,
     surfaceDepthLight: surfaceDepthLight ?? this.surfaceDepthLight,
@@ -5303,6 +5575,27 @@ class AppSettingsTableData extends DataClass
       nightScheduleEndMinutes: data.nightScheduleEndMinutes.present
           ? data.nightScheduleEndMinutes.value
           : this.nightScheduleEndMinutes,
+      autoThemeSource: data.autoThemeSource.present
+          ? data.autoThemeSource.value
+          : this.autoThemeSource,
+      autoDarkStartMinutes: data.autoDarkStartMinutes.present
+          ? data.autoDarkStartMinutes.value
+          : this.autoDarkStartMinutes,
+      autoDarkEndMinutes: data.autoDarkEndMinutes.present
+          ? data.autoDarkEndMinutes.value
+          : this.autoDarkEndMinutes,
+      autoLooksEnabled: data.autoLooksEnabled.present
+          ? data.autoLooksEnabled.value
+          : this.autoLooksEnabled,
+      autoLightLookId: data.autoLightLookId.present
+          ? data.autoLightLookId.value
+          : this.autoLightLookId,
+      autoDarkLookId: data.autoDarkLookId.present
+          ? data.autoDarkLookId.value
+          : this.autoDarkLookId,
+      autoLooksAppliedMode: data.autoLooksAppliedMode.present
+          ? data.autoLooksAppliedMode.value
+          : this.autoLooksAppliedMode,
       flatSurfaces: data.flatSurfaces.present
           ? data.flatSurfaces.value
           : this.flatSurfaces,
@@ -5575,6 +5868,13 @@ class AppSettingsTableData extends DataClass
           ..write('nightScheduleEnabled: $nightScheduleEnabled, ')
           ..write('nightScheduleStartMinutes: $nightScheduleStartMinutes, ')
           ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
+          ..write('autoThemeSource: $autoThemeSource, ')
+          ..write('autoDarkStartMinutes: $autoDarkStartMinutes, ')
+          ..write('autoDarkEndMinutes: $autoDarkEndMinutes, ')
+          ..write('autoLooksEnabled: $autoLooksEnabled, ')
+          ..write('autoLightLookId: $autoLightLookId, ')
+          ..write('autoDarkLookId: $autoDarkLookId, ')
+          ..write('autoLooksAppliedMode: $autoLooksAppliedMode, ')
           ..write('flatSurfaces: $flatSurfaces, ')
           ..write('colorVividness: $colorVividness, ')
           ..write('surfaceDepthLight: $surfaceDepthLight, ')
@@ -5702,6 +6002,13 @@ class AppSettingsTableData extends DataClass
     nightScheduleEnabled,
     nightScheduleStartMinutes,
     nightScheduleEndMinutes,
+    autoThemeSource,
+    autoDarkStartMinutes,
+    autoDarkEndMinutes,
+    autoLooksEnabled,
+    autoLightLookId,
+    autoDarkLookId,
+    autoLooksAppliedMode,
     flatSurfaces,
     colorVividness,
     surfaceDepthLight,
@@ -5824,6 +6131,13 @@ class AppSettingsTableData extends DataClass
           other.nightScheduleEnabled == this.nightScheduleEnabled &&
           other.nightScheduleStartMinutes == this.nightScheduleStartMinutes &&
           other.nightScheduleEndMinutes == this.nightScheduleEndMinutes &&
+          other.autoThemeSource == this.autoThemeSource &&
+          other.autoDarkStartMinutes == this.autoDarkStartMinutes &&
+          other.autoDarkEndMinutes == this.autoDarkEndMinutes &&
+          other.autoLooksEnabled == this.autoLooksEnabled &&
+          other.autoLightLookId == this.autoLightLookId &&
+          other.autoDarkLookId == this.autoDarkLookId &&
+          other.autoLooksAppliedMode == this.autoLooksAppliedMode &&
           other.flatSurfaces == this.flatSurfaces &&
           other.colorVividness == this.colorVividness &&
           other.surfaceDepthLight == this.surfaceDepthLight &&
@@ -5948,6 +6262,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
   final Value<bool> nightScheduleEnabled;
   final Value<int> nightScheduleStartMinutes;
   final Value<int> nightScheduleEndMinutes;
+  final Value<String> autoThemeSource;
+  final Value<int> autoDarkStartMinutes;
+  final Value<int> autoDarkEndMinutes;
+  final Value<bool> autoLooksEnabled;
+  final Value<String?> autoLightLookId;
+  final Value<String?> autoDarkLookId;
+  final Value<String?> autoLooksAppliedMode;
   final Value<bool> flatSurfaces;
   final Value<int> colorVividness;
   final Value<int> surfaceDepthLight;
@@ -6064,6 +6385,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nightScheduleEnabled = const Value.absent(),
     this.nightScheduleStartMinutes = const Value.absent(),
     this.nightScheduleEndMinutes = const Value.absent(),
+    this.autoThemeSource = const Value.absent(),
+    this.autoDarkStartMinutes = const Value.absent(),
+    this.autoDarkEndMinutes = const Value.absent(),
+    this.autoLooksEnabled = const Value.absent(),
+    this.autoLightLookId = const Value.absent(),
+    this.autoDarkLookId = const Value.absent(),
+    this.autoLooksAppliedMode = const Value.absent(),
     this.flatSurfaces = const Value.absent(),
     this.colorVividness = const Value.absent(),
     this.surfaceDepthLight = const Value.absent(),
@@ -6181,6 +6509,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     this.nightScheduleEnabled = const Value.absent(),
     this.nightScheduleStartMinutes = const Value.absent(),
     this.nightScheduleEndMinutes = const Value.absent(),
+    this.autoThemeSource = const Value.absent(),
+    this.autoDarkStartMinutes = const Value.absent(),
+    this.autoDarkEndMinutes = const Value.absent(),
+    this.autoLooksEnabled = const Value.absent(),
+    this.autoLightLookId = const Value.absent(),
+    this.autoDarkLookId = const Value.absent(),
+    this.autoLooksAppliedMode = const Value.absent(),
     this.flatSurfaces = const Value.absent(),
     this.colorVividness = const Value.absent(),
     this.surfaceDepthLight = const Value.absent(),
@@ -6298,6 +6633,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Expression<bool>? nightScheduleEnabled,
     Expression<int>? nightScheduleStartMinutes,
     Expression<int>? nightScheduleEndMinutes,
+    Expression<String>? autoThemeSource,
+    Expression<int>? autoDarkStartMinutes,
+    Expression<int>? autoDarkEndMinutes,
+    Expression<bool>? autoLooksEnabled,
+    Expression<String>? autoLightLookId,
+    Expression<String>? autoDarkLookId,
+    Expression<String>? autoLooksAppliedMode,
     Expression<bool>? flatSurfaces,
     Expression<int>? colorVividness,
     Expression<int>? surfaceDepthLight,
@@ -6433,6 +6775,16 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
         'night_schedule_start_minutes': nightScheduleStartMinutes,
       if (nightScheduleEndMinutes != null)
         'night_schedule_end_minutes': nightScheduleEndMinutes,
+      if (autoThemeSource != null) 'auto_theme_source': autoThemeSource,
+      if (autoDarkStartMinutes != null)
+        'auto_dark_start_minutes': autoDarkStartMinutes,
+      if (autoDarkEndMinutes != null)
+        'auto_dark_end_minutes': autoDarkEndMinutes,
+      if (autoLooksEnabled != null) 'auto_looks_enabled': autoLooksEnabled,
+      if (autoLightLookId != null) 'auto_light_look_id': autoLightLookId,
+      if (autoDarkLookId != null) 'auto_dark_look_id': autoDarkLookId,
+      if (autoLooksAppliedMode != null)
+        'auto_looks_applied_mode': autoLooksAppliedMode,
       if (flatSurfaces != null) 'flat_surfaces': flatSurfaces,
       if (colorVividness != null) 'color_vividness': colorVividness,
       if (surfaceDepthLight != null) 'surface_depth_light': surfaceDepthLight,
@@ -6591,6 +6943,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     Value<bool>? nightScheduleEnabled,
     Value<int>? nightScheduleStartMinutes,
     Value<int>? nightScheduleEndMinutes,
+    Value<String>? autoThemeSource,
+    Value<int>? autoDarkStartMinutes,
+    Value<int>? autoDarkEndMinutes,
+    Value<bool>? autoLooksEnabled,
+    Value<String?>? autoLightLookId,
+    Value<String?>? autoDarkLookId,
+    Value<String?>? autoLooksAppliedMode,
     Value<bool>? flatSurfaces,
     Value<int>? colorVividness,
     Value<int>? surfaceDepthLight,
@@ -6719,6 +7078,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           nightScheduleStartMinutes ?? this.nightScheduleStartMinutes,
       nightScheduleEndMinutes:
           nightScheduleEndMinutes ?? this.nightScheduleEndMinutes,
+      autoThemeSource: autoThemeSource ?? this.autoThemeSource,
+      autoDarkStartMinutes: autoDarkStartMinutes ?? this.autoDarkStartMinutes,
+      autoDarkEndMinutes: autoDarkEndMinutes ?? this.autoDarkEndMinutes,
+      autoLooksEnabled: autoLooksEnabled ?? this.autoLooksEnabled,
+      autoLightLookId: autoLightLookId ?? this.autoLightLookId,
+      autoDarkLookId: autoDarkLookId ?? this.autoDarkLookId,
+      autoLooksAppliedMode: autoLooksAppliedMode ?? this.autoLooksAppliedMode,
       flatSurfaces: flatSurfaces ?? this.flatSurfaces,
       colorVividness: colorVividness ?? this.colorVividness,
       surfaceDepthLight: surfaceDepthLight ?? this.surfaceDepthLight,
@@ -6960,6 +7326,31 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
     if (nightScheduleEndMinutes.present) {
       map['night_schedule_end_minutes'] = Variable<int>(
         nightScheduleEndMinutes.value,
+      );
+    }
+    if (autoThemeSource.present) {
+      map['auto_theme_source'] = Variable<String>(autoThemeSource.value);
+    }
+    if (autoDarkStartMinutes.present) {
+      map['auto_dark_start_minutes'] = Variable<int>(
+        autoDarkStartMinutes.value,
+      );
+    }
+    if (autoDarkEndMinutes.present) {
+      map['auto_dark_end_minutes'] = Variable<int>(autoDarkEndMinutes.value);
+    }
+    if (autoLooksEnabled.present) {
+      map['auto_looks_enabled'] = Variable<bool>(autoLooksEnabled.value);
+    }
+    if (autoLightLookId.present) {
+      map['auto_light_look_id'] = Variable<String>(autoLightLookId.value);
+    }
+    if (autoDarkLookId.present) {
+      map['auto_dark_look_id'] = Variable<String>(autoDarkLookId.value);
+    }
+    if (autoLooksAppliedMode.present) {
+      map['auto_looks_applied_mode'] = Variable<String>(
+        autoLooksAppliedMode.value,
       );
     }
     if (flatSurfaces.present) {
@@ -7303,6 +7694,13 @@ class AppSettingsTableCompanion extends UpdateCompanion<AppSettingsTableData> {
           ..write('nightScheduleEnabled: $nightScheduleEnabled, ')
           ..write('nightScheduleStartMinutes: $nightScheduleStartMinutes, ')
           ..write('nightScheduleEndMinutes: $nightScheduleEndMinutes, ')
+          ..write('autoThemeSource: $autoThemeSource, ')
+          ..write('autoDarkStartMinutes: $autoDarkStartMinutes, ')
+          ..write('autoDarkEndMinutes: $autoDarkEndMinutes, ')
+          ..write('autoLooksEnabled: $autoLooksEnabled, ')
+          ..write('autoLightLookId: $autoLightLookId, ')
+          ..write('autoDarkLookId: $autoDarkLookId, ')
+          ..write('autoLooksAppliedMode: $autoLooksAppliedMode, ')
           ..write('flatSurfaces: $flatSurfaces, ')
           ..write('colorVividness: $colorVividness, ')
           ..write('surfaceDepthLight: $surfaceDepthLight, ')
@@ -36507,6 +36905,13 @@ typedef $$AppSettingsTableTableCreateCompanionBuilder =
       Value<bool> nightScheduleEnabled,
       Value<int> nightScheduleStartMinutes,
       Value<int> nightScheduleEndMinutes,
+      Value<String> autoThemeSource,
+      Value<int> autoDarkStartMinutes,
+      Value<int> autoDarkEndMinutes,
+      Value<bool> autoLooksEnabled,
+      Value<String?> autoLightLookId,
+      Value<String?> autoDarkLookId,
+      Value<String?> autoLooksAppliedMode,
       Value<bool> flatSurfaces,
       Value<int> colorVividness,
       Value<int> surfaceDepthLight,
@@ -36625,6 +37030,13 @@ typedef $$AppSettingsTableTableUpdateCompanionBuilder =
       Value<bool> nightScheduleEnabled,
       Value<int> nightScheduleStartMinutes,
       Value<int> nightScheduleEndMinutes,
+      Value<String> autoThemeSource,
+      Value<int> autoDarkStartMinutes,
+      Value<int> autoDarkEndMinutes,
+      Value<bool> autoLooksEnabled,
+      Value<String?> autoLightLookId,
+      Value<String?> autoDarkLookId,
+      Value<String?> autoLooksAppliedMode,
       Value<bool> flatSurfaces,
       Value<int> colorVividness,
       Value<int> surfaceDepthLight,
@@ -36897,6 +37309,41 @@ class $$AppSettingsTableTableFilterComposer
 
   ColumnFilters<int> get nightScheduleEndMinutes => $composableBuilder(
     column: $table.nightScheduleEndMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get autoThemeSource => $composableBuilder(
+    column: $table.autoThemeSource,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get autoDarkStartMinutes => $composableBuilder(
+    column: $table.autoDarkStartMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get autoDarkEndMinutes => $composableBuilder(
+    column: $table.autoDarkEndMinutes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get autoLooksEnabled => $composableBuilder(
+    column: $table.autoLooksEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get autoLightLookId => $composableBuilder(
+    column: $table.autoLightLookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get autoDarkLookId => $composableBuilder(
+    column: $table.autoDarkLookId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get autoLooksAppliedMode => $composableBuilder(
+    column: $table.autoLooksAppliedMode,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -37486,6 +37933,41 @@ class $$AppSettingsTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get autoThemeSource => $composableBuilder(
+    column: $table.autoThemeSource,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get autoDarkStartMinutes => $composableBuilder(
+    column: $table.autoDarkStartMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get autoDarkEndMinutes => $composableBuilder(
+    column: $table.autoDarkEndMinutes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get autoLooksEnabled => $composableBuilder(
+    column: $table.autoLooksEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get autoLightLookId => $composableBuilder(
+    column: $table.autoLightLookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get autoDarkLookId => $composableBuilder(
+    column: $table.autoDarkLookId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get autoLooksAppliedMode => $composableBuilder(
+    column: $table.autoLooksAppliedMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get flatSurfaces => $composableBuilder(
     column: $table.flatSurfaces,
     builder: (column) => ColumnOrderings(column),
@@ -38069,6 +38551,41 @@ class $$AppSettingsTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<String> get autoThemeSource => $composableBuilder(
+    column: $table.autoThemeSource,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get autoDarkStartMinutes => $composableBuilder(
+    column: $table.autoDarkStartMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get autoDarkEndMinutes => $composableBuilder(
+    column: $table.autoDarkEndMinutes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get autoLooksEnabled => $composableBuilder(
+    column: $table.autoLooksEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get autoLightLookId => $composableBuilder(
+    column: $table.autoLightLookId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get autoDarkLookId => $composableBuilder(
+    column: $table.autoDarkLookId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get autoLooksAppliedMode => $composableBuilder(
+    column: $table.autoLooksAppliedMode,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<bool> get flatSurfaces => $composableBuilder(
     column: $table.flatSurfaces,
     builder: (column) => column,
@@ -38528,6 +39045,13 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> nightScheduleEnabled = const Value.absent(),
                 Value<int> nightScheduleStartMinutes = const Value.absent(),
                 Value<int> nightScheduleEndMinutes = const Value.absent(),
+                Value<String> autoThemeSource = const Value.absent(),
+                Value<int> autoDarkStartMinutes = const Value.absent(),
+                Value<int> autoDarkEndMinutes = const Value.absent(),
+                Value<bool> autoLooksEnabled = const Value.absent(),
+                Value<String?> autoLightLookId = const Value.absent(),
+                Value<String?> autoDarkLookId = const Value.absent(),
+                Value<String?> autoLooksAppliedMode = const Value.absent(),
                 Value<bool> flatSurfaces = const Value.absent(),
                 Value<int> colorVividness = const Value.absent(),
                 Value<int> surfaceDepthLight = const Value.absent(),
@@ -38649,6 +39173,13 @@ class $$AppSettingsTableTableTableManager
                 nightScheduleEnabled: nightScheduleEnabled,
                 nightScheduleStartMinutes: nightScheduleStartMinutes,
                 nightScheduleEndMinutes: nightScheduleEndMinutes,
+                autoThemeSource: autoThemeSource,
+                autoDarkStartMinutes: autoDarkStartMinutes,
+                autoDarkEndMinutes: autoDarkEndMinutes,
+                autoLooksEnabled: autoLooksEnabled,
+                autoLightLookId: autoLightLookId,
+                autoDarkLookId: autoDarkLookId,
+                autoLooksAppliedMode: autoLooksAppliedMode,
                 flatSurfaces: flatSurfaces,
                 colorVividness: colorVividness,
                 surfaceDepthLight: surfaceDepthLight,
@@ -38768,6 +39299,13 @@ class $$AppSettingsTableTableTableManager
                 Value<bool> nightScheduleEnabled = const Value.absent(),
                 Value<int> nightScheduleStartMinutes = const Value.absent(),
                 Value<int> nightScheduleEndMinutes = const Value.absent(),
+                Value<String> autoThemeSource = const Value.absent(),
+                Value<int> autoDarkStartMinutes = const Value.absent(),
+                Value<int> autoDarkEndMinutes = const Value.absent(),
+                Value<bool> autoLooksEnabled = const Value.absent(),
+                Value<String?> autoLightLookId = const Value.absent(),
+                Value<String?> autoDarkLookId = const Value.absent(),
+                Value<String?> autoLooksAppliedMode = const Value.absent(),
                 Value<bool> flatSurfaces = const Value.absent(),
                 Value<int> colorVividness = const Value.absent(),
                 Value<int> surfaceDepthLight = const Value.absent(),
@@ -38889,6 +39427,13 @@ class $$AppSettingsTableTableTableManager
                 nightScheduleEnabled: nightScheduleEnabled,
                 nightScheduleStartMinutes: nightScheduleStartMinutes,
                 nightScheduleEndMinutes: nightScheduleEndMinutes,
+                autoThemeSource: autoThemeSource,
+                autoDarkStartMinutes: autoDarkStartMinutes,
+                autoDarkEndMinutes: autoDarkEndMinutes,
+                autoLooksEnabled: autoLooksEnabled,
+                autoLightLookId: autoLightLookId,
+                autoDarkLookId: autoDarkLookId,
+                autoLooksAppliedMode: autoLooksAppliedMode,
                 flatSurfaces: flatSurfaces,
                 colorVividness: colorVividness,
                 surfaceDepthLight: surfaceDepthLight,

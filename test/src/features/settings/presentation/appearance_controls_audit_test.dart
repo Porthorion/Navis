@@ -181,6 +181,13 @@ void main() {
     await settle(tester);
   }
 
+  /// Scheduled Auto keeps a boundary timer in the container, and the test
+  /// framework checks for pending timers before the tear-downs run.
+  Future<void> releasePage(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+  }
+
   Future<Map<String, Object?>> row(WidgetTester tester) async =>
       Map<String, Object?>.from(
         (await tester.runAsync(database.appSettingsDao.getSettings))!.toJson(),
@@ -305,6 +312,11 @@ void main() {
         startMinutes: NightSchedule.defaultStartMinutes,
         endMinutes: NightSchedule.defaultEndMinutes,
       );
+  Future<void> autoScheduled(NavisDatabase db) async {
+    await db.appSettingsDao.updateThemeMode('system');
+    await db.appSettingsDao.updateAutoTheme(source: 'schedule');
+  }
+
   const hiddenOnce = '["recently_added"]';
 
   // ── the table ────────────────────────────────────────────────────────────
@@ -439,6 +451,32 @@ void main() {
           db.appSettingsDao.updateColorTuning(const ColorTuning(vividness: 2)),
       act: (t) => withTuningPanel(t, () => tap(t, panelKey('reset'))),
       effect: (c) => expect(c.read(colorTuningProvider), ColorTuning.none),
+    ),
+    _Control(
+      'Auto source: Scheduled',
+      writers: {'updateAutoTheme'},
+      columns: {'autoThemeSource'},
+      seed: (db) => db.appSettingsDao.updateThemeMode('system'),
+      act: (t) => tap(t, find.text(l10n.appearanceAutoSourceSchedule)),
+      effect: (c) => expect(c.read(autoThemeSourceProvider), 'schedule'),
+    ),
+    _Control(
+      'Auto dark window: start time',
+      writers: {'updateAutoTheme'},
+      columns: {'autoDarkStartMinutes'},
+      seed: autoScheduled,
+      act: (t) => pickNightTime(t, start: true, hour: 21, minute: 15),
+      effect: (c) =>
+          expect(c.read(autoDarkScheduleProvider).startMinutes, 21 * 60 + 15),
+    ),
+    _Control(
+      'Auto dark window: end time',
+      writers: {'updateAutoTheme'},
+      columns: {'autoDarkEndMinutes'},
+      seed: autoScheduled,
+      act: (t) => pickNightTime(t, start: false, hour: 6, minute: 45),
+      effect: (c) =>
+          expect(c.read(autoDarkScheduleProvider).endMinutes, 6 * 60 + 45),
     ),
     _Control(
       'Night Schedule: switch',
@@ -1035,6 +1073,7 @@ void main() {
           );
           expect(looks().selectedLookId, looks().looks.single.id);
         }
+        await releasePage(tester);
       });
     }
   });

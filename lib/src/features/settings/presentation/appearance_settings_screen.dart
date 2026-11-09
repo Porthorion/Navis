@@ -92,9 +92,14 @@ class _AppearanceSettingsScreenState
     final previewSeed = resolveColorSchemeSeedColor(
       ref.watch(effectiveColorSchemeSeedProvider),
     );
+    final autoSource = ref.watch(autoThemeSourceProvider);
     final previewBrightness = switch (currentMode) {
       'light' => Brightness.light,
-      'system' => MediaQuery.platformBrightnessOf(context),
+      'system' => switch (ref.watch(effectiveDarkProvider)) {
+        true => Brightness.dark,
+        false => Brightness.light,
+        null => MediaQuery.platformBrightnessOf(context),
+      },
       _ => Brightness.dark,
     };
     final oledForAuto = ref.watch(oledForAutoProvider);
@@ -250,6 +255,22 @@ class _AppearanceSettingsScreenState
                 ...options.buildAll(const <AppearanceOptionKind>[
                   AppearanceOptionKind.oledForAuto,
                 ]),
+                AutoThemeSourceOption(
+                  visible: currentMode == 'system',
+                  source: autoSource,
+                  window: ref.watch(autoDarkScheduleProvider),
+                  onSourceChanged: (source) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateAutoTheme(source: source);
+                  },
+                  onWindowChanged: (window) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateAutoTheme(
+                      darkStartMinutes: window.startMinutes,
+                      darkEndMinutes: window.endMinutes,
+                    );
+                  },
+                ),
                 const Divider(height: 32),
 
                 // ── Color ───────────────────────────────────────────────
@@ -918,7 +939,11 @@ ColorTuningBasis _settingsTuningBasis(WidgetRef ref, Brightness platform) {
   final oledForAuto = ref.read(oledForAutoProvider);
   final brightness = switch (mode) {
     'light' => Brightness.light,
-    'system' => platform,
+    'system' => switch (ref.read(effectiveDarkProvider)) {
+      true => Brightness.dark,
+      false => Brightness.light,
+      null => platform,
+    },
     _ => Brightness.dark,
   };
   return ColorTuningBasis(
@@ -956,6 +981,7 @@ Future<void> _openColorTuning(BuildContext anchor, WidgetRef ref) async {
     ref.listenManual(effectiveColorStyleProvider, (_, _) => refresh()),
     ref.listenManual(themeModeProvider, (_, _) => refresh()),
     ref.listenManual(oledForAutoProvider, (_, _) => refresh()),
+    ref.listenManual(effectiveDarkProvider, (_, _) => refresh()),
   ];
   try {
     await showColorTuningPanel(

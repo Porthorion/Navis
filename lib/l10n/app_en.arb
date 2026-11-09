@@ -1963,7 +1963,29 @@
   "appearanceNowPlayingBackgroundOledFlatNote": "With OLED and Flat Surfaces, Now Playing stays black.",
   "appearanceNowPlayingBackgroundPlainSub": "The plain background of your theme, with no album color.",
   "appearanceOledForAutoLabel": "Use OLED When Dark",
-  "appearanceOledForAutoSub": "In Auto, use pure black instead of Dark when your device is in dark mode.",
+  "appearanceOledForAutoSub": "In Auto, use pure black instead of Dark whenever the dark theme is on.",
+  "appearanceAutoSourceDevice": "Follow Device",
+  "appearanceAutoSourceSchedule": "Scheduled",
+  "appearanceAutoDarkWindow": "Dark from {start} to {end}, light the rest of the day.",
+  "@appearanceAutoDarkWindow": {
+    "placeholders": {
+      "start": {},
+      "end": {}
+    }
+  },
+  "appearanceAutoDarkNever": "Start and end are the same, so it is never dark.",
+  "appearanceAutoDarkStartsAt": "Dark starts at {time}",
+  "@appearanceAutoDarkStartsAt": {
+    "placeholders": {
+      "time": {}
+    }
+  },
+  "appearanceAutoDarkEndsAt": "Dark ends at {time}",
+  "@appearanceAutoDarkEndsAt": {
+    "placeholders": {
+      "time": {}
+    }
+  },
   "appearanceNightScheduleLabel": "Night Schedule",
   "appearanceNightScheduleSub": "Switches the color style to Night from {start} to {end}. Theme mode stays as set.",
   "@appearanceNightScheduleSub": {
