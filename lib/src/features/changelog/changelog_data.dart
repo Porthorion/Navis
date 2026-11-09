@@ -434,6 +434,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Search fits short landscape screens with the keyboard open, and the '
+        'artist letter bar in Library shows the letter you are looking at',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Short landscape phone screens at least 600 px wide use the compact '
         'side rail, so a small iPhone, a folded Pixel Fold or the rotated '
         'iPhone Duo cover screen keep more of the page; Now Playing there '
@@ -446,7 +451,8 @@ const List<ChangelogVersion> changelogs = [
       ChangelogEntry(
         'On the folded iPhone Duo cover screen the navigation now sits in the '
         'side strip, below the status icons, so the page and the player bar '
-        'use the full height down to the home indicator',
+        'use the full height down to the home indicator; it steps aside '
+        'while the keyboard is open',
         platforms: {ChangelogPlatform.ios},
         type: ChangelogEntryType.improvement,
       ),
