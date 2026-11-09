@@ -279,6 +279,9 @@ List<Override> _authenticatedShellOverrides({
 }) {
   return <Override>[
     changelogToShowProvider.overrideWith((ref) async => null),
+    // The Home update banner reads path_provider, which tests do not mock (#428).
+    updateProvider.overrideWith((ref) async => null),
+    dismissedUpdateProvider.overrideWith((ref) async => null),
     // Like the release notes row, the 1.5.0 notice is not part of the shell.
     integrationsNoticeVisibleProvider.overrideWithValue(false),
     initialSyncRequiredProvider.overrideWithValue(const AsyncData(false)),
@@ -2514,6 +2517,12 @@ void main() {
     expect(await spy.take(tester), isEmpty, reason: 'skip, category off');
     await swipe();
     expect(await spy.take(tester), ['firm'], reason: 'swipe, other cat off');
+    // #428: give real time, as CI did, so a provider that failed on a missing
+    // plugin would leave a Riverpod retry timer pending at the end.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(seconds: 2)),
+    );
+    await tester.pump();
   });
 
   testWidgets('mobile mini player like on a flagged external song is refused', (
