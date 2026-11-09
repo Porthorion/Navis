@@ -234,6 +234,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.newFeature,
       ),
       ChangelogEntry(
+        'Hold the Speed & Pitch or Queue line in Now Playing to open its '
+        'controls, like Quality and ReplayGain',
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Turning crossfade, gapless, ReplayGain, speed or pitch on or off '
         'takes effect right away during playback, and songs already in your '
         'queue pick up changed ReplayGain after a sync, from the next song on',
