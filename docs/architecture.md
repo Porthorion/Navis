@@ -5127,85 +5127,114 @@ Desktop volume follows a parallel local-settings path:
    song's level into a cut (`cutDb`, 0 or less) and a boost (`boostDb`, 0 or
    more). Track and album gain fall back to each other; a gain beyond +-24 dB is
    garbage and counts as untagged, and a known peak limits the result. The dB is
-   added to the clamped pre-amp. The cut is that capped at 0 dB and is the only
-   part that rides the player volume. The boost is its positive part, only for a
-   song with both a gain and a valid peak (so never an untagged song, whatever
-   the pre-amp), stopping 1 dB under the peak ceiling `-20*log10(peak)` (no
-   limiter follows; a lossy copy can overshoot the tagged peak) and at 12 dB
-   (`replayGainMaxBoostDb`). A platform without a boost
-   stage (`replayGainBoostSupported` false) always has boost 0. The invariant
-   every boost stage relies on: a stage never applies more than a song's own
-   boost to that song's samples, so a timing error can only under-boost.
-   Desktop mpv (Linux, Windows) applies the whole level (cut
-   and boost) in the filter chain, on each song's own samples
-   (`replayGainInPipeline`; #392 phase 2): the adapter's one composer
-   (`MediaKitPlayer._applyAudio`, `EqualizerChain.withReplayGain`) writes
-   `af` as `@navis_rg:lavfi=[volume=<dB>dB:precision=float],@navis_tempo...,
-   @navis_eq...`, the float volume filter first, so a boost cannot clip before
-   the output converts; speed, pitch and EQ edits always go through it (also
-   with the EQ pipeline off), because media_kit's own setters write `af`
-   themselves and would drop the stage. Each source's level arrives in its
-   `load`/`insert` message and the `on_load` hook writes the entering file's
-   whole chain synchronously (`configureReplayGainFilter`), so a file starts at
-   its own level whether it follows by a natural join, a jump or a seek
-   (`ReplayGainLevels`: a lookup by `replayGainBoostKey`, unknown key 0 dB).
-   Pushes only update the map; the playing file changes only on a `live` push
-   (a settings change), which sends `af-command navis_rg volume <dB>dB volume`
-   (a gapless step) and then writes `af` with the new value, because mpv
-   rebuilds the chain from `af` on any seek; a failed `af-command` is logged
-   and the `af` write still lands the value. macOS keeps the pre-#392 path
-   (cut on the player volume, no boost, media_kit's own speed and pitch
-   setters, no `@navis_rg` in `af`) until `af-command` and lavfi `volume` are
-   verified on its libmpv 0.36 (`navisReplayGainInPipeline`).
-   Android is the second stage, and applies the whole signed level inside the
-   audio path (#392). `NavisEqualizerProcessor` multiplies each frame by the
-   gain of the queue entry its samples belong to (`EqualizerDsp.GainRamp`, 20 ms
-   linear ramps, cuts allowed, +12 dB max) after the EQ bank and before the
-   16-bit clamp, so it works with the EQ off and on (the bank's automatic
-   headroom would cancel a boost). Dart sends every source its `replayGainDb`
-   inside the source message (`_withReplayGain` at each build site), so the
-   first samples of a load, an insert or a cross-fade deck's song already play
-   at it; later changes are `setReplayGainLevels` pushes keyed by just_audio
-   source id (a clipping source by its child's id and URI), non-`live` except
-   for a settings change. Native freezes the playing entry's level and switches
-   key at the first flush after the stream-offset event of the next entry, which
-   is the sample boundary of a gapless join (`NavisAudioRenderer`). The player
-   volume is user volume x ducking x cross-fade ramp only
-   (`_replayGainVolumeFor`). `replayGainInPipeline` follows the EQ processor
-   (`_equalizerPipelineEnabled`, set by every player build, so both decks agree):
-   after `_rebuildPlayerWithoutEqualizer` it is false, nothing is stamped or
-   pushed, boost is unsupported and the Dart cut applies through `setVolume`
-   again (late by the IPC time). Samples that hit the clamp while boosting are
-   counted. The status reports the stage (`replayGainBoost`: `currentKey`,
-   `appliedDb`, `clipSamples`); the processor is read back when the status is
-   asked for, not polled during playback. A loop or shuffle change re-pushes the
-   levels (Smart wrap neighbours). Rolling-cache sources carry no tag, so a song
-   is found by the id in its stream URL (`_mediaItemOfSource`).
-   iOS is the third stage (`navisReplayGainBoostSupported(iosTap:)`, true while
-   `_equalizerPipelineEnabled`): `AVPlayer.volume` stops at 1.0, so the boost is a
-   gain step (`NavisBoost.c`, a 20 ms linear ramp per format slot) on the output of
-   pitch and EQ in the shared tap, working with the EQ off and on. The cut stays on
-   `AVPlayer.volume` and a song never gets both. Dart sends the same per-URI map as
-   on desktop (`SetReplayGainBoostRequest.byUri`, no index, no guard flag, no
-   lower-before-command) and the timing is native, on the main thread
-   (`AudioPlayer.m`, `navis_boost_decide`): native knows the real next item and
-   changes the queue in the same run-loop turn, so there is no Dart round trip to
-   race. In the last 3 s of a song (the
-   same window, read from the item's position and duration, with the speed) the
-   target is the lower of the two songs' and a guarded song is latched until the next
-   song event; a 250 ms observer moves it in and out of the window, only while the
-   map has a positive value. A drop applies at once; a rise waits 500 ms after the
-   last song event (a `currentItem` change, a seek or skip, a load, a queue edit that
-   changes the playing item) and a newer event cancels the pending rise. A seek or
-   load stores the destination's value before the flush, and the first block after a
-   flush or a new pipeline snaps to the target (no ramp). The render thread reads one
-   lock-free atomic gain per block; it does no `pow`, locking or Objective-C. The tap
-   has no limiter: samples beyond full scale after the gain are only counted
-   (`boostClipSamples`, 0 for tagged songs because of the 1 dB margin). Status
-   (`replayGainBoost`, and `boostRequestedDb`, `boostAppliedDb`, `boostGuarded`,
-   `boostClipSamples` in `/v1/equalizer` `application`) is read back from the tap.
-   A song's head can be under-boosted for about 0.5 s after a join, skip or seek;
-   its tail is never over-boosted. Details: `docs/plans/iOS_I24_ReplayGain_Boost_Plan.md`.
+   added to the clamped pre-amp. The cut is that capped at 0 dB. The boost is
+   its positive part, only for a song with both a gain and a valid peak (so
+   never an untagged song, whatever the pre-amp), stopping 1 dB under the peak
+   ceiling `-20*log10(peak)` (no limiter follows; a lossy copy can overshoot the
+   tagged peak) and at 12 dB (`replayGainMaxBoostDb`). A platform that cannot
+   boost (`replayGainBoostSupported` false) always has boost 0. The invariant
+   every stage relies on: it never applies more than a song's own level to that
+   song's samples, so a timing error can only under-boost.
+
+   **In-pipeline design (#392).** Where the backend has a stage in its audio
+   path (`replayGainInPipeline`, `navisReplayGainInPipeline`), ReplayGain, cut
+   and boost together, is applied there, at the sample where each song starts,
+   and the player volume is only user volume x ducking x cross-fade ramp
+   (`_baseVolumeFor`, `_replayGainVolumeFor`). One signed dB per queue entry
+   (`ReplayGainDecision.db`) travels with the source:
+   `IndexedAudioSource.replayGainDb`, filled by `_withReplayGain` wherever the
+   handler builds a source (queue load, insert, recovery, cross-fade deck
+   load), is in the `load`/`insert` message
+   (`UriAudioSourceMessage.replayGainDb`, the clipping child included), so the
+   first song and a never-played deck need no earlier map. Later changes are
+   `AudioPlayer.setReplayGainLevels({bySource, live})` pushes
+   (`SetReplayGainLevelsRequest`: `byId` by just_audio source id, a clipping
+   source by its child's id and URI, `byUri` by URI; an identical non-live
+   request is skipped; a backend that does not know it ignores it).
+   `_applyReplayGainBoost` makes that push on every deck
+   (`_sendReplayGainLevelsTo`, `_pushReplayGainLevels`), re-pushed on a loop or
+   shuffle change (Smart wrap neighbours), on index events and after queue
+   edits (`navis_audio_handler_media_session.dart`, `_queue_editing.dart`;
+   `AudioPlayer._broadcastSequence` clears the skip memo, since stamped sources
+   change what native holds). Only a settings change (`applyRuntimeSettings`)
+   pushes `live`: the heard entry's level is frozen at its start and only that
+   moves it mid-song. A live change held back during a cross-fade or load
+   (`_replayGainLivePending`) goes out live with the next push; a tag refresh
+   never does.
+
+   - Desktop mpv (Linux, Windows): `MediaKitPlayer._applyAudio` composes `af`
+     as `@navis_rg:lavfi=[volume=<dB>dB:precision=float],@navis_tempo...,
+     @navis_eq...` (`EqualizerChain.withReplayGain`), the float volume filter
+     first so a boost cannot clip before the output converts. Speed, pitch and
+     EQ edits always go through that composer (also with the EQ pipeline off),
+     because media_kit's own setters write `af` themselves and would drop the
+     stage. The `on_load` hook (`configureReplayGainFilter`) writes the
+     entering file's whole chain synchronously from `ReplayGainLevels` (a
+     lookup by `replayGainBoostKey`, unknown key 0 dB), so a file starts at its
+     own level after a natural join, a jump or a seek. A `live` push sends
+     `af-command navis_rg volume <dB>dB volume` (a gapless step) and then writes
+     `af` with the new value, since mpv rebuilds the chain from `af` on any
+     seek; a failed `af-command` is logged and the `af` write still lands.
+   - Android: `NavisEqualizerProcessor` multiplies each frame by the gain of
+     the queue entry its samples belong to (`EqualizerDsp.GainRamp`, 20 ms
+     ramps, cuts allowed, +12 dB max) after the EQ bank and before the 16-bit
+     clamp, so it works with the EQ off and on. `NavisAudioRenderer` reads the
+     entry's source-id tag in `onStreamChanged` and marks the sample boundary in
+     `onOutputStreamOffsetUsChanged`; the key becomes current at the first
+     flush after that event (at once if no input is queued), and a flush with no new key (a seek) keeps the
+     frozen gain. An unknown or untagged key plays at 0 dB. Samples that hit the
+     clamp while boosting are counted. `replayGainInPipeline` follows the EQ
+     processor (`_equalizerPipelineEnabled`, set by every player build, so both
+     decks agree). The status reports the stage (`replayGainBoost`:
+     `currentKey`, `appliedDb`, `clipSamples`), read from the processor when
+     asked, not polled. Rolling-cache sources carry no tag, so a song is found
+     by the id in its stream URL (`_mediaItemOfSource`).
+   - iOS (I24): no in-pipeline level stage; the tap boosts per file
+     (`navisReplayGainBoostSupported(iosTap:)`, true while
+     `_equalizerPipelineEnabled`): `AVPlayer.volume` stops at 1.0, so the boost is a
+     gain step (`NavisBoost.c`, a 20 ms linear ramp per format slot) on the output of
+     pitch and EQ in the shared tap, working with the EQ off and on. The cut stays on
+     `AVPlayer.volume` and a song never gets both. Dart sends a per-URI map
+     (`AudioPlayer.setReplayGainBoost`, `SetReplayGainBoostRequest.byUri` and
+     `durationMsByUri`, no lower-before-command) and the timing is native, on the main thread
+     (`AudioPlayer.m`, `navis_boost_decide`): native knows the real next item and
+     changes the queue in the same run-loop turn, so there is no Dart round trip to
+     race. In the last 3 s of a song (the
+     same window, read from the item's position and duration, with the speed) the
+     target is the lower of the two songs' and a guarded song is latched until the next
+     song event; a 250 ms observer moves it in and out of the window, only while the
+     map has a positive value. A drop applies at once; a rise waits 500 ms after the
+     last song event (a `currentItem` change, a seek or skip, a load, a queue edit that
+     changes the playing item) and a newer event cancels the pending rise. A seek or
+     load stores the destination's value before the flush, and the first block after a
+     flush or a new pipeline snaps to the target (no ramp). The render thread reads one
+     lock-free atomic gain per block; it does no `pow`, locking or Objective-C. The tap
+     has no limiter: samples beyond full scale after the gain are only counted
+     (`boostClipSamples`, 0 for tagged songs because of the 1 dB margin). Status
+     (`replayGainBoost`, and `boostRequestedDb`, `boostAppliedDb`, `boostGuarded`,
+     `boostClipSamples` in `/v1/equalizer` `application`) is read back from the tap.
+     A song's head can be under-boosted for about 0.5 s after a join, skip or seek;
+     its tail is never over-boosted. Details: `docs/plans/iOS_I24_ReplayGain_Boost_Plan.md`.
+   - macOS has no boost yet: it keeps the cut-only path until `af-command` and
+     lavfi `volume` are verified on its libmpv 0.36 (design D5, pending).
+   - Fallback: with no stage (macOS; Android after
+     `_rebuildPlayerWithoutEqualizer`) nothing is stamped or pushed, boost is
+     unsupported and the Dart cut applies through `setVolume` (late by the IPC
+     time; ExoPlayer and AVPlayer volume is linear, `10^(dB/20)`, mpv's is
+     cubic, `10^(dB/60)`). The older per-URI boost message
+     (`AudioPlayer.setReplayGainBoost`, `byUri`) is kept for a backend that
+     boosts per file but has no in-pipeline stage (the iOS tap uses it).
+
+   Smart picks its album or track gain from the play-order neighbours and is
+   frozen per heard song (below). A push, and a source stamped for a list that
+   is not `_queueItems` yet (a replace's start song, an insert, a released
+   tail, which pass their incoming play order to `_withReplayGain`), records the
+   Smart pair it used (`_pushedSmartNeighbours`). A non-live push leaves the
+   heard entry's record alone, since native froze it. The song's start freezes
+   the recorded pair instead of re-reading the queue, so the display equals what
+   native holds. A stamp without a play order (a queue fill still in progress)
+   is corrected by the push that follows the fill.
+
    A song with no usable gain
    (untagged, a remote copy) takes the untagged level: the user's fixed value
    (`replayGainUntaggedDb`, -15..0 dB in 0.1 dB steps, set on the pitch/speed
@@ -5214,10 +5243,8 @@ Desktop volume follows a parallel local-settings path:
    the library from `LibraryDao.trackGainMedian` (-8 dB while fewer than 20
    songs are tagged), cached in `replayGainAutoUntaggedDbProvider` and
    recomputed when a sync publishes or finishes. `_replayGainVolumeFor`
-   converts dB to a player volume, `10^(dB/20)`, on ExoPlayer and AVPlayer, where
-   volume is linear (mpv has the level in its filter chain and keeps the user
-   volume, which is cubic). Radio stays at the user
-   volume. New profiles start in Smart mode; stored modes are never rewritten.
+   converts dB to a player volume only in the fallback above. Radio stays at the
+   user volume. New profiles start in Smart mode; stored modes are never rewritten.
    The row-creation value, `resetPlaybackDefaults`, `AppSettingsModel` and
    `PlaybackRuntimeSettings.defaults()` say 'smart'; the Drift column default
    stays 'track' so there is no schema change.
@@ -5244,36 +5271,6 @@ Desktop volume follows a parallel local-settings path:
    `boostDb`) is reported as `replayGain` by `GET /v1/playback/status`; on
    desktop `native.mediaKitTransport[*].audioFilters` is mpv's own `af` read
    back and `replayGainDb` what the adapter meant the loaded file to play at.
-
-   **In-pipeline contract (#392, phase 1).** The handler's
-   `replayGainInPipeline` capability (true on mpv except macOS; false on macOS,
-   Android and iOS until their backends ship) moves
-   ReplayGain onto each song's own samples. One signed dB per queue entry
-   (`ReplayGainDecision.db`, cut and boost together) travels with the source:
-   `IndexedAudioSource.replayGainDb`, filled by `_withReplayGain` wherever the
-   handler builds a source (queue load, insert, recovery, cross-fade deck
-   load), is in the `load`/`insert` message (`UriAudioSourceMessage.replayGainDb`,
-   the clipping child included), so the first song and a never-played deck
-   need no earlier map. Later changes go through
-   `AudioPlayer.setReplayGainLevels({bySource, live})`
-   (`SetReplayGainLevelsRequest`: `byId` by source id, `byUri` by URI; an
-   identical non-live request is skipped; a backend or method channel that
-   does not know it ignores it). `_applyReplayGainBoost` becomes that push
-   (`_sendReplayGainLevelsTo`) on every deck. `live` is true only from
-   `applyRuntimeSettings`: native freezes the playing entry's value at its
-   boundary and a tag refresh or index event never changes it. The player
-   volume is then user volume x ducking x cross-fade ramp
-   (`_baseVolumeFor`), never ReplayGain. A push, and a source stamped for a
-   list that is not `_queueItems` yet (a replace's start song, an insert, a
-   released tail, which pass their incoming play order to `_withReplayGain`),
-   records the Smart pair it used (`_pushedSmartNeighbours`). A non-live push
-   leaves the heard entry's record alone, since native froze it. The song's
-   start freezes the recorded pair instead of re-reading the queue, so the
-   display equals what native holds. A stamp without a play order (a queue
-   fill still in progress) is corrected by the push that follows the fill. Any
-   load, insert or removal makes the next identical map push news again
-   (`AudioPlayer._broadcastSequence`), because stamped sources change what
-   native holds.
 
    Queued songs carry their ReplayGain in `MediaItem.extras`, copied from the
    song row when the queue is built, and a deck source's tag keeps the value
