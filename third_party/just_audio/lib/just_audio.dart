@@ -1763,14 +1763,23 @@ class AudioPlayer {
             message.processingState != ProcessingStateMessage.idle) {
           _platformLoading = false;
         }
+        final updatePosition = message.updatePosition + positionOffset;
+        // Navis: an in-flight event can carry a stamp older than the one
+        // play()/pause() just wrote locally for the same frozen position;
+        // taking it would extrapolate from the load time. Keep the newer one.
+        final current = playbackEvent;
+        final keepCurrentStamp = updatePosition == current.updatePosition &&
+            index == current.currentIndex &&
+            message.updateTime.isBefore(current.updateTime);
         final newPlaybackEvent = PlaybackEvent(
           // The platform may emit an idle state while it's starting up which we
           // override here.
           processingState: _platformLoading
               ? ProcessingState.loading
               : ProcessingState.values[message.processingState.index],
-          updateTime: message.updateTime,
-          updatePosition: message.updatePosition + positionOffset,
+          updateTime:
+              keepCurrentStamp ? current.updateTime : message.updateTime,
+          updatePosition: updatePosition,
           bufferedPosition: message.bufferedPosition + positionOffset,
           duration: duration,
           icyMetadata: message.icyMetadata == null
