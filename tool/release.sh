@@ -182,6 +182,8 @@ validate_github_channel
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/lib/r2_tags.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/lib/release_notes.sh"
 if ! navis_r2_valid_tag "${VERSION}" "${UPDATE_CHANNEL}"; then
   echo "Error: Invalid release tag for channel ${UPDATE_CHANNEL}: ${VERSION}"
   exit 1
@@ -996,17 +998,6 @@ if [[ "${IOS_UPLOAD}" == "true" ]]; then
 fi
 
 fi # build artifacts
-
-generate_release_notes() {
-  echo "==> Generating release notes for ${VERSION}..."
-  RELEASE_BODY="$(dart tool/generate_release_notes.dart "${VERSION}" 2>/dev/null)" || true
-  if [[ -z "${RELEASE_BODY}" ]]; then
-    RELEASE_BODY="## Navis ${VERSION} (${UPDATE_CHANNEL})"
-    echo "    No changelog entry found — using generic release body."
-  else
-    echo "    Release notes generated successfully."
-  fi
-}
 
 if [[ "${BUILD_ONLY}" == true ]]; then
   if [[ -n "$(git status --porcelain)" || "$(git rev-parse HEAD)" != "${SOURCE_COMMIT}" ]]; then

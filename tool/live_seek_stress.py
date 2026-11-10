@@ -491,7 +491,19 @@ class App:
             self.log.close()
 
 
-ANDROID_PACKAGE = 'com.navis.app.navis' + SUFFIX
+REAL_ANDROID_PACKAGE = 'com.navis.app.navis'
+ANDROID_PACKAGE = REAL_ANDROID_PACKAGE + SUFFIX
+
+
+def validate_android_identity(suffix: str = SUFFIX) -> None:
+    """Refuse a suffix that would make adb drive the real app package."""
+    package = REAL_ANDROID_PACKAGE + suffix
+    # '.dev' is the installed Navis Dev app (tool/dev_app.sh); never uninstall it.
+    if not suffix.strip() or suffix.strip() == '.dev' or package == REAL_ANDROID_PACKAGE:
+        raise Failure(
+            'NAVIS_LIVE_SEEK_SUFFIX must be non-empty and not .dev: refusing to run adb '
+            f'against the real app package {REAL_ANDROID_PACKAGE!r} '
+            f'(computed {package!r})')
 RELAY_PID = '/data/local/tmp/navis-relay.pid'
 ANDROID_ROOT = f'/data/user/0/{ANDROID_PACKAGE}/files/liveseek'
 ANDROID_HANDSHAKE = (f'/sdcard/Android/data/{ANDROID_PACKAGE}/files/'
@@ -4857,6 +4869,7 @@ def main() -> int:
     parser.add_argument('--no-transcode-offset', action='store_true',
                         help='fixture does not advertise/honour transcodeOffset')
     args = parser.parse_args()
+    validate_android_identity()
     global TRUTH, CROSSFADE_S, NATURAL_SONGS, NATURAL_FULL, LIVE_MAX_SONG_S, REPEAT_MODE, LIVE_REUSE_GROUPS, PRIME_SERVER_CACHE, SLOW_NEXT_S, VERIFY_OFFSET
     TRUTH = args.truth
     CROSSFADE_S = args.crossfade_s

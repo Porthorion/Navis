@@ -117,7 +117,11 @@ Checks performed (in order, fail-fast):
    (`tool/android_repeat_runner_test.sh`) and bridge JVM suites
    (`tool/android_repeat_native_test.sh`), and the Last.fm key masking / artifact secret scan shell tests
    (`tool/lastfm_key_defines_test.sh`, `tool/scan_artifact_secret_test.sh`;
-   fake key and synthetic artifacts, runnable on their own to debug a failure)
+   fake key and synthetic artifacts, runnable on their own to debug a failure),
+   the release-notes failure guard (`tool/release_notes_test.sh`; only a
+   missing changelog may fall back to generic notes) and the live-seek app
+   identity guard (`tool/live_seek_stress_test.py`; a blank suffix must never
+   target the real app package)
 4. `./tool/dart_format.sh --check` (reports without rewriting; excludes
    vendored CargoKit, which is checked from its own directory)
 5. `dart run build_runner build`
