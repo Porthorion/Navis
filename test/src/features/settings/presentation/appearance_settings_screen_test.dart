@@ -9,6 +9,7 @@ import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/features/onboarding/domain/setup_highlights.dart';
 import 'package:navis/src/features/onboarding/presentation/setup_highlights_provider.dart';
 import 'package:navis/src/features/settings/domain/app_settings.dart';
+import 'package:navis/src/features/settings/domain/appearance_presets.dart';
 import 'package:navis/src/features/settings/domain/flat_areas.dart';
 import 'package:navis/src/features/settings/domain/navis_density.dart';
 import 'package:navis/src/features/settings/domain/now_playing_background.dart';
@@ -70,6 +71,10 @@ void main() {
     String? autoThemeSource,
     int? autoDarkStartMinutes,
     int? autoDarkEndMinutes,
+    List<AppearanceLook> looks = const <AppearanceLook>[],
+    bool autoLooksEnabled = false,
+    String? autoLightLookId,
+    String? autoDarkLookId,
     DateTime Function()? now,
     Set<SetupHighlight> highlights = const <SetupHighlight>{},
     bool clearWhenSeen = false,
@@ -108,6 +113,10 @@ void main() {
       autoThemeSource: autoThemeSource,
       autoDarkStartMinutes: autoDarkStartMinutes,
       autoDarkEndMinutes: autoDarkEndMinutes,
+      appearanceLooks: looks,
+      autoLooksEnabled: autoLooksEnabled,
+      autoLightLookId: autoLightLookId,
+      autoDarkLookId: autoDarkLookId,
     );
     final container = ProviderContainer(
       overrides: withTestDatabase(
@@ -899,6 +908,105 @@ void main() {
       expect(find.text(l10n.appearanceAutoDarkNever), findsOneWidget);
       expect(find.textContaining('Dark from'), findsNothing);
       await releasePage(tester, container);
+    });
+
+    group('Auto presets', () {
+      const looks = <AppearanceLook>[
+        AppearanceLook(
+          id: 'a',
+          name: 'Morning',
+          snapshot: AppearanceSnapshot(colorStyle: 'pastel'),
+        ),
+        AppearanceLook(
+          id: 'b',
+          name: 'Evening',
+          snapshot: AppearanceSnapshot(colorStyle: 'immersive'),
+        ),
+      ];
+      final switchTile = find.byKey(const ValueKey<String>('autoLooksSwitch'));
+      Finder dropdown(String key) =>
+          find.byKey(ValueKey<String>('auto${key}LookDropdown'));
+      String? shown(WidgetTester tester, String key) => tester
+          .widget<DropdownButtonFormField<String?>>(
+            find.descendant(
+              of: dropdown(key),
+              matching: find.byType(DropdownButtonFormField<String?>),
+            ),
+          )
+          .initialValue;
+
+      testWidgets('is hidden outside Auto', (tester) async {
+        await pumpAppearance(tester, looks: looks);
+        expect(switchTile, findsNothing);
+      });
+
+      testWidgets('is disabled until a preset is saved', (tester) async {
+        await pumpAppearance(tester, themeMode: 'system');
+        expect(find.text(l10n.appearanceAutoLooksLabel), findsOneWidget);
+        expect(find.text(l10n.appearanceAutoLooksSaveFirst), findsOneWidget);
+        expect(tester.widget<SwitchListTile>(switchTile).onChanged, isNull);
+        expect(dropdown('Light'), findsNothing);
+      });
+
+      testWidgets('the switch saves and reveals both dropdowns', (
+        tester,
+      ) async {
+        final container = await pumpAppearance(
+          tester,
+          themeMode: 'system',
+          looks: looks,
+        );
+        expect(find.text(l10n.appearanceAutoLooksSaveFirst), findsNothing);
+        expect(dropdown('Light'), findsNothing);
+        await tester.tap(switchTile);
+        await tester.pump(const Duration(milliseconds: 100));
+        final settings = await tester.runAsync(
+          container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+        );
+        expect(settings?.autoLooksEnabled, isTrue);
+        expect(settings?.themeMode, 'dark', reason: 'only the switch changes');
+      });
+
+      testWidgets('dropdowns list the Looks and None, and save a choice', (
+        tester,
+      ) async {
+        final container = await pumpAppearance(
+          tester,
+          themeMode: 'system',
+          looks: looks,
+          autoLooksEnabled: true,
+        );
+        expect(find.text(l10n.appearanceAutoLooksLight), findsWidgets);
+        expect(find.text(l10n.appearanceAutoLooksDark), findsWidgets);
+        expect(shown(tester, 'Light'), isNull);
+        await tester.tap(dropdown('Dark'));
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(find.text('Morning'), findsWidgets);
+        expect(find.text(l10n.appearanceAutoLooksNone), findsWidgets);
+        await tester.tap(find.text('Evening').last);
+        await tester.pump(const Duration(milliseconds: 500));
+        final settings = await tester.runAsync(
+          container.read(navisDatabaseProvider).appSettingsDao.getSettings,
+        );
+        expect(settings?.autoDarkLookId, 'b');
+        expect(settings?.autoLightLookId, isNull);
+      });
+
+      testWidgets('a deleted Look shows None while the switch stays on', (
+        tester,
+      ) async {
+        await pumpAppearance(
+          tester,
+          themeMode: 'system',
+          looks: looks,
+          autoLooksEnabled: true,
+          autoLightLookId: 'a',
+          autoDarkLookId: 'gone',
+        );
+        expect(shown(tester, 'Light'), 'a');
+        expect(shown(tester, 'Dark'), isNull);
+        expect(tester.widget<SwitchListTile>(switchTile).value, isTrue);
+      });
     });
 
     testWidgets('Night schedule switch saves', (tester) async {

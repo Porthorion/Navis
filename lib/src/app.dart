@@ -13,6 +13,7 @@ import 'package:navis/src/features/auth/presentation/server_config_provider.dart
 import 'package:navis/src/features/player/presentation/media_info.dart';
 import 'package:navis/src/features/player/presentation/playback_recovery_provider.dart';
 import 'package:navis/src/features/settings/domain/auto_theme.dart';
+import 'package:navis/src/features/settings/presentation/auto_looks_coordinator.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/app_router.dart';
 import 'package:navis/src/routing/desktop_commands.dart';
@@ -67,6 +68,8 @@ class _NavisAppState extends ConsumerState<NavisApp>
       },
       fireImmediately: true,
     );
+    // Applies the Light or Dark Look Auto presets choose; lives for the app.
+    ref.listenManual(autoLooksCoordinatorProvider, (_, _) {});
     if (!widget.requirePlaybackBootstrap ||
         !widget.schedulePlaybackBootstrap ||
         _didScheduleBootstrap) {

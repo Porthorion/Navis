@@ -271,6 +271,31 @@ class _AppearanceSettingsScreenState
                     );
                   },
                 ),
+                AutoLooksOption(
+                  visible: currentMode == 'system',
+                  looks: ref.watch(
+                    appearanceLooksControllerProvider.select((s) => s.looks),
+                  ),
+                  enabled: ref.watch(autoLooksEnabledProvider),
+                  lightId: ref.watch(autoLightLookIdProvider),
+                  darkId: ref.watch(autoDarkLookIdProvider),
+                  onEnabledChanged: (enabled) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateAutoLooks(enabled: enabled);
+                  },
+                  onLightChanged: (id) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateAutoLooks(
+                      lightLookId: id ?? '',
+                    );
+                  },
+                  onDarkChanged: (id) async {
+                    final db = ref.read(navisDatabaseProvider);
+                    await db.appSettingsDao.updateAutoLooks(
+                      darkLookId: id ?? '',
+                    );
+                  },
+                ),
                 const Divider(height: 32),
 
                 // ── Color ───────────────────────────────────────────────

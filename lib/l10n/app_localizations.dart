@@ -6669,6 +6669,42 @@ abstract class AppLocalizations {
   /// **'Dark ends at {time}'**
   String appearanceAutoDarkEndsAt(Object time);
 
+  /// No description provided for @appearanceAutoLooksLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Use Different Presets for Auto'**
+  String get appearanceAutoLooksLabel;
+
+  /// No description provided for @appearanceAutoLooksSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply a saved preset each time Auto switches between light and dark.'**
+  String get appearanceAutoLooksSub;
+
+  /// No description provided for @appearanceAutoLooksSaveFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Save a preset first'**
+  String get appearanceAutoLooksSaveFirst;
+
+  /// No description provided for @appearanceAutoLooksLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Light Mode'**
+  String get appearanceAutoLooksLight;
+
+  /// No description provided for @appearanceAutoLooksDark.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark Mode'**
+  String get appearanceAutoLooksDark;
+
+  /// No description provided for @appearanceAutoLooksNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None (keep current look)'**
+  String get appearanceAutoLooksNone;
+
   /// No description provided for @appearanceNightScheduleLabel.
   ///
   /// In en, this message translates to:

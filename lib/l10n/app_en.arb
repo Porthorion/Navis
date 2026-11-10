@@ -1986,6 +1986,12 @@
       "time": {}
     }
   },
+  "appearanceAutoLooksLabel": "Use Different Presets for Auto",
+  "appearanceAutoLooksSub": "Apply a saved preset each time Auto switches between light and dark.",
+  "appearanceAutoLooksSaveFirst": "Save a preset first",
+  "appearanceAutoLooksLight": "Light Mode",
+  "appearanceAutoLooksDark": "Dark Mode",
+  "appearanceAutoLooksNone": "None (keep current look)",
   "appearanceNightScheduleLabel": "Night Schedule",
   "appearanceNightScheduleSub": "Switches the color style to Night from {start} to {end}. Theme mode stays as set.",
   "@appearanceNightScheduleSub": {

@@ -864,6 +864,7 @@ class SyncDiagnosticsServer {
           final oled = body['oledForAuto'];
           final night = body['nightSchedule'];
           final autoTheme = body['autoTheme'];
+          final autoLooks = body['autoLooks'];
           final flat = body['flatSurfaces'];
           final flatAreas = body['flatAreas'];
           final colorVividness = body['colorVividness'];
@@ -970,6 +971,21 @@ class SyncDiagnosticsServer {
               }
             }
           }
+          if (body.containsKey('autoLooks')) {
+            if (autoLooks is! Map<String, dynamic> ||
+                autoLooks.isEmpty ||
+                autoLooks.keys.any(
+                  (key) => !const {'enabled', 'light', 'dark'}.contains(key),
+                ) ||
+                (autoLooks.containsKey('enabled') &&
+                    autoLooks['enabled'] is! bool)) {
+              throw const FormatException();
+            }
+            for (final key in ['light', 'dark']) {
+              final id = autoLooks[key];
+              if (id != null && id is! String) throw const FormatException();
+            }
+          }
           const shapes = ['square', 'rounded', 'circle'];
           if (body.keys.any(
                 (key) => !const {
@@ -980,6 +996,7 @@ class SyncDiagnosticsServer {
                   'oledForAuto',
                   'nightSchedule',
                   'autoTheme',
+                  'autoLooks',
                   'flatSurfaces',
                   'flatAreas',
                   'colorVividness',
@@ -1038,6 +1055,18 @@ class SyncDiagnosticsServer {
               source: autoTheme['source'] as String?,
               darkStartMinutes: autoTheme['start'] as int?,
               darkEndMinutes: autoTheme['end'] as int?,
+            );
+          }
+          if (autoLooks is Map<String, dynamic>) {
+            // A null id is None; absent keys stay as they are.
+            await dao.updateAutoLooks(
+              enabled: autoLooks['enabled'] as bool?,
+              lightLookId: autoLooks.containsKey('light')
+                  ? autoLooks['light'] as String? ?? ''
+                  : null,
+              darkLookId: autoLooks.containsKey('dark')
+                  ? autoLooks['dark'] as String? ?? ''
+                  : null,
             );
           }
           if (flat is bool) await dao.updateFlatSurfaces(enabled: flat);
@@ -1127,6 +1156,11 @@ class SyncDiagnosticsServer {
             'end':
                 settings?.autoDarkEndMinutes ??
                 AutoThemeSource.defaultDarkEndMinutes,
+          },
+          'autoLooks': {
+            'enabled': settings?.autoLooksEnabled ?? false,
+            'light': settings?.autoLightLookId,
+            'dark': settings?.autoDarkLookId,
           },
           'flatSurfaces': settings?.flatSurfaces ?? false,
           'flatAreas': settings?.flatAreas ?? 7,

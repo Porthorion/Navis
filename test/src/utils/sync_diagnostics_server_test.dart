@@ -574,6 +574,7 @@ void main() {
         'oledForAuto': false,
         'nightSchedule': {'enabled': false, 'start': 1320, 'end': 420},
         'autoTheme': {'source': 'device', 'start': 1200, 'end': 420},
+        'autoLooks': {'enabled': false, 'light': null, 'dark': null},
         'flatSurfaces': false,
         'flatAreas': 7,
         'colorVividness': 0,
@@ -719,6 +720,7 @@ void main() {
       'oledForAuto': true,
       'nightSchedule': {'enabled': true, 'start': 1200, 'end': 300},
       'autoTheme': {'source': 'schedule', 'start': 1260, 'end': 360},
+      'autoLooks': {'enabled': true, 'light': 'look-a', 'dark': null},
       'flatSurfaces': true,
       'flatAreas': 2,
       'colorVividness': -5,
@@ -771,6 +773,9 @@ void main() {
     expect(persisted.autoThemeSource, 'schedule');
     expect(persisted.autoDarkStartMinutes, 1260);
     expect(persisted.autoDarkEndMinutes, 360);
+    expect(persisted.autoLooksEnabled, isTrue);
+    expect(persisted.autoLightLookId, 'look-a');
+    expect(persisted.autoDarkLookId, isNull);
     for (final invalid in <Map<String, Object?>>[
       {'themeMode': 'auto'},
       {'colorStyle': 'unknown'},
@@ -858,6 +863,20 @@ void main() {
       },
       {
         'autoTheme': {'extra': true},
+      },
+      {'autoLooks': null},
+      {'autoLooks': {}},
+      {
+        'autoLooks': {'enabled': 'yes'},
+      },
+      {
+        'autoLooks': {'light': 5},
+      },
+      {
+        'autoLooks': {'dark': true},
+      },
+      {
+        'autoLooks': {'extra': true},
       },
     ]) {
       final result = await _request(
