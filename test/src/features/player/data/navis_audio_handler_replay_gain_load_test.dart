@@ -2,7 +2,7 @@
 // replaced queue must play at its ReplayGain cut while phase 2 of the load is
 // still filling the queue, not only once the load commits.
 //
-// Self-contained on purpose: navis_audio_handler_navigation_test.dart has
+// Self-contained on purpose: the navis_audio_handler_navigation_*_test.dart suite has
 // macOS-local failures, so this check lives in its own file with a trimmed
 // copy of that file's fake player and handler setup.
 import 'dart:async';
