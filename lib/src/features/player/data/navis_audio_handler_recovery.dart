@@ -1727,6 +1727,7 @@ extension _NavisRecovery on NavisAudioHandler {
   }
 
   void _syncRemotePlaybackStallWatchdog() {
+    if (_radioStation != null) return _syncRadioStallWatchdog();
     // A failed seek suppresses automatic recovery so it cannot later restart
     // or skip the song; once the song has played on normally for a few
     // seconds, a new stall is unrelated to the seek and is recovered again.
@@ -1743,7 +1744,6 @@ extension _NavisRecovery on NavisAudioHandler {
         _pendingLogicalQueueSongIds != null ||
         _pendingSeek != null ||
         _seekFailureBlocksRecovery ||
-        _radioStation != null ||
         _queueItems.isEmpty) {
       _cancelRemotePlaybackStallWatchdog();
       return;
@@ -1790,6 +1790,54 @@ extension _NavisRecovery on NavisAudioHandler {
           reason: 'remote playback stalled',
         ),
       );
+    });
+  }
+
+  /// A station's stalled connection raises no error: reconnect it when
+  /// nothing moves for the stall timeout while it should be playing. Radio
+  /// never goes through song recovery.
+  void _syncRadioStallWatchdog() {
+    final station = _radioStation!;
+    if (_isLoading ||
+        !_player.playing ||
+        _radioRecoveryInProgress ||
+        _pendingRadioRecovery != null ||
+        _player.processingState == ProcessingState.idle ||
+        _player.processingState == ProcessingState.completed) {
+      _cancelRemotePlaybackStallWatchdog();
+      return;
+    }
+    final position = _player.position;
+    final bufferedPosition = _player.bufferedPosition;
+    final hasProgressed =
+        _remotePlaybackStallSongId != station.streamUrl ||
+        _remotePlaybackStallPosition != position ||
+        _remotePlaybackStallBufferedPosition != bufferedPosition;
+    if (!hasProgressed && _remotePlaybackStallTimer != null) return;
+    _cancelRemotePlaybackStallWatchdog();
+    _remotePlaybackStallSongId = station.streamUrl;
+    _remotePlaybackStallPosition = position;
+    _remotePlaybackStallBufferedPosition = bufferedPosition;
+    _remotePlaybackStallTimer = Timer(_remotePlaybackStallTimeout, () {
+      _remotePlaybackStallTimer = null;
+      if (!_isSameStation(_radioStation, station)) return;
+      // A ready station emits no events while it plays: look again.
+      if (_player.position != position ||
+          _player.bufferedPosition != bufferedPosition) {
+        _syncRadioStallWatchdog();
+        return;
+      }
+      _transportTrace.record(
+        'recovery',
+        () => <String, Object?>{
+          'decision': 'stallWatchdogFired',
+          'station': true,
+          'positionMs': position.inMilliseconds,
+          'bufferedMs': bufferedPosition.inMilliseconds,
+          'timeoutMs': _remotePlaybackStallTimeout.inMilliseconds,
+        },
+      );
+      _beginRadioRecovery(reason: 'station stream stalled', onlyIfIdle: true);
     });
   }
 

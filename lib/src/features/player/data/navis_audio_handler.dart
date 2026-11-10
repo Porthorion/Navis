@@ -2408,8 +2408,10 @@ class NavisAudioHandler extends BaseAudioHandler
       return;
     }
 
+    // A stuck-buffering station is left to the stall watchdog.
     if (_radioStation != null &&
-        _player.processingState == ProcessingState.idle) {
+        (_player.processingState == ProcessingState.idle ||
+            _player.processingState == ProcessingState.completed)) {
       _pendingRadioRecovery = (
         generation: transportGeneration,
         station: _radioStation!,
@@ -3575,6 +3577,9 @@ class NavisAudioHandler extends BaseAudioHandler
     _restoredQueueIndex = null;
     _restoredQueuePosition = Duration.zero;
     _supersedeTransportIntent(shouldPlay: true);
+    // A stall timer armed for the previous connection must not reconnect
+    // over this new selection.
+    _cancelRemotePlaybackStallWatchdog();
     final generation = _supersedeQueueWork(isLoading: true);
     return _queueLane.run((token) async {
       try {

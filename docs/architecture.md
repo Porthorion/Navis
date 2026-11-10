@@ -4884,7 +4884,15 @@ still stops while one that mostly plays on a flaky network keeps going. A
 permanent failure or an exhausted budget stops the station, restores the previous queue paused and shows one
 "Radio stream unavailable" notice, since only the user can pick another
 station. A new Play during an older
-reconciliation re-arms its own recovery after that check finishes. Verified
+reconciliation re-arms its own recovery after that check finishes. A station
+stream that stalls or ends raises no error, so two more triggers feed the same
+entry point, `_beginRadioRecovery`: a `completed` event (a live station never
+legitimately completes) and a radio stall watchdog (the song watchdog's timer
+fields and `remoteStall`; it fires when a playing station shows no position or
+buffer progress). Both are dropped while a reconnect is running or waiting for
+the network, share the outage's budget, and trace a `radioReconnect` decision.
+Play on a station whose player is idle or completed reconnects it; a
+stuck-buffering station is left to the watchdog. Verified
 reachability also re-arms exhausted personal-radio refills without replacing
 recommendation-session
 ownership. Automatic recovery records identity-free events in the private
