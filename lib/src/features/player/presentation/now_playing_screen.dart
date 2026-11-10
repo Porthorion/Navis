@@ -1739,18 +1739,33 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     // Local factories for the pieces the three layouts (compact-wide,
     // standard and split) construct identically. Each layout still supplies
     // its own keys, geometry and animation wrappers.
-    Widget buildCurrentArt(double radioArtMaxSize) => hasCoverArtId
-        ? _CoverArt(
-            coverArtId: coverArtId,
-            semanticLabel: title,
-            isExternalSource: song?.isExternal ?? false,
+    // A song cover takes the largest square that fits [maxSize] and its slot.
+    // Without this it paints at the image's intrinsic size under the loose
+    // constraints of the non-phone layouts (a 48 px cover stayed 48 px on an
+    // iPad Pro). The phone layout's tight SizedBox.square still wins.
+    Widget squareArt(double maxSize, Widget child) => ConstrainedBox(
+      constraints: BoxConstraints.loose(Size.square(maxSize)),
+      child: AspectRatio(aspectRatio: 1, child: child),
+    );
+
+    Widget buildCurrentArt(double maxSize) => hasCoverArtId
+        ? squareArt(
+            maxSize,
+            _CoverArt(
+              coverArtId: coverArtId,
+              semanticLabel: title,
+              isExternalSource: song?.isExternal ?? false,
+            ),
           )
         : (hasMediaArtUrl
-              ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: radioArtMaxSize)
-              : _CoverArt(
-                  coverArtId: null,
-                  semanticLabel: title,
-                  isExternalSource: song?.isExternal ?? false,
+              ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: maxSize)
+              : squareArt(
+                  maxSize,
+                  _CoverArt(
+                    coverArtId: null,
+                    semanticLabel: title,
+                    isExternalSource: song?.isExternal ?? false,
+                  ),
                 ));
 
     Widget buildTrackInfo({

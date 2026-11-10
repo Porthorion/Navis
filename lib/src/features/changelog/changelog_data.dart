@@ -317,6 +317,11 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'The Now Playing cover fills its space on tablets, in landscape and '
+        'in split-screen windows, instead of showing small',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Settings › Haptics turns vibration off entirely or per kind, such '
         'as Player Gestures, Sliders & Rulers or Notifications, so you can '
         'keep the ones you like',

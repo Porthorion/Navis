@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -11,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
@@ -358,12 +362,14 @@ void main() {
 
   // I27: a tablet pane beside the rail budgets its cover by height; the
   // desktop runtime keeps the original sizes, in the compact, standard and
-  // focus-player-sized embedded layouts (heights measured before the change).
+  // focus-player-sized embedded layouts. I46: the cover is a square capped at
+  // the layout's art budget, so it is the budget itself, not the (taller)
+  // region around it; the tablet cover stays at or below the desktop one.
   for (final (name, size, desktopHeight, tabletHeight)
       in <(String, Size, double, double)>[
-        ('compact', Size(700, 640), 345, 286),
-        ('standard', Size(800, 700), 354, 352),
-        ('focus player', Size(840, 400), 210, 130),
+        ('compact', Size(700, 640), 345, 282),
+        ('standard', Size(800, 700), 354, 342),
+        ('focus player', Size(840, 400), 192, 120),
       ]) {
     for (final desktop in <bool>[true, false]) {
       testWidgets(
@@ -1601,6 +1607,126 @@ void main() {
       await tester.pump();
     });
   }, skip: !sqliteAvailable);
+
+  // I46: the song cover is sized by the layout, not by the image. Every
+  // non-phone layout used to paint it at its intrinsic size.
+  group('I46 tablet cover fills a square slot', () {
+    for (final (name, size, embedded, compactWide)
+        in <(String, Size, bool, bool)>[
+          ('13" portrait rail pane', Size(762, 1376), true, false),
+          ('13" landscape rail pane (split)', Size(1032, 1032), true, false),
+          ('mini landscape rail pane', Size(868, 756), true, false),
+          ('11" portrait sheet', Size(834, 1194), false, false),
+          ('Split View 2/3 pane (compact)', Size(711, 1032), true, false),
+          ('Slide Over (phone layout)', Size(320, 1032), false, false),
+          ('compact-wide Mini Player', Size(560, 360), false, true),
+        ]) {
+      testWidgets('$name', (tester) async {
+        setAdaptiveTestViewport(tester, size);
+        final container = _createContainer();
+        container.read(nowPlayingTestPlaybackProvider.notifier).state =
+            _songPlayback;
+        await _pumpNowPlaying(
+          tester,
+          container,
+          wideEmbeddedMode: embedded,
+          compactWideLandscapeMode: compactWide,
+        );
+        final cover = tester.getSize(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is CoverArtImage &&
+                widget.shape == ArtworkShapeRole.nowPlaying,
+          ),
+        );
+
+        expect(cover.width, closeTo(cover.height, 0.5));
+        expect(cover.shortestSide, greaterThanOrEqualTo(160));
+      }, skip: !sqliteAvailable);
+    }
+
+    testWidgets('a 48 px stored cover is scaled up to the slot', (
+      tester,
+    ) async {
+      setAdaptiveTestViewport(tester, const Size(762, 1376));
+      final directory = Directory.systemTemp.createTempSync('navis-i46-');
+      addTearDown(() => directory.deleteSync(recursive: true));
+      const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(
+        pathProvider,
+        (call) async => directory.path,
+      );
+      addTearDown(() => messenger.setMockMethodCallHandler(pathProvider, null));
+      final png = (await tester.runAsync(() async {
+        final recorder = ui.PictureRecorder();
+        ui.Canvas(recorder).drawRect(
+          const Rect.fromLTWH(0, 0, 48, 48),
+          ui.Paint()..color = const Color(0xFF3366CC),
+        );
+        final image = await recorder.endRecording().toImage(48, 48);
+        return (await image.toByteData(format: ui.ImageByteFormat.png))!;
+      }))!;
+      final stored = File('${directory.path}/cover.png')
+        ..writeAsBytesSync(png.buffer.asUint8List());
+      final container = _createContainer(
+        overrides: <Override>[
+          subsonicApiProvider.overrideWith((_) => null),
+          permanentArtworkStoreProvider.overrideWithValue(
+            _StoredArtwork(<String, File>{'cover-1': stored}),
+          ),
+          songByIdProvider.overrideWith(
+            (ref, id) => Stream<SongsTableData?>.value(
+              const SongsTableData(
+                id: 'song-1',
+                title: 'Track',
+                coverArt: 'cover-1',
+                isProvisional: false,
+                isExternal: false,
+              ),
+            ),
+          ),
+        ],
+      );
+      container.read(nowPlayingTestPlaybackProvider.notifier).state =
+          _songPlayback;
+
+      await _pumpNowPlaying(tester, container, wideEmbeddedMode: true);
+      // The stored file decodes outside fake time: give it real time, then
+      // let the frame paint.
+      for (var i = 0; i < 50; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 100)),
+        );
+        await tester.pump(const Duration(milliseconds: 100));
+        if (tester.getSize(find.byType(Image)) != Size.zero) break;
+      }
+
+      final cover = tester.getSize(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is CoverArtImage &&
+              widget.shape == ArtworkShapeRole.nowPlaying,
+        ),
+      );
+      expect(cover.width, closeTo(cover.height, 0.5));
+      expect(cover.shortestSide, greaterThan(300));
+    }, skip: !sqliteAvailable);
+  });
+}
+
+class _StoredArtwork extends PermanentArtworkStore {
+  new(this._files)
+    : super(readApplicationSupportDirectory: Directory.systemTemp.createTemp);
+
+  final Map<String, File> _files;
+
+  @override
+  File? loadedFileFor(String? coverArtId) => _files[coverArtId];
+
+  @override
+  Future<File?> fileFor(String? coverArtId) async => _files[coverArtId];
 }
 
 Finder _artGesture() => find
