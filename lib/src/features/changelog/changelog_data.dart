@@ -449,11 +449,6 @@ const List<ChangelogVersion> changelogs = [
         platforms: ChangelogPlatform.desktop,
         type: ChangelogEntryType.fix,
       ),
-      ChangelogEntry(
-        'The Genres filter ignores accents like the rest of search, so '
-        '“electronique” finds “Électronique”',
-        type: ChangelogEntryType.fix,
-      ),
     ],
     specialThanks: ['To Tas for the theming and color suggestions.'],
   ),
