@@ -58,6 +58,7 @@ import 'package:navis/src/features/integrations/domain/integration_feature.dart'
 import 'package:navis/src/features/library/data/annotation_sync_dispatcher.dart';
 import 'package:navis/src/features/library/data/radio_station_actions.dart';
 import 'package:navis/src/features/library/domain/library_sync_request.dart';
+import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/features/library/presentation/artist_deezer_providers.dart';
 import 'package:navis/src/features/library/presentation/artist_top_tracks_provider.dart';
 import 'package:navis/src/features/library/presentation/library_browse_models.dart';
@@ -2174,6 +2175,16 @@ final radioStationsProvider = FutureProvider<List<InternetRadioStation>>((
       ),
     ];
   }
+  // Server stations are not part of library sync, so a finished run is the
+  // cue to pick up edits made on the server. The previous list stays in
+  // place while this refetches.
+  ref.listen(librarySyncControllerProvider, (previous, next) {
+    if (previous?.isRunning == true &&
+        (next.status == LibrarySyncStatus.succeeded ||
+            next.status == LibrarySyncStatus.partial)) {
+      ref.invalidateSelf();
+    }
+  });
   final api = ref.watch(subsonicApiProvider);
   if (api == null) {
     return const <InternetRadioStation>[];
