@@ -226,6 +226,15 @@ class _AppShellState extends ConsumerState<AppShell> {
     _globalKeyHandlerInstalled = false;
   }
 
+  void _setNowPlayingBackInterceptor(
+    bool Function()? handler, {
+    bool Function()? release,
+  }) {
+    if (release == null || _nowPlayingBackInterceptor == release) {
+      _nowPlayingBackInterceptor = handler;
+    }
+  }
+
   bool _dismissNowPlayingInternalOverlayIfExpanded() {
     if (!ref.read(playerSheetExpandedProvider)) {
       return false;
@@ -1667,9 +1676,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 coverArtId: coverArtId,
                                 coverArtUrl: nowPlayingArtUrl,
                                 isExternalSource: isExternalSource,
-                                onBackInterceptorChanged: (handler) {
-                                  _nowPlayingBackInterceptor = handler;
-                                },
+                                onBackInterceptorChanged:
+                                    _setNowPlayingBackInterceptor,
                                 onCompactWideOverlayActiveChanged:
                                     _handleCompactWideOverlayActiveChanged,
                                 onCompactWideQueueRequestChanged:
@@ -1936,10 +1944,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                     )
                                                                     .collapse(),
                                                                 onBackInterceptorChanged:
-                                                                    (handler) {
-                                                                      _nowPlayingBackInterceptor =
-                                                                          handler;
-                                                                    },
+                                                                    _setNowPlayingBackInterceptor,
                                                                 onCompactWideOverlayActiveChanged:
                                                                     _handleCompactWideOverlayActiveChanged,
                                                                 onCompactWideQueueRequestChanged:
@@ -2000,10 +2005,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                                         )
                                                                         .collapse(),
                                                                     onBackInterceptorChanged:
-                                                                        (handler) {
-                                                                          _nowPlayingBackInterceptor =
-                                                                              handler;
-                                                                        },
+                                                                        _setNowPlayingBackInterceptor,
                                                                   ),
                                                                 ),
                                                               ),
@@ -2184,10 +2186,8 @@ class _AppShellState extends ConsumerState<AppShell> {
                                                     .notifier,
                                               )
                                               .collapse(),
-                                          onBackInterceptorChanged: (handler) {
-                                            _nowPlayingBackInterceptor =
-                                                handler;
-                                          },
+                                          onBackInterceptorChanged:
+                                              _setNowPlayingBackInterceptor,
                                         ),
                                       ),
                                 ),

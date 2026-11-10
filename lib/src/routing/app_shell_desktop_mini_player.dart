@@ -19,7 +19,7 @@ class _DesktopMiniPlayerSurface extends ConsumerStatefulWidget {
   final String? coverArtId;
   final String? coverArtUrl;
   final bool isExternalSource;
-  final ValueChanged<bool Function()?> onBackInterceptorChanged;
+  final BackInterceptorSetter onBackInterceptorChanged;
   final ValueChanged<bool> onCompactWideOverlayActiveChanged;
   final ValueChanged<VoidCallback?> onCompactWideQueueRequestChanged;
 
