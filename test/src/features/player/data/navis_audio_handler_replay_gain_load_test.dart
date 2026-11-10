@@ -38,6 +38,9 @@ class _GatedResolver extends Fake implements PlaybackSourceResolver {
   final entered = Completer<void>();
   final release = Completer<void>();
 
+  /// False lets [blockedSongId] resolve at once (an earlier load of the test).
+  bool armed = true;
+
   @override
   Uri? resolveArtUri(SongsTableData song) => delegate.resolveArtUri(song);
   @override
@@ -57,7 +60,7 @@ class _GatedResolver extends Fake implements PlaybackSourceResolver {
     Duration? transcodeOffset,
     bool fastSeekBridge = false,
   }) async {
-    if (song.id == blockedSongId) {
+    if (armed && song.id == blockedSongId) {
       if (!entered.isCompleted) entered.complete();
       await release.future;
     }
@@ -129,6 +132,23 @@ class _FakePlayer extends Fake implements AudioPlayer {
   Duration _position = Duration.zero;
   LoopMode _loopMode = LoopMode.off;
   final List<double> appliedVolumes = [];
+
+  /// While set, a seek to an entry reports the new index and then waits: the
+  /// native player is already on the target but the seek call has not
+  /// returned (an AVQueuePlayer / mpv jump in flight).
+  Completer<void>? seekGate;
+
+  /// While set, `setAudioSources` swaps the sequence in and reports it, then
+  /// holds the apply open (just_audio broadcasts the new sequence before the
+  /// platform load finishes).
+  Completer<void>? applyGate;
+
+  /// While true a seek returns with [currentIndex] still on the old entry and
+  /// the index lands on a timer afterwards (mpv's index lag, #509).
+  bool deferIndex = false;
+
+  /// Each volume write with the native index it landed on.
+  final List<(double, int?)> volumeWrites = [];
 
   @override
   PlaybackEvent get playbackEvent => PlaybackEvent(
@@ -215,7 +235,11 @@ class _FakePlayer extends Fake implements AudioPlayer {
   ];
 
   @override
-  Future<void> setVolume(double value) async => appliedVolumes.add(value);
+  Future<void> setVolume(double value) async {
+    appliedVolumes.add(value);
+    volumeWrites.add((value, index));
+  }
+
   @override
   Future<void> setSpeed(double value) async {}
   @override
@@ -248,8 +272,17 @@ class _FakePlayer extends Fake implements AudioPlayer {
   @override
   Future<void> seek(Duration? position, {int? index}) async {
     if (position != null) _position = position;
+    if (index != null && deferIndex) {
+      Timer(Duration.zero, () {
+        this.index = index;
+        _indices.add(index);
+      });
+      return;
+    }
     if (index != null) this.index = index;
     _indices.add(this.index);
+    final gate = seekGate;
+    if (gate != null && index != null) await gate.future;
   }
 
   @override
@@ -280,6 +313,8 @@ class _FakePlayer extends Fake implements AudioPlayer {
         ? ProcessingState.idle
         : ProcessingState.ready;
     _indices.add(index);
+    final gate = applyGate;
+    if (gate != null) await gate.future;
     return const Duration(minutes: 3);
   }
 
@@ -643,4 +678,213 @@ void main() {
     await settle(rig, replaced);
     expect(rig.player.volume, closeTo(pow(10, -6 / 20), 0.00001));
   });
+  // Issue #479 follow-up (I38): a manual skip that lands by seeking never goes
+  // through the queue apply, so the player is already on the target while the
+  // seek is pending. The target's cut applies then, not at the commit.
+  for (final (name, caps, ios, curve) in [
+    ('iOS', PlaybackAdjustmentCapabilities.ios, true, 20.0),
+    ('macOS mpv', PlaybackAdjustmentCapabilities.mediaKit, false, 60.0),
+  ]) {
+    double cutOf(double db) => pow(10, db / curve).toDouble();
+    const gains = {0: -12.0, 1: -6.0, 2: -3.0, 3: -9.0, 4: -2.0};
+
+    // Settled queue on song-2, then [action] with the seek held open.
+    for (final (variant, action, targetIndex, targetGain) in [
+      ('skip next', (NavisAudioHandler h) => h.skipToNext(), 3, -9.0),
+      ('skip previous', (NavisAudioHandler h) => h.skipToPrevious(), 1, -6.0),
+      (
+        'skipToQueueItem',
+        (NavisAudioHandler h) => h.skipToQueueItem(4),
+        4,
+        -2.0,
+      ),
+    ]) {
+      test('$name: $variant applies the target cut while the seek is '
+          'pending', () async {
+        final rig = await create(caps, ios: ios, trackGains: gains);
+        final (:handler, :player, resolver: _, session: _) = rig;
+        await settle(rig, await startLoad(rig, startIndex: 2));
+        expect(player.volume, closeTo(cutOf(-3), 0.00001));
+
+        player.seekGate = Completer<void>();
+        final skip = action(handler);
+        await pumpEventQueue();
+        expect(player.currentIndex, targetIndex, reason: 'seek is in flight');
+        expect(handler.collectPlaybackDiagnostics()['queueSettled'], isFalse);
+        expect(
+          player.volume,
+          closeTo(cutOf(targetGain), 0.00001),
+          reason: 'the player is on the target, so its cut applies now',
+        );
+
+        player.seekGate!.complete();
+        await skip;
+        await pumpEventQueue();
+        expect(player.volume, closeTo(cutOf(targetGain), 0.00001));
+      });
+    }
+
+    test(
+      '$name: a replacement that starts on the song now playing writes '
+      'nothing until its source is applied (Smart picks another cut)',
+      () async {
+        // Song 1 in [1, 2] has no album neighbour (track gain -12); in
+        // [0, 1, 2] it follows song 0 of its album (album gain -6).
+        final rig = await create(
+          caps,
+          ios: ios,
+          mode: 'smart',
+          trackGains: const {1: -12},
+          albumGains: const {1: -6},
+          albums: const {0: 'A', 1: 'A', 2: 'B'},
+          blocked: 'song-1',
+        );
+        rig.resolver.armed = false;
+        await rig.handler.replaceQueue(['song-1', 'song-2']);
+        rig.resolver.armed = true;
+        expect(rig.handler.currentMediaItem?.id, 'song-1');
+        expect(rig.player.volume, closeTo(cutOf(-12), 0.00001));
+
+        final replacing = rig.handler.replaceQueue([
+          'song-0',
+          'song-1',
+          'song-2',
+        ], startIndex: 1);
+        await rig.resolver.entered.future;
+        await pumpEventQueue();
+        final writes = rig.player.appliedVolumes.length;
+        await rig.handler.applyRuntimeSettings();
+        await pumpEventQueue();
+        expect(
+          rig.player.appliedVolumes.length,
+          writes,
+          reason:
+              'the old entry of song-1 still plays; the new source is not in',
+        );
+        expect(rig.player.volume, closeTo(cutOf(-12), 0.00001));
+
+        await settle(rig, (done: replacing));
+        expect(rig.player.volume, closeTo(cutOf(-6), 0.00001));
+      },
+    );
+
+    test('$name: a jump to another copy of the playing song takes the '
+        "copy's Smart cut once the player is on it", () async {
+      // [0, 1, 2, 1]: the copy at index 3 follows song 2 (album B), so it
+      // plays at its track gain; the copy at index 1 follows song 0 (album).
+      final rig = await create(
+        caps,
+        ios: ios,
+        mode: 'smart',
+        trackGains: const {1: -12},
+        albumGains: const {1: -6},
+        albums: const {0: 'A', 1: 'A', 2: 'B'},
+      );
+      await settle(
+        rig,
+        await startLoad(
+          rig,
+          startIndex: 1,
+          songs: ['song-0', 'song-1', 'song-2', 'song-1', 'song-5'],
+        ),
+      );
+      expect(rig.player.volume, closeTo(cutOf(-6), 0.00001));
+
+      rig.player.seekGate = Completer<void>();
+      final skip = rig.handler.skipToQueueItem(3);
+      await pumpEventQueue();
+      expect(rig.player.currentIndex, 3);
+      expect(rig.player.volume, closeTo(cutOf(-12), 0.00001));
+      rig.player.seekGate!.complete();
+      await skip;
+      await pumpEventQueue();
+      expect(rig.player.volume, closeTo(cutOf(-12), 0.00001));
+    });
+
+    test('$name: restarting the playing entry writes no other cut while '
+        'the seek is pending', () async {
+      final rig = await create(caps, ios: ios, trackGains: gains);
+      await settle(rig, await startLoad(rig, startIndex: 2));
+      rig.player.seekGate = Completer<void>();
+      final skip = rig.handler.skipToQueueItem(2);
+      await pumpEventQueue();
+      expect(rig.player.volume, closeTo(cutOf(-3), 0.00001));
+      rig.player.seekGate!.complete();
+      await skip;
+      await pumpEventQueue();
+      expect(rig.player.volume, closeTo(cutOf(-3), 0.00001));
+    });
+
+    test(
+      '$name: a settings change while the apply is in flight writes '
+      'nothing, though the new entries are already in the sequence',
+      () async {
+        final rig = await create(caps, ios: ios, trackGains: gains);
+        final (:handler, :player, :resolver, session: _) = rig;
+        await settle(rig, await startLoad(rig, startIndex: 2));
+        expect(player.volume, closeTo(cutOf(-3), 0.00001));
+
+        player.applyGate = Completer<void>();
+        final replacing = handler.replaceQueue(ids(), startIndex: 0);
+        await pumpEventQueue();
+        expect(player.currentIndex, 0, reason: 'the new sequence is in');
+        expect(handler.collectPlaybackDiagnostics()['queueSettled'], isFalse);
+        final writes = player.appliedVolumes.length;
+        await handler.applyRuntimeSettings();
+        await pumpEventQueue();
+        expect(
+          player.appliedVolumes.length,
+          writes,
+          reason: 'the apply has not returned, so song-2 may still be audible',
+        );
+        expect(player.volume, closeTo(cutOf(-3), 0.00001));
+
+        player.applyGate!.complete();
+        if (!resolver.release.isCompleted) resolver.release.complete();
+        await replacing;
+        await pumpEventQueue();
+        expect(player.volume, closeTo(cutOf(-12), 0.00001));
+      },
+    );
+
+    test('$name: a seek that returns before the index lands writes nothing '
+        'onto the old entry', () async {
+      final rig = await create(caps, ios: ios, trackGains: gains);
+      final (:handler, :player, resolver: _, session: _) = rig;
+      await settle(rig, await startLoad(rig, startIndex: 2));
+      final before = player.volumeWrites.length;
+
+      player.deferIndex = true;
+      await handler.skipToNext();
+      await pumpEventQueue();
+      expect(player.currentIndex, 3);
+      for (final (value, nativeIndex) in player.volumeWrites.skip(before)) {
+        if ((value - cutOf(-9)).abs() < 0.00001) {
+          expect(nativeIndex, 3, reason: 'the target cut only lands on it');
+        }
+      }
+      expect(player.volume, closeTo(cutOf(-9), 0.00001));
+    });
+
+    test('$name: the backend applies the cut in the pipeline, so a pending '
+        'skip leaves the volume at the base volume', () async {
+      final rig = await create(
+        caps,
+        ios: ios,
+        pipeline: true,
+        trackGains: gains,
+      );
+      await rig.handler.setVolume(0.5);
+      await settle(rig, await startLoad(rig, startIndex: 2));
+      rig.player.seekGate = Completer<void>();
+      final skip = rig.handler.skipToNext();
+      await pumpEventQueue();
+      expect(rig.player.currentIndex, 3);
+      expect(rig.player.volume, closeTo(0.5, 0.00001));
+      rig.player.seekGate!.complete();
+      await skip;
+      await pumpEventQueue();
+      expect(rig.player.volume, closeTo(0.5, 0.00001));
+    });
+  }
 }

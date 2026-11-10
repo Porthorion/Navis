@@ -671,7 +671,7 @@ extension _NavisMediaSession on NavisAudioHandler {
       // audible one, so its cut must not wait for phase 2 (before that the
       // old song may still play and keeps its own level). A fade owns the
       // volume while it runs.
-      if (loading && _loadedSourceApplied && !_isCrossfading) {
+      if (loading && _loadingSourceInPlayer && !_isCrossfading) {
         unawaited(
           _player.setVolume(
             _replayGainVolumeFor(_resolveCurrentQueueMetadata().mediaItem),
