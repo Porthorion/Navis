@@ -304,6 +304,39 @@ void main() {
     expect(await database.songIdentityDao.getAliases(), isEmpty);
   }, skip: !sqliteAvailable);
 
+  test(
+    'playback is not left on remapped ids when the promotion rolls back',
+    () async {
+      // What the audio handler was told, as applySongIdentityAliases keeps it.
+      final playerAliases = <String, String>{};
+      final canonical = await database.libraryDao.getSongById('server-song');
+
+      await expectLater(
+        database.transaction(() async {
+          final session = await SongIdentityReconciler(
+            database.songIdentityDao,
+            onBeforeRemap: (aliases) async => playerAliases.addAll(aliases),
+            readActiveSongId: () => 'remote-song',
+          ).startSession();
+          await session.reconcile(<SongsTableData>[canonical!]);
+          await session.finalize();
+          // A later promotion step fails: the whole remap rolls back.
+          throw StateError('promotion failed after the remap');
+        }),
+        throwsStateError,
+      );
+
+      expect(await database.libraryDao.getSongById('remote-song'), isNotNull);
+      expect(await database.songIdentityDao.getAliases(), isEmpty);
+      expect(
+        playerAliases,
+        isEmpty,
+        reason: 'the player still maps remote-song to an id the rollback undid',
+      );
+    },
+    skip: 'Proves #480e, fix pending',
+  );
+
   test('transactionally remaps every persisted song reference', () async {
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     await database.customStatement(
@@ -516,6 +549,50 @@ void main() {
     expect(permanentFile.existsSync(), isTrue);
     expect(remoteFile.existsSync(), isFalse);
   }, skip: !sqliteAvailable);
+
+  test(
+    'a temporarily unreadable permanent download never loses to a rolling copy',
+    () async {
+      final rollingFile = File('${tempDirectory.path}/rolling.audio')
+        ..writeAsBytesSync(<int>[1, 2, 3]);
+      // The download's volume is unmounted: the row is complete, the file
+      // cannot be seen right now.
+      final unmountedPath = '${tempDirectory.path}/unmounted/permanent.flac';
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'remote-song',
+          filePath: rollingFile.path,
+          fileSize: rollingFile.lengthSync(),
+          format: 'mp3',
+          lastAccessedAt: DateTime.now(),
+          cacheType: CacheType.rolling,
+          downloadStatus: DownloadStatus.complete,
+        ),
+      );
+      await database.cacheDao.upsertCachedTrack(
+        CachedTracksTableCompanion.insert(
+          songId: 'server-song',
+          filePath: unmountedPath,
+          fileSize: 4096,
+          format: 'flac',
+          lastAccessedAt: DateTime.now(),
+          cacheType: CacheType.permanent,
+          downloadStatus: DownloadStatus.complete,
+        ),
+      );
+
+      await database.songIdentityDao.remapSongIdentity(
+        oldSongId: 'remote-song',
+        canonicalSongId: 'server-song',
+        matchReason: 'recordingMbid',
+      );
+
+      final retained = await database.cacheDao.getCachedTrack('server-song');
+      expect(retained?.cacheType, CacheType.permanent);
+      expect(retained?.filePath, unmountedPath);
+    },
+    skip: 'Proves #480d, fix pending',
+  );
 
   test(
     'active provisional cache survives a canonical cache collision',

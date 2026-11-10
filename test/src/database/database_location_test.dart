@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -116,4 +117,34 @@ void main() {
     expect((await resolve()).path, oldFile('').path);
     expect(await oldFile('').readAsString(), 'database');
   });
+
+  test('a kill between the main rename and the -wal rename keeps the WAL with '
+      'the database the next launch opens', () async {
+    for (final suffix in ['', '-wal']) {
+      await oldFile(suffix).writeAsString('fixture$suffix');
+    }
+    // The process dies while the -wal rename is pending: the main file has
+    // moved, the -wal has not, and nothing rolls back.
+    final mainMoved = Completer<void>();
+    unawaited(
+      resolve(
+        rename: (source, destination) {
+          if (source.path.endsWith('-wal')) {
+            mainMoved.complete();
+            return Completer<File>().future;
+          }
+          return source.rename(destination);
+        },
+      ),
+    );
+    await mainMoved.future;
+    expect(newFile('').existsSync(), isTrue);
+
+    final selected = await resolve();
+    expect(
+      File('${selected.path}-wal').existsSync(),
+      isTrue,
+      reason: 'the committed WAL must travel with the opened database',
+    );
+  }, skip: 'Proves #480f, fix pending');
 }

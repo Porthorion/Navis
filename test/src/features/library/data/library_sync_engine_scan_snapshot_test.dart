@@ -505,6 +505,33 @@ void main() {
   );
 
   test(
+    'observeServerScan keeps the cancel of a running targeted hydration',
+    () async {
+      final gate = Completer<void>();
+      api.albumGates['a1'] = gate;
+      final run = engine.hydrateAlbum('a1');
+      while (!api.calls.contains('getAlbum:a1')) {
+        await pumpEventQueue();
+      }
+      engine.cancelSync();
+      expect(api.activeRequestsCancelled, isTrue);
+
+      // The coordinator's scan check runs while the targeted run unwinds.
+      api.scanStatus = ScanStatus(scanning: false, count: 12, lastScan: scan2);
+      await engine.observeServerScan(serverId);
+
+      expect(
+        api.activeRequestsCancelled,
+        isTrue,
+        reason: 'the targeted run would send fresh requests after its cancel',
+      );
+      gate.complete();
+      await run.then<void>((_) {}, onError: (_) {});
+    },
+    skip: 'Proves #480b, fix pending',
+  );
+
+  test(
     'W2: the engine stops a scan-triggered snapshot on metered data',
     () async {
       // "Unmetered only" is off, so plain admission allows the pass; the
