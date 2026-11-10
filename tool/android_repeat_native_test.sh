@@ -23,7 +23,7 @@ fi
 export NAVIS_SELF_UPDATE=true
 cd "${navis_root}/android"
 timeout --kill-after=10s 10m ./gradlew \
-  :app:testSideloadDebugUnitTest --tests '*JustAudioRepeat*Test' --tests '*JustAudioReplayGainBoost*Test' \
+  :app:testSideloadDebugUnitTest \
   --no-daemon --max-workers=1 --console=plain \
   '-Dorg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=768m -XX:ReservedCodeCacheSize=256m' \
   -Pkotlin.compiler.execution.strategy=in-process
@@ -33,12 +33,19 @@ import pathlib
 import sys
 import xml.etree.ElementTree as ET
 
+# Every app JVM suite runs; the repeat and boost suites must additionally be present.
+required = {"JustAudioRepeatBoundaryTest", "JustAudioRepeatCallbackTest", "JustAudioReplayGainBoostTest"}
+seen = set()
 total = 0
-for name in ("JustAudioRepeatBoundaryTest", "JustAudioRepeatCallbackTest", "JustAudioReplayGainBoostTest"):
-    suite = ET.parse(pathlib.Path(sys.argv[1]) / f"TEST-com.navis.app.navis.{name}.xml").getroot()
+for path in sorted(pathlib.Path(sys.argv[1]).glob("TEST-*.xml")):
+    suite = ET.parse(path).getroot()
+    name = suite.attrib.get("name", path.stem).rsplit(".", 1)[-1]
     executed = int(suite.attrib["tests"]) - int(suite.get("skipped", "0"))
     if executed <= 0 or int(suite.get("failures", "0")) or int(suite.get("errors", "0")):
-        sys.exit(f"Android repeat bridge: {name} must execute tests with no failures.")
+        sys.exit(f"Android JVM tests: {name} must execute tests with no failures.")
+    seen.add(name)
     total += executed
-print(f"Android repeat bridge and ReplayGain boost: {total} tests, 0 failures.")
+if required - seen:
+    sys.exit(f"Android JVM tests: missing suites {sorted(required - seen)}.")
+print(f"Android JVM tests: {len(seen)} suites, {total} tests, 0 failures.")
 PYTHON

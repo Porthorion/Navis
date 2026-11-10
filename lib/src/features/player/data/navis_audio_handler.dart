@@ -29,6 +29,7 @@ import 'package:navis/src/database/daos/play_queue_dao.dart';
 import 'package:navis/src/database/daos/star_sync_dao.dart';
 import 'package:navis/src/database/tables/schema_enums.dart' as schema;
 import 'package:navis/src/features/auto/data/auto_media_id.dart';
+import 'package:navis/src/utils/search_text.dart';
 import 'package:navis/src/common_widgets/cover_art_cache_manager.dart';
 import 'package:navis/src/features/auto/data/android_auto_browse_notifier.dart';
 import 'package:navis/src/features/auto/data/auto_media_tree_service.dart';

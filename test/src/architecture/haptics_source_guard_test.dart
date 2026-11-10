@@ -4,7 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// Every haptic goes through `NavisHaptics` so Settings -> Haptics can gate it.
 /// `AdjustmentRuler` keeps its own tuned primitives, but checks
-/// `NavisHaptics.allows` first.
+/// `NavisHaptics.allows` first (adjustment_ruler_test.dart plays the gated
+/// ruler and step button with each category off).
 final _raw = RegExp(r'\bHapticFeedback\.');
 const _allowed = {
   'lib/src/common_widgets/navis_haptics.dart',
@@ -29,20 +30,6 @@ void main() {
       }
     }
     expect(violations, isEmpty, reason: violations.join('\n'));
-  });
-
-  test('the ruler checks the gate before its raw haptics', () {
-    final source = File(
-      'lib/src/features/player/presentation/adjustment_ruler.dart',
-    ).readAsStringSync();
-    expect(
-      source,
-      contains('NavisHaptics.allows(HapticCategory.slidersAndRulers)'),
-    );
-    expect(
-      source,
-      contains('NavisHaptics.allows(HapticCategory.switchesAndSteppers)'),
-    );
   });
 
   test('every InkWell and ListTile long press switches off the framework '

@@ -5581,7 +5581,7 @@ void main() {
       final directory = await Directory.systemTemp.createTemp('navis-auto-g-');
       final (handler, _, database) = await createHandler(
         directory,
-        6,
+        11,
         seed: (database) async {
           Future<void> tag(int i, String title, List<String> genres) =>
               database.libraryDao.upsertSongs([
@@ -5597,6 +5597,29 @@ void main() {
           await tag(3, 'Song 3', ['World Music']);
           await tag(4, 'Song 4', ['Jazz']);
           await tag(5, 'Rock', ['Pop']);
+          // A genre named like an artist ("Queen") and like an album ("Blues").
+          await tag(6, 'Song 6', ['Queen']);
+          await tag(7, 'Song 7', ['Pop']);
+          await tag(8, 'Song 8', ['Pop']);
+          await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+            ArtistsTableCompanion.insert(id: 'artist-q', name: 'Queen'),
+          ]);
+          await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+            AlbumsTableCompanion.insert(
+              id: 'album-q',
+              name: 'Hits',
+              artistId: const Value('artist-q'),
+            ),
+            AlbumsTableCompanion.insert(id: 'album-b', name: 'Blues'),
+          ]);
+          for (final (song, album) in [
+            ('song-7', 'album-q'),
+            ('song-8', 'album-b'),
+          ]) {
+            await (database.update(database.songsTable)
+                  ..where((row) => row.id.equals(song)))
+                .write(SongsTableCompanion(albumId: Value(album)));
+          }
         },
       );
       addTearDown(() async {
@@ -5643,6 +5666,64 @@ void main() {
       await handler.prepareFromSearch('rock');
       await settleQueue(handler);
       expect(handler.snapshot.queueSongIds, ['song-5']);
+    });
+
+    test('an exact artist name wins over a genre of that name', () async {
+      final (handler, _) = await genreHandler();
+      await handler.prepareFromSearch('queen');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, ['song-7']);
+    });
+
+    test('an exact artist without songs falls through to the genre', () async {
+      final (handler, database) = await genreHandler();
+      await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'artist-j', name: 'Jazz'),
+      ]);
+      await handler.prepareFromSearch('jazz');
+      await settleQueue(handler);
+      expect(
+        handler.snapshot.queueSongIds,
+        List<String>.of(jazz)..shuffle(Random(7)),
+      );
+    });
+
+    test('an exact artist name matches without accents', () async {
+      final (handler, database) = await genreHandler();
+      await database.libraryDao.upsertArtists(<ArtistsTableCompanion>[
+        ArtistsTableCompanion.insert(id: 'artist-be', name: 'Beyoncé'),
+      ]);
+      await database.libraryDao.upsertAlbums(<AlbumsTableCompanion>[
+        AlbumsTableCompanion.insert(
+          id: 'album-be',
+          name: 'B Day',
+          artistId: const Value('artist-be'),
+        ),
+      ]);
+      await database.libraryDao.upsertSongs([
+        SongsTableCompanion.insert(
+          id: 'song-9',
+          title: 'Halo',
+          artistId: const Value('artist-be'),
+          albumId: const Value('album-be'),
+          genres: const Value<List<String>?>(['Beyonce']),
+        ),
+        SongsTableCompanion.insert(
+          id: 'song-10',
+          title: 'Other',
+          genres: const Value<List<String>?>(['Beyonce']),
+        ),
+      ]);
+      await handler.prepareFromSearch('beyonce');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, ['song-9']);
+    });
+
+    test('an exact album name wins over a genre of that name', () async {
+      final (handler, _) = await genreHandler();
+      await handler.prepareFromSearch('Blues');
+      await settleQueue(handler);
+      expect(handler.snapshot.queueSongIds, ['song-8']);
     });
 
     test('a genre extra plays the genre even with an empty query', () async {

@@ -115,18 +115,20 @@ bool configureStartPosition(
 }
 
 /// Writes the global `af` of every playlist entry mpv is about to load from
-/// [filtersFor] (given its `path`), so the entry's chain, with its own
+/// [filtersFor] (given its `path` and playlist index), so the entry's chain, with its own
 /// ReplayGain level, is built from the first sample. Returns whether the
 /// backend supports it.
 bool configureReplayGainFilter(
-    Player player, String Function(String path) filtersFor) {
+    Player player, String Function(String path, int? index) filtersFor) {
   final native = player.platform;
   if (native is! NativePlayer) return false;
   native.onLoadHooks.add(() async {
     // Synchronous libmpv calls only, as in [configureStartPosition].
     final path = _readString(native, 'path');
     if (path == null) return;
-    if (!nativeSetPropertySync(player, 'af', filtersFor(path))) {
+    final index =
+        int.tryParse(_readString(native, 'playlist-playing-pos') ?? '');
+    if (!nativeSetPropertySync(player, 'af', filtersFor(path, index))) {
       // The file would play at the previous file's level; nothing else shows it.
       _logger.warning('on_load af write rejected by mpv for $path');
     }

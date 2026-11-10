@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:navis/src/database/navis_database.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:meta/meta.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 NavisDatabase createTestDatabase({File? file}) {
@@ -35,13 +36,26 @@ List<Override> withTestDatabase(
 /// Whether the native SQLite3 library is available on this machine.
 ///
 /// Use this to skip database-dependent tests in environments where the native
-/// library is not bundled (e.g. some CI runners).
-bool get sqliteAvailable {
+/// library is not bundled (e.g. some CI runners). With `NAVIS_REQUIRE_SQLITE=1`
+/// (tool/check.sh and CI) a missing library throws instead, so the database
+/// suites cannot pass with every test skipped.
+bool get sqliteAvailable => checkSqliteAvailable(
+  () => sqlite3.openInMemory().close(),
+  require: Platform.environment['NAVIS_REQUIRE_SQLITE'] == '1',
+);
+
+@visibleForTesting
+bool checkSqliteAvailable(void Function() open, {required bool require}) {
   try {
-    final db = sqlite3.openInMemory();
-    db.close();
+    open();
     return true;
-  } on Object {
+  } on Object catch (error) {
+    if (require) {
+      throw StateError(
+        'NAVIS_REQUIRE_SQLITE=1 but native SQLite3 is unavailable ($error); '
+        'database tests would be silently skipped.',
+      );
+    }
     return false;
   }
 }

@@ -92,7 +92,8 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     // `af` chain; the `on_load` hook builds each file's chain with its own
     // level, so it applies from the file's first sample.
     if (_replayGainFilter) {
-      configureReplayGainFilter(_player, replayGainFiltersForLoad);
+      configureReplayGainFilter(_player,
+          (path, index) => replayGainFiltersForLoad(path, index: index));
     }
 
     _nativeSeekingReady = configureNativeSeeking(_player, (seeking) {
@@ -296,6 +297,11 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// The ReplayGain of the playing file and the queue.
   final _levels = ReplayGainLevels();
 
+  /// The source message id of every playlist entry, in mpv's order, so the
+  /// `on_load` hook can tell one file queued at two positions apart by the
+  /// playlist index it reads. Null for a source without a level.
+  var _entryIds = <String?>[];
+
   /// Synchronous libmpv calls (the hook's kind), replaceable by tests: an
   /// awaited write could land on the file that follows.
   late final bool Function(String) _commandSync;
@@ -498,6 +504,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     _deferredSeek.beginLoad(request.initialPosition);
     _currentIndex = request.initialIndex ?? 0;
     _levels.clear();
+    _entryIds = [];
     final initialPosition = request.initialPosition;
     _nativeStart = _nativeStartSupported &&
             initialPosition != null &&
@@ -521,6 +528,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         final playable = Playlist(
             audioSource.children.map(_convertAudioSourceIntoMediaKit).toList(),
             index: _currentIndex);
+        _entryIds = audioSource.children.map(_levelIdOf).toList();
 
         _icyMetadata.setSource(playable.medias.isEmpty
             ? null
@@ -529,6 +537,7 @@ class MediaKitPlayer extends AudioPlayerPlatform {
       } else {
         final playable =
             _convertAudioSourceIntoMediaKit(request.audioSourceMessage);
+        _entryIds = [_levelIdOf(request.audioSourceMessage)];
         _logger.finest('playable is $playable');
         _icyMetadata.setSource(playable.uri);
         await _player.open(playable, play: _playing);
@@ -668,8 +677,12 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// `on_load` hook writes it; the level is the file's own whether it follows
   /// by a natural join, a jump or a seek.
   @visibleForTesting
-  String replayGainFiltersForLoad(String path) =>
-      _chain.withReplayGain(_levels.onLoad(path));
+  String replayGainFiltersForLoad(String path, {int? index}) {
+    final id = index != null && index >= 0 && index < _entryIds.length
+        ? _entryIds[index]
+        : null;
+    return _chain.withReplayGain(_levels.onLoad(path, id: id));
+  }
 
   /// Stores the level of every queued URI for the `on_load` hook. Only a
   /// [SetReplayGainLevelsRequest.live] update changes the playing file, and
@@ -679,7 +692,8 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   @override
   Future<void> setReplayGainLevels(SetReplayGainLevelsRequest request) async {
     if (_released || !_replayGainFilter) return;
-    final db = _levels.update(request.byUri, live: request.live);
+    final db =
+        _levels.update(request.byUri, byId: request.byId, live: request.live);
     if (db == null) return;
     // Not "unavailable": it also fails while no chain exists yet (before the
     // output opens, between files), and the `af` write below still lands.
@@ -824,6 +838,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
         await _player
             .add(_convertAudioSourceIntoMediaKit(request.children[offset]));
 
+        // Mirrors `add` (append) and the move below, so the ids follow the
+        // playlist.
+        _entryIds.add(_levelIdOf(request.children[offset]));
         final length = _player.state.playlist.medias.length;
 
         if (length == 0 || length == 1) continue;
@@ -835,6 +852,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
           // nonexistent entry, leaving its playlist out of sync with
           // just_audio.
           await _player.move(length - 1, target);
+          if (_entryIds.length == length) {
+            _entryIds.insert(target, _entryIds.removeLast());
+          }
         }
       }
     } finally {
@@ -854,6 +874,9 @@ class MediaKitPlayer extends AudioPlayerPlatform {
     try {
       for (var i = request.startIndex; i < request.endIndex; i++) {
         await _player.remove(request.startIndex);
+        if (request.startIndex < _entryIds.length) {
+          _entryIds.removeAt(request.startIndex);
+        }
       }
     } finally {
       _bulkPlaylistMutation = false;
@@ -866,6 +889,13 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   @override
   Future<ConcatenatingMoveResponse> concatenatingMove(
       ConcatenatingMoveRequest request) {
+    final ids = _entryIds;
+    if (request.currentIndex >= 0 &&
+        request.currentIndex < ids.length &&
+        request.newIndex >= 0 &&
+        request.newIndex < ids.length) {
+      ids.insert(request.newIndex, ids.removeAt(request.currentIndex));
+    }
     return _player
         .move(
             request.currentIndex,
@@ -898,8 +928,19 @@ class MediaKitPlayer extends AudioPlayerPlatform {
   /// A source's first level arrives with its message, before mpv loads it.
   void _seedLevel(UriAudioSourceMessage source) {
     final db = source.replayGainDb;
-    if (db != null && _replayGainFilter) _levels.seed(source.uri, db);
+    if (db != null && _replayGainFilter) {
+      _levels.seed(source.uri, db, id: source.id);
+    }
   }
+
+  /// The id [_levels] knows [audioSource]'s entry by (a clipping wrapper's
+  /// child, as the levels push keys it).
+  static String? _levelIdOf(AudioSourceMessage audioSource) =>
+      switch (audioSource) {
+        UriAudioSourceMessage(:final id) => id,
+        ClippingAudioSourceMessage(:final child) => child.id,
+        _ => null,
+      };
 
   /// Converts an [AudioSourceMessage] into a [Media] for playback
   Media _convertAudioSourceIntoMediaKit(AudioSourceMessage audioSource) {
