@@ -9,6 +9,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:audio_service/audio_service.dart'
+    show AudioServiceRepeatMode, AudioServiceShuffleMode;
 import 'package:audio_service_platform_interface/audio_service_platform_interface.dart';
 import 'package:audio_service_platform_interface/no_op_audio_service.dart';
 import 'package:audio_session/audio_session.dart';
@@ -189,11 +191,14 @@ class _FakePlayer extends Fake implements AudioPlayer {
   Future<EqualizerStateMessage> setEqualizer(
     EqualizerConfigurationMessage configuration,
   ) async => const EqualizerStateMessage(enabled: false);
+
+  /// Every update push of in-pipeline levels, in order (a copy of the map).
+  final levelPushes = <Map<IndexedAudioSource, double>>[];
   @override
   Future<void> setReplayGainLevels({
     required Map<IndexedAudioSource, double> bySource,
     bool live = false,
-  }) async {}
+  }) async => levelPushes.add(Map.of(bySource));
   @override
   Future<void> setReplayGainBoost({
     required double currentDb,
@@ -245,7 +250,11 @@ class _FakePlayer extends Fake implements AudioPlayer {
   @override
   Future<void> setPitch(double value) async {}
   @override
-  Future<void> setLoopMode(LoopMode value) async => _loopMode = value;
+  Future<void> setLoopMode(LoopMode value) async {
+    _loopMode = value;
+    _loopModes.add(value);
+  }
+
   @override
   Future<void> setShuffleModeEnabled(bool value) async {}
   @override
@@ -861,6 +870,178 @@ void main() {
       await skip;
       await pumpEventQueue();
       expect(rig.player.volume, closeTo(0.5, 0.00001));
+    });
+  }
+
+  // Issue #479 (c): in the pipeline Smart decides per queue entry. A song
+  // queued twice has two entries with their own neighbours, so each copy must
+  // get its own level, its own stamp and its own display.
+  for (final (name, caps, ios) in [
+    ('mpv', PlaybackAdjustmentCapabilities.mediaKit, false),
+    ('android', PlaybackAdjustmentCapabilities.android, false),
+  ]) {
+    const albums = {0: 'A', 1: 'A', 2: 'A', 3: 'B', 5: 'C'};
+
+    Future<_Rig> smart(
+      List<String> songs, {
+      int start = 0,
+      String blocked = 'song-5',
+    }) async {
+      final rig = await create(
+        caps,
+        ios: ios,
+        pipeline: true,
+        mode: 'smart',
+        trackGains: const {1: -12},
+        albumGains: const {1: -6},
+        albums: albums,
+        blocked: blocked,
+      );
+      await settle(rig, await startLoad(rig, startIndex: start, songs: songs));
+      return rig;
+    }
+
+    /// Smart's level of the entry at [i] of [songs]: song-1's album gain
+    /// when a neighbour shares its album (A), else its track gain. [wrap]
+    /// makes the queue circular (repeat all).
+    double expectedAt(List<String> songs, int i, {bool wrap = false}) {
+      String? albumAt(int k) {
+        final at = wrap ? (k + songs.length) % songs.length : k;
+        if (at < 0 || at >= songs.length) return null;
+        return albums[int.parse(songs[at].substring(5))];
+      }
+
+      return albumAt(i - 1) == 'A' || albumAt(i + 1) == 'A' ? -6.0 : -12.0;
+    }
+
+    /// Jumps to [i] and checks the display, the stamp and the last push of
+    /// that entry all carry [expected].
+    Future<void> expectEntry(_Rig rig, int i, double expected) async {
+      await rig.handler.skipToQueueItem(i);
+      await pumpEventQueue();
+      final seq = rig.player.sequence;
+      final diagnostics = rig.handler.collectPlaybackDiagnostics();
+      final shown = (diagnostics['replayGain']! as Map)['db'];
+      expect(shown, expected, reason: '$name display at $i');
+      expect(rig.player.levelPushes, isNotEmpty);
+      expect(
+        rig.player.levelPushes.last[seq[i]],
+        expected,
+        reason: '$name last push for the heard entry $i',
+      );
+    }
+
+    test(
+      '$name: pipeline Smart gives each copy of a song its own level',
+      () async {
+        final songs = [
+          'song-0',
+          'song-1',
+          'song-2',
+          'song-3',
+          'song-1',
+          'song-5',
+        ];
+        final rig = await smart(songs);
+        await expectEntry(rig, 1, -6);
+        expect(rig.player.sequence[1].replayGainDb, -6);
+        expect(rig.player.sequence[4].replayGainDb, -12);
+        await expectEntry(rig, 4, -12);
+        expect(rig.player.levelPushes.last[rig.player.sequence[1]], -6);
+        await expectEntry(rig, 1, -6);
+      },
+    );
+
+    test(
+      '$name: the copies swapped (the last copy has the album neighbours)',
+      () async {
+        final songs = [
+          'song-3',
+          'song-1',
+          'song-5',
+          'song-0',
+          'song-1',
+          'song-2',
+        ];
+        final rig = await smart(songs);
+        await expectEntry(rig, 1, -12);
+        await expectEntry(rig, 4, -6);
+        await expectEntry(rig, 1, -12);
+      },
+    );
+
+    test('$name: the copies swapped, starting on the last one', () async {
+      final songs = [
+        'song-3',
+        'song-1',
+        'song-5',
+        'song-0',
+        'song-1',
+        'song-2',
+      ];
+      final rig = await smart(songs, start: 4);
+      await expectEntry(rig, 1, -12);
+      await expectEntry(rig, 4, -6);
+    });
+
+    test('$name: queue edits keep each copy on its own neighbours', () async {
+      var songs = ['song-0', 'song-1', 'song-2', 'song-3', 'song-1', 'song-5'];
+      final rig = await smart(songs);
+      await rig.handler.removeQueueItemAt(2);
+      songs = [...songs]..removeAt(2);
+      await pumpEventQueue();
+      // [0, 1, 3, 1, 5]: the first copy has song-0 (A) before it.
+      await rig.handler.playNext(['song-1'], expandMatchFlows: false);
+      songs = [...songs]..insert(1, 'song-1');
+      await pumpEventQueue();
+      expect(
+        [for (final item in rig.handler.queue.value) item.id],
+        songs,
+        reason: 'the queue after the edits',
+      );
+      for (var i = 0; i < songs.length; i++) {
+        if (songs[i] != 'song-1') continue;
+        await expectEntry(rig, i, expectedAt(songs, i));
+      }
+    });
+
+    test('$name: repeat all moves the wrap neighbours per copy', () async {
+      final songs = ['song-1', 'song-3', 'song-5', 'song-1'];
+      final rig = await smart(songs);
+      await rig.handler.setRepeatMode(AudioServiceRepeatMode.all);
+      await pumpEventQueue();
+      for (final i in [3, 0, 3]) {
+        await expectEntry(rig, i, expectedAt(songs, i, wrap: true));
+      }
+    });
+
+    test(
+      '$name: shuffle gives each copy its neighbours in the new order',
+      () async {
+        final rig = await smart([
+          'song-0',
+          'song-1',
+          'song-2',
+          'song-3',
+          'song-1',
+          'song-5',
+        ]);
+        await rig.handler.setShuffleMode(AudioServiceShuffleMode.all);
+        await pumpEventQueue();
+        final songs = [for (final item in rig.handler.queue.value) item.id];
+        for (var i = 0; i < songs.length; i++) {
+          if (songs[i] != 'song-1') continue;
+          await expectEntry(rig, i, expectedAt(songs, i));
+        }
+      },
+    );
+
+    test('$name: adjacent copies of a song both take the album gain', () async {
+      final songs = ['song-0', 'song-1', 'song-1', 'song-3'];
+      final rig = await smart(songs, blocked: 'song-3');
+      await expectEntry(rig, 1, -6);
+      await expectEntry(rig, 2, -6);
+      await expectEntry(rig, 1, -6);
     });
   }
 }
