@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart' show Value, driftRuntimeOptions;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/common_widgets/album_card.dart';
+import 'package:navis/src/common_widgets/app_notice.dart';
 import 'package:navis/src/common_widgets/desktop/desktop_primitives.dart';
 import 'package:navis/src/database/tables/schema_enums.dart';
 import 'package:navis/src/database/daos/library_dao.dart';
@@ -80,6 +81,24 @@ const _rock = GenreSummary(
   songCount: 40,
   albumCount: 5,
 );
+const _electro = GenreSummary(
+  key: 'electro',
+  name: 'Électro',
+  songCount: 3,
+  albumCount: 1,
+);
+const _nandu = GenreSummary(
+  key: 'nandu',
+  name: 'Ñandú',
+  songCount: 3,
+  albumCount: 1,
+);
+const _oslo = GenreSummary(
+  key: 'oslo',
+  name: 'Østlandet',
+  songCount: 3,
+  albumCount: 1,
+);
 const _jpop = GenreSummary(
   key: 'ジェイポップ',
   name: 'ジェイポップ',
@@ -88,6 +107,7 @@ const _jpop = GenreSummary(
 );
 
 late NavisDatabase _db;
+final AppNoticeController _notices = AppNoticeController();
 final List<GenreListRequest> _requests = <GenreListRequest>[];
 final List<String> _summaryKeys = <String>[];
 
@@ -152,17 +172,20 @@ Widget _app(
       theme: testTheme(),
       localizationsDelegates: navisLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      builder: (context, child) => LibrarySectionNavigationScope(
-        sidebarAllowsSections: false,
-        sectionsFit: ValueNotifier<bool>(true),
-        child: MediaQuery(
-          data: MediaQuery.of(context).copyWith(disableAnimations: true),
-          child: adaptiveContext == null
-              ? child!
-              : AdaptiveContextScope(
-                  adaptiveContext: adaptiveContext,
-                  child: child!,
-                ),
+      builder: (context, child) => AppNoticeScope(
+        notifier: _notices,
+        child: LibrarySectionNavigationScope(
+          sidebarAllowsSections: false,
+          sectionsFit: ValueNotifier<bool>(true),
+          child: MediaQuery(
+            data: MediaQuery.of(context).copyWith(disableAnimations: true),
+            child: adaptiveContext == null
+                ? child!
+                : AdaptiveContextScope(
+                    adaptiveContext: adaptiveContext,
+                    child: child!,
+                  ),
+          ),
         ),
       ),
       routerConfig: router,
@@ -181,6 +204,7 @@ void main() {
   setUpAll(() => _db = createTestDatabase());
   tearDownAll(() => _db.close());
   setUp(() {
+    _notices.dismiss();
     _requests.clear();
     _summaryKeys.clear();
   });
@@ -383,12 +407,14 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'ro');
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
     expect(_requests.last.query, 'ro');
     expect(find.text('Rock'), findsOneWidget);
     expect(find.text('Hip-Hop'), findsNothing);
 
     await tester.enterText(find.byType(TextField), 'zzz');
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
     expect(find.text('No results for "zzz"'), findsOneWidget);
     await tester.tap(
@@ -397,6 +423,56 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Hip-Hop'), findsOneWidget);
     expect(_requests.last.query, '');
+  });
+
+  testWidgets('typing waits for a pause before asking for the text', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      _app(_commonOverrides(genres: const [_hipHop, _rock])),
+    );
+    await tester.pumpAndSettle();
+    _requests.clear();
+
+    await tester.enterText(find.byType(TextField), 'r');
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.enterText(find.byType(TextField), 'ro');
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_requests.where((r) => r.query.isNotEmpty), isEmpty);
+
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(_requests.where((r) => r.query == 'r'), isEmpty);
+    expect(_requests.last.query, 'ro');
+  });
+
+  testWidgets('name sort files accented Latin names under their letter', (
+    tester,
+  ) async {
+    setAdaptiveTestViewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      _app(
+        _commonOverrides(genres: const [_electro, _nandu, _oslo, _rock, _jpop]),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey<String>('genresSortControl')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Name (A-Z)').last);
+    await tester.pumpAndSettle();
+
+    final rail = find.byKey(const Key('genreAlphabetRail'));
+    for (final letter in ['E', 'N', 'O', 'R', '#']) {
+      expect(
+        find.descendant(of: rail, matching: find.text(letter)),
+        findsOneWidget,
+        reason: letter,
+      );
+    }
+    // Only the Japanese name is left under "#": each accented name moved to
+    // its own letter, so none of E, N, O shares a section with it.
+    expect(find.text('Électro'), findsOneWidget);
   });
 
   testWidgets('sorting by name groups under letters, non-Latin under #', (
@@ -470,13 +546,17 @@ void main() {
       String key = 'hiphop',
       bool songsTab = false,
       bool exists = true,
+      bool pendingSync = false,
       List<SongsTableData> pageSongs = const [],
     }) async {
       setAdaptiveTestViewport(tester, const Size(390, 844));
       final queue = _QueueSpy();
       await tester.pumpWidget(
         _app(<Object?>[
-          ..._commonOverrides(genres: const [_hipHop]),
+          ..._commonOverrides(
+            genres: const [_hipHop],
+            pendingSync: pendingSync,
+          ),
           queueProvider.overrideWith(() => queue),
           genreSummaryProvider.overrideWith((ref, k) async {
             _summaryKeys.add(k);
@@ -621,6 +701,52 @@ void main() {
         find.text('This genre is no longer in your library.'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('a genre that is not read yet says the library is syncing', (
+      tester,
+    ) async {
+      await pumpDetail(tester, key: 'nope', exists: false, pendingSync: true);
+      expect(find.text('Reading Genres'), findsOneWidget);
+      expect(
+        find.text('This genre is no longer in your library.'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('Play on a genre with no songs says so', (tester) async {
+      await pumpDetail(tester);
+      await tester.tap(find.byKey(const ValueKey<String>('genrePlayAction')));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 200)),
+      );
+      await tester.pump();
+      expect(
+        _notices.notice?.message,
+        'This genre is no longer in your library.',
+      );
+      _notices.dismiss();
+    });
+
+    testWidgets('Play shows the failure when the songs cannot be read', (
+      tester,
+    ) async {
+      final original = _db;
+      driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+      _db = createTestDatabase();
+      addTearDown(() {
+        _db = original;
+        driftRuntimeOptions.dontWarnAboutMultipleDatabases = false;
+      });
+      await pumpDetail(tester);
+      await tester.runAsync(_db.close);
+      await tester.tap(find.byKey(const ValueKey<String>('genrePlayAction')));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 200)),
+      );
+      await tester.pump();
+      expect(_notices.notice?.level, AppNoticeLevel.error);
+      _notices.dismiss();
     });
 
     testWidgets('Play and Shuffle queue every song of the genre', (
