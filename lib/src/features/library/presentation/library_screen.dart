@@ -53,6 +53,7 @@ import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/routing/desktop_layout.dart';
 import 'package:navis/src/utils/app_logger.dart';
+import 'package:navis/src/utils/search_text.dart';
 import 'package:navis/src/routing/library_section_navigation_scope.dart';
 import 'package:navis/src/common_widgets/responsive_content_grid.dart';
 import 'package:navis/src/common_widgets/content_shelf.dart';
