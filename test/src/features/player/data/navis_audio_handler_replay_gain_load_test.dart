@@ -11,6 +11,7 @@ import 'dart:math';
 
 import 'package:audio_service_platform_interface/audio_service_platform_interface.dart';
 import 'package:audio_service_platform_interface/no_op_audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
@@ -68,6 +69,27 @@ class _GatedResolver extends Fake implements PlaybackSourceResolver {
       fastSeekBridge: fastSeekBridge,
     );
   }
+}
+
+/// Just the interruption stream, so ducking can be driven.
+class _FakeAudioSession extends Fake implements AudioSession {
+  final interruptions = StreamController<AudioInterruptionEvent>.broadcast();
+
+  @override
+  Stream<AudioInterruptionEvent> get interruptionEventStream =>
+      interruptions.stream;
+  @override
+  Stream<void> get becomingNoisyEventStream => const Stream<void>.empty();
+  @override
+  Future<bool> setActive(
+    bool active, {
+    AVAudioSessionSetActiveOptions? avAudioSessionSetActiveOptions,
+    AndroidAudioFocusGainType? androidAudioFocusGainType,
+    AndroidAudioAttributes? androidAudioAttributes,
+    bool? androidWillPauseWhenDucked,
+    AudioSessionConfiguration fallbackConfiguration =
+        const AudioSessionConfiguration.music(),
+  }) async => true;
 }
 
 class _NoopScrobbleService extends Fake implements ScrobbleService {
@@ -303,6 +325,13 @@ class _FakePlayer extends Fake implements AudioPlayer {
   }
 }
 
+typedef _Rig = ({
+  NavisAudioHandler handler,
+  _FakePlayer player,
+  _GatedResolver resolver,
+  _FakeAudioSession session,
+});
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() => AudioServicePlatform.instance = NoOpAudioService());
@@ -311,20 +340,33 @@ void main() {
   const firstSongGainDb = -12.0;
 
   /// A handler on [caps] with the Dart cut through the player volume (no
-  /// in-pipeline ReplayGain), mode 'track', whose first song is tagged
-  /// [firstSongGainDb]. Phase 2 blocks on song-5.
-  Future<(NavisAudioHandler, _FakePlayer, _GatedResolver)> create(
+  /// in-pipeline ReplayGain unless [pipeline]), whose songs carry [trackGains]
+  /// and [albumGains] (by index, default: the first song at
+  /// [firstSongGainDb]) and [albums]. Phase 2 blocks on [blocked].
+  Future<_Rig> create(
     PlaybackAdjustmentCapabilities caps, {
     required bool ios,
+    String mode = 'track',
+    Map<int, double> trackGains = const {0: firstSongGainDb},
+    Map<int, double> albumGains = const {},
+    Map<int, String> albums = const {},
+    bool pipeline = false,
+    String blocked = 'song-5',
   }) async {
     final directory = await Directory.systemTemp.createTemp('navis-479a-');
     final database = createTestDatabase();
+    await database.libraryDao.upsertAlbums([
+      for (final id in albums.values.toSet())
+        AlbumsTableCompanion.insert(id: id, name: id),
+    ]);
     await database.libraryDao.upsertSongs([
       for (var i = 0; i < count; i++)
         SongsTableCompanion.insert(
           id: 'song-$i',
           title: 'Song $i',
-          replayGainTrackGain: Value(i == 0 ? firstSongGainDb : null),
+          albumId: Value(albums[i]),
+          replayGainTrackGain: Value(trackGains[i]),
+          replayGainAlbumGain: Value(albumGains[i]),
         ),
     ]);
     for (var i = 0; i < count; i++) {
@@ -353,9 +395,10 @@ void main() {
         readRollingCacheDirectory: () async => directory,
         readCachedPlaybackFirst: () => true,
       ),
-      'song-5',
+      blocked,
     );
     final player = _FakePlayer();
+    final session = _FakeAudioSession();
     final handler = NavisAudioHandler(
       startPersonalRadio: (autoPlay, {isCurrent}) async => false,
       startPreferredMix: (_) async {},
@@ -377,7 +420,7 @@ void main() {
         createClient: () => throw StateError('not used'),
         readReachable: () => false,
       ),
-      readRuntimeSettings: () => const PlaybackRuntimeSettings(
+      readRuntimeSettings: () => PlaybackRuntimeSettings(
         gaplessEnabled: true,
         fastSeekingEnabled: true,
         nextSongPrefetchAllowed: true,
@@ -385,7 +428,7 @@ void main() {
         crossfadeAllowStreaming: true,
         crossfadeDurationSeconds: 5,
         crossfadeType: 'normal',
-        replayGainMode: 'track',
+        replayGainMode: mode,
         replayGainPreamp: 0,
         replayGainUntaggedDb: replayGainFallbackUntaggedDb,
         playbackSpeed: 1,
@@ -393,22 +436,56 @@ void main() {
         matchFlowEnabled: false,
       ),
       adjustmentCapabilities: caps,
-      replayGainInPipelineOverride: false,
+      replayGainInPipelineOverride: pipeline,
       starSyncDao: database.starSyncDao,
       player: player,
       iosRuntimeOverride: ios,
       desktopRuntimeOverride: !ios,
       shuffleRandom: Random(7),
     );
+    handler.debugWireAudioSession(session);
     addTearDown(() async {
       if (!resolver.release.isCompleted) resolver.release.complete();
       await handler.disposeHandler();
+      await session.interruptions.close();
       await database.close();
       await directory.delete(recursive: true);
     });
     await handler.waitUntilReady();
     await handler.debugWaitForStartupQueueRestore();
-    return (handler, player, resolver);
+    return (
+      handler: handler,
+      player: player,
+      resolver: resolver,
+      session: session,
+    );
+  }
+
+  List<String> ids([int n = count]) => [for (var i = 0; i < n; i++) 'song-$i'];
+
+  /// Starts a replacement and returns once phase 1 has played the start song
+  /// and phase 2 is held at the gated song.
+  Future<({Future<void> done})> startLoad(
+    _Rig rig, {
+    int startIndex = 0,
+    List<String>? songs,
+  }) async {
+    final replaced = rig.handler.replaceQueue(
+      songs ?? ids(),
+      startIndex: startIndex,
+      expandMatchFlows: false,
+    );
+    await rig.resolver.entered.future;
+    await pumpEventQueue();
+    expect(rig.handler.collectPlaybackDiagnostics()['queueSettled'], isFalse);
+    return (done: replaced);
+  }
+
+  Future<void> settle(_Rig rig, ({Future<void> done}) load) async {
+    rig.resolver.release.complete();
+    await load.done;
+    await pumpEventQueue();
+    expect(rig.handler.collectPlaybackDiagnostics()['queueSettled'], isTrue);
   }
 
   for (final (name, caps, ios, curve) in [
@@ -417,26 +494,22 @@ void main() {
     // macOS mpv outside the pipeline: cubic volume.
     ('macOS mpv', PlaybackAdjustmentCapabilities.mediaKit, false, 60.0),
   ]) {
+    double cutOf(double db) => pow(10, db / curve).toDouble();
+
     test('$name: the first song plays at its ReplayGain cut while phase 2 '
         'is still filling the queue', () async {
-      final (handler, player, resolver) = await create(caps, ios: ios);
-      final cut = pow(10, firstSongGainDb / curve).toDouble();
+      final rig = await create(caps, ios: ios);
+      final (:handler, :player, :resolver, session: _) = rig;
+      final cut = cutOf(firstSongGainDb);
 
-      final replaced = handler.replaceQueue([
-        for (var i = 0; i < count; i++) 'song-$i',
-      ], expandMatchFlows: false);
-      // Phase 2 resolving song-5 means phase 1 has loaded song-0 and issued
-      // Play.
-      await resolver.entered.future;
-      await pumpEventQueue();
+      final replaced = await startLoad(rig);
 
       expect(player.playing, isTrue, reason: 'phase 1 started the song');
       expect(player.currentIndex, 0);
       expect(handler.currentMediaItem?.id, 'song-0');
       expect(
-        handler.collectPlaybackDiagnostics()['queueSettled'],
-        isFalse,
-        reason: 'phase 2 is still running',
+        handler.collectPlaybackDiagnostics()['playerVolume'],
+        closeTo(cut, 0.00001),
       );
       expect(
         player.volume,
@@ -444,11 +517,130 @@ void main() {
         reason: 'song-0 is audible, so its $firstSongGainDb dB cut applies now',
       );
 
-      resolver.release.complete();
-      await replaced;
-      await pumpEventQueue();
-      expect(handler.collectPlaybackDiagnostics()['queueSettled'], isTrue);
+      await settle(rig, replaced);
       expect(player.volume, closeTo(cut, 0.00001));
     });
+
+    test('$name: Smart reads the album run of the incoming queue during the '
+        'load and does not step at the commit', () async {
+      // Songs 0 and 1 share album A: album gain (-6 dB) applies to song 1,
+      // though the load only holds song 1 (and, on iOS, song 2) so far.
+      final rig = await create(
+        caps,
+        ios: ios,
+        mode: 'smart',
+        trackGains: const {1: -12},
+        albumGains: const {1: -6},
+        albums: const {0: 'A', 1: 'A'},
+      );
+      final replaced = await startLoad(rig, startIndex: 1);
+      expect(rig.handler.currentMediaItem?.id, 'song-1');
+      expect(rig.player.volume, closeTo(cutOf(-6), 0.00001));
+
+      await settle(rig, replaced);
+      expect(rig.player.volume, closeTo(cutOf(-6), 0.00001));
+    });
+
+    test('$name: nothing song-scoped is written before the new source is '
+        'applied', () async {
+      // song-1 plays at its own cut; the next replacement stops at its start
+      // song's resolve, so song-1 is still the audible one.
+      final rig = await create(
+        caps,
+        ios: ios,
+        trackGains: const {0: -12, 1: -6},
+        blocked: 'song-0',
+      );
+      await rig.handler.replaceQueue(['song-1', 'song-2']);
+      final old = cutOf(-6);
+      expect(rig.player.volume, closeTo(old, 0.00001));
+
+      final replacing = rig.handler.replaceQueue(['song-0', 'song-3']);
+      await rig.resolver.entered.future;
+      await pumpEventQueue();
+      final writes = rig.player.appliedVolumes.length;
+      // A settings change is a volume write that goes through every load.
+      await rig.handler.applyRuntimeSettings();
+      await pumpEventQueue();
+      expect(
+        rig.player.appliedVolumes.length,
+        writes,
+        reason: 'song-0 is not in the player yet; song-1 is still audible',
+      );
+      expect(rig.player.volume, closeTo(old, 0.00001));
+
+      await settle(rig, (done: replacing));
+      expect(rig.player.volume, closeTo(cutOf(-12), 0.00001));
+    });
+
+    test('$name: ducking before the load keeps 0.4 x user x cut once the '
+        'start song plays', () async {
+      final rig = await create(caps, ios: ios);
+      await rig.handler.setVolume(0.5);
+      rig.session.interruptions.add(
+        AudioInterruptionEvent(true, AudioInterruptionType.duck),
+      );
+      await pumpEventQueue();
+
+      final replaced = await startLoad(rig);
+      final ducked = 0.4 * 0.5 * cutOf(firstSongGainDb);
+      expect(rig.player.volume, closeTo(ducked, 0.00001));
+
+      rig.session.interruptions.add(
+        AudioInterruptionEvent(false, AudioInterruptionType.duck),
+      );
+      await pumpEventQueue();
+      expect(rig.player.volume, closeTo(0.5 * cutOf(firstSongGainDb), 0.00001));
+
+      await settle(rig, replaced);
+      expect(rig.player.volume, closeTo(0.5 * cutOf(firstSongGainDb), 0.00001));
+    });
+
+    test('$name: the backend applies the cut in the pipeline, so the volume '
+        'stays the base volume during and after the load', () async {
+      final rig = await create(caps, ios: ios, pipeline: true);
+      await rig.handler.setVolume(0.5);
+      final replaced = await startLoad(rig);
+      expect(rig.player.volume, closeTo(0.5, 0.00001));
+      await settle(rig, replaced);
+      expect(rig.player.volume, closeTo(0.5, 0.00001));
+    });
+
+    test('$name: radio never gets a cut', () async {
+      final rig = await create(caps, ios: ios);
+      await rig.handler.setVolume(0.5);
+      await rig.handler.playRadioStream(
+        stationId: 'fixture',
+        stationName: 'Fixture',
+        streamUrl: 'https://radio.example.invalid/live',
+      );
+      await pumpEventQueue();
+      expect(rig.player.volume, closeTo(0.5, 0.00001));
+    });
   }
+
+  test("iOS: a song change during the load applies the new song's cut, "
+      "not the start song's", () async {
+    final rig = await create(
+      PlaybackAdjustmentCapabilities.ios,
+      ios: true,
+      trackGains: const {0: -12, 1: -6},
+    );
+    final replaced = await startLoad(rig);
+    expect(
+      rig.player.audioSources.length,
+      greaterThan(1),
+      reason: 'iOS preloaded the next song in phase 1',
+    );
+    expect(rig.player.volume, closeTo(pow(10, -12 / 20), 0.00001));
+
+    // The player moves on to the preloaded song while phase 2 is still busy.
+    await rig.player.seek(Duration.zero, index: 1);
+    await pumpEventQueue();
+    expect(rig.handler.currentMediaItem?.id, 'song-1');
+    expect(rig.player.volume, closeTo(pow(10, -6 / 20), 0.00001));
+
+    await settle(rig, replaced);
+    expect(rig.player.volume, closeTo(pow(10, -6 / 20), 0.00001));
+  });
 }

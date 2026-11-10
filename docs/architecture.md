@@ -5341,7 +5341,13 @@ Desktop volume follows a parallel local-settings path:
      `_rebuildPlayerWithoutEqualizer`) nothing is stamped or pushed, boost is
      unsupported and the Dart cut applies through `setVolume` (late by the IPC
      time; ExoPlayer and AVPlayer volume is linear, `10^(dB/20)`, mpv's is
-     cubic, `10^(dB/60)`). The older per-URI boost message
+     cubic, `10^(dB/60)`). During a queue replacement the cut is written as
+     soon as the selected source is in the player (`_loadedSourceApplied`, in
+     `_restoreActivePlayerVolume` and `_applyReplayGainVolume`), not at the
+     commit; before that the old song may still be audible and nothing
+     song-scoped is written. Smart reads the incoming play order then
+     (`_loadingPlayOrder`), since `_queueItems` holds only the start song.
+     The older per-URI boost message
      (`AudioPlayer.setReplayGainBoost`, `byUri`) is kept for a backend that
      boosts per file but has no in-pipeline stage (the iOS tap uses it).
 
@@ -6722,7 +6728,8 @@ song's transition is tried again the next time it plays. In-place refreshes of a
 (artwork, liked state, canonical id) do not count as queue changes
 (`_RevisionedList.replaceAt` leaves `structureRevision` unchanged), so they
 neither abort a release nor invalidate the deck. `GET /v1/playback/status`
-reports `queueSettled`, `playerMatchesQueue`, a `crossfade` block (active,
+reports `queueSettled`, `playerVolume` (the active player's volume, where the
+Dart ReplayGain cut shows), `playerMatchesQueue`, a `crossfade` block (active,
 inactive deck length and match, outcome counts by phase, `disabledReason`,
 `lastFailure`, and active `outgoing`/`incoming` deck maps with `playing`,
 `volume`, `positionMs`), `queueLane` (the
