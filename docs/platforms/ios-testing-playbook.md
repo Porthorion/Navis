@@ -22,6 +22,8 @@ Runtime loop: iOS debug builds on the simulator expose the authenticated diagnos
 
 Valid on the simulator: playback logic (stream through the loopback proxy, permanent download, rolling cache, seek, queue, gapless, crossfade, ReplayGain, speed, independent pitch through the tap's measured frequency ratio in `/v1/equalizer` (`pitchInputHz`, `pitchOutputHz`, `pitchResetCount`)), the equalizer via `/v1/equalizer`, LAN-IP http and https servers, sign-in and relaunch, the downloads folder and backup exclusion, layout at large text sizes and with Reduce Motion. Simulator timing and performance numbers are not valid.
 
+Position clock (I45, #526): native just_audio stamps the position when `timeControlStatus` turns Playing, but the item clock can start later. The 200 ms observer (`checkForDiscontinuity`) now re-stamps the stamp silently when it drifts more than 50 ms, on every OS version; it never enters buffering on iOS 10+. After a change to it, rerun the `run_i526_ios.sh` probe (`PHASES="N E R"`) and the #539 radio pass. Pass: first-item over-run <= 80 ms in phase N, gapless <= 80 ms, R `r1` < 60 ms, E `e1` and `e2` < 60 ms, no stall flip to buffering and no event spam in steady playback (native events per minute not above the pre-fix count).
+
 ## 3) What the simulator cannot test
 
 - Lock screen and Control Center Now Playing: artwork, scrubbing, remote commands.
