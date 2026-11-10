@@ -35,6 +35,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
     final generation = ++_loadGeneration;
     _activeLoadGeneration = generation;
     _loadedSourceApplied = false;
+    _loadStartSource = _nativeSourceAt(_player.currentIndex);
     _failedAfterApply = false;
     _isLoading = isLoading;
     _loadingSongId = isLoading ? loadingSongId : null;
@@ -61,6 +62,29 @@ extension _NavisQueueLoading on NavisAudioHandler {
     _broadcastPlaybackState();
     _emitSnapshot();
     return generation;
+  }
+
+  IndexedAudioSource? _nativeSourceAt(int? index) {
+    final sequence = _player.sequence;
+    return index == null || index < 0 || index >= sequence.length
+        ? null
+        : sequence[index];
+  }
+
+  /// True once the loading song's source is in the player: the queue apply
+  /// returned, or a navigation's seek has landed on another entry that holds
+  /// the loading song while the seek call is still pending (that path never
+  /// goes through the apply). The entry that played when the load began does
+  /// not count, even for the same song id: a replacement of the song now
+  /// playing, a restart or a recovery reload has not reached its source yet.
+  bool get _loadingSourceInPlayer {
+    if (_loadedSourceApplied) return true;
+    final loadingSongId = _loadingSongId;
+    final source = _nativeSourceAt(_player.currentIndex);
+    return loadingSongId != null &&
+        source != null &&
+        !identical(source, _loadStartSource) &&
+        navisNativeSourceSongId(source) == loadingSongId;
   }
 
   bool _isActiveLoadGeneration(int generation) =>
@@ -1640,7 +1664,7 @@ extension _NavisQueueLoading on NavisAudioHandler {
   /// audible, and the new song's gain waits for its own source.
   Future<void> _restoreActivePlayerVolume() {
     if ((_isLoading || _pendingLogicalQueueSongIds != null) &&
-        !_loadedSourceApplied) {
+        !_loadingSourceInPlayer) {
       return _player.setVolume(_baseVolumeFor().clamp(0.0, 1.0));
     }
     return _player.setVolume(

@@ -304,6 +304,12 @@ class NavisAudioHandler extends BaseAudioHandler
   /// its load ends was not surfaced by the load itself.
   bool _loadedSourceApplied = false;
 
+  /// The native source that played when the current load began. A load whose
+  /// target is the song already playing must not take that old entry for its
+  /// own: only a different entry holding the loading song counts (see
+  /// [_loadingSourceInPlayer]).
+  IndexedAudioSource? _loadStartSource;
+
   /// A failure was reported after the load's source was applied and while
   /// the load still ran; recovery skipped it, so the load end must act.
   bool _failedAfterApply = false;
