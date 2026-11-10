@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:navis/l10n/app_localizations.dart';
+import 'package:navis/src/features/player/data/navis_audio_handler.dart';
 import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/playback_surface_presentation.dart';
 import 'package:navis/src/features/player/presentation/queue_shuffle_controls.dart';
 import 'package:navis/src/providers/app_providers.dart';
 
+import '../../../../helpers/fake_playback_handler.dart';
 import '../../../../helpers/haptics_spy.dart';
 import '../../../../helpers/test_theme.dart';
 
@@ -27,11 +29,15 @@ const _snapshot = PlaybackSnapshot(
   shuffleMode: AudioServiceShuffleMode.none,
 );
 
-Future<void> _pump(WidgetTester tester, Widget body) => tester.pumpWidget(
+Future<void> _pump(
+  WidgetTester tester,
+  Widget body, {
+  NavisPlaybackHandler? handler,
+}) => tester.pumpWidget(
   ProviderScope(
     overrides: [
       playerStateProvider.overrideWithValue(_snapshot),
-      audioHandlerProvider.overrideWithValue(null),
+      audioHandlerProvider.overrideWithValue(handler),
     ],
     child: MaterialApp(
       theme: testTheme(),
@@ -61,11 +67,28 @@ void main() {
           ],
         ),
       ),
+      handler: InertPlaybackHandler(),
     );
     await tester.tap(find.text('play'));
     await tester.tap(find.text('pause'));
     await tester.pump();
     expect(await spy.take(tester), ['press', 'release']);
+  });
+
+  testWidgets('no haptic fires when there is no audio handler', (tester) async {
+    final spy = HapticsSpy.install(tester);
+    await _pump(
+      tester,
+      Consumer(
+        builder: (context, ref, _) => TextButton(
+          onPressed: () => togglePlayPause(ref, isPlaying: false),
+          child: const Text('play'),
+        ),
+      ),
+    );
+    await tester.tap(find.text('play'));
+    await tester.pump();
+    expect(await spy.take(tester), isEmpty);
   });
 
   testWidgets('the shuffle toggle feels like a switch', (tester) async {
@@ -93,6 +116,7 @@ void main() {
           ],
         ),
       ),
+      handler: InertPlaybackHandler(),
     );
     NavisHaptics.prefs = HapticsPrefs.fromColumns(
       true,

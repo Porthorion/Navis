@@ -130,12 +130,15 @@ class _SeekBarState extends ConsumerState<_SeekBar> {
                   setState(() => _draggingValue = value);
                 },
                 onChangeEnd: (value) {
-                  NavisHaptics.tick(HapticCategory.slidersAndRulers);
                   _seekDrag.finish();
                   setState(() => _draggingValue = null);
                   final handler = ref.read(audioHandlerProvider);
+                  if (handler == null) {
+                    return;
+                  }
+                  NavisHaptics.tick(HapticCategory.slidersAndRulers);
                   unawaited(
-                    handler?.seek(Duration(milliseconds: value.round())),
+                    handler.seek(Duration(milliseconds: value.round())),
                   );
                 },
               ),

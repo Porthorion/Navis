@@ -97,18 +97,15 @@ AudioServiceRepeatMode nextRepeatMode(AudioServiceRepeatMode mode) =>
 
 /// Pauses when [isPlaying], otherwise plays. A missing handler is ignored.
 Future<void> togglePlayPause(WidgetRef ref, {required bool isPlaying}) async {
-  if (isPlaying) {
-    NavisHaptics.release(HapticCategory.playbackButtons);
-  } else {
-    NavisHaptics.press(HapticCategory.playbackButtons);
-  }
   final handler = ref.read(audioHandlerProvider);
   if (handler == null) {
     return;
   }
   if (isPlaying) {
+    NavisHaptics.release(HapticCategory.playbackButtons);
     await handler.pause();
   } else {
+    NavisHaptics.press(HapticCategory.playbackButtons);
     await handler.play();
   }
 }
