@@ -43,7 +43,8 @@
 /// Gives the item its audio mix (the shared tap, track 1, and `volume`: the ReplayGain cut, I26)
 /// synchronously. Idempotent: an item that already has its mix keeps it (see `setVolume:forItem:`).
 /// Call it for every item in the same run-loop turn as the insert into the queue, never later:
-/// changing the mix of a queued item stalls playback. If the tap cannot be created the mix still
+/// a first mix (or a new tap/track) on a queued item stalls playback; only the volume may move
+/// later, through `setVolume:forItem:`. If the tap cannot be created the mix still
 /// carries the volume (no tap), and that item is never retried.
 - (void)attachToItem:(AVPlayerItem *)item volume:(float)volume;
 /// Main thread. Moves the cut of an item that already has its mix: a new mix object (same tap, same

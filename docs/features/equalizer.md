@@ -129,8 +129,9 @@ intervals stay at the song length). `tool/ios_gapless_diagnostics.sh` plays the
 fixture queues and checks these values.
 The ReplayGain boost (I24) is the last step of each format slot, after pitch and EQ
 (`NavisBoost.c`): a gain with a 20 ms linear ramp, independent of `enabled`, so quiet
-songs are turned up with the EQ off or on. The cut stays on `AVPlayer.volume` and one
-song never gets both. Dart sends the per-URI boost map (`setReplayGainBoost`) and
+songs are turned up with the EQ off or on. The cut (I26) is each item's own audio-mix
+volume, set when the item is queued (`setReplayGainLevels` moves it later), and one song
+never gets both. With the EQ pipeline off the cut falls back to `AVPlayer.volume`. Dart sends the per-URI boost map (`setReplayGainBoost`) and
 `AudioPlayer.m` decides the target on the main thread (`navis_boost_decide`): the
 song's own boost, or in the last 3 s of wall-clock time (and for songs shorter than 4 s
 or of unknown length) the lower of its and the next song's, latched until the next

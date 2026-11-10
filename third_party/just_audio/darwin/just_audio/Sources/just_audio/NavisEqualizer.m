@@ -412,8 +412,8 @@ static NSInteger firstAudioTrackID(AVPlayerItem *item) {
             return stateDictionary(@"The equalizer could not attach to this song.", NO, nil, 0, NO, total, nil, nil);
         }
         // The mix names track 1 so no track has to be loaded; a file whose audio
-        // track has another ID plays unchanged. It is never re-mixed (that stalls
-        // playback), so only say so.
+        // track has another ID plays unchanged, cut included. Its track is never
+        // changed (that stalls playback), so only say so.
         NSInteger trackID = firstAudioTrackID(current);
         if (trackID > 0 && trackID != record.trackID) {
             if (!record.reportedOtherTrack) {
