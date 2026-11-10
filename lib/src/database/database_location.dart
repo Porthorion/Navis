@@ -175,7 +175,13 @@ Future<void> _orphanLegacySidecars(File legacy) async {
     final source = File('${legacy.path}$suffix');
     if (!await _exists(source)) continue;
     try {
-      await source.rename('${source.path}.orphaned');
+      // Never replace an earlier set-aside copy: each one may hold the only
+      // bytes of transactions a shipped build stranded.
+      var name = '${source.path}.orphaned';
+      for (var n = 1; await _exists(File(name)); n++) {
+        name = '${source.path}.orphaned.$n';
+      }
+      await source.rename(name);
       orphaned++;
     } on Object catch (error) {
       AppLogger.warning(
@@ -192,9 +198,21 @@ Future<void> _orphanLegacySidecars(File legacy) async {
   }
 }
 
-Future<bool> _sameContent(File a, File b) async =>
-    await a.length() == await b.length() &&
-    const ListEquality<int>().equals(
-      await a.readAsBytes(),
-      await b.readAsBytes(),
-    );
+/// Compares in chunks so a large WAL is never held in memory twice.
+Future<bool> _sameContent(File a, File b) async {
+  if (await a.length() != await b.length()) return false;
+  final ra = await a.open();
+  final rb = await b.open();
+  try {
+    const chunk = 1 << 20;
+    while (true) {
+      final x = await ra.read(chunk);
+      final y = await rb.read(chunk);
+      if (!const ListEquality<int>().equals(x, y)) return false;
+      if (x.isEmpty) return true;
+    }
+  } finally {
+    await ra.close();
+    await rb.close();
+  }
+}

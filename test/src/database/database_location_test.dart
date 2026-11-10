@@ -185,6 +185,23 @@ void main() {
     },
   );
 
+  test('setting aside a legacy -wal never replaces an earlier one', () async {
+    await support.create();
+    await newFile('').writeAsString('current');
+    await oldFile('-wal').writeAsString('first');
+    await resolve();
+    await oldFile('-wal').writeAsString('second');
+    await resolve();
+    expect(
+      await File('${oldFile('-wal').path}.orphaned').readAsString(),
+      'first',
+    );
+    expect(
+      await File('${oldFile('-wal').path}.orphaned.1').readAsString(),
+      'second',
+    );
+  });
+
   test('a legacy -wal beside a legacy main never joins an existing target '
       'database', () async {
     await support.create();
