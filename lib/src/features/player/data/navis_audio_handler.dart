@@ -3577,6 +3577,9 @@ class NavisAudioHandler extends BaseAudioHandler
     _restoredQueueIndex = null;
     _restoredQueuePosition = Duration.zero;
     _supersedeTransportIntent(shouldPlay: true);
+    // A stall timer armed for the previous connection must not reconnect
+    // over this new selection.
+    _cancelRemotePlaybackStallWatchdog();
     final generation = _supersedeQueueWork(isLoading: true);
     return _queueLane.run((token) async {
       try {

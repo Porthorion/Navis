@@ -2888,6 +2888,27 @@ void main() {
       },
     );
 
+    test(
+      're-selecting a stalled station does not add a stale reconnect',
+      () async {
+        final (handler, player) = await playStation(timeouts: stall);
+        final loads = player.sourceLoads;
+        stallStation(player);
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        final gate = player.loadGate = Completer<void>();
+        final reselect = handler.playRadioStream(
+          stationId: 'fixture',
+          stationName: 'Fixture',
+          streamUrl: 'https://radio.example.invalid/live',
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 450));
+        gate.complete();
+        await reselect;
+        await pumpEventQueue(times: 100);
+        expect(player.sourceLoads, loads + 1);
+      },
+    );
+
     test('a station buffering with progress is left alone', () async {
       final (_, player) = await playStation(timeouts: stall);
       final loads = player.sourceLoads;
