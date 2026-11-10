@@ -132,6 +132,29 @@ void main() {
     expect(await database.libraryDao.searchGenres('zzz'), isEmpty);
   }, skip: !sqliteAvailable);
 
+  test('the genre filter folds accents and keeps wildcards literal', () async {
+    await seed();
+    await database.libraryDao.upsertSongs([
+      song('s10', 'album-1', ['Électronique']),
+    ]);
+
+    for (final query in ['electronique', 'électronique', 'ÉLECTRONIQUE']) {
+      expect(
+        (await database.libraryDao.getGenres(query: query)).map((g) => g.key),
+        ['électronique'],
+        reason: 'filter "$query"',
+      );
+      expect(
+        (await database.libraryDao.searchGenres(query)).map((g) => g.key),
+        ['électronique'],
+        reason: 'search "$query"',
+      );
+    }
+    // Literal text, not LIKE wildcards.
+    expect(await database.libraryDao.getGenres(query: '%'), isEmpty);
+    expect(await database.libraryDao.searchGenres('%'), isEmpty);
+  }, skip: !sqliteAvailable);
+
   test('downloaded-only counts only permanently downloaded songs', () async {
     await seed();
     await markDownloaded('s1');
