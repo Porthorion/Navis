@@ -60,11 +60,19 @@ class _TransportControls extends ConsumerWidget {
     final skipIconSize = large ? 32.0 : (compact ? 28.0 : 32.0);
 
     if (isRadio) {
-      // Simplified radio transport: just play/pause and stop.
-      _reportQuickActionsShown(context, false);
+      // Simplified radio transport: EQ, play/pause and stop. The EQ slot
+      // mirrors Stop so Play stays centred; there is no Speed button.
+      _reportQuickActionsShown(context, true);
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
+          EqualizerQuickButton(
+            key: const ValueKey<String>('nowPlayingEqualizerButton'),
+            iconSize: compact ? 28 : 32,
+            visualDensity: compact ? VisualDensity.compact : null,
+            placeholderWhenUnsupported: true,
+          ),
+          SizedBox(width: compact ? 10 : 16),
           Tooltip(
             message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
             child: FilledButton(

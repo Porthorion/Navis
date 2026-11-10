@@ -257,6 +257,13 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.fix,
       ),
       ChangelogEntry(
+        'Radio always plays at normal speed and original pitch, whatever '
+        'your Speed & Pitch setting is, and your setting comes back when '
+        'songs play. Radio controls now have an Equalizer button next to '
+        'Play',
+        type: ChangelogEntryType.fix,
+      ),
+      ChangelogEntry(
         'Settings › Haptics turns vibration off entirely or per kind, such '
         'as Player Gestures, Sliders & Rulers or Notifications, so you can '
         'keep the ones you like',

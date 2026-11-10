@@ -40,6 +40,7 @@ import 'package:navis/src/features/player/domain/playback_snapshot.dart';
 import 'package:navis/src/features/player/presentation/playback_seek_bar_style.dart'
     show AheadRangeTrackShape;
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
+import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/player/domain/lyrics_resolution.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:navis/src/common_widgets/cover_art_source.dart';
@@ -64,6 +65,7 @@ import 'package:navis/src/routing/navigation_service.dart';
 import 'package:navis/src/utils/connectivity.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 
+import '../../helpers/fake_eq_controller.dart';
 import '../../helpers/haptics_spy.dart';
 import '../../helpers/fake_playback_handler.dart';
 
@@ -2972,6 +2974,63 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+
+  for (final width in <double>[800, 1280]) {
+    testWidgets('Desktop radio at $width shows EQ, Play, Stop and no Speed', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 700);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      const radioPlayback = PlaybackSnapshot(
+        queueSongIds: <String>[],
+        currentSongId: null,
+        currentIndex: null,
+        playing: true,
+        processingState: AudioProcessingState.ready,
+        position: Duration.zero,
+        duration: Duration.zero,
+        bufferedPosition: Duration.zero,
+        shuffleMode: AudioServiceShuffleMode.none,
+        repeatMode: AudioServiceRepeatMode.none,
+        radioStation: RadioStationMetadata(
+          stationId: 'radio-1',
+          stationName: 'Test Radio',
+          streamUrl: 'https://example.com/radio',
+        ),
+      );
+      final container = _createContainerWithDatabase(
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(
+            desktopRuntime: true,
+            playback: radioPlayback,
+          ),
+          eqCapabilitiesProvider.overrideWithValue(EqCapabilities.available),
+          equalizerProvider.overrideWith(FakeEqController.new),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: testNavisApp),
+      );
+      await tester.pumpAndSettle();
+
+      final eq = find.byKey(const ValueKey('desktopPlayerEqualizerButton'));
+      final play = find.byKey(const ValueKey('desktopPlayerPlayPauseButton'));
+      final stop = find.byTooltip('Stop Radio');
+      expect(eq, findsOneWidget);
+      expect(stop, findsOneWidget);
+      expect(tester.getCenter(eq).dx, lessThan(tester.getCenter(play).dx));
+      expect(tester.getCenter(play).dx, lessThan(tester.getCenter(stop).dx));
+      expect(
+        find.byKey(const ValueKey('desktopPlayerSpeedButton')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('560x360 Mini Player keeps its essential empty controls', (
     tester,

@@ -8385,6 +8385,130 @@ void main() {
     },
   );
 
+  group('radio playback adjustments', () {
+    const saved = PlaybackAdjustments(speed: 1.5, pitchSemitones: 3);
+    const station = 'https://radio.example.invalid/live';
+
+    Future<(NavisAudioHandler, _ControllableAudioPlayer)> setup() async {
+      final directory = Directory.systemTemp.createTempSync('radio-adjust-');
+      final (handler, player, database) = await createHandler(directory, 2);
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        directory.deleteSync(recursive: true);
+      });
+      await handler.replaceQueue(['song-0', 'song-1'], expandMatchFlows: false);
+      await handler.setPlaybackAdjustments(saved);
+      return (handler, player);
+    }
+
+    void expectNeutral(_ControllableAudioPlayer player) {
+      expect(player.appliedSpeed, 1);
+      expect(player.appliedPitch, 1);
+    }
+
+    void expectSaved(_ControllableAudioPlayer player) {
+      expect(player.appliedSpeed, saved.speed);
+      expect(player.appliedPitch, closeTo(saved.pitchFactor, 1e-9));
+    }
+
+    test('radio plays at 1x and original pitch, saved values stay', () async {
+      final (handler, player) = await setup();
+      await handler.playRadioStream(
+        stationId: 'a',
+        stationName: 'A',
+        streamUrl: station,
+      );
+      expectNeutral(player);
+      expect(handler.playbackAdjustments, saved);
+    });
+
+    test('a speed change during radio is stored but not applied', () async {
+      final (handler, player) = await setup();
+      await handler.playRadioStream(
+        stationId: 'a',
+        stationName: 'A',
+        streamUrl: station,
+      );
+      await handler.setPlaybackSpeed(1.25);
+      expectNeutral(player);
+      expect(handler.playbackAdjustments.speed, 1.25);
+      await handler.playRadioStream(
+        stationId: 'b',
+        stationName: 'B',
+        streamUrl: station,
+      );
+      expectNeutral(player);
+    });
+
+    test('stopping radio brings the saved values back', () async {
+      final (handler, player) = await setup();
+      await handler.playRadioStream(
+        stationId: 'a',
+        stationName: 'A',
+        streamUrl: station,
+      );
+      await handler.stopRadio();
+      await settleQueue(handler);
+      expectSaved(player);
+    });
+
+    test('playing songs after radio brings the saved values back', () async {
+      final (handler, player) = await setup();
+      await handler.playRadioStream(
+        stationId: 'a',
+        stationName: 'A',
+        streamUrl: station,
+      );
+      expectNeutral(player);
+      await handler.replaceQueue(['song-1'], expandMatchFlows: false);
+      await settleQueue(handler);
+      expectSaved(player);
+    });
+
+    test('radio recovery after a transient failure stays neutral', () async {
+      var online = false;
+      final recovered = StreamController<void>.broadcast();
+      addTearDown(recovered.close);
+      final directory = Directory.systemTemp.createTempSync('radio-adjust-');
+      final (handler, player, database) = await createHandler(
+        directory,
+        0,
+        reconcileNetwork: () async =>
+            (connected: online, serverReachable: online),
+        recoveredNetwork: recovered.stream,
+      );
+      addTearDown(() async {
+        await handler.disposeHandler();
+        await database.close();
+        directory.deleteSync(recursive: true);
+      });
+      await handler.setPlaybackAdjustments(saved);
+      await handler.playRadioStream(
+        stationId: 'a',
+        stationName: 'A',
+        streamUrl: station,
+      );
+      final loads = player.sourceLoads;
+      player
+        ..state = ProcessingState.idle
+        ..isPlaying = false;
+      player._events.add(
+        PlaybackEvent(
+          processingState: ProcessingState.idle,
+          errorCode: 0,
+          errorMessage: 'Source error',
+        ),
+      );
+      await pumpEventQueue();
+      online = true;
+      recovered.add(null);
+      await pumpEventQueue(times: 100);
+      expect(player.sourceLoads, greaterThan(loads));
+      expectNeutral(player);
+    });
+  });
+
   group('radio metadata lifecycle', () {
     Future<(NavisAudioHandler, _ControllableAudioPlayer)> setup({
       Dio? dio,

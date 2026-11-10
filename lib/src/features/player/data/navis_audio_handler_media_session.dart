@@ -1126,17 +1126,38 @@ extension _NavisMediaSession on NavisAudioHandler {
     return work;
   }
 
+  /// Every player write of speed and pitch goes through here. Radio always
+  /// plays at 1x and original pitch; the saved song values stay in
+  /// [_appliedAdjustments] and apply again once songs play.
   Future<void> _applyAdjustmentsToPlayer(
     AudioPlayer player,
     PlaybackAdjustments values,
   ) async {
+    final effective = _radioStation != null
+        ? const PlaybackAdjustments()
+        : values;
     // Issued together so the desktop backend can apply both with one audio
     // filter rebuild; every failure is still observed.
     await Future.wait(<Future<void>>[
-      player.setSpeed(values.speed),
+      player.setSpeed(effective.speed),
       if (playbackAdjustmentCapabilities.pitchSupported)
-        player.setPitch(values.pitchFactor),
+        player.setPitch(effective.pitchFactor),
     ]);
+  }
+
+  /// Re-applies the saved values after [_radioStation] changed. A failure
+  /// must not abort radio start or the return to songs.
+  Future<void> _syncPlayerAdjustments() async {
+    try {
+      await _applyToStableDecks(
+        (player) => _applyAdjustmentsToPlayer(player, _appliedAdjustments),
+      ).timeout(_playerResetTimeout);
+    } on Object catch (error, stackTrace) {
+      AppLogger.warning(
+        'Playback adjustment sync after a radio change failed: '
+        '$error\n$stackTrace',
+      );
+    }
   }
 
   Future<void> _setPlaybackAdjustments(
