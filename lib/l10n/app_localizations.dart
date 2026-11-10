@@ -4743,6 +4743,12 @@ abstract class AppLocalizations {
   /// **'{rating}/5'**
   String ratingValueShort(int rating);
 
+  /// No description provided for @ratingStarLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate {count, plural, =1{1 star} other{{count} stars}}'**
+  String ratingStarLabel(int count);
+
   /// No description provided for @ratingUpdateFailed.
   ///
   /// In en, this message translates to:

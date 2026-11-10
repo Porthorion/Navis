@@ -1292,6 +1292,14 @@
   "ratingNotLiked": "Not Liked",
   "ratingActionLabel": "Rate",
   "ratingValueShort": "{rating}/5",
+  "ratingStarLabel": "Rate {count, plural, =1{1 star} other{{count} stars}}",
+  "@ratingStarLabel": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "@ratingValueShort": {
     "placeholders": {
       "rating": {
