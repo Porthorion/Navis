@@ -165,6 +165,22 @@ class _RecordingLikePlaybackHandler implements NavisPlaybackHandler {
   }
 }
 
+class _TransportRecordingHandler extends _RecordingLikePlaybackHandler {
+  final List<String> calls = <String>[];
+
+  @override
+  Future<void> play() async => calls.add('play');
+
+  @override
+  Future<void> pause() async => calls.add('pause');
+
+  @override
+  Future<void> skipToNext() async => calls.add('next');
+
+  @override
+  Future<void> skipToPrevious() async => calls.add('previous');
+}
+
 class _StaticDesktopShortcutBindingsNotifier
     extends DesktopShortcutBindingsNotifier {
   @override
@@ -5392,10 +5408,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final queueButton = find.byKey(const ValueKey('desktopQueueButton'));
-    expect(queueButton, findsOneWidget);
-
-    await tester.tap(queueButton);
+    await focusDesktopQueueButton(tester);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
     expect(container.read(queueOverlayVisibleProvider), isTrue);
 
@@ -5445,40 +5459,203 @@ void main() {
     },
   );
 
-  testWidgets(
-    'space stays playback-only while enter activates focused desktop controls',
-    (tester) async {
+  testWidgets('space activates a focused desktop control instead of playback', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1280, 1000);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final container = _createContainerWithDatabase(
+      overrides: _authenticatedShellOverrides(desktopRuntime: true),
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: testNavisApp),
+    );
+    await tester.pumpAndSettle();
+
+    await focusDesktopQueueButton(tester);
+    expect(
+      FocusManager.instance.primaryFocus?.debugLabel,
+      contains('desktopQueueToggle'),
+    );
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
+    await tester.pumpAndSettle();
+    expect(container.read(queueOverlayVisibleProvider), isTrue);
+  });
+
+  group('bare transport keys yield to focused controls', () {
+    Future<(_TransportRecordingHandler, BuildContext)> pumpShell(
+      WidgetTester tester,
+    ) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1280, 1000);
       addTearDown(() {
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
       });
-
+      final handler = _TransportRecordingHandler();
       final container = _createContainerWithDatabase(
-        overrides: _authenticatedShellOverrides(desktopRuntime: true),
+        overrides: <Override>[
+          ..._authenticatedShellOverrides(desktopRuntime: true),
+          audioHandlerProvider.overrideWithValue(handler),
+        ],
       );
-
       await tester.pumpWidget(
         UncontrolledProviderScope(container: container, child: testNavisApp),
       );
       await tester.pumpAndSettle();
+      return (handler, tester.element(find.byType(Scaffold).first));
+    }
 
-      await focusDesktopQueueButton(tester);
+    Future<FocusNode> insertFocused(
+      WidgetTester tester,
+      BuildContext context,
+      Widget Function(FocusNode node) builder,
+    ) async {
+      final node = FocusNode();
+      addTearDown(node.dispose);
+      final entry = OverlayEntry(
+        builder: (_) => Center(child: Material(child: builder(node))),
+      );
+      Overlay.of(context, rootOverlay: true).insert(entry);
+      addTearDown(() {
+        if (entry.mounted) entry.remove();
+      });
+      await tester.pump();
+      node.requestFocus();
+      await tester.pump();
+      return node;
+    }
+
+    testWidgets('Space plays/pauses after a mouse-opened queue closes', (
+      tester,
+    ) async {
+      final (handler, _) = await pumpShell(tester);
+      final queueButton = find.byKey(const ValueKey('desktopQueueButton'));
+      await tester.tap(queueButton, kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pumpAndSettle();
+
       expect(
-        FocusManager.instance.primaryFocus?.debugLabel,
-        contains('desktopQueueToggle'),
+        FocusManager.instance.primaryFocus?.debugLabel ?? '',
+        isNot(contains('desktopQueueToggle')),
+      );
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.pumpAndSettle();
+      expect(handler.calls, isNotEmpty);
+    });
+
+    testWidgets('Space activates a focused button, not playback', (
+      tester,
+    ) async {
+      final (handler, context) = await pumpShell(tester);
+      var pressed = 0;
+      await insertFocused(
+        tester,
+        context,
+        (node) => ElevatedButton(
+          focusNode: node,
+          onPressed: () => pressed++,
+          child: const Text('probe'),
+        ),
       );
 
       await tester.sendKeyEvent(LogicalKeyboardKey.space);
-      await tester.pumpAndSettle();
-      expect(container.read(queueOverlayVisibleProvider), isFalse);
+      await tester.pump();
 
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+      expect(handler.calls, isEmpty);
+      expect(pressed, 1);
+    });
+
+    testWidgets('arrow keys adjust a focused slider, not the queue', (
+      tester,
+    ) async {
+      final (handler, context) = await pumpShell(tester);
+      var value = 0.5;
+      await insertFocused(
+        tester,
+        context,
+        (node) => StatefulBuilder(
+          builder: (_, setState) => Slider(
+            focusNode: node,
+            value: value,
+            onChanged: (v) => setState(() => value = v),
+          ),
+        ),
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+      await tester.pump();
+
+      expect(handler.calls, isEmpty);
+    });
+
+    testWidgets('Space inside an open dialog does not toggle playback', (
+      tester,
+    ) async {
+      final (handler, context) = await pumpShell(tester);
+      unawaited(
+        showDialog<void>(
+          context: context,
+          builder: (_) => const AlertDialog(content: Text('probe dialog')),
+        ),
+      );
       await tester.pumpAndSettle();
-      expect(container.read(queueOverlayVisibleProvider), isTrue);
-    },
-  );
+      expect(find.text('probe dialog'), findsOneWidget);
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.space);
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      await tester.pump();
+
+      expect(handler.calls, isEmpty);
+    });
+
+    testWidgets(
+      'with no control focused Space and arrows still drive playback',
+      (tester) async {
+        final (handler, _) = await pumpShell(tester);
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.pump();
+
+        expect(handler.calls, <String>['pause', 'next', 'previous']);
+      },
+    );
+
+    testWidgets('modifier shortcuts still work with a button focused', (
+      tester,
+    ) async {
+      final (handler, context) = await pumpShell(tester);
+      await insertFocused(
+        tester,
+        context,
+        (node) => ElevatedButton(
+          focusNode: node,
+          onPressed: () {},
+          child: const Text('probe'),
+        ),
+      );
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.period);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+      await tester.pump();
+
+      expect(handler.calls, <String>['next']);
+    });
+  });
 
   testWidgets('mouse click clears tab-selected desktop focus', (tester) async {
     tester.view.devicePixelRatio = 1;

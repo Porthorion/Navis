@@ -349,6 +349,22 @@ class _AppShellState extends ConsumerState<AppShell> {
       return false;
     }
 
+    // Bare Space/arrows belong to a focused control or modal (button, slider,
+    // dialog); modifier combos stay global.
+    final keyboard = HardwareKeyboard.instance;
+    final bare =
+        !keyboard.isControlPressed &&
+        !keyboard.isMetaPressed &&
+        !keyboard.isAltPressed &&
+        !keyboard.isShiftPressed;
+    if (bare &&
+        isTextSensitiveDesktopCommand(action) &&
+        desktopCommandBlockedByFocusedControl(
+          shellFocusNode: _shellFocusNode,
+        )) {
+      return false;
+    }
+
     // Block transport commands while the library type-to-filter overlay is
     // visible so that e.g. Space doesn't trigger play/pause mid-filter.
     if (isTextSensitiveDesktopCommand(action) &&
@@ -1642,10 +1658,16 @@ class _AppShellState extends ConsumerState<AppShell> {
                                   if (showQueueOverlay) {
                                     _hideQueueWithAnimation();
                                   } else {
+                                    // Return focus to the toggle only when
+                                    // the keyboard opened the queue (#474):
+                                    // a focused toggle would take Space.
                                     _showQueueOverlay(
                                       queueOnly: useDesktopShell,
                                       invokerFocusNode:
-                                          _desktopQueueToggleFocusNode,
+                                          _desktopQueueToggleFocusNode
+                                              .hasPrimaryFocus
+                                          ? _desktopQueueToggleFocusNode
+                                          : null,
                                     );
                                   }
                                 },
