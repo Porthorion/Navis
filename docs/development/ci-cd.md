@@ -13,6 +13,8 @@ Releases are built and published locally with `tool/release.sh`; `tool/check.sh`
 - `ios`: on `macos-latest` (free for this public repository), bootstrap then `flutter build ios --simulator --debug` with a 45-minute deadline. It proves the iOS project, its SwiftPM plugins and the vendored Darwin audio code compile. The simulator build is used because it needs no signing or provisioning and is the same build the simulator runtime loop runs; a device or release build (`--release --no-codesign`) adds only the device slice and ahead-of-time compile, which only a local release build exercises today. The job also runs what needs a Mac, which no Ubuntu job can: the pitch-stage C test (`NAVIS_NATIVE_C_ONLY=1 ./tool/equalizer_native_test.sh`), `flutter test test/src/features/settings/data/macos_update_test.dart` (its "running new app without a marker" test is skipped off macOS; targeted file only, because the full suite has macOS-local failures and golden diffs), `./tool/libmpv_fetch_macos_test.sh`, and `xcodebuild test` for the `Runner` scheme (the `macos/RunnerTests` XCTests: dock menu, controls menu, last-window close/quit). The Runner is the XCTest host, so the step first runs `flutter build macos --debug --config-only` (Flutter ephemeral files and `pod install`; CocoaPods ships on the runner image) and builds ad-hoc signed (`CODE_SIGN_IDENTITY=-`, no team or secrets). To run it locally: `flutter build macos --debug --config-only`, then the same `xcodebuild test` command as the workflow (see `.github/workflows/ci.yml`). It uses no secrets.
 - `ci`: waits for all five and fails unless all succeeded. This is the one status to require in branch protection ([git-workflow.md](git-workflow.md#github-settings)).
 
+`tool/check.sh` and the CI `test` job set `NAVIS_REQUIRE_SQLITE=1`: a missing native SQLite then fails the database suites (`sqliteAvailable` in `test/helpers/test_database.dart` throws) instead of skipping them.
+
 The `static`, `test`, `native` and `ios` jobs cache `.dart_tool/hooks_runner/shared/sqlite3/build`, (one entry per job, keyed on `pubspec.lock`). With a warm cache the `sqlite3` package's build hook reuses its prebuilt library after checking its hash, so a GitHub release-download outage does not fail the job; a cold cache (new key) still downloads.
 
 Windows media-session changes additionally require the Windows-only isolated
@@ -115,7 +117,10 @@ Checks performed (in order, fail-fast):
    a C compiler and is skipped with a message without one) and progressive HTTP
    retry/repeat fixtures (`tool/equalizer_native_test.sh`), Android repeat runner contract
    (`tool/android_repeat_runner_test.sh`) and bridge JVM suites
-   (`tool/android_repeat_native_test.sh`), and the Last.fm key masking / artifact secret scan shell tests
+   (`tool/android_repeat_native_test.sh`; it runs every app JVM unit suite, not
+   only the repeat ones), the sync scenario, sync action attribution and libmpv
+   download/bundle self-tests (the `static` CI job also runs these and the
+   release/secret-scan shell tests), and the Last.fm key masking / artifact secret scan shell tests
    (`tool/lastfm_key_defines_test.sh`, `tool/scan_artifact_secret_test.sh`;
    fake key and synthetic artifacts, runnable on their own to debug a failure),
    the release-notes failure guard (`tool/release_notes_test.sh`; only a
