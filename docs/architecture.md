@@ -4805,8 +4805,9 @@ sidecar's re-download has already finished (it usually has, since mpv drains
 the cut stream after the sidecar restarts the whole transcode). Healthy play
 before the cut does not excuse the premature end; the existing healthy-play renewal still
 applies after recovery. Native duration and the interpolated desktop clock do
-not establish the departure position. On iOS and Android the advance event
-carries a stale native stamp, so capture samples the player clock (at most
+not establish the departure position. On mobile the stamp the retry reads is
+stale (on iOS the advance event keeps the old stamp; on Android the previous
+event's stamp is the stale one), so capture samples the player clock (at most
 about 200 ms old, from the position sampler) and the retry's invalidation
 guards compare that sample's Dart time; the successor-publish yield is
 unconditional so the discontinuity claims the cut first. Position/index events capture the native
