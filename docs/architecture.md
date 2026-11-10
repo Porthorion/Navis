@@ -7109,10 +7109,15 @@ contract.
   deferral streak in `libraryScanDeferralStreak`), and the candidate, stored
   with its collection token (`libraryCandidateScanToken`), resumes only while
   the server is still at that token; otherwise its pages are discarded and
-  collected again, and a candidate whose collection started mid-scan is always
-  discarded. A scan running at either observation defers the promotion, as does
-  a status that cannot be read (a failure, or the endpoint vanishing after it
-  once worked) or that is supported at only one of the two observations; an
+  collected again. A candidate whose collection read a running scan is stored
+  with a sentinel token (`scanning`) that no later read matches, tokenless
+  servers included, so it is always discarded. A scan running at either
+  observation defers the promotion, as does a status that cannot be read (a
+  transport failure, or any failure once a token was stored, or the endpoint
+  vanishing after it once worked) or that is supported at only one of the two
+  observations. While no token has ever been stored, an API error answer
+  (forbidden, a generic error, HTTP 501) reads as an unsupported endpoint like a
+  missing one, so such a server promotes on every run; an
   unsupported endpoint at both never blocks. Unreadable deferrals record
   `scanStatusUnreadable` and count in their own streak
   (`libraryScanUnreadableStreak`), which leaves the scan-churn streak and the

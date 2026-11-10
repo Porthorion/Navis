@@ -370,6 +370,11 @@ const _libraryScanUnreadableStreakCapabilityKey = 'libraryScanUnreadableStreak';
 /// candidate may only resume while the server is still at that token.
 const _libraryCandidateScanTokenCapabilityKey = 'libraryCandidateScanToken';
 
+/// Stored as the candidate token when its collection read a running scan. It
+/// is not an ISO timestamp and never null, so no later read (real token or
+/// tokenless idle) matches it and the candidate cannot resume.
+const _candidateCollectedMidScanToken = 'scanning';
+
 /// `failureCategory` of a scan-triggered run whose promotion waits because
 /// the server scanned during collection.
 const _scanChangedCategory = 'scanChanged';
@@ -2713,6 +2718,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     if (resumableGeneration != null &&
         !held &&
         (scanTokenAtCollection.read == _ScanRead.scanning ||
+            storedCandidateToken == _candidateCollectedMidScanToken ||
             (scanTokenAtCollection.read == _ScanRead.idle &&
                 storedCandidateToken != scanTokenAtCollection.token))) {
       resumableGeneration = null;
@@ -2769,7 +2775,10 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
     metrics.metadataChanged = true;
     if (resumableGeneration != catalogGeneration || held) {
       await _updateVerificationCapabilities(<String, Object?>{
-        _libraryCandidateScanTokenCapabilityKey: scanTokenAtCollection.token,
+        _libraryCandidateScanTokenCapabilityKey:
+            scanTokenAtCollection.read == _ScanRead.scanning
+            ? _candidateCollectedMidScanToken
+            : scanTokenAtCollection.token,
       }, metrics);
     }
     var current = _withMetrics(
@@ -3257,17 +3266,7 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         elapsed: Duration.zero,
         endpoint: 'getScanStatus',
       );
-      if (status == null) {
-        if (await _scanEndpointWasSupported(serverId)) {
-          return (token: null, read: _ScanRead.unreadable);
-        }
-        await _database.librarySyncDao.recordScanObservation(
-          serverId: serverId,
-          scanInProgress: false,
-          supported: false,
-        );
-        return (token: null, read: _ScanRead.unsupported);
-      }
+      if (status == null) return await _missingScanEndpoint(serverId);
       if (status.scanning) {
         await _database.librarySyncDao.recordScanObservation(
           serverId: serverId,
@@ -3284,10 +3283,30 @@ class DriftLibrarySyncEngine implements SyncPlanExecutor {
         providerScanToken: token,
       );
       return (token: token, read: _ScanRead.idle);
+    } on SubsonicApiException catch (error) {
+      // The server answered with an error (forbidden, generic, HTTP 501):
+      // with no token ever stored that is a permanent answer, not a flaky
+      // read, so it reads as an unsupported endpoint.
+      AppLogger.warning('Scan status unavailable: $error');
+      return await _missingScanEndpoint(serverId);
     } on SubsonicException catch (error) {
       AppLogger.warning('Scan status unavailable: $error');
       return (token: null, read: _ScanRead.unreadable);
     }
+  }
+
+  /// An endpoint that is missing or answers with an API error: unsupported
+  /// until a token has been stored, unreadable afterwards.
+  Future<_ScanObservation> _missingScanEndpoint(int serverId) async {
+    if (await _scanEndpointWasSupported(serverId)) {
+      return (token: null, read: _ScanRead.unreadable);
+    }
+    await _database.librarySyncDao.recordScanObservation(
+      serverId: serverId,
+      scanInProgress: false,
+      supported: false,
+    );
+    return (token: null, read: _ScanRead.unsupported);
   }
 
   @override

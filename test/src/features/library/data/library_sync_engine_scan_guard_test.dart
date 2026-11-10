@@ -602,6 +602,46 @@ void main() {
       skip: !sqliteAvailable,
     );
 
+    test('D1b tokenless: a scan reading must not let a later idle run resume mid-scan pages', () async {
+      const tokenless = ScanStatus(scanning: false, count: 10);
+      scanScript(<Object?>[tokenless]);
+      listAlbums(10);
+      api.albumDetails['album-5'] = const Album(
+        id: 'album-5',
+        name: 'Album 5',
+        songs: <Song>[
+          Song(id: 'song-5', title: 'Song 5', albumId: 'album-5'),
+          Song(id: 'song-5b', title: 'Song 5b', albumId: 'album-5'),
+        ],
+      );
+      final fullAlbum5 = api.albumDetails['album-5']!;
+      final serverId = await saveSession();
+      await runPlan();
+      expect(await database.select(database.songsTable).get(), hasLength(11));
+
+      // Run 2 collects album-5 mid-scan, without song-5b.
+      api.albumDetails['album-5'] = const Album(
+        id: 'album-5',
+        name: 'Album 5',
+        songs: <Song>[Song(id: 'song-5', title: 'Song 5', albumId: 'album-5')],
+      );
+      scanScript(<Object?>[busy]);
+      await runPlan();
+      await expectCommittedCatalogKept(serverId);
+
+      // Run 3 reads tokenless idle; the server really still has song-5b.
+      api.albumDetails['album-5'] = fullAlbum5;
+      api.calls.clear();
+      scanScript(<Object?>[tokenless]);
+      await runPlan();
+
+      expect(api.calls, contains('getAlbum:album-5'));
+      final songIds = (await database.select(database.songsTable).get())
+          .map((song) => song.id)
+          .toSet();
+      expect(songIds, contains('song-5b'));
+    }, skip: !sqliteAvailable);
+
     test('D1 held: a confirming run that defers keeps the hold', () async {
       final serverId = await commitRunOne();
       listAlbums(8);
@@ -703,6 +743,62 @@ void main() {
         skip: !sqliteAvailable,
       );
     }
+
+    test('D6: a permanent API error with no stored token reads unsupported and promotes every run', () async {
+      const forbidden = SubsonicForbiddenException(message: 'forbidden');
+      final serverId = await commitRunOne(reads: <Object?>[forbidden]);
+      for (final count in <int>[9, 9, 9]) {
+        listAlbums(count);
+        final state = await runPlan();
+        expect(state.status, LibrarySyncStatus.succeeded);
+        expect(state.freshness, isNot(LibrarySyncFreshness.repairRecommended));
+        expect(
+          await database.select(database.albumsTable).get(),
+          hasLength(count),
+        );
+      }
+      expect(
+        (await database.librarySyncDao.getScanObservation(serverId))!
+            .scanSupported,
+        isFalse,
+      );
+      expect(
+        await ledgerReasons(serverId),
+        isNot(contains('scanStatusUnreadable')),
+      );
+    }, skip: !sqliteAvailable);
+
+    test(
+      'D6: the same API error with a stored token still defers as unreadable',
+      () async {
+        final serverId = await commitRunOne();
+        listAlbums(9);
+        scanScript(<Object?>[
+          const SubsonicForbiddenException(message: 'forbidden'),
+        ]);
+
+        await runPlan();
+
+        await expectCommittedCatalogKept(serverId);
+        expect(await ledgerReasons(serverId), contains('scanStatusUnreadable'));
+      },
+      skip: !sqliteAvailable,
+    );
+
+    test(
+      'D6: a transport error with no stored token stays unreadable',
+      () async {
+        final serverId = await commitRunOne(reads: <Object?>[null]);
+        listAlbums(9);
+        scanScript(<Object?>[const SubsonicConnectionException('timeout')]);
+
+        await runPlan();
+
+        await expectCommittedCatalogKept(serverId);
+        expect(await ledgerReasons(serverId), contains('scanStatusUnreadable'));
+      },
+      skip: !sqliteAvailable,
+    );
 
     test('D5: unreadable at collection, idle at promotion defers', () async {
       final serverId = await commitRunOne();
