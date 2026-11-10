@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/services.dart';
@@ -21,6 +22,7 @@ import 'package:navis/src/features/library/domain/library_sync_state.dart';
 import 'package:navis/src/providers/app_providers.dart';
 import 'package:navis/src/providers/provider_retry.dart';
 import 'package:navis/src/utils/connectivity.dart';
+import 'package:navis/src/utils/credential_redaction.dart';
 import 'package:navis/src/utils/network_cost_bridge.dart';
 import 'package:navis/src/utils/network_usage_meter.dart';
 
@@ -42,9 +44,16 @@ final _backgroundSyncDatabaseOverride = navisDatabaseProvider.overrideWith((
 /// Android WorkManager's retained Dart entrypoint. It intentionally creates no
 /// app shell, player, audio handler, notification bootstrap, or diagnostics
 /// HTTP server.
+///
+/// Like `main()`, it prints through the credential-redacting zone and reports
+/// uncaught errors redacted, so a debug build never logs a stream URL's token.
 @pragma('vm:entry-point')
-Future<void> navisBackgroundSyncEntrypoint() async {
+Future<void> navisBackgroundSyncEntrypoint() =>
+    runWithCredentialRedactedPrint(_runBackgroundSyncWorker);
+
+Future<void> _runBackgroundSyncWorker() async {
   WidgetsFlutterBinding.ensureInitialized();
+  PlatformDispatcher.instance.onError = reportUncaughtErrorRedacted;
   final runner = _HeadlessBackgroundSyncRunner();
   final lifetime = Completer<void>();
   _backgroundSyncChannel.setMethodCallHandler((call) async {

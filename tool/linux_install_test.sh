@@ -297,6 +297,25 @@ c_older_tarball() {
   [[ "$(cmd_of)" == navis-stub-1.5.1 ]] || fail "older tarball not installed"
 }
 
+# floor_copy VERSION: the test copy with the release-time minimum version filled in
+floor_copy() {
+  sed "s/^NAVIS_MIN_VERSION=.*/NAVIS_MIN_VERSION='$1'/" "${copy}" > "${tmp}/install-floor.sh"
+  grep -qx "NAVIS_MIN_VERSION='$1'" "${tmp}/install-floor.sh" || fail "NAVIS_MIN_VERSION line missing from install.sh"
+  export SCRIPT="${tmp}/install-floor.sh"
+}
+c_floor_refuses_older() {
+  floor_copy 1.5.2; fresh; release 1.5.1
+  run --yes; want_fail "older than floor, --yes"; want_out 'minimum|replay' "floor message"; not_installed "older than floor"
+  tty_answers $'y\ny\ny\n'; run; want_fail "older than floor, tty yes"; not_installed "older than floor, tty"
+  run --yes "${tmp}/dl/navis-v1.5.1-linux.tar.gz"; want_fail "older tarball under floor"; not_installed "older tarball under floor"
+}
+c_floor_allows_equal_and_newer() {
+  floor_copy 1.5.2; fresh; release 1.5.2; run --yes; want_rc 0 "equal to floor"
+  [[ "$(cmd_of)" == navis-stub-1.5.2 ]] || fail "equal release not installed"
+  fresh; release 1.5.10; run --yes; want_rc 0 "newer than floor (1.5.10 > 1.5.2)"
+  [[ "$(cmd_of)" == navis-stub-1.5.10 ]] || fail "newer release not installed"
+}
+
 c_foreign_app() {
   fresh; release 1.5.2; mkdir -p "${APP}"; echo mine > "${APP}/manual"
   run --yes; want_fail "foreign app dir with --yes"; [[ -f "${APP}/manual" ]] || fail "foreign dir removed"
@@ -520,6 +539,8 @@ run_case "R1 failed move-aside leaves the old install intact" c_move_aside_fails
 run_case "R4 failed integrate on a fresh install leaves nothing behind" c_integrate_fails_fresh
 run_case "R4 failed integrate on an upgrade keeps the old install" c_integrate_fails_upgrade
 run_case "older local tarball warns but installs" c_older_tarball
+run_case "release below the baked-in floor refused even with --yes" c_floor_refuses_older
+run_case "release at or above the floor installs" c_floor_allows_equal_and_newer
 run_case "foreign app dir: --yes refused, n refused, interactive y replaces" c_foreign_app
 run_case "system package install is asked about" c_system_package
 run_case "R20 /opt/navis question asked on the tty" c_system_package_tty

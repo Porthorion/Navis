@@ -1095,6 +1095,53 @@ void main() {
       expect(detail.length, lessThanOrEqualTo(200));
     }, skip: !sqliteAvailable);
 
+    for (final (name, error) in [
+      (
+        'SocketException',
+        const SocketException(
+          "Failed host lookup: 'music.example.com'",
+          osError: OSError('Name or service not known', -2),
+          port: 4533,
+        ),
+      ),
+      (
+        'HttpException',
+        HttpException(
+          'Connection closed while receiving data',
+          uri: Uri.parse(
+            'https://music.example.com:4533/rest/stream?id=song-1&t=tok',
+          ),
+        ),
+      ),
+    ]) {
+      test(
+        'the stored $name detail keeps the type but not the server host or port',
+        () async {
+          server.failure = DioException(
+            requestOptions: RequestOptions(
+              baseUrl: 'https://music.example.com:4533',
+              path: '/rest/stream.view',
+            ),
+            type: DioExceptionType.unknown,
+            error: error,
+          );
+          server.releaseAll();
+          final service = buildService();
+          await service.start();
+          await addSongs(1);
+          await service.enqueueSong('song-0', quality: '128');
+          await service.processQueuedDownloads();
+          final detail = (await queue()).single.failureDetail!;
+          expect(detail, startsWith('$name: '));
+          expect(detail, contains('<server>'));
+          expect(detail, isNot(contains('music.example.com')));
+          expect(detail, isNot(contains('4533')));
+          expect(detail, isNot(contains('tok')));
+        },
+        skip: !sqliteAvailable,
+      );
+    }
+
     test('a failure without an underlying error keeps the Dio error type as its detail', () async {
       server.failure = DioException(
         requestOptions: RequestOptions(path: '/rest/stream.view'),

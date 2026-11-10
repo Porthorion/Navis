@@ -90,6 +90,14 @@ navis_github_publish() {
   fi
   if [[ -n "${installer}" ]]; then
     [[ -f "${installer}" ]] || { echo "Error: ${installer} is missing." >&2; return 1; }
+    # Bake the released version in as the installer's minimum, so a replayed older signed
+    # manifest is refused. The upload keeps the file name install.sh.
+    local min="${tag#v}" stamped
+    min="${min%%-*}"
+    stamped="$(dirname "${manifest}")/install.sh"   # the release work dir, cleaned up with it
+    sed "s/^NAVIS_MIN_VERSION=.*/NAVIS_MIN_VERSION='${min}'/" "${installer}" > "${stamped}"
+    grep -qx "NAVIS_MIN_VERSION='${min}'" "${stamped}" || { echo 'Error: install.sh has no NAVIS_MIN_VERSION line to fill.' >&2; return 1; }
+    installer="${stamped}"
     installer_sum="$(sha256sum < "${installer}" | cut -d' ' -f1)"
     assets+=("${installer}")
   fi
