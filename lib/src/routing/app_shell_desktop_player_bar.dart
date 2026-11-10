@@ -733,12 +733,16 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                                     children: <Widget>[
                                       // EQ yields first when the rail
                                       // narrows so transport keeps its room.
-                                      if (!playback.isRadioMode &&
+                                      // Radio has only EQ, Play and Stop, so
+                                      // EQ stays and Play stays centred.
+                                      if (playback.isRadioMode ||
                                           !compactLayout)
                                         EqualizerQuickButton(
                                           key: const ValueKey<String>(
                                             'desktopPlayerEqualizerButton',
                                           ),
+                                          placeholderWhenUnsupported:
+                                              playback.isRadioMode,
                                           enabled: hasPlayback,
                                           disabledTooltip: l10n
                                               .desktopPlaybackUnavailableTooltip,

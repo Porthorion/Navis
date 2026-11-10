@@ -33,6 +33,8 @@ extension _NavisRadio on NavisAudioHandler {
     _emitSnapshot();
     _radioStreamErrorController.add(null);
     Future<void> restore(OperationToken token) async {
+      await _syncPlayerAdjustments();
+      token.checkCancelled();
       await _player.stop();
       token.checkCancelled();
       await _player.setAudioSources(const <AudioSource>[]);

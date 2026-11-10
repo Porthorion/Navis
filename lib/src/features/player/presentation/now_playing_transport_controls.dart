@@ -60,11 +60,25 @@ class _TransportControls extends ConsumerWidget {
     final skipIconSize = large ? 32.0 : (compact ? 28.0 : 32.0);
 
     if (isRadio) {
-      // Simplified radio transport: just play/pause and stop.
-      _reportQuickActionsShown(context, false);
+      // Simplified radio transport: EQ, play/pause and stop. Both side slots
+      // share one width so Play stays centred; there is no Speed button.
+      const radioSideSlotWidth = 56.0;
+      _reportQuickActionsShown(context, true);
       return Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: <Widget>[
+          SizedBox(
+            width: radioSideSlotWidth,
+            child: Center(
+              child: EqualizerQuickButton(
+                key: const ValueKey<String>('nowPlayingEqualizerButton'),
+                iconSize: compact ? 28 : 32,
+                visualDensity: compact ? VisualDensity.compact : null,
+                placeholderWhenUnsupported: true,
+              ),
+            ),
+          ),
+          SizedBox(width: compact ? 10 : 16),
           Tooltip(
             message: isPlaying ? l10n.nowPlayingPause : l10n.nowPlayingPlay,
             child: FilledButton(
@@ -87,13 +101,18 @@ class _TransportControls extends ConsumerWidget {
             ),
           ),
           SizedBox(width: compact ? 10 : 16),
-          IconButton(
-            icon: Icon(Icons.stop, size: compact ? 28 : 32),
-            tooltip: l10n.radioStopStation,
-            onPressed: () {
-              final handler = ref.read(audioHandlerProvider);
-              unawaited(handler?.stopRadio());
-            },
+          SizedBox(
+            width: radioSideSlotWidth,
+            child: Center(
+              child: IconButton(
+                icon: Icon(Icons.stop, size: compact ? 28 : 32),
+                tooltip: l10n.radioStopStation,
+                onPressed: () {
+                  final handler = ref.read(audioHandlerProvider);
+                  unawaited(handler?.stopRadio());
+                },
+              ),
+            ),
           ),
         ],
       );
