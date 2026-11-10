@@ -360,8 +360,15 @@ created, and `--uninstall` removes exactly those. `--purge` also deletes
 An existing desktop file, launcher or app dir the script did not create needs an interactive yes;
 `--yes` never answers those.
 
+Replay protection: the repo copy of the script has an empty `NAVIS_MIN_VERSION=''`. When
+`navis_github_publish` attaches the script to a release it fills that line with the released
+version (the tag without `v` or any prerelease suffix) and checksums the filled copy. After the
+signature check the script refuses any signed release older than that floor, so a replayed older
+manifest cannot downgrade a user; `--yes` never overrides it. An empty floor (the repo copy, dev
+runs, tests) means no floor. The installed-newer warning still applies above the floor.
+
 Releasing: `navis_github_publish` (used by `release.sh` and late `r2_publish --github` runs) attaches
-`linux/install.sh` when it creates the stable GitHub release and adds its line to the GitHub
+`linux/install.sh` (with its version floor filled in) when it creates the stable GitHub release and adds its line to the GitHub
 `SHA256SUMS`. Later `--clobber` runs never replace it; they re-derive its `SHA256SUMS` line from the
 asset already on the release. It is not an updater asset:
 the signed manifest and the R2 `SHA256SUMS` are unchanged. The README one-liner points at `main`.
