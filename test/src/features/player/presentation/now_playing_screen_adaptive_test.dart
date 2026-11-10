@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -11,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navis/l10n/app_localizations.dart';
 import 'package:navis/l10n/navis_localizations.dart';
 import 'package:navis/src/database/navis_database.dart';
+import 'package:navis/src/features/downloads/data/permanent_artwork_store.dart';
 import 'package:navis/src/features/equalizer/domain/eq_configuration.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_controller.dart';
 import 'package:navis/src/features/equalizer/presentation/eq_quick_panel.dart';
@@ -1386,6 +1390,9 @@ void main() {
       );
       expect(find.byKey(const ValueKey('nowPlayingSpeedButton')), findsNothing);
 
+      // The split cover fills the pane width (524 px here), so the transport
+      // can sit below the fold of the scrolling pane.
+      await tester.ensureVisible(find.byTooltip('Settings').first);
       await tester.tap(find.byTooltip('Settings').first);
       await tester.pumpAndSettle();
 
@@ -1601,6 +1608,237 @@ void main() {
       await tester.pump();
     });
   }, skip: !sqliteAvailable);
+
+  // I46: the song cover is sized by the layout, not by the image. Every
+  // non-phone layout used to paint it at its intrinsic size.
+  group('I46 tablet cover fills a square slot', () {
+    for (final (name, size, embedded, compactWide)
+        in <(String, Size, bool, bool)>[
+          ('13" portrait rail pane', Size(762, 1376), true, false),
+          ('13" landscape rail pane (split)', Size(1032, 1032), true, false),
+          ('mini landscape rail pane', Size(868, 756), true, false),
+          ('11" portrait sheet', Size(834, 1194), false, false),
+          ('Split View 2/3 pane (compact)', Size(711, 1032), true, false),
+          ('Slide Over (phone layout)', Size(320, 1032), false, false),
+          ('compact-wide Mini Player', Size(560, 360), false, true),
+        ]) {
+      testWidgets(name, (tester) async {
+        setAdaptiveTestViewport(tester, size);
+        final container = _createContainer();
+        container.read(nowPlayingTestPlaybackProvider.notifier).state =
+            _songPlayback;
+        await _pumpNowPlaying(
+          tester,
+          container,
+          wideEmbeddedMode: embedded,
+          compactWideLandscapeMode: compactWide,
+        );
+        final cover = tester.getSize(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is CoverArtImage &&
+                widget.shape == ArtworkShapeRole.nowPlaying,
+          ),
+        );
+
+        expect(cover.width, closeTo(cover.height, 0.5));
+        expect(cover.shortestSide, greaterThanOrEqualTo(160));
+      }, skip: !sqliteAvailable);
+    }
+
+    testWidgets('a 48 px stored cover is scaled up to the slot', (
+      tester,
+    ) async {
+      final cover = await _storedCoverSize(
+        tester,
+        viewport: const Size(762, 1376),
+        imageSide: 48,
+        embedded: true,
+      );
+      expect(cover.width, closeTo(cover.height, 0.5));
+      expect(cover.shortestSide, greaterThan(300));
+    }, skip: !sqliteAvailable);
+
+    // A real stored cover must render at least as large as before I46 in
+    // every layout (sizes measured on 394647387), and stay square.
+    for (final (name, size, baseline, embedded, compactWide, desktop, platform)
+        in <(String, Size, double, bool, bool, bool, TargetPlatform)>[
+          (
+            'phone landscape 844x390',
+            Size(844, 390),
+            371.4,
+            true,
+            true,
+            false,
+            TargetPlatform.android,
+          ),
+          (
+            'phone landscape 667x375',
+            Size(667, 375),
+            293.5,
+            true,
+            true,
+            false,
+            TargetPlatform.android,
+          ),
+          (
+            'desktop Mini Player 1200x720',
+            Size(1200, 720),
+            440,
+            false,
+            true,
+            true,
+            TargetPlatform.linux,
+          ),
+          (
+            'desktop Mini Player 900x600',
+            Size(900, 600),
+            396,
+            false,
+            true,
+            true,
+            TargetPlatform.linux,
+          ),
+          (
+            '13" landscape split 1032x1032',
+            Size(1032, 1032),
+            411.8,
+            true,
+            false,
+            false,
+            TargetPlatform.linux,
+          ),
+          (
+            'embedded 840x400',
+            Size(840, 400),
+            130,
+            true,
+            false,
+            false,
+            TargetPlatform.linux,
+          ),
+          (
+            'embedded 633x669',
+            Size(633, 669),
+            315,
+            true,
+            false,
+            false,
+            TargetPlatform.linux,
+          ),
+        ]) {
+      testWidgets('a real 600 px cover is not smaller than before: $name', (
+        tester,
+      ) async {
+        final cover = await _storedCoverSize(
+          tester,
+          viewport: size,
+          imageSide: 600,
+          embedded: embedded,
+          compactWide: compactWide,
+          desktop: desktop,
+          platform: platform,
+        );
+        expect(cover.width, closeTo(cover.height, 0.5));
+        expect(cover.width, greaterThanOrEqualTo(baseline - 0.5));
+      }, skip: !sqliteAvailable);
+    }
+  });
+}
+
+/// Pumps Now Playing with a stored [imageSide] px cover and returns the size
+/// of the laid-out Now Playing cover.
+Future<Size> _storedCoverSize(
+  WidgetTester tester, {
+  required Size viewport,
+  required int imageSide,
+  bool embedded = false,
+  bool compactWide = false,
+  bool desktop = false,
+  TargetPlatform platform = TargetPlatform.linux,
+}) async {
+  setAdaptiveTestViewport(tester, viewport);
+  final directory = Directory.systemTemp.createTempSync('navis-i46-');
+  addTearDown(() => directory.deleteSync(recursive: true));
+  const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
+  final messenger =
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+  messenger.setMockMethodCallHandler(
+    pathProvider,
+    (call) async => directory.path,
+  );
+  addTearDown(() => messenger.setMockMethodCallHandler(pathProvider, null));
+  final png = (await tester.runAsync(() async {
+    final recorder = ui.PictureRecorder();
+    ui.Canvas(recorder).drawRect(
+      Rect.fromLTWH(0, 0, imageSide.toDouble(), imageSide.toDouble()),
+      ui.Paint()..color = const Color(0xFF3366CC),
+    );
+    final image = await recorder.endRecording().toImage(imageSide, imageSide);
+    return (await image.toByteData(format: ui.ImageByteFormat.png))!;
+  }))!;
+  final stored = File('${directory.path}/cover.png')
+    ..writeAsBytesSync(png.buffer.asUint8List());
+  final container = _createContainer(
+    overrides: <Override>[
+      subsonicApiProvider.overrideWith((_) => null),
+      permanentArtworkStoreProvider.overrideWithValue(
+        _StoredArtwork(<String, File>{'cover-1': stored}),
+      ),
+      songByIdProvider.overrideWith(
+        (ref, id) => Stream<SongsTableData?>.value(
+          const SongsTableData(
+            id: 'song-1',
+            title: 'Track',
+            coverArt: 'cover-1',
+            isProvisional: false,
+            isExternal: false,
+          ),
+        ),
+      ),
+    ],
+  );
+  container.read(nowPlayingTestPlaybackProvider.notifier).state = _songPlayback;
+
+  await _pumpNowPlaying(
+    tester,
+    container,
+    wideEmbeddedMode: embedded,
+    compactWideLandscapeMode: compactWide,
+    desktopRuntime: desktop,
+    platform: platform,
+  );
+  final cover = find.byWidgetPredicate(
+    (widget) =>
+        widget is CoverArtImage && widget.shape == ArtworkShapeRole.nowPlaying,
+  );
+  final image = find.descendant(of: cover, matching: find.byType(Image));
+  // The stored file decodes outside fake time: give it real time, then let
+  // the frame paint.
+  for (var i = 0; i < 50; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    if (image.evaluate().isNotEmpty && tester.getSize(image) != Size.zero) {
+      break;
+    }
+  }
+  expect(image, findsOneWidget, reason: 'the stored cover never painted');
+  return tester.getSize(cover);
+}
+
+class _StoredArtwork extends PermanentArtworkStore {
+  new(this._files)
+    : super(readApplicationSupportDirectory: Directory.systemTemp.createTemp);
+
+  final Map<String, File> _files;
+
+  @override
+  File? loadedFileFor(String? coverArtId) => _files[coverArtId];
+
+  @override
+  Future<File?> fileFor(String? coverArtId) async => _files[coverArtId];
 }
 
 Finder _artGesture() => find

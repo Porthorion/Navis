@@ -410,6 +410,9 @@ void main() {
           wideEmbeddedMode: true,
           size: const Size(1400, 900),
         );
+        // The split pane scrolls; a full-width cover puts the controls below the fold.
+        await tester.ensureVisible(find.byTooltip('Queue').first);
+        await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('Queue').first);
         await tester.pumpAndSettle();
         expect(embeddedQueue, findsOneWidget);

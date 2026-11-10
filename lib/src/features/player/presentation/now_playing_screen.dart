@@ -1739,18 +1739,38 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     // Local factories for the pieces the three layouts (compact-wide,
     // standard and split) construct identically. Each layout still supplies
     // its own keys, geometry and animation wrappers.
-    Widget buildCurrentArt(double radioArtMaxSize) => hasCoverArtId
-        ? _CoverArt(
-            coverArtId: coverArtId,
-            semanticLabel: title,
-            isExternalSource: song?.isExternal ?? false,
+    // A song cover is a square of the slot it is given, so it fills the slot
+    // whatever the image's size (a 48 px cover stayed 48 px on an iPad Pro, a
+    // 600 px one filled the slot). [maxSize] only applies on an axis with no
+    // bound at all. The phone layout's tight SizedBox.square still wins.
+    Widget squareArt(double maxSize, Widget child) => LayoutBuilder(
+      builder: (context, constraints) {
+        final side = math.min(constraints.maxWidth, constraints.maxHeight);
+        return SizedBox.square(
+          dimension: side.isFinite ? side : maxSize,
+          child: child,
+        );
+      },
+    );
+
+    Widget buildCurrentArt(double maxSize) => hasCoverArtId
+        ? squareArt(
+            maxSize,
+            _CoverArt(
+              coverArtId: coverArtId,
+              semanticLabel: title,
+              isExternalSource: song?.isExternal ?? false,
+            ),
           )
         : (hasMediaArtUrl
-              ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: radioArtMaxSize)
-              : _CoverArt(
-                  coverArtId: null,
-                  semanticLabel: title,
-                  isExternalSource: song?.isExternal ?? false,
+              ? _RadioCoverArt(artUrl: mediaArtUrl, maxSize: maxSize)
+              : squareArt(
+                  maxSize,
+                  _CoverArt(
+                    coverArtId: null,
+                    semanticLabel: title,
+                    isExternalSource: song?.isExternal ?? false,
+                  ),
                 ));
 
     Widget buildTrackInfo({

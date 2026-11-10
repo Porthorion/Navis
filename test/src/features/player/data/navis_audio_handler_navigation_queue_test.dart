@@ -2683,19 +2683,21 @@ void main() {
       );
     });
 
-    test(
-      'iOS without the pipeline, and other platforms, report none',
-      () async {
-        final (off, _) = await iosHandler(
-          equalizer: EqCapabilities.unavailable,
-        );
-        expect(off.playbackAdjustmentCapabilities.pitchSupported, isFalse);
-        final (notIos, _) = await iosHandler(ios: false);
-        expect(notIos.playbackAdjustmentCapabilities.pitchSupported, isFalse);
-        final (unset, _) = await iosHandler(ios: null);
-        expect(unset.playbackAdjustmentCapabilities.pitchSupported, isFalse);
-      },
-    );
+    // One handler (and database) per test: drift warns when two are open at once.
+    test('iOS without the equalizer pipeline reports no pitch', () async {
+      final (off, _) = await iosHandler(equalizer: EqCapabilities.unavailable);
+      expect(off.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+    });
+
+    test('a non-iOS platform reports no pitch', () async {
+      final (notIos, _) = await iosHandler(ios: false);
+      expect(notIos.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+    });
+
+    test('an unset platform reports no pitch', () async {
+      final (unset, _) = await iosHandler(ios: null);
+      expect(unset.playbackAdjustmentCapabilities.pitchSupported, isFalse);
+    });
 
     test(
       'locked to speed 1.25 sends pitch 1.25 and a speed change re-sends it',
