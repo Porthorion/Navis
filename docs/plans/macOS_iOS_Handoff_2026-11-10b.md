@@ -50,6 +50,9 @@ three item PRs merged (#508, #512, #511).
   kHz queue change, all with pitch on). Haptics feel (I36) is a dev-only
   change, not in that build.
 - #392: in 1.5.2 or 1.6? If in, D1-D7.
+- I36-I40 are on `dev` only. If 1.5.2 ships from `release/1.5`, they need
+  backport PRs there; asked the release/1.5 coordinator on #209 (comment
+  6615510482). Settle with the owner/#209 before the next 1.5.2 build.
 
 ## Next steps
 
