@@ -526,8 +526,6 @@ void main() {
   for (final (name, caps, ios, curve) in [
     // AVQueuePlayer: linear volume.
     ('iOS', PlaybackAdjustmentCapabilities.ios, true, 20.0),
-    // macOS mpv outside the pipeline: cubic volume.
-    ('macOS mpv', PlaybackAdjustmentCapabilities.mediaKit, false, 60.0),
   ]) {
     double cutOf(double db) => pow(10, db / curve).toDouble();
 
@@ -683,7 +681,6 @@ void main() {
   // seek is pending. The target's cut applies then, not at the commit.
   for (final (name, caps, ios, curve) in [
     ('iOS', PlaybackAdjustmentCapabilities.ios, true, 20.0),
-    ('macOS mpv', PlaybackAdjustmentCapabilities.mediaKit, false, 60.0),
   ]) {
     double cutOf(double db) => pow(10, db / curve).toDouble();
     const gains = {0: -12.0, 1: -6.0, 2: -3.0, 3: -9.0, 4: -2.0};

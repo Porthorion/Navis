@@ -825,26 +825,22 @@ class NavisAudioHandler extends BaseAudioHandler
   /// Whether the backend applies each song's ReplayGain on that song's own
   /// samples (the level travels with the source and later updates are
   /// [setReplayGainLevels] pushes), so the player volume carries none of it.
-  /// True on Linux and Windows mpv. On Android it follows the EQ processor,
+  /// True on mpv (Linux, Windows and macOS). On Android it follows the EQ processor,
   /// which both decks are built with (every player build sets
   /// [_equalizerPipelineEnabled]), so a rebuild without the processor drops it
   /// for the new players. False on iOS, whose tap carries the boost only: the
-  /// cut rides the player volume (the per-song cut is tracked in #392). False
-  /// on macOS, where mpv is off the pipeline until `af-command` is wired
-  /// (#490).
+  /// cut rides the player volume (the per-song cut is tracked in #392).
   @override
   bool get replayGainInPipeline =>
       _replayGainInPipelineOverride ??
       navisReplayGainInPipeline(
         usesMpv: _usesMpv,
-        isMacOS: !kIsWeb && Platform.isMacOS,
         androidProcessor: _usesAndroidNative && _equalizerPipelineEnabled,
       );
 
   @override
   bool get replayGainBoostSupported => navisReplayGainBoostSupported(
     usesMpv: _usesMpv,
-    isMacOS: !kIsWeb && Platform.isMacOS,
     androidProcessor: _usesAndroidNative && _equalizerPipelineEnabled,
     iosTap: _usesIos && _equalizerPipelineEnabled,
   );

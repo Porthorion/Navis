@@ -143,7 +143,7 @@ slot, another render thread in the slot) get no boost. The tap has no limiter: t
 gain are only counted. State adds `boostRequestedDb`, `boostAppliedDb` (the gain the
 last block ended on), `boostGuarded` and `boostClipSamples` (0 in a healthy run).
 Without the tap (after the EQ pipeline was rebuilt away) the capability is false and
-nothing is sent. macOS has no boost stage.
+nothing is sent.
 The DSP is covered by `third_party/just_audio/darwin/test/navis_equalizer_dsp_test.c`,
 run from `tool/equalizer_native_test.sh` (it needs only a C compiler), as are
 `navis_pitch_stage_test.c`, `navis_boost_test.c` (the boost decision table and

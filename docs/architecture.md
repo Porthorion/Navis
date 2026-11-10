@@ -5298,7 +5298,7 @@ Desktop volume follows a parallel local-settings path:
    (`_replayGainLivePending`) goes out live with the next push; a tag refresh
    never does.
 
-   - Desktop mpv (Linux, Windows): `MediaKitPlayer._applyAudio` composes `af`
+   - Desktop mpv (Linux, Windows, macOS): `MediaKitPlayer._applyAudio` composes `af`
      as `@navis_rg:lavfi=[volume=<dB>dB:precision=float],@navis_tempo...,
      @navis_eq...` (`EqualizerChain.withReplayGain`), the float volume filter
      first so a boost cannot clip before the output converts. Speed, pitch and
@@ -5351,13 +5351,10 @@ Desktop volume follows a parallel local-settings path:
      `boostClipSamples` in `/v1/equalizer` `application`) is read back from the tap.
      A song's head can be under-boosted for about 0.5 s after a join, skip or seek;
      its tail is never over-boosted. Details: `docs/plans/iOS_I24_ReplayGain_Boost_Plan.md`.
-   - macOS has no boost yet: it keeps the cut-only path until `af-command` and
-     lavfi `volume` are verified on its libmpv 0.36 (design D5, pending).
-   - Fallback: with no stage (macOS; Android after
+   - Fallback: with no stage (Android after
      `_rebuildPlayerWithoutEqualizer`) nothing is stamped or pushed, boost is
      unsupported and the Dart cut applies through `setVolume` (late by the IPC
-     time; ExoPlayer and AVPlayer volume is linear, `10^(dB/20)`, mpv's is
-     cubic, `10^(dB/60)`). During a queue replacement the cut is written as
+     time; ExoPlayer and AVPlayer volume is linear, `10^(dB/20)`). During a queue replacement the cut is written as
      soon as the selected source is in the player (`_loadingSourceInPlayer`, in
      `_restoreActivePlayerVolume` and `_applyReplayGainVolume`), not at the
      commit; before that the old song may still be audible and nothing
