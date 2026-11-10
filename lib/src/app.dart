@@ -234,8 +234,6 @@ class _DesktopActivationShortcutManager extends ShortcutManager {
   new()
     : super(
         shortcuts: const <ShortcutActivator, Intent>{
-          SingleActivator(LogicalKeyboardKey.space):
-              DoNothingAndStopPropagationIntent(),
           SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
           SingleActivator(LogicalKeyboardKey.numpadEnter): ActivateIntent(),
         },

@@ -2465,4 +2465,43 @@ void main() {
       });
     }
   });
+
+  group('I472 Back closes lyrics after a layout switch', () {
+    // Each pair builds NowPlayingScreen at a different shell site, so the old
+    // instance disposes after the new one registered its Back handler.
+    const switches = <(String, _Viewport, _Viewport)>[
+      ('phone to landscape rail', _phone, _ipadLandscape),
+      ('landscape rail to phone', _ipadLandscape, _phone),
+      ('phone to compact wide landscape', _phone, _phoneLandscape),
+      ('compact wide landscape to phone', _phoneLandscape, _phone),
+      ('folded to unfolded', _duoFolded, _duoLandscape),
+    ];
+
+    for (final (name, from, to) in switches) {
+      _testApp('Back closes inline lyrics, not the player: $name', (
+        tester,
+      ) async {
+        final container = await _pumpApp(tester, from);
+        await _openNowPlaying(tester, container);
+        // Back and forth, so every handler is registered and released twice.
+        await _resize(tester, to);
+        await _resize(tester, from);
+        await _resize(tester, to);
+
+        await tester.tap(find.byIcon(Icons.lyrics_outlined));
+        await _settle(tester);
+        expect(find.byIcon(Icons.lyrics), findsOneWidget);
+
+        await tester.binding.handlePopRoute();
+        await _settle(tester);
+
+        expect(container.read(playerSheetExpandedProvider), isTrue);
+        expect(find.byIcon(Icons.lyrics_outlined), findsOneWidget);
+
+        await tester.binding.handlePopRoute();
+        await _settle(tester);
+        expect(container.read(playerSheetExpandedProvider), isFalse);
+      });
+    }
+  });
 }

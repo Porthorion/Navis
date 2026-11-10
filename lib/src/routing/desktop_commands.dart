@@ -559,6 +559,25 @@ DesktopCommandAction? matchAnyDesktopCommandForKeyEvent(
   );
 }
 
+/// Whether an unmodified key should go to the focused widget instead of a
+/// global desktop command.
+///
+/// True when focus sits in a modal route (dialog, bottom sheet, popup menu) or
+/// on a leaf control such as a button, switch or slider that consumes
+/// Space/arrow keys itself. False for no focus, a scope node, or
+/// [shellFocusNode], so the shortcuts keep working on the bare shell.
+bool desktopCommandBlockedByFocusedControl({FocusNode? shellFocusNode}) {
+  final focusNode = FocusManager.instance.primaryFocus;
+  if (focusNode == null || focusNode == shellFocusNode) {
+    return false;
+  }
+  final focusContext = focusNode.context;
+  if (focusContext != null && ModalRoute.of(focusContext) is PopupRoute) {
+    return true;
+  }
+  return focusNode is! FocusScopeNode;
+}
+
 /// Whether the given action should be suppressed when a text field has focus.
 bool isTextSensitiveDesktopCommand(DesktopCommandAction action) {
   return action == DesktopCommandAction.playPause ||

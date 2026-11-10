@@ -3612,9 +3612,7 @@ List<SongsTableData> _resolveDesktopRandomSongs({
 }
 
 int _compareDesktopRandomSongs(SongsTableData a, SongsTableData b) {
-  final discComparison = (a.discNumber ?? 1 << 20).compareTo(
-    b.discNumber ?? 1 << 20,
-  );
+  final discComparison = (a.discNumber ?? 1).compareTo(b.discNumber ?? 1);
   if (discComparison != 0) {
     return discComparison;
   }

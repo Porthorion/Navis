@@ -360,6 +360,14 @@ Future<void> prewarmNowPlayingVisuals({
   }
 }
 
+/// Sets Now Playing's Back handler. With [release], the handler is cleared
+/// only while it is still [release]: a replaced instance disposes after the
+/// new one registered its own.
+typedef BackInterceptorSetter = void Function(
+  bool Function()? handler, {
+  bool Function()? release,
+});
+
 class NowPlayingScreen extends ConsumerStatefulWidget {
   const new({
     super.key,
@@ -378,7 +386,7 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
   final bool wideEmbeddedMode;
   final bool compactWideLandscapeMode;
   final bool showEmbeddedVolumeBelowActions;
-  final ValueChanged<bool Function()?>? onBackInterceptorChanged;
+  final BackInterceptorSetter? onBackInterceptorChanged;
   final ValueChanged<bool>? onCompactWideOverlayActiveChanged;
   final ValueChanged<VoidCallback?>? onCompactWideQueueRequestChanged;
 
@@ -836,7 +844,7 @@ class _NowPlayingBody extends ConsumerStatefulWidget {
   final bool compactWideLandscapeMode;
   final bool showEmbeddedVolumeBelowActions;
   final VoidCallback? onCollapse;
-  final ValueChanged<bool Function()?>? onBackInterceptorChanged;
+  final BackInterceptorSetter? onBackInterceptorChanged;
   final ValueChanged<bool>? onCompactWideOverlayActiveChanged;
   final ValueChanged<VoidCallback?>? onCompactWideQueueRequestChanged;
 
@@ -977,7 +985,10 @@ class _NowPlayingBodyState extends ConsumerState<_NowPlayingBody>
     _trackNavigationFeedbackResetTimer?.cancel();
     _artSwipeController.dispose();
     _trackNavigationFeedbackController.dispose();
-    widget.onBackInterceptorChanged?.call(null);
+    widget.onBackInterceptorChanged?.call(
+      null,
+      release: _dismissInternalOverlaysIfVisible,
+    );
     widget.onCompactWideOverlayActiveChanged?.call(false);
     widget.onCompactWideQueueRequestChanged?.call(null);
     _embeddedQueueScrollController.dispose();
