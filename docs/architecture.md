@@ -1930,8 +1930,14 @@ Every kind of action has one named haptic in `NavisHaptics`
 through `View.performHapticFeedback` (`HapticKinds.kt`, channel
 `com.navis.app/haptics`, which honours the system touch-feedback setting); a
 device without the constant, or a missing channel (cached after one failed
-call), gets the Flutter primitive in the last column. iOS always uses the
-primitive. Desktop is silent, so shared widgets call the helper without
+call), gets the Flutter primitive in the last column. iOS plays a native
+feedback per kind through the same channel (`ios/Runner/HapticKinds.swift`,
+registered in `AppDelegate.swift`; the pure `HapticKinds.spec(for:)` maps a
+kind to a `UIImpactFeedbackGenerator` style and intensity, the
+`UISelectionFeedbackGenerator` (`tick`) or a `UINotificationFeedbackGenerator`
+(`confirm` success, `reject` error), and an unknown kind is a light impact;
+`ios/RunnerTests/HapticKindsTests.swift` covers it). The Settings → Haptics
+gate stays in Dart, before the call. Desktop is silent, so shared widgets call the helper without
 platform checks, and mouse-only controls get no haptics.
 `AdjustmentRuler` and `RulerStepButton` keep their own tuned primitives, the
 reference feel for `tick` and `firm`, but check `NavisHaptics.allows` first.

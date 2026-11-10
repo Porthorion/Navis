@@ -317,6 +317,13 @@ const List<ChangelogVersion> changelogs = [
         type: ChangelogEntryType.improvement,
       ),
       ChangelogEntry(
+        'Taps and gestures now feel like what they do: liking confirms, '
+        'refusing buzzes, and switches, Play and Pause, pull to refresh, '
+        'reordering and long presses each have their own feel',
+        platforms: {ChangelogPlatform.ios},
+        type: ChangelogEntryType.improvement,
+      ),
+      ChangelogEntry(
         'Tag changes on the server, such as ReplayGain, titles, genres and '
         'removed songs, now reach Navis after the server rescans, without '
         'Repair Library. Automatic sync checks at most once a day on Wi-Fi, '

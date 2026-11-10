@@ -54,6 +54,20 @@ import UIKit
       }
     }
 
+    // Same channel and call as Android's `MainActivity.kt`; Dart gates by the
+    // Settings › Haptics preferences before it calls.
+    FlutterMethodChannel(
+      name: "com.navis.app/haptics",
+      binaryMessenger: messenger
+    ).setMethodCallHandler { call, result in
+      guard call.method == "perform" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      HapticKinds.play(HapticKinds.spec(for: call.arguments as? String ?? ""))
+      result(true)
+    }
+
     FlutterMethodChannel(
       name: networkCostChannelName,
       binaryMessenger: messenger
